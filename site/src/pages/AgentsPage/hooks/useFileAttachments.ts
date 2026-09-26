@@ -45,15 +45,18 @@ type PersistedAttachment = {
  * Creates synthetic File objects (empty blobs with correct metadata)
  * and populates the corresponding Maps so the UI can render them.
  *
- * Only attachments matching `currentOrgId` are returned. Entries
- * belonging to a different organization are pruned from storage.
+ * Only attachments matching `currentOrgId` are returned. Entries for other
+ * organizations stay in storage so an organization change the user did not
+ * ask for, such as opening a project in another organization, cannot
+ * discard their completed drafts; they are restored when that organization is
+ * active again. Uploads still in progress when the organization changes are
+ * discarded.
  */
 function restorePersistedAttachments(currentOrgId: string): {
 	attachments: File[];
 	uploadStates: Map<File, UploadState>;
 	previewUrls: Map<File, string>;
 } {
-	// An unknown org must not prune entries persisted for the eventual org.
 	if (!currentOrgId) {
 		return {
 			attachments: [],
@@ -71,18 +74,19 @@ function restorePersistedAttachments(currentOrgId: string): {
 	}
 	try {
 		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
-
-		if (matched.length !== persisted.length) {
-			if (matched.length > 0) {
+		// Entries from before organization scoping can never be restored.
+		const scoped = persisted.filter((p) => Boolean(p.organizationId));
+		if (scoped.length !== persisted.length) {
+			if (scoped.length > 0) {
 				localStorage.setItem(
 					persistedAttachmentsStorageKey,
-					JSON.stringify(matched),
+					JSON.stringify(scoped),
 				);
 			} else {
 				localStorage.removeItem(persistedAttachmentsStorageKey);
 			}
 		}
+		const matched = scoped.filter((p) => p.organizationId === currentOrgId);
 
 		const attachments: File[] = [];
 		const uploadStates = new Map<File, UploadState>();
@@ -158,8 +162,27 @@ function removePersistedAttachment(fileId: string) {
 	}
 }
 
-function clearPersistedAttachments() {
-	localStorage.removeItem(persistedAttachmentsStorageKey);
+function clearPersistedAttachments(organizationId: string) {
+	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
+	if (!stored) {
+		return;
+	}
+	try {
+		const persisted: PersistedAttachment[] = JSON.parse(stored);
+		const remaining = persisted.filter(
+			(p) => p.organizationId !== organizationId,
+		);
+		if (remaining.length > 0) {
+			localStorage.setItem(
+				persistedAttachmentsStorageKey,
+				JSON.stringify(remaining),
+			);
+		} else {
+			localStorage.removeItem(persistedAttachmentsStorageKey);
+		}
+	} catch {
+		localStorage.removeItem(persistedAttachmentsStorageKey);
+	}
 }
 
 type UseFileAttachmentsReturn = {
@@ -547,8 +570,9 @@ export function useFileAttachments(
 		setTextContents(new Map());
 		setUploadStates(new Map());
 		setAttachments([]);
-		if (persist) {
-			clearPersistedAttachments();
+		if (persist && stateOrgId !== null) {
+			// Nothing was adopted when the organization scope was unknown.
+			clearPersistedAttachments(stateOrgId);
 		}
 	};
 

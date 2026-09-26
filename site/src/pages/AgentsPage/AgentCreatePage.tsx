@@ -1,8 +1,16 @@
-import { type FC, useEffect, useState } from "react";
+import { PencilIcon } from "lucide-react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import {
+	Navigate,
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
+import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
 import { createChat } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
@@ -11,6 +19,8 @@ import {
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -24,7 +34,9 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { ChatProjectDialog } from "./components/ChatsSidebar/dialogs/ChatProjectDialog";
 import { ChimeButton } from "./components/ChimeButton";
+import { ProjectComposerHeader } from "./components/ProjectComposerHeader";
 import { WebPushButton } from "./components/WebPushButton";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
@@ -78,16 +90,47 @@ const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
 	) : null;
 };
 
+/**
+ * New-chat page. Serves both `/agents` and `/agents/projects/:projectId`; in
+ * the latter case the composer is framed by the project and the created chat
+ * joins it.
+ */
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
+	const { projectId } = useParams<{ projectId?: string }>();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
+	const chatProjectsEnabled = experiments.includes("chat-projects");
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: chatProjectsEnabled && projectId !== undefined,
+	});
+	const selectedProject = projectQuery.data;
+	const isProjectMissing =
+		isApiError(projectQuery.error) &&
+		projectQuery.error.response.status === 404;
+	// A cached project stays usable when a background refetch fails; only a
+	// lookup with nothing to show blocks the composer.
+	const projectLookupError =
+		projectId !== undefined &&
+		chatProjectsEnabled &&
+		!selectedProject &&
+		projectQuery.error &&
+		!isProjectMissing
+			? projectQuery.error
+			: undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
+	// The mutation outlives project navigation, so only show its error under
+	// the project it was attempted for.
+	const attemptedProjectId = createMutation.variables?.project_id;
+	const selectedProjectId = selectedProject?.id;
+	const createError =
+		attemptedProjectId === selectedProjectId ? createMutation.error : undefined;
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
@@ -150,6 +193,10 @@ const AgentCreatePage: FC = () => {
 		(debugBuild === undefined ||
 			(debugBuildFailed && debugBuildLogsQuery.data === undefined));
 
+	if (projectId !== undefined && (!chatProjectsEnabled || isProjectMissing)) {
+		return <Navigate to="/agents" replace />;
+	}
+
 	const handleCreateChat = async ({
 		message,
 		fileIDs,
@@ -179,6 +226,7 @@ const AgentCreatePage: FC = () => {
 			client_type: "ui",
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+			...(selectedProject ? { project_id: selectedProject.id } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
 
@@ -219,14 +267,46 @@ const AgentCreatePage: FC = () => {
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
-			{isPrefillLoading ? (
+			{projectLookupError ? (
+				<ErrorAlert
+					error={projectLookupError}
+					className="mx-auto mt-4 w-full max-w-3xl"
+					actions={
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => void projectQuery.refetch()}
+						>
+							Retry
+						</Button>
+					}
+				/>
+			) : projectId !== undefined && chatProjectsEnabled && !selectedProject ? (
+				// The form must not mount until its organization is known because its
+				// attachments and remembered choices are organization-scoped.
+				<Loader label="Loading project" />
+			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
 					key={prefill ? debugBuildId : "draft"}
+					lockedOrganizationId={selectedProject?.organization_id}
+					header={
+						selectedProject && (
+							<ProjectComposerHeader project={selectedProject} />
+						)
+					}
+					footer={
+						selectedProject && (
+							<ProjectComposerFooter
+								key={selectedProject.id}
+								project={selectedProject}
+							/>
+						)
+					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
-					createError={createMutation.error}
+					createError={createError}
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
@@ -238,6 +318,54 @@ const AgentCreatePage: FC = () => {
 				/>
 			)}
 		</>
+	);
+};
+
+type ProjectComposerFooterProps = {
+	readonly project: TypesGen.ChatProject;
+};
+
+const ProjectComposerFooter: FC<ProjectComposerFooterProps> = ({ project }) => {
+	const queryClient = useQueryClient();
+	const [isEditing, setIsEditing] = useState(false);
+	const editButtonRef = useRef<HTMLButtonElement>(null);
+	const updateProjectMutation = useMutation(updateChatProject(queryClient));
+	const closeDialog = () => {
+		setIsEditing(false);
+		requestAnimationFrame(() => editButtonRef.current?.focus());
+	};
+
+	return (
+		<div className="flex justify-center pt-2">
+			<Button
+				ref={editButtonRef}
+				variant="subtle"
+				size="sm"
+				className="text-content-secondary"
+				onClick={() => {
+					updateProjectMutation.reset();
+					setIsEditing(true);
+				}}
+			>
+				<PencilIcon />
+				Edit project
+			</Button>
+			<ChatProjectDialog
+				project={project}
+				open={isEditing}
+				onOpenChange={(open) => {
+					if (!open) closeDialog();
+				}}
+				isSubmitting={updateProjectMutation.isPending}
+				error={updateProjectMutation.error}
+				onSubmit={(request) => {
+					updateProjectMutation.mutate(
+						{ projectId: project.id, request },
+						{ onSuccess: closeDialog },
+					);
+				}}
+			/>
+		</div>
 	);
 };
 

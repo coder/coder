@@ -169,7 +169,7 @@ const AgentsPageLayout: FC = () => {
 	// an organization-scoped endpoint, so fall back to any accessible
 	// organization for users outside the default organization.
 	const personalOverridesOrganizationId =
-		defaultOrganizationId || (organizations[0]?.id ?? "");
+		defaultOrganizationId ?? organizations[0]?.id ?? "";
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
 

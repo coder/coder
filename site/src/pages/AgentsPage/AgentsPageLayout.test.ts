@@ -535,12 +535,11 @@ describe("useFileAttachments persistence", () => {
 		expect(result.current.attachments).toHaveLength(1);
 		expect(result.current.attachments[0].name).toBe("a.png");
 
-		// localStorage should be pruned to only the matching org.
+		// The other org's draft stays in storage for when that org is active.
 		const stored = JSON.parse(
 			localStorage.getItem(persistedAttachmentsStorageKey)!,
 		);
-		expect(stored).toHaveLength(1);
-		expect(stored[0].fileId).toBe("f1");
+		expect(stored).toHaveLength(2);
 		unmount();
 	});
 

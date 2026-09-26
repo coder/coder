@@ -38,6 +38,10 @@ const mockDeferredUpload = (): ((value: { id: string }) => void) => {
 	return deferred.resolve;
 };
 
+type ProbeProps = {
+	orgId: string;
+};
+
 describe("useFileAttachments org scoping", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -78,7 +82,7 @@ describe("useFileAttachments org scoping", () => {
 		);
 	});
 
-	it("drops another org's attachments when the org changes", async () => {
+	it("keeps another org's attachments in storage when the org changes", async () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
@@ -89,9 +93,34 @@ describe("useFileAttachments org scoping", () => {
 		await waitFor(() => {
 			expect(uploadedFileIds(result.current)).toStrictEqual([]);
 		});
-		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
-		).not.toContain("file-a");
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toContain(
+			"file-a",
+		);
+		rerender({ orgId: "org-a" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
+		});
+	});
+
+	it("resets only the adopted org's persisted attachments", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([
+				persistEntry("file-a", "a.txt", "org-a"),
+				persistEntry("file-b", "b.txt", "org-b"),
+			]),
+		);
+		const { result } = renderAttachments({ orgId: "org-b" });
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-b"]);
+		});
+		act(() => {
+			result.current.resetAttachments();
+		});
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		const stored = localStorage.getItem(persistedAttachmentsStorageKey) ?? "";
+		expect(stored).toContain("file-a");
+		expect(stored).not.toContain("file-b");
 	});
 
 	it("never exposes the previous org's file IDs in any render", async () => {
@@ -103,7 +132,7 @@ describe("useFileAttachments org scoping", () => {
 		// intermediate commit between the org changing and the
 		// adoption effect running; that window must expose nothing.
 		const renderLog: { orgId: string; fileIds: string[] }[] = [];
-		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+		const Probe: FC<ProbeProps> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			renderLog.push({ orgId, fileIds: uploadedFileIds(result) });
 			return null;
@@ -130,7 +159,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const log: { adopted: boolean; fileIds: string[] }[] = [];
-		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+		const Probe: FC<ProbeProps> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			log.push({
 				adopted: result.organizationAdopted,
@@ -255,7 +284,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Suspending after the hook runs simulates a render React abandons before commit.
-		const Suspender: FC<{ orgId: string }> = ({ orgId }) => {
+		const Suspender: FC<ProbeProps> = ({ orgId }) => {
 			useFileAttachments(orgId, { persist: true });
 			throw new Promise(() => {});
 		};
