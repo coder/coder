@@ -427,6 +427,19 @@ type turnWorkspaceContext struct {
 	cachedWorkspaceID uuid.NullUUID
 }
 
+// newTurnWorkspaceContext returns the workspace context for chat. It
+// reloads the chat from the database when chat has no workspace yet.
+func newTurnWorkspaceContext(server *Server, chat database.Chat) *turnWorkspaceContext {
+	return &turnWorkspaceContext{
+		server:      server,
+		chatStateMu: &sync.Mutex{},
+		currentChat: &chat,
+		loadChatSnapshot: func(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+			return server.db.GetChatByID(ctx, chatID)
+		},
+	}
+}
+
 func (c *turnWorkspaceContext) close() {
 	c.clearCachedWorkspaceState()
 }
