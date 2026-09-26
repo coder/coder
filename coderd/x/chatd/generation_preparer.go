@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
@@ -703,6 +704,17 @@ func (server *Server) prepareGeneration(
 		builtinToolNames[chattool.FindToolsName] = true
 	}
 
+	// The finalizer rides as a provider tool so its definition keeps the
+	// caller's schema unnormalized; it runs locally and alone in its step.
+	structuredRequestID, finalizerSchema := structuredTurnFor(ctx, logger, chat.ID, input.Messages)
+	if finalizerSchema != nil {
+		providerTools = append(providerTools, chatloop.ProviderTool{Definition: finalizerSchema.FinalizerDefinition(), Runner: finalizerSchema.FinalizerRunner()})
+		if exclusiveToolNames == nil {
+			exclusiveToolNames = make(map[string]bool)
+		}
+		exclusiveToolNames[chatstructured.FinalizerToolName] = true
+	}
+
 	toolDefinitions := chatloop.BuildToolDefinitions(tools, activeToolNames, providerTools)
 	toolNameToConfigID := make(map[string]uuid.UUID)
 	for _, t := range tools {
@@ -792,6 +804,8 @@ func (server *Server) prepareGeneration(
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             maxChatSteps,
+		StructuredRequestID:  structuredRequestID,
+		FinalizerSchema:      finalizerSchema,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,

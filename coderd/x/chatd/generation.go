@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -80,6 +81,11 @@ type generationPrepared struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// StructuredRequestID is the open structured output request of the
+	// latest user turn, or uuid.Nil. FinalizerSchema is its compiled schema
+	// when the finalizer tool is offered.
+	StructuredRequestID uuid.UUID
+	FinalizerSchema     *chatstructured.Schema
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -732,6 +738,7 @@ func (s *taskStarter) generateAssistant(
 		return xerrors.Errorf("begin generation attempt: %w", err)
 	}
 	defer attempt.closeEpisode()
+	attempt.finalizer.preload(prepared.StructuredRequestID)
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model.LanguageModel(),
@@ -954,13 +961,34 @@ func (s *taskStarter) executeLocalTools(
 		outcome.Content = append(outcome.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
+	var controls map[string][]codersdk.ChatMessagePart
+	if prepared.FinalizerSchema != nil && slices.ContainsFunc(decision.localToolCalls, func(call fantasy.ToolCallContent) bool {
+		return call.ToolName == chatstructured.FinalizerToolName
+	}) {
+		// The batch comes from the latest generation assistant row; its
+		// parts reveal provider-executed siblings and screening rejections.
+		idx := lastMessageIndex(prepared.Messages, func(msg database.ChatMessage) bool {
+			return msg.Role == database.ChatMessageRoleAssistant && !chatstate.IsReceiptRow(msg)
+		})
+		err := xerrors.New("finalizer batch has no assistant step")
+		if idx >= 0 {
+			var stepParts []codersdk.ChatMessagePart
+			if stepParts, err = chatprompt.ParseContent(prepared.Messages[idx]); err == nil {
+				controls, err = finalizerBatchControls(prepared.FinalizerSchema, prepared.StructuredRequestID, stepParts, outcome.Content)
+			}
+		}
+		if err != nil {
+			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
+		}
+	}
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
-		step:               step,
-		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
-		contentVersion:     chatprompt.CurrentContentVersion,
+		modelConfigID:        prepared.ModelConfigID,
+		step:                 step,
+		toolNameToConfigID:   prepared.ToolNameToConfigID,
+		logger:               s.opts.Logger,
+		contentVersion:       chatprompt.CurrentContentVersion,
+		extraToolResultParts: controls,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
