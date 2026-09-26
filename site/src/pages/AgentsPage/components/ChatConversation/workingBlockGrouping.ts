@@ -253,17 +253,17 @@ export const groupWorkingBlocks = (
 		const memberIds = draft.rowIndices.flatMap((i) => rowMessageIds(rows[i]));
 		// The newest block is still working unless a prompt, visible or hidden,
 		// follows its last step.
+		const lastMemberId = Math.max(...memberIds);
 		const isLive =
 			options.isTurnActive &&
 			(draft.containsLiveRow ||
 				(lastRowIndex >= lastMessageRowIndex &&
-					Math.max(...memberIds) > lastUserMessageId));
+					lastMemberId > lastUserMessageId));
 
 		// The span covers hidden tool-result messages up to the next row but
 		// never passes the next prompt, whose provider-executed parts can
 		// carry timestamps.
 		const fromId = Math.min(...memberIds);
-		const lastMemberId = Math.max(...memberIds);
 		const toId = Math.min(
 			messageIdAfter(lastRowIndex),
 			...userMessageIds.filter((id) => id > lastMemberId),
