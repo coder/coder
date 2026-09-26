@@ -116,6 +116,37 @@ func TestReadToolCallError(t *testing.T) {
 	})
 }
 
+func TestRunAgeFromHeader(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		values []string
+		want   time.Duration
+	}{
+		{name: "absent", want: 0},
+		{name: "zero", values: []string{"0"}, want: 0},
+		{name: "milliseconds", values: []string{"2500"}, want: 2500 * time.Millisecond},
+		{name: "duration limit", values: []string{"9223372036854"}, want: 9223372036854 * time.Millisecond},
+		{name: "above duration limit", values: []string{"9223372036855"}, want: 0},
+		{name: "negative", values: []string{"-1"}, want: 0},
+		{name: "not a number", values: []string{"abc"}, want: 0},
+		{name: "empty", values: []string{""}, want: 0},
+		{name: "multiple values", values: []string{"1", "2"}, want: 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := http.Header{}
+			for _, v := range tc.values {
+				h.Add(CoderToolCallRunAgeMsHeader, v)
+			}
+			require.Equal(t, tc.want, runAgeFromHeader(h))
+		})
+	}
+}
+
 func TestAgentAPIPath(t *testing.T) {
 	t.Parallel()
 

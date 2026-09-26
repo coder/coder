@@ -28,6 +28,12 @@ const (
 	// CoderToolCallAgeMsHeader carries ToolCall.Age as a non-negative
 	// decimal number of milliseconds.
 	CoderToolCallAgeMsHeader = "Coder-Tool-Call-Age-Ms"
+	// CoderToolCallRunAgeMsHeader is set by the agent on every answered
+	// request with tool call headers: the time since the agent first ran
+	// the tool call's request, as a non-negative decimal number of
+	// milliseconds. It is a header because a repeated request gets the
+	// recorded body, which cannot carry a live value.
+	CoderToolCallRunAgeMsHeader = "Coder-Tool-Call-Run-Age-Ms"
 )
 
 // ToolCall identifies the chat tool call a workspace agent request acts
@@ -86,18 +92,37 @@ func ToolCallFromHeaders(h http.Header) (tc ToolCall, ok bool, err error) {
 	if id == "" {
 		return ToolCall{}, false, xerrors.Errorf("invalid %s header: must not be empty", CoderToolCallIDHeader)
 	}
-	ageMs, err := strconv.ParseInt(h.Get(CoderToolCallAgeMsHeader), 10, 64)
-	// The upper bound keeps the conversion to time.Duration from
-	// overflowing.
-	if err != nil || ageMs < 0 || ageMs > math.MaxInt64/int64(time.Millisecond) {
+	age, ok := parseMilliseconds(h.Get(CoderToolCallAgeMsHeader))
+	if !ok {
 		return ToolCall{}, false, xerrors.Errorf("invalid %s header %q: must be a non-negative integer number of milliseconds", CoderToolCallAgeMsHeader, h.Get(CoderToolCallAgeMsHeader))
 	}
 
 	return ToolCall{
 		MessageID: messageID,
 		ID:        id,
-		Age:       time.Duration(ageMs) * time.Millisecond,
+		Age:       age,
 	}, true, nil
+}
+
+// parseMilliseconds parses a non-negative decimal number of milliseconds.
+// ok is false for a malformed value or one that overflows time.Duration.
+func parseMilliseconds(s string) (d time.Duration, ok bool) {
+	ms, err := strconv.ParseInt(s, 10, 64)
+	if err != nil || ms < 0 || ms > math.MaxInt64/int64(time.Millisecond) {
+		return 0, false
+	}
+	return time.Duration(ms) * time.Millisecond, true
+}
+
+// runAgeFromHeader returns the run age from CoderToolCallRunAgeMsHeader,
+// or zero when the header is absent, repeated, or malformed.
+func runAgeFromHeader(h http.Header) time.Duration {
+	values := h.Values(CoderToolCallRunAgeMsHeader)
+	if len(values) != 1 {
+		return 0
+	}
+	runAge, _ := parseMilliseconds(values[0])
+	return runAge
 }
 
 // ToolCallUUIDNamespace is the UUIDv5 namespace of ToolCallUUID. It is
