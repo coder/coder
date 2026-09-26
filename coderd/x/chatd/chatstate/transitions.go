@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -1360,7 +1362,8 @@ type FinishInterruptionResult struct {
 
 // FinishInterruption commits an optional partial assistant/tool suffix
 // and lands the chat in waiting (I0) or running with the next queued
-// message promoted (I1).
+// message promoted (I1). A structured output receipt goes last in the
+// partial messages, so it precedes any promotion.
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
 	if err != nil {
@@ -1438,7 +1441,11 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 }
 
 // FinishTurnInput configures [Tx.FinishTurn].
-type FinishTurnInput struct{}
+type FinishTurnInput struct {
+	// TerminalMessages are structured output receipt rows committed with the
+	// turn, before any queue promotion. Any other message is rejected.
+	TerminalMessages []Message
+}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
 type FinishTurnResult struct {
@@ -1447,12 +1454,18 @@ type FinishTurnResult struct {
 }
 
 // FinishTurn completes a running turn.
-func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
+func (tx *Tx) FinishTurn(input FinishTurnInput) (FinishTurnResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn)
+	if err == nil {
+		err = requireReceipts(input.TerminalMessages)
+	}
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
 	if from == StateR0 {
+		if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+			return FinishTurnResult{}, xerrors.Errorf("insert terminal messages: %w", err)
+		}
 		updated, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusWaiting,
 			Archived:                 false,
@@ -1479,7 +1492,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
 	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
+	// Cancellations are derived from history before the receipts land, and
+	// both precede the promoted head.
+	inserted, err := tx.insertMessages(slices.Concat(cancels, input.TerminalMessages, []Message{promotedMsg}))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
@@ -1513,6 +1528,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 // FinishErrorInput configures [Tx.FinishError].
 type FinishErrorInput struct {
 	LastError pqtype.NullRawMessage
+	// TerminalMessages are structured output receipt rows committed before
+	// the status change. Any other message is rejected.
+	TerminalMessages []Message
 }
 
 // FinishErrorResult is returned by [Tx.FinishError].
@@ -1522,8 +1540,14 @@ type FinishErrorResult struct{}
 // It is allowed when an unarchived chat is waiting or running.
 func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 	chat, _, err := tx.requireFromAllowed(TransitionFinishError)
+	if err == nil {
+		err = requireReceipts(input.TerminalMessages)
+	}
 	if err != nil {
 		return FinishErrorResult{}, err
+	}
+	if _, err := tx.insertMessages(input.TerminalMessages); err != nil {
+		return FinishErrorResult{}, xerrors.Errorf("insert terminal messages: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusError,
@@ -1536,6 +1560,39 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 		return FinishErrorResult{}, xerrors.Errorf("set error: %w", err)
 	}
 	return FinishErrorResult{}, nil
+}
+
+// ReceiptRowOutcome decodes msg when it is a structured output receipt row:
+// role assistant, visibility user, content version 1, and receipt parts
+// whose outcome decodes.
+func ReceiptRowOutcome(msg database.ChatMessage) (codersdk.ChatStructuredOutput, error) {
+	parts, ok := receiptParts(msg)
+	if !ok {
+		return codersdk.ChatStructuredOutput{}, chatstructured.ErrMalformedStructuredOutputMetadata
+	}
+	return chatstructured.ReceiptOutcome(parts)
+}
+
+// receiptParts returns the parts of msg and whether it has the receipt row
+// shape that the database exempts from execution fencing.
+func receiptParts(msg database.ChatMessage) ([]codersdk.ChatMessagePart, bool) {
+	if msg.Role != database.ChatMessageRoleAssistant || msg.Visibility != database.ChatMessageVisibilityUser ||
+		msg.ContentVersion != chatprompt.ContentVersionV1 {
+		return nil, false
+	}
+	parts, err := chatprompt.ParseContent(msg)
+	return parts, err == nil && chatstructured.IsReceipt(parts)
+}
+
+// requireReceipts fails closed unless every message is a valid receipt row.
+func requireReceipts(messages []Message) error {
+	for _, m := range messages {
+		row := database.ChatMessage{Role: m.Role, Visibility: m.Visibility, ContentVersion: m.ContentVersion, Content: m.Content}
+		if _, err := ReceiptRowOutcome(row); err != nil {
+			return xerrors.New("terminal message is not a structured output receipt")
+		}
+	}
+	return nil
 }
 
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].

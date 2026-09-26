@@ -136,6 +136,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
+- TODO: `FinishTurn` and `FinishError` now accept terminal structured output receipt rows (assistant, visibility `user`, one outcome part), inserted in the same transaction before any queue promotion or status change, and `FinishInterruption` takes a receipt as its last partial message; outstanding tool calls are read from the latest non-receipt assistant row. Describe this here.
 
 ### Execution state transition diagram
 
