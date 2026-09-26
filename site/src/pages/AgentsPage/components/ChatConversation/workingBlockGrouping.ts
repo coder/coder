@@ -12,11 +12,7 @@ import type {
  * one "Worked for" disclosure.
  */
 export type WorkingBlock = {
-	/**
-	 * React key. Complete blocks key off their newest row, which pagination
-	 * never changes; the live block uses liveKey so appended steps never
-	 * remount it.
-	 */
+	/** Newest row's key, stable across paging; live blocks use liveKey. */
 	key: string;
 	/**
 	 * Identity the block had (or would have had) while live: its turn's
@@ -25,7 +21,6 @@ export type WorkingBlock = {
 	 * persisted can still be found afterwards.
 	 */
 	liveKey: string;
-	/** Indices into the timeline rows the block was computed from. */
 	rowIndices: number[];
 	/** Distinct visible tools across the block. */
 	stepCount: number;
@@ -69,20 +64,6 @@ const parseTimestamp = (value: string | undefined): number | undefined => {
 	}
 	const time = Date.parse(value);
 	return Number.isFinite(time) ? time : undefined;
-};
-
-export const formatWorkingDuration = (milliseconds: number): string => {
-	const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
-	const hours = Math.floor(totalSeconds / 3600);
-	const minutes = Math.floor((totalSeconds % 3600) / 60);
-	const seconds = totalSeconds % 60;
-	if (hours > 0) {
-		return `${hours}h ${minutes}m`;
-	}
-	if (minutes > 0) {
-		return `${minutes}m ${seconds}s`;
-	}
-	return `${seconds}s`;
 };
 
 type RowContent = {
@@ -150,40 +131,20 @@ const getStepRowContent = (
 	return content;
 };
 
-type MessageSpan = { id: number; startedAt?: number; endedAt?: number };
-
 /**
  * Part timestamps are the only reliable clock: message created_at is shared
  * across an insert batch, so it marks when a step was persisted, not when its
  * work started.
  */
-const getMessageSpan = (entry: ParsedMessageEntry): MessageSpan => {
-	let startedAt: number | undefined;
-	let endedAt: number | undefined;
-	const observe = (value: string | undefined) => {
-		const time = parseTimestamp(value);
-		if (time === undefined) {
-			return;
+const getPartTimestamps = (entry: ParsedMessageEntry) =>
+	(entry.message.content ?? []).flatMap((part) => {
+		if (part.type === "reasoning") {
+			return [part.created_at, part.completed_at];
 		}
-		startedAt = startedAt === undefined ? time : Math.min(startedAt, time);
-		endedAt = endedAt === undefined ? time : Math.max(endedAt, time);
-	};
-	for (const part of entry.message.content ?? []) {
-		switch (part.type) {
-			case "tool-call":
-			case "tool-result":
-				observe(part.created_at);
-				break;
-			case "reasoning":
-				observe(part.created_at);
-				observe(part.completed_at);
-				break;
-			default:
-				break;
-		}
-	}
-	return { id: entry.message.id, startedAt, endedAt };
-};
+		return part.type === "tool-call" || part.type === "tool-result"
+			? [part.created_at]
+			: [];
+	});
 
 const rowMessageIds = (row: TimelineRow): readonly number[] =>
 	row.type === "live" ? [] : (row.entry.mergedFrom ?? [row.entry.message.id]);
@@ -198,8 +159,6 @@ export const groupWorkingBlocks = (
 	entries: readonly ParsedMessageEntry[],
 	options: GroupWorkingBlocksOptions,
 ): WorkingBlock[] => {
-	const spans = entries.map(getMessageSpan);
-
 	type Draft = {
 		rowIndices: number[];
 		tools: Map<string, MergedTool>;
@@ -300,36 +259,23 @@ export const groupWorkingBlocks = (
 				(lastRowIndex >= lastMessageRowIndex &&
 					Math.max(...memberIds) > lastUserMessageId));
 
-		let startedAt: number | undefined;
-		let endedAt: number | undefined;
-		const observe = (time: number | undefined) => {
-			if (time === undefined) {
-				return;
-			}
-			startedAt = startedAt === undefined ? time : Math.min(startedAt, time);
-			endedAt = endedAt === undefined ? time : Math.max(endedAt, time);
-		};
-		if (memberIds.length > 0) {
-			// Hidden tool-result messages sit between the block's rows and the
-			// next visible row, so the span runs to the next row's message but
-			// never past the next prompt: the following turn can open with
-			// provider-executed parts that carry timestamps and have no row.
-			const fromId = Math.min(...memberIds);
-			const lastMemberId = Math.max(...memberIds);
-			const toId = Math.min(
-				messageIdAfter(lastRowIndex),
-				...userMessageIds.filter((id) => id > lastMemberId),
-			);
-			for (const span of spans) {
-				if (span.id >= fromId && span.id < toId) {
-					observe(span.startedAt);
-					observe(span.endedAt);
-				}
-			}
-		}
-		if (draft.containsLiveRow) {
-			observe(parseTimestamp(options.streamState?.startedAt));
-		}
+		// The span covers hidden tool-result messages up to the next row but
+		// never passes the next prompt, whose provider-executed parts can
+		// carry timestamps.
+		const fromId = Math.min(...memberIds);
+		const lastMemberId = Math.max(...memberIds);
+		const toId = Math.min(
+			messageIdAfter(lastRowIndex),
+			...userMessageIds.filter((id) => id > lastMemberId),
+		);
+		const times = [
+			...entries
+				.filter(({ message }) => message.id >= fromId && message.id < toId)
+				.flatMap(getPartTimestamps),
+			draft.containsLiveRow ? options.streamState?.startedAt : undefined,
+		]
+			.map(parseTimestamp)
+			.filter((time) => time !== undefined);
 
 		const liveKey = `working:live:${draft.anchorKey ?? "head"}:${draft.ordinal}`;
 		const key = isLive ? liveKey : `working:through:${rows[lastRowIndex].key}`;
@@ -349,8 +295,8 @@ export const groupWorkingBlocks = (
 				options.hasMoreMessages &&
 				firstRowIndex === 0 &&
 				draft.anchorKey === undefined,
-			startedAt,
-			endedAt: isLive ? undefined : endedAt,
+			startedAt: times.length > 0 ? Math.min(...times) : undefined,
+			endedAt: isLive || times.length === 0 ? undefined : Math.max(...times),
 		};
 	});
 };
