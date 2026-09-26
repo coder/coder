@@ -1150,6 +1150,13 @@ func TestInterruptTask_ExecuteResults(t *testing.T) {
 			generic:  true,
 		},
 		{
+			name:     "DeletedWorkspace",
+			args:     executeWithinDeadline,
+			dialErr:  chattool.ErrWorkspaceDeleted,
+			noCancel: true,
+			generic:  true,
+		},
+		{
 			name:           "PastDeadlineStillRunning",
 			args:           executePastDeadline,
 			snapshot:       true,

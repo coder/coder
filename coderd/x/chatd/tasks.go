@@ -768,9 +768,10 @@ func (s *taskStarter) interruptExecuteCalls(
 	defer workspaceCtx.close()
 	conn, err := workspaceCtx.getWorkspaceConn(agentCtx)
 	if err != nil {
-		// Without an agent the processes died with it, so the calls keep
-		// today's result, as in the execute tool.
-		if !errors.Is(err, chattool.ErrWorkspaceHasNoAgent) {
+		// Without an agent, or with the workspace deleted, the processes
+		// died with the agent, so the calls keep today's result, as in the
+		// execute tool.
+		if !errors.Is(err, chattool.ErrWorkspaceHasNoAgent) && !errors.Is(err, chattool.ErrWorkspaceDeleted) {
 			for i, identity := range identities {
 				if !calls[i].background {
 					results[i], answered[i] = chattool.AgentUnreachableExecuteResult(identity, err), true
