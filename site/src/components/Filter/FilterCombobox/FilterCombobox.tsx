@@ -29,12 +29,7 @@ import {
 	coarsePointerMediaQuery,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
-import {
-	chipDisplay,
-	chipToken,
-	filterOptionsByText,
-	optionToken,
-} from "./filterQuery";
+import { chipDisplay, chipToken, optionToken } from "./filterQuery";
 import {
 	FilterComboboxChip,
 	FilterComboboxChips,
@@ -53,10 +48,12 @@ import {
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
+	optionsEmptyText,
 	optionsLoadErrorMessage,
 	optionsLoadingMessage,
 	optionsStatusMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
+	shownOptions,
 	useFilterCombobox,
 } from "./useFilterCombobox";
 
@@ -113,6 +110,7 @@ export function FilterCombobox({
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
+		activeOptionsLoading,
 		activeOptionsError,
 		statusMessage,
 		menuCategories,
@@ -247,18 +245,9 @@ export function FilterCombobox({
 		unfilteredOptionsErroredKeys,
 		actions.retryUnfilteredOptions,
 	);
-	// The hook announces its own states; the flyout is view state, so its load
+	// The hook announces its own states; the flyout is view state, so its
 	// state joins the announcement here.
-	const flyoutLoadMessage =
-		flyoutOptions &&
-		optionsStatusMessage({
-			label: flyoutOptions.category.label,
-			loading: flyoutOptions.loading,
-			failed: flyoutOptions.failed,
-			empty: flyoutOptions.emptyMessage !== undefined,
-			searched: flyoutOptions.searched,
-		});
-	const liveRegionMessage = [flyoutLoadMessage, statusMessage]
+	const liveRegionMessage = [flyoutOptions?.statusMessage, statusMessage]
 		.filter(Boolean)
 		.join(" ");
 	const selectFlyoutOption = (token: string) => {
@@ -299,6 +288,7 @@ export function FilterCombobox({
 				offset={panelOffset}
 				category={activeCategory}
 				options={activeOptions}
+				optionsLoading={activeOptionsLoading}
 				optionsError={activeOptionsError}
 				unfilteredOptionCount={
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
@@ -917,7 +907,7 @@ function OptionsPanel({
 	);
 }
 
-// The shown flyout's search and load state, or undefined when no flyout is
+// The shown flyout's search and state, or undefined when no flyout is
 // shown. FilterCombobox owns it so the live region announces what the panel
 // shows.
 const useFlyoutOptions = (
@@ -959,30 +949,23 @@ const useFlyoutOptions = (
 	}
 	const options = optionsByKey.get(category.key);
 	const optionsError = erroredKeys.has(category.key);
-	const normalized = trimmedQuery.toLowerCase();
+	const searched = trimmedQuery.length > 0;
 	const searchSettled = debouncedQuery === trimmedQuery;
-	const searchFailed =
-		normalized.length > 0 && searchSettled && searchResults.isError;
-	const filteredOptions =
-		options === undefined
-			? []
-			: normalized.length === 0
-				? options
-				: searchSettled && searchResults.data
-					? searchResults.data
-					: filterOptionsByText(options, normalized);
-	const failed = optionsError || searchFailed;
-	// A search still running counts as loading until something matches.
-	const searching =
-		normalized.length > 0 && (!searchSettled || searchResults.isFetching);
-	const loading =
-		(options === undefined && !optionsError) ||
-		(searching && !failed && filteredOptions.length === 0);
+	const failed =
+		optionsError || (searched && searchSettled && searchResults.isError);
+	const shown = shownOptions({
+		unfiltered: options,
+		results: searchResults.data,
+		text: trimmedQuery,
+		resultsCurrent: searchSettled && searchResults.data !== undefined,
+	});
+	const filteredOptions = shown.options ?? [];
+	const loading = shown.loading && !failed;
+	const empty = !loading && !failed && filteredOptions.length === 0;
 	return {
 		category,
 		query,
 		setQuery,
-		searched: normalized.length > 0,
 		filteredOptions,
 		searchable: (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT,
 		loading,
@@ -990,12 +973,14 @@ const useFlyoutOptions = (
 		retry: optionsError
 			? () => retryOptions(category.key)
 			: () => void searchResults.refetch(),
-		emptyMessage:
-			loading || failed || filteredOptions.length > 0
-				? undefined
-				: normalized.length > 0
-					? "No matching options"
-					: "No options",
+		emptyMessage: empty ? optionsEmptyText(searched) : undefined,
+		statusMessage: optionsStatusMessage({
+			label: category.label,
+			loading,
+			failed,
+			empty,
+			searched,
+		}),
 	};
 };
 
@@ -1076,6 +1061,7 @@ type CategoryOptionsListProps = Readonly<{
 	offset: number;
 	category: FilterCategory | undefined;
 	options: readonly FilterOption[] | undefined;
+	optionsLoading: boolean;
 	optionsError: boolean;
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
@@ -1092,6 +1078,7 @@ function CategoryOptionsList({
 	offset,
 	category,
 	options,
+	optionsLoading,
 	optionsError,
 	unfilteredOptionCount,
 	selectedTokens,
@@ -1130,14 +1117,12 @@ function CategoryOptionsList({
 			}
 			navigatesList
 			emptyMessage={
-				options?.length !== 0
+				optionsLoading || options?.length !== 0
 					? undefined
-					: searchValue.trim().length > 0
-						? "No matching options"
-						: "No options"
+					: optionsEmptyText(searchValue.trim().length > 0)
 			}
 		>
-			{options === undefined && <LoadingOptions />}
+			{optionsLoading && <LoadingOptions />}
 			<FilterComboboxList className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-0 pr-1">
 				{options?.map((option) => {
 					const token = optionToken(categoryKey, option);
