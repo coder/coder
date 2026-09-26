@@ -1129,7 +1129,7 @@ func TestInterruptTask_ExecuteResults(t *testing.T) {
 			name:      "UnreadableResponse",
 			args:      executeWithinDeadline,
 			err:       xerrors.New("unexpected EOF"),
-			wantError: "outcome unknown: the workspace agent answered the cancel request, but its response could not be read",
+			wantError: "outcome unknown: the workspace agent's answer could not be read",
 			wantUUID:  true,
 		},
 		{
@@ -1139,6 +1139,15 @@ func TestInterruptTask_ExecuteResults(t *testing.T) {
 			noCancel:  true,
 			wantError: "outcome unknown: the workspace agent could not be reached",
 			wantUUID:  true,
+		},
+		{
+			// The workspace's processes died with its agent, as in the
+			// execute tool.
+			name:     "NoAgent",
+			args:     executeWithinDeadline,
+			dialErr:  chattool.ErrWorkspaceHasNoAgent,
+			noCancel: true,
+			generic:  true,
 		},
 		{
 			name:           "PastDeadlineStillRunning",
@@ -1177,7 +1186,7 @@ func TestInterruptTask_ExecuteResults(t *testing.T) {
 			output:    workspacesdk.ProcessOutputResponse{Running: true, AgeMs: 11 * 60_000},
 			outputErr: agentTransportError(xerrors.New("connection reset by peer")),
 			noCancel:  true,
-			wantError: "outcome unknown: the workspace agent could not be reached to check whether the command is past its timeout, so it was not canceled",
+			wantError: "so the command, which may be past its timeout, was not canceled and may still be running",
 			wantUUID:  true,
 		},
 		{
