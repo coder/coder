@@ -1883,8 +1883,11 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	it.each(["own", "zzz"])(
-		"keeps a hover flyout that typed %s only hid",
+	it.each([
+		["own", "keeps Owner listed"],
+		["zzz", "removes every listed row"],
+	])(
+		"restores a hover flyout when typed %s, which %s, is cleared",
 		async (typed) => {
 			const { user, input } = setup(
 				[{ ...ownerCategory, getOptions: neverResolves }, statusCategory],
