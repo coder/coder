@@ -2,8 +2,10 @@ package workspacesdk_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -187,8 +189,9 @@ func TestAgentConnAppHTTPClientRefusesRedirects(t *testing.T) {
 }
 
 // TestAgentConnToolCallRequests verifies that tool call headers come from
-// each request's context rather than the connection, that CancelProcess
-// uses its route, and that StartProcess decodes a coded 409.
+// each request's context rather than the connection, that StartProcess
+// reads the run age header, and that CancelToolCall sends its route and
+// body, round-trips the recorded body, and decodes a coded 409.
 func TestAgentConnToolCallRequests(t *testing.T) {
 	t.Parallel()
 
@@ -204,26 +207,56 @@ func TestAgentConnToolCallRequests(t *testing.T) {
 		agentID:  agentTailnet,
 	})
 
+	chatID := uuid.New()
+	startCall := workspacesdk.ToolCall{MessageID: 42, ID: "toolu_start", Age: 1500 * time.Millisecond}
+	startID := workspacesdk.ToolCallUUID(chatID, startCall.MessageID, startCall.ID).String()
+	staleCall := workspacesdk.ToolCall{MessageID: 41, ID: "toolu_stale", Age: time.Minute}
+	staleID := workspacesdk.ToolCallUUID(chatID, staleCall.MessageID, staleCall.ID).String()
+	// Not valid UTF-8 and not JSON, so only a byte-exact round trip
+	// matches.
+	recordedBody := []byte{'{', 0xff, 0x00, '"', '\\', '\n'}
+	exitCode := 137
+	cancelResp := workspacesdk.CancelToolCallResponse{
+		Started:     true,
+		StatusCode:  http.StatusOK,
+		ContentType: "application/json",
+		Body:        recordedBody,
+		Process: &workspacesdk.ToolCallProcess{
+			Canceled: true,
+			Output:   "partial",
+			ExitCode: &exitCode,
+			RunAgeMs: 1234,
+		},
+	}
+
 	type received struct {
 		method string
 		path   string
 		header http.Header
+		body   []byte
 	}
-	receivedCh := make(chan received, 3)
+	receivedCh := make(chan received, 4)
 	record := func(r *http.Request) {
-		receivedCh <- received{method: r.Method, path: r.URL.Path, header: r.Header.Clone()}
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		receivedCh <- received{method: r.Method, path: r.URL.Path, header: r.Header.Clone(), body: body}
 	}
 	router := http.NewServeMux()
 	router.HandleFunc("POST /api/v0/processes/start", func(rw http.ResponseWriter, r *http.Request) {
 		record(r)
 		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusConflict)
-		_, _ = rw.Write([]byte(`{"code":"stale_tool_call","message":"Stale."}`))
+		rw.Header().Set(workspacesdk.CoderToolCallRunAgeMsHeader, "2500")
+		_, _ = fmt.Fprintf(rw, `{"id":%q,"started":true}`, startID)
 	})
-	router.HandleFunc("POST /api/v0/processes/{id}/cancel", func(rw http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("POST /api/v0/tool-calls/{id}/cancel", func(rw http.ResponseWriter, r *http.Request) {
 		record(r)
 		rw.Header().Set("Content-Type", "application/json")
-		_, _ = rw.Write([]byte(`{"started":true,"canceled":true,"output":"partial","exit_code":137,"age_ms":1234}`))
+		if r.PathValue("id") == staleID {
+			rw.WriteHeader(http.StatusConflict)
+			_, _ = rw.Write([]byte(`{"code":"stale_tool_call","message":"Stale."}`))
+			return
+		}
+		assert.NoError(t, json.NewEncoder(rw).Encode(cancelResp))
 	})
 	router.HandleFunc("GET /api/v0/processes/list", func(rw http.ResponseWriter, r *http.Request) {
 		record(r)
@@ -234,17 +267,14 @@ func TestAgentConnToolCallRequests(t *testing.T) {
 	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
 
 	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{AgentID: agentID})
-	chatID := uuid.New()
 	conn.SetExtraHeaders(http.Header{
 		workspacesdk.CoderChatIDHeader:     {chatID.String()},
 		workspacesdk.CoderToolCallIDHeader: {"connection-wide"},
 	})
 
-	startCall := workspacesdk.ToolCall{MessageID: 42, ID: "toolu_start", Age: 1500 * time.Millisecond}
-	_, err := conn.StartProcess(workspacesdk.WithToolCall(ctx, startCall), workspacesdk.StartProcessRequest{Command: "true"})
-	var tcErr *workspacesdk.ToolCallError
-	require.ErrorAs(t, err, &tcErr)
-	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	startResp, err := conn.StartProcess(workspacesdk.WithToolCall(ctx, startCall), workspacesdk.StartProcessRequest{Command: "true"})
+	require.NoError(t, err)
+	assert.Equal(t, workspacesdk.StartProcessResponse{ID: startID, Started: true, RunAge: 2500 * time.Millisecond}, startResp)
 	got := testutil.RequireReceive(ctx, t, receivedCh)
 	assert.Equal(t, chatID.String(), got.header.Get(workspacesdk.CoderChatIDHeader))
 	assert.Equal(t, []string{"toolu_start"}, got.header.Values(workspacesdk.CoderToolCallIDHeader))
@@ -252,23 +282,26 @@ func TestAgentConnToolCallRequests(t *testing.T) {
 	assert.Equal(t, "1500", got.header.Get(workspacesdk.CoderToolCallAgeMsHeader))
 
 	cancelCall := workspacesdk.ToolCall{MessageID: 43, ID: "toolu/cancel", Age: 20 * time.Millisecond}
-	processID := workspacesdk.ToolCallUUID(chatID, cancelCall.MessageID, cancelCall.ID).String()
-	cancelResp, err := conn.CancelProcess(workspacesdk.WithToolCall(ctx, cancelCall), processID)
+	cancelID := workspacesdk.ToolCallUUID(chatID, cancelCall.MessageID, cancelCall.ID).String()
+	gotCancel, err := conn.CancelToolCall(workspacesdk.WithToolCall(ctx, cancelCall), cancelID, workspacesdk.CancelToolCallRequest{StopIfRunAgeBelowMs: 30000})
 	require.NoError(t, err)
-	exitCode := 137
-	assert.Equal(t, workspacesdk.CancelProcessResponse{
-		Started:  true,
-		Canceled: true,
-		Output:   "partial",
-		ExitCode: &exitCode,
-		AgeMs:    1234,
-	}, cancelResp)
+	assert.Equal(t, cancelResp, gotCancel)
+	assert.Equal(t, recordedBody, gotCancel.Body)
 	got = testutil.RequireReceive(ctx, t, receivedCh)
 	assert.Equal(t, http.MethodPost, got.method)
-	assert.Equal(t, "/api/v0/processes/"+processID+"/cancel", got.path)
+	assert.Equal(t, "/api/v0/tool-calls/"+cancelID+"/cancel", got.path)
+	assert.JSONEq(t, `{"stop_if_run_age_below_ms":30000}`, string(got.body))
 	assert.Equal(t, []string{"toolu%2Fcancel"}, got.header.Values(workspacesdk.CoderToolCallIDHeader))
 	assert.Equal(t, "43", got.header.Get(workspacesdk.CoderToolCallMessageIDHeader))
 	assert.Equal(t, "20", got.header.Get(workspacesdk.CoderToolCallAgeMsHeader))
+
+	_, err = conn.CancelToolCall(workspacesdk.WithToolCall(ctx, staleCall), staleID, workspacesdk.CancelToolCallRequest{})
+	var tcErr *workspacesdk.ToolCallError
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	got = testutil.RequireReceive(ctx, t, receivedCh)
+	assert.JSONEq(t, `{"stop_if_run_age_below_ms":0}`, string(got.body))
+	assert.Equal(t, "41", got.header.Get(workspacesdk.CoderToolCallMessageIDHeader))
 
 	_, err = conn.ListProcesses(ctx)
 	require.NoError(t, err)
