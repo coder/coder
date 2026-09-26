@@ -154,6 +154,11 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
+	// ToolCallIdentity identifies the assistant message containing the
+	// tool calls; each call's context carries it with its own
+	// ToolCallID. Tools see no identity when its ChatID is unset.
+	ToolCallIdentity chattool.ToolCallIdentity
+
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
 	// result cannot overflow the prompt. Zero means unknown, in which
@@ -554,6 +559,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		opts.ToolCallIdentity,
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -1037,6 +1043,17 @@ type toolExecutionResult struct {
 	interval BilledInterval
 }
 
+// toolCallContext returns the context for running the tool call
+// toolCallID of a batch identified by batch, carrying its
+// chattool.ToolCallIdentity when the batch has one.
+func toolCallContext(ctx context.Context, batch chattool.ToolCallIdentity, toolCallID string) context.Context {
+	if batch.ChatID == uuid.Nil {
+		return ctx
+	}
+	batch.ToolCallID = toolCallID
+	return chattool.WithToolCallIdentity(ctx, batch)
+}
+
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
 // call order. Results are returned in original order after all tools finish.
 // recorder, if set, receives live start and completion timestamps.
@@ -1057,6 +1074,7 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	batch chattool.ToolCallIdentity,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1128,7 +1146,7 @@ func executeTools(
 			}
 		}()
 		executions[i].content = executeSingleTool(
-			ctx,
+			toolCallContext(ctx, batch, tc.ToolCallID),
 			toolMap,
 			tc,
 			metrics,
