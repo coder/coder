@@ -36,6 +36,9 @@ type buildCommitStepMessagesInput struct {
 	// extraAssistantParts are appended to the assistant row, for example a
 	// structured output rejection control part.
 	extraAssistantParts []codersdk.ChatMessagePart
+	// extraToolResultParts are appended to the tool row of the keyed call,
+	// for example a structured output candidate control part.
+	extraToolResultParts map[string][]codersdk.ChatMessagePart
 }
 
 type stepMessagesForCommit struct {
@@ -74,7 +77,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 				part.CreatedAt = &ts
 			}
 		}
-		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		content, err := chatprompt.MarshalParts(append([]codersdk.ChatMessagePart{part}, input.extraToolResultParts[part.ToolCallID]...))
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
