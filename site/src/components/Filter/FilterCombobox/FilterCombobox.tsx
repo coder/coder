@@ -127,6 +127,7 @@ export function FilterCombobox({
 		unfilteredOptionsErroredKeys,
 		valueSuggestions,
 		inlineOptionRows,
+		inlineOptionErrors,
 		chipValues,
 		highlightRef,
 		typeaheadError,
@@ -242,6 +243,7 @@ export function FilterCombobox({
 		categoryPlaceholderCount === 0 &&
 		valueSuggestions.length === 0 &&
 		inlineOptionRows.length === 0 &&
+		inlineOptionErrors.length === 0 &&
 		!typeaheadError;
 
 	const mainPanelProps = {
@@ -249,6 +251,7 @@ export function FilterCombobox({
 		categoryPlaceholderCount,
 		valueSuggestions,
 		inlineOptionRows,
+		inlineOptionErrors,
 		typeaheadError,
 		registerCategoryRow,
 		onSelectCategory: selectCategory,
@@ -256,6 +259,7 @@ export function FilterCombobox({
 		onToggleInlineOption: actions.toggleInlineOption,
 		onSelectSuggestion: actions.toggleValueSuggestion,
 		onRetry: actions.retryTypeahead,
+		onRetryInlineOptions: actions.retryUnfilteredOptions,
 	};
 	const categoryOptionsList =
 		activeCategoryKey === null ? undefined : (
@@ -525,6 +529,8 @@ export function FilterCombobox({
 }
 
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
+const INLINE_GROUP_CLASS =
+	"mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0";
 
 // Categories with more options than this get a search field in their panel.
 export const SEARCHABLE_OPTION_COUNT = 10;
@@ -646,6 +652,7 @@ type MainPanelProps = Readonly<{
 	categoryPlaceholderCount: number;
 	valueSuggestions: readonly ValueSuggestion[];
 	inlineOptionRows: readonly InlineOptionRow[];
+	inlineOptionErrors: readonly { category: FilterCategory; heading: string }[];
 	typeaheadError: boolean;
 	embedded?: boolean;
 	/** Clicking a category enters it instead of opening its pointer flyout. */
@@ -663,6 +670,7 @@ type MainPanelProps = Readonly<{
 	onToggleInlineOption: (token: string) => void;
 	onSelectSuggestion: (token: string) => void;
 	onRetry: () => void;
+	onRetryInlineOptions: (categoryKey: string) => void;
 }>;
 
 function MainPanel({
@@ -670,6 +678,7 @@ function MainPanel({
 	categoryPlaceholderCount,
 	valueSuggestions,
 	inlineOptionRows,
+	inlineOptionErrors,
 	typeaheadError,
 	embedded = false,
 	drillIn,
@@ -679,6 +688,7 @@ function MainPanel({
 	onToggleInlineOption,
 	onSelectSuggestion,
 	onRetry,
+	onRetryInlineOptions,
 }: MainPanelProps) {
 	return (
 		<FilterComboboxList
@@ -723,10 +733,7 @@ function MainPanel({
 				</FilterComboboxItem>
 			))}
 			{groupByCategoryLabel(inlineOptionRows).map(([label, rows]) => (
-				<FilterComboboxGroup
-					className="mt-2 border-t border-border pt-2 first:mt-0 first:border-t-0 first:pt-0"
-					key={label}
-				>
+				<FilterComboboxGroup className={INLINE_GROUP_CLASS} key={label}>
 					<FilterComboboxLabel className="pt-0 opacity-80">
 						{label}
 					</FilterComboboxLabel>
@@ -748,6 +755,17 @@ function MainPanel({
 						</FilterComboboxItem>
 					))}
 				</FilterComboboxGroup>
+			))}
+			{inlineOptionErrors.map(({ category, heading }) => (
+				<div className={INLINE_GROUP_CLASS} key={category.key}>
+					<FilterComboboxLabel className="pt-0 opacity-80">
+						{heading}
+					</FilterComboboxLabel>
+					<LoadError
+						message={optionsLoadErrorMessage(category)}
+						onRetry={() => onRetryInlineOptions(category.key)}
+					/>
+				</div>
 			))}
 			{groupByCategoryLabel(valueSuggestions).map(
 				([categoryLabel, suggestions]) => (
