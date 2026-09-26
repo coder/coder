@@ -1323,7 +1323,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("searches workspaces with Enter when free-typed text matches a filter", async () => {
-		const { user, onChange, input } = setup([ownerCategory]);
+		const { user, onChange, input, filtersButton } = setup([ownerCategory]);
 
 		await user.click(input);
 		await user.type(input, "ali");
@@ -1335,7 +1335,7 @@ describe("FilterCombobox", () => {
 
 		expect(onChange).toHaveBeenLastCalledWith("ali");
 		expect(input).toHaveValue("ali");
-		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+		expect(filtersButton).toHaveAttribute("aria-expanded", "false");
 	});
 
 	it("completes the first match for free-typed text with Tab", async () => {
@@ -1625,12 +1625,78 @@ describe("FilterCombobox", () => {
 		const search = await screen.findByRole("textbox", { name: "Search Owner" });
 		await user.type(search, "nobody");
 		expect(search).toHaveFocus();
+		await expectStatus("No Owner matches");
 
 		await user.clear(search);
 		await user.type(search, "zed");
 		await user.click(await screen.findByRole("button", { name: "zed" }));
 
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:zed"));
+	});
+
+	it("clears the hover flyout search when another flyout shows or the menu closes", async () => {
+		const userCategory = { ...manyOwnersCategory, key: "user", label: "User" };
+		const { user, filtersButton } = setup([manyOwnersCategory, userCategory], {
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.type(
+			await screen.findByRole("textbox", { name: "Search Owner" }),
+			"user-1",
+		);
+		await user.hover(screen.getByRole("option", { name: "User" }));
+		await screen.findByRole("textbox", { name: "Search User" });
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		expect(search).toHaveValue("");
+
+		await user.type(search, "user-1");
+		await user.click(document.body);
+		await waitFor(() =>
+			expect(filtersButton).toHaveAttribute("aria-expanded", "false"),
+		);
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		expect(
+			await screen.findByRole("textbox", { name: "Search Owner" }),
+		).toHaveValue("");
+	});
+
+	it("does not search the next flyout's loader with the previous search", async () => {
+		const getUserOptions = vi.fn(manyOwnersCategory.getOptions);
+		const getOwnerOptions = vi.fn(manyOwnersCategory.getOptions);
+		const { user, filtersButton } = setup(
+			[
+				{ ...manyOwnersCategory, getOptions: getOwnerOptions },
+				{
+					...manyOwnersCategory,
+					key: "user",
+					label: "User",
+					getOptions: getUserOptions,
+				},
+			],
+			{ skipHover: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await user.type(
+			await screen.findByRole("textbox", { name: "Search Owner" }),
+			"user-1",
+		);
+		await waitFor(() => expect(getOwnerOptions).toHaveBeenCalledWith("user-1"));
+		await user.hover(screen.getByRole("option", { name: "User" }));
+		// A stale search would run as soon as the User flyout shows, before this
+		// one settles.
+		await user.type(
+			await screen.findByRole("textbox", { name: "Search User" }),
+			"user-2",
+		);
+		await waitFor(() => expect(getUserOptions).toHaveBeenCalledWith("user-2"));
+
+		expect(getUserOptions).not.toHaveBeenCalledWith("user-1");
 	});
 
 	it("retries a failed hover flyout search", async () => {
@@ -1764,6 +1830,58 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	const expectHighlighted = (name: string) =>
+		expect(screen.getByRole("option", { name })).toHaveAttribute(
+			"aria-selected",
+			"true",
+		);
+
+	it("moves on from the first loaded option after a Retry hands it the highlight", async () => {
+		const { user, filtersButton, retry } = setupFailedInlineStatus();
+
+		await user.click(filtersButton);
+		await expectStatus("Couldn’t load Status options.");
+		await user.keyboard("{End}{Enter}");
+		await act(async () => retry.resolve(undefined));
+		await waitFor(() => expectHighlighted("Running"));
+		await user.keyboard("{ArrowUp}");
+
+		expectHighlighted("Owner");
+	});
+
+	it("keeps a highlight typed over a pending Retry when the load finishes", async () => {
+		const { user, filtersButton, retry } = setupFailedInlineStatus();
+
+		await user.click(filtersButton);
+		await expectStatus("Couldn’t load Status options.");
+		await user.keyboard("{End}{Enter}");
+		await expectStatus("Loading Status options.");
+		await user.keyboard("i");
+		await act(async () => retry.resolve(undefined));
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{ArrowUp}");
+
+		expectHighlighted("alice");
+	});
+
+	it("highlights the first row when reopened after a Retry finished while closed", async () => {
+		const { user, filtersButton, retry } = setupFailedInlineStatus();
+
+		await user.click(filtersButton);
+		await expectStatus("Couldn’t load Status options.");
+		await user.keyboard("{End}{Enter}");
+		await expectStatus("Loading Status options.");
+		await user.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(filtersButton).toHaveAttribute("aria-expanded", "false"),
+		);
+		await act(async () => retry.resolve(undefined));
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Running" });
+
+		expectHighlighted("Owner");
+	});
+
 	it("announces every failed inline category", async () => {
 		const failing = async () => {
 			throw new Error("boom");
@@ -1787,9 +1905,7 @@ describe("FilterCombobox", () => {
 
 		await user.click(filtersButton);
 
-		expect(
-			await screen.findByRole("option", { name: "Loading Status options." }),
-		).toBeInTheDocument();
+		await screen.findByRole("option", { name: "Loading Status options." });
 		await expectStatus("Loading Status options.");
 	});
 

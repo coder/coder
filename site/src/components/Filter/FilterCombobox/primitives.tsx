@@ -90,7 +90,8 @@ type FilterComboboxRootProps = {
 	 * and the rows whose highlight changes, not the caller's option lists.
 	 */
 	highlightRef?: Ref<FilterComboboxHighlight>;
-	onHighlightedValueChange?: (value: string) => void;
+	/** Called with the new highlighted value and the one it replaced. */
+	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
 	className?: string;
@@ -189,9 +190,10 @@ export function FilterComboboxRoot({
 							highlightedValueRef.current = "";
 							return;
 						}
+						const previous = highlightedValueRef.current;
 						highlightedValueRef.current = value;
 						setHighlightedValue(value);
-						onHighlightedValueChange?.(value);
+						onHighlightedValueChange?.(value, previous);
 					}}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
