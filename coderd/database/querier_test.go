@@ -19442,6 +19442,11 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 				want: []database.ListOrganizationAISpendUsersRow{row(alice, []string{"anthropic"}, []string{"vscode"}, []string{"claude"}, 1000, 0, 1, 1000, 0)},
 			},
 			{
+				name:   "UnpricedOnly",
+				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "gpt-4o" },
+				want:   []database.ListOrganizationAISpendUsersRow{row(alice, []string{"openai"}, []string{"Unknown"}, []string{"gpt-4o"}, 0, 1, 1, 0, 1)},
+			},
+			{
 				name:   "NoMatch",
 				mutate: func(p *database.ListOrganizationAISpendUsersParams) { p.Model = "missing" },
 				want:   nil,

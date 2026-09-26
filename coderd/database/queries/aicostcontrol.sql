@@ -501,14 +501,17 @@ LIMIT NULLIF(@limit_opt::int, 0);
 -- providers, clients, and models each user spent through and the count and
 -- totals over every matching user. It must keep the same joins and predicates as
 -- ExportOrganizationAISpend so both report the same token usage.
-WITH spend AS (
+WITH usage_by_dimension AS (
+	-- Collapsing usage rows to one row per user and dimension first lets
+	-- parallel workers do the aggregation, so the DISTINCT arrays below read a
+	-- few rows per user instead of every usage row.
 	SELECT
 		ai.initiator_id AS user_id,
-		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+		ai.provider,
+		COALESCE(ai.client, 'Unknown') AS client,
+		ai.model,
+		SUM(tu.cost_micros) AS cost_micros,
+		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL) AS unpriced_usage_count
 	FROM aibridge_token_usages tu
 	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
 	JOIN groups ON groups.id = tu.effective_group_id
@@ -527,7 +530,18 @@ WITH spend AS (
 			WHEN @client::text != '' THEN COALESCE(ai.client, 'Unknown') = @client::text
 			ELSE true
 		END
-	GROUP BY ai.initiator_id
+	GROUP BY ai.initiator_id, ai.provider, COALESCE(ai.client, 'Unknown'), ai.model
+),
+spend AS (
+	SELECT
+		user_id,
+		COALESCE(SUM(cost_micros), 0)::BIGINT AS cost_micros,
+		SUM(unpriced_usage_count)::BIGINT AS unpriced_usage_count,
+		ARRAY_AGG(DISTINCT provider ORDER BY provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT client ORDER BY client)::text[] AS clients,
+		ARRAY_AGG(DISTINCT model ORDER BY model)::text[] AS models
+	FROM usage_by_dimension
+	GROUP BY user_id
 )
 SELECT
 	spend.user_id,
