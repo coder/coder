@@ -235,6 +235,7 @@ export const SharedUnreadChat: Story = {
 				owner_id: "sharing-user",
 				owner_name: "Sharing User",
 				owner_username: "sharing-user",
+				owner_avatar_url: "/emojis/1f9d1-200d-1f4bb.png",
 				shared: true,
 				has_unread: true,
 				last_turn_summary: "Original unread chat summary",
@@ -243,9 +244,54 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
+/** Chats shared with the viewer group after owned chats behind a dotted line. */
+export const SharedChatsGroupedAfterOwned: Story = {
+	args: {
+		chats: [
+			buildChat({ id: "owned-1", title: "My first chat" }),
+			buildChat({
+				id: "shared-1",
+				title: "A chat shared with me",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				owner_avatar_url: "/emojis/1f9d1-200d-1f4bb.png",
+				shared: true,
+			}),
+			buildChat({ id: "owned-2", title: "My second chat" }),
+			buildChat({
+				id: "shared-2",
+				title: "Another chat shared with me",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+			}),
+		],
+	},
+};
+
+/** A running chat shared with the viewer shimmers the owner avatar. */
+export const SharedRunningChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-running-chat",
+				title: "Shared running chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				status: "running",
+			}),
+		],
+	},
+};
+
 /**
- * The active row normally swaps its timestamp for the actions trigger, but
- * another user's shared chat has no owner actions, so the timestamp stays.
+ * Another user's shared chat has no owner actions, so the active row shows
+ * neither a timestamp nor an actions trigger.
  */
 export const ActiveSharedChatViewerHasNoActions: Story = {
 	args: {

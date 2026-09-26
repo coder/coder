@@ -2316,6 +2316,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "497f6eca-6276-4993-bfeb-53cbbbba6f08"
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "http://example.com",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "owner_username": "string",
@@ -2430,6 +2431,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "http://example.com",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "owner_username": "string",
@@ -2474,6 +2476,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_avatar_url`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -5398,6 +5401,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "497f6eca-6276-4993-bfeb-53cbbbba6f08"
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_avatar_url": "http://example.com",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
     "owner_name": "string",
     "owner_username": "string",

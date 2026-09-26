@@ -5067,6 +5067,7 @@ type Chat struct {
 	GroupACL                 ChatACL                 `db:"group_acl" json:"group_acl"`
 	OwnerUsername            string                  `db:"owner_username" json:"owner_username"`
 	OwnerName                string                  `db:"owner_name" json:"owner_name"`
+	OwnerAvatarUrl           string                  `db:"owner_avatar_url" json:"owner_avatar_url"`
 	ContextAggregateHash     []byte                  `db:"context_aggregate_hash" json:"context_aggregate_hash"`
 	ContextDirtySince        sql.NullTime            `db:"context_dirty_since" json:"context_dirty_since"`
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`

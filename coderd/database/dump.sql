@@ -2352,6 +2352,7 @@ CREATE VIEW chats_expanded AS
     COALESCE(root.group_acl, c.group_acl) AS group_acl,
     owner.username AS owner_username,
     owner.name AS owner_name,
+    owner.avatar_url AS owner_avatar_url,
     c.context_aggregate_hash,
     c.context_dirty_since,
     c.context_dirty_resources,

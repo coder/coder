@@ -36,6 +36,7 @@ import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
+import { SharedChatOwnerAvatar } from "./SharedChatOwnerAvatar";
 import { getChatDisplayConfig } from "./statusConfig";
 
 type ChatTreeNodeProps = {
@@ -127,6 +128,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
+	const isSharedWithMe = isSharedChat && chat.owner_id !== currentUserId;
+	const showUnread = chat.has_unread && !isActiveChat;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -189,7 +192,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							// Single-line shared rows use a fixed height so their avatars
+							// sit exactly 12px apart.
+							isSharedWithMe ? "min-h-7.5 items-center" : "items-start",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
@@ -198,7 +204,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 size-5 shrink-0",
+								"group/icon relative size-5 shrink-0",
+								!isSharedWithMe && "mt-1.5",
 								hasChildren && "cursor-pointer",
 							)}
 							style={
@@ -212,16 +219,29 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										"[@media(hover:hover)]:group-hover/icon:invisible",
 								)}
 							>
-								<StatusIcon
-									data-testid={
-										isDelegatedExecuting
-											? `agents-tree-executing-${chat.id}`
-											: undefined
-									}
-									role="img"
-									aria-label={statusLabel}
-									className={cn("size-3.5 shrink-0", statusClassName)}
-								/>
+								{isSharedWithMe ? (
+									<SharedChatOwnerAvatar
+										chat={chat}
+										statusLabel={statusLabel}
+										showUnread={showUnread}
+										data-testid={
+											isDelegatedExecuting
+												? `agents-tree-executing-${chat.id}`
+												: undefined
+										}
+									/>
+								) : (
+									<StatusIcon
+										data-testid={
+											isDelegatedExecuting
+												? `agents-tree-executing-${chat.id}`
+												: undefined
+										}
+										role="img"
+										aria-label={statusLabel}
+										className={cn("size-3.5 shrink-0", statusClassName)}
+									/>
+								)}
 							</div>
 							{hasChildren && (
 								<Button
@@ -259,145 +279,155 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										>
 											{chat.title}
 										</span>
-										{chat.has_unread && !isActiveChat && (
-											<span className="sr-only">(unread)</span>
-										)}
+										{showUnread && <span className="sr-only">(unread)</span>}
 									</div>
-									<div className="flex min-w-0 items-center gap-1.5">
-										{PRIcon && prIcon && (
-											<PRIcon
-												role="img"
-												aria-label={prIcon.label}
-												className={cn("size-3.5 shrink-0", prIcon.className)}
-											/>
-										)}
-										{hasLinkedDiffStatus && hasLineStats && (
-											<span
-												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-												title={`${filesChangedLabel}, +${additions} -${deletions}`}
-											>
-												<span className="text-git-added-bright">
-													+{additions}
-												</span>
-												<span className="text-git-deleted-bright">
-													&minus;{deletions}
-												</span>
-											</span>
-										)}
-										<div
-											className={cn(
-												"min-w-0 overflow-hidden text-[13px] leading-4",
-												errorReason
-													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-													: "truncate text-content-secondary",
+									{!isSharedWithMe && (
+										<div className="flex min-w-0 items-center gap-1.5">
+											{PRIcon && prIcon && (
+												<PRIcon
+													role="img"
+													aria-label={prIcon.label}
+													className={cn("size-3.5 shrink-0", prIcon.className)}
+												/>
 											)}
-											title={subtitle}
-										>
-											{subtitle}
+											{hasLinkedDiffStatus && hasLineStats && (
+												<span
+													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+													title={`${filesChangedLabel}, +${additions} -${deletions}`}
+												>
+													<span className="text-git-added-bright">
+														+{additions}
+													</span>
+													<span className="text-git-deleted-bright">
+														&minus;{deletions}
+													</span>
+												</span>
+											)}
+											<div
+												className={cn(
+													"min-w-0 overflow-hidden text-[13px] leading-4",
+													errorReason
+														? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+														: "truncate text-content-secondary",
+												)}
+												title={subtitle}
+											>
+												{subtitle}
+											</div>
 										</div>
-									</div>
+									)}
 								</div>
 							)}
 						</NavLink>
-						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
-							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
-								{isArchivingThisChat ? (
-									<Spinner
-										className="h-3.5 w-3.5 text-content-secondary"
-										loading
-									/>
-								) : (
-									<span
-										className={cn(
-											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
-											// The timestamp swaps out for the actions trigger on
-											// hover; without menu actions there is no trigger, so
-											// keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
-										)}
-									>
-										{chat.has_unread && !isActiveChat ? (
-											<span className="flex w-3.5 shrink-0 justify-center">
-												<span
-													className="size-2 rounded-full bg-content-link"
-													data-testid={`unread-indicator-${chat.id}`}
-													aria-hidden="true"
-												/>
-											</span>
-										) : (
-											<>
-												{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
-												<span
-													data-pixel="ignore"
-													className="inline-block w-7 text-right"
-												>
-													{shortRelativeTime(chat.updated_at)}
-												</span>
-											</>
-										)}
-									</span>
+						{/* Rows shared with the viewer show nothing on the right except the
+						    actions trigger, so reserve the column only when it can appear. */}
+						{(!isSharedWithMe || hasMenuActions || isArchivingThisChat) && (
+							<div
+								className={cn(
+									"relative flex w-7 shrink-0 flex-col items-end self-stretch",
+									// Fits the fixed shared-row height so the avatar spacing holds.
+									isSharedWithMe ? "my-0.5" : "my-1",
 								)}
-							</div>
-							{isSharedChat && (
-								<UsersIcon
-									className="mt-auto size-3.5 text-content-secondary"
-									aria-label="Shared chat"
-								/>
-							)}
-							{hasMenuActions && !isArchivingThisChat && (
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
+							>
+								<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+									{isArchivingThisChat ? (
+										<Spinner
+											className="h-3.5 w-3.5 text-content-secondary"
+											loading
+										/>
+									) : isSharedWithMe ? null : (
+										<span
 											className={cn(
-												"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
-												isActiveChat && "opacity-100",
+												"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
+												// The timestamp swaps out for the actions trigger on
+												// hover; without menu actions there is no trigger, so
+												// keep the timestamp visible.
+												hasMenuActions &&
+													"[@media(hover:hover)]:group-hover:hidden group-has-data-[state=open]:hidden",
+												hasMenuActions && isActiveChat && "hidden",
 											)}
-											aria-label={`Open actions for ${chat.title}`}
-											onContextMenuCapture={(e) => {
+										>
+											{showUnread ? (
+												<span className="flex w-3.5 shrink-0 justify-center">
+													<span
+														className="size-2 rounded-full bg-content-link"
+														data-testid={`unread-indicator-${chat.id}`}
+														aria-hidden="true"
+													/>
+												</span>
+											) : (
+												<>
+													{/* Pin the ignored mask width so Pixel does not diff bounding rect changes. */}
+													<span
+														data-pixel="ignore"
+														className="inline-block w-7 text-right"
+													>
+														{shortRelativeTime(chat.updated_at)}
+													</span>
+												</>
+											)}
+										</span>
+									)}
+								</div>
+								{isSharedChat && !isSharedWithMe && (
+									<UsersIcon
+										className="mt-auto size-3.5 text-content-secondary"
+										aria-label="Shared chat"
+									/>
+								)}
+								{hasMenuActions && !isArchivingThisChat && (
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className={cn(
+													"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100",
+													isActiveChat && "opacity-100",
+												)}
+												aria-label={`Open actions for ${chat.title}`}
+												onContextMenuCapture={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+												}}
+												onMouseDownCapture={(e) => {
+													if (e.button === 2) {
+														e.preventDefault();
+														e.stopPropagation();
+													}
+												}}
+												onPointerDownCapture={(e) => {
+													if (e.button === 2) {
+														e.preventDefault();
+														e.stopPropagation();
+													}
+												}}
+											>
+												<EllipsisVerticalIcon className="size-3.5" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="end"
+											className="[&_[role=menuitem]]:text-[13px]"
+											// The dropdown is portaled to the body, but React
+											// portals bubble events through the React tree, so a
+											// right-click inside the menu would still reach the
+											// row's context-menu trigger and open a duplicate menu.
+											onContextMenu={(e) => {
 												e.preventDefault();
 												e.stopPropagation();
 											}}
-											onMouseDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
-											onPointerDownCapture={(e) => {
-												if (e.button === 2) {
-													e.preventDefault();
-													e.stopPropagation();
-												}
-											}}
 										>
-											<EllipsisVerticalIcon className="size-3.5" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent
-										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
-										// The dropdown is portaled to the body, but React
-										// portals bubble events through the React tree, so a
-										// right-click inside the menu would still reach the
-										// row's context-menu trigger and open a duplicate menu.
-										onContextMenu={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-										}}
-									>
-										<ChatActionsMenuItems
-											{...sharedMenuItemProps}
-											Item={DropdownMenuItem}
-											Separator={DropdownMenuSeparator}
-										/>
-									</DropdownMenuContent>
-								</DropdownMenu>
-							)}
-						</div>
+											<ChatActionsMenuItems
+												{...sharedMenuItemProps}
+												Item={DropdownMenuItem}
+												Separator={DropdownMenuSeparator}
+											/>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								)}
+							</div>
+						)}
 					</div>
 				</ContextMenuTrigger>
 				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">

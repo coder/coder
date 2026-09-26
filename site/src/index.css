@@ -168,6 +168,16 @@
 		calc(var(--spinner-leaf-count) * 0.1s) ease-in-out
 		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
+	/* Sweeps a highlight across an element, used on avatars of running chats. */
+	@keyframes avatar-shimmer {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(100%);
+		}
+	}
+	--animate-avatar-shimmer: avatar-shimmer 1.5s linear infinite;
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
