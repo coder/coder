@@ -434,9 +434,11 @@ func (api *API) handleCancelProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	proc, started, err := api.manager.records.Cancel(ctx, key, toolCall.Age)
-	// Cancel reports an aborted wait for a pending start on the same path
-	// as a recorded start error. The client is gone, and answering
-	// started=false for a process that is starting would be wrong.
+	// A finished request context means the client is gone, so this
+	// handler returns without writing wherever it sees one. Cancel reports
+	// an aborted wait for a pending start on the same path as a recorded
+	// start error, and answering started=false for a process that is
+	// starting would be wrong.
 	if err != nil && ctx.Err() != nil {
 		return
 	}
@@ -451,6 +453,10 @@ func (api *API) handleCancelProcess(rw http.ResponseWriter, r *http.Request) {
 
 	killed, err := proc.killAndWait(ctx)
 	if err != nil {
+		// The kill was sent; only the wait for exit was cut short.
+		if ctx.Err() != nil {
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to cancel process.",
 			Detail:  err.Error(),

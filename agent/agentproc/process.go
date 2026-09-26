@@ -44,7 +44,6 @@ type process struct {
 	logger     slog.Logger
 	running    bool
 	exitCode   *int
-	startedAt  int64
 	exitedAt   *int64
 	done       chan struct{} // closed when process exits
 	// startTime is when the process started, from the manager clock.
@@ -71,7 +70,7 @@ func (p *process) info() workspacesdk.ProcessInfo {
 		Background: p.background,
 		Running:    p.running,
 		ExitCode:   p.exitCode,
-		StartedAt:  p.startedAt,
+		StartedAt:  p.startTime.Unix(),
 		ExitedAt:   p.exitedAt,
 	}
 }
@@ -206,7 +205,6 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string,
 		buf:        buf,
 		logger:     logger,
 		running:    true,
-		startedAt:  startTime.Unix(),
 		done:       make(chan struct{}),
 		startTime:  startTime,
 		toolCall:   toolCall,
