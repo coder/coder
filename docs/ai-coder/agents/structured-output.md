@@ -37,9 +37,20 @@ Add `response_format` to the body of `POST /api/v2/chats`:
 The server rejects unknown fields in `response_format`, including `strict`, with HTTP 400 and the exact field in `validations`.
 Omit `response_format` or send `{"type": "text"}` for an ordinary chat; structured output can't be combined with plan mode.
 
+## Send a message that returns structured output
+
+Add the same `response_format` to the body of `POST /api/v2/chats/{chat}/messages`:
+
+- An idle chat inserts the message, and `message.structured_output_request_id` holds the request ID.
+- A busy chat queues the message, and `queued_message.structured_output_request_id` holds the request ID. The message keeps it when the queue promotes it.
+- With `"busy_behavior": "interrupt"`, the current turn stops and the formatted message runs after it with its own receipt. A structured output request of the stopped turn gets a `canceled` receipt with `error.code` `interrupted`.
+- Deleting a queued formatted message produces a `canceled` receipt with `error.code` `queue_deleted`.
+
+A format returns HTTP 400 on child chats, chats with a mode, chats in plan mode, and sends that set `plan_mode` to `plan`.
+
 ## Read the result
 
-The first user message of the chat carries `structured_output_request_id`.
+The user message that asks for structured output carries `structured_output_request_id`.
 The receipt is an assistant message whose `structured_output.request_id` matches it, with one of these statuses:
 
 - `succeeded`: `value` holds the output, which can be JSON `null`.

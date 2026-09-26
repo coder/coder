@@ -8,7 +8,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstructured"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestParseResponseFormat(t *testing.T) {
@@ -71,6 +74,39 @@ func TestParseResponseFormat(t *testing.T) {
 				require.Equal(t, "d", request.Description)
 				require.JSONEq(t, schema, string(request.Schema))
 			}
+		})
+	}
+}
+
+// A formatted send and enabling plan mode both take the chat row lock, so
+// whichever commits first makes the other fail.
+func TestStructuredSendSerializesWithPlanMode(t *testing.T) {
+	t.Parallel()
+	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	for name, planFirst := range map[string]bool{"PlanFirst": true, "SendFirst": false} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newTaskTestFixture(t)
+			chat, _ := createStructuredTestChat(t, f, taskUserTextMessage(t, "first", f.user.ID, f.model.ID, f.apiKey.ID))
+			server := &Server{db: f.db, pubsub: f.rawPS, logger: testutil.Logger(t)}
+			send := func(opts SendMessageOptions) error {
+				opts.ChatID, opts.CreatedBy, opts.Content = chat.ID, f.user.ID, []codersdk.ChatMessagePart{codersdk.ChatMessageText("q")}
+				_, err := server.SendMessage(ctx, opts)
+				return err
+			}
+			part, rejection := ParseResponseFormat(json.RawMessage(`{"type":"json_schema","json_schema":{"name":"r","schema":{"type":"object"}}}`), true)
+			require.Nil(t, rejection)
+			if planFirst {
+				_, err := server.UpdatePlanMode(ctx, chat.ID, plan)
+				require.NoError(t, err)
+				require.ErrorIs(t, send(SendMessageOptions{StructuredOutputRequest: part}), ErrStructuredOutputMode)
+				return
+			}
+			require.NoError(t, send(SendMessageOptions{StructuredOutputRequest: part}))
+			_, err := server.UpdatePlanMode(ctx, chat.ID, plan)
+			require.ErrorIs(t, err, ErrStructuredOutputPending)
+			require.ErrorIs(t, send(SendMessageOptions{PlanMode: &plan}), ErrStructuredOutputPending)
 		})
 	}
 }

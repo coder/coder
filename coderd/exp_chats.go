@@ -668,10 +668,14 @@ func (api *API) writePendingStructuredOutputConflict(ctx context.Context, rw htt
 	if !pending {
 		return false
 	}
+	writeStructuredOutputPendingConflict(ctx, rw)
+	return true
+}
+
+func writeStructuredOutputPendingConflict(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 		Message: "Plan mode cannot be enabled while a structured output request is pending.",
 	})
-	return true
 }
 
 func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
@@ -2367,6 +2371,28 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Update plan mode before the other fields, so a pending structured
+	// output conflict rejects the request before any of them is saved.
+	if planModeUpdate != nil {
+		updatedChat, err := api.chatDaemon.UpdatePlanMode(ctx, chat.ID, *planModeUpdate)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || errors.Is(err, chatstate.ErrChatNotFound) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			if errors.Is(err, chatd.ErrStructuredOutputPending) {
+				writeStructuredOutputPendingConflict(ctx, rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update chat plan mode.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		chat = updatedChat
+	}
+
 	if req.Title != nil {
 		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
 		if handled {
@@ -2580,25 +2606,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	if planModeUpdate != nil {
-		updatedChat, err := api.Database.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{
-			PlanMode: *planModeUpdate,
-			ID:       chat.ID,
-		})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				httpapi.ResourceNotFound(rw)
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to update chat plan mode.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		chat = updatedChat
-	}
-
 	if refreshed, err := api.Database.GetChatByID(ctx, chat.ID); err == nil {
 		aReq.New = refreshed
 	} else {
@@ -2701,16 +2708,31 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req codersdk.CreateChatMessageRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	// The raw response_format shadows the typed one, as in postChats.
+	var body struct {
+		codersdk.CreateChatMessageRequest
+		ResponseFormat json.RawMessage `json:"response_format"`
+	}
+	if !httpapi.Read(ctx, rw, r, &body) {
 		return
 	}
+	req := body.CreateChatMessageRequest
 
 	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
 			Detail:  inputError.Detail,
+		})
+		return
+	}
+	structuredRequest, rejection := chatd.ParseResponseFormat(body.ResponseFormat, api.Experiments.Enabled(codersdk.ExperimentChatStructuredOutput))
+	if structuredRequest != nil && (chat.PlanMode.Valid || chat.Mode.Valid || chat.ParentChatID.Valid || (req.PlanMode != nil && *req.PlanMode != "")) {
+		rejection = &codersdk.ValidationError{Field: "response_format", Detail: "Structured output requires a root chat outside plan mode."}
+	}
+	if rejection != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid response_format.", Validations: []codersdk.ValidationError{*rejection},
 		})
 		return
 	}
@@ -2780,6 +2802,8 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			BusyBehavior:    busyBehavior,
 			PlanMode:        sendPlanMode,
 			MCPServerIDs:    req.MCPServerIDs,
+			// A request part from ParseResponseFormat, or nil.
+			StructuredOutputRequest: structuredRequest,
 		},
 	)
 	if sendErr != nil {
@@ -2793,6 +2817,16 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot send messages to an archived chat.",
 			})
+			return
+		}
+		if xerrors.Is(sendErr, chatd.ErrStructuredOutputMode) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid response_format.", Validations: []codersdk.ValidationError{
+				{Field: "response_format", Detail: "Structured output requires a root chat outside plan mode."},
+			}})
+			return
+		}
+		if xerrors.Is(sendErr, chatd.ErrStructuredOutputPending) {
+			writeStructuredOutputPendingConflict(ctx, rw)
 			return
 		}
 		if xerrors.Is(sendErr, chatstate.ErrMessageQueueFull) {

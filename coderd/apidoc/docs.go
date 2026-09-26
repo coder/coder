@@ -21568,11 +21568,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStructuredOutputStatus"
                 },
                 "value": {
-                    "description": "Value is the validated output of a succeeded request. The JSON null\nvalue is a valid output and is distinct from an absent value.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Value is the validated output of a succeeded request. The JSON null\nvalue is a valid output and is distinct from an absent value. It can\nbe any JSON value: object is the closest Swagger type the generator\nsupports, and the TypeScript type is unknown.",
+                    "type": "object"
                 }
             }
         },
@@ -22016,6 +22013,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat asks for a structured final answer to this message.\njson_schema requires the chat-structured-output experiment, a root\nchat outside plan mode, and no plan_mode switch in the same request.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
