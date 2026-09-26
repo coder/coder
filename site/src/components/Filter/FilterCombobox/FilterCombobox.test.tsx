@@ -2402,6 +2402,8 @@ describe("FilterCombobox", () => {
 			{
 				initialValue: "owner:alice status:running outdated:true dev",
 				fakeTimers: true,
+				// Real time must not end the typed-text debounce before Clear all.
+				shouldAdvanceTime: false,
 				skipHover: true,
 			},
 		);
@@ -2416,8 +2418,9 @@ describe("FilterCombobox", () => {
 		expect(input).toHaveValue("");
 		expect(input).toHaveFocus();
 
-		await user.hover(await screen.findByRole("option", { name: "Owner" }));
-		await user.click(await screen.findByRole("button", { name: "alice" }));
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await act(() => vi.advanceTimersByTimeAsync(0));
+		await user.click(screen.getByRole("button", { name: "alice" }));
 		expect(onChange).toHaveBeenLastCalledWith("owner:alice");
 	});
 
