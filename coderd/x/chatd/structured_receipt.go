@@ -45,11 +45,7 @@ func activeRequestReceipt(ctx context.Context, logger slog.Logger, store databas
 // history's latest user turn and reports whether it is open. History that
 // cannot be reconstructed logs a warning and counts as no open request.
 func openStructuredRequest(ctx context.Context, logger slog.Logger, chatID uuid.UUID, history []database.ChatMessage) (chatstructured.ActiveRequestState, bool) {
-	// Only user rows carry requests; ordinary chats skip parsing entirely.
-	if !slices.ContainsFunc(history, func(msg database.ChatMessage) bool {
-		return msg.Role == database.ChatMessageRoleUser &&
-			bytes.Contains(msg.Content.RawMessage, []byte(codersdk.ChatMessagePartTypeStructuredOutputRequest))
-	}) {
+	if !mayHoldStructuredRequest(history) {
 		return chatstructured.ActiveRequestState{}, false
 	}
 	rows := make([]chatstructured.Row, 0, len(history))
@@ -70,6 +66,33 @@ func openStructuredRequest(ctx context.Context, logger slog.Logger, chatID uuid.
 		return chatstructured.ActiveRequestState{}, false
 	}
 	return state, state.Active && !state.Closed
+}
+
+// mayHoldStructuredRequest reports whether a user row of history mentions a
+// structured output request part. Only user rows carry requests, so ordinary
+// chats skip parsing and extra reads entirely.
+func mayHoldStructuredRequest(history []database.ChatMessage) bool {
+	return slices.ContainsFunc(history, func(msg database.ChatMessage) bool {
+		return msg.Role == database.ChatMessageRoleUser &&
+			bytes.Contains(msg.Content.RawMessage, []byte(codersdk.ChatMessagePartTypeStructuredOutputRequest))
+	})
+}
+
+// structuredStateHistory returns the rows a structured output request's
+// candidate is read from: every row, model-only ones included, because a
+// continuing stop hook invalidates the candidate on its model-only context
+// row. visible is the user-visible history; without a request there nothing
+// more is read. Readers that only need the request and whether it is open
+// may use visible rows, since an invalidation never opens or closes one.
+func structuredStateHistory(ctx context.Context, store database.Store, chatID uuid.UUID, visible []database.ChatMessage) ([]database.ChatMessage, error) {
+	if !mayHoldStructuredRequest(visible) {
+		return visible, nil
+	}
+	history, err := store.GetChatMessagesAllVisibilitiesByChatID(ctx, chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("load structured output history: %w", err)
+	}
+	return history, nil
 }
 
 // queueDeletedRequestReceipts returns the receipt that cancels the
