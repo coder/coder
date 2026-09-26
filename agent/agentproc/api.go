@@ -49,8 +49,9 @@ type apiOptions struct {
 	toolCallChats *agenttoolcall.Chats
 }
 
-// WithClock sets the clock used for process timestamps, process age, and
-// the agent start that tool call decisions compare against.
+// WithClock sets the clock used for process timestamps and process age.
+// When WithToolCallChats is not set, it also measures the agent start that
+// tool call decisions compare against.
 func WithClock(clock quartz.Clock) Option {
 	return func(o *apiOptions) {
 		o.clock = clock

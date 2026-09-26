@@ -640,7 +640,7 @@ func newToolCallTestAPI(t *testing.T, uptime time.Duration, intercept func(call,
 
 	clock := quartz.NewMock(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	api := agentfiles.NewAPI(logger, fs, nil, agentfiles.WithClock(clock))
+	api := agentfiles.NewAPI(logger, fs, nil, agentfiles.WithToolCallChats(agenttoolcall.NewChats(clock)))
 	clock.Advance(uptime).MustWait(testutil.Context(t, testutil.WaitShort))
 	return agentchat.Middleware(api.Routes()), clock, fs
 }

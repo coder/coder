@@ -21,7 +21,6 @@ type API struct {
 	pathStore         *agentgit.PathStore
 	envInfo           usershell.EnvInfoer
 	bundleFilesLimits workspacesdk.BundleFilesLimits
-	clock             quartz.Clock
 	toolCallChats     *agenttoolcall.Chats
 	// toolCalls decides whether an edit or write with tool call headers
 	// acts, and records its response for repeated requests and cancels.
@@ -47,17 +46,9 @@ func WithEnvInfo(envInfo usershell.EnvInfoer) Option {
 	}
 }
 
-// WithClock sets the clock that measures agent uptime for tool call
-// decisions when WithToolCallChats is not set.
-func WithClock(clock quartz.Clock) Option {
-	return func(api *API) {
-		api.clock = clock
-	}
-}
-
 // WithToolCallChats sets the per-chat tool call state the file records
 // share with the agent's other tool call records. Without it the API
-// keeps its own.
+// keeps its own, with the agent start measured by the real clock.
 func WithToolCallChats(chats *agenttoolcall.Chats) Option {
 	return func(api *API) {
 		api.toolCallChats = chats
@@ -71,13 +62,12 @@ func NewAPI(logger slog.Logger, filesystem afero.Fs, pathStore *agentgit.PathSto
 		pathStore:         pathStore,
 		envInfo:           usershell.SystemEnvInfo{},
 		bundleFilesLimits: defaultBundleFilesLimits,
-		clock:             quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(api)
 	}
 	if api.toolCallChats == nil {
-		api.toolCallChats = agenttoolcall.NewChats(api.clock)
+		api.toolCallChats = agenttoolcall.NewChats(quartz.NewReal())
 	}
 	api.toolCalls = agenttoolcall.NewRecords[fileResult](api.toolCallChats)
 	return api

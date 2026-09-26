@@ -1525,8 +1525,13 @@ func TestAgent_ToolCalls(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	chatID := uuid.New()
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	// toolCall returns the context of one request for a tool call. Each
+	// request has its own deadline, so a request that never gets an answer
+	// fails without holding the test context.
 	toolCall := func(messageID int64, id string) context.Context {
-		return workspacesdk.WithToolCall(ctx, workspacesdk.ToolCall{MessageID: messageID, ID: id})
+		reqCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		t.Cleanup(cancel)
+		return workspacesdk.WithToolCall(reqCtx, workspacesdk.ToolCall{MessageID: messageID, ID: id})
 	}
 
 	// The agent refuses tool calls committed up to a margin before it
@@ -1547,8 +1552,9 @@ func TestAgent_ToolCalls(t *testing.T) {
 		if errors.As(probeErr, &tcErr) && tcErr.Code == workspacesdk.ToolCallErrorAgentStartedAfterToolCall {
 			return false
 		}
+		// A deadline hit while reading the answer is not a *url.Error.
 		var urlErr *neturl.Error
-		return !errors.As(probeErr, &urlErr)
+		return !errors.As(probeErr, &urlErr) && probeCtx.Err() == nil
 	}, testutil.WaitMedium, testutil.IntervalMedium)
 	require.NoError(t, probeErr)
 
