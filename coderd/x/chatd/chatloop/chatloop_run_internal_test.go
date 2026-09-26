@@ -308,7 +308,7 @@ func TestGenerateAssistant_DecodesToolInput(t *testing.T) {
 					return fantasy.NewTextResponse("ok"), nil
 				},
 			)
-			var tool = fantasy.NewAgentTool(
+			tool := fantasy.NewAgentTool(
 				toolName,
 				"accepts an encoded argument",
 				func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
