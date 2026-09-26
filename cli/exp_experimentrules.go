@@ -141,7 +141,7 @@ func (r *RootCmd) experimentRuleWrite(use, short string, mode codersdk.Experimen
 		long = "Reset is not a kill switch: the startup default may enable the experiment. " +
 			"Use off to disable it for everyone.\n\n" + long
 	}
-	cmd := &serpent.Command{
+	return &serpent.Command{
 		Use:        usage,
 		Short:      short,
 		Long:       long,
@@ -169,19 +169,17 @@ func (r *RootCmd) experimentRuleWrite(use, short string, mode codersdk.Experimen
 				req.Condition = inv.Args[1]
 			}
 
+			revisionSet := inv.ParsedFlags().Changed("expected-revision")
 			var current *codersdk.ExperimentRuleEntry
-			if !inv.ParsedFlags().Changed("expected-revision") || mode == codersdk.ExperimentRuleModeInherit {
+			if !revisionSet || mode == codersdk.ExperimentRuleModeInherit {
 				entries, err := exp.ExperimentRules(ctx)
 				if err != nil {
 					return xerrors.Errorf("read experiment rules: %w", err)
 				}
 				current = findExperimentRuleEntry(entries, ex)
 			}
-			if !inv.ParsedFlags().Changed("expected-revision") {
-				req.ExpectedRevision = 0
-				if current != nil && current.Rule != nil {
-					req.ExpectedRevision = current.Rule.Revision
-				}
+			if !revisionSet && current != nil && current.Rule != nil {
+				req.ExpectedRevision = current.Rule.Revision
 			}
 
 			rule, err := exp.PutExperimentRule(ctx, ex, req)
@@ -204,7 +202,6 @@ func (r *RootCmd) experimentRuleWrite(use, short string, mode codersdk.Experimen
 			return nil
 		},
 	}
-	return cmd
 }
 
 func findExperimentRuleEntry(entries []codersdk.ExperimentRuleEntry, ex codersdk.Experiment) *codersdk.ExperimentRuleEntry {
