@@ -186,8 +186,9 @@ export function FilterCombobox({
 		string | null | undefined
 	>(undefined);
 	// While typed text narrows the rows, only a scope match shows a flyout,
-	// and only while its row is highlighted or no row is highlighted. It never shows on coarse pointers. A flyout the text hides
-	// returns when the text is deleted.
+	// and only while its row is highlighted or no row is highlighted. It
+	// never shows on coarse pointers. A flyout the text hides returns when the
+	// text is deleted.
 	const scopeMatchShown =
 		!isCoarsePointer &&
 		scopeMatchKey !== null &&
