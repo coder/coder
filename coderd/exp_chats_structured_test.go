@@ -270,6 +270,10 @@ func TestPostChatMessagesResponseFormat(t *testing.T) {
 		plan := codersdk.ChatPlanModePlan
 		_, err = client.CreateChatMessage(ctx, chat.ID, message(format, &plan, ""))
 		rejected(t, err)
+		// An invalid plan_mode is reported as such, not as a format conflict.
+		bogus := codersdk.ChatPlanMode("bogus")
+		_, err = client.CreateChatMessage(ctx, chat.ID, message(format, &bogus, ""))
+		require.Equal(t, "Invalid plan_mode value.", requireSDKError(t, err, http.StatusBadRequest).Message)
 		for _, seed := range []database.Chat{
 			{PlanMode: database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}},
 			{ParentChatID: uuid.NullUUID{UUID: chat.ID, Valid: true}},

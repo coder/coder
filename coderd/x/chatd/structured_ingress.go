@@ -152,8 +152,11 @@ func hasStructuredRequestPart(msg database.ChatMessage) bool {
 func (p *Server) UpdatePlanMode(ctx context.Context, chatID uuid.UUID, mode database.NullChatPlanMode) (database.Chat, error) {
 	var chat database.Chat
 	err := p.newChatMachine(chatID).Lock(ctx, func(store database.Store) error {
-		if pending, err := hasPendingStructuredRequest(ctx, p.logger, store, chatID); err != nil || (pending && mode.Valid) {
-			return cmp.Or(err, ErrStructuredOutputPending)
+		// Only enabling plan mode conflicts with structured output work.
+		if mode.Valid {
+			if pending, err := hasPendingStructuredRequest(ctx, p.logger, store, chatID); err != nil || pending {
+				return cmp.Or(err, ErrStructuredOutputPending)
+			}
 		}
 		var err error
 		chat, err = store.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{PlanMode: mode, ID: chatID})

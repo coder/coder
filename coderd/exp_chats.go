@@ -2726,6 +2726,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.PlanMode != nil {
+		if !validateChatPlanMode(*req.PlanMode) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid plan_mode value.",
+			})
+			return
+		}
+	}
+
 	structuredRequest, rejection := chatd.ParseResponseFormat(body.ResponseFormat, api.Experiments.Enabled(codersdk.ExperimentChatStructuredOutput))
 	if structuredRequest != nil && (chat.PlanMode.Valid || chat.Mode.Valid || chat.ParentChatID.Valid || (req.PlanMode != nil && *req.PlanMode != "")) {
 		rejection = &codersdk.ValidationError{Field: "response_format", Detail: "Structured output requires a root chat outside plan mode."}
@@ -2743,15 +2752,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
-
-	if req.PlanMode != nil {
-		if !validateChatPlanMode(*req.PlanMode) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid plan_mode value.",
-			})
-			return
-		}
-	}
 
 	var sendPlanMode *database.NullChatPlanMode
 	if req.PlanMode != nil {
