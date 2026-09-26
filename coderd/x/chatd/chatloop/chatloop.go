@@ -154,6 +154,14 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
+	// ChatID, ToolCallMessageID, and ToolCallAge identify the tool
+	// calls to the tools that run them (chattool.ToolCallIdentity).
+	// ToolCallMessageID is the assistant message containing the calls.
+	// Tools see no identity when ChatID is unset.
+	ChatID            uuid.UUID
+	ToolCallMessageID int64
+	ToolCallAge       chattool.ToolCallAge
+
 	// ContextLimit is the model's context window in tokens. It is used
 	// to derive a per-result byte budget so a single oversized tool
 	// result cannot overflow the prompt. Zero means unknown, in which
@@ -554,6 +562,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		toolCallBatch{chatID: opts.ChatID, messageID: opts.ToolCallMessageID, age: opts.ToolCallAge},
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -1037,6 +1046,28 @@ type toolExecutionResult struct {
 	interval BilledInterval
 }
 
+// toolCallBatch identifies the assistant message whose tool calls a
+// batch runs.
+type toolCallBatch struct {
+	chatID    uuid.UUID
+	messageID int64
+	age       chattool.ToolCallAge
+}
+
+// toolCallContext returns the context for running one tool call of the
+// batch, carrying its chattool.ToolCallIdentity when the batch has one.
+func (b toolCallBatch) toolCallContext(ctx context.Context, toolCallID string) context.Context {
+	if b.chatID == uuid.Nil {
+		return ctx
+	}
+	return chattool.WithToolCallIdentity(ctx, chattool.ToolCallIdentity{
+		ChatID:     b.chatID,
+		MessageID:  b.messageID,
+		ToolCallID: toolCallID,
+		Age:        b.age,
+	})
+}
+
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
 // call order. Results are returned in original order after all tools finish.
 // recorder, if set, receives live start and completion timestamps.
@@ -1057,6 +1088,7 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	batch toolCallBatch,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1128,7 +1160,7 @@ func executeTools(
 			}
 		}()
 		executions[i].content = executeSingleTool(
-			ctx,
+			batch.toolCallContext(ctx, tc.ToolCallID),
 			toolMap,
 			tc,
 			metrics,

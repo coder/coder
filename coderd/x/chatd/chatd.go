@@ -120,8 +120,8 @@ const (
 )
 
 var (
-	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
-	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
+	errChatHasNoWorkspaceAgent = chattool.ErrWorkspaceHasNoAgent
+	errChatWorkspaceDeleted    = chattool.ErrWorkspaceDeleted
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
@@ -586,7 +586,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, chattool.ErrChatHasNoWorkspace
 		}
 
 		// A soft-deleted workspace keeps its agent rows, so the bound agent
