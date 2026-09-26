@@ -462,12 +462,13 @@ export function FilterCombobox({
 									// input keeps it.
 									onMouseDown={(event) => event.preventDefault()}
 									onClick={(event) => {
-										// The button unmounts, so focus it held moves to the
-										// input instead of the page body.
+										// The button unmounts, as does an open category's search
+										// field on wider viewports, so focus either held moves to
+										// the input instead of the page body.
 										const hadFocus =
 											document.activeElement === event.currentTarget;
 										actions.clearAll();
-										if (hadFocus) {
+										if (hadFocus || (activeCategoryKey !== null && !isMobile)) {
 											actions.focusInput();
 										}
 									}}

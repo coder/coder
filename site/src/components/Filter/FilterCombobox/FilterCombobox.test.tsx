@@ -1971,6 +1971,26 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
 	});
 
+	it("returns focus to the input when Clear all is clicked from a category search", async () => {
+		const { user, onChange, input, filtersButton } = setup(
+			[manyOwnersCategory, statusCategory, attributesCategory],
+			{
+				initialValue: "owner:alice status:running outdated:true",
+				skipHover: true,
+			},
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		const search = await screen.findByRole("textbox", { name: "Search Owner" });
+		await user.click(search);
+		await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+		expect(input).toHaveFocus();
+		await user.keyboard("dev");
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("dev"));
+	});
+
 	it("highlights a category row after Clear all from a category its chip listed", async () => {
 		const { user, onChange, input } = setup(
 			[
