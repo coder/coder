@@ -133,7 +133,7 @@ export const getUserFilterOptions = async (
 			),
 		}));
 
-	return [selfUserOption(me), ...options];
+	return [...(await getSelfUserFilterOptions(query, me)), ...options];
 };
 
 type AttributeDefinition = {

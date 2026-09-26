@@ -33,6 +33,13 @@ describe("getUserFilterOptions", () => {
 
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
 	});
+
+	it("lists the current user only when the query matches it", async () => {
+		const queryClient = fakeQueryClient({ users: [] });
+
+		expect(await getUserFilterOptions("ali", me, queryClient)).toHaveLength(1);
+		expect(await getUserFilterOptions("zzz", me, queryClient)).toHaveLength(0);
+	});
 });
 
 describe("getSelfUserFilterOptions", () => {
