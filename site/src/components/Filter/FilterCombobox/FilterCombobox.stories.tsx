@@ -868,6 +868,34 @@ export const CategoryOptionsErrorRetry: Story = {
 	},
 };
 
+// An inline category has no flyout, so its failed load shows under its heading.
+export const InlineOptionsError: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "status",
+					label: "Status",
+					inlineOptions: true,
+					getOptions: async () => {
+						throw new Error("boom");
+					},
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await waitFor(() =>
+			expect(body.getByText(/Couldn.t load Status options/)).toBeVisible(),
+		);
+		await expect(body.getByText("Status is…")).toBeVisible();
+	},
+};
+
 // A failed suggestion lookup surfaces a Retry that refetches the typeahead.
 export const TypeaheadErrorRetry: Story = {
 	render: () => {

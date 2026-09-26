@@ -559,6 +559,8 @@ export const useFilterCombobox = ({
 		typeaheadQuerySource.length === 0
 			? unfilteredOptions.optionsByKey
 			: typeaheadOptionsByKey;
+	const inlineOptionsHeading = (category: FilterCategory) =>
+		category.inlineOptionsLabel ?? `${category.label} is…`;
 	const inlineOptionRowsFor = (
 		optionsByCategory: ReadonlyMap<string, readonly FilterOption[]>,
 	) =>
@@ -570,7 +572,7 @@ export const useFilterCombobox = ({
 				const token = optionToken(category.key, option);
 				return {
 					categoryKey: category.key,
-					categoryLabel: category.inlineOptionsLabel ?? `${category.label} is…`,
+					categoryLabel: inlineOptionsHeading(category),
 					token,
 					selected: chipValues.includes(token),
 					showIcon: category.inlineOptionsIcons ?? false,
@@ -578,13 +580,29 @@ export const useFilterCombobox = ({
 				};
 			});
 		});
+	const inlineRowsShown = (categoryKey: string) =>
+		typedInlinePrefix === null || categoryKey === typedInlinePrefix.categoryKey;
 	const inlineOptionRows = open
-		? inlineOptionRowsFor(inlineOptionsSource).filter(
-				(row) =>
-					typedInlinePrefix === null ||
-					row.categoryKey === typedInlinePrefix.categoryKey,
+		? inlineOptionRowsFor(inlineOptionsSource).filter((row) =>
+				inlineRowsShown(row.categoryKey),
 			)
 		: [];
+	// Inline categories have no flyout to offer Retry, so a failed load shows
+	// it in the main panel until typed text replaces the rows.
+	const inlineOptionErrors =
+		open && typeaheadQuerySource.length === 0
+			? categories
+					.filter(
+						(category) =>
+							category.inlineOptions &&
+							inlineRowsShown(category.key) &&
+							unfilteredOptions.erroredKeys.has(category.key),
+					)
+					.map((category) => ({
+						category,
+						heading: inlineOptionsHeading(category),
+					}))
+			: [];
 
 	const valueSuggestions =
 		!typeaheadActive || typedInlinePrefix !== null
@@ -1162,6 +1180,7 @@ export const useFilterCombobox = ({
 		unfilteredOptionsErroredKeys: unfilteredOptions.erroredKeys,
 		valueSuggestions,
 		inlineOptionRows,
+		inlineOptionErrors,
 		chipValues,
 		highlightRef,
 		typeaheadError,
