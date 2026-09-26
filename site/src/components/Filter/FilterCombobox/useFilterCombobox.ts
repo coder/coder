@@ -165,13 +165,17 @@ type StatusMessageInput = {
 	categoryListLoading: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
-	failedInlineCategoryLabel: string | undefined;
 	typeaheadEmpty: boolean;
+	inlineLoadMessages: readonly string[];
 };
 
-// cmdk value of an inline category's Retry row. Chip tokens never start with
-// a double underscore key.
-const INLINE_RETRY_VALUE_PREFIX = "__retry__:";
+// cmdk value of an inline category's loading or Retry row. Assumes no
+// category key starts with "__load__".
+const INLINE_LOAD_ROW_VALUE_PREFIX = "__load__:";
+
+/** Shown and announced when a category's options fail to load. */
+export const optionsLoadErrorMessage = (label: string) =>
+	`Couldn’t load ${label} options.`;
 
 /**
  * Longest wait for option lookups before typed text that matched no loaded
@@ -193,15 +197,15 @@ const deriveStatusMessage = ({
 	categoryListLoading,
 	typeaheadLoading,
 	typeaheadError,
-	failedInlineCategoryLabel,
 	typeaheadEmpty,
+	inlineLoadMessages,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
 		if (activeOptionsLoading) {
 			return `Loading ${activeCategoryLabel} options`;
 		}
 		if (activeOptionsError) {
-			return `Couldn't load ${activeCategoryLabel} options`;
+			return optionsLoadErrorMessage(activeCategoryLabel);
 		}
 		if (activeOptionsEmpty) {
 			return `No ${activeCategoryLabel} matches`;
@@ -217,11 +221,11 @@ const deriveStatusMessage = ({
 	if (typeaheadError) {
 		return SUGGESTIONS_ERROR_MESSAGE;
 	}
-	if (failedInlineCategoryLabel !== undefined) {
-		return `Couldn't load ${failedInlineCategoryLabel} options`;
-	}
 	if (typeaheadEmpty) {
 		return "No filters found";
+	}
+	if (inlineLoadMessages.length > 0) {
+		return inlineLoadMessages.join(" ");
 	}
 	return "";
 };
@@ -693,9 +697,9 @@ export const useFilterCombobox = ({
 				option,
 			};
 		});
-	// Inline categories have no flyout, so the main panel shows a failed load's
-	// error and Retry, and a loading row while that Retry runs. Typed text
-	// replaces the unfiltered rows and their load state.
+	// Inline categories have no flyout, so the main panel shows their loading
+	// row, or a failed load's error and Retry. Typed text replaces the
+	// unfiltered rows and their load state.
 	const inlineLoadStatus = (
 		category: FilterCategory,
 	): "ready" | "loading" | "failed" => {
@@ -705,9 +709,9 @@ export const useFilterCombobox = ({
 		if (unfilteredOptions.erroredKeys.has(category.key)) {
 			return "failed";
 		}
-		return unfilteredOptions.failedOrRetryingKeys.has(category.key)
-			? "loading"
-			: "ready";
+		return unfilteredOptions.optionsByKey.has(category.key)
+			? "ready"
+			: "loading";
 	};
 	const inlineSections = open
 		? categories.flatMap((category) => {
@@ -729,15 +733,18 @@ export const useFilterCombobox = ({
 						heading: category.inlineOptionsLabel ?? `${category.label} is…`,
 						rows,
 						status,
-						retryValue: `${INLINE_RETRY_VALUE_PREFIX}${category.key}`,
+						loadRowValue: `${INLINE_LOAD_ROW_VALUE_PREFIX}${category.key}`,
 					},
 				];
 			})
 		: [];
 	const inlineOptionRows = inlineSections.flatMap((section) => section.rows);
-	const failedInlineSection = inlineSections.find(
-		(section) => section.status === "failed",
-	);
+	const inlineLoadMessages = inlineSections.flatMap(({ category, status }) => {
+		if (status === "loading") {
+			return [`Loading ${category.label} options`];
+		}
+		return status === "failed" ? [optionsLoadErrorMessage(category.label)] : [];
+	});
 
 	const valueSuggestions =
 		!typeaheadActive || typedInlinePrefix !== null
@@ -796,7 +803,7 @@ export const useFilterCombobox = ({
 		categoryListLoading: placeholdersShown,
 		typeaheadLoading,
 		typeaheadError,
-		failedInlineCategoryLabel: failedInlineSection?.category.label,
+		inlineLoadMessages,
 		typeaheadEmpty,
 	});
 
@@ -1409,9 +1416,9 @@ export const useFilterCombobox = ({
 		const rowValues = [
 			...listedCategories.map((category) => category.key),
 			...inlineSections.flatMap((section) =>
-				section.status === "failed"
-					? [section.retryValue]
-					: section.rows.map((row) => row.token),
+				section.status === "ready"
+					? section.rows.map((row) => row.token)
+					: [section.loadRowValue],
 			),
 			...valueSuggestions.map((suggestion) => suggestion.token),
 		];
