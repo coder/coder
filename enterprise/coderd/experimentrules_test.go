@@ -160,6 +160,14 @@ func TestExperimentRuleAudit(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, stored, same)
 
+		// Denied and invalid writes are rejected before the audit starts,
+		// so they add no entry to the count either.
+		memberClient, _ := coderdtest.CreateAnotherUser(t, f.owner, f.orgID)
+		_, err = codersdk.NewExperimentalClient(memberClient).PutExperimentRule(ctx, codersdk.ExperimentExample, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOff, ExpectedRevision: 1})
+		requireStatusCode(t, err, http.StatusForbidden)
+		_, err = f.put(ctx, codersdk.ExperimentRuleModeCondition, "user.", 1)
+		requireStatusCode(t, err, http.StatusBadRequest)
+
 		_, err = f.put(ctx, codersdk.ExperimentRuleModeOff, "", 0)
 		requireStatusCode(t, err, http.StatusConflict)
 		conflict := f.waitAuditLogs(ctx, t, 2)[0]
