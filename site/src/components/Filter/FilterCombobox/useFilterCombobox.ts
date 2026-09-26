@@ -181,9 +181,44 @@ export const optionsLoadingMessage = (label: string) =>
 const optionsEmptyMessage = (label: string, searched: boolean) =>
 	searched ? `No ${label} matches.` : `No ${label} options.`;
 
+/** Shown in an options panel with no options, with or without a search. */
+export const optionsEmptyText = (searched: boolean) =>
+	searched ? "No matching options" : "No options";
+
+/**
+ * Rows an options panel shows for typed text. `getOptions` may return only
+ * the first page for an empty query, so the unfiltered list is filtered
+ * locally until `results` for the current text arrive. A search that is
+ * still running with no local match counts as loading.
+ */
+export const shownOptions = ({
+	unfiltered,
+	results,
+	text,
+	resultsCurrent,
+}: {
+	unfiltered: readonly FilterOption[] | undefined;
+	results: readonly FilterOption[] | undefined;
+	text: string;
+	resultsCurrent: boolean;
+}) => {
+	const searched = text.trim().length > 0;
+	const options = !searched
+		? (unfiltered ?? (resultsCurrent ? results : undefined))
+		: resultsCurrent && results
+			? results
+			: unfiltered && filterOptionsByText(unfiltered, text);
+	return {
+		options,
+		loading:
+			options === undefined ||
+			(searched && !resultsCurrent && options.length === 0),
+	};
+};
+
 /**
  * Announces an options panel's state: loading, then a failed load, then no
- * options. Undefined while options show.
+ * options. Undefined when none of `loading`, `failed`, or `empty` is set.
  */
 export const optionsStatusMessage = ({
 	label,
@@ -219,7 +254,7 @@ export const SUGGESTIONS_ERROR_MESSAGE = "Couldn’t load suggestions.";
 // Live-region text for the hook's states so screen readers hear loading,
 // failures, and empty results rather than silence. Typeahead loading shows no
 // spinner, so this is its only announcement. FilterCombobox adds the open
-// flyout's load state, which is view state.
+// flyout's state, which is view state.
 const deriveStatusMessage = ({
 	activeCategoryLabel,
 	activeOptionsLoading,
@@ -509,7 +544,8 @@ export const useFilterCombobox = ({
 				? menuCategories
 				: matchCategories(categoryQuery, menuCategories);
 
-	const activeOptionsQuerySource = activeCategoryKey !== null ? inputValue : "";
+	const activeOptionsQuerySource =
+		activeCategoryKey !== null ? inputValue.trim() : "";
 	const debouncedActiveOptionsQuery = useDebouncedValue(
 		activeOptionsQuerySource,
 		SEARCH_DEBOUNCE_MS,
@@ -527,14 +563,26 @@ export const useFilterCombobox = ({
 		),
 	);
 
-	const activeOptions = activeOptionsQuery.data;
 	const activeOptionsError =
 		activeCategoryKey !== null && activeOptionsQuery.isError;
+	// Rows from the previous query stay out while a search is pending, so
+	// Enter never picks one.
+	const activeShown = shownOptions({
+		unfiltered:
+			activeCategoryKey === null
+				? undefined
+				: unfilteredOptions.optionsByKey.get(activeCategoryKey),
+		results: activeOptionsQuery.data,
+		text: activeOptionsQuerySource,
+		resultsCurrent:
+			!activeOptionsPending && activeOptionsQuery.data !== undefined,
+	});
+	const activeOptions =
+		activeCategoryKey === null || activeOptionsError
+			? undefined
+			: activeShown.options;
 	const activeOptionsLoading =
-		activeOptionsPending ||
-		(activeCategoryKey !== null &&
-			!activeOptionsError &&
-			(activeOptionsQuery.isFetching || activeOptions === undefined));
+		activeCategoryKey !== null && !activeOptionsError && activeShown.loading;
 	const retryActiveOptions = () => {
 		void activeOptionsQuery.refetch();
 	};
@@ -1318,6 +1366,7 @@ export const useFilterCombobox = ({
 		activeCategoryKey,
 		activeCategory,
 		activeOptions,
+		activeOptionsLoading,
 		activeOptionsError,
 		statusMessage,
 		menuCategories,
