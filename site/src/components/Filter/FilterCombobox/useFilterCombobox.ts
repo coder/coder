@@ -179,6 +179,7 @@ type StatusMessageInput = {
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
 	categoryListLoading: boolean;
+	activeOptionsSearched: boolean;
 	typeaheadLoading: boolean;
 	typeaheadError: boolean;
 	typeaheadEmpty: boolean;
@@ -197,8 +198,35 @@ export const optionsLoadErrorMessage = (label: string) =>
 export const optionsLoadingMessage = (label: string) =>
 	`Loading ${label} options.`;
 
-/** Announced when a category shows no options. */
-export const noOptionMatchesMessage = (label: string) => `No ${label} matches`;
+/** Announced when a category shows no options, with or without a search. */
+const optionsEmptyMessage = (label: string, searched: boolean) =>
+	searched ? `No ${label} matches.` : `No ${label} options.`;
+
+/**
+ * Announces an options panel's state: loading, then a failed load, then no
+ * options. Undefined while options show.
+ */
+export const optionsStatusMessage = ({
+	label,
+	loading,
+	failed,
+	empty,
+	searched,
+}: {
+	label: string;
+	loading: boolean;
+	failed: boolean;
+	empty: boolean;
+	searched: boolean;
+}) => {
+	if (loading) {
+		return optionsLoadingMessage(label);
+	}
+	if (failed) {
+		return optionsLoadErrorMessage(label);
+	}
+	return empty ? optionsEmptyMessage(label, searched) : undefined;
+};
 
 /**
  * Longest wait for option lookups before typed text that matched no loaded
@@ -219,22 +247,22 @@ const deriveStatusMessage = ({
 	activeOptionsError,
 	activeOptionsEmpty,
 	categoryListLoading,
+	activeOptionsSearched,
 	typeaheadLoading,
 	typeaheadError,
 	typeaheadEmpty,
 	inlineLoadMessages,
 }: StatusMessageInput): string => {
 	if (activeCategoryLabel !== undefined) {
-		if (activeOptionsLoading) {
-			return optionsLoadingMessage(activeCategoryLabel);
-		}
-		if (activeOptionsError) {
-			return optionsLoadErrorMessage(activeCategoryLabel);
-		}
-		if (activeOptionsEmpty) {
-			return noOptionMatchesMessage(activeCategoryLabel);
-		}
-		return `Filtering by ${activeCategoryLabel}`;
+		return (
+			optionsStatusMessage({
+				label: activeCategoryLabel,
+				loading: activeOptionsLoading,
+				failed: activeOptionsError,
+				empty: activeOptionsEmpty,
+				searched: activeOptionsSearched,
+			}) ?? `Filtering by ${activeCategoryLabel}`
+		);
 	}
 	if (categoryListLoading) {
 		return "Loading filters";
@@ -322,6 +350,15 @@ export const useFilterCombobox = ({
 	const getHighlightedValue = () => highlightRef.current?.get() ?? "";
 	const setHighlightedValue = (value: string) => {
 		highlightRef.current?.set(value);
+	};
+	// A load row's highlight hand-off applies only while the menu stays open,
+	// so a load that finishes while it is closed does not move a reopened
+	// menu's highlight.
+	const closeMenu = () => {
+		if (getHighlightedValue().startsWith(INLINE_LOAD_ROW_VALUE_PREFIX)) {
+			setHighlightedValue("");
+		}
+		dispatch({ type: "close" });
 	};
 	const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -774,14 +811,6 @@ export const useFilterCombobox = ({
 			setHighlightedValue(firstRow.token);
 		}
 	};
-	// The handoff applies only while the menu stays open, so a load that
-	// finishes while it is closed does not move a reopened menu's highlight.
-	useEffect(() => {
-		const highlight = highlightRef.current;
-		if (!open && highlight?.get().startsWith(INLINE_LOAD_ROW_VALUE_PREFIX)) {
-			highlight.set("");
-		}
-	}, [open]);
 	const inlineLoadMessages = inlineSections.flatMap(({ category, status }) => {
 		if (status === "loading") {
 			return [optionsLoadingMessage(category.label)];
@@ -844,6 +873,7 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		activeOptionsEmpty,
 		categoryListLoading: placeholdersShown,
+		activeOptionsSearched: activeOptionsQuerySource.trim().length > 0,
 		typeaheadLoading,
 		typeaheadError,
 		inlineLoadMessages,
@@ -967,7 +997,7 @@ export const useFilterCombobox = ({
 	// The typed text only located the suggestion, so it is dropped either way.
 	const toggleValueSuggestion = (token: string) => {
 		updateFromChips(toggledChips(token), "");
-		dispatch({ type: "close" });
+		closeMenu();
 	};
 
 	// Highlights the category row `rowKey` in the menu that `nextChips`
@@ -1055,7 +1085,7 @@ export const useFilterCombobox = ({
 			}
 		} else if (keepApplied) {
 			updateFromChips(chipValues, "");
-			dispatch({ type: "close" });
+			closeMenu();
 		} else {
 			toggleValueSuggestion(token);
 		}
@@ -1229,7 +1259,7 @@ export const useFilterCombobox = ({
 				showAllFilters();
 				return;
 			}
-			dispatch({ type: "close" });
+			closeMenu();
 			return;
 		}
 		showAllFilters();
@@ -1319,7 +1349,7 @@ export const useFilterCombobox = ({
 		if (mode !== "category") {
 			applyTypedSearch();
 		}
-		dispatch({ type: "close" });
+		closeMenu();
 	};
 
 	// Empties the query, chips and search text alike. Unlike chip removal, it
@@ -1484,7 +1514,7 @@ export const useFilterCombobox = ({
 		) {
 			event.preventDefault();
 			applyTypedSearch();
-			dispatch({ type: "close" });
+			closeMenu();
 			return;
 		}
 
@@ -1534,6 +1564,7 @@ export const useFilterCombobox = ({
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
 		// Category whose scopeToggle.searchPhrase starts with the typed text.

@@ -60,9 +60,9 @@ import {
 import { filterComboboxOptions, SEARCH_DEBOUNCE_MS } from "./queries";
 import type { FilterCategory, FilterOption } from "./types";
 import {
-	noOptionMatchesMessage,
 	optionsLoadErrorMessage,
 	optionsLoadingMessage,
+	optionsStatusMessage,
 	SUGGESTIONS_ERROR_MESSAGE,
 	useFilterCombobox,
 } from "./useFilterCombobox";
@@ -128,6 +128,7 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText,
 		scopeMatchKey,
@@ -165,7 +166,13 @@ export function FilterCombobox({
 		categoryKey: string | null;
 		openAtReset: boolean;
 	}>({ categoryKey: null, openAtReset: open });
-	if (flyout.openAtReset !== open) {
+	// A flyout whose category left the menu, such as one hidden after a
+	// Retry, is closed too. Typed text only hides a row, so its flyout stays.
+	if (
+		flyout.openAtReset !== open ||
+		(flyout.categoryKey !== null &&
+			!menuCategories.some((category) => category.key === flyout.categoryKey))
+	) {
 		setFlyout({ categoryKey: null, openAtReset: open });
 	}
 	const flyoutCategoryKey = flyout.categoryKey;
@@ -254,6 +261,10 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
+		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "",
+		// with no row highlighted. It must not close a flyout the text only
+		// hides, such as Owner's while `own` is typed, so the flyout returns when
+		// the text is deleted.
 		if (highlighted === "") {
 			setHighlightedCategoryKey(undefined);
 			return;
@@ -262,11 +273,7 @@ export function FilterCombobox({
 			(category) => category.key === highlighted,
 		);
 		setHighlightedCategoryKey(isCategoryRow ? highlighted : null);
-		// A flyout whose row was hidden is closed.
-		const flyoutOpen = listedCategories.some(
-			(category) => category.key === flyoutCategoryKey,
-		);
-		if (!flyoutOpen || highlighted === flyoutCategoryKey) {
+		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
 			return;
 		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
@@ -287,15 +294,15 @@ export function FilterCombobox({
 	);
 	// The hook announces its own states; the flyout is view state, so its load
 	// state joins the announcement here.
-	const flyoutLoadMessage = !flyoutOptions
-		? undefined
-		: flyoutOptions.loading
-			? optionsLoadingMessage(flyoutOptions.category.label)
-			: flyoutOptions.failed
-				? optionsLoadErrorMessage(flyoutOptions.category.label)
-				: flyoutOptions.emptyMessage
-					? noOptionMatchesMessage(flyoutOptions.category.label)
-					: undefined;
+	const flyoutLoadMessage =
+		flyoutOptions &&
+		optionsStatusMessage({
+			label: flyoutOptions.category.label,
+			loading: flyoutOptions.loading,
+			failed: flyoutOptions.failed,
+			empty: flyoutOptions.emptyMessage !== undefined,
+			searched: flyoutOptions.searched,
+		});
 	// Toggling clears text typed to find the category, so the flyout is pinned
 	// open explicitly rather than through the scope match.
 	const toggleFlyoutScope = (categoryKey: string) => {
@@ -557,7 +564,8 @@ export function FilterCombobox({
 									onClick={(event) => {
 										// The button unmounts, as does an open category's search
 										// field on wider viewports, so focus either held moves to
-										// the input instead of the page body.
+										// the input instead of the page body. On mobile, focusing
+										// the input would open the keyboard.
 										const hadFocus =
 											document.activeElement === event.currentTarget;
 										actions.clearAll();
@@ -1140,14 +1148,15 @@ const useFlyoutOptions = (
 	const trimmedQuery = query.trim();
 	// `getOptions` may return only the first page for an empty query, so a
 	// typed search calls `getOptions(query)` after the debounce. Until those
-	// results arrive, the unfiltered list is filtered locally. The search runs
-	// only once the debounced state is the current one, so text debounced for
-	// one flyout never reaches another flyout's loader.
-	const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
-	const debouncedQuery =
-		debouncedSearch === search && search.categoryKey === categoryKey
-			? trimmedQuery
+	// results arrive, the unfiltered list is filtered locally. The debounced
+	// text is tagged with its flyout, so it never reaches another flyout's
+	// loader.
+	const searchKey =
+		categoryKey !== undefined && trimmedQuery.length > 0
+			? `${categoryKey}\n${trimmedQuery}`
 			: "";
+	const debouncedSearchKey = useDebouncedValue(searchKey, SEARCH_DEBOUNCE_MS);
+	const debouncedQuery = debouncedSearchKey === searchKey ? trimmedQuery : "";
 	const searchResults = useQuery(
 		filterComboboxOptions(
 			categoryKey ?? "",
@@ -1173,12 +1182,18 @@ const useFlyoutOptions = (
 				: searchSettled && searchResults.data
 					? searchResults.data
 					: filterOptionsByText(options, normalized);
-	const loading = options === undefined && !optionsError;
 	const failed = optionsError || searchFailed;
+	// A search still running counts as loading until something matches.
+	const searching =
+		normalized.length > 0 && (!searchSettled || searchResults.isFetching);
+	const loading =
+		(options === undefined && !optionsError) ||
+		(searching && !failed && filteredOptions.length === 0);
 	return {
 		category,
 		query,
 		setQuery,
+		searched: normalized.length > 0,
 		filteredOptions,
 		searchable: (options?.length ?? 0) > SEARCHABLE_OPTION_COUNT,
 		loading,
