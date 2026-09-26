@@ -130,6 +130,37 @@ func TestAppendPRMUserAgent(t *testing.T) {
 	})
 }
 
+// TestBearerMiddleware verifies a user Bedrock API key is sent as a bearer token
+// with the body and path untouched, and that no SigV4 headers are produced.
+func TestBearerMiddleware(t *testing.T) {
+	t.Parallel()
+
+	const token = "bedrock-api-key" //nolint:gosec // G101: test-only fake credential.
+	body := `{"model":"anthropic.claude-x","max_tokens":1}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		"https://bedrock-mantle.us-east-1.api.aws/anthropic/v1/messages", strings.NewReader(body))
+	require.NoError(t, err)
+
+	var captured *http.Request
+	var capturedBody string
+	//nolint:bodyclose // next returns a synthetic no-op response body.
+	_, err = awssig.BearerMiddleware(token)(req, func(r *http.Request) (*http.Response, error) {
+		captured = r
+		b, readErr := io.ReadAll(r.Body)
+		require.NoError(t, readErr)
+		capturedBody = string(b)
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	})
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+
+	require.Equal(t, "Bearer "+token, captured.Header.Get("Authorization"))
+	require.Empty(t, captured.Header.Get("X-Amz-Date"))
+	require.Equal(t, "/anthropic/v1/messages", captured.URL.Path)
+	require.JSONEq(t, body, capturedBody)
+}
+
 func TestBaseURLForModel(t *testing.T) {
 	t.Parallel()
 

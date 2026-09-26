@@ -5256,6 +5256,7 @@ const (
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
+	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5288,6 +5289,8 @@ func (e Experiment) DisplayName() string {
 		return "Agent Lifecycle Hooks"
 	case ExperimentChatInlineMCPServers:
 		return "Chat Inline MCP Servers"
+	case ExperimentEnableAIWorkspaceDebug:
+		return "AI Workspace Debugging"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5313,6 +5316,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
+	ExperimentEnableAIWorkspaceDebug,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -9097,9 +9097,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                     |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -19173,6 +19173,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`     | `autostart`, `autostop`, `initiator`                                                                              |
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
+
+## codersdk.WorkspaceBuildDebugEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name | Type   | Required | Restrictions | Description                                                                     |
+|------|--------|----------|--------------|---------------------------------------------------------------------------------|
+| `id` | string | true     |              | ID identifies this click so a later step of the funnel can be attributed to it. |
 
 ## codersdk.WorkspaceBuildParameter
 
