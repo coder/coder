@@ -116,6 +116,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
+	CancelProcess(ctx context.Context, id string) (CancelProcessResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
@@ -918,6 +919,9 @@ type StartProcessRequest struct {
 type StartProcessResponse struct {
 	ID      string `json:"id"`
 	Started bool   `json:"started"`
+	// AgeMs is the time since the process started, measured by the
+	// agent. Agents without tool call support omit it.
+	AgeMs int64 `json:"age_ms"`
 }
 
 // ListProcessesResponse contains information about tracked
@@ -945,6 +949,23 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
+	// AgeMs is the time since the process started, measured by the
+	// agent. Agents without tool call support omit it.
+	AgeMs int64 `json:"age_ms"`
+}
+
+// CancelProcessResponse is the final state of a tool call's process
+// after a cancel request.
+type CancelProcessResponse struct {
+	// Started is false when the agent never started a process for the
+	// tool call: a cancel recorded it as canceled, or the start failed.
+	Started bool `json:"started"`
+	// Canceled is true when this request killed a running process.
+	Canceled  bool               `json:"canceled"`
+	Output    string             `json:"output,omitempty"`
+	Truncated *ProcessTruncation `json:"truncated,omitempty"`
+	ExitCode  *int               `json:"exit_code,omitempty"`
+	AgeMs     int64              `json:"age_ms,omitempty"`
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -1376,10 +1397,50 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
+		return StartProcessResponse{}, readToolCallError(res)
 	}
 	var resp StartProcessResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+// CancelProcess cancels the process of the tool call in ctx, set with
+// WithToolCall. id is the tool call UUID.
+func (c *agentConn) CancelProcess(ctx context.Context, id string) (CancelProcessResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/"+id+"/cancel", nil)
+	if err != nil {
+		return CancelProcessResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CancelProcessResponse{}, readToolCallError(res)
+	}
+	var resp CancelProcessResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// readToolCallError returns a *ToolCallError for an HTTP 409 whose body
+// has a known ToolCallErrorCode, and codersdk.ReadBodyAsError(res) for
+// any other response.
+func readToolCallError(res *http.Response) error {
+	if res.StatusCode != http.StatusConflict {
+		return codersdk.ReadBodyAsError(res)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		// Same error as codersdk.ReadBodyAsError for a failed read.
+		return xerrors.Errorf("read body: %w", err)
+	}
+	var tcErr ToolCallError
+	if json.Unmarshal(body, &tcErr) == nil && tcErr.Code.known() {
+		return &tcErr
+	}
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{bytes.NewReader(body), res.Body}
+	return codersdk.ReadBodyAsError(res)
 }
 
 // ListProcesses returns information about tracked processes on the agent.
@@ -1542,6 +1603,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
+	}
+	if tc, ok := ToolCallFromContext(ctx); ok {
+		tc.SetHeaders(req.Header)
 	}
 
 	return c.apiClient(ctx).Do(req)
