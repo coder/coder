@@ -3995,7 +3995,7 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+	gp, _ := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 	if gp == nil {
 		return result, nil
 	}
@@ -4059,7 +4059,7 @@ func (api *API) resolveChatDiffReference(
 	// current open PR. This picks up new PRs after the previous
 	// one was closed.
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
-		gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
+		gp, _ := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
 			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
 			if token == nil || errors.Is(err, gitsync.ErrNoTokenAvailable) {
@@ -4122,7 +4122,7 @@ func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status dat
 		return nil
 	}
 
-	providerType, gp := api.resolveExternalAuth(ctx, origin)
+	providerType, gp, _ := api.resolveExternalAuth(ctx, origin)
 	repoRef := &chatRepositoryRef{
 		Provider:     providerType,
 		RemoteOrigin: origin,
@@ -4189,40 +4189,63 @@ func (api *API) getCachedChatDiffStatus(
 
 // resolveExternalAuth finds the external auth config matching the
 // given remote origin URL and returns both the provider type string
-// (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
-// if no matching config is found or no provider could be constructed.
-func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
+// (e.g. "github") and the gitprovider.Provider. Returns ("", nil, nil)
+// if no matching config is found, and ("", nil, err) when a matching
+// config could not yield a provider: the construction error if one
+// failed to build, otherwise gitsync.ErrProviderUnimplemented if a
+// matching config names a git type that has no implementation yet.
+// A construction error wins because an operator can fix it.
+func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider, err error) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
-		return "", nil
+		return "", nil, nil
 	}
+	var constructErr error
+	unimplemented := false
 	for _, extAuth := range api.ExternalAuthConfigs {
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		p, err := extAuth.Git()
-		if err != nil {
+		normalizedType := strings.ToLower(strings.TrimSpace(extAuth.Type))
+		p, gitErr := extAuth.Git()
+		if gitErr != nil {
 			api.Logger.Warn(ctx, "failed to construct git provider",
 				slog.F("provider_id", extAuth.ID),
 				slog.F("provider_type", extAuth.Type),
-				slog.Error(err),
+				slog.Error(gitErr),
 			)
+			if constructErr == nil {
+				constructErr = xerrors.Errorf("construct git provider %q: %w", extAuth.ID, gitErr)
+			}
 			continue
 		}
 		if p == nil {
+			// Config.Git() returns a nil provider both for non-git
+			// types and for git types Coder has not implemented.
+			// Only the latter is worth reporting, and only if no
+			// later config matches with a working provider.
+			if codersdk.EnhancedExternalAuthProvider(normalizedType).Git() {
+				unimplemented = true
+			}
 			continue
 		}
-		return strings.ToLower(strings.TrimSpace(extAuth.Type)), p
+		return normalizedType, p, nil
 	}
-	return "", nil
+	if constructErr != nil {
+		return "", nil, constructErr
+	}
+	if unimplemented {
+		return "", nil, gitsync.ErrProviderUnimplemented
+	}
+	return "", nil, nil
 }
 
 // resolveGitProvider finds the external auth config matching the
 // given remote origin URL and returns its git provider. Returns
 // nil if no matching git provider is configured.
-func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovider.Provider {
-	_, gp := api.resolveExternalAuth(ctx, origin)
-	return gp
+func (api *API) resolveGitProvider(ctx context.Context, origin string) (gitprovider.Provider, error) {
+	_, gp, err := api.resolveExternalAuth(ctx, origin)
+	return gp, err
 }
 
 func (api *API) resolveChatGitAccessToken(

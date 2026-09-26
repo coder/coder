@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -26,10 +27,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -838,4 +841,110 @@ func TestWorkspaceUsageReader(t *testing.T) {
 	require.Zero(t, n)
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, 2, reports, "empty reads must not count as usage")
+}
+
+func TestResolveExternalAuthProviderErrors(t *testing.T) {
+	t.Parallel()
+
+	newConfig := func(id, providerType, pattern string) *externalauth.Config {
+		return &externalauth.Config{
+			ID:    id,
+			Type:  providerType,
+			Regex: regexp.MustCompile(pattern),
+		}
+	}
+	brokenConfig := func(id, providerType, pattern string) *externalauth.Config {
+		cfg := newConfig(id, providerType, pattern)
+		cfg.APIBaseURL = "://invalid"
+		return cfg
+	}
+
+	const origin = "https://bitbucket.org/owner/repo"
+
+	tests := []struct {
+		name            string
+		configs         []*externalauth.Config
+		origin          string
+		wantType        string
+		wantProvider    bool
+		wantUnsupported bool
+		wantErrContains string
+	}{
+		{
+			name:            "git type without an implementation",
+			configs:         []*externalauth.Config{newConfig("bb", "bitbucket-cloud", `bitbucket\.org`)},
+			origin:          origin,
+			wantUnsupported: true,
+		},
+		{
+			name:         "implemented git type",
+			configs:      []*externalauth.Config{newConfig("gh", "github", `github\.com`)},
+			origin:       "https://github.com/owner/repo",
+			wantType:     "github",
+			wantProvider: true,
+		},
+		{
+			name:    "no config matches the origin",
+			configs: []*externalauth.Config{newConfig("gh", "github", `github\.com`)},
+			origin:  origin,
+		},
+		{
+			// A non-git provider matching the origin is not a gap in
+			// Coder's git support, so it must not park the row.
+			name:    "matching config is not a git provider",
+			configs: []*externalauth.Config{newConfig("jfrog", "jfrog", `bitbucket\.org`)},
+			origin:  origin,
+		},
+		{
+			// A provider that failed to build is a deployment
+			// misconfiguration the operator can fix, so it must not
+			// be reported as an unimplemented git type.
+			name: "construction failure wins over an unimplemented type",
+			configs: []*externalauth.Config{
+				brokenConfig("gl", "gitlab", `bitbucket\.org`),
+				newConfig("bb", "bitbucket-cloud", `bitbucket\.org`),
+			},
+			origin:          origin,
+			wantErrContains: "construct git provider \"gl\"",
+		},
+		{
+			name: "implemented config wins over an unimplemented one",
+			configs: []*externalauth.Config{
+				newConfig("bb", "bitbucket-cloud", `bitbucket\.org`),
+				newConfig("gh", "github", `bitbucket\.org`),
+			},
+			origin:       origin,
+			wantType:     "github",
+			wantProvider: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			api := &API{Options: &Options{
+				Logger:              slogtest.Make(t, nil),
+				ExternalAuthConfigs: tt.configs,
+			}}
+
+			providerType, gp, err := api.resolveExternalAuth(context.Background(), tt.origin)
+
+			switch {
+			case tt.wantUnsupported:
+				require.ErrorIs(t, err, gitsync.ErrProviderUnimplemented)
+			case tt.wantErrContains != "":
+				require.ErrorContains(t, err, tt.wantErrContains)
+				require.NotErrorIs(t, err, gitsync.ErrProviderUnimplemented)
+			default:
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantType, providerType)
+			if tt.wantProvider {
+				require.NotNil(t, gp)
+			} else {
+				require.Nil(t, gp)
+			}
+		})
+	}
 }

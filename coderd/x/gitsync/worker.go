@@ -33,6 +33,15 @@ const (
 	// their account before retrying is useful.
 	NoTokenBackoff = 10 * time.Minute
 
+	// NotImplementedBackoff is the backoff applied to rows whose
+	// origin matches a provider whose git type Coder does not
+	// implement. Retrying cannot succeed until an implementation
+	// ships, so the row is parked for a day instead of every
+	// DiffStatusTTL. MarkStale still revives it on the next
+	// reported git activity; a migration shipped alongside a new
+	// provider should reset stale_at so parked rows wake at once.
+	NotImplementedBackoff = 24 * time.Hour
+
 	// NoPRBackoff is the backoff applied when a branch has no
 	// associated pull request yet. Kept short so that PRs created
 	// shortly after a push (e.g. via `gh pr create`) are
@@ -217,12 +226,16 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
-			// Apply a longer backoff for rows whose owner has
-			// no linked token — retrying every 2 minutes is
-			// pointless until the user links their account.
+			// Retrying every DiffStatusTTL is pointless when the
+			// row cannot succeed until something outside this
+			// loop changes: the user linking their account, or
+			// Coder implementing the provider.
 			backoff := DiffStatusTTL
-			if errors.Is(res.Error, ErrNoTokenAvailable) {
+			switch {
+			case errors.Is(res.Error, ErrNoTokenAvailable):
 				backoff = NoTokenBackoff
+			case errors.Is(res.Error, ErrProviderUnimplemented):
+				backoff = NotImplementedBackoff
 			}
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
