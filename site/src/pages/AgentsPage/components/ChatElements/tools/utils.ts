@@ -540,7 +540,9 @@ export const COLLAPSED_REPORT_HEIGHT = 72;
  * of file entries. Accepts the grouped `files` shape stored in
  * existing chats and the flat `edits` shape, where each edit carries
  * its own `path`. Flat edits are grouped by path in order of first
- * appearance, keeping each file's edit order.
+ * appearance, keeping each file's edit order. Paths are trimmed, as
+ * the backend trims them before grouping and running the edits, so
+ * they match the paths in the tool result.
  */
 export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	const parsed = parseArgs(args);
@@ -550,18 +552,19 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 		return files
 			.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
 			.map((f) => ({
-				path: f.path,
+				path: f.path.trim(),
 				edits: f.edits
 					.map(normalizeEdit)
 					.filter((e): e is { search: string; replace: string } => e !== null),
-			}));
+			}))
+			.filter((f) => f.path);
 	}
 	const edits = parsed.edits;
 	if (!Array.isArray(edits)) return [];
 	const byPath = new Map<string, EditFilesFileEntry>();
 	for (const e of edits) {
-		const path = asRecord(e)?.path;
-		if (typeof path !== "string" || !path) continue;
+		const path = asString(asRecord(e)?.path).trim();
+		if (!path) continue;
 		let entry = byPath.get(path);
 		if (!entry) {
 			entry = { path, edits: [] };
@@ -638,11 +641,16 @@ const snippetLineCount = (snippet: string): number =>
 /**
  * Per-file result from the agent's FileEditResponse. `path` matches
  * the caller-supplied path (pre-symlink resolution). `diff` is a
- * unified-diff string, possibly empty for no-op edits.
+ * unified-diff string, empty for no-op edits, or undefined when the
+ * entry has no diff (agents older than include_diff). `status` and
+ * `error` are set by results that report per-file outcomes; a
+ * "rejected" file was not written and `error` says why.
  */
 type ServerEditResult = {
 	path: string;
-	diff: string;
+	diff?: string;
+	status?: string;
+	error?: string;
 };
 
 /**
@@ -667,7 +675,12 @@ export const parseServerEditResults = (
 		if (!entryRec) continue;
 		const path = asString(entryRec.path).trim();
 		if (!path) continue;
-		results.push({ path, diff: asString(entryRec.diff) });
+		results.push({
+			path,
+			diff: typeof entryRec.diff === "string" ? entryRec.diff : undefined,
+			status: asString(entryRec.status) || undefined,
+			error: asString(entryRec.error) || undefined,
+		});
 	}
 	return results;
 };

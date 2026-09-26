@@ -1956,6 +1956,58 @@ export const EditFilesServerDiffPartialFallback: Story = {
 	},
 };
 
+export const EditFilesPartial: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			edits: [
+				{
+					path: "src/config.ts",
+					old_text: "const timeout = 30;",
+					new_text: "const timeout = 60;",
+				},
+				{
+					path: "src/server.ts",
+					old_text: "listen();",
+					new_text: "listen(port);",
+				},
+				{
+					path: "src/routes.ts",
+					old_text: 'const base = "/";',
+					new_text: 'const base = "/api";',
+				},
+			],
+		},
+		result: {
+			status: "partial",
+			message:
+				"Applied 1 file. src/server.ts was not applied (none of edits[1] were applied): fix and resend only the edits for src/server.ts.",
+			files: [
+				{
+					path: "src/server.ts",
+					status: "rejected",
+					edits: [1],
+					error:
+						"old_text matches 3 occurrences (expected exactly 1). Include more surrounding context to make the match unique, or set replace_all to true",
+				},
+				{
+					path: "src/routes.ts",
+					status: "unknown",
+					error:
+						"The workspace agent connection closed before it responded. Read the file to check whether the edit was applied.",
+				},
+				{
+					path: "src/config.ts",
+					status: "applied",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Computer tool stories
 // ---------------------------------------------------------------------------
