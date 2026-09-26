@@ -45,7 +45,8 @@ type API struct {
 type Option func(*apiOptions)
 
 type apiOptions struct {
-	clock quartz.Clock
+	clock         quartz.Clock
+	toolCallChats *agenttoolcall.Chats
 }
 
 // WithClock sets the clock used for process timestamps, process age, and
@@ -56,15 +57,27 @@ func WithClock(clock quartz.Clock) Option {
 	}
 }
 
+// WithToolCallChats sets the per-chat tool call state the process records
+// share with the agent's other tool call records. Without it the API
+// keeps its own, with the agent start measured by the WithClock clock.
+func WithToolCallChats(chats *agenttoolcall.Chats) Option {
+	return func(o *apiOptions) {
+		o.toolCallChats = chats
+	}
+}
+
 // NewAPI creates a new process API handler.
 func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, opts ...Option) *API {
 	options := apiOptions{clock: quartz.NewReal()}
 	for _, opt := range opts {
 		opt(&options)
 	}
+	if options.toolCallChats == nil {
+		options.toolCallChats = agenttoolcall.NewChats(options.clock)
+	}
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock, options.toolCallChats),
 		pathStore: pathStore,
 	}
 }
@@ -202,14 +215,11 @@ func (api *API) startProcess(ctx context.Context, req workspacesdk.StartProcessR
 // writeToolCallError writes the HTTP 409 for an agenttoolcall decision
 // error and reports whether err was one.
 func writeToolCallError(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	code, ok := agenttoolcall.ErrorCode(err)
+	resp, ok := agenttoolcall.ErrorResponse(err)
 	if !ok {
 		return false
 	}
-	httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ToolCallError{
-		Response: codersdk.Response{Message: err.Error()},
-		Code:     code,
-	})
+	httpapi.Write(ctx, rw, http.StatusConflict, resp)
 	return true
 }
 

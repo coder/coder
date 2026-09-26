@@ -318,7 +318,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, age, hasToolCall, ok := readToolCall(ctx, rw, r)
+	key, toolCall, hasToolCall, ok := readToolCall(ctx, rw, r)
 	if !ok {
 		return
 	}
@@ -340,7 +340,7 @@ func (api *API) HandleWriteFile(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.runToolCall(ctx, rw, key, age, writeFileInput(path, content), func() fileResult {
+	api.runToolCall(ctx, rw, key, toolCall.Age, writeFileInput(path, content), func() fileResult {
 		return api.writeFileResponse(ctx, path, bytes.NewReader(content))
 	})
 }
@@ -423,7 +423,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, age, hasToolCall, ok := readToolCall(ctx, rw, r)
+	key, toolCall, hasToolCall, ok := readToolCall(ctx, rw, r)
 	if !ok {
 		return
 	}
@@ -443,7 +443,7 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	api.runToolCall(ctx, rw, key, age, sha256.Sum256(input), func() fileResult {
+	api.runToolCall(ctx, rw, key, toolCall.Age, sha256.Sum256(input), func() fileResult {
 		return api.editFilesResponse(ctx, req)
 	})
 }

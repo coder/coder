@@ -39,43 +39,106 @@ var (
 	ErrToolCallCanceled          = xerrors.New("tool call was canceled")
 )
 
-// ErrorCode returns the workspacesdk.ToolCallErrorCode that answers a
-// request refused with one of the errors above. ok is false for any other
-// error.
-func ErrorCode(err error) (code workspacesdk.ToolCallErrorCode, ok bool) {
-	switch {
-	case errors.Is(err, ErrStaleToolCall):
-		return workspacesdk.ToolCallErrorStale, true
-	case errors.Is(err, ErrAgentStartedAfterToolCall):
-		return workspacesdk.ToolCallErrorAgentStartedAfterToolCall, true
-	case errors.Is(err, ErrInputMismatch):
-		return workspacesdk.ToolCallErrorInputMismatch, true
-	case errors.Is(err, ErrToolCallCanceled):
-		return workspacesdk.ToolCallErrorCanceled, true
-	default:
-		return "", false
+// errorResponses maps each error above to the HTTP 409 body that answers
+// a request refused with it.
+var errorResponses = []struct {
+	err     error
+	code    workspacesdk.ToolCallErrorCode
+	message string
+}{
+	{ErrStaleToolCall, workspacesdk.ToolCallErrorStale, "The tool call is in an older message than the chat's latest message."},
+	{ErrAgentStartedAfterToolCall, workspacesdk.ToolCallErrorAgentStartedAfterToolCall, "The workspace agent started after the tool call was committed."},
+	{ErrInputMismatch, workspacesdk.ToolCallErrorInputMismatch, "The request differs from the recorded request for this tool call."},
+	{ErrToolCallCanceled, workspacesdk.ToolCallErrorCanceled, "The tool call was canceled."},
+}
+
+// ErrorResponse returns the HTTP 409 body that answers a request refused
+// with one of the errors above. ok is false for any other error.
+func ErrorResponse(err error) (resp workspacesdk.ToolCallError, ok bool) {
+	for _, r := range errorResponses {
+		if errors.Is(err, r.err) {
+			resp.Code = r.code
+			resp.Message = r.message
+			return resp, true
+		}
 	}
+	return resp, false
 }
 
 // ageMargin covers request transit time after chatd measured the tool call age.
 const ageMargin = 2 * time.Second
 
-// Records holds, per chat, the latest message ID and the records of that
-// message's tool calls. V is what a start produced, for example a process.
-// Per-chat state lives as long as Records.
-type Records[V any] struct {
+// Chats holds what every record table of one agent shares: the agent
+// start and each chat's latest message ID. chatd sends requests only for a
+// chat's latest message, so a request for a newer message through any
+// table makes the older tool calls stale in every table. Per-chat state
+// lives as long as Chats.
+type Chats struct {
 	clock     quartz.Clock
 	startedAt time.Time
 
-	mu    sync.Mutex
-	chats map[uuid.UUID]*chatRecords[V]
+	mu     sync.Mutex
+	latest map[uuid.UUID]int64
 }
 
-type chatRecords[V any] struct {
-	latestMessageID int64
-	// records holds the tool calls of latestMessageID by provider tool
-	// call ID.
-	records map[string]*record[V]
+// NewChats returns Chats whose agent start, used by the
+// ErrAgentStartedAfterToolCall rule, is clock.Now().
+func NewChats(clock quartz.Clock) *Chats {
+	return &Chats{
+		clock:     clock,
+		startedAt: clock.Now(),
+		latest:    make(map[uuid.UUID]int64),
+	}
+}
+
+// latestMessageID returns chatID's latest message ID, zero if the agent
+// has received no request for the chat.
+func (c *Chats) latestMessageID(chatID uuid.UUID) int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.latest[chatID]
+}
+
+// admit raises chatID's latest message ID to messageID if messageID is
+// newer, and reports false when messageID is older. Checking and raising
+// under one lock keeps two tables from both acting on different messages.
+func (c *Chats) admit(chatID uuid.UUID, messageID int64) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if messageID < c.latest[chatID] {
+		return false
+	}
+	c.latest[chatID] = messageID
+	return true
+}
+
+// startedWithin reports whether the agent started no more than age plus
+// ageMargin ago, so an earlier agent may have received a tool call of that
+// age. age comes from a request header and can be as large as the maximum
+// Duration, so age+ageMargin could overflow.
+func (c *Chats) startedWithin(age time.Duration) bool {
+	return c.clock.Since(c.startedAt)-ageMargin <= max(age, 0)
+}
+
+// Records holds the records of one kind of tool call, for example process
+// starts, for each chat's latest message. V is what a start produced, for
+// example a process. Tables built with the same Chats share each chat's
+// latest message ID and the agent start.
+type Records[V any] struct {
+	chats *Chats
+
+	mu       sync.Mutex
+	messages map[uuid.UUID]*messageRecords[V]
+}
+
+// messageRecords holds a table's records of the tool calls of one
+// message by provider tool call ID. A table keeps only the newest message
+// it has records for; records of an older message are dropped when a
+// newer one is inserted, and ignored once the chat's latest message ID
+// has moved past them.
+type messageRecords[V any] struct {
+	messageID int64
+	records   map[string]*record[V]
 }
 
 // record is the state of one tool call. input and canceled never change
@@ -89,13 +152,12 @@ type record[V any] struct {
 	err      error
 }
 
-// NewRecords returns empty Records. The agent start used by the
-// ErrAgentStartedAfterToolCall rule is clock.Now().
-func NewRecords[V any](clock quartz.Clock) *Records[V] {
+// NewRecords returns empty Records that share chats with the other tables
+// of the agent.
+func NewRecords[V any](chats *Chats) *Records[V] {
 	return &Records[V]{
-		clock:     clock,
-		startedAt: clock.Now(),
-		chats:     make(map[uuid.UUID]*chatRecords[V]),
+		chats:    chats,
+		messages: make(map[uuid.UUID]*messageRecords[V]),
 	}
 }
 
@@ -123,7 +185,10 @@ func (r *Records[V]) Start(ctx context.Context, key Key, age time.Duration, inpu
 		// Insert before calling start so that concurrent requests for key
 		// wait for this start instead of running their own.
 		rec = &record[V]{input: input, done: make(chan struct{})}
-		r.insert(key, rec)
+		if err := r.insert(key, rec); err != nil {
+			r.mu.Unlock()
+			return zero, err
+		}
 		r.mu.Unlock()
 		return rec.run(start)
 	}
@@ -158,7 +223,10 @@ func (r *Records[V]) Cancel(ctx context.Context, key Key, age time.Duration) (v 
 	if !ok {
 		done := make(chan struct{})
 		close(done)
-		r.insert(key, &record[V]{canceled: true, done: done})
+		if err := r.insert(key, &record[V]{canceled: true, done: done}); err != nil {
+			r.mu.Unlock()
+			return v, false, err
+		}
 		r.mu.Unlock()
 		return v, false, nil
 	}
@@ -176,11 +244,11 @@ func (r *Records[V]) Current(key Key) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	chat, ok := r.chats[key.ChatID]
-	if !ok || chat.latestMessageID != key.MessageID {
+	msg, ok := r.messages[key.ChatID]
+	if !ok || msg.messageID != key.MessageID || r.chats.latestMessageID(key.ChatID) != key.MessageID {
 		return false
 	}
-	_, ok = chat.records[key.ToolCallID]
+	_, ok = msg.records[key.ToolCallID]
 	return ok
 }
 
@@ -188,37 +256,42 @@ func (r *Records[V]) Current(key Key) bool {
 // never received the tool call, or the error that answers the request.
 // r.mu must be held.
 func (r *Records[V]) lookup(key Key, age time.Duration) (rec *record[V], ok bool, err error) {
-	if chat, found := r.chats[key.ChatID]; found {
-		if key.MessageID < chat.latestMessageID {
-			return nil, false, ErrStaleToolCall
-		}
-		if rec, found := chat.records[key.ToolCallID]; found && key.MessageID == chat.latestMessageID {
+	if key.MessageID < r.chats.latestMessageID(key.ChatID) {
+		return nil, false, ErrStaleToolCall
+	}
+	if msg, found := r.messages[key.ChatID]; found && msg.messageID == key.MessageID {
+		if rec, found := msg.records[key.ToolCallID]; found {
 			return rec, true, nil
 		}
 	}
 	// Records from before agent start are lost, so an agent that started
 	// after the tool call was committed cannot tell whether an earlier
-	// agent received it. age comes from a request header and can be as
-	// large as the maximum Duration, so age+ageMargin could overflow.
-	if r.clock.Since(r.startedAt)-ageMargin <= max(age, 0) {
+	// agent received it.
+	if r.chats.startedWithin(age) {
 		return nil, false, ErrAgentStartedAfterToolCall
 	}
 	return nil, false, nil
 }
 
 // insert records rec for key. A key in a newer message raises the chat's
-// latest message ID and drops the records of older messages, which chatd
-// has resolved. r.mu must be held.
-func (r *Records[V]) insert(key Key, rec *record[V]) {
-	chat, ok := r.chats[key.ChatID]
-	if !ok || key.MessageID > chat.latestMessageID {
-		chat = &chatRecords[V]{
-			latestMessageID: key.MessageID,
-			records:         make(map[string]*record[V]),
-		}
-		r.chats[key.ChatID] = chat
+// latest message ID for every table and drops this table's records of
+// older messages, which chatd has resolved. It returns ErrStaleToolCall
+// when another table raised the latest message ID past key since lookup.
+// r.mu must be held.
+func (r *Records[V]) insert(key Key, rec *record[V]) error {
+	if !r.chats.admit(key.ChatID, key.MessageID) {
+		return ErrStaleToolCall
 	}
-	chat.records[key.ToolCallID] = rec
+	msg, ok := r.messages[key.ChatID]
+	if !ok || msg.messageID != key.MessageID {
+		msg = &messageRecords[V]{
+			messageID: key.MessageID,
+			records:   make(map[string]*record[V]),
+		}
+		r.messages[key.ChatID] = msg
+	}
+	msg.records[key.ToolCallID] = rec
+	return nil
 }
 
 // run calls start and publishes its result to rec's waiters.

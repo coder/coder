@@ -674,7 +674,7 @@ type cancelResult struct {
 func newRecords(t *testing.T, uptime time.Duration) *agenttoolcall.Records[string] {
 	t.Helper()
 	clock := quartz.NewMock(t)
-	r := agenttoolcall.NewRecords[string](clock)
+	r := agenttoolcall.NewRecords[string](agenttoolcall.NewChats(clock))
 	clock.Advance(uptime).MustWait(testutil.Context(t, testutil.WaitShort))
 	return r
 }
@@ -749,20 +749,21 @@ func goCancel(ctx context.Context, r *agenttoolcall.Records[string], k agenttool
 	return res
 }
 
-func TestErrorCode(t *testing.T) {
+func TestErrorResponse(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		err      error
-		wantCode workspacesdk.ToolCallErrorCode
-		wantOK   bool
+		name        string
+		err         error
+		wantCode    workspacesdk.ToolCallErrorCode
+		wantMessage string
+		wantOK      bool
 	}{
-		{name: "Stale", err: agenttoolcall.ErrStaleToolCall, wantCode: workspacesdk.ToolCallErrorStale, wantOK: true},
-		{name: "AgentStartedAfterToolCall", err: agenttoolcall.ErrAgentStartedAfterToolCall, wantCode: workspacesdk.ToolCallErrorAgentStartedAfterToolCall, wantOK: true},
-		{name: "InputMismatch", err: agenttoolcall.ErrInputMismatch, wantCode: workspacesdk.ToolCallErrorInputMismatch, wantOK: true},
-		{name: "Canceled", err: agenttoolcall.ErrToolCallCanceled, wantCode: workspacesdk.ToolCallErrorCanceled, wantOK: true},
-		{name: "Wrapped", err: xerrors.Errorf("start: %w", agenttoolcall.ErrStaleToolCall), wantCode: workspacesdk.ToolCallErrorStale, wantOK: true},
+		{name: "Stale", err: agenttoolcall.ErrStaleToolCall, wantCode: workspacesdk.ToolCallErrorStale, wantMessage: "The tool call is in an older message than the chat's latest message.", wantOK: true},
+		{name: "AgentStartedAfterToolCall", err: agenttoolcall.ErrAgentStartedAfterToolCall, wantCode: workspacesdk.ToolCallErrorAgentStartedAfterToolCall, wantMessage: "The workspace agent started after the tool call was committed.", wantOK: true},
+		{name: "InputMismatch", err: agenttoolcall.ErrInputMismatch, wantCode: workspacesdk.ToolCallErrorInputMismatch, wantMessage: "The request differs from the recorded request for this tool call.", wantOK: true},
+		{name: "Canceled", err: agenttoolcall.ErrToolCallCanceled, wantCode: workspacesdk.ToolCallErrorCanceled, wantMessage: "The tool call was canceled.", wantOK: true},
+		{name: "Wrapped", err: xerrors.Errorf("start: %w", agenttoolcall.ErrStaleToolCall), wantCode: workspacesdk.ToolCallErrorStale, wantMessage: "The tool call is in an older message than the chat's latest message.", wantOK: true},
 		{name: "Nil"},
 		{name: "Other", err: xerrors.New("spawn failed")},
 		{name: "ContextCanceled", err: context.Canceled},
@@ -771,9 +772,77 @@ func TestErrorCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			code, ok := agenttoolcall.ErrorCode(tt.err)
+			resp, ok := agenttoolcall.ErrorResponse(tt.err)
 			assert.Equal(t, tt.wantOK, ok)
-			assert.Equal(t, tt.wantCode, code)
+			assert.Equal(t, tt.wantCode, resp.Code)
+			assert.Equal(t, tt.wantMessage, resp.Message)
 		})
 	}
+}
+
+// TestSharedChats covers record tables built with one Chats, as the
+// process and file tables of an agent are: a newer message through one
+// table makes older tool calls stale in both, and both use one agent
+// start.
+func TestSharedChats(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// newer sends a request for a tool call in message 2 to the other
+		// table.
+		newer func(t *testing.T, other *agenttoolcall.Records[string], k agenttoolcall.Key)
+	}{
+		{
+			name: "Start",
+			newer: func(t *testing.T, other *agenttoolcall.Records[string], k agenttoolcall.Key) {
+				requireStart(t, other, k, inputA, "newer", nil)
+			},
+		},
+		{
+			name: "Cancel",
+			newer: func(t *testing.T, other *agenttoolcall.Records[string], k agenttoolcall.Key) {
+				requireCancel(t, other, k, "", false, nil)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			chats := agenttoolcall.NewChats(clock)
+			processes := agenttoolcall.NewRecords[string](chats)
+			files := agenttoolcall.NewRecords[string](chats)
+			clock.Advance(time.Hour).MustWait(testutil.Context(t, testutil.WaitShort))
+			chatID := uuid.New()
+			recorded := key(chatID, 1, "recorded")
+			requireStart(t, files, recorded, inputA, "recorded", nil)
+
+			tt.newer(t, processes, key(chatID, 2, "newer"))
+
+			assert.False(t, files.Current(recorded), "a newer message in the other table ends the record")
+			_, err := files.Start(t.Context(), recorded, 0, inputA, notStart(t))
+			require.ErrorIs(t, err, agenttoolcall.ErrStaleToolCall)
+			_, _, err = files.Cancel(t.Context(), key(chatID, 1, "never-received"), 0)
+			require.ErrorIs(t, err, agenttoolcall.ErrStaleToolCall)
+			// The newer message's tool calls are new to this table.
+			requireStart(t, files, key(chatID, 2, "file"), inputA, "file", nil)
+			assert.True(t, processes.Current(key(chatID, 2, "newer")))
+		})
+	}
+
+	t.Run("OneAgentStart", func(t *testing.T) {
+		t.Parallel()
+
+		// A table built an hour after the agent started still knows the
+		// agent has run for an hour.
+		clock := quartz.NewMock(t)
+		chats := agenttoolcall.NewChats(clock)
+		clock.Advance(time.Hour).MustWait(testutil.Context(t, testutil.WaitShort))
+		late := agenttoolcall.NewRecords[string](chats)
+		requireStart(t, late, key(uuid.New(), 1, "call"), inputA, "value", nil)
+		_, err := late.Start(t.Context(), key(uuid.New(), 1, "call"), 2*time.Hour, inputA, notStart(t))
+		require.ErrorIs(t, err, agenttoolcall.ErrAgentStartedAfterToolCall)
+	})
 }

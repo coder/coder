@@ -1512,6 +1512,71 @@ func TestAgent_SCP(t *testing.T) {
 	assertConnectionReport(t, agentClient, proto.Connection_SSH, 0, "")
 }
 
+// TestAgent_ToolCalls sends tool call requests through a real AgentConn,
+// so they pass the agent's router and agentchat.Middleware: a repeated
+// start returns the first process, cancels reach both APIs, and a stale
+// request comes back as a coded 409.
+func TestAgent_ToolCalls(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	chatID := uuid.New()
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	toolCall := func(messageID int64, id string) context.Context {
+		return workspacesdk.WithToolCall(ctx, workspacesdk.ToolCall{MessageID: messageID, ID: id})
+	}
+
+	// The agent refuses tool calls committed up to a margin before it
+	// started, and a tool call age is never below zero, so wait until the
+	// agent has run past the margin. A refused cancel records nothing.
+	probeID := workspacesdk.ToolCallUUID(chatID, 1, "probe").String()
+	var probeErr error
+	require.Eventually(t, func() bool {
+		_, probeErr = conn.CancelProcess(toolCall(1, "probe"), probeID)
+		var tcErr *workspacesdk.ToolCallError
+		return !errors.As(probeErr, &tcErr) || tcErr.Code != workspacesdk.ToolCallErrorAgentStartedAfterToolCall
+	}, testutil.WaitMedium, testutil.IntervalFast)
+	require.NoError(t, probeErr)
+
+	processID := workspacesdk.ToolCallUUID(chatID, 1, "execute").String()
+	for range 2 {
+		resp, err := conn.StartProcess(toolCall(1, "execute"), workspacesdk.StartProcessRequest{Command: "echo tool-call"})
+		require.NoError(t, err)
+		require.Equal(t, processID, resp.ID, "every start for the tool call returns its process")
+	}
+	canceled, err := conn.CancelProcess(toolCall(1, "execute"), processID)
+	require.NoError(t, err)
+	assert.True(t, canceled.Started)
+
+	filePath := filepath.Join(os.TempDir(), "tool-call.txt")
+	require.NoError(t, afero.WriteFile(fs, filePath, []byte("one\n"), 0o644))
+	edits := workspacesdk.FileEditRequest{
+		Files:       []workspacesdk.FileEdits{{Path: filePath, Edits: []workspacesdk.FileEdit{{OldText: "one", NewText: "two"}}}},
+		IncludeDiff: true,
+	}
+	edited, err := conn.EditFiles(toolCall(1, "edit"), edits)
+	require.NoError(t, err)
+	canceledEdit, err := conn.CancelEditFiles(toolCall(1, "edit"), workspacesdk.ToolCallUUID(chatID, 1, "edit").String())
+	require.NoError(t, err)
+	require.True(t, canceledEdit.Started)
+	recorded, err := canceledEdit.EditFilesResult()
+	require.NoError(t, err)
+	assert.Equal(t, edited, recorded)
+
+	// A process tool call in message 2 makes message 1 stale for files too.
+	_, err = conn.CancelProcess(toolCall(2, "newer"), workspacesdk.ToolCallUUID(chatID, 2, "newer").String())
+	require.NoError(t, err)
+	_, err = conn.EditFiles(toolCall(1, "late"), edits)
+	var tcErr *workspacesdk.ToolCallError
+	require.ErrorAs(t, err, &tcErr)
+	assert.Equal(t, workspacesdk.ToolCallErrorStale, tcErr.Code)
+	data, err := afero.ReadFile(fs, filePath)
+	require.NoError(t, err)
+	assert.Equal(t, "two\n", string(data), "the stale edit changed nothing")
+}
+
 func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 

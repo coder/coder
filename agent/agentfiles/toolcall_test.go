@@ -27,7 +27,10 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -497,6 +500,48 @@ func TestCancelFileToolCall(t *testing.T) {
 				})
 			})
 
+			t.Run("ContextEndsWhileWaiting", func(t *testing.T) {
+				t.Parallel()
+
+				synctest.Test(t, func(t *testing.T) {
+					reached := make(chan struct{}, 1)
+					release := make(chan struct{})
+					handler, _, fs := newToolCallTestAPI(t, longRunning, func(call, file string) error {
+						if call == "rename" && file == toolCallFile {
+							reached <- struct{}{}
+							<-release
+						}
+						return nil
+					})
+					chatID := uuid.New()
+
+					applied := make(chan *httptest.ResponseRecorder, 1)
+					go func() {
+						applied <- tool.send(t, handler, false, toolCallHeaders(chatID, 1, "call", 0))
+					}()
+					<-reached
+
+					cancelCtx, cancel := context.WithCancel(t.Context())
+					canceled := make(chan *httptest.ResponseRecorder, 1)
+					go func() {
+						id := workspacesdk.ToolCallUUID(chatID, 1, "call").String()
+						canceled <- postCancelFileContext(cancelCtx, handler, tool.route, id, toolCallHeaders(chatID, 1, "call", 0))
+					}()
+					synctest.Wait()
+					cancel()
+
+					// The client is gone, so the handler writes nothing.
+					cw := <-canceled
+					assert.Empty(t, cw.Body.String())
+					assert.Empty(t, cw.Header().Get("Content-Type"))
+
+					close(release)
+					w := <-applied
+					require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+					assert.Equal(t, "one two\n", readToolCallFile(t, fs), "the edit finishes")
+				})
+			})
+
 			t.Run("RecordedError", func(t *testing.T) {
 				t.Parallel()
 
@@ -641,7 +686,11 @@ func postWriteFile(ctx context.Context, handler http.Handler, path, content stri
 func postCancelFile(t *testing.T, handler http.Handler, route, id string, headers http.Header) *httptest.ResponseRecorder {
 	t.Helper()
 
-	return serve(testutil.Context(t, testutil.WaitLong), handler, fmt.Sprintf("/%s/%s/cancel", route, id), bytes.NewReader(nil), headers)
+	return postCancelFileContext(testutil.Context(t, testutil.WaitLong), handler, route, id, headers)
+}
+
+func postCancelFileContext(ctx context.Context, handler http.Handler, route, id string, headers http.Header) *httptest.ResponseRecorder {
+	return serve(ctx, handler, fmt.Sprintf("/%s/%s/cancel", route, id), bytes.NewReader(nil), headers)
 }
 
 func serve(ctx context.Context, handler http.Handler, target string, body io.Reader, headers http.Header) *httptest.ResponseRecorder {
@@ -673,4 +722,49 @@ func decodeToolCallError(t *testing.T, w *httptest.ResponseRecorder) workspacesd
 	var resp workspacesdk.ToolCallError
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	return resp
+}
+
+// TestFileToolCallStaleAfterProcessToolCall covers the process and file
+// APIs of one agent sharing each chat's latest message ID: a request for
+// a newer message through either makes older tool calls stale on both.
+func TestFileToolCallStaleAfterProcessToolCall(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range fileTools {
+		t.Run(tool.route, func(t *testing.T) {
+			t.Parallel()
+
+			clock := quartz.NewMock(t)
+			chats := agenttoolcall.NewChats(clock)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			var writes atomic.Int64
+			fs := newTestFs(afero.NewMemMapFs(), countWrites(&writes))
+			require.NoError(t, afero.WriteFile(fs.Fs, toolCallFile, []byte("one\n"), 0o644))
+			files := agentchat.Middleware(agentfiles.NewAPI(logger, fs, nil, agentfiles.WithToolCallChats(chats)).Routes())
+			procAPI := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, nil, nil, nil, nil, agentproc.WithClock(clock), agentproc.WithToolCallChats(chats))
+			t.Cleanup(func() { _ = procAPI.Close() })
+			processes := agentchat.Middleware(procAPI.Routes())
+			clock.Advance(longRunning).MustWait(testutil.Context(t, testutil.WaitShort))
+			chatID := uuid.New()
+
+			// A cancel for a process tool call in message 2 records it
+			// without starting a process.
+			processCall := toolCallHeaders(chatID, 2, "process", 0)
+			w := serve(testutil.Context(t, testutil.WaitLong), processes, "/"+workspacesdk.ToolCallUUID(chatID, 2, "process").String()+"/cancel", bytes.NewReader(nil), processCall)
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+			w = tool.send(t, files, false, toolCallHeaders(chatID, 1, "file", 0))
+			require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+			assert.Equal(t, workspacesdk.ToolCallErrorStale, decodeToolCallError(t, w).Code)
+			assert.Zero(t, writes.Load())
+
+			// The reverse: a file tool call in message 3 makes message 2
+			// stale for processes.
+			w = tool.send(t, files, false, toolCallHeaders(chatID, 3, "file", 0))
+			require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+			w = serve(testutil.Context(t, testutil.WaitLong), processes, "/"+workspacesdk.ToolCallUUID(chatID, 2, "process").String()+"/cancel", bytes.NewReader(nil), processCall)
+			require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+			assert.Equal(t, workspacesdk.ToolCallErrorStale, decodeToolCallError(t, w).Code)
+		})
+	}
 }

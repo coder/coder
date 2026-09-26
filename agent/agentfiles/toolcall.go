@@ -25,30 +25,31 @@ type fileResult struct {
 	body   any
 }
 
-// readToolCall parses the tool call headers of r. found is false when r
-// has none. ok is false when readToolCall wrote a 400: the headers are
+// readToolCall parses the tool call headers of r, in the order the
+// process start handler checks them. hasToolCall is false when r has
+// none. ok is false when readToolCall wrote a 400: the headers are
 // malformed, or they are present without chat context.
-func readToolCall(ctx context.Context, rw http.ResponseWriter, r *http.Request) (key agenttoolcall.Key, age time.Duration, found, ok bool) {
-	toolCall, found, err := workspacesdk.ToolCallFromHeaders(r.Header)
+func readToolCall(ctx context.Context, rw http.ResponseWriter, r *http.Request) (key agenttoolcall.Key, toolCall workspacesdk.ToolCall, hasToolCall, ok bool) {
+	toolCall, hasToolCall, err := workspacesdk.ToolCallFromHeaders(r.Header)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid tool call headers.",
 			Detail:  err.Error(),
 		})
-		return agenttoolcall.Key{}, 0, false, false
+		return key, toolCall, false, false
 	}
-	if !found {
-		return agenttoolcall.Key{}, 0, false, true
+	if !hasToolCall {
+		return key, toolCall, false, true
 	}
-	chatContext, hasChat := agentchat.FromContext(ctx)
-	if !hasChat {
+	chatContext, ok := agentchat.FromContext(ctx)
+	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Tool call headers require the %s header.", workspacesdk.CoderChatIDHeader),
 		})
-		return agenttoolcall.Key{}, 0, false, false
+		return key, toolCall, true, false
 	}
 	key = agenttoolcall.Key{ChatID: chatContext.ID, MessageID: toolCall.MessageID, ToolCallID: toolCall.ID}
-	return key, toolCall.Age, true, true
+	return key, toolCall, true, true
 }
 
 // runToolCall runs apply at most once for the tool call and writes its
@@ -80,24 +81,37 @@ func (api *API) handleCancelToolCall(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 
-	key, age, found, ok := readToolCall(ctx, rw, r)
+	chatContext, ok := agentchat.FromContext(ctx)
 	if !ok {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Canceling a tool call requires the %s header.", workspacesdk.CoderChatIDHeader),
+		})
 		return
 	}
-	if !found {
+	toolCall, ok, err := workspacesdk.ToolCallFromHeaders(r.Header)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid tool call headers.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !ok {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Canceling a tool call requires tool call headers.",
 		})
 		return
 	}
-	if want := workspacesdk.ToolCallUUID(key.ChatID, key.MessageID, key.ToolCallID).String(); id != want {
+	key := agenttoolcall.Key{ChatID: chatContext.ID, MessageID: toolCall.MessageID, ToolCallID: toolCall.ID}
+	wantID := workspacesdk.ToolCallUUID(key.ChatID, key.MessageID, key.ToolCallID).String()
+	if id != wantID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("ID %q is not the ID of the tool call in the headers.", id),
 		})
 		return
 	}
 
-	res, started, err := api.toolCalls.Cancel(ctx, key, age)
+	res, started, err := api.toolCalls.Cancel(ctx, key, toolCall.Age)
 	// Cancel reports an aborted wait for an edit in progress on the same
 	// path as a recorded failure. The client is gone, so nothing is
 	// written.
@@ -136,13 +150,10 @@ func (api *API) handleCancelToolCall(rw http.ResponseWriter, r *http.Request) {
 // writeToolCallError writes the HTTP 409 for an agenttoolcall decision
 // error and reports whether err was one.
 func writeToolCallError(ctx context.Context, rw http.ResponseWriter, err error) bool {
-	code, ok := agenttoolcall.ErrorCode(err)
+	resp, ok := agenttoolcall.ErrorResponse(err)
 	if !ok {
 		return false
 	}
-	httpapi.Write(ctx, rw, http.StatusConflict, workspacesdk.ToolCallError{
-		Response: codersdk.Response{Message: err.Error()},
-		Code:     code,
-	})
+	httpapi.Write(ctx, rw, http.StatusConflict, resp)
 	return true
 }
