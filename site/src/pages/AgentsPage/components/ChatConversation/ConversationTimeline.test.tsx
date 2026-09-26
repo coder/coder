@@ -405,7 +405,11 @@ describe("ConversationTimeline live working blocks", () => {
 			chatStatus: "running",
 			streamState: createEmptyStreamState(),
 			streamTools: [],
-			liveStatus: { phase: "streaming", hasAccumulatedOutput: false },
+			liveStatus: {
+				phase: "streaming",
+				hasAccumulatedOutput: false,
+				hasRecentOutput: true,
+			},
 		});
 		expect(summary).toHaveFocus();
 

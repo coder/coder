@@ -1,14 +1,13 @@
 import type { LiveStatusModel } from "./liveStatusModel";
 import type { MergedTool, RenderBlock } from "./types";
 
-const hasTextOrThinkingBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some(
-		(block) => block.type === "response" || block.type === "thinking",
-	);
-
-const hasRunningTool = (tools: readonly MergedTool[]): boolean =>
-	tools.some((tool) => tool.status === "running");
-
+/**
+ * Whether the live turn needs the generic Thinking indicator because nothing
+ * else on screen shows that the agent is still working. Running tools and the
+ * trailing reasoning block (BlockList renders it as running) animate on their
+ * own. Response text shows progress only while it keeps arriving. Every other
+ * block is static.
+ */
 export const shouldShowGenericThinking = ({
 	liveStatus,
 	blocks,
@@ -17,8 +16,22 @@ export const shouldShowGenericThinking = ({
 	liveStatus: LiveStatusModel;
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
-}): boolean =>
-	liveStatus.phase === "starting" ||
-	(liveStatus.phase === "streaming" &&
-		!hasTextOrThinkingBlock(blocks) &&
-		!hasRunningTool(tools));
+}): boolean => {
+	if (liveStatus.phase === "starting") {
+		return true;
+	}
+	if (liveStatus.phase !== "streaming") {
+		return false;
+	}
+	if (tools.some((tool) => tool.status === "running")) {
+		return false;
+	}
+	switch (blocks.at(-1)?.type) {
+		case "thinking":
+			return false;
+		case "response":
+			return !liveStatus.hasRecentOutput;
+		default:
+			return true;
+	}
+};

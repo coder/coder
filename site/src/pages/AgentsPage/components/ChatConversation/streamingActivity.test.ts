@@ -10,7 +10,11 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 		case "starting":
 			return { phase: "starting", hasAccumulatedOutput: false };
 		case "streaming":
-			return { phase: "streaming", hasAccumulatedOutput: false };
+			return {
+				phase: "streaming",
+				hasAccumulatedOutput: false,
+				hasRecentOutput: true,
+			};
 		case "retrying":
 			return {
 				phase: "retrying",
@@ -41,6 +45,12 @@ const liveStatus = (phase: LiveStatusModel["phase"]): LiveStatusModel => {
 		case "interrupting":
 			return { phase: "interrupting", hasAccumulatedOutput: false };
 	}
+};
+
+const quietStreaming: LiveStatusModel = {
+	phase: "streaming",
+	hasAccumulatedOutput: true,
+	hasRecentOutput: false,
 };
 
 const tool = (status: MergedTool["status"]): MergedTool => ({
@@ -91,7 +101,7 @@ describe("shouldShowGenericThinking", () => {
 		).toBe(true);
 	});
 
-	it("hides when response text is visible", () => {
+	it("hides while response text keeps arriving", () => {
 		expect(
 			shouldShowGenericThinking({
 				liveStatus: liveStatus("streaming"),
@@ -101,14 +111,50 @@ describe("shouldShowGenericThinking", () => {
 		).toBe(false);
 	});
 
-	it("hides when reasoning is visible", () => {
+	it("shows once response text stops arriving", () => {
 		expect(
 			shouldShowGenericThinking({
-				liveStatus: liveStatus("streaming"),
+				liveStatus: quietStreaming,
+				blocks: [{ type: "response", text: "Fair point, let me check." }],
+				tools: [],
+			}),
+		).toBe(true);
+	});
+
+	it("hides while a tool is running, even when response text is quiet", () => {
+		expect(
+			shouldShowGenericThinking({
+				liveStatus: quietStreaming,
+				blocks: [
+					{ type: "tool", id: "running" },
+					{ type: "response", text: "Waiting on the command." },
+				],
+				tools: [tool("running")],
+			}),
+		).toBe(false);
+	});
+
+	it("hides while reasoning is the last block, even when quiet", () => {
+		expect(
+			shouldShowGenericThinking({
+				liveStatus: quietStreaming,
 				blocks: [{ type: "thinking", text: "thinking" }],
 				tools: [],
 			}),
 		).toBe(false);
+	});
+
+	it("shows when earlier text is followed by completed tools", () => {
+		expect(
+			shouldShowGenericThinking({
+				liveStatus: liveStatus("streaming"),
+				blocks: [
+					{ type: "response", text: "Reading the file." },
+					{ type: "tool", id: "completed" },
+				],
+				tools: [tool("completed")],
+			}),
+		).toBe(true);
 	});
 
 	it.each(["idle", "retrying", "reconnecting", "failed"] as const)(
