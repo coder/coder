@@ -321,24 +321,41 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
-	// checkPath runs the coderd checks tied to one path and returns the
+	// checkFile runs the coderd checks tied to one file and returns the
 	// reason to reject that file, or "" when it passes.
-	checkPath := func(path string) string {
+	checkFile := func(path string, indexes []int) string {
 		hasPlanFileName := looksLikePlanFileName(path)
 		if hasPlanFileName && !isAbsolutePath(path) {
 			return "Use the chat-specific absolute plan path; plan files must use absolute paths"
 		}
-		if resolvePlanPath == nil || !hasPlanFileName {
+		if resolvePlanPath != nil && hasPlanFileName {
+			if !planPathLoaded {
+				chatPath, home, planPathErr = resolvePlanPath(ctx)
+				planPathLoaded = true
+			}
+			if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
+				return resp.Content
+			}
+		}
+		// A no-op edit rejects its whole file like any other error in the
+		// file: calls with one are followed by rework on that file more
+		// often than other calls, so its other edits wait for the resend.
+		// The comparison is exact because texts that differ only in
+		// whitespace or line endings can still change the file.
+		var noOps []int
+		for _, i := range indexes {
+			if args.Edits[i].OldText == args.Edits[i].NewText {
+				noOps = append(noOps, i)
+			}
+		}
+		switch len(noOps) {
+		case 0:
 			return ""
+		case 1:
+			return "Change new_text or remove the edit: " + formatEditIndexes(noOps) + " has identical old_text and new_text, so it changes nothing"
+		default:
+			return "Change new_text or remove the edits: " + formatEditIndexes(noOps) + " have identical old_text and new_text, so they change nothing"
 		}
-		if !planPathLoaded {
-			chatPath, home, planPathErr = resolvePlanPath(ctx)
-			planPathLoaded = true
-		}
-		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
-			return resp.Content
-		}
-		return ""
 	}
 
 	var applied, notApplied []editFilesFileResult
@@ -355,7 +372,7 @@ func executeEditFilesTool(
 			})
 			continue
 		}
-		if reason := checkPath(file.Path); reason != "" {
+		if reason := checkFile(file.Path, indexes); reason != "" {
 			notApplied = append(notApplied, editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: reason,
 			})

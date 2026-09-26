@@ -744,11 +744,11 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
 		},
 		{
-			// An edit that changes nothing gets an empty diff from
-			// the agent.
+			// An empty diff from the agent is reported as an empty
+			// diff, not as a missing one.
 			name:  "EmptyDiff",
-			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
-			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{{OldText: "x", NewText: "x"}}, resp: applied("/repo/a.go", "")}},
+			input: `{"edits":[` + editA + `]}`,
+			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", "")}},
 			want:  `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
@@ -906,6 +906,105 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/home/coder/plan.md","status":"rejected","edits":[2],"error":"the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md"},` +
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
+		{
+			// An edit whose old_text equals new_text rejects its file
+			// in coderd, without an agent request.
+			name:        "NoOpEditRejectsItsFile",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"}]}`,
+			wantIsError: true,
+			want: "No files were applied.\n" +
+				"- /repo/a.go (edits[0]): Change new_text or remove the edit: edits[0] has identical old_text and new_text, so it changes nothing",
+		},
+		{
+			name:        "NoOpReplaceAllRejectsItsFile",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1","replace_all":true}]}`,
+			wantIsError: true,
+			want: "No files were applied.\n" +
+				"- /repo/a.go (edits[0]): Change new_text or remove the edit: edits[0] has identical old_text and new_text, so it changes nothing",
+		},
+		{
+			name:        "EmptyOldTextAndNewTextIsNoOp",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"","new_text":""}]}`,
+			wantIsError: true,
+			want: "No files were applied.\n" +
+				"- /repo/a.go (edits[0]): Change new_text or remove the edit: edits[0] has identical old_text and new_text, so it changes nothing",
+		},
+		{
+			// A file failing a path-tied check reports that reason,
+			// not the no-op.
+			name:        "PathCheckReasonBeforeNoOp",
+			input:       `{"edits":[{"path":"plan.md","old_text":"x","new_text":"x"}]}`,
+			wantIsError: true,
+			want:        "No files were applied.\n- plan.md (edits[0]): Use the chat-specific absolute plan path; plan files must use absolute paths",
+		},
+		{
+			name:  "NoOpEditDoesNotBlockOtherFiles",
+			input: `{"edits":[` + editA + `,{"path":"/repo/b.go","old_text":"foo()","new_text":"foo()"}]}`,
+			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1] was not applied): fix and resend only the edits for /repo/b.go.",` +
+				`"files":[` +
+				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"Change new_text or remove the edit: edits[1] has identical old_text and new_text, so it changes nothing"},` +
+				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// A no-op withholds the real edits to the same file too;
+			// the file lists all its edits and the error names the
+			// no-op.
+			name:  "NoOpWithholdsRealEditsToItsFile",
+			input: `{"edits":[` + editA + `,` + editB + `,{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 1"}]}`,
+			calls: []fileCall{{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, resp: applied("/repo/b.go", diffB)}},
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 file. /repo/a.go was not applied (none of edits[0], edits[2] were applied): fix and resend only the edits for /repo/a.go.",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"rejected","edits":[0,2],"error":"Change new_text or remove the edit: edits[2] has identical old_text and new_text, so it changes nothing"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
+		},
+		{
+			name: "EveryNoOpInAFileNamed",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},` +
+				editB + `,` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"},` +
+				`{"path":"/repo/a.go","old_text":"z","new_text":"z","replace_all":true}` +
+				`]}`,
+			calls:       []fileCall{{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, err: agentError(http.StatusNotFound, "open /repo/b.go: file does not exist")}},
+			wantIsError: true,
+			want: "No files were applied.\n" +
+				"- /repo/a.go (edits[0], edits[2], edits[3]): Change new_text or remove the edits: edits[0], edits[3] have identical old_text and new_text, so they change nothing\n" +
+				"- /repo/b.go (edits[1]): open /repo/b.go: file does not exist",
+		},
+		{
+			// The no-op check compares bytes: texts that differ only
+			// in whitespace or line endings, or where one side is
+			// empty, are sent to the agent.
+			name: "NearlyIdenticalTextsAreSent",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1 "},` +
+				`{"path":"/repo/a.go","old_text":"\tfoo()","new_text":"    foo()"},` +
+				`{"path":"/repo/a.go","old_text":"a\nb","new_text":"a\r\nb"},` +
+				`{"path":"/repo/a.go","old_text":"y := 1","new_text":""}` +
+				`]}`,
+			calls: []fileCall{{
+				path: "/repo/a.go",
+				edits: []workspacesdk.FileEdit{
+					{OldText: "x := 1", NewText: "x := 1 "},
+					{OldText: "\tfoo()", NewText: "    foo()"},
+					{OldText: "a\nb", NewText: "a\r\nb"},
+					{OldText: "y := 1", NewText: ""},
+				},
+				resp: applied("/repo/a.go", diffA),
+			}},
+			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+		},
+		{
+			// Empty old_text is left for the agent to reject.
+			name:        "EmptyOldTextIsSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"","new_text":"x := 2"}]}`,
+			calls:       []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{{NewText: "x := 2"}}, err: agentError(http.StatusBadRequest, "old_text must not be empty")}},
+			wantIsError: true,
+			want:        "No files were applied.\n- /repo/a.go (edits[0]): old_text must not be empty",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -977,6 +1076,18 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				want: "No files were applied.\n" +
 					"- /repo/a.go was not applied because the tool call was interrupted (edits[0])\n" +
 					"- /home/coder/plan.md was not applied because the tool call was interrupted (edits[1])",
+			},
+			{
+				// A skipped file with a no-op edit reports the
+				// interrupt, not the no-op.
+				name:             "BeforeFileWithNoOp",
+				cancelAfterFirst: true,
+				input:            `{"edits":[` + editA + `,{"path":"/repo/b.go","old_text":"foo()","new_text":"foo()"}]}`,
+				want: `{"status":"partial",` +
+					`"message":"Applied 1 file. /repo/b.go was not applied because the tool call was interrupted (edits[1]).",` +
+					`"files":[` +
+					`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"not sent because the tool call was interrupted"},` +
+					`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 			},
 		}
 		for _, tt := range interruptTests {
