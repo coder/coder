@@ -172,17 +172,25 @@ export function FilterCombobox({
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, openAtReset: open });
 	// Highlighted category row, tracked here instead of the full highlight so
-	// moving through option rows does not re-render the lists.
+	// moving through option rows does not re-render the lists. `null` means
+	// another row or a dismissed menu; `undefined` means typing cleared the
+	// highlight.
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
-		string | null
+		string | null | undefined
 	>(null);
-	// A scope match shows its flyout only while its row is highlighted, and
-	// never on coarse pointers.
+	const [typedValueSeen, setTypedValueSeen] = useState(inputValue);
+	if (typedValueSeen !== inputValue) {
+		setTypedValueSeen(inputValue);
+		setHighlightedCategoryKey(undefined);
+	}
+	// A scope match shows its flyout while its row is highlighted or while
+	// typing leaves no row highlighted, and never on coarse pointers.
 	const shownFlyoutKey =
 		flyoutCategoryKey ??
 		(!isCoarsePointer &&
 		scopeMatchKey !== null &&
-		highlightedCategoryKey === scopeMatchKey
+		(highlightedCategoryKey === scopeMatchKey ||
+			highlightedCategoryKey === undefined)
 			? scopeMatchKey
 			: null);
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
@@ -246,8 +254,8 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		// A cleared highlight leaves the flyouts as they are.
 		if (highlighted === "") {
+			setHighlightedCategoryKey(undefined);
 			return;
 		}
 		const isCategoryRow = listedCategories.some(

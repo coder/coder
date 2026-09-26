@@ -2822,6 +2822,27 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("opens the Owner flyout when typing shared after highlighting another row", async () => {
+		const { user, onChange, input } = setup(
+			[scopedOwnerCategory, statusCategory],
+			{ initialValue: "owner:alice", skipHover: true },
+		);
+
+		await user.click(input);
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{End}");
+		await user.type(input, "shared");
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		);
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
 	it("opens the Owner flyout with its toggle when typing shared", async () => {
 		const { user, onChange, input } = setup([scopedOwnerCategory], {
 			initialValue: "owner:alice",
