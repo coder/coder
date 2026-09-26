@@ -9,6 +9,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,9 +38,13 @@ import (
 // every tool call to be provably new to the agent.
 const longRunning = time.Hour
 
+// toolCallDir holds the files the tool call tests use. It is absolute on
+// every platform, as the file handlers require.
+var toolCallDir = filepath.Join(os.TempDir(), "work")
+
 // toolCallFile is the file every tool call test edits or writes. It
 // starts with the content "one\n".
-const toolCallFile = "/work/file.txt"
+var toolCallFile = filepath.Join(toolCallDir, "file.txt")
 
 // fileTool sends one file tool's request for toolCallFile.
 type fileTool struct {
@@ -494,14 +501,15 @@ func TestCancelFileToolCall(t *testing.T) {
 				t.Parallel()
 
 				handler, _, fs := newToolCallTestAPI(t, longRunning, nil)
-				require.NoError(t, fs.Mkdir("/work/dir", 0o755))
+				dir := filepath.Join(toolCallDir, "dir")
+				require.NoError(t, fs.Mkdir(dir, 0o755))
 				chatID := uuid.New()
 				var w *httptest.ResponseRecorder
 				if tool.route == "write-file" {
-					w = postWriteFile(testutil.Context(t, testutil.WaitLong), handler, "/work/dir", "content", toolCallHeaders(chatID, 1, "call", 0))
+					w = postWriteFile(testutil.Context(t, testutil.WaitLong), handler, dir, "content", toolCallHeaders(chatID, 1, "call", 0))
 				} else {
 					w = postEditFiles(testutil.Context(t, testutil.WaitLong), t, handler, workspacesdk.FileEditRequest{
-						Files: []workspacesdk.FileEdits{{Path: "/work/dir", Edits: []workspacesdk.FileEdit{{OldText: "a", NewText: "b"}}}},
+						Files: []workspacesdk.FileEdits{{Path: dir, Edits: []workspacesdk.FileEdit{{OldText: "a", NewText: "b"}}}},
 					}, toolCallHeaders(chatID, 1, "call", 0))
 				}
 				require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
@@ -627,7 +635,7 @@ func postEditFiles(ctx context.Context, t *testing.T, handler http.Handler, req 
 }
 
 func postWriteFile(ctx context.Context, handler http.Handler, path, content string, headers http.Header) *httptest.ResponseRecorder {
-	return serve(ctx, handler, "/write-file?path="+path, strings.NewReader(content), headers)
+	return serve(ctx, handler, "/write-file?"+url.Values{"path": {path}}.Encode(), strings.NewReader(content), headers)
 }
 
 func postCancelFile(t *testing.T, handler http.Handler, route, id string, headers http.Header) *httptest.ResponseRecorder {
