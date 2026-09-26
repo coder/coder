@@ -64,7 +64,7 @@ func experimentRuleRows(entries []codersdk.ExperimentRuleEntry) []experimentRule
 	rows := make([]experimentRuleRow, 0, len(entries))
 	for _, entry := range entries {
 		row := experimentRuleRow{
-			Experiment:    entry.Experiment,
+			Experiment:    codersdk.Experiment(entry.Experiment),
 			StaticDefault: entry.StaticDefault,
 			Mode:          "(none)",
 			Ignored:       entry.Ignored,
@@ -82,11 +82,11 @@ func experimentRuleRows(entries []codersdk.ExperimentRuleEntry) []experimentRule
 	return rows
 }
 
-func experimentRuleModeLabel(mode codersdk.ExperimentRuleMode) string {
+func experimentRuleModeLabel(mode string) string {
 	if mode == "" {
 		return "(malformed)"
 	}
-	return string(mode)
+	return mode
 }
 
 func (r *RootCmd) experimentRulesList() *serpent.Command {
@@ -206,7 +206,7 @@ func (r *RootCmd) experimentRuleWrite(use, short string, mode codersdk.Experimen
 
 func findExperimentRuleEntry(entries []codersdk.ExperimentRuleEntry, ex codersdk.Experiment) *codersdk.ExperimentRuleEntry {
 	for i := range entries {
-		if entries[i].Experiment == ex {
+		if entries[i].Experiment == string(ex) {
 			return &entries[i]
 		}
 	}
