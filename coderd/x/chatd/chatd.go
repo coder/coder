@@ -586,7 +586,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, chattool.ErrChatHasNoWorkspace
 		}
 
 		// A soft-deleted workspace keeps its agent rows, so the bound agent

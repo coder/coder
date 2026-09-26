@@ -449,6 +449,16 @@ func TestExecuteToolCallNoConnection(t *testing.T) {
 			},
 		},
 		{
+			// A chat without a workspace has run nothing.
+			name:    "IdentityNoWorkspace",
+			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrChatHasNoWorkspace),
+			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, chattool.ErrChatHasNoWorkspace.Error())
+				assert.NotContains(t, resp.Content, "outcome unknown")
+			},
+		},
+		{
 			name:    "IdentityWorkspaceDeleted",
 			connErr: xerrors.Errorf("get workspace connection: %w", chattool.ErrWorkspaceDeleted),
 			check: func(t *testing.T, resp fantasy.ToolResponse, _ string) {
