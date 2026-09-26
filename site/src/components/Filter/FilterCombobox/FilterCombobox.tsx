@@ -115,6 +115,7 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText,
 		categoryPlaceholderCount,
@@ -147,7 +148,13 @@ export function FilterCombobox({
 		categoryKey: string | null;
 		openAtReset: boolean;
 	}>({ categoryKey: null, openAtReset: open });
-	if (flyout.openAtReset !== open) {
+	// A flyout whose category left the menu, such as one hidden after a
+	// Retry, is closed too. Typed text only hides a row, so its flyout stays.
+	if (
+		flyout.openAtReset !== open ||
+		(flyout.categoryKey !== null &&
+			!menuCategories.some((category) => category.key === flyout.categoryKey))
+	) {
 		setFlyout({ categoryKey: null, openAtReset: open });
 	}
 	const flyoutCategoryKey = flyout.categoryKey;
@@ -213,13 +220,11 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		// A flyout whose row was hidden is closed, and a cleared highlight
-		// leaves the open flyout as it is.
-		const flyoutOpen = listedCategories.some(
-			(category) => category.key === flyoutCategoryKey,
-		);
+		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "".
+		// It must not close a flyout the text only hides, such as Owner's while
+		// `own` is typed, so the flyout returns when the text is deleted.
 		if (
-			!flyoutOpen ||
+			flyoutCategoryKey === null ||
 			highlighted === "" ||
 			highlighted === flyoutCategoryKey
 		) {

@@ -1803,6 +1803,60 @@ describe("FilterCombobox", () => {
 		);
 	});
 
+	it("keeps a hover flyout that typed text only hid", async () => {
+		const { user, input } = setup(
+			[{ ...ownerCategory, getOptions: neverResolves }, statusCategory],
+			{ skipHover: true },
+		);
+
+		await user.click(input);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await expectStatus("Loading Owner options.");
+		await user.type(input, "own");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).not.toHaveTextContent(
+				"Loading Owner options.",
+			),
+		);
+		await user.clear(input);
+
+		await expectStatus("Loading Owner options.");
+	});
+
+	it("does not open another flyout after a Retry hides the open one", async () => {
+		const retry = Promise.withResolvers<undefined>();
+		let calls = 0;
+		const { user, filtersButton } = setup(
+			[
+				{ ...ownerCategory, getOptions: neverResolves },
+				{
+					key: "template",
+					label: "Template",
+					hideWhenSingleOption: true,
+					getOptions: async () => {
+						calls += 1;
+						if (calls === 1) {
+							throw new Error("boom");
+						}
+						await retry.promise;
+						return [{ label: "Docker", value: "docker" }];
+					},
+				},
+			],
+			{ skipHover: true, fakeTimers: true },
+		);
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await act(async () => retry.resolve(undefined));
+		await act(() => vi.advanceTimersByTimeAsync(1000));
+
+		expect(screen.getByRole("status")).not.toHaveTextContent(
+			"Loading Owner options.",
+		);
+	});
+
 	it("retries a hover flyout whose options failed to load", async () => {
 		let failed = false;
 		const getOptions = vi.fn(async (query: string) => {
@@ -1828,7 +1882,8 @@ describe("FilterCombobox", () => {
 		);
 	});
 
-	// Owner comes first so a highlight that leaves the Status rows lands on it.
+	// With no categoriesBeforeStatus, Owner is the only row above Status, so
+	// ArrowUp from Status highlights it.
 	const setupFailedInlineStatus = (
 		categoriesBeforeStatus: readonly FilterCategory[] = [],
 	) => {
@@ -1935,6 +1990,7 @@ describe("FilterCombobox", () => {
 		await screen.findByRole("option", { name: "Retry" });
 		await user.keyboard("{End}{Enter}");
 		await screen.findByRole("option", { name: "Loading Status options." });
+		expect(screen.getByRole("status")).toHaveTextContent("Loading filters");
 		await act(async () => retry.resolve(undefined));
 		await screen.findByRole("option", { name: "Running" });
 		await user.keyboard("{Enter}");

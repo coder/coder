@@ -1284,6 +1284,7 @@ export const useFilterCombobox = ({
 		activeOptions,
 		activeOptionsError,
 		statusMessage,
+		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
 		categoryPlaceholderCount,

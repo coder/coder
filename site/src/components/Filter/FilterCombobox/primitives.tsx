@@ -194,8 +194,7 @@ export function FilterComboboxRoot({
 							// switching between "" and " " resets it to nothing.
 							setHighlightedValue((current) => (current === "" ? " " : ""));
 							highlightedValueRef.current = "";
-							// The caller can still move the highlight off a row that
-							// unmounted.
+							// Lets the caller re-highlight after the highlighted row unmounts.
 							onHighlightedValueChange?.("", previous);
 							return;
 						}
