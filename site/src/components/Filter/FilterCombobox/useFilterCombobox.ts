@@ -388,9 +388,6 @@ export const useFilterCombobox = ({
 		() => queryToChips(value, chipKeys),
 		[chipKeys, value],
 	);
-	// A category's first applied chip decides its scope toggle; with no chip
-	// the toggle is on. While its category is open, a typed prefix decides it
-	// instead. The typed key reaches the query only with the option picked.
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
 	const scopeChipsOf = (category: FilterCategory) =>
 		category.scopeToggle
@@ -404,6 +401,9 @@ export const useFilterCombobox = ({
 	// would collide with the other, and the query would silently lose a filter.
 	const isScopeToggleDisabled = (category: FilterCategory) =>
 		scopeChipsOf(category).length !== 1;
+	// A category's first applied chip decides its scope toggle; with no chip
+	// the toggle is on. A typed key reaches the query only with the option
+	// picked.
 	const isScopeWidened = (category: FilterCategory) => {
 		const toggle = category.scopeToggle;
 		if (!toggle) {
@@ -430,8 +430,9 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
-	// The applied chip holding a value, ignoring case, unless a typed prefix
-	// sets the key. Typed Enter commits that chip, which keeps it.
+	// The applied chip holding a value, ignoring letter case, unless a typed
+	// prefix sets the key. An option maps to it, so its row shows as selected
+	// and a click removes it; typed Enter commits it, which keeps it.
 	const scopeChipHolding = (category: FilterCategory, value: string) => {
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return undefined;
@@ -441,20 +442,11 @@ export const useFilterCombobox = ({
 			(chip) => parseChipToken(chip, chipKeys)?.value.toLowerCase() === folded,
 		);
 	};
-	// With a chip under each key, an option maps to the chip holding its value,
-	// so its row shows as selected and a click removes it.
-	const appliedScopeChipFor = (
-		category: FilterCategory,
-		option: Pick<FilterOption, "value">,
-	) =>
-		scopeChipsOf(category).length > 1
-			? scopeChipHolding(category, option.value)
-			: undefined;
 	const optionTokenFor = (
 		category: FilterCategory,
 		option: Pick<FilterOption, "token" | "value">,
 	) =>
-		appliedScopeChipFor(category, option) ??
+		scopeChipHolding(category, option.value) ??
 		optionToken(optionChipKey(category), option);
 	const categoryForChip = (token: string) => {
 		const key = parseChipToken(token, chipKeys)?.key;
@@ -1396,7 +1388,7 @@ export const useFilterCombobox = ({
 
 		// Let cmdk commit a currently highlighted category option. Otherwise Enter
 		// commits the typed value: the applied chip holding it, a listed option
-		// matching it in any case, or a new chip, so valid backend values do not
+		// matching it ignoring letter case, or a new chip, so valid backend values do not
 		// have to appear in the suggestion list.
 		if (
 			event.key === "Enter" &&
@@ -1415,7 +1407,7 @@ export const useFilterCombobox = ({
 			const candidate =
 				scopeChipHolding(activeCategory, typedOption.value) ??
 				(listedOption
-					? optionTokenFor(activeCategory, listedOption)
+					? optionToken(optionChipKey(activeCategory), listedOption)
 					: chipToken(
 							typedScopeWidened === true
 								? optionChipKey(activeCategory)

@@ -61,10 +61,11 @@ export type FilterCategory = {
 	 * disabled and both chips show their own query keys. A typed prefix sets
 	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
 	 * the category key or an alias commits under the category key. Without a
-	 * typed prefix, Enter on a value an applied chip holds, in any case, keeps
-	 * that chip. Otherwise a typed value that no option lists commits under the
-	 * category key unless `widenedKey` was typed, since a
-	 * backend may reject the widened key for values the requester cannot list.
+	 * typed prefix, a value an applied chip holds, ignoring letter case, maps
+	 * to that chip: clicking its option removes the chip, and typed Enter keeps
+	 * it. Otherwise a typed value that no option lists commits under the
+	 * category key unless `widenedKey` was typed, since a backend may reject
+	 * the widened key for values the requester cannot list.
 	 * While it is on and enabled, a pill after the chip reads `pillPrefix` and
 	 * the chip's value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.

@@ -2500,18 +2500,24 @@ describe("FilterCombobox", () => {
 		).toBeInTheDocument();
 	});
 
-	it("removes the chip holding a clicked owner in another case while both Owner keys are applied", async () => {
-		const { user, onChange, filtersButton } = setup(
-			[filteredScopedOwnerCategory],
-			{ initialValue: "owner:me user:Alice" },
-		);
+	it.each([
+		["owner:me user:Alice", "owner:me"],
+		["user:Alice", ""],
+	])(
+		"removes the chip of %s holding a clicked owner in different letter case",
+		async (initialValue, expected) => {
+			const { user, onChange, filtersButton } = setup(
+				[filteredScopedOwnerCategory],
+				{ initialValue },
+			);
 
-		await user.click(filtersButton);
-		await user.keyboard("{ArrowRight}");
-		await user.click(await screen.findByRole("option", { name: "alice" }));
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+			await user.click(await screen.findByRole("option", { name: "alice" }));
 
-		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:me"));
-	});
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
 
 	it.each(["user:alice", "user:Alice"])(
 		"keeps both Owner chips when a typed listed owner matches %s",
@@ -2548,7 +2554,7 @@ describe("FilterCombobox", () => {
 		["zed", "user:zed"],
 		["owner:zed", "owner:zed"],
 	])(
-		"commits typed %s holding the only Owner chip user:zed as %s",
+		"with only user:zed applied, typed %s commits %s",
 		async (typed, expected) => {
 			const { user, onChange, input, filtersButton } = setup(
 				[filteredScopedOwnerCategory],
@@ -2569,7 +2575,8 @@ describe("FilterCombobox", () => {
 			);
 			await user.keyboard("{Enter}");
 
-			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+			await waitFor(() => expect(input).toHaveValue(""));
+			expect(onChange).toHaveBeenLastCalledWith(expected);
 		},
 	);
 
