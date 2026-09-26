@@ -90,7 +90,11 @@ type FilterComboboxRootProps = {
 	 * and the rows whose highlight changes, not the caller's option lists.
 	 */
 	highlightRef?: Ref<FilterComboboxHighlight>;
-	/** Called with the new highlighted value and the one it replaced. */
+	/**
+	 * Called when cmdk moves the highlight, with the new value and the one it
+	 * replaced ("" when none). Not called for `highlightRef.set` or for a
+	 * highlight suppressed while `autoHighlight` is off.
+	 */
 	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
