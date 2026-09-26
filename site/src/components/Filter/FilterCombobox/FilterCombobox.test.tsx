@@ -440,6 +440,8 @@ describe("FilterCombobox", () => {
 			category = {},
 			getFilteredOptions = () => Promise.resolve([docker]),
 			skipHover = false,
+			// A clock that follows real time lets a slow run fire the lookup timeout
+			// before a deferred load settles.
 			shouldAdvanceTime = false,
 		}: {
 			category?: Partial<FilterCategory>;
