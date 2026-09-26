@@ -21,7 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -38,7 +38,7 @@ export const MockOrganization2: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockOrganization3: TypesGen.Organization = {
@@ -51,7 +51,7 @@ export const MockOrganization3: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
@@ -371,6 +371,18 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	display_name: "Organization Auditor",
 	assignable: true,
 	built_in: false,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
+export const MockAgentsAccessRole: TypesGen.AssignableRoles = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	assignable: true,
+	built_in: true,
 	site_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,

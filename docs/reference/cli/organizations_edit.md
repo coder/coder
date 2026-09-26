@@ -19,7 +19,11 @@ coder organizations edit [flags]
 ```console
   - Replace the roles every member of the organization holds:
 
-     $ coder organizations edit --default-org-member-roles organization-workspace-access,organization-template-admin
+     $ coder organizations edit --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin
+
+  - Restrict Coder Agents to members granted agents-access explicitly:
+
+     $ coder organizations edit --default-org-member-roles organization-workspace-access
 
   - Grant members no roles at all:
 
@@ -34,7 +38,7 @@ coder organizations edit [flags]
 |------|---------------------------|
 | Type | <code>string-array</code> |
 
-Replaces the roles every member of the organization holds. Accepts a comma-separated list and may be repeated. An empty value removes every role. New organizations start with organization-workspace-access, which grants members access to their own workspaces.
+Replaces the roles every member of the organization holds. Accepts a comma-separated list and may be repeated. An empty value removes every role. New organizations start with organization-workspace-access, which grants members access to their own workspaces, and agents-access, which grants members access to Coder Agents.
 
 ### -y, --yes
 

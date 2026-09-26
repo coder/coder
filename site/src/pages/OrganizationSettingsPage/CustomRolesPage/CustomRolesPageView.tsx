@@ -206,7 +206,7 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 					<span className="text-content-secondary">
 						No default roles. Members have only the permissions of their
 						directly assigned roles, which excludes creating and using
-						workspaces.
+						workspaces and using Coder Agents.
 					</span>
 				) : (
 					<DefaultRolesSummary

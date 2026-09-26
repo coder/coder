@@ -5,7 +5,9 @@ import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 export const ChatAccessDeniedAlert: FC = () => {
-	const docsLink = docs("/ai-coder/agents/getting-started");
+	const docsLink = docs(
+		"/ai-coder/agents/getting-started#control-who-can-use-coder-agents",
+	);
 
 	return (
 		<Alert

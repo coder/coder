@@ -70,7 +70,11 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 		Long: FormatExamples(
 			Example{
 				Description: "Replace the roles every member of the organization holds",
-				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access,organization-template-admin",
+				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin",
+			},
+			Example{
+				Description: "Restrict Coder Agents to members granted agents-access explicitly",
+				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access",
 			},
 			Example{
 				Description: "Grant members no roles at all",
@@ -87,7 +91,8 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 				Description: "Replaces the roles every member of the organization holds. " +
 					"Accepts a comma-separated list and may be repeated. " +
 					"An empty value removes every role. " +
-					"New organizations start with organization-workspace-access, which grants members access to their own workspaces.",
+					"New organizations start with organization-workspace-access, which grants members access to their own workspaces, " +
+					"and agents-access, which grants members access to Coder Agents.",
 				Value: serpent.StringArrayOf(&defaultOrgMemberRoles),
 			},
 			cliui.SkipPromptOption(),
