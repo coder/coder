@@ -476,7 +476,8 @@ export function FilterCombobox({
 									onClick={(event) => {
 										// The button unmounts, as does an open category's search
 										// field on wider viewports, so focus either held moves to
-										// the input instead of the page body.
+										// the input instead of the page body. On mobile, focusing
+										// the input would open the keyboard.
 										const hadFocus =
 											document.activeElement === event.currentTarget;
 										actions.clearAll();

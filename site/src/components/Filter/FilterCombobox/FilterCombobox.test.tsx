@@ -2472,5 +2472,20 @@ describe("FilterCombobox", () => {
 			);
 			expect(input).not.toHaveFocus();
 		});
+
+		it("leaves focus off the input after Clear all from a category", async () => {
+			const { user, onChange, input, filtersButton } = setup(
+				[ownerCategory, statusCategory, attributesCategory],
+				{ initialValue: "owner:alice status:running outdated:true" },
+			);
+
+			await user.click(filtersButton);
+			await user.click(await screen.findByRole("option", { name: "Owner" }));
+			await screen.findByRole("option", { name: "alice" });
+			await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
+			expect(input).not.toHaveFocus();
+		});
 	});
 });
