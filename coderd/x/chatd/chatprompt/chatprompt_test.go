@@ -220,10 +220,14 @@ func asToolResultPartForTest(part fantasy.MessagePart) (fantasy.ToolResultPart, 
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
+	// Invalid input is kept on the persisted part as InvalidArgs for
+	// analysis, but the prompt must replay it exactly as before: as "{}".
 	testCases := []struct {
-		name     string
-		input    string
-		expected string
+		name            string
+		input           string
+		expected        string
+		wantArgs        json.RawMessage
+		wantInvalidArgs string
 	}{
 		{
 			name:     "empty input",
@@ -231,69 +235,137 @@ func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T)
 			expected: "{}",
 		},
 		{
-			name:     "invalid json",
-			input:    "{\"command\":",
+			name:     "whitespace-only input",
+			input:    " \n\t ",
 			expected: "{}",
+		},
+		{
+			name:            "invalid json",
+			input:           "{\"command\":",
+			expected:        "{}",
+			wantInvalidArgs: "{\"command\":",
+		},
+		{
+			name:            "truncated edits array",
+			input:           `{"edits":[`,
+			expected:        "{}",
+			wantInvalidArgs: `{"edits":[`,
+		},
+		{
+			name:            "invalid json keeps surrounding whitespace",
+			input:           " {\"path\": \n",
+			expected:        "{}",
+			wantInvalidArgs: " {\"path\": \n",
+		},
+		{
+			name:            "invalid json with NUL and sentinel",
+			input:           "{\"old_text\":\"a\x00b\uE000\uE001c",
+			expected:        "{}",
+			wantInvalidArgs: "{\"old_text\":\"a\x00b\uE000\uE001c",
 		},
 		{
 			name:     "non-object json",
 			input:    "[]",
 			expected: "{}",
+			wantArgs: json.RawMessage("[]"),
 		},
 		{
 			name:     "valid object json",
 			input:    "{\"command\":\"ls\"}",
 			expected: "{\"command\":\"ls\"}",
+			wantArgs: json.RawMessage("{\"command\":\"ls\"}"),
+		},
+	}
+
+	// Current rows are written with PartFromContent and MarshalParts;
+	// legacy rows store the fantasy envelope and are converted on read.
+	formats := []struct {
+		name    string
+		version int16
+		marshal func(t *testing.T, content fantasy.ToolCallContent) pqtype.NullRawMessage
+	}{
+		{
+			name:    "parts",
+			version: chatprompt.CurrentContentVersion,
+			marshal: func(t *testing.T, content fantasy.ToolCallContent) pqtype.NullRawMessage {
+				raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{chatprompt.PartFromContent(content)})
+				require.NoError(t, err)
+				return raw
+			},
+		},
+		{
+			name:    "parts from pointer",
+			version: chatprompt.CurrentContentVersion,
+			marshal: func(t *testing.T, content fantasy.ToolCallContent) pqtype.NullRawMessage {
+				raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{chatprompt.PartFromContent(&content)})
+				require.NoError(t, err)
+				return raw
+			},
+		},
+		{
+			name: "legacy",
+			marshal: func(t *testing.T, content fantasy.ToolCallContent) pqtype.NullRawMessage {
+				raw, err := chatprompt.MarshalContent([]fantasy.Content{content}, nil)
+				require.NoError(t, err)
+				return raw
+			},
 		},
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, format := range formats {
+			t.Run(tc.name+"/"+format.name, func(t *testing.T) {
+				t.Parallel()
 
-			assistantContent, err := chatprompt.MarshalContent([]fantasy.Content{
-				fantasy.ToolCallContent{
-					ToolCallID: "toolu_01C4PqN6F2493pi7Ebag8Vg7",
-					ToolName:   "execute",
-					Input:      tc.input,
-				},
-			}, nil)
-			require.NoError(t, err)
-
-			toolContent, err := chatprompt.MarshalToolResult(
-				"toolu_01C4PqN6F2493pi7Ebag8Vg7",
-				"execute",
-				json.RawMessage(`{"error":"tool call was interrupted before it produced a result"}`),
-				true,
-				false,
-				false,
-				nil,
-			)
-			require.NoError(t, err)
-
-			prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
-				{
+				assistantMessage := database.ChatMessage{
 					Role:       database.ChatMessageRoleAssistant,
 					Visibility: database.ChatMessageVisibilityBoth,
-					Content:    assistantContent,
-				},
-				{
-					Role:       database.ChatMessageRoleTool,
-					Visibility: database.ChatMessageVisibilityBoth,
-					Content:    toolContent,
-				},
+					Content: format.marshal(t, fantasy.ToolCallContent{
+						ToolCallID: "toolu_01C4PqN6F2493pi7Ebag8Vg7",
+						ToolName:   "execute",
+						Input:      tc.input,
+					}),
+					ContentVersion: format.version,
+				}
+
+				parts, err := chatprompt.ParseContent(assistantMessage)
+				require.NoError(t, err)
+				require.Len(t, parts, 1)
+				require.Equal(t, tc.wantArgs, parts[0].Args)
+				require.Equal(t, tc.wantInvalidArgs, parts[0].InvalidArgs)
+
+				toolContent, err := chatprompt.MarshalToolResult(
+					"toolu_01C4PqN6F2493pi7Ebag8Vg7",
+					"execute",
+					json.RawMessage(`{"error":"tool call was interrupted before it produced a result"}`),
+					true,
+					false,
+					false,
+					nil,
+				)
+				require.NoError(t, err)
+
+				prompt := convertMessagesWithoutFiles(t, []database.ChatMessage{
+					assistantMessage,
+					{
+						Role:       database.ChatMessageRoleTool,
+						Visibility: database.ChatMessageVisibilityBoth,
+						Content:    toolContent,
+					},
+				})
+				require.Len(t, prompt, 2)
+
+				require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
+				require.Len(t, prompt[0].Content, 1)
+				toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
+				require.Len(t, toolCalls, 1)
+				require.Equal(t, tc.expected, toolCalls[0].Input)
+				require.Equal(t, "execute", toolCalls[0].ToolName)
+				require.Equal(t, "toolu_01C4PqN6F2493pi7Ebag8Vg7", toolCalls[0].ToolCallID)
+
+				require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
 			})
-			require.Len(t, prompt, 2)
-
-			require.Equal(t, fantasy.MessageRoleAssistant, prompt[0].Role)
-			toolCalls := chatprompt.ExtractToolCalls(prompt[0].Content)
-			require.Len(t, toolCalls, 1)
-			require.Equal(t, tc.expected, toolCalls[0].Input)
-			require.Equal(t, "execute", toolCalls[0].ToolName)
-			require.Equal(t, "toolu_01C4PqN6F2493pi7Ebag8Vg7", toolCalls[0].ToolCallID)
-
-			require.Equal(t, fantasy.MessageRoleTool, prompt[1].Role)
-		})
+		}
 	}
 }
 
@@ -2247,6 +2319,39 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 			`{"value":"before�after","pair":"😀","literal":"\\uD800"}`,
 			string(decoded[0].Args),
 		)
+	})
+
+	// Tool input that is not valid JSON is kept as raw text, which
+	// can hold NUL outside any JSON string.
+	t.Run("ToolCallInvalidArgsWithNul", func(t *testing.T) {
+		t.Parallel()
+
+		const input = "{\"edits\":[\x00\"a\x00b\""
+		part := chatprompt.PartFromContent(fantasy.ToolCallContent{
+			ToolCallID: "call-1",
+			ToolName:   "edit_files",
+			Input:      input,
+		})
+		encoded, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+		readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
+		require.NoError(t, err)
+		decoded, err := chatprompt.ParseContent(readBack)
+		require.NoError(t, err)
+		require.Len(t, decoded, 1)
+		require.Nil(t, decoded[0].Args)
+		require.Equal(t, input, decoded[0].InvalidArgs)
 	})
 
 	// Multiple parts in one message: one with NUL, one without.
