@@ -109,10 +109,17 @@ const setup = (
 		initialValue = "",
 		skipHover = false,
 		fakeTimers = false,
-	}: { initialValue?: string; skipHover?: boolean; fakeTimers?: boolean } = {},
+		shouldAdvanceTime = true,
+	}: {
+		initialValue?: string;
+		skipHover?: boolean;
+		fakeTimers?: boolean;
+		/** Lets real time move the fake clock too. */
+		shouldAdvanceTime?: boolean;
+	} = {},
 ) => {
 	if (fakeTimers) {
-		vi.useFakeTimers({ shouldAdvanceTime: true });
+		vi.useFakeTimers({ shouldAdvanceTime });
 	}
 	// user-event moves the pointer between elements without a related target,
 	// which reads as leaving the whole menu. Tests that click into a hover
@@ -396,18 +403,18 @@ describe("FilterCombobox", () => {
 
 	const docker = { label: "Docker", value: "docker" };
 
-	// Each empty-query load, the first and then a Retry, stays pending until
-	// the test settles it.
-	const setupPendingFirstLoad = (
+	const setupDeferredTemplateLoads = (
 		initialValue: string,
 		{
 			category = {},
 			getFilteredOptions = () => Promise.resolve([docker]),
 			skipHover = false,
+			shouldAdvanceTime = true,
 		}: {
 			category?: Partial<FilterCategory>;
 			getFilteredOptions?: (query: string) => Promise<FilterOption[]>;
 			skipHover?: boolean;
+			shouldAdvanceTime?: boolean;
 		} = {},
 	) => {
 		const [firstLoad, retryLoad] = [
@@ -433,13 +440,13 @@ describe("FilterCombobox", () => {
 					...category,
 				},
 			],
-			{ initialValue, fakeTimers: true, skipHover },
+			{ initialValue, fakeTimers: true, skipHover, shouldAdvanceTime },
 		);
 		return { ...rendered, firstLoad, retryLoad };
 	};
 
 	it("searches text matching a hideable category whose first load settles at one option", async () => {
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("");
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -450,7 +457,7 @@ describe("FilterCombobox", () => {
 
 	it("holds back text matching a hideable category whose first load settles at one option with its chip", async () => {
 		const { user, input, onChange, firstLoad } =
-			setupPendingFirstLoad("template:docker");
+			setupDeferredTemplateLoads("template:docker");
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -462,7 +469,7 @@ describe("FilterCombobox", () => {
 
 	it("searches text matching a hideable category whose chip is removed before its first load settles", async () => {
 		const { user, input, onChange, firstLoad } =
-			setupPendingFirstLoad("template:docker");
+			setupDeferredTemplateLoads("template:docker");
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -477,13 +484,15 @@ describe("FilterCombobox", () => {
 	it("holds back text matching a hideable category when its first load and lookup each fit the timeout but their sum does not", async () => {
 		const loadMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.8;
 		const lookupMs = TYPED_TEXT_LOOKUP_TIMEOUT_MS * 0.4;
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("", {
-			getFilteredOptions: () =>
-				new Promise((resolve) => setTimeout(resolve, lookupMs, [docker])),
-		});
-		// Only advanceTimersByTimeAsync moves this clock, so render time cannot
-		// fire the lookup timeout early.
-		vi.useFakeTimers();
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
+			"",
+			{
+				getFilteredOptions: () =>
+					new Promise((resolve) => setTimeout(resolve, lookupMs, [docker])),
+				// Render time must not fire the lookup timeout early.
+				shouldAdvanceTime: false,
+			},
+		);
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -500,7 +509,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("holds back text matching a hideable category whose first load fails", async () => {
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("");
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();
@@ -511,7 +520,7 @@ describe("FilterCombobox", () => {
 	});
 
 	it("holds back text matching a hideable category whose first load already failed", async () => {
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("");
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads("");
 		await act(async () => firstLoad.reject(new Error("boom")));
 		await user.click(input);
 		await user.type(input, "dock");
@@ -523,7 +532,7 @@ describe("FilterCombobox", () => {
 
 	it("searches text matching a hideable category whose Retry settles at one option", async () => {
 		const { user, input, filtersButton, onChange, firstLoad, retryLoad } =
-			setupPendingFirstLoad("", { skipHover: true });
+			setupDeferredTemplateLoads("", { skipHover: true });
 		await act(async () => firstLoad.reject(new Error("boom")));
 		await user.click(filtersButton);
 		await user.hover(await screen.findByRole("option", { name: "Template" }));
@@ -532,14 +541,13 @@ describe("FilterCombobox", () => {
 		await user.type(input, "dock");
 		await settleTypedText();
 		await act(async () => retryLoad.resolve([docker]));
-		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).toHaveBeenLastCalledWith("dock");
 	});
 
 	it("searches text matching a settled hideable category whose chip is removed during the lookup", async () => {
 		const kubernetes = Promise.withResolvers<FilterOption[]>();
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad(
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
 			"template:docker",
 			{ getFilteredOptions: () => kubernetes.promise },
 		);
@@ -553,15 +561,17 @@ describe("FilterCombobox", () => {
 		await act(async () =>
 			kubernetes.resolve([{ label: "Kubernetes", value: "kubernetes" }]),
 		);
-		await act(() => vi.advanceTimersByTimeAsync(TYPED_TEXT_LOOKUP_TIMEOUT_MS));
 
 		expect(onChange).toHaveBeenLastCalledWith("kub");
 	});
 
 	it("holds back text matching an inline category that sets hideWhenSingleOption", async () => {
-		const { user, input, onChange, firstLoad } = setupPendingFirstLoad("", {
-			category: { inlineOptions: true },
-		});
+		const { user, input, onChange, firstLoad } = setupDeferredTemplateLoads(
+			"",
+			{
+				category: { inlineOptions: true },
+			},
+		);
 		await user.click(input);
 		await user.type(input, "dock");
 		await settleTypedText();

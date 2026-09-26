@@ -834,7 +834,8 @@ export const useFilterCombobox = ({
 
 	// A hideable submenu category's empty-query options, which decide whether it
 	// stays in the menu. Awaits a pending first load or Retry. A failed load
-	// keeps the category listed, so it resolves to undefined and skips the check.
+	// that is not retrying keeps the category listed; it returns undefined here
+	// because `ensureQueryData` would refetch it.
 	const unfilteredForMenuCheck = (
 		category: FilterCategory,
 	): Promise<readonly FilterOption[] | undefined> | undefined => {
@@ -848,11 +849,7 @@ export const useFilterCombobox = ({
 			true,
 		);
 		const state = queryClient.getQueryState(options.queryKey);
-		if (
-			state?.status === "error" &&
-			state.data === undefined &&
-			state.fetchStatus === "idle"
-		) {
+		if (state?.status === "error" && state.data === undefined) {
 			return undefined;
 		}
 		return queryClient.ensureQueryData(options).catch(() => undefined);
