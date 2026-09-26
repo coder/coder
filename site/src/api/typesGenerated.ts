@@ -5100,6 +5100,60 @@ export type Experiment =
 	| "workspace-capable-licensing"
 	| "workspace-usage";
 
+// From codersdk/experimentrules.go
+/**
+ * ExperimentRule is the stored runtime rule of one experiment.
+ */
+export interface ExperimentRule {
+	/**
+	 * Mode is empty when the stored rule is malformed. A malformed rule
+	 * decides off until it is replaced.
+	 */
+	readonly mode: ExperimentRuleMode;
+	/**
+	 * Condition is the CEL expression of a condition rule.
+	 */
+	readonly condition?: string;
+	/**
+	 * Revision increases on every change. Zero means never configured.
+	 */
+	readonly revision: number;
+	readonly updated_by: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/experimentrules.go
+/**
+ * ExperimentRuleEntry describes the runtime rule state of one experiment.
+ */
+export interface ExperimentRuleEntry {
+	readonly experiment: Experiment;
+	/**
+	 * StaticDefault reports whether the experiment is in the startup
+	 * --experiments list of the replica that answered.
+	 */
+	readonly static_default: boolean;
+	/**
+	 * Rule is null when no rule was ever stored.
+	 */
+	readonly rule: ExperimentRule | null;
+	/**
+	 * Ignored is true for a stored rule of an experiment that does not
+	 * accept runtime rules. Such a rule has no effect.
+	 */
+	readonly ignored: boolean;
+}
+
+// From codersdk/experimentrules.go
+export type ExperimentRuleMode = "condition" | "inherit" | "off" | "on";
+
+export const ExperimentRuleModes: ExperimentRuleMode[] = [
+	"condition",
+	"inherit",
+	"off",
+	"on",
+];
+
 export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
@@ -8188,6 +8242,25 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unreachable",
 	"unregistered",
 ];
+
+// From codersdk/experimentrules.go
+/**
+ * PutExperimentRuleRequest replaces the runtime rule of one experiment.
+ */
+export interface PutExperimentRuleRequest {
+	readonly mode: ExperimentRuleMode;
+	/**
+	 * Condition is required for the condition mode and must be empty
+	 * otherwise.
+	 */
+	readonly condition?: string;
+	/**
+	 * ExpectedRevision must equal the current revision of the stored rule,
+	 * or zero when no rule is stored. A different revision fails with 409
+	 * Conflict.
+	 */
+	readonly expected_revision: number;
+}
 
 // From codersdk/workspaces.go
 /**

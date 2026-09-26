@@ -9101,6 +9101,74 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
+## codersdk.ExperimentRule
+
+```json
+{
+  "condition": "string",
+  "mode": "inherit",
+  "revision": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Properties
+
+| Name         | Type                                                       | Required | Restrictions | Description                                                                                         |
+|--------------|------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `condition`  | string                                                     | false    |              | Condition is the CEL expression of a condition rule.                                                |
+| `mode`       | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              | Mode is empty when the stored rule is malformed. A malformed rule decides off until it is replaced. |
+| `revision`   | integer                                                    | false    |              | Revision increases on every change. Zero means never configured.                                    |
+| `updated_at` | string                                                     | false    |              |                                                                                                     |
+| `updated_by` | string                                                     | false    |              |                                                                                                     |
+
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
+
+## codersdk.ExperimentRuleEntry
+
+```json
+{
+  "experiment": "example",
+  "ignored": true,
+  "rule": {
+    "condition": "string",
+    "mode": "inherit",
+    "revision": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+  },
+  "static_default": true
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                       |
+|------------------|----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `experiment`     | [codersdk.Experiment](#codersdkexperiment)         | false    |              |                                                                                                                   |
+| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect. |
+| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                        |
+| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.  |
+
+## codersdk.ExperimentRuleMode
+
+```json
+"inherit"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `condition`, `inherit`, `off`, `on` |
+
 ## codersdk.ExternalAPIKeyScopes
 
 ```json
@@ -13299,6 +13367,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Value(s)                                         |
 |--------------------------------------------------|
 | `ok`, `unhealthy`, `unreachable`, `unregistered` |
+
+## codersdk.PutExperimentRuleRequest
+
+```json
+{
+  "condition": "string",
+  "expected_revision": 0,
+  "mode": "inherit"
+}
+```
+
+### Properties
+
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                         |
+|---------------------|------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                           |
+| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored. A different revision fails with 409 Conflict. |
+| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                     |
+
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
 
 ## codersdk.PutExtendWorkspaceRequest
 

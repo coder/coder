@@ -60,6 +60,96 @@ You can opt-out of a feature after you've enabled it.
 
 </details>
 
+### Target experiments at runtime
+
+Some early access features accept runtime rules.
+A rule turns the experiment on or off for every user, or targets it to some users, without a restart.
+Only user-scoped experiments accept rules.
+Other experiments, such as `no_nats_pubsub` or `workspace-capable-licensing`, read only the startup `--experiments` list and need a restart to change.
+
+> [!NOTE]
+> The rules API and the hidden `coder exp experiment-rules` command are experimental.
+> They can change or be removed without notice.
+> There is no UI editor yet.
+
+You need the Owner role to change a rule.
+The Auditor role can list rules.
+
+Run `coder exp experiment-rules list` to show each user-scoped experiment, its startup default, and its rule.
+The list also shows stored rules that target other experiments as `ignored`, because they have no effect.
+
+#### Rule modes
+
+Each user-scoped experiment has at most one rule:
+
+| Rule                  | Effect                                                                     | Command                                                   |
+|-----------------------|----------------------------------------------------------------------------|-----------------------------------------------------------|
+| No rule, or `inherit` | Uses the startup `--experiments` default                                   | `coder exp experiment-rules reset <experiment>`           |
+| `on`                  | On for every user                                                          | `coder exp experiment-rules on <experiment>`              |
+| `off`                 | Off for every user, even if the experiment is enabled at startup           | `coder exp experiment-rules off <experiment>`             |
+| `condition`           | On for users whose [CEL](https://cel.dev) condition is true, off otherwise | `coder exp experiment-rules set <experiment> <condition>` |
+
+For example, to turn on an experiment for users in one group, widen it to every member of the `coder` organization, and then turn it off for everyone:
+
+```sh
+coder exp experiment-rules set mcp-tool-search '"coder/beta-testers" in user.groups'
+coder exp experiment-rules set mcp-tool-search '"coder/Everyone" in user.groups'
+coder exp experiment-rules off mcp-tool-search
+```
+
+Reset doesn't turn an experiment off.
+It restores the startup default, which can enable the experiment for every user.
+The command prints a warning when that happens.
+To turn an experiment off for everyone, use `off`.
+
+Each change increases the rule's revision.
+Changing commands accept `--expected-revision` and fail when the stored rule has a different revision.
+Without the flag, the command reads the current revision and writes against it, which protects only against a change made between that read and the write.
+The command never retries a conflict: it prints the current rule and exits with an error.
+
+If you use [audit logs](../admin/security/audit-logs.md), each change creates an entry with the `experiment_rule` resource type.
+The entry records who changed the rule and when, but not the condition text.
+To read a condition, list the rules.
+
+#### Condition variables
+
+A condition is a CEL expression that returns a boolean.
+It can read one variable, `user`, with these fields:
+
+| Field                | Type         | Value                                                                                                             |
+|----------------------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `user.id`            | string       | The user's ID                                                                                                     |
+| `user.username`      | string       | The user's username                                                                                               |
+| `user.email`         | string       | The user's email address, compared case-sensitively                                                               |
+| `user.roles`         | list(string) | The user's explicit site roles, such as `owner`. The implied member role and organization roles are not included. |
+| `user.organizations` | list(string) | Names of the organizations the user belongs to                                                                    |
+| `user.groups`        | list(string) | Groups the user belongs to, as `<organization>/<group>`, including `<organization>/Everyone`                      |
+
+A condition can be at most 4,096 characters long, and each evaluation has a CEL cost limit of 10,000.
+Coder rejects a condition that fails to compile and returns the error to the person who wrote it.
+Server logs record only the experiment, the rule revision, the error category, and the line and column, never the condition text.
+
+#### When a change takes effect
+
+On supporting replicas, a fresh authoritative database read after the update commits observes the new rule.
+In-flight evaluations and work already using an earlier decision are not cancelled.
+All serving replicas must run a supporting version before you rely on this control.
+
+Replicas that run an earlier version ignore rules and use their startup `--experiments` list.
+Every replica also falls back to its own startup list for experiments without a rule or with `inherit`, so give all replicas the same `--experiments` value.
+
+The dashboard fetches the enabled experiments again when a page loads, when the browser window regains focus, and when the connection is restored, if its copy is more than 60 seconds old.
+It doesn't refresh on a timer, so a tab that stays focused can show an out-of-date view.
+The server applies the current rule to each request regardless of what the dashboard shows.
+
+#### Failure behavior
+
+If Coder can't read the rules, a stored rule is malformed, or a condition fails to compile or evaluate, the experiment is off for that decision, even if it is enabled at startup.
+You can't change this behavior.
+
+Rules gate features; they are not an authorization boundary.
+Don't use a rule to restrict access to data or actions.
+
 ## Beta
 
 - **Stable**: No
