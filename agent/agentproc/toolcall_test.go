@@ -16,6 +16,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,14 +27,20 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
-// longRunning is how long the agent has been running in tests that need
-// every tool call to be provably new to the agent.
-const longRunning = time.Hour
+const (
+	// longRunning is how long the agent has been running in tests that
+	// need every tool call to be provably new to the agent.
+	longRunning = time.Hour
+	// stopAny is a stop threshold above the run age of every process in
+	// these tests, which do not advance the clock that far.
+	stopAny = 10 * time.Minute
+)
 
 func TestStartProcessToolCall(t *testing.T) {
 	t.Parallel()
@@ -100,7 +107,7 @@ func TestStartProcessToolCall(t *testing.T) {
 		{
 			name: "CanceledBeforeStart",
 			setup: func(t *testing.T, handler http.Handler, chatID uuid.UUID, _ string) {
-				resp := requireCancel(t, handler, chatID, 1, "call", 0)
+				resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
 				require.False(t, resp.Started)
 			},
 			messageID: 1,
@@ -177,20 +184,16 @@ func TestStartProcessToolCallStartError(t *testing.T) {
 		WorkDir: filepath.Join(t.TempDir(), "missing"),
 	}
 
-	for range 2 {
-		w := postStart(t, handler, req, toolCallHeaders(chatID, 1, "call", 0))
-		require.Equal(t, http.StatusInternalServerError, w.Code, w.Body.String())
-	}
+	first := postStart(t, handler, req, toolCallHeaders(chatID, 1, "call", 0))
+	require.Equal(t, http.StatusInternalServerError, first.Code, first.Body.String())
+	again := postStart(t, handler, req, toolCallHeaders(chatID, 1, "call", 0))
+	require.Equal(t, http.StatusInternalServerError, again.Code)
+	assert.Equal(t, first.Body.String(), again.Body.String(), "the failed start is recorded, not retried")
 
-	// An aborted request must not be answered as if no process started.
-	aborted, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
-	cancel()
-	id := workspacesdk.ToolCallUUID(chatID, 1, "call").String()
-	w := postCancelContext(aborted, handler, id, toolCallHeaders(chatID, 1, "call", 0))
-	assert.Empty(t, w.Body.String())
-
-	resp := requireCancel(t, handler, chatID, 1, "call", 0)
-	assert.False(t, resp.Started, "a recorded start error means no process started")
+	resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+	assert.True(t, resp.Started)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	assert.Nil(t, resp.Process, "a failed start has no process")
 }
 
 func TestStartProcessWithoutToolCallUnchanged(t *testing.T) {
@@ -200,16 +203,19 @@ func TestStartProcessWithoutToolCallUnchanged(t *testing.T) {
 	headers := http.Header{workspacesdk.CoderChatIDHeader: {uuid.New().String()}}
 	req := workspacesdk.StartProcessRequest{Command: "true"}
 
-	first := startAndGetID(t, handler, req, headers)
+	first := postStart(t, handler, req, headers)
+	require.Equal(t, http.StatusOK, first.Code)
+	assert.Empty(t, first.Header().Get(workspacesdk.CoderToolCallRunAgeMsHeader))
 	second := startAndGetID(t, handler, req, headers)
-	require.NotEqual(t, first, second, "starts without tool call headers are independent")
+	var resp workspacesdk.StartProcessResponse
+	require.NoError(t, json.NewDecoder(first.Body).Decode(&resp))
+	require.NotEqual(t, resp.ID, second, "starts without tool call headers are independent")
 }
 
-func TestToolCallBadRequest(t *testing.T) {
+func TestStartProcessToolCallBadRequest(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.New()
-	id := workspacesdk.ToolCallUUID(chatID, 1, "call").String()
 	withChat := func(h http.Header) http.Header {
 		h.Set(workspacesdk.CoderChatIDHeader, chatID.String())
 		return h
@@ -219,36 +225,23 @@ func TestToolCallBadRequest(t *testing.T) {
 		workspacesdk.ToolCall{MessageID: 1, ID: "call"}.SetHeaders(h)
 		return h
 	}
-	partial := http.Header{workspacesdk.CoderToolCallMessageIDHeader: {"1"}}
 	malformedAge := toolCallOnly()
 	malformedAge.Set(workspacesdk.CoderToolCallAgeMsHeader, "-1")
 
 	tests := []struct {
 		name    string
-		cancel  bool
-		id      string
 		headers http.Header
 	}{
-		{name: "StartWithoutChat", headers: toolCallOnly()},
-		{name: "StartPartialHeaders", headers: withChat(partial.Clone())},
-		{name: "StartMalformedAge", headers: withChat(malformedAge.Clone())},
-		{name: "CancelWithoutChat", cancel: true, id: id, headers: toolCallOnly()},
-		{name: "CancelWithoutToolCall", cancel: true, id: id, headers: withChat(http.Header{})},
-		{name: "CancelPartialHeaders", cancel: true, id: id, headers: withChat(partial.Clone())},
-		{name: "CancelMalformedAge", cancel: true, id: id, headers: withChat(malformedAge.Clone())},
-		{name: "CancelWrongID", cancel: true, id: uuid.New().String(), headers: toolCallHeaders(chatID, 1, "call", 0)},
+		{name: "WithoutChat", headers: toolCallOnly()},
+		{name: "PartialHeaders", headers: withChat(http.Header{workspacesdk.CoderToolCallMessageIDHeader: {"1"}})},
+		{name: "MalformedAge", headers: withChat(malformedAge)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			handler, _ := newToolCallTestAPI(t, longRunning)
-			var w *httptest.ResponseRecorder
-			if tt.cancel {
-				w = postCancel(t, handler, tt.id, tt.headers)
-			} else {
-				w = postStart(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, tt.headers)
-			}
+			w := postStart(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, tt.headers)
 			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 			// Nothing was recorded, so a valid request still starts.
 			startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, toolCallHeaders(chatID, 1, "call", 0))
@@ -256,7 +249,7 @@ func TestToolCallBadRequest(t *testing.T) {
 	}
 }
 
-func TestCancelProcess(t *testing.T) {
+func TestCancelToolCallProcess(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Running", func(t *testing.T) {
@@ -268,16 +261,20 @@ func TestCancelProcess(t *testing.T) {
 		waitForOutput(t, handler, id, "before")
 		clock.Advance(2 * time.Second).MustWait(testutil.Context(t, testutil.WaitShort))
 
-		resp := requireCancel(t, handler, chatID, 1, "call", 0)
+		resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
 		assert.True(t, resp.Started)
-		assert.True(t, resp.Canceled)
-		assert.Equal(t, "before\n", resp.Output)
-		require.NotNil(t, resp.ExitCode)
-		assert.NotZero(t, *resp.ExitCode)
-		assert.EqualValues(t, 2000, resp.AgeMs)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Contains(t, string(resp.Body), id, "the recorded start response")
+		require.NotNil(t, resp.Process)
+		assert.False(t, resp.Process.Running)
+		assert.True(t, resp.Process.Canceled)
+		assert.Equal(t, "before\n", resp.Process.Output)
+		require.NotNil(t, resp.Process.ExitCode)
+		assert.NotZero(t, *resp.Process.ExitCode)
+		assert.EqualValues(t, 2000, resp.Process.RunAgeMs)
 
 		out := waitForExit(t, handler, id)
-		assert.Equal(t, resp.ExitCode, out.ExitCode)
+		assert.Equal(t, resp.Process.ExitCode, out.ExitCode)
 	})
 
 	// An interrupt task retry sends the cancel again after the process
@@ -289,10 +286,12 @@ func TestCancelProcess(t *testing.T) {
 		chatID := uuid.New()
 		startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "echo before; sleep 300"}, toolCallHeaders(chatID, 1, "call", 0))
 
-		first := requireCancel(t, handler, chatID, 1, "call", 0)
-		second := requireCancel(t, handler, chatID, 1, "call", 0)
-		assert.True(t, first.Canceled)
-		assert.True(t, second.Canceled, "a repeated cancel must still report that the user canceled the process")
+		first := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+		second := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+		require.NotNil(t, first.Process)
+		require.NotNil(t, second.Process)
+		assert.True(t, first.Process.Canceled)
+		assert.True(t, second.Process.Canceled, "a repeated cancel must still report that the user canceled the process")
 		assert.Equal(t, first, second)
 	})
 
@@ -304,12 +303,13 @@ func TestCancelProcess(t *testing.T) {
 		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "echo done; exit 3"}, toolCallHeaders(chatID, 1, "call", 0))
 		waitForExit(t, handler, id)
 
-		resp := requireCancel(t, handler, chatID, 1, "call", 0)
+		resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
 		assert.True(t, resp.Started)
-		assert.False(t, resp.Canceled)
-		assert.Equal(t, "done\n", resp.Output)
-		require.NotNil(t, resp.ExitCode)
-		assert.Equal(t, 3, *resp.ExitCode)
+		require.NotNil(t, resp.Process)
+		assert.False(t, resp.Process.Canceled)
+		assert.Equal(t, "done\n", resp.Process.Output)
+		require.NotNil(t, resp.Process.ExitCode)
+		assert.Equal(t, 3, *resp.Process.ExitCode)
 	})
 
 	t.Run("AbortedRequestStillKills", func(t *testing.T) {
@@ -322,12 +322,31 @@ func TestCancelProcess(t *testing.T) {
 
 		aborted, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		cancel()
-		postCancelContext(aborted, handler, id, headers)
+		postCancelContext(aborted, handler, id, headers, stopAny)
 		out := waitForExit(t, handler, id)
 		assert.NotNil(t, out.ExitCode)
 		// The retried cancel reports the kill the aborted one sent.
-		resp := requireCancel(t, handler, chatID, 1, "call", 0)
-		assert.True(t, resp.Canceled)
+		resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+		require.NotNil(t, resp.Process)
+		assert.True(t, resp.Process.Canceled)
+	})
+
+	// A kill through process_signal is the model's own action, not a user
+	// cancel.
+	t.Run("SignalKillIsNotCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		handler, _ := newToolCallTestAPI(t, longRunning)
+		chatID := uuid.New()
+		id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "sleep 300"}, toolCallHeaders(chatID, 1, "call", 0))
+		w := postSignal(t, handler, id, workspacesdk.SignalProcessRequest{Signal: "kill"})
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		waitForExit(t, handler, id)
+
+		resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+		require.NotNil(t, resp.Process)
+		assert.False(t, resp.Process.Running)
+		assert.False(t, resp.Process.Canceled)
 	})
 
 	t.Run("NeverReceived", func(t *testing.T) {
@@ -336,8 +355,8 @@ func TestCancelProcess(t *testing.T) {
 		handler, _ := newToolCallTestAPI(t, longRunning)
 		chatID := uuid.New()
 		for range 2 {
-			resp := requireCancel(t, handler, chatID, 1, "call", 0)
-			assert.Equal(t, workspacesdk.CancelProcessResponse{}, resp)
+			resp := requireCancel(t, handler, chatID, 1, "call", 0, stopAny)
+			assert.Equal(t, workspacesdk.CancelToolCallResponse{}, resp)
 		}
 	})
 
@@ -346,7 +365,7 @@ func TestCancelProcess(t *testing.T) {
 
 		handler, _ := newToolCallTestAPI(t, 10*time.Second)
 		chatID := uuid.New()
-		w := postCancel(t, handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), toolCallHeaders(chatID, 1, "call", time.Minute))
+		w := postCancel(t, handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), toolCallHeaders(chatID, 1, "call", time.Minute), stopAny)
 		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
 		require.Equal(t, workspacesdk.ToolCallErrorAgentStartedAfterToolCall, decodeToolCallError(t, w).Code)
 	})
@@ -357,7 +376,7 @@ func TestCancelProcess(t *testing.T) {
 		handler, _ := newToolCallTestAPI(t, longRunning)
 		chatID := uuid.New()
 		startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, toolCallHeaders(chatID, 2, "other", 0))
-		w := postCancel(t, handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), toolCallHeaders(chatID, 1, "call", 0))
+		w := postCancel(t, handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), toolCallHeaders(chatID, 1, "call", 0), stopAny)
 		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
 		require.Equal(t, workspacesdk.ToolCallErrorStale, decodeToolCallError(t, w).Code)
 	})
@@ -374,44 +393,75 @@ func TestCancelProcess(t *testing.T) {
 		})
 
 		// Chat B cannot address chat A's process ID.
-		w := postCancel(t, handler, idA, toolCallHeaders(chatB, 1, "call", 0))
+		w := postCancel(t, handler, idA, toolCallHeaders(chatB, 1, "call", 0), stopAny)
 		require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 		// The same tool call identifiers in chat B are a different tool call.
-		resp := requireCancel(t, handler, chatB, 1, "call", 0)
+		resp := requireCancel(t, handler, chatB, 1, "call", 0, stopAny)
 		assert.False(t, resp.Started)
 
-		out := getOutput(t, handler, idA)
-		require.Equal(t, http.StatusOK, out.Code)
-		var outResp workspacesdk.ProcessOutputResponse
-		require.NoError(t, json.NewDecoder(out.Body).Decode(&outResp))
-		assert.True(t, outResp.Running, "chat A's process must keep running")
+		assert.True(t, requireOutput(t, handler, idA).Running, "chat A's process must keep running")
 	})
 }
 
-func TestToolCallProcessAge(t *testing.T) {
+func TestCancelToolCallProcessRunAgeRule(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		runAge     time.Duration
+		stopBelow  time.Duration
+		wantKilled bool
+	}{
+		{name: "BelowThresholdKills", runAge: 4 * time.Second, stopBelow: 5 * time.Second, wantKilled: true},
+		{name: "AtThresholdLeavesRunning", runAge: 5 * time.Second, stopBelow: 5 * time.Second},
+		{name: "AboveThresholdLeavesRunning", runAge: 6 * time.Second, stopBelow: 5 * time.Second},
+		{name: "ZeroNeverStops", stopBelow: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler, clock := newToolCallTestAPI(t, longRunning)
+			chatID := uuid.New()
+			id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "sleep 300"}, toolCallHeaders(chatID, 1, "call", 0))
+			t.Cleanup(func() {
+				postSignal(t, handler, id, workspacesdk.SignalProcessRequest{Signal: "kill"})
+			})
+			clock.Advance(tt.runAge).MustWait(testutil.Context(t, testutil.WaitShort))
+
+			resp := requireCancel(t, handler, chatID, 1, "call", 0, tt.stopBelow)
+			require.NotNil(t, resp.Process)
+			assert.Equal(t, !tt.wantKilled, resp.Process.Running)
+			assert.Equal(t, tt.wantKilled, resp.Process.Canceled)
+			assert.Equal(t, tt.runAge.Milliseconds(), resp.Process.RunAgeMs)
+			assert.Equal(t, !tt.wantKilled, requireOutput(t, handler, id).Running)
+		})
+	}
+}
+
+func TestToolCallRunAge(t *testing.T) {
 	t.Parallel()
 
 	handler, clock := newToolCallTestAPI(t, longRunning)
 	chatID := uuid.New()
-	ctx := testutil.Context(t, testutil.WaitShort)
+	req := workspacesdk.StartProcessRequest{Command: "true"}
 
-	w := postStart(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, toolCallHeaders(chatID, 1, "call", 0))
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	first := postStart(t, handler, req, toolCallHeaders(chatID, 1, "call", 0))
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	assert.Equal(t, "0", first.Header().Get(workspacesdk.CoderToolCallRunAgeMsHeader))
+
+	clock.Advance(1500 * time.Millisecond).MustWait(testutil.Context(t, testutil.WaitShort))
+	again := postStart(t, handler, req, toolCallHeaders(chatID, 1, "call", 0))
+	require.Equal(t, http.StatusOK, again.Code, again.Body.String())
+	assert.Equal(t, "1500", again.Header().Get(workspacesdk.CoderToolCallRunAgeMsHeader))
+	assert.Equal(t, first.Body.String(), again.Body.String(), "a repeated start gets the recorded body")
+
 	var start workspacesdk.StartProcessResponse
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&start))
-	assert.Zero(t, start.AgeMs)
-
-	clock.Advance(1500 * time.Millisecond).MustWait(ctx)
-	out := waitForExit(t, handler, start.ID)
-	assert.EqualValues(t, 1500, out.AgeMs)
-
-	clock.Advance(time.Second).MustWait(ctx)
-	w = postStart(t, handler, workspacesdk.StartProcessRequest{Command: "true"}, toolCallHeaders(chatID, 1, "call", 0))
-	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	var again workspacesdk.StartProcessResponse
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&again))
-	assert.Equal(t, start.ID, again.ID)
-	assert.EqualValues(t, 2500, again.AgeMs)
+	require.NoError(t, json.NewDecoder(first.Body).Decode(&start))
+	waitForExit(t, handler, start.ID)
+	resp := requireCancel(t, handler, chatID, 1, "call", 0, 0)
+	require.NotNil(t, resp.Process)
+	assert.EqualValues(t, 1500, resp.Process.RunAgeMs)
 }
 
 func TestToolCallProcessReaping(t *testing.T) {
@@ -438,7 +488,7 @@ func TestToolCallProcessReaping(t *testing.T) {
 	assert.Contains(t, ids, newer)
 }
 
-func TestCancelProcessWaitsForPendingStart(t *testing.T) {
+func TestCancelToolCallWaitsForPendingStart(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -454,8 +504,7 @@ func TestCancelProcessWaitsForPendingStart(t *testing.T) {
 			})
 			return env, nil
 		}
-		api, _ := newToolCallAPI(t, longRunning, nil, updateEnv)
-		handler := agentchat.Middleware(api.Routes())
+		_, handler, _ := newToolCallAPI(t, longRunning, nil, updateEnv)
 		chatID := uuid.New()
 		headers := toolCallHeaders(chatID, 1, "call", 0)
 		body, err := json.Marshal(workspacesdk.StartProcessRequest{Command: "sleep 300"})
@@ -468,7 +517,7 @@ func TestCancelProcessWaitsForPendingStart(t *testing.T) {
 		<-entered
 		canceled := make(chan *httptest.ResponseRecorder, 1)
 		go func() {
-			canceled <- postCancelContext(t.Context(), handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), headers)
+			canceled <- postCancelContext(t.Context(), handler, workspacesdk.ToolCallUUID(chatID, 1, "call").String(), headers, stopAny)
 		}()
 		synctest.Wait()
 		require.Empty(t, canceled, "cancel must wait for the pending start")
@@ -476,10 +525,11 @@ func TestCancelProcessWaitsForPendingStart(t *testing.T) {
 		close(release)
 		w := <-canceled
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-		var resp workspacesdk.CancelProcessResponse
+		var resp workspacesdk.CancelToolCallResponse
 		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 		assert.True(t, resp.Started)
-		assert.True(t, resp.Canceled, "the started process must be killed")
+		require.NotNil(t, resp.Process)
+		assert.True(t, resp.Process.Canceled, "the started process must be killed")
 		w = <-started
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	})
@@ -488,15 +538,11 @@ func TestCancelProcessWaitsForPendingStart(t *testing.T) {
 func TestCloseKillsToolCallProcess(t *testing.T) {
 	t.Parallel()
 
-	api, _ := newToolCallAPI(t, longRunning, nil, nil)
-	handler := agentchat.Middleware(api.Routes())
+	api, handler, _ := newToolCallAPI(t, longRunning, nil, nil)
 	id := startAndGetID(t, handler, workspacesdk.StartProcessRequest{Command: "sleep 300"}, toolCallHeaders(uuid.New(), 1, "call", 0))
 
 	require.NoError(t, api.Close())
-	w := getOutput(t, handler, id)
-	require.Equal(t, http.StatusOK, w.Code)
-	var resp workspacesdk.ProcessOutputResponse
-	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	resp := requireOutput(t, handler, id)
 	assert.False(t, resp.Running)
 	assert.NotNil(t, resp.ExitCode)
 }
@@ -509,8 +555,7 @@ func TestRepeatedStartNotifiesGitOnce(t *testing.T) {
 		chatID := uuid.New()
 		notified, unsubscribe := pathStore.Subscribe(chatID)
 		defer unsubscribe()
-		api, _ := newToolCallAPI(t, longRunning, pathStore, nil)
-		handler := agentchat.Middleware(api.Routes())
+		_, handler, _ := newToolCallAPI(t, longRunning, pathStore, nil)
 		req := workspacesdk.StartProcessRequest{Command: "true"}
 		headers := toolCallHeaders(chatID, 1, "call", 0)
 
@@ -539,23 +584,30 @@ func TestRepeatedStartNotifiesGitOnce(t *testing.T) {
 func newToolCallTestAPI(t *testing.T, uptime time.Duration) (http.Handler, *quartz.Mock) {
 	t.Helper()
 
-	api, clock := newToolCallAPI(t, uptime, nil, nil)
-	return agentchat.Middleware(api.Routes()), clock
+	_, handler, clock := newToolCallAPI(t, uptime, nil, nil)
+	return handler, clock
 }
 
-// newToolCallAPI returns an API whose agent has been running for uptime
-// on the returned mock clock. pathStore and updateEnv may be nil.
-func newToolCallAPI(t *testing.T, uptime time.Duration, pathStore *agentgit.PathStore, updateEnv func([]string) ([]string, error)) (*agentproc.API, *quartz.Mock) {
+// newToolCallAPI returns an API with a tool call store, whose agent has
+// been running for uptime on the returned mock clock, and a handler that
+// serves the process routes and the cancel route the way the agent mounts
+// them. pathStore and updateEnv may be nil.
+func newToolCallAPI(t *testing.T, uptime time.Duration, pathStore *agentgit.PathStore, updateEnv func([]string) ([]string, error)) (*agentproc.API, http.Handler, *quartz.Mock) {
 	t.Helper()
 
 	clock := quartz.NewMock(t)
+	store := agenttoolcall.NewStore(clock)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, pathStore, nil, updateEnv, nil, agentproc.WithClock(clock))
+	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, nil, pathStore, nil, updateEnv, nil, agentproc.WithClock(clock), agentproc.WithToolCallStore(store))
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
 	clock.Advance(uptime).MustWait(testutil.Context(t, testutil.WaitShort))
-	return api, clock
+
+	router := chi.NewRouter()
+	router.Post("/tool-calls/{id}/cancel", store.CancelHandler(api))
+	router.Mount("/", api.Routes())
+	return api, agentchat.Middleware(router), clock
 }
 
 // serveToolCallRequest serves a request without test assertions, so it
@@ -576,23 +628,34 @@ func toolCallHeaders(chatID uuid.UUID, messageID int64, toolCallID string, age t
 	return h
 }
 
-func postCancel(t *testing.T, handler http.Handler, id string, headers http.Header) *httptest.ResponseRecorder {
+func postCancel(t *testing.T, handler http.Handler, id string, headers http.Header, stopBelow time.Duration) *httptest.ResponseRecorder {
 	t.Helper()
-	return postCancelContext(testutil.Context(t, testutil.WaitLong), handler, id, headers)
+	return postCancelContext(testutil.Context(t, testutil.WaitLong), handler, id, headers, stopBelow)
 }
 
-func postCancelContext(ctx context.Context, handler http.Handler, id string, headers http.Header) *httptest.ResponseRecorder {
-	return serveToolCallRequest(ctx, handler, http.MethodPost, fmt.Sprintf("/%s/cancel", id), nil, headers)
+func postCancelContext(ctx context.Context, handler http.Handler, id string, headers http.Header, stopBelow time.Duration) *httptest.ResponseRecorder {
+	body := fmt.Appendf(nil, `{"stop_if_run_age_below_ms":%d}`, stopBelow.Milliseconds())
+	return serveToolCallRequest(ctx, handler, http.MethodPost, fmt.Sprintf("/tool-calls/%s/cancel", id), body, headers)
 }
 
-// requireCancel cancels the tool call's process and requires a 200.
-func requireCancel(t *testing.T, handler http.Handler, chatID uuid.UUID, messageID int64, toolCallID string, age time.Duration) workspacesdk.CancelProcessResponse {
+// requireCancel cancels the tool call and requires a 200.
+func requireCancel(t *testing.T, handler http.Handler, chatID uuid.UUID, messageID int64, toolCallID string, age, stopBelow time.Duration) workspacesdk.CancelToolCallResponse {
 	t.Helper()
 
 	id := workspacesdk.ToolCallUUID(chatID, messageID, toolCallID).String()
-	w := postCancel(t, handler, id, toolCallHeaders(chatID, messageID, toolCallID, age))
+	w := postCancel(t, handler, id, toolCallHeaders(chatID, messageID, toolCallID, age), stopBelow)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
-	var resp workspacesdk.CancelProcessResponse
+	var resp workspacesdk.CancelToolCallResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	return resp
+}
+
+func requireOutput(t *testing.T, handler http.Handler, id string) workspacesdk.ProcessOutputResponse {
+	t.Helper()
+
+	w := getOutput(t, handler, id)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var resp workspacesdk.ProcessOutputResponse
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	return resp
 }

@@ -114,19 +114,19 @@ func (mr *MockAgentConnMockRecorder) CallMCPTool(ctx, req any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CallMCPTool", reflect.TypeOf((*MockAgentConn)(nil).CallMCPTool), ctx, req)
 }
 
-// CancelProcess mocks base method.
-func (m *MockAgentConn) CancelProcess(ctx context.Context, id string) (workspacesdk.CancelProcessResponse, error) {
+// CancelToolCall mocks base method.
+func (m *MockAgentConn) CancelToolCall(ctx context.Context, id string, req workspacesdk.CancelToolCallRequest) (workspacesdk.CancelToolCallResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CancelProcess", ctx, id)
-	ret0, _ := ret[0].(workspacesdk.CancelProcessResponse)
+	ret := m.ctrl.Call(m, "CancelToolCall", ctx, id, req)
+	ret0, _ := ret[0].(workspacesdk.CancelToolCallResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CancelProcess indicates an expected call of CancelProcess.
-func (mr *MockAgentConnMockRecorder) CancelProcess(ctx, id any) *gomock.Call {
+// CancelToolCall indicates an expected call of CancelToolCall.
+func (mr *MockAgentConnMockRecorder) CancelToolCall(ctx, id, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelProcess", reflect.TypeOf((*MockAgentConn)(nil).CancelProcess), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelToolCall", reflect.TypeOf((*MockAgentConn)(nil).CancelToolCall), ctx, id, req)
 }
 
 // Close mocks base method.
