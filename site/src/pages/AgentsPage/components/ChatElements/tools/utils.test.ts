@@ -5,6 +5,7 @@ import {
 	COLLAPSED_REPORT_HEIGHT,
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
+	type EditFilesFileEntry,
 	fileViewerCSS,
 	formatModelIntentLabel,
 	formatResultOutput,
@@ -801,6 +802,144 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].path).toBe("src/app.ts");
 		expect(parsed[0].edits).toHaveLength(0);
 		expect(buildEditDiff(parsed[0].path, parsed[0].edits)).toBeNull();
+	});
+
+	// Flat args carry the path on every edit. They are grouped by path
+	// in order of first appearance, keeping each file's edit order.
+	it.each<{ name: string; args: unknown; expected: EditFilesFileEntry[] }>([
+		{
+			name: "flat edits for one file",
+			args: {
+				edits: [
+					{ path: "/repo/a.go", old_text: "x := 1", new_text: "x := 2" },
+					{ path: "/repo/a.go", old_text: "y := 1", new_text: "y := 2" },
+				],
+			},
+			expected: [
+				{
+					path: "/repo/a.go",
+					edits: [
+						{ search: "x := 1", replace: "x := 2" },
+						{ search: "y := 1", replace: "y := 2" },
+					],
+				},
+			],
+		},
+		{
+			name: "flat edits for several files",
+			args: {
+				edits: [
+					{ path: "/repo/a.go", old_text: "x := 1", new_text: "x := 2" },
+					{
+						path: "/repo/b.go",
+						old_text: "foo()",
+						new_text: "bar()",
+						replace_all: true,
+					},
+				],
+			},
+			expected: [
+				{
+					path: "/repo/a.go",
+					edits: [{ search: "x := 1", replace: "x := 2" }],
+				},
+				{ path: "/repo/b.go", edits: [{ search: "foo()", replace: "bar()" }] },
+			],
+		},
+		{
+			name: "interleaved paths group by first appearance",
+			args: {
+				edits: [
+					{ path: "/repo/a.go", old_text: "one", new_text: "1" },
+					{ path: "/repo/b.go", old_text: "two", new_text: "2" },
+					{ path: "/repo/a.go", old_text: "three", new_text: "3" },
+				],
+			},
+			expected: [
+				{
+					path: "/repo/a.go",
+					edits: [
+						{ search: "one", replace: "1" },
+						{ search: "three", replace: "3" },
+					],
+				},
+				{ path: "/repo/b.go", edits: [{ search: "two", replace: "2" }] },
+			],
+		},
+		{
+			name: "flat edits without a non-empty string path are skipped",
+			args: {
+				edits: [
+					{ old_text: "no path", new_text: "x" },
+					{ path: "", old_text: "empty path", new_text: "x" },
+					{ path: 42, old_text: "number path", new_text: "x" },
+					null,
+					"not an object",
+					{ path: "/repo/a.go", old_text: "kept", new_text: "x" },
+				],
+			},
+			expected: [
+				{ path: "/repo/a.go", edits: [{ search: "kept", replace: "x" }] },
+			],
+		},
+		{
+			// Matches the files shape, which keeps a file entry whose
+			// edits are all incomplete.
+			name: "flat edit with a path but incomplete text keeps its file",
+			args: {
+				edits: [
+					{ path: "/repo/a.go", old_text: "x := 1" },
+					{ path: "/repo/b.go", old_text: "foo()", new_text: "bar()" },
+				],
+			},
+			expected: [
+				{ path: "/repo/a.go", edits: [] },
+				{ path: "/repo/b.go", edits: [{ search: "foo()", replace: "bar()" }] },
+			],
+		},
+		{
+			name: "flat edits as a JSON string",
+			args: JSON.stringify({
+				edits: [{ path: "/repo/a.go", old_text: "x", new_text: "y" }],
+			}),
+			expected: [
+				{ path: "/repo/a.go", edits: [{ search: "x", replace: "y" }] },
+			],
+		},
+		{
+			name: "files shape is unchanged",
+			args: {
+				files: [
+					{ path: "/repo/a.go", edits: [{ old_text: "one", new_text: "1" }] },
+					{ path: "/repo/b.go", edits: [{ old_text: "two", new_text: "2" }] },
+					{ path: "/repo/a.go", edits: [{ old_text: "three", new_text: "3" }] },
+				],
+			},
+			expected: [
+				{ path: "/repo/a.go", edits: [{ search: "one", replace: "1" }] },
+				{ path: "/repo/b.go", edits: [{ search: "two", replace: "2" }] },
+				{ path: "/repo/a.go", edits: [{ search: "three", replace: "3" }] },
+			],
+		},
+		{
+			name: "files array takes precedence over flat edits",
+			args: {
+				files: [
+					{ path: "/repo/a.go", edits: [{ old_text: "x", new_text: "y" }] },
+				],
+				edits: [{ path: "/repo/b.go", old_text: "foo()", new_text: "bar()" }],
+			},
+			expected: [
+				{ path: "/repo/a.go", edits: [{ search: "x", replace: "y" }] },
+			],
+		},
+		{ name: "empty flat edits", args: { edits: [] }, expected: [] },
+		{ name: "flat edits not an array", args: { edits: "[]" }, expected: [] },
+		{ name: "empty object", args: {}, expected: [] },
+		{ name: "empty string", args: "", expected: [] },
+		{ name: "invalid JSON string", args: '{"edits":[', expected: [] },
+	])("$name", ({ args, expected }) => {
+		expect(parseEditFilesArgs(args)).toEqual(expected);
 	});
 });
 
