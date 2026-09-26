@@ -47,14 +47,14 @@ func TestValidateUnambiguous(t *testing.T) {
 		{
 			name:    "case variant nested in an array element",
 			tool:    editFiles,
-			input:   `{"files":[{"path":"a","PATH":"b","edits":[{"old_text":"x","new_text":"y"}]}]}`,
-			wantErr: `input key "files[].PATH" differs from schema property "path" only by case`,
+			input:   `{"edits":[{"path":"a","PATH":"b","old_text":"x","new_text":"y"}]}`,
+			wantErr: `input key "edits[].PATH" differs from schema property "path" only by case`,
 		},
 		{
 			name:    "case variant nested in an array element object",
 			tool:    editFiles,
-			input:   `{"files":[{"path":"a","edits":[{"old_text":"x","NEW_TEXT":"y"}]}]}`,
-			wantErr: `input key "files[].edits[].NEW_TEXT" differs from schema property "new_text" only by case`,
+			input:   `{"edits":[{"path":"a","old_text":"x","NEW_TEXT":"y"}]}`,
+			wantErr: `input key "edits[].NEW_TEXT" differs from schema property "new_text" only by case`,
 		},
 		{
 			name:  "free-form map keys differing by case",
@@ -81,7 +81,14 @@ func TestValidateUnambiguous(t *testing.T) {
 		{
 			name:  "exact keys",
 			tool:  editFiles,
-			input: `{"files":[{"path":"a","edits":[{"old_text":"x","new_text":"y","replace_all":true}]}]}`,
+			input: `{"edits":[{"path":"a","old_text":"x","new_text":"y","replace_all":true}]}`,
+		},
+		{
+			// The retired edit_files shape must reach the tool, which
+			// rejects it with the current shape.
+			name:  "undeclared key holding objects",
+			tool:  editFiles,
+			input: `{"files":[{"path":"a","edits":[{"old_text":"x","new_text":"y"}]}]}`,
 		},
 		{
 			name:  "input the tool cannot decode either",

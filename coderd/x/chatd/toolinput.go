@@ -1,12 +1,19 @@
 package chatd
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"io"
+	"reflect"
+	"slices"
 
 	"charm.land/fantasy"
+	"charm.land/fantasy/schema"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
@@ -71,6 +78,104 @@ func validateBuiltinToolInput(prepared generationPrepared, toolName string, inpu
 		return toolschema.ValidateUnambiguous(info.Parameters, input)
 	}
 	return nil
+}
+
+// editFilesHookInputProperties is the schema of the grouped edit_files
+// form, used to reject ambiguous overrides before they are decoded.
+var editFilesHookInputProperties = schema.ToParameters(schema.Generate(reflect.TypeFor[chattool.EditFilesHookInput]()))
+
+// presentHookToolInputs returns the calls to send to pre_tool_use and the
+// model inputs it replaced, keyed by tool call ID. Hooks receive builtin
+// edit_files input grouped by path, the shape hook policies were written
+// for, instead of the model's flat edits list. Input that does not decode
+// into the flat schema is sent unchanged; the tool rejects it without
+// executing anything. Callers must have rejected duplicate tool call IDs.
+func presentHookToolInputs(
+	prepared generationPrepared,
+	toolCalls []fantasy.ToolCallContent,
+) ([]fantasy.ToolCallContent, map[string]string) {
+	if !prepared.BuiltinToolNames[chattool.EditFilesName] {
+		return toolCalls, nil
+	}
+	presented := slices.Clone(toolCalls)
+	modelInputs := make(map[string]string)
+	for i, toolCall := range presented {
+		if toolCall.ToolName != chattool.EditFilesName {
+			continue
+		}
+		var args chattool.EditFilesArgs
+		if err := json.Unmarshal([]byte(toolCall.Input), &args); err != nil {
+			continue
+		}
+		grouped, err := json.Marshal(chattool.NewEditFilesHookInput(args.Edits))
+		if err != nil {
+			continue
+		}
+		modelInputs[toolCall.ToolCallID] = toolCall.Input
+		presented[i].Input = string(grouped)
+	}
+	return presented, modelInputs
+}
+
+// restoreHookToolInputs undoes presentHookToolInputs on the pre_tool_use
+// result so persistence and execution see flat edit_files input: a call
+// without an override gets its model input back, and an override, which
+// must use the grouped form, is flattened. The model cannot fix a bad
+// override, so one that is ambiguous or does not decode fails closed.
+func restoreHookToolInputs(
+	prepared generationPrepared,
+	preflight *chathooks.PreToolUseExecutionResult,
+	modelInputs map[string]string,
+) error {
+	if !prepared.BuiltinToolNames[chattool.EditFilesName] {
+		return nil
+	}
+	for i, toolCall := range preflight.Allowed {
+		if toolCall.ToolName != chattool.EditFilesName {
+			continue
+		}
+		override, overridden := preflight.Overrides[toolCall.ToolCallID]
+		if !overridden {
+			if input, ok := modelInputs[toolCall.ToolCallID]; ok {
+				preflight.Allowed[i].Input = input
+			}
+			continue
+		}
+		flat, err := flattenEditFilesOverride(override)
+		if err != nil {
+			return xerrors.Errorf("hook input override for tool %s: %w", toolCall.ToolName, err)
+		}
+		preflight.Allowed[i].Input = string(flat)
+		preflight.Overrides[toolCall.ToolCallID] = flat
+	}
+	return nil
+}
+
+// flattenEditFilesOverride converts a grouped edit_files override into
+// the flat tool input. The ambiguity check runs on the grouped bytes the
+// consumer wrote, because flattening re-encodes every key canonically and
+// would hide a case variant or repeated key from the later check.
+func flattenEditFilesOverride(override json.RawMessage) (json.RawMessage, error) {
+	if err := toolschema.ValidateUnambiguous(editFilesHookInputProperties, override); err != nil {
+		return nil, err
+	}
+	var grouped chattool.EditFilesHookInput
+	decoder := json.NewDecoder(bytes.NewReader(override))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&grouped); err != nil {
+		return nil, xerrors.Errorf("decode grouped files form: %w", err)
+	}
+	if grouped.Files == nil {
+		return nil, xerrors.New("decode grouped files form: files is required")
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, xerrors.New("decode grouped files form: trailing JSON value")
+	}
+	flat, err := json.Marshal(chattool.EditFilesArgs{Edits: grouped.Edits()})
+	if err != nil {
+		return nil, xerrors.Errorf("encode flat edits: %w", err)
+	}
+	return flat, nil
 }
 
 // malformedToolResult reports input the tool decoder would reject anyway. It
