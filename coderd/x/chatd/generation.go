@@ -1209,11 +1209,14 @@ func (s *taskStarter) beginGenerationAttempt(
 	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
 		return generationAttempt{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
+	finalizer := openRequestGate(ctx, s.opts.Logger, s.opts.Store, input.ChatID)
 	return generationAttempt{
 		number:    attempt,
-		finalizer: openRequestGate(ctx, s.opts.Logger, s.opts.Store, input.ChatID),
+		finalizer: finalizer,
 		publish: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-			_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+			if part, ok := finalizer.forward(part); ok {
+				_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+			}
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
