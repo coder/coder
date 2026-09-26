@@ -227,6 +227,10 @@ func finalizerBatchControls(schema *chatstructured.Schema, requestID uuid.UUID, 
 		if err == nil {
 			part, err := chatstructured.EncodeControlPart(chatstructured.Control{RequestID: requestID, Kind: chatstructured.ControlCandidate, Value: output})
 			if err == nil {
+				// The succeeded receipt stores the same value, a few bytes larger.
+				_, err = chatstructured.EncodeOutcomePart(codersdk.ChatStructuredOutput{RequestID: requestID, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: output})
+			}
+			if err == nil {
 				return map[string][]codersdk.ChatMessagePart{firstID: {part}}, nil
 			}
 			// The runner acknowledged the output, so replace that result.
