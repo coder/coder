@@ -611,6 +611,10 @@ type EditMessageInput struct {
 	Content                 pqtype.NullRawMessage
 	ModelConfigIDOverride   uuid.NullUUID
 	ReasoningEffortOverride database.NullChatReasoningEffort
+	// Receipts are structured output receipt rows closing requests the
+	// edit discards. They insert after the tool cancellations and before
+	// the replacement; anything else is rejected.
+	Receipts []Message
 }
 
 // EditMessageResult is returned by [Tx.EditMessage].
@@ -619,6 +623,7 @@ type EditMessageResult struct {
 	DeletedMessageIDs       []int64
 	DeletedQueuedMessageIDs []int64
 	CancellationMessages    []database.ChatMessage
+	Receipts                []database.ChatMessage
 	SuffixMessages          []database.ChatMessage
 }
 
@@ -648,6 +653,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 			ErrEditedMessageNotUser,
 			"only user messages can be edited",
 		)
+	}
+	if err := requireReceipts(input.Receipts); err != nil {
+		return EditMessageResult{}, err
 	}
 
 	suffix, err := tx.store.GetChatMessagesByChatID(tx.ctx, database.GetChatMessagesByChatIDParams{
@@ -680,6 +688,10 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	cancellationMessages, err := tx.insertMessages(cancels)
 	if err != nil {
 		return EditMessageResult{}, xerrors.Errorf("insert message edit cancellations: %w", err)
+	}
+	receipts, err := tx.insertMessages(input.Receipts)
+	if err != nil {
+		return EditMessageResult{}, xerrors.Errorf("insert message edit receipts: %w", err)
 	}
 
 	modelConfig := target.ModelConfigID
@@ -732,6 +744,7 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		DeletedMessageIDs:       deletedIDs,
 		DeletedQueuedMessageIDs: deletedQueuedIDs,
 		CancellationMessages:    cancellationMessages,
+		Receipts:                receipts,
 		SuffixMessages:          insertedSuffix,
 	}, nil
 }
@@ -831,16 +844,23 @@ func (tx *Tx) ClearContext(input ClearContextInput) (ClearContextResult, error) 
 // DeleteQueuedMessageInput configures [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageInput struct {
 	QueuedMessageID int64
+	// Receipts are structured output receipt rows inserted after the
+	// deletion; anything else is rejected.
+	Receipts []Message
 }
 
 // DeleteQueuedMessageResult is returned by [Tx.DeleteQueuedMessage].
 type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
+	Receipts             []database.ChatMessage
 }
 
 // DeleteQueuedMessage removes a single queued user message.
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
 	_, _, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
+	if err == nil {
+		err = requireReceipts(input.Receipts)
+	}
 	if err != nil {
 		return DeleteQueuedMessageResult{}, err
 	}
@@ -864,8 +884,13 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if rows == 0 {
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
+	receipts, err := tx.insertMessages(input.Receipts)
+	if err != nil {
+		return DeleteQueuedMessageResult{}, xerrors.Errorf("insert queue deletion receipts: %w", err)
+	}
 	return DeleteQueuedMessageResult{
 		DeletedQueuedMessage: target,
+		Receipts:             receipts,
 	}, nil
 }
 
