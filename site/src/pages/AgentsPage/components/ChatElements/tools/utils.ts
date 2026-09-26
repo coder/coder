@@ -537,21 +537,40 @@ export const COLLAPSED_REPORT_HEIGHT = 72;
 
 /**
  * Parses the args of an edit_files tool call into a typed array
- * of file entries.
+ * of file entries. Accepts the grouped `files` shape stored in
+ * existing chats and the flat `edits` shape, where each edit carries
+ * its own `path`. Flat edits are grouped by path in order of first
+ * appearance, keeping each file's edit order.
  */
 export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	const parsed = parseArgs(args);
 	if (!parsed) return [];
 	const files = parsed.files;
-	if (!Array.isArray(files)) return [];
-	return files
-		.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
-		.map((f) => ({
-			path: f.path,
-			edits: f.edits
-				.map(normalizeEdit)
-				.filter((e): e is { search: string; replace: string } => e !== null),
-		}));
+	if (Array.isArray(files)) {
+		return files
+			.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
+			.map((f) => ({
+				path: f.path,
+				edits: f.edits
+					.map(normalizeEdit)
+					.filter((e): e is { search: string; replace: string } => e !== null),
+			}));
+	}
+	const edits = parsed.edits;
+	if (!Array.isArray(edits)) return [];
+	const byPath = new Map<string, EditFilesFileEntry>();
+	for (const e of edits) {
+		const path = asRecord(e)?.path;
+		if (typeof path !== "string" || !path) continue;
+		let entry = byPath.get(path);
+		if (!entry) {
+			entry = { path, edits: [] };
+			byPath.set(path, entry);
+		}
+		const edit = normalizeEdit(e);
+		if (edit) entry.edits.push(edit);
+	}
+	return [...byPath.values()];
 };
 
 /**
