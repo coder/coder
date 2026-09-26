@@ -1354,20 +1354,21 @@ export const useFilterCombobox = ({
 		) {
 			const highlighted = getHighlightedValue();
 			const typedOption = { value: inputValue.trim() };
-			// A typed value no option lists commits under the category key unless
-			// `widenedKey` was typed, since a backend can reject the widened key
-			// for values the requester cannot list (#29961 for Workspaces `user:`).
-			const listed = activeOptions?.some(
-				(option) => option.value === typedOption.value,
+			const listedOption = activeOptions?.find(
+				(option) =>
+					option.value.toLowerCase() === typedOption.value.toLowerCase(),
 			);
-			const candidate =
-				appliedScopeChipFor(activeCategory, typedOption) ??
-				chipToken(
-					listed || typedScopeWidened === true
-						? optionChipKey(activeCategory)
-						: activeCategory.key,
-					typedOption.value,
-				);
+			// See `scopeToggle`: unlisted values avoid the widened key, which a
+			// backend can reject (#29961 for Workspaces `user:`).
+			const candidate = listedOption
+				? optionTokenFor(activeCategory, listedOption)
+				: (appliedScopeChipFor(activeCategory, typedOption) ??
+					chipToken(
+						typedScopeWidened === true
+							? optionChipKey(activeCategory)
+							: activeCategory.key,
+						typedOption.value,
+					));
 			const hasHighlightedOption = activeOptions?.some(
 				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);

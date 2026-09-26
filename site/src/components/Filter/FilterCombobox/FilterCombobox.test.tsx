@@ -41,7 +41,7 @@ const filteredScopedOwnerCategory: FilterCategory = {
 	...scopedOwnerCategory,
 	getOptions: async (query) =>
 		["me", "carol", "alice"]
-			.filter((name) => name.includes(query))
+			.filter((name) => name.includes(query.toLowerCase()))
 			.map((name) => ({ label: name, value: name })),
 };
 
@@ -2289,27 +2289,30 @@ describe("FilterCombobox", () => {
 		},
 	);
 
-	it("commits a typed listed owner under the switch's key", async () => {
-		const { user, onChange, filtersButton } = setup(
-			[filteredScopedOwnerCategory],
-			{ initialValue: "user:me" },
-		);
+	it.each(["alice", "Alice"])(
+		"commits a typed listed owner %s under the switch's key",
+		async (typed) => {
+			const { user, onChange, filtersButton } = setup(
+				[filteredScopedOwnerCategory],
+				{ initialValue: "user:me" },
+			);
 
-		await user.click(filtersButton);
-		await user.keyboard("{ArrowRight}");
-		await user.keyboard("alice");
-		await waitForElementToBeRemoved(() =>
-			screen.queryByRole("option", { name: "me" }),
-		);
-		await user.keyboard("{Enter}");
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+			await user.keyboard(typed);
+			await waitForElementToBeRemoved(() =>
+				screen.queryByRole("option", { name: "me" }),
+			);
+			await user.keyboard("{Enter}");
 
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
-		);
-	});
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+			);
+		},
+	);
 
 	it("keeps the applied chip holding a typed unlisted owner while both Owner keys are applied", async () => {
-		const { user, onChange, filtersButton } = setup(
+		const { user, input, filtersButton } = setup(
 			[filteredScopedOwnerCategory],
 			{ initialValue: "owner:me user:zed" },
 		);
@@ -2322,10 +2325,13 @@ describe("FilterCombobox", () => {
 		);
 		await user.keyboard("{Enter}");
 
+		await waitFor(() => expect(input).toHaveValue(""));
 		expect(
-			await screen.findByRole("button", { name: "Remove owner:me" }),
+			screen.getByRole("button", { name: "Remove owner:me" }),
 		).toBeInTheDocument();
-		expect(onChange).not.toHaveBeenCalledWith("owner:zed user:zed");
+		expect(
+			screen.getByRole("button", { name: "Remove user:zed" }),
+		).toBeInTheDocument();
 	});
 
 	it("keeps a second Owner token when another chip is removed", async () => {

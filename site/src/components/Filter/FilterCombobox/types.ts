@@ -62,8 +62,8 @@ export type FilterCategory = {
 	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
 	 * the category key or an alias commits under the category key. Enter on a
 	 * typed value that no option lists commits under the category key unless
-	 * `widenedKey` was typed, since a backend may reject the widened key for
-	 * values the requester cannot list.
+	 * `widenedKey` was typed or an applied chip holds the value, since a
+	 * backend may reject the widened key for values the requester cannot list.
 	 * While it is on and enabled, a pill after the chip reads `pillPrefix` and
 	 * the chip's value, and removing the pill turns the switch off. Applies only to
 	 * submenu categories, not inline ones.
