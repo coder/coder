@@ -17,7 +17,7 @@ describe("canManageChat", () => {
 });
 
 describe("chatHasMenuActions", () => {
-	it("hides the menu from viewers unless the subagents toggle is available", () => {
+	it("hides the menu from viewers unless a viewer action is available", () => {
 		expect(chatHasMenuActions(sharedByAnotherUser, { canManage: false })).toBe(
 			false,
 		);
@@ -25,6 +25,12 @@ describe("chatHasMenuActions", () => {
 			chatHasMenuActions(sharedByAnotherUser, {
 				canManage: false,
 				hasSubagentsToggle: true,
+			}),
+		).toBe(true);
+		expect(
+			chatHasMenuActions(sharedByAnotherUser, {
+				canManage: false,
+				hasPullRequests: true,
 			}),
 		).toBe(true);
 	});

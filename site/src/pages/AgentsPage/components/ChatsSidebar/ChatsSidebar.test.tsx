@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
@@ -626,9 +632,8 @@ describe("ChatsSidebar PR icon", () => {
 		],
 	});
 
-	// The popover contents are visual state, covered by the
-	// WithMultiplePRs story screenshot. Assert what screen readers
-	// announce.
+	// The PR list is visual state, covered by the WithMultiplePRs story
+	// screenshot. Assert what screen readers announce.
 	it("announces the pull request state when the chat tracks one pull request", () => {
 		render(
 			<Wrapper>
@@ -682,7 +687,36 @@ describe("ChatsSidebar PR icon", () => {
 		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
 	});
 
-	it("lists every pull request when the multi-PR chat link has keyboard focus", async () => {
+	it("links the sole pull request from the row menu", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "one-pr",
+							title: "One PR chat",
+							diff_statuses: mockMultiPRChat.diff_statuses?.slice(0, 1),
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Open actions for One PR chat" }),
+		);
+		const item = await screen.findByRole("menuitem", { name: /PR #1/ });
+		expect(item).toHaveAttribute(
+			"href",
+			"https://github.com/coder/coder/pull/1",
+		);
+		expect(item).toHaveAttribute("target", "_blank");
+	});
+
+	it("lists several pull requests in a row menu flyout instead of a tooltip", async () => {
 		const user = userEvent.setup();
 
 		render(
@@ -694,23 +728,92 @@ describe("ChatsSidebar PR icon", () => {
 		const link = screen.getByRole("link", {
 			name: /multiple pull requests/i,
 		});
-		await user.tab();
-		while (!link.matches(":focus")) {
-			await user.tab();
-		}
-		expect(link).toHaveFocus();
+		await user.hover(link);
+		act(() => link.focus());
+		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+		expect(link).not.toHaveAttribute("aria-describedby");
 
-		// The link is the tooltip trigger, so Radix exposes the
-		// per-PR list through the link's describedby relation.
-		const tooltip = await screen.findByRole("tooltip");
-		expect(link).toHaveAttribute(
-			"aria-describedby",
-			tooltip.getAttribute("id") ?? "",
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Multiple pull requests",
+			}),
 		);
-		expect(link).toHaveAccessibleDescription(/Pull request open/);
-		expect(link).toHaveAccessibleDescription(/PR #1/);
-		expect(link).toHaveAccessibleDescription(/Pull request merged/);
-		expect(link).toHaveAccessibleDescription(/PR #2/);
+		const trigger = await screen.findByRole("menuitem", { name: "2 PRs" });
+		trigger.focus();
+		await user.keyboard("{ArrowRight}");
+
+		const items = await screen.findAllByRole("menuitem", { name: /PR #/ });
+		expect(items.map((item) => item.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/1",
+			"https://github.com/coder/coder/pull/2",
+		]);
+		expect(items[1]).toHaveAccessibleName(/Pull request merged/);
+	});
+});
+
+describe("ChatsSidebar row menu", () => {
+	const chats = [buildChat({ id: "menu-chat", title: "Menu chat" })];
+
+	// The mobile menu can cover its trigger, so the release of the press
+	// that opened it must not land on a menu item.
+	it("opens on release, not on press", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+		const trigger = screen.getByRole("button", {
+			name: "Open actions for Menu chat",
+		});
+
+		await user.pointer({ keys: "[MouseLeft>]", target: trigger });
+		expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+		await user.pointer({ keys: "[/MouseLeft]", target: trigger });
+		expect(await screen.findByRole("menu")).toBeInTheDocument();
+	});
+
+	it("opens from the keyboard", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} chats={chats} />
+			</Wrapper>,
+		);
+
+		act(() =>
+			screen
+				.getByRole("button", { name: "Open actions for Menu chat" })
+				.focus(),
+		);
+		await user.keyboard("{Enter}");
+
+		expect(await screen.findByRole("menu")).toBeInTheDocument();
+	});
+
+	// The mobile context menu can open under the pointer, so the
+	// right-button release of the opening click must not select an item.
+	it("ignores the right-button release inside the context menu", async () => {
+		const onArchiveAgent = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={chats}
+					onArchiveAgent={onArchiveAgent}
+				/>
+			</Wrapper>,
+		);
+
+		fireEvent.contextMenu(screen.getByTestId("agents-tree-node-menu-chat"));
+		const archive = await screen.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		fireEvent.pointerUp(archive, { button: 2, pointerType: "mouse" });
+
+		expect(onArchiveAgent).not.toHaveBeenCalled();
+		expect(screen.getByRole("menu")).toBeInTheDocument();
 	});
 });
 

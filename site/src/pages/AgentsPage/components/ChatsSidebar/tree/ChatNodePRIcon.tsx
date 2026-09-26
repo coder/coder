@@ -2,8 +2,6 @@ import { cn } from "cn";
 import { GitPullRequestArrowIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
-import { TooltipContent } from "#/components/Tooltip/Tooltip";
-import { parsePullRequestUrl } from "../../../utils/pullRequest";
 import { getPRIconConfig } from "./statusConfig";
 
 type ChatNodePRIconProps = {
@@ -47,52 +45,5 @@ export const ChatNodePRIcon: FC<ChatNodePRIconProps> = ({ prStatuses }) => {
 				className="size-3.5 shrink-0 text-content-secondary"
 			/>
 		</span>
-	);
-};
-
-type PRListContentProps = {
-	readonly prStatuses: ChatDiffStatus[];
-};
-
-// The tooltip body listing every tracked PR. ChatTreeNode renders it
-// through the link trigger, so it must not nest another trigger here.
-export const PRListTooltipContent: FC<PRListContentProps> = ({
-	prStatuses,
-}) => {
-	return (
-		<TooltipContent side="bottom" className="flex max-w-72 flex-col gap-2 p-3">
-			{prStatuses.map((status, index) => {
-				const config = getPRIconConfig(status);
-				if (!config) {
-					return null;
-				}
-				const Icon = config.icon;
-
-				const label =
-					status.pull_request_title.trim() || status.url || "Pull request";
-
-				// Legacy rows predate the pr_number column, so parse it
-				// from the URL.
-				const parsed = parsePullRequestUrl(status.url);
-				const prNumber = status.pr_number ?? (parsed && Number(parsed.number));
-
-				return (
-					<div
-						key={`${status.remote_origin ?? ""}/${status.git_branch ?? ""}/${index}`}
-						className="flex items-center gap-1.5 text-left"
-					>
-						<Icon className={cn("size-3.5 shrink-0", config.className)} />
-						{/* The state reaches screen readers through the
-							link's description; icon labels are skipped there,
-							so the state rides as hidden text. */}
-						<span className="sr-only">{config.label}</span>
-						<span className="shrink-0 font-semibold">
-							PR {prNumber ? `#${prNumber}` : label}
-						</span>
-						<span className="min-w-0 truncate">{label}</span>
-					</div>
-				);
-			})}
-		</TooltipContent>
 	);
 };

@@ -99,8 +99,9 @@ describe("ChatTopBar PR chip", () => {
 	it("names the repository when two origins carry the same PR", async () => {
 		const user = userEvent.setup();
 
-		// The PR number repeats across repositories, so only the
-		// repository names keep the entries apart.
+		// The PR number repeats across repositories. The visible label
+		// stays "PR #N title", so the accessible name carries the
+		// repository to keep the entries apart.
 		const forked = {
 			...MockChatDiffStatus,
 			remote_origin: "https://github.com/coder/other-project.git",
@@ -116,15 +117,55 @@ describe("ChatTopBar PR chip", () => {
 		const menu = await screen.findByRole("menu");
 
 		expect(
-			within(menu).getByRole("menuitem", { name: /coder\/coder · PR #123/ }),
+			within(menu).getByRole("menuitem", {
+				name: /PR #123.*in coder\/coder$/,
+			}),
 		).toHaveAttribute("href", "https://github.com/coder/coder/pull/123");
 		expect(
 			within(menu).getByRole("menuitem", {
-				name: /coder\/other-project · PR #123/,
+				name: /PR #123.*in coder\/other-project$/,
 			}),
 		).toHaveAttribute(
 			"href",
 			"https://github.com/coder/other-project/pull/123",
 		);
+	});
+});
+
+describe("ChatTopBar actions menu", () => {
+	it("lists the chat's PRs in a flyout", async () => {
+		const user = userEvent.setup();
+		const secondary = {
+			...MockChatDiffStatus,
+			url: "https://github.com/coder/coder/pull/456",
+			pr_number: 456,
+			git_branch: "feat/two",
+		};
+		renderTopBar({
+			...MockChat,
+			diff_statuses: [MockChatDiffStatus, secondary],
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Open agent actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "2 PRs" }));
+
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #456/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/456");
+	});
+
+	it("shows a lone PR as a direct link", async () => {
+		const user = userEvent.setup();
+		renderTopBar({ ...MockChat, diff_statuses: [MockChatDiffStatus] });
+
+		await user.click(
+			screen.getByRole("button", { name: "Open agent actions" }),
+		);
+
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #123/ }),
+		).toHaveAttribute("href", MockChatDiffStatus.url);
 	});
 });

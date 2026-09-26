@@ -159,6 +159,8 @@ type ViewItemBase = {
 	itemPrimary: string;
 	/** Secondary text in the dropdown item (e.g. PR title, repo name). */
 	itemSecondary?: string;
+	/** Repository for screen readers; the visible PR label omits it. */
+	screenReaderRepository?: string;
 	stateClasses: string;
 	icon: React.ReactNode;
 };
@@ -220,6 +222,7 @@ const fallbackView = (view: GitView, input: ViewFallbackInput): GitView => {
 // and state, branch-only rows show the branch name. When the chat
 // tracks more than one origin, every row also names its repository,
 // because branch names and PR numbers repeat across repositories.
+// PR rows name it for screen readers only.
 const buildRemoteItem = (
 	status: ChatDiffStatus,
 	hasMultipleOrigins: boolean,
@@ -235,13 +238,15 @@ const buildRemoteItem = (
 		: undefined;
 	const originPrefix = originLabel ? `${originLabel} · ` : "";
 	if (prNumber) {
+		const title = status.pull_request_title || undefined;
 		return {
 			kind: "remote",
 			id: viewIdFor(status),
 			stateLabel: prStateLabel(state, draft),
-			triggerIdentifier: `${originPrefix}PR #${prNumber}`,
-			itemPrimary: `${originPrefix}PR #${prNumber}`,
-			itemSecondary: status.pull_request_title || undefined,
+			triggerIdentifier: title ? `PR #${prNumber} ${title}` : `PR #${prNumber}`,
+			itemPrimary: `PR #${prNumber}`,
+			itemSecondary: title,
+			screenReaderRepository: originLabel,
 			stateClasses: prStateClasses(state, draft),
 			icon: (
 				<PrStateIcon
@@ -599,7 +604,12 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 				<span className="whitespace-nowrap">{activeItem.stateLabel}</span>
 			</span>
 			<span className="inline-flex min-w-0 items-center gap-1 pl-1.5 pr-1 text-content-primary">
-				<span className="truncate">{activeItem.triggerIdentifier}</span>
+				<span className="truncate">
+					{activeItem.triggerIdentifier}
+					{activeItem.screenReaderRepository && (
+						<span className="sr-only">{` in ${activeItem.screenReaderRepository}`}</span>
+					)}
+				</span>
 				{!isSingleItem && (
 					<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
 				)}
@@ -661,6 +671,9 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 								<span className="min-w-0 flex-1 truncate text-content-secondary">
 									{item.itemSecondary}
 								</span>
+							)}
+							{item.screenReaderRepository && (
+								<span className="sr-only">{` in ${item.screenReaderRepository}`}</span>
 							)}
 						</DropdownMenuItem>
 					);

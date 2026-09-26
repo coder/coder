@@ -1825,14 +1825,93 @@ export const WithMultiplePRs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Hover so Pixel captures the PR list popover. The tooltip
-		// portals to the body, outside the story canvas.
-		await userEvent.hover(
-			canvas.getByRole("link", {
-				name: /agent with three pull requests/i,
+		// Open the row menu's PR flyout so Pixel captures it. Menus
+		// portal to the body, outside the story canvas.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Agent with three pull requests",
 			}),
 		);
-		await within(document.body).findByRole("tooltip");
+		const body = within(document.body);
+		await userEvent.hover(await body.findByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #203/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// Past five PRs the flyout caps its height and scrolls.
+export const WithManyPRsMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "many-prs",
+				title: "Agent with fifteen pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+					...MockChatDiffStatus,
+					chat_id: "many-prs",
+					git_branch: `refactor/agents-${index + 1}`,
+					pr_number: 29901 + index,
+					url: `https://github.com/coder/coder/pull/${29901 + index}`,
+					pull_request_title: `refactor(site): agents page refactor part ${index + 1}`,
+				})),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Agent with fifteen pull requests",
+			}),
+		);
+		const body = within(document.body);
+		await userEvent.hover(
+			await body.findByRole("menuitem", { name: "15 PRs" }),
+		);
+		await body.findByRole("menuitem", { name: /PR #29901/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+// A long PR title truncates so the row menu stays capped and aligned to
+// its trigger.
+export const WithLongPRTitleMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "long-pr-title",
+				title: "Agent with a long pull request title",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "long-pr-title",
+						pr_number: 29543,
+						url: "https://github.com/coder/coder/pull/29543",
+						pull_request_title:
+							"feat(site): fetch and merge diff statuses per ref across every repository",
+					},
+				],
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Agent with a long pull request title",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", { name: /PR #29543/ });
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

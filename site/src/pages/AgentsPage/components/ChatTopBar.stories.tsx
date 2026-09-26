@@ -406,6 +406,52 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+// Titles longer than the capped menu width truncate to one line.
+export const WithMultiplePRsLongTitles: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: [
+				{
+					...mockPRStatuses[0],
+					pull_request_title:
+						"test(site/src/pages/AgentsPage): port tool story contracts to Vitest and strip visual assertions from every play function",
+				},
+				{
+					...mockPRStatuses[1],
+					pull_request_title: "feat(site): count every PR in the chats sidebar",
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /2 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
+// Past five PRs the menu caps its height and scrolls.
+export const WithManyPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+				...MockChatDiffStatus,
+				git_branch: `refactor/agents-${index + 1}`,
+				url: `https://github.com/coder/coder/pull/${29901 + index}`,
+				pr_number: 29901 + index,
+				pull_request_title: `refactor(site): agents page refactor part ${index + 1}`,
+			})),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /15 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
 // Both repositories carry PR #123, so the menu must name each
 // repository to keep the entries apart.
 const mockCrossOriginPRStatuses = [
