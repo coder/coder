@@ -1813,7 +1813,9 @@ describe("FilterCombobox", () => {
 	});
 
 	// Owner comes first so a highlight that leaves the Status rows lands on it.
-	const setupFailedInlineStatus = () => {
+	const setupFailedInlineStatus = (
+		categoriesBeforeStatus: readonly FilterCategory[] = [],
+	) => {
 		const retry = Promise.withResolvers<undefined>();
 		let calls = 0;
 		const getOptions = async (query: string) => {
@@ -1825,7 +1827,11 @@ describe("FilterCombobox", () => {
 			return statusCategory.getOptions(query);
 		};
 		return {
-			...setup([ownerCategory, { ...statusCategory, getOptions }]),
+			...setup([
+				ownerCategory,
+				...categoriesBeforeStatus,
+				{ ...statusCategory, getOptions },
+			]),
 			retry,
 		};
 	};
@@ -1908,6 +1914,29 @@ describe("FilterCombobox", () => {
 		await screen.findByRole("option", { name: "Running" });
 
 		expectHighlighted("Owner");
+	});
+
+	it("hands a Retry's highlight to the first loaded option while placeholder rows show", async () => {
+		const { user, onChange, filtersButton, retry } = setupFailedInlineStatus([
+			{
+				key: "template",
+				label: "Template",
+				hideWhenSingleOption: true,
+				getOptions: neverResolves,
+			},
+		]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Retry" });
+		await user.keyboard("{End}{Enter}");
+		await screen.findByRole("option", { name: "Loading Status options." });
+		await act(async () => retry.resolve(undefined));
+		await screen.findByRole("option", { name: "Running" });
+		await user.keyboard("{Enter}");
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("status:running"),
+		);
 	});
 
 	it("announces every failed inline category", async () => {

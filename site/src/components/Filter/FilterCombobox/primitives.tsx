@@ -91,7 +91,10 @@ type FilterComboboxRootProps = {
 	 * and the rows whose highlight changes, not the caller's option lists.
 	 */
 	highlightRef?: Ref<FilterComboboxHighlight>;
-	/** Called with the new highlighted value and the one it replaced. */
+	/**
+	 * Called with the new highlighted value, or "" when a highlight cmdk picked
+	 * is cleared because `autoHighlight` is off, and the value it replaced.
+	 */
 	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
@@ -183,15 +186,18 @@ export function FilterComboboxRoot({
 					onValueChange={(value) => {
 						const navigating = userNavigatingRef.current;
 						userNavigatingRef.current = false;
+						const previous = highlightedValueRef.current;
 						if (!autoHighlight && !navigating) {
 							// cmdk has already stored the row it picked and only re-reads
 							// a controlled value when it changes. It trims the value, so
 							// switching between "" and " " resets it to nothing.
-							setHighlightedValue((previous) => (previous === "" ? " " : ""));
+							setHighlightedValue((current) => (current === "" ? " " : ""));
 							highlightedValueRef.current = "";
+							// The caller can still move the highlight off a row that
+							// unmounted.
+							onHighlightedValueChange?.("", previous);
 							return;
 						}
-						const previous = highlightedValueRef.current;
 						highlightedValueRef.current = value;
 						setHighlightedValue(value);
 						onHighlightedValueChange?.(value, previous);

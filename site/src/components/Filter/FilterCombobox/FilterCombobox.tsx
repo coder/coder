@@ -246,11 +246,19 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
+		// A cleared highlight leaves the flyouts as they are.
+		if (highlighted === "") {
+			return;
+		}
 		const isCategoryRow = listedCategories.some(
 			(category) => category.key === highlighted,
 		);
 		setHighlightedCategoryKey(isCategoryRow ? highlighted : null);
-		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
+		// A flyout whose row was hidden is closed.
+		const flyoutOpen = listedCategories.some(
+			(category) => category.key === flyoutCategoryKey,
+		);
+		if (!flyoutOpen || highlighted === flyoutCategoryKey) {
 			return;
 		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
