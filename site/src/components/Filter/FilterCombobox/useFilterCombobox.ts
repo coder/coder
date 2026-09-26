@@ -439,8 +439,8 @@ export const useFilterCombobox = ({
 	const isScopeToggleDisabled = (category: FilterCategory) =>
 		scopeChipsOf(category).length !== 1;
 	// A category's first applied chip decides its scope toggle; with no chip
-	// the toggle is on. A typed key reaches the query only with the option
-	// picked.
+	// the toggle is on. While its category is open, a typed prefix decides it
+	// instead. The typed key reaches the query only with the option picked.
 	const isScopeWidened = (category: FilterCategory) => {
 		const toggle = category.scopeToggle;
 		if (!toggle) {
@@ -1416,10 +1416,10 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Let cmdk commit a currently highlighted category option. Otherwise Enter
-		// commits the typed value: the applied chip holding it, a listed option
-		// matching it ignoring letter case, or a new chip, so valid backend values do not
-		// have to appear in the suggestion list.
+		// Let cmdk commit a currently highlighted category option. Otherwise
+		// Enter commits the typed value: the applied chip holding it, a listed
+		// option matching it ignoring letter case, or a new chip, so valid
+		// backend values do not have to appear in the suggestion list.
 		if (
 			event.key === "Enter" &&
 			mode === "category" &&

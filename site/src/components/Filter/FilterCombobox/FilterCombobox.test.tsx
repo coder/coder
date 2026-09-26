@@ -2622,7 +2622,7 @@ describe("FilterCombobox", () => {
 		["owner:me user:Alice", "owner:me"],
 		["user:Alice", ""],
 	])(
-		"removes the chip of %s holding a clicked owner in different letter case",
+		"with %s applied, clicking alice commits %j",
 		async (initialValue, expected) => {
 			const { user, onChange, filtersButton } = setup(
 				[filteredScopedOwnerCategory],
@@ -2920,6 +2920,64 @@ describe("FilterCombobox", () => {
 		await user.click(input);
 		await screen.findByRole("option", { name: "Running" });
 		await user.keyboard("{End}");
+		await user.type(input, "shared");
+		await user.click(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with alice",
+			}),
+		);
+
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
+	it.each([
+		["hovering Running", false],
+		["hovering Running and leaving the menu", true],
+	])(
+		"opens the Owner flyout when typing shared after %s",
+		async (_, leaveMenu) => {
+			const { user, onChange, input } = setup(
+				[scopedOwnerCategory, statusCategory],
+				{ initialValue: "owner:alice" },
+			);
+
+			await user.click(input);
+			const running = await screen.findByRole("option", { name: "Running" });
+			await user.hover(running);
+			if (leaveMenu) {
+				await user.unhover(running);
+			}
+			await user.type(input, "shared");
+			await user.click(
+				await screen.findByRole("switch", {
+					name: "Include workspaces shared with alice",
+				}),
+			);
+
+			await waitFor(() =>
+				expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+			);
+		},
+	);
+
+	it("opens the Owner flyout when typing shared while another flyout is open", async () => {
+		const { user, onChange, input } = setup(
+			[
+				scopedOwnerCategory,
+				{
+					key: "template",
+					label: "Template",
+					getOptions: async () => [{ label: "Docker", value: "docker" }],
+				},
+			],
+			{ initialValue: "owner:alice", skipHover: true },
+		);
+
+		await user.click(input);
+		await user.hover(await screen.findByRole("option", { name: "Template" }));
+		await screen.findByRole("button", { name: "Docker" });
 		await user.type(input, "shared");
 		await user.click(
 			await screen.findByRole("switch", {

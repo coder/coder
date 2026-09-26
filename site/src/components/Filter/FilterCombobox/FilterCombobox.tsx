@@ -180,26 +180,25 @@ export function FilterCombobox({
 		setFlyout({ categoryKey, openAtReset: open });
 	// Highlighted category row, tracked here instead of the full highlight so
 	// moving through option rows does not re-render the lists. `null` means
-	// another row or a dismissed menu; `undefined` means typing cleared the
-	// highlight.
+	// another row or a dismissed menu; `undefined` means cmdk's pick was
+	// cleared while typed text turns `autoHighlight` off.
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
 		string | null | undefined
 	>(null);
-	const [typedValueSeen, setTypedValueSeen] = useState(inputValue);
-	if (typedValueSeen !== inputValue) {
-		setTypedValueSeen(inputValue);
-		setHighlightedCategoryKey(undefined);
-	}
-	// A scope match shows its flyout while its row is highlighted or while
-	// typing leaves no row highlighted, and never on coarse pointers.
-	const shownFlyoutKey =
-		flyoutCategoryKey ??
-		(!isCoarsePointer &&
+	// While typed text narrows the rows, only a scope match shows a flyout,
+	// and only while its row is highlighted or typing leaves no row
+	// highlighted. It never shows on coarse pointers. A flyout the text hides
+	// returns when the text is deleted.
+	const scopeMatchShown =
+		!isCoarsePointer &&
 		scopeMatchKey !== null &&
 		(highlightedCategoryKey === scopeMatchKey ||
-			highlightedCategoryKey === undefined)
+			highlightedCategoryKey === undefined);
+	const shownFlyoutKey = categoriesNarrowedByText
+		? scopeMatchShown
 			? scopeMatchKey
-			: null);
+			: null
+		: flyoutCategoryKey;
 	const categoryRows = useRef(new Map<string, HTMLDivElement>());
 	const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const cancelHoverSwitch = () => {
