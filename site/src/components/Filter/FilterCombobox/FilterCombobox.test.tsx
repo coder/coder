@@ -2382,6 +2382,106 @@ describe("FilterCombobox", () => {
 		).toBeInTheDocument();
 	});
 
+	it("removes the chip holding a clicked owner in another case while both Owner keys are applied", async () => {
+		const { user, onChange, filtersButton } = setup(
+			[filteredScopedOwnerCategory],
+			{ initialValue: "owner:me user:Alice" },
+		);
+
+		await user.click(filtersButton);
+		await user.keyboard("{ArrowRight}");
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+
+		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("owner:me"));
+	});
+
+	it.each(["user:alice", "user:Alice"])(
+		"keeps both Owner chips when a typed listed owner matches %s",
+		async (heldChip) => {
+			const { user, onChange, input, filtersButton } = setup(
+				[filteredScopedOwnerCategory],
+				{ initialValue: `owner:me ${heldChip}` },
+			);
+
+			await user.click(filtersButton);
+			await user.keyboard("{ArrowRight}");
+			await user.keyboard("alice");
+			await waitForElementToBeRemoved(() =>
+				screen.queryByRole("option", { name: "me" }),
+			);
+			await user.keyboard("{Enter}");
+
+			await waitFor(() => expect(input).toHaveValue(""));
+			expect(
+				screen.getByRole("button", { name: "Remove owner:me" }),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", {
+					name: `Remove ${heldChip.toLowerCase()}`,
+				}),
+			).toBeInTheDocument();
+			expect(onChange).not.toHaveBeenCalledWith(
+				expect.stringContaining("owner:alice"),
+			);
+		},
+	);
+
+	it.each([
+		["zed", "user:zed"],
+		["owner:zed", "owner:zed"],
+	])(
+		"commits typed %s holding the only Owner chip user:zed as %s",
+		async (typed, expected) => {
+			const { user, onChange, input, filtersButton } = setup(
+				[filteredScopedOwnerCategory],
+				{ initialValue: "user:zed" },
+			);
+
+			if (typed.includes(":")) {
+				await user.click(input);
+			} else {
+				await user.click(filtersButton);
+				await user.keyboard("{ArrowRight}");
+			}
+			await user.keyboard(typed);
+			await waitFor(() =>
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"No Owner matches",
+				),
+			);
+			await user.keyboard("{Enter}");
+
+			await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expected));
+		},
+	);
+
+	it("follows the applied chip after leaving a typed owner prefix", async () => {
+		const { user, onChange, input } = setup([filteredScopedOwnerCategory], {
+			initialValue: "user:me",
+		});
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		expect(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with me",
+			}),
+		).not.toBeChecked();
+		await user.keyboard("{Backspace}");
+		await screen.findByRole("option", { name: "Owner" });
+		await user.keyboard("{ArrowRight}");
+
+		expect(
+			await screen.findByRole("switch", {
+				name: "Include workspaces shared with me",
+			}),
+		).toBeChecked();
+		await user.click(await screen.findByRole("option", { name: "alice" }));
+		await waitFor(() =>
+			expect(onChange).toHaveBeenLastCalledWith("user:alice"),
+		);
+	});
+
 	it("keeps a second Owner token when another chip is removed", async () => {
 		const { user, onChange } = setup([scopedOwnerCategory, statusCategory], {
 			initialValue: "owner:bob user:carol status:running",

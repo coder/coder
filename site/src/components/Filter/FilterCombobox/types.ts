@@ -60,9 +60,10 @@ export type FilterCategory = {
 	 * that chip's key and later picks keep it; with a chip under each key it is
 	 * disabled and both chips show their own query keys. A typed prefix sets
 	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
-	 * the category key or an alias commits under the category key. Enter on a
-	 * typed value that no option lists commits under the category key unless
-	 * `widenedKey` was typed or an applied chip holds the value, since a
+	 * the category key or an alias commits under the category key. Without a
+	 * typed prefix, Enter on a value an applied chip holds, in any case, keeps
+	 * that chip. Otherwise a typed value that no option lists commits under the
+	 * category key unless `widenedKey` was typed, since a
 	 * backend may reject the widened key for values the requester cannot list.
 	 * While it is on and enabled, a pill after the chip reads `pillPrefix` and
 	 * the chip's value, and removing the pill turns the switch off. Applies only to

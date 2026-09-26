@@ -6,7 +6,6 @@ import {
 	useMemo,
 	useReducer,
 	useRef,
-	useState,
 } from "react";
 import { useQueries, useQuery, useQueryClient } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
@@ -60,6 +59,12 @@ type State = {
 	 * chip.
 	 */
 	typedFreeText: string;
+	/**
+	 * Scope set by a typed prefix for the open scope-toggle category:
+	 * `widenedKey` sets true, and the category key or an alias sets false. Null
+	 * when no prefix was typed, so the applied chip decides the scope instead.
+	 */
+	typedScopeWidened: boolean | null;
 };
 
 type Action =
@@ -70,7 +75,9 @@ type Action =
 			categoryKey: string;
 			query: string;
 			typedFreeText: string;
+			typedScopeWidened: boolean | null;
 	  }
+	| { type: "resetTypedScope" }
 	| { type: "typeInCategory"; value: string }
 	| { type: "typeFilterSearch"; value: string }
 	| { type: "typeFreeText"; value: string }
@@ -86,6 +93,7 @@ const closeState = (state: State): State => ({
 	activeCategoryKey: null,
 	typedFreeText: state.typedFreeText,
 	inputValue: state.typedFreeText,
+	typedScopeWidened: null,
 });
 
 const reducer = (state: State, action: Action): State => {
@@ -96,6 +104,7 @@ const reducer = (state: State, action: Action): State => {
 				mode: "browsing",
 				browseAll: false,
 				activeCategoryKey: null,
+				typedScopeWidened: null,
 			};
 		case "showAllFilters":
 			return {
@@ -103,6 +112,7 @@ const reducer = (state: State, action: Action): State => {
 				mode: "browsing",
 				browseAll: true,
 				activeCategoryKey: null,
+				typedScopeWidened: null,
 			};
 		case "enterCategory":
 			return {
@@ -111,7 +121,10 @@ const reducer = (state: State, action: Action): State => {
 				activeCategoryKey: action.categoryKey,
 				inputValue: action.query,
 				typedFreeText: action.typedFreeText.trim(),
+				typedScopeWidened: action.typedScopeWidened,
 			};
+		case "resetTypedScope":
+			return { ...state, typedScopeWidened: null };
 		case "typeInCategory":
 			return { ...state, mode: "category", inputValue: action.value };
 		case "typeFilterSearch":
@@ -121,6 +134,7 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: false,
 				activeCategoryKey: null,
 				inputValue: action.value,
+				typedScopeWidened: null,
 			};
 		case "typeFreeText":
 			return {
@@ -129,6 +143,7 @@ const reducer = (state: State, action: Action): State => {
 				activeCategoryKey: null,
 				inputValue: action.value,
 				typedFreeText: action.value.trim(),
+				typedScopeWidened: null,
 			};
 		case "setTypedFreeText":
 			return { ...state, typedFreeText: action.value.trim() };
@@ -139,6 +154,7 @@ const reducer = (state: State, action: Action): State => {
 				browseAll: true,
 				activeCategoryKey: null,
 				inputValue: state.typedFreeText,
+				typedScopeWidened: null,
 			};
 		case "close":
 			return closeState(state);
@@ -283,10 +299,17 @@ export const useFilterCombobox = ({
 			activeCategoryKey: null,
 			inputValue: freeText,
 			typedFreeText: freeText,
+			typedScopeWidened: null,
 		};
 	});
-	const { mode, browseAll, activeCategoryKey, inputValue, typedFreeText } =
-		state;
+	const {
+		mode,
+		browseAll,
+		activeCategoryKey,
+		inputValue,
+		typedFreeText,
+		typedScopeWidened,
+	} = state;
 	const open = mode !== "closed";
 	const isBrowsing = mode === "browsing";
 
@@ -364,11 +387,7 @@ export const useFilterCombobox = ({
 	);
 	// A category's first applied chip decides its scope toggle; with no chip
 	// the toggle is on. While its category is open, a typed prefix decides it
-	// instead: `widenedKey` turns it on, and the category key or an alias turns
-	// it off. The typed key reaches the query only with the option picked.
-	const [typedScopeWidened, setTypedScopeWidened] = useState<boolean | null>(
-		null,
-	);
+	// instead. The typed key reaches the query only with the option picked.
 	const chipKeyOf = (token: string) => parseChipToken(token, chipKeys)?.key;
 	const scopeChipsOf = (category: FilterCategory) =>
 		category.scopeToggle
@@ -408,22 +427,26 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
-	// With a chip under each key and no typed prefix, an option whose value
-	// one of them holds maps to that chip, so its row shows as selected and a
-	// click removes it. Typed Enter commits that chip, which keeps it.
+	// The applied chip holding a value, ignoring case, unless a typed prefix
+	// sets the key. Typed Enter commits that chip, which keeps it.
+	const scopeChipHolding = (category: FilterCategory, value: string) => {
+		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
+			return undefined;
+		}
+		const folded = value.toLowerCase();
+		return scopeChipsOf(category).find(
+			(chip) => parseChipToken(chip, chipKeys)?.value.toLowerCase() === folded,
+		);
+	};
+	// With a chip under each key, an option maps to the chip holding its value,
+	// so its row shows as selected and a click removes it.
 	const appliedScopeChipFor = (
 		category: FilterCategory,
 		option: Pick<FilterOption, "value">,
-	) => {
-		const scopeChips = scopeChipsOf(category);
-		const typedPrefixActive =
-			activeCategoryKey === category.key && typedScopeWidened !== null;
-		return scopeChips.length > 1 && !typedPrefixActive
-			? scopeChips.find(
-					(chip) => parseChipToken(chip, chipKeys)?.value === option.value,
-				)
+	) =>
+		scopeChipsOf(category).length > 1
+			? scopeChipHolding(category, option.value)
 			: undefined;
-	};
 	const optionTokenFor = (
 		category: FilterCategory,
 		option: Pick<FilterOption, "token" | "value">,
@@ -860,13 +883,13 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const freeText = browseAll ? typedFreeText : "";
-		setTypedScopeWidened(null);
 		emitQuery(composeFilterQuery(chipValues, chipKeys, freeText));
 		dispatch({
 			type: "enterCategory",
 			categoryKey,
 			query: "",
 			typedFreeText: freeText,
+			typedScopeWidened: null,
 		});
 	};
 
@@ -887,7 +910,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 		const widened = isScopeWidened(category);
-		setTypedScopeWidened(null);
+		dispatch({ type: "resetTypedScope" });
 		rewriteScopeKey(
 			widened ? toggle.widenedKey : category.key,
 			widened ? category.key : toggle.widenedKey,
@@ -1238,14 +1261,14 @@ export const useFilterCombobox = ({
 			const scopeToggle = allSubmenuCategories.find(
 				(entry) => entry.key === typedCategory.categoryKey,
 			)?.scopeToggle;
-			setTypedScopeWidened(
-				scopeToggle ? typedCategory.typedKey === scopeToggle.widenedKey : null,
-			);
 			dispatch({
 				type: "enterCategory",
 				categoryKey: typedCategory.categoryKey,
 				query: typedCategory.query,
 				typedFreeText: commitTypedText(typedCategory.freeText),
+				typedScopeWidened: scopeToggle
+					? typedCategory.typedKey === scopeToggle.widenedKey
+					: null,
 			});
 			return;
 		}
@@ -1370,9 +1393,10 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Let cmdk commit a currently highlighted category option. If there is no
-		// rendered option to select, Enter commits the typed value directly so
-		// valid backend values do not have to appear in the suggestion list.
+		// Let cmdk commit a currently highlighted category option. Otherwise Enter
+		// commits the typed value: the applied chip holding it, a listed option
+		// matching it in any case, or a new chip, so valid backend values do not
+		// have to appear in the suggestion list.
 		if (
 			event.key === "Enter" &&
 			mode === "category" &&
@@ -1387,15 +1411,16 @@ export const useFilterCombobox = ({
 			);
 			// See `scopeToggle`: unlisted values avoid the widened key, which a
 			// backend can reject (#29961 for Workspaces `user:`).
-			const candidate = listedOption
-				? optionTokenFor(activeCategory, listedOption)
-				: (appliedScopeChipFor(activeCategory, typedOption) ??
-					chipToken(
-						typedScopeWidened === true
-							? optionChipKey(activeCategory)
-							: activeCategory.key,
-						typedOption.value,
-					));
+			const candidate =
+				scopeChipHolding(activeCategory, typedOption.value) ??
+				(listedOption
+					? optionTokenFor(activeCategory, listedOption)
+					: chipToken(
+							typedScopeWidened === true
+								? optionChipKey(activeCategory)
+								: activeCategory.key,
+							typedOption.value,
+						));
 			const hasHighlightedOption = activeOptions?.some(
 				(option) => optionTokenFor(activeCategory, option) === highlighted,
 			);
