@@ -169,6 +169,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.rptyCommand(),
 		r.syncCommand(),
 		r.updateUserEmail(),
+		r.experimentRulesCommand(),
 	}
 }
 
