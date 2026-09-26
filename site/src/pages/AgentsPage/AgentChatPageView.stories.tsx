@@ -756,6 +756,7 @@ export const Loading: Story = {
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
 			showRightPanel={false}
+			onCloseRightPanel={fn()}
 		/>
 	),
 };
@@ -776,6 +777,7 @@ export const LoadingWithModelOptions: Story = {
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
 			showRightPanel={false}
+			onCloseRightPanel={fn()}
 		/>
 	),
 };
@@ -795,6 +797,7 @@ export const LoadingWithRightPanel: Story = {
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
 			showRightPanel
+			onCloseRightPanel={fn()}
 		/>
 	),
 };
@@ -816,6 +819,7 @@ export const LoadingSidebarCollapsed: Story = {
 			modelSelectorPlaceholder="Select a model"
 			hasModelOptions
 			showRightPanel={false}
+			onCloseRightPanel={fn()}
 		/>
 	),
 };

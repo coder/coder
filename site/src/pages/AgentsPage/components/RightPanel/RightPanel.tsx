@@ -3,6 +3,7 @@ import {
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -18,7 +19,7 @@ const MAX_WIDTH_RATIO = 0.7;
 const DEFAULT_WIDTH = 480;
 
 const SNAP_THRESHOLD = 80;
-const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
+export const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
 
 function getMaxWidth(): number {
 	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
@@ -271,6 +272,15 @@ export const RightPanel = ({
 		};
 	}, []);
 
+	// When the chat and the side-by-side panel do not both fit, the sidebar
+	// collapses to make room. If the user just expanded the sidebar, the
+	// panel closes instead so the sidebar stays open. wasSidebarCollapsed
+	// detects that expansion, and unseenDragSidebarToggle excludes the
+	// transient toggles a panel resize drag makes at the left edge of the
+	// viewport.
+	const wasSidebarCollapsed = useRef(isSidebarCollapsed);
+	const unseenDragSidebarToggle = useRef(false);
+
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
 			onToggleExpanded();
@@ -300,7 +310,12 @@ export const RightPanel = ({
 		onSnapCommit: handleSnapCommit,
 		onVisualExpandedChange,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
+		onToggleSidebarCollapsed: onToggleSidebarCollapsed
+			? () => {
+					unseenDragSidebarToggle.current = true;
+					onToggleSidebarCollapsed();
+				}
+			: undefined,
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
 
@@ -308,7 +323,22 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
+	const makeRoom = useEffectEvent((shouldClosePanel: boolean) => {
+		if (shouldClosePanel) {
+			onClose();
+		} else {
+			onToggleSidebarCollapsed?.();
+		}
+	});
+
 	useEffect(() => {
+		let sidebarJustExpanded =
+			wasSidebarCollapsed.current === true &&
+			isSidebarCollapsed === false &&
+			!unseenDragSidebarToggle.current;
+		wasSidebarCollapsed.current = isSidebarCollapsed;
+		unseenDragSidebarToggle.current = false;
+
 		if (
 			!visualOpen ||
 			visualExpanded ||
@@ -324,37 +354,41 @@ export const RightPanel = ({
 		}
 
 		let frame = 0;
-		let collapseRequested = false;
-		const maybeCollapseSidebar = () => {
+		let roomConflictHandled = false;
+		const resolveRoomConflict = () => {
 			cancelAnimationFrame(frame);
 			frame = requestAnimationFrame(() => {
+				// Only the first check after the sidebar expands reflects that
+				// expansion; later resizes fall back to collapsing the sidebar.
+				const shouldClosePanel = sidebarJustExpanded;
+				sidebarJustExpanded = false;
+
 				if (
-					collapseRequested ||
+					roomConflictHandled ||
 					innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH
 				) {
 					return;
 				}
 
 				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
-
 				if (parent.clientWidth >= requiredMainWidth) {
 					return;
 				}
 
-				collapseRequested = true;
-				onToggleSidebarCollapsed();
+				roomConflictHandled = true;
+				makeRoom(shouldClosePanel);
 			});
 		};
 
-		maybeCollapseSidebar();
-		const resizeObserver = new ResizeObserver(maybeCollapseSidebar);
+		resolveRoomConflict();
+		const resizeObserver = new ResizeObserver(resolveRoomConflict);
 		resizeObserver.observe(parent);
-		addEventListener("resize", maybeCollapseSidebar);
+		addEventListener("resize", resolveRoomConflict);
 
 		return () => {
 			cancelAnimationFrame(frame);
 			resizeObserver.disconnect();
-			removeEventListener("resize", maybeCollapseSidebar);
+			removeEventListener("resize", resolveRoomConflict);
 		};
 	}, [
 		visualOpen,
