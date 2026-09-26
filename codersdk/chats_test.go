@@ -222,6 +222,22 @@ func TestChatMessagePart_StripInternal(t *testing.T) {
 		assert.JSONEq(t, `{"key":"value"}`, string(part.Args))
 	})
 
+	t.Run("StripsInvalidArgs", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type:        codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID:  "call-1",
+			ToolName:    "edit_files",
+			InvalidArgs: `{"edits":[`,
+		}
+		part.StripInternal()
+		assert.Empty(t, part.InvalidArgs)
+		// Public fields preserved.
+		assert.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
+		assert.Equal(t, "call-1", part.ToolCallID)
+		assert.Equal(t, "edit_files", part.ToolName)
+	})
+
 	t.Run("StripsFileDataWhenFileIDSet", func(t *testing.T) {
 		t.Parallel()
 		id := uuid.New()
@@ -315,6 +331,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"provider_model":               "internal only, stripped by db2sdk before API responses",
 		"provider_credential":          "internal only, stripped by db2sdk before API responses",
 		"reasoning_epoch":              "internal only, stripped by db2sdk before API responses",
+		"invalid_args":                 "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
