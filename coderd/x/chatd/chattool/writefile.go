@@ -42,7 +42,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return fileToolConnErrorResult(ctx, WriteFileToolName, err), nil
 			}
 			if planPath != "" {
 				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
@@ -83,16 +83,17 @@ func executeWriteFileTool(
 	if id, ok := ToolCallIdentityFromContext(ctx); ok {
 		writeCtx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
 	}
-	return writeFileResult(ctx, conn.WriteFile(writeCtx, requestedPath, strings.NewReader(args.Content))), nil
+	err := conn.WriteFile(writeCtx, requestedPath, strings.NewReader(args.Content))
+	if result, ok := fileRequestErrorResult(ctx, WriteFileToolName, err); ok {
+		return result, nil
+	}
+	return writeFileResult(err), nil
 }
 
-// writeFileResult converts what WriteFile returned into the tool result.
-// ctx is the tool call's context.
-func writeFileResult(ctx context.Context, err error) fantasy.ToolResponse {
+// writeFileResult converts an answer the agent gave to a write_file
+// request, live or recorded, into the tool result.
+func writeFileResult(err error) fantasy.ToolResponse {
 	if err != nil {
-		if result, ok := fileToolCallErrorResult(ctx, "write file", fileToolChange(WriteFileToolName), err); ok {
-			return result
-		}
 		return fantasy.NewTextErrorResponse(err.Error())
 	}
 	return toolResponse(map[string]any{"ok": true})

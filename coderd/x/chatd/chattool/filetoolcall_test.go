@@ -33,7 +33,10 @@ type fileToolCallCase struct {
 	// canceled runs the tool with a canceled context.
 	canceled bool
 	// err is the error the agent request returns.
-	err         error
+	err error
+	// connErr is the error obtaining the workspace connection returns;
+	// no agent request is made.
+	connErr     error
 	wantIsError bool
 	// wantContent lists substrings of the tool result, and wantAbsent
 	// substrings it must not contain.
@@ -50,7 +53,7 @@ func fileToolCallCases() []fileToolCallCase {
 	}
 	sdkErr := codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "http://agent/api/v0/files")
 	sdkErr.Message = "open /a.txt: file does not exist"
-	transportErr := xerrors.Errorf("do request: %w", xerrors.New("connection reset by peer"))
+	transportErr := xerrors.Errorf("do request: %w", &url.Error{Op: http.MethodPost, URL: "http://agent/api/v0/edit-files", Err: xerrors.New("connection reset by peer")})
 	return []fileToolCallCase{
 		{name: "NoIdentity", noIdentity: true, wantContent: []string{`"ok":true`}},
 		{name: "Applied", wantContent: []string{`"ok":true`}},
@@ -63,6 +66,24 @@ func fileToolCallCases() []fileToolCallCase {
 			wantIsError: true,
 			wantContent: []string{"outcome unknown", "could not be reached", "may have been applied", "connection reset by peer", "Check the file"},
 		},
+		{
+			// The agent answered, but its answer could not be read.
+			name:        "UnreadableAnswer",
+			err:         xerrors.Errorf("decode response body: %w", xerrors.New("unexpected EOF")),
+			wantIsError: true,
+			wantContent: []string{"outcome unknown", "answer could not be read", "may have been applied", "unexpected EOF", "Check the file"},
+		},
+		{
+			// An earlier attempt of the tool call may have applied the
+			// change.
+			name:        "ConnError",
+			connErr:     xerrors.New("dial failed"),
+			wantIsError: true,
+			wantContent: []string{"outcome unknown", "could not be reached", "dial failed", "an earlier attempt may have applied", "Check the file"},
+		},
+		{name: "ConnErrorNoIdentity", noIdentity: true, connErr: xerrors.New("dial failed"), wantIsError: true, wantContent: []string{"dial failed"}, wantAbsent: []string{"outcome unknown"}},
+		{name: "ConnErrorNoAgent", connErr: chattool.ErrWorkspaceHasNoAgent, wantIsError: true, wantContent: []string{"workspace has no running agent"}, wantAbsent: []string{"outcome unknown"}},
+		{name: "ConnErrorWorkspaceDeleted", connErr: chattool.ErrWorkspaceDeleted, wantIsError: true, wantContent: []string{"workspace was deleted"}, wantAbsent: []string{"outcome unknown"}},
 		{name: "TransportErrorNoIdentity", noIdentity: true, err: transportErr, wantIsError: true, wantContent: []string{"connection reset by peer"}, wantAbsent: []string{"outcome unknown"}},
 		{
 			// A canceled context means the result will not be committed.
@@ -83,7 +104,7 @@ func fileToolCallCases() []fileToolCallCase {
 			name:        "InputMismatch",
 			err:         toolCallError(workspacesdk.ToolCallErrorInputMismatch),
 			wantIsError: true,
-			wantContent: []string{"different input", "not applied"},
+			wantContent: []string{"this request changed nothing", "already exists with a different input"},
 		},
 		{name: "StaleToolCall", err: toolCallError(workspacesdk.ToolCallErrorStale), wantIsError: true, wantContent: []string{string(workspacesdk.ToolCallErrorStale)}},
 		{name: "ToolCallCanceled", err: toolCallError(workspacesdk.ToolCallErrorCanceled), wantIsError: true, wantContent: []string{string(workspacesdk.ToolCallErrorCanceled)}},
@@ -106,6 +127,9 @@ func fileToolCallContext(t *testing.T, tc fileToolCallCase, conn workspacesdk.Ag
 	clock := quartz.NewMock(t)
 	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
 		clock.Advance(workspaceConnDelay).MustWait(testutil.Context(t, testutil.WaitShort))
+		if tc.connErr != nil {
+			return nil, tc.connErr
+		}
 		return conn, nil
 	}
 	ctx := context.Background()
@@ -165,12 +189,14 @@ func TestEditFilesToolCall(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
 			ctx, wantToolCall, getConn := fileToolCallContext(t, tc, mockConn)
-			mockConn.EXPECT().
-				EditFiles(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, _ workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
-					assertToolCallInContext(ctx, t, tc, wantToolCall)
-					return workspacesdk.FileEditResponse{}, tc.err
-				})
+			if tc.connErr == nil {
+				mockConn.EXPECT().
+					EditFiles(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _ workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
+						assertToolCallInContext(ctx, t, tc, wantToolCall)
+						return workspacesdk.FileEditResponse{}, tc.err
+					})
+			}
 			tool := chattool.EditFiles(chattool.EditFilesOptions{
 				GetWorkspaceConn: getConn,
 			})
@@ -199,12 +225,14 @@ func TestWriteFileToolCall(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
 			ctx, wantToolCall, getConn := fileToolCallContext(t, tc, mockConn)
-			mockConn.EXPECT().
-				WriteFile(gomock.Any(), "/a.txt", gomock.Any()).
-				DoAndReturn(func(ctx context.Context, _ string, _ io.Reader) error {
-					assertToolCallInContext(ctx, t, tc, wantToolCall)
-					return tc.err
-				})
+			if tc.connErr == nil {
+				mockConn.EXPECT().
+					WriteFile(gomock.Any(), "/a.txt", gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _ string, _ io.Reader) error {
+						assertToolCallInContext(ctx, t, tc, wantToolCall)
+						return tc.err
+					})
+			}
 			tool := chattool.WriteFile(chattool.WriteFileOptions{
 				GetWorkspaceConn: getConn,
 			})
@@ -294,7 +322,7 @@ func TestInterruptFileToolCall(t *testing.T) {
 			name:         "UnreadableResponse",
 			err:          xerrors.New("unexpected EOF"),
 			wantIsError:  true,
-			wantContains: []string{"outcome unknown", "response could not be read", "may have been applied", "unexpected EOF"},
+			wantContains: []string{"outcome unknown", "answer could not be read", "may have been applied", "unexpected EOF"},
 		},
 	}
 	for _, toolName := range []string{chattool.EditFilesToolName, chattool.WriteFileToolName} {

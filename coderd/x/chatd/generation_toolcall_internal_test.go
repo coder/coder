@@ -4,6 +4,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"testing"
 	"time"
 
@@ -202,4 +203,127 @@ func TestExecuteLocalTools_ExecuteTaskRetry(t *testing.T) {
 	assert.True(t, result.Success)
 	assert.Equal(t, "PASS", result.Output)
 	assert.GreaterOrEqual(t, result.WallDurationMs, int64(7000))
+}
+
+// TestExecuteLocalTools_FileToolTaskRetry runs the same unresolved
+// edit_files or write_file call twice, as a task retry does after the
+// first attempt ends mid-request. Both attempts send the same tool call
+// with a larger age, and the committed result is the agent's recorded
+// answer to the first.
+func TestExecuteLocalTools_FileToolTaskRetry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		toolName string
+		args     string
+		// expect expects one request that calls answer and returns its
+		// error, and a recorded edit response when answer returns nil.
+		expect func(conn *agentconnmock.MockAgentConn, answer func(ctx context.Context) error) *gomock.Call
+		tool   func(getConn func(context.Context) (workspacesdk.AgentConn, error)) fantasy.AgentTool
+		wantOK string
+	}{
+		{
+			toolName: chattool.EditFilesToolName,
+			args:     `{"files":[{"path":"/a.txt","edits":[{"old_text":"a","new_text":"b"}]}]}`,
+			expect: func(conn *agentconnmock.MockAgentConn, answer func(ctx context.Context) error) *gomock.Call {
+				return conn.EXPECT().EditFiles(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _ workspacesdk.FileEditRequest) (workspacesdk.FileEditResponse, error) {
+						if err := answer(ctx); err != nil {
+							return workspacesdk.FileEditResponse{}, err
+						}
+						return workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{{Path: "/a.txt", Diff: "-a\n+b"}}}, nil
+					})
+			},
+			tool: func(getConn func(context.Context) (workspacesdk.AgentConn, error)) fantasy.AgentTool {
+				return chattool.EditFiles(chattool.EditFilesOptions{GetWorkspaceConn: getConn})
+			},
+			wantOK: `{"ok":true,"files":[{"path":"/a.txt","diff":"-a\n+b"}]}`,
+		},
+		{
+			toolName: chattool.WriteFileToolName,
+			args:     `{"path":"/a.txt","content":"b"}`,
+			expect: func(conn *agentconnmock.MockAgentConn, answer func(ctx context.Context) error) *gomock.Call {
+				return conn.EXPECT().WriteFile(gomock.Any(), "/a.txt", gomock.Any()).
+					DoAndReturn(func(ctx context.Context, _ string, _ io.Reader) error {
+						return answer(ctx)
+					})
+			},
+			tool: func(getConn func(context.Context) (workspacesdk.AgentConn, error)) fantasy.AgentTool {
+				return chattool.WriteFile(chattool.WriteFileOptions{GetWorkspaceConn: getConn})
+			},
+			wantOK: `{"ok":true}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.toolName, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{{
+				Type:       codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID: callID,
+				ToolName:   tt.toolName,
+				Args:       json.RawMessage(tt.args),
+			}})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+			require.NoError(t, err)
+			assistant := messages[len(messages)-1]
+			require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+
+			conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			var toolCalls []workspacesdk.ToolCall
+			recordToolCall := func(ctx context.Context) {
+				tc, ok := workspacesdk.ToolCallFromContext(ctx)
+				assert.True(t, ok, "the request must carry the tool call")
+				toolCalls = append(toolCalls, tc)
+			}
+			firstAttemptCtx, endFirstAttempt := context.WithCancel(ctx)
+			defer endFirstAttempt()
+			gomock.InOrder(
+				// The first attempt ends while its request is in flight, as
+				// on the attempt timeout; the agent applied the edit.
+				tt.expect(conn, func(ctx context.Context) error {
+					recordToolCall(ctx)
+					endFirstAttempt()
+					return ctx.Err()
+				}),
+				// The agent replays its recorded answer.
+				tt.expect(conn, func(ctx context.Context) error {
+					recordToolCall(ctx)
+					return nil
+				}),
+			)
+			// The mock clock advances after the second attempt's database
+			// clock read, when its tool call resolves the connection.
+			connCalls := 0
+			tools := []fantasy.AgentTool{tt.tool(func(context.Context) (workspacesdk.AgentConn, error) {
+				connCalls++
+				if connCalls == 2 {
+					batch.clock.Advance(7 * time.Second)
+				}
+				return conn, nil
+			})}
+
+			err = executeLocalToolBatch(firstAttemptCtx, t, f, batch, tools)
+			require.ErrorIs(t, err, context.Canceled)
+			runLocalToolBatch(t, f, batch, tools)
+
+			require.Len(t, toolCalls, 2)
+			assert.Equal(t, assistant.ID, toolCalls[0].MessageID)
+			assert.Equal(t, callID, toolCalls[0].ID)
+			assert.Equal(t, toolCalls[0].MessageID, toolCalls[1].MessageID)
+			assert.Equal(t, toolCalls[0].ID, toolCalls[1].ID)
+			assert.GreaterOrEqual(t, toolCalls[1].Age-toolCalls[0].Age, 7*time.Second)
+
+			messages, err = f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+			require.NoError(t, err)
+			parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, callID))
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			assert.False(t, parts[0].IsError, string(parts[0].Result))
+			assert.JSONEq(t, tt.wantOK, string(parts[0].Result))
+		})
+	}
 }

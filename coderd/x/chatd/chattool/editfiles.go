@@ -69,7 +69,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return fileToolConnErrorResult(ctx, EditFilesToolName, err), nil
 			}
 			if planPath != "" {
 				if err := ensurePlanPathResolvesToItself(ctx, conn, planPath); err != nil {
@@ -122,16 +122,16 @@ func executeEditFilesTool(
 		Files:       args.Files,
 		IncludeDiff: true,
 	})
-	return editFilesResult(ctx, resp, err), nil
+	if result, ok := fileRequestErrorResult(ctx, EditFilesToolName, err); ok {
+		return result, nil
+	}
+	return editFilesResult(resp, err), nil
 }
 
-// editFilesResult converts what EditFiles returned into the tool result.
-// ctx is the tool call's context.
-func editFilesResult(ctx context.Context, resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
+// editFilesResult converts an answer the agent gave to an edit_files
+// request, live or recorded, into the tool result.
+func editFilesResult(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
 	if err != nil {
-		if result, ok := fileToolCallErrorResult(ctx, "edit files", fileToolChange(EditFilesToolName), err); ok {
-			return result
-		}
 		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err))
 	}
 	return toolResponse(map[string]any{

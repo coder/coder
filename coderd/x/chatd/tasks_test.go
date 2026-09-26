@@ -1360,20 +1360,63 @@ func TestInterruptTask_ExecuteCallsWithoutCancel(t *testing.T) {
 func TestInterruptTask_CancelIgnoresEpisodeBuffer(t *testing.T) {
 	t.Parallel()
 
-	f := newTaskTestFixture(t)
-	callID := "call_" + uuid.NewString()
-	e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, executeWithinDeadline)}, nil)
-	e.createEpisode(t)
-	buffer := e.starter.opts.MessagePartBuffer
-	require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
-	require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
-	canceledResult := codersdk.ChatMessageToolResult(callID, chattool.ExecuteToolName, json.RawMessage(`{"error":"context canceled"}`), false, false)
-	require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
-	e.expectCancel(t, callID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+	type testCase struct {
+		name string
+		call func(callID string) codersdk.ChatMessagePart
+		// expect expects the cancel request.
+		expect func(t *testing.T, e executeInterrupt, callID string)
+		check  func(t *testing.T, part codersdk.ChatMessagePart)
+	}
+	tests := []testCase{
+		{
+			name: chattool.ExecuteToolName,
+			call: func(callID string) codersdk.ChatMessagePart { return executeToolCall(callID, executeWithinDeadline) },
+			expect: func(t *testing.T, e executeInterrupt, callID string) {
+				e.expectCancel(t, callID, workspacesdk.CancelProcessResponse{Started: true, Canceled: true, Output: "partial", AgeMs: 2_000}, nil)
+			},
+			check: func(t *testing.T, part codersdk.ChatMessagePart) {
+				result := requireExecuteResult(t, part)
+				assert.Equal(t, "partial", result.Output)
+				assert.Contains(t, result.Error, "canceled by the user after 2s.")
+			},
+		},
+	}
+	for _, toolName := range fileToolNames {
+		tests = append(tests, testCase{
+			name: toolName,
+			call: func(callID string) codersdk.ChatMessagePart { return fileToolCall(toolName, callID) },
+			expect: func(t *testing.T, e executeInterrupt, callID string) {
+				e.expectFileCancel(t, toolName, callID, workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(`{}`)}, nil)
+			},
+			check: func(t *testing.T, part codersdk.ChatMessagePart) {
+				require.False(t, part.IsError, string(part.Result))
+				var result struct {
+					OK bool `json:"ok"`
+				}
+				require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+				assert.True(t, result.OK)
+			},
+		})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	result := requireExecuteResult(t, singleToolResult(t, e.interrupt(t, f), callID))
-	assert.Equal(t, "partial", result.Output)
-	assert.Contains(t, result.Error, "canceled by the user after 2s.")
+			f := newTaskTestFixture(t)
+			callID := "call_" + uuid.NewString()
+			call := tt.call(callID)
+			e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{call}, nil)
+			e.createEpisode(t)
+			buffer := e.starter.opts.MessagePartBuffer
+			require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
+			require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
+			canceledResult := codersdk.ChatMessageToolResult(callID, call.ToolName, json.RawMessage(`{"error":"context canceled"}`), false, false)
+			require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
+			tt.expect(t, e, callID)
+
+			tt.check(t, singleToolResult(t, e.interrupt(t, f), callID))
+		})
+	}
 }
 
 // TestInterruptTask_CancelsExecuteCallsInParallel requires both cancel
@@ -1627,6 +1670,22 @@ func TestInterruptTask_FileToolCallResults(t *testing.T) {
 			dialErr:   xerrors.New("dial failed"),
 			wantError: []string{"outcome unknown", "could not be reached", "may have been applied", "dial failed"},
 		},
+		{
+			name:      "UnreadableAnswer",
+			err:       xerrors.New("unexpected EOF"),
+			wantError: []string{"outcome unknown", "answer could not be read", "may have been applied"},
+		},
+		{
+			// Without an agent no edit is in progress.
+			name:    "WorkspaceHasNoAgent",
+			dialErr: chattool.ErrWorkspaceHasNoAgent,
+			generic: true,
+		},
+		{
+			name:    "WorkspaceDeleted",
+			dialErr: chattool.ErrWorkspaceDeleted,
+			generic: true,
+		},
 	}
 	for _, toolName := range fileToolNames {
 		t.Run(toolName, func(t *testing.T) {
@@ -1668,38 +1727,6 @@ func TestInterruptTask_FileToolCallResults(t *testing.T) {
 					}
 				})
 			}
-		})
-	}
-}
-
-// TestInterruptTask_FileToolCallReplacesBufferedResult covers the usual
-// interrupt: the canceled generation goroutine has published a result for
-// the call. The call is still canceled and the answer is its only result.
-func TestInterruptTask_FileToolCallReplacesBufferedResult(t *testing.T) {
-	t.Parallel()
-
-	for _, toolName := range fileToolNames {
-		t.Run(toolName, func(t *testing.T) {
-			t.Parallel()
-
-			f := newTaskTestFixture(t)
-			callID := "call_" + uuid.NewString()
-			e := newExecuteInterrupt(t, f, []codersdk.ChatMessagePart{fileToolCall(toolName, callID)}, nil)
-			e.createEpisode(t)
-			buffer := e.starter.opts.MessagePartBuffer
-			require.NoError(t, buffer.RecordToolStart(e.key, 0, e.clock.Now()))
-			require.NoError(t, buffer.RecordToolCompletion(e.key, 0, e.clock.Now()))
-			canceledResult := codersdk.ChatMessageToolResult(callID, toolName, json.RawMessage(`{"error":"context canceled"}`), true, false)
-			require.NoError(t, buffer.AddPart(e.key, codersdk.ChatMessageRoleTool, canceledResult))
-			e.expectFileCancel(t, toolName, callID, workspacesdk.CancelFileToolCallResponse{Started: true, StatusCode: http.StatusOK, Body: json.RawMessage(`{}`)}, nil)
-
-			part := singleToolResult(t, e.interrupt(t, f), callID)
-			require.False(t, part.IsError, string(part.Result))
-			var result struct {
-				OK bool `json:"ok"`
-			}
-			require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
-			assert.True(t, result.OK)
 		})
 	}
 }
