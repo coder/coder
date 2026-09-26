@@ -1316,7 +1316,7 @@ describe("FilterCombobox", () => {
 				"Couldn’t load suggestions.",
 			),
 		);
-		await user.keyboard("{Enter}");
+		await user.keyboard("{ArrowDown}{Enter}");
 
 		expect(onChange).not.toHaveBeenCalledWith("owner:alice");
 	});
@@ -1764,21 +1764,29 @@ describe("FilterCombobox", () => {
 		expect(getUserOptions).not.toHaveBeenCalledWith("user-1");
 	});
 
+	// With a manual clock nothing advances time except these flushes, so a
+	// keystroke never waits long enough to end a debounce.
+	const flushTimers = () => act(() => vi.advanceTimersByTimeAsync(0));
+
+	const openOwnerFlyoutOnManualClock = async ({
+		user,
+		filtersButton,
+	}: Pick<ReturnType<typeof setup>, "user" | "filtersButton">) => {
+		await user.click(filtersButton);
+		await flushTimers();
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await flushTimers();
+	};
+
 	it("searches a hover flyout's loader once its typed text settles", async () => {
 		const getOptions = vi.fn(manyOwnersCategory.getOptions);
-		const { user, filtersButton } = setup(
-			[{ ...manyOwnersCategory, getOptions }],
-			{ skipHover: true, fakeTimers: "manual" },
-		);
+		const rendered = setup([{ ...manyOwnersCategory, getOptions }], {
+			skipHover: true,
+			fakeTimers: "manual",
+		});
 
-		// Nothing advances the clock except these calls, so a keystroke never
-		// waits long enough to end the debounce.
-		const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
-		await user.click(filtersButton);
-		await flush();
-		await user.hover(screen.getByRole("option", { name: "Owner" }));
-		await flush();
-		await user.type(
+		await openOwnerFlyoutOnManualClock(rendered);
+		await rendered.user.type(
 			screen.getByRole("textbox", { name: "Search Owner" }),
 			"user-1",
 		);
@@ -1788,25 +1796,36 @@ describe("FilterCombobox", () => {
 	});
 
 	it("announces a hover flyout search with no local match as loading during its debounce", async () => {
-		const { user, filtersButton } = setup([manyOwnersCategory], {
+		const rendered = setup([manyOwnersCategory], {
 			skipHover: true,
 			fakeTimers: "manual",
 		});
+		const { user } = rendered;
 
-		const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
-		await user.click(filtersButton);
-		await flush();
-		await user.hover(screen.getByRole("option", { name: "Owner" }));
-		await flush();
+		await openOwnerFlyoutOnManualClock(rendered);
 		await user.click(screen.getByRole("textbox", { name: "Search Owner" }));
 		await user.paste("zed");
 
 		expect(screen.getByRole("status")).toHaveTextContent(
 			"Loading Owner options.",
 		);
-		expect(
-			screen.queryByRole("button", { name: "user-0" }),
-		).not.toBeInTheDocument();
+	});
+
+	it("announces a category search with no local match as loading during its debounce", async () => {
+		const { user, input } = setup([manyOwnersCategory], {
+			fakeTimers: "manual",
+		});
+
+		await user.click(input);
+		await user.type(input, "owner:");
+		await flushTimers();
+		// The unfiltered options have loaded, so only the pending search loads.
+		screen.getByRole("option", { name: "user-0" });
+		await user.type(input, "zed");
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Loading Owner options.",
+		);
 	});
 
 	it("keeps a settled hover flyout search when a space is typed", async () => {

@@ -1083,10 +1083,45 @@ export const CategorySearchLoading: Story = {
 		await userEvent.keyboard("owner:");
 		await body.findByRole("option", { name: "alice" });
 		await userEvent.keyboard("zed");
-		await waitFor(() =>
-			expect(body.getByRole("status")).toHaveTextContent(
-				"Loading Owner options.",
-			),
+	},
+};
+
+// A category search with no match shows the searched empty text.
+export const CategorySearchNoMatches: Story = {
+	...SearchableHoverFlyout,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "owner:nobody");
+	},
+};
+
+// A flyout whose category has no options shows the unsearched empty text.
+export const HoverFlyoutEmpty: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "template",
+					label: "Template",
+					icon: <LayoutGridIcon />,
+					getOptions: async () => [],
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
 		);
 	},
 };

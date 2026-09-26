@@ -966,9 +966,9 @@ const useFlyoutOptions = (
 	const query = search.categoryKey === categoryKey ? search.query : "";
 	const setQuery = (next: string) => setSearch({ categoryKey, query: next });
 	const trimmedQuery = query.trim();
-	// A typed search calls `getOptions(query)` after the debounce. The
-	// debounced text is tagged with its flyout, so it never reaches another
-	// flyout's loader.
+	// A typed search calls `getOptions` with the trimmed text after the
+	// debounce. The debounced text is tagged with its flyout, so it never
+	// reaches another flyout's loader.
 	const searchKey =
 		categoryKey !== undefined && trimmedQuery.length > 0
 			? `${categoryKey}\n${trimmedQuery}`
@@ -1065,7 +1065,7 @@ function FlyoutCategoryPanel({
 				/>
 			)}
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-				{(failed ? [] : filteredOptions).map((option) => {
+				{filteredOptions.map((option) => {
 					const token = optionToken(category.key, option);
 					const selected = selectedTokens.includes(token);
 					return (
