@@ -2266,9 +2266,8 @@ describe("FilterCombobox", () => {
 			[ownerCategory, statusCategory, attributesCategory],
 			{
 				initialValue: "owner:alice status:running outdated:true dev",
-				fakeTimers: true,
 				// Real time must not end the typed-text debounce before Clear all.
-				shouldAdvanceTime: false,
+				fakeTimers: "manual",
 				skipHover: true,
 			},
 		);
