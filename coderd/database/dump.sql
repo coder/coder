@@ -856,6 +856,23 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION chat_message_is_structured_output_receipt(message_role chat_message_role, message_visibility chat_message_visibility, message_content_version smallint, message_content jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    AS $$
+    SELECT CASE
+        WHEN message_role = 'assistant'
+            AND message_visibility = 'user'
+            AND message_content_version = 1
+            AND jsonb_typeof(message_content) = 'array'
+        THEN (
+            SELECT count(*) FILTER (WHERE part->>'type' = 'structured-output-outcome') = 1
+                AND bool_and(COALESCE(part->>'type' IN ('structured-output-outcome', 'text'), false))
+            FROM jsonb_array_elements(message_content) AS part
+        )
+        ELSE false
+    END;
+$$;
+
 CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $$
@@ -1515,7 +1532,9 @@ BEGIN
     SET history_version = c.snapshot_version,
         generation_attempt = 0
     FROM (
-        SELECT DISTINCT chat_id FROM chat_message_history_new_rows
+        SELECT DISTINCT n.chat_id
+        FROM chat_message_history_new_rows n
+        WHERE NOT chat_message_is_structured_output_receipt(n.role, n.visibility, n.content_version, n.content)
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
