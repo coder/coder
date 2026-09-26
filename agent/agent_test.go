@@ -1530,7 +1530,10 @@ func TestAgent_ToolCalls(t *testing.T) {
 
 	// The agent refuses tool calls committed up to a margin before it
 	// started, and a tool call age is never below zero, so wait until the
-	// agent has run past the margin. A refused cancel records nothing.
+	// agent has run past the margin. A refused cancel records nothing. The
+	// wait uses real time because agent.Options.Clock also drives the git,
+	// desktop, and context manager timers, which a mock clock would stall
+	// or fire all at once.
 	probeID := workspacesdk.ToolCallUUID(chatID, 1, "probe").String()
 	var probeErr error
 	require.Eventually(t, func() bool {
