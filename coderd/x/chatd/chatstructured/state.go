@@ -68,6 +68,9 @@ type Control struct {
 	Value     json.RawMessage `json:"value,omitempty"`
 }
 
+// ValidRequestName reports whether name may name a structured output request.
+func ValidRequestName(name string) bool { return requestNamePattern.MatchString(name) }
+
 func (r Request) valid() bool {
 	if r.RequestID == uuid.Nil || !requestNamePattern.MatchString(r.Name) || !validText(r.Description, true) {
 		return false

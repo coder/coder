@@ -1104,6 +1104,12 @@
 							"path": "./ai-coder/agents/extending-agents.md"
 						},
 						{
+							"title": "Structured output",
+							"description": "Ask a Coder Agents chat for a final answer that matches a JSON Schema.",
+							"path": "./ai-coder/agents/structured-output.md",
+							"state": ["early access"]
+						},
+						{
 							"title": "Models",
 							"description": "Configure the LLM providers and models that power Coder Agents from Admin settings.",
 							"path": "./ai-coder/agents/models.md"

@@ -4756,6 +4756,64 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `model_config_id`              | string                                                        | false    |              |                                                                                                                                     |
 | `structured_output_request_id` | string                                                        | false    |              | Structured output request ID is set when the queued message asks for a structured output; it keeps the ID once the message is sent. |
 
+## codersdk.ChatResponseFormat
+
+```json
+{
+  "json_schema": {
+    "description": "string",
+    "name": "string",
+    "schema": {}
+  },
+  "type": "text"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                           | Required | Restrictions | Description |
+|---------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `json_schema` | [codersdk.ChatResponseFormatJSONSchema](#codersdkchatresponseformatjsonschema) | false    |              |             |
+| `type`        | [codersdk.ChatResponseFormatType](#codersdkchatresponseformattype)             | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)              |
+|----------|-----------------------|
+| `type`   | `json_schema`, `text` |
+
+## codersdk.ChatResponseFormatJSONSchema
+
+```json
+{
+  "description": "string",
+  "name": "string",
+  "schema": {}
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                          |
+|---------------|--------|----------|--------------|----------------------------------------------------------------------|
+| `description` | string | false    |              | Description tells the model what the output is for (1024 bytes max). |
+| `name`        | string | false    |              | Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.        |
+| `schema`      | object | false    |              | Schema is the JSON Schema object the output must satisfy.            |
+
+## codersdk.ChatResponseFormatType
+
+```json
+"text"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `json_schema`, `text` |
+
 ## codersdk.ChatRetentionDaysResponse
 
 ```json
@@ -6370,6 +6428,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "response_format": {
+    "json_schema": {
+      "description": "string",
+      "name": "string",
+      "schema": {}
+    },
+    "type": "text"
+  },
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -6386,21 +6452,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                      | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)        | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                               |
-| `labels`               | object                                                    | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                           | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                    | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                    | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)            | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                    | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                    | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                    | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                       | Required | Restrictions | Description                                                                                                                                                                   |
+|------------------------|------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)         | false    |              |                                                                                                                                                                               |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)  | false    |              |                                                                                                                                                                               |
+| `labels`               | object                                                     | false    |              |                                                                                                                                                                               |
+| » `[any property]`     | string                                                     | false    |              |                                                                                                                                                                               |
+| `mcp_server_ids`       | array of string                                            | false    |              |                                                                                                                                                                               |
+| `model_config_id`      | string                                                     | false    |              |                                                                                                                                                                               |
+| `organization_id`      | string                                                     | false    |              |                                                                                                                                                                               |
+| `owner_id`             | string                                                     | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)             | false    |              |                                                                                                                                                                               |
+| `reasoning_effort`     | string                                                     | false    |              |                                                                                                                                                                               |
+| `response_format`      | [codersdk.ChatResponseFormat](#codersdkchatresponseformat) | false    |              | Response format asks for a structured final answer to the first message. json_schema requires the chat-structured-output experiment, not plan mode.                           |
+| `system_prompt`        | string                                                     | false    |              |                                                                                                                                                                               |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)      | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
+| `workspace_id`         | string                                                     | false    |              |                                                                                                                                                                               |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -9153,9 +9220,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                          |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                    |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-structured-output`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

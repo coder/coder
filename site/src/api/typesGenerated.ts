@@ -3337,6 +3337,45 @@ export interface ChatReasoningPart {
 
 // From codersdk/chats.go
 /**
+ * ChatResponseFormat asks for the final answer of the turn a message starts.
+ * The server parses it strictly and rejects unknown fields.
+ */
+export interface ChatResponseFormat {
+	readonly type: ChatResponseFormatType;
+	readonly json_schema?: ChatResponseFormatJSONSchema;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatResponseFormatJSONSchema describes a structured final answer. The
+ * turn ends with a receipt holding a value that satisfies Schema, or a
+ * typed failure.
+ */
+export interface ChatResponseFormatJSONSchema {
+	/**
+	 * Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	 */
+	readonly name: string;
+	/**
+	 * Description tells the model what the output is for (1024 bytes max).
+	 */
+	readonly description?: string;
+	/**
+	 * Schema is the JSON Schema object the output must satisfy.
+	 */
+	readonly schema: Record<string, string>;
+}
+
+// From codersdk/chats.go
+export type ChatResponseFormatType = "json_schema" | "text";
+
+export const ChatResponseFormatTypes: ChatResponseFormatType[] = [
+	"json_schema",
+	"text",
+];
+
+// From codersdk/chats.go
+/**
  * ChatRetentionDaysResponse contains the current chat retention setting.
  */
 export interface ChatRetentionDaysResponse {
@@ -3983,6 +4022,11 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * ResponseFormat asks for a structured final answer to the first message.
+	 * json_schema requires the chat-structured-output experiment, not plan mode.
+	 */
+	readonly response_format?: ChatResponseFormat;
 }
 
 // From codersdk/users.go
@@ -5113,6 +5157,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-structured-output"
 	| "chat-virtual-desktop"
 	| "example"
 	| "mcp-server-http"
@@ -5129,6 +5174,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-structured-output",
 	"chat-virtual-desktop",
 	"example",
 	"mcp-server-http",

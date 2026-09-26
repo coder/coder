@@ -647,6 +647,37 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// ResponseFormat asks for a structured final answer to the first message.
+	// json_schema requires the chat-structured-output experiment, not plan mode.
+	ResponseFormat *ChatResponseFormat `json:"response_format,omitempty"`
+}
+
+// ChatResponseFormatType selects the form of a turn's final answer.
+type ChatResponseFormatType string
+
+// ChatResponseFormatType enums.
+const (
+	ChatResponseFormatTypeText       ChatResponseFormatType = "text"
+	ChatResponseFormatTypeJSONSchema ChatResponseFormatType = "json_schema"
+)
+
+// ChatResponseFormat asks for the final answer of the turn a message starts.
+// The server parses it strictly and rejects unknown fields.
+type ChatResponseFormat struct {
+	Type       ChatResponseFormatType        `json:"type" enums:"text,json_schema"`
+	JSONSchema *ChatResponseFormatJSONSchema `json:"json_schema,omitempty"`
+}
+
+// ChatResponseFormatJSONSchema describes a structured final answer. The
+// turn ends with a receipt holding a value that satisfies Schema, or a
+// typed failure.
+type ChatResponseFormatJSONSchema struct {
+	// Name identifies the output and matches ^[A-Za-z0-9_-]{1,64}$.
+	Name string `json:"name"`
+	// Description tells the model what the output is for (1024 bytes max).
+	Description string `json:"description,omitempty"`
+	// Schema is the JSON Schema object the output must satisfy.
+	Schema json.RawMessage `json:"schema" swaggertype:"object"`
 }
 
 // UpdateChatRequest is the request to update a chat.

@@ -657,6 +657,23 @@ func (api *API) getChatDiffStatusesByChatID(
 	return statusesByChatID, nil
 }
 
+// writePendingStructuredOutputConflict writes 409 Conflict and reports true
+// when the chat has pending structured output work that plan mode would change.
+func (api *API) writePendingStructuredOutputConflict(ctx context.Context, rw http.ResponseWriter, chatID uuid.UUID) bool {
+	pending, err := api.chatDaemon.HasPendingStructuredRequest(ctx, chatID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return true
+	}
+	if !pending {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "Plan mode cannot be enabled while a structured output request is pending.",
+	})
+	return true
+}
+
 func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
 	if mode == "" {
 		return database.NullChatPlanMode{}
@@ -1208,11 +1225,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Limit memory used to decode dynamic tool schemas.
-	var req codersdk.CreateChatRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	// Limit memory used to decode dynamic tool schemas. The raw response_format
+	// shadows the typed one, which lenient decoding would strip of unknown keys.
+	var body struct {
+		codersdk.CreateChatRequest
+		ResponseFormat json.RawMessage `json:"response_format"`
+	}
+	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &body) {
 		return
 	}
+	req := body.CreateChatRequest
 
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -1323,6 +1345,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
+		return
+	}
+	structuredRequest, rejection := chatd.ParseResponseFormat(body.ResponseFormat, api.Experiments.Enabled(codersdk.ExperimentChatStructuredOutput))
+	if structuredRequest != nil && req.PlanMode != "" {
+		rejection = &codersdk.ValidationError{Field: "response_format", Detail: "Structured output cannot be used in plan mode."}
+	}
+	if rejection != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid response_format.", Validations: []codersdk.ValidationError{*rejection},
+		})
 		return
 	}
 
@@ -1456,6 +1488,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ClientType:              clientType,
 		SystemPrompt:            req.SystemPrompt,
 		InitialUserContent:      contentBlocks,
+		StructuredOutputRequest: structuredRequest,
 		MCPServerIDs:            mcpServerIDs,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
@@ -2329,6 +2362,9 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+		if resolvedPlanMode.Valid && api.writePendingStructuredOutputConflict(ctx, rw, chat.ID) {
+			return
+		}
 	}
 
 	if req.Title != nil {
@@ -2699,6 +2735,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if req.PlanMode != nil {
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		sendPlanMode = &resolvedPlanMode
+		if resolvedPlanMode.Valid && api.writePendingStructuredOutputConflict(ctx, rw, chatID) {
+			return
+		}
 	}
 
 	busyBehavior := chatd.SendMessageBusyBehaviorQueue
@@ -2936,6 +2975,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
+			})
+		case xerrors.Is(editErr, chatd.ErrEditedMessageStructured):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Messages that ask for a structured output cannot be edited.",
 			})
 		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

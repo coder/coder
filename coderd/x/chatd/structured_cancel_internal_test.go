@@ -101,8 +101,8 @@ func TestEditSupersedesDiscardedStructuredRequests(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	f := newTaskTestFixture(t)
 	target, closed, queuedA, queuedB := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	chat, m := createStructuredTestChat(t, f, structuredUserMessage(t, f, target))
-	// A later request in the discarded history is already closed.
+	chat, m := createStructuredTestChat(t, f, taskUserTextMessage(t, "first", f.user.ID, f.model.ID, f.apiKey.ID))
+	// The edit targets an ordinary message; one later request is already closed.
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		receipt, err := structuredReceiptMessages(ctx, store, chat.ID, 0, codersdk.ChatStructuredOutput{
 			RequestID: closed, Status: codersdk.ChatStructuredOutputStatusSucceeded, Value: json.RawMessage(`{}`),
@@ -110,7 +110,7 @@ func TestEditSupersedesDiscardedStructuredRequests(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = tx.CommitStep(chatstate.CommitStepInput{Messages: append([]chatstate.Message{structuredUserMessage(t, f, closed)}, receipt...)})
+		_, err = tx.CommitStep(chatstate.CommitStepInput{Messages: append([]chatstate.Message{structuredUserMessage(t, f, target), structuredUserMessage(t, f, closed)}, receipt...)})
 		return err
 	}))
 	queueTestMessages(t, m, structuredUserMessage(t, f, queuedA), taskUserTextMessage(t, "ordinary", f.user.ID, f.model.ID, f.apiKey.ID), structuredUserMessage(t, f, queuedB))
