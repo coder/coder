@@ -92,6 +92,9 @@ const heldSearch = (base: FilterCategory, query: string) => {
 const settleTypedText = () =>
 	act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS));
 
+// Runs due timers and promise callbacks without moving the fake clock.
+const flushTimers = () => act(() => vi.advanceTimersByTimeAsync(0));
+
 const attributesCategory: FilterCategory = {
 	key: "attribute",
 	label: "Attributes",
@@ -139,7 +142,10 @@ const setup = (
 	}: {
 		initialValue?: string;
 		skipHover?: boolean;
-		/** "manual" keeps the fake clock from following wall time. */
+		/**
+		 * "manual" keeps the fake clock from following wall time, so only an
+		 * explicit advance ends a debounce.
+		 */
 		fakeTimers?: boolean | "manual";
 	} = {},
 ) => {
@@ -184,6 +190,16 @@ describe("FilterCombobox", () => {
 			"aria-selected",
 			"true",
 		);
+
+	const openOwnerFlyoutOnManualClock = async ({
+		user,
+		filtersButton,
+	}: Pick<ReturnType<typeof setup>, "user" | "filtersButton">) => {
+		await user.click(filtersButton);
+		await flushTimers();
+		await user.hover(screen.getByRole("option", { name: "Owner" }));
+		await flushTimers();
+	};
 
 	it("fetches hideable categories before the menu opens and skips others", async () => {
 		const hideable = vi.fn(async () => [{ label: "Docker", value: "docker" }]);
@@ -1786,20 +1802,6 @@ describe("FilterCombobox", () => {
 		expect(getUserOptions).not.toHaveBeenCalledWith("user-1");
 	});
 
-	// With a manual clock nothing advances time except these flushes, so a
-	// keystroke never waits long enough to end a debounce.
-	const flushTimers = () => act(() => vi.advanceTimersByTimeAsync(0));
-
-	const openOwnerFlyoutOnManualClock = async ({
-		user,
-		filtersButton,
-	}: Pick<ReturnType<typeof setup>, "user" | "filtersButton">) => {
-		await user.click(filtersButton);
-		await flushTimers();
-		await user.hover(screen.getByRole("option", { name: "Owner" }));
-		await flushTimers();
-	};
-
 	it("searches a hover flyout's loader once its typed text settles", async () => {
 		const getOptions = vi.fn(manyOwnersCategory.getOptions);
 		const rendered = setup([{ ...manyOwnersCategory, getOptions }], {
@@ -1812,7 +1814,7 @@ describe("FilterCombobox", () => {
 			screen.getByRole("textbox", { name: "Search Owner" }),
 			"user-1",
 		);
-		await act(() => vi.advanceTimersByTimeAsync(SEARCH_DEBOUNCE_MS));
+		await settleTypedText();
 
 		expect(getOptions.mock.calls).toEqual([[""], ["user-1"]]);
 	});
