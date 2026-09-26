@@ -213,7 +213,16 @@ export function FilterCombobox({
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		if (flyoutCategoryKey === null || highlighted === flyoutCategoryKey) {
+		// A flyout whose row was hidden is closed, and a cleared highlight
+		// leaves the open flyout as it is.
+		const flyoutOpen = listedCategories.some(
+			(category) => category.key === flyoutCategoryKey,
+		);
+		if (
+			!flyoutOpen ||
+			highlighted === "" ||
+			highlighted === flyoutCategoryKey
+		) {
 			return;
 		}
 		const isCategoryRow = listedCategories.some(
