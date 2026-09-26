@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -310,16 +311,26 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		messages := partialMessages
+		history, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		if err != nil {
+			return xerrors.Errorf("load committed messages for interruption: %w", err)
+		}
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
+		committedCancels, err := committedPendingLocalToolCancellationMessages(history, chat, interruptedAt, toolCompletions)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
-		if len(committedCancels) > 0 {
-			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
+		// The receipt goes last so it precedes any queue promotion. Buffered
+		// or committed candidates never make an interrupted request succeed.
+		receipts, err := activeRequestReceipt(ctx, s.opts.Logger, store, chat.ID, history, codersdk.ChatStructuredOutput{
+			Status: codersdk.ChatStructuredOutputStatusCanceled,
+			Error:  &codersdk.ChatStructuredOutputError{Code: codersdk.ChatStructuredOutputErrorCodeInterrupted, Message: interruptedStructuredOutputMessage},
+		})
+		if err != nil {
+			return xerrors.Errorf("close interrupted structured output request: %w", err)
 		}
+		messages := append(append(slices.Clone(partialMessages), committedCancels...), receipts...)
 		if _, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{
 			PartialMessages: messages,
 		}); err != nil {
@@ -691,19 +702,11 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 }
 
 func committedPendingLocalToolCancellationMessages(
-	ctx context.Context,
-	store database.Store,
+	messages []database.ChatMessage,
 	chat database.Chat,
 	interruptedAt time.Time,
 	toolCompletions map[int]messagepartbuffer.ToolCompletion,
 ) ([]chatstate.Message, error) {
-	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
-	}
 	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		return nil, err
