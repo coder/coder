@@ -28,8 +28,15 @@ func TestTurnExperimentDecisions(t *testing.T) {
 	require.False(t, d.mcpToolSearchEnabled(8, evaluate(false)))
 	require.Equal(t, 2, calls)
 
+	// A canceled task of an older turn that finishes evaluating late must
+	// not replace the newer turn's decision. Prompt row IDs increase.
+	require.True(t, d.mcpToolSearchEnabled(9, evaluate(true)))
+	require.False(t, d.mcpToolSearchEnabled(8, evaluate(false)))
+	require.True(t, d.mcpToolSearchEnabled(9, evaluate(false)))
+	require.Equal(t, 4, calls)
+
 	// Without a prompt row there is no turn identity, so nothing is cached.
 	require.True(t, d.mcpToolSearchEnabled(0, evaluate(true)))
 	require.False(t, d.mcpToolSearchEnabled(0, evaluate(false)))
-	require.Equal(t, 4, calls)
+	require.Equal(t, 6, calls)
 }

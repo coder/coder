@@ -179,6 +179,11 @@ func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate f
 	if t.decided && t.turnKey == turnKey {
 		return t.mcpToolSearch
 	}
+	if t.decided && t.turnKey > turnKey {
+		// A canceled task of an older turn finished late. Prompt row IDs
+		// increase, so keep the newer turn's decision.
+		return enabled
+	}
 	t.turnKey = turnKey
 	t.decided = true
 	t.mcpToolSearch = enabled
