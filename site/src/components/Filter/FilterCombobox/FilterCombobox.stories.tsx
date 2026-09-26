@@ -1153,6 +1153,42 @@ export const CategoryOptionsLoading: Story = {
 	},
 };
 
+// A category search with no loaded match shows the spinner until its results
+// arrive, not the empty text.
+export const CategorySearchLoading: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				{
+					key: "owner",
+					label: "Owner",
+					icon: <UserIcon />,
+					getOptions: (query) =>
+						query
+							? new Promise<FilterOption[]>(() => {})
+							: Promise.resolve([
+									{ label: "alice", value: "alice" },
+									{ label: "bob", value: "bob" },
+								]),
+				},
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(within(canvasElement).getByRole("combobox"));
+		await userEvent.keyboard("owner:");
+		await body.findByRole("option", { name: "alice" });
+		await userEvent.keyboard("zed");
+		await waitFor(() =>
+			expect(body.getByRole("status")).toHaveTextContent(
+				"Loading Owner options.",
+			),
+		);
+	},
+};
+
 // A category whose options resolve empty announces a category-aware empty state
 // rather than the browsing "No filters found." copy.
 export const CategoryEmptyState: Story = {

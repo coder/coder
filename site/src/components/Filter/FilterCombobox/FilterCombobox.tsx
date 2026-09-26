@@ -125,6 +125,7 @@ export function FilterCombobox({
 		activeOptions,
 		activeOptionsLoading,
 		activeOptionsError,
+		activeOptionsEmptyText,
 		statusMessage,
 		menuCategories,
 		listedCategories,
@@ -339,6 +340,7 @@ export function FilterCombobox({
 				options={activeOptions}
 				optionsLoading={activeOptionsLoading}
 				optionsError={activeOptionsError}
+				emptyMessage={activeOptionsEmptyText}
 				unfilteredOptionCount={
 					unfilteredOptionsByKey.get(activeCategoryKey)?.length
 				}
@@ -1134,11 +1136,9 @@ const useFlyoutOptions = (
 	const query = search.categoryKey === categoryKey ? search.query : "";
 	const setQuery = (next: string) => setSearch({ categoryKey, query: next });
 	const trimmedQuery = query.trim();
-	// `getOptions` may return only the first page for an empty query, so a
-	// typed search calls `getOptions(query)` after the debounce. Until those
-	// results arrive, the unfiltered list is filtered locally. The debounced
-	// text is tagged with its flyout, so it never reaches another flyout's
-	// loader.
+	// A typed search calls `getOptions(query)` after the debounce. The
+	// debounced text is tagged with its flyout, so it never reaches another
+	// flyout's loader.
 	const searchKey =
 		categoryKey !== undefined && trimmedQuery.length > 0
 			? `${categoryKey}\n${trimmedQuery}`
@@ -1162,14 +1162,13 @@ const useFlyoutOptions = (
 	const searchSettled = debouncedQuery === trimmedQuery;
 	const failed =
 		optionsError || (searched && searchSettled && searchResults.isError);
-	const shown = shownOptions({
+	const { options: shownRows, loading } = shownOptions({
 		unfiltered: options,
-		results: searchResults.data,
+		results: searchSettled ? searchResults.data : undefined,
 		text: trimmedQuery,
-		resultsCurrent: searchSettled && searchResults.data !== undefined,
+		failed,
 	});
-	const filteredOptions = shown.options ?? [];
-	const loading = shown.loading && !failed;
+	const filteredOptions = shownRows ?? [];
 	const empty = !loading && !failed && filteredOptions.length === 0;
 	return {
 		category,
@@ -1281,6 +1280,7 @@ type CategoryOptionsListProps = Readonly<{
 	options: readonly FilterOption[] | undefined;
 	optionsLoading: boolean;
 	optionsError: boolean;
+	emptyMessage: string | undefined;
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
 	selectedTokens: readonly string[];
@@ -1301,6 +1301,7 @@ function CategoryOptionsList({
 	options,
 	optionsLoading,
 	optionsError,
+	emptyMessage,
 	unfilteredOptionCount,
 	selectedTokens,
 	optionTokenFor,
@@ -1345,11 +1346,7 @@ function CategoryOptionsList({
 					: undefined
 			}
 			navigatesList
-			emptyMessage={
-				optionsLoading || options?.length !== 0
-					? undefined
-					: optionsEmptyText(searchValue.trim().length > 0)
-			}
+			emptyMessage={emptyMessage}
 			scope={scope}
 			onToggleScope={onToggleScope}
 		>
