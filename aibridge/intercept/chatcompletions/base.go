@@ -37,8 +37,8 @@ type interceptionBase struct {
 	cred intercept.Credential
 
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
-	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
-	// using a key pool or BYOK secret.
+	// calls target the Bedrock Mantle endpoint and are SigV4-signed, or
+	// bearer-authenticated when the request carries a user Bedrock API key.
 	bedrockMantle *awssig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -92,9 +92,9 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	// Bedrock mantle: install the SigV4 signing middleware last so it runs
-	// innermost (right before the HTTP send) and signs the request after all
-	// other headers are set.
+	// Bedrock mantle: install auth last so it runs innermost (right before the
+	// HTTP send) after all other headers are set. A user Bedrock API key is
+	// sent as a bearer token; otherwise the request is SigV4-signed.
 	if i.bedrockMantle != nil {
 		// Bedrock traffic carries Coder's PRM attribution marker. This runs
 		// before SigV4 signing so the marker is covered by the signature.
@@ -102,8 +102,14 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 			awssig.AppendPRMUserAgent(req)
 			return next(req)
 		}))
-		//nolint:bodyclose // SignMiddleware reads and closes only the request body.
-		opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		if byok, ok := intercept.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth", slog.F("key_hint", byok.Hint()))
+			//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+			opts = append(opts, option.WithMiddleware(awssig.BearerMiddleware(byok.Secret)))
+		} else {
+			//nolint:bodyclose // SignMiddleware reads and closes only the request body.
+			opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		}
 	}
 
 	return openai.NewChatCompletionService(opts...)

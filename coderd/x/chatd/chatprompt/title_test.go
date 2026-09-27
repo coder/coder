@@ -59,6 +59,19 @@ func TestTitleText(t *testing.T) {
 			want: "explain this [file-reference] app.ts:1",
 		},
 		{
+			name: "renders workspace file references as bare file names",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("Say DONE."),
+				{
+					Type:              codersdk.ChatMessagePartTypeWorkspaceFileReference,
+					WorkspaceFilePath: "/home/coder/.coder/chats/chat-id/files/frozen.zip",
+					WorkspaceFileName: " frozen.zip ",
+				},
+				{Type: codersdk.ChatMessagePartTypeWorkspaceFileReference},
+			},
+			want: "Say DONE. frozen.zip",
+		},
+		{
 			name: "falls back to paste content for file only messages",
 			parts: []codersdk.ChatMessagePart{
 				syntheticPasteFile(pasteFileID),

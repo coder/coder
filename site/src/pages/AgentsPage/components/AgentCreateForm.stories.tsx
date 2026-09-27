@@ -39,7 +39,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
@@ -237,6 +237,28 @@ const mock403Error = Object.assign(
 	},
 );
 
+// Stories that replace parameters.queries must re-seed these entries or the
+// form fetches them, gets a 404 from the story sandbox, and never enables
+// send.
+const defaultQueries = [
+	{
+		key: organizationChatModelsKey(MockDefaultOrganization.id),
+		data: defaultModelCatalog,
+	},
+	{
+		key: userChatProviderConfigsKey,
+		data: defaultUserProviderConfigs,
+	},
+	{
+		key: userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
+		data: buildPersonalModelOverridesResponse(),
+	},
+	{
+		key: preferenceSettingsKey,
+		data: MockUserPreferenceSettings,
+	},
+];
+
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -252,25 +274,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isWorkspacesLoading: false,
 	},
 	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: defaultModelCatalog,
-			},
-			{
-				key: userChatProviderConfigsKey,
-				data: defaultUserProviderConfigs,
-			},
-			{
-				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
-					.queryKey,
-				data: buildPersonalModelOverridesResponse(),
-			},
-			{
-				key: preferenceSettingsKey,
-				data: MockUserPreferenceSettings,
-			},
-		],
+		queries: defaultQueries,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -2191,5 +2195,103 @@ export const PrefilledWorkspaceBuildDebug: Story = {
 		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "workspace-build-logs-file",
 		});
+	},
+};
+
+// Deferred workspace uploads: with a workspace selected, files that
+// cannot ride the attachment pipeline (e.g. zips) queue locally and
+// upload during submit, after the chat is created. Behavior is covered
+// in AgentCreateForm.test.tsx; these stories capture the visual states.
+
+const attachZipFile = async (canvasElement: HTMLElement) => {
+	// The hidden input has no role or accessible name.
+	const fileInput = within(canvasElement).getByTestId(
+		"chat-attachment-file-input",
+	);
+	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
+		type: "application/zip",
+	});
+	await userEvent.upload(fileInput, zip);
+};
+
+export const WorkspaceFileQueuedForDeferredUpload: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement).findByText("Uploads when sent");
+	},
+};
+
+export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.",
+		);
+	},
+};
+
+export const WorkspaceFileSubmissionLocksScopeControls: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	args: {
+		onCreateChat: fn(() => new Promise<void>(() => {})),
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await submitMessage(canvasElement, "inspect this archive");
+	},
+};
+
+export const DetachingWorkspaceDropsQueuedFiles: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await attachZipFile(canvasElement);
+		await canvas.findByText("bundle.zip");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Remove workspace my-project" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Removed 1 file that uploads to the workspace",
+		);
 	},
 };
