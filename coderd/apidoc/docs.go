@@ -20492,7 +20492,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "invalid_args": {
-                    "description": "InvalidArgs holds the model's raw tool input when it is non-empty\nand not valid JSON; Args is empty in that case. Internal only:\nkept for analysis, never sent back to the model, and stripped\nbefore API responses.",
+                    "description": "InvalidArgs holds the model's raw tool input when it is not blank\nand not valid JSON; Args is then empty. Internal only: kept for\nanalysis, never sent back to the model, and cleared by\nStripInternal.",
                     "type": "string"
                 },
                 "is_error": {

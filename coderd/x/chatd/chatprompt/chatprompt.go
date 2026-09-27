@@ -1170,10 +1170,9 @@ func providerMetadataToOptions(logger slog.Logger, raw json.RawMessage) fantasy.
 	return opts
 }
 
-// safeToolCallArgs ensures tool call args are valid JSON. Empty input
-// yields neither value. Invalid input is returned untrimmed as
-// invalidArgs so it can be persisted for analysis; prompt replay reads
-// only args, so the model never sees it.
+// safeToolCallArgs ensures tool call args are valid JSON. Blank input
+// yields neither value; invalid input is returned untrimmed as
+// invalidArgs.
 func safeToolCallArgs(input string) (args json.RawMessage, invalidArgs string) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
