@@ -63,9 +63,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, updated.AgentID.Valid)
 		require.Equal(t, fix.agentB, updated.AgentID.UUID, "the binding commits the new agent")
+		require.Equal(t, fix.hashB, updated.ContextAggregateHash, "the returned row carries the new pin")
 
-		// The re-pin runs in its own transaction after the binding row is
-		// written, so re-read the chat to observe the new pinned state.
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, fix.hashB, post.ContextAggregateHash, "rebind re-pins the new agent's hash")
@@ -179,6 +178,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		updated, err := wc.persistBuildAgentBinding(fix.ctx, chat, fix.buildID, fix.agentNoSnap)
 		require.NoError(t, err)
 		require.Equal(t, fix.agentNoSnap, updated.AgentID.UUID)
+		require.Nil(t, updated.ContextAggregateHash, "the returned row carries the cleared pin, not agent A's hash")
+		require.Nil(t, wc.currentChatSnapshot().ContextAggregateHash, "the turn's chat snapshot carries the cleared pin")
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
