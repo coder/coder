@@ -473,6 +473,8 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
+TODO: plan mode changes go through `UpdatePlanMode`, which takes the chat row lock that `SendMessage` also takes and refuses to enable plan mode while a structured output request is open or queued. The update runs before the other fields. Describe this here.
+
 ### `POST /api/v2/chats/{chat}/messages`
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
@@ -506,6 +508,8 @@ When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted l
 
 Other input states are not supported.
 
+TODO: a structured output request part from `response_format` is appended after lifecycle hooks, then inserted with the message when idle or stored on the queued row in the same transaction; promotion keeps its request ID. Under the chat row lock, `SendMessage` refuses a request part for a chat in plan mode, with a mode or with a parent, and refuses to enable plan mode while a structured output request is open or queued. Describe this here.
+
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:
@@ -523,6 +527,8 @@ This endpoint uses `EditMessage(k, replacement)`:
 `EditMessage` clears queued messages, cancels or obsoletes active work without preserving partial output, clears pending dynamic-tool action if present, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 
 Other input states are not supported.
+
+TODO: `response_format` on an edit decides the replacement's structured output request from the target read under the chat lock: omitted or `null` keeps the target's request under a new request ID after compiling its schema again, `{"type":"text"}` clears it, and `json_schema` replaces it. A kept or new request is refused in plan mode, mode and child chats. Discarded requests still get their `superseded` receipts. Describe this here.
 
 ### `DELETE /api/v2/chats/{chat}/queue/{queuedMessage}`
 

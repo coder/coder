@@ -3363,7 +3363,7 @@ export interface ChatResponseFormatJSONSchema {
 	/**
 	 * Schema is the JSON Schema object the output must satisfy.
 	 */
-	readonly schema: Record<string, string>;
+	readonly schema: unknown;
 }
 
 // From codersdk/chats.go
@@ -5078,6 +5078,12 @@ export interface DynamicToolResponse {
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+	/**
+	 * ResponseFormat sets the replacement's final answer format. Omitted
+	 * or JSON null keeps the edited message's format under a new request
+	 * ID; {"type":"text"} clears it; json_schema replaces it.
+	 */
+	readonly response_format?: ChatResponseFormat;
 	/**
 	 * ModelConfigID, when set, overrides the model used for the
 	 * replacement user message and the assistant turn that follows.

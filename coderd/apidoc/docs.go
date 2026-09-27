@@ -23706,6 +23706,14 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "response_format": {
+                    "description": "ResponseFormat sets the replacement's final answer format. Omitted\nor JSON null keeps the edited message's format under a new request\nID; {\"type\":\"text\"} clears it; json_schema replaces it.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatResponseFormat"
+                        }
+                    ]
                 }
             }
         },
