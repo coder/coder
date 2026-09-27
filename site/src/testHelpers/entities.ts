@@ -510,6 +510,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter",
 };
 
