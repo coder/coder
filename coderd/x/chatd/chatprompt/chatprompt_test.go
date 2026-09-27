@@ -220,8 +220,8 @@ func asToolResultPartForTest(part fantasy.MessagePart) (fantasy.ToolResultPart, 
 func TestConvertMessagesWithFiles_NormalizesAssistantToolCallInput(t *testing.T) {
 	t.Parallel()
 
-	// Invalid input is kept on the persisted part as InvalidArgs for
-	// analysis, but the prompt must replay it exactly as before: as "{}".
+	// Invalid input is kept as InvalidArgs but replayed to the model as
+	// "{}".
 	testCases := []struct {
 		name            string
 		input           string
