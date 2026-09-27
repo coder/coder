@@ -69,6 +69,10 @@ type sqlcQuerier interface {
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
+	// Deletes custom roles named agents-access, which the built-in role would
+	// shadow, and appends agents-access to every organization's default member
+	// roles where missing.
+	BackfillAgentsAccessDefaultOrgMemberRole(ctx context.Context) error
 	// Backfills chat_messages.search_tsv for pending rows, newest first.
 	// The WHERE clause must match the predicate of
 	// idx_chat_messages_search_tsv_pending exactly so the partial index

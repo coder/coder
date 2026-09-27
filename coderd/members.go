@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -511,17 +510,12 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 	roleLookup := make([]database.NameOrganizationPair, 0)
 
 	for _, m := range mems {
-		// Stored role arrays may retain retired built-in role names until a
-		// cleanup migration lands. They grant nothing, so hide them from
-		// responses to keep role editors from displaying or resubmitting
-		// them.
-		activeRoles := slices.DeleteFunc(slices.Clone(m.Roles), rbac.IsRetiredRoleName)
 		converted = append(converted, codersdk.OrganizationMember{
 			UserID:         m.UserID,
 			OrganizationID: m.OrganizationID,
 			CreatedAt:      m.CreatedAt,
 			UpdatedAt:      m.UpdatedAt,
-			Roles: slice.List(activeRoles, func(r string) codersdk.SlimRole {
+			Roles: slice.List(m.Roles, func(r string) codersdk.SlimRole {
 				// If it is a built-in role, no lookups are needed.
 				rbacRole, err := rbac.RoleByName(rbac.RoleIdentifier{Name: r, OrganizationID: m.OrganizationID})
 				if err == nil {

@@ -21180,6 +21180,23 @@ func (q *sqlQuerier) UpdateMemberRoles(ctx context.Context, arg UpdateMemberRole
 	return i, err
 }
 
+const backfillAgentsAccessDefaultOrgMemberRole = `-- name: BackfillAgentsAccessDefaultOrgMemberRole :exec
+WITH deleted_custom_roles AS (
+    DELETE FROM custom_roles WHERE name = 'agents-access'
+)
+UPDATE organizations
+SET default_org_member_roles = array_append(default_org_member_roles, 'agents-access')
+WHERE NOT ('agents-access' = ANY(default_org_member_roles))
+`
+
+// Deletes custom roles named agents-access, which the built-in role would
+// shadow, and appends agents-access to every organization's default member
+// roles where missing.
+func (q *sqlQuerier) BackfillAgentsAccessDefaultOrgMemberRole(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, backfillAgentsAccessDefaultOrgMemberRole)
+	return err
+}
+
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
 SELECT
     id, name, description, created_at, updated_at, is_default, display_name, icon, deleted, shareable_workspace_owners, default_org_member_roles
@@ -31147,6 +31164,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -31157,7 +31176,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE

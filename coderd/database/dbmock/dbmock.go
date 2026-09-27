@@ -192,6 +192,20 @@ func (mr *MockStoreMockRecorder) AutoArchiveInactiveChats(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoArchiveInactiveChats", reflect.TypeOf((*MockStore)(nil).AutoArchiveInactiveChats), ctx, arg)
 }
 
+// BackfillAgentsAccessDefaultOrgMemberRole mocks base method.
+func (m *MockStore) BackfillAgentsAccessDefaultOrgMemberRole(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BackfillAgentsAccessDefaultOrgMemberRole", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BackfillAgentsAccessDefaultOrgMemberRole indicates an expected call of BackfillAgentsAccessDefaultOrgMemberRole.
+func (mr *MockStoreMockRecorder) BackfillAgentsAccessDefaultOrgMemberRole(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackfillAgentsAccessDefaultOrgMemberRole", reflect.TypeOf((*MockStore)(nil).BackfillAgentsAccessDefaultOrgMemberRole), ctx)
+}
+
 // BackfillChatMessagesSearchTsv mocks base method.
 func (m *MockStore) BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
 	m.ctrl.T.Helper()

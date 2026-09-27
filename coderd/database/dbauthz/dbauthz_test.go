@@ -5649,6 +5649,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().DeleteRuntimeConfig(gomock.Any(), "test").Return(nil).AnyTimes()
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
+	s.Run("BackfillAgentsAccessDefaultOrgMemberRole", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().BackfillAgentsAccessDefaultOrgMemberRole(gomock.Any()).Return(nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 	s.Run("GetRuntimeConfig", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetRuntimeConfig(gomock.Any(), "test").Return("value", nil).AnyTimes()
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead)

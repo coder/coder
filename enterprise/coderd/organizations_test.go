@@ -520,6 +520,37 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 			require.Contains(t, apiErr.Message, "Invalid default_org_member_roles entry")
 		})
+
+		t.Run("DuplicateRoleRejected", func(t *testing.T) {
+			t.Parallel()
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations: 1,
+					},
+				},
+			})
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			o := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+
+			//nolint:gocritic // Only owners can update organization settings.
+			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
+				DefaultOrgMemberRoles: new([]string{
+					codersdk.RoleOrganizationWorkspaceAccess,
+					codersdk.RoleAgentsAccess,
+					codersdk.RoleAgentsAccess,
+				}),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Detail, "listed more than once")
+
+			//nolint:gocritic // The owner verifies the stored defaults are unchanged.
+			got, err := client.Organization(ctx, o.ID)
+			require.NoError(t, err)
+			require.Equal(t, rbac.DefaultOrgMemberRoles(), got.DefaultOrgMemberRoles)
+		})
 	})
 }
 

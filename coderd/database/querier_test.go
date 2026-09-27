@@ -3444,7 +3444,7 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 // every member's effective roles include the org's defaults, and changes
 // to the column propagate on the next request. The union applies to
 // regular users and to service accounts; the SQL array_cats the column
-// for both code paths.
+// for both code paths (minus agents-access for service accounts).
 func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	t.Parallel()
 
@@ -3493,6 +3493,44 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
 	require.NoError(t, err)
 	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
+}
+
+// TestGetAuthorizationUserRolesServiceAccountAgentsAccess verifies service
+// accounts do not inherit agents-access from the org defaults but keep an
+// explicit grant.
+func TestGetAuthorizationUserRolesServiceAccountAgentsAccess(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	require.Contains(t, org.DefaultOrgMemberRoles, rbac.RoleAgentsAccess())
+	user := dbgen.User(t, db, database.User{})
+	sa := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	grantedSA := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: sa.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         grantedSA.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	wantAgentsAccess := rbac.ScopedRoleAgentsAccess(org.ID).String()
+	wantWorkspaceAccess := rbac.ScopedRoleOrgWorkspaceAccess(org.ID).String()
+
+	userRoles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.Contains(t, userRoles.Roles, wantAgentsAccess)
+
+	saRoles, err := db.GetAuthorizationUserRoles(ctx, sa.ID)
+	require.NoError(t, err)
+	require.NotContains(t, saRoles.Roles, wantAgentsAccess)
+	require.Contains(t, saRoles.Roles, wantWorkspaceAccess)
+
+	grantedRoles, err := db.GetAuthorizationUserRoles(ctx, grantedSA.ID)
+	require.NoError(t, err)
+	require.Contains(t, grantedRoles.Roles, wantAgentsAccess)
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {

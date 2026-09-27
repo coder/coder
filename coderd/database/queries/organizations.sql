@@ -135,6 +135,17 @@ WHERE
     id = @id
 RETURNING *;
 
+-- name: BackfillAgentsAccessDefaultOrgMemberRole :exec
+-- Deletes custom roles named agents-access, which the built-in role would
+-- shadow, and appends agents-access to every organization's default member
+-- roles where missing.
+WITH deleted_custom_roles AS (
+    DELETE FROM custom_roles WHERE name = 'agents-access'
+)
+UPDATE organizations
+SET default_org_member_roles = array_append(default_org_member_roles, 'agents-access')
+WHERE NOT ('agents-access' = ANY(default_org_member_roles));
+
 -- name: UpdateOrganizationDeletedByID :exec
 UPDATE organizations
 SET
