@@ -676,6 +676,7 @@ func TestUpdateStartup(t *testing.T) {
 				agentproto.Startup_ENVBUILDER,
 				agentproto.Startup_EXECTRACE,
 			},
+			AgentRunId: "run-1",
 		}
 
 		dbM.EXPECT().UpdateWorkspaceAgentStartupByID(gomock.Any(), database.UpdateWorkspaceAgentStartupByIDParams{
@@ -688,6 +689,7 @@ func TestUpdateStartup(t *testing.T) {
 				database.WorkspaceAgentSubsystemExectrace,
 			},
 			APIVersion: "2.0",
+			AgentRunID: "run-1",
 		}).Return(nil)
 
 		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")
@@ -696,6 +698,31 @@ func TestUpdateStartup(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, startup, resp)
+	})
+
+	t.Run("OversizedRunID", func(t *testing.T) {
+		t.Parallel()
+
+		// No UpdateWorkspaceAgentStartupByID expectation: the row must not
+		// be written with a run id the push path would reject anyway.
+		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		api := &agentapi.LifecycleAPI{
+			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+		}
+
+		ctx := agentapi.WithAPIVersion(context.Background(), "2.0")
+		_, err := api.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{
+			Startup: &agentproto.Startup{
+				Version:    "v1.2.3",
+				AgentRunId: strings.Repeat("r", 65),
+			},
+		})
+		require.ErrorContains(t, err, "agent run id")
 	})
 
 	t.Run("BadVersion", func(t *testing.T) {

@@ -331,10 +331,11 @@ func seedAgentContext(ctx context.Context, t *testing.T, db database.Store, agen
 	t.Helper()
 	now := dbtime.Now()
 	_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: agentID,
-		Version:          1,
-		AggregateHash:    hash,
-		ReceivedAt:       now,
+		WorkspaceAgentID:  agentID,
+		Version:           1,
+		AggregateHash:     hash,
+		ReceivedAt:        now,
+		McpDiscoveryPhase: database.WorkspaceAgentMcpDiscoveryPhaseUnspecified,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{

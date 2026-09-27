@@ -136,7 +136,7 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), syncedChat.ID).Return(syncedChat, nil)
 
-	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
+	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", false, now)
 	require.NoError(t, err)
 	publish()
 

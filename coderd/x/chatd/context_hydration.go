@@ -32,7 +32,7 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 // HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
 // dirty, and live-syncs MCP resources. Its post-commit callback publishes one
 // context event per affected chat without changing dirty chats' pinned hash.
-func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
+func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ bool, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
 

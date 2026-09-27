@@ -3372,6 +3372,41 @@ func TestWorkspaceAgentPushContextState(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, resp.GetAccepted())
+
+	// A push naming its agent process reads the agent row through the
+	// agent's own authorization and persists the run id and phase.
+	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: &agentproto.Startup{
+		Version:    "v2.0.0",
+		AgentRunId: "run-a",
+	}})
+	require.NoError(t, err)
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       2,
+		AggregateHash: []byte{0x01, 0x02},
+		AgentRunId:    "run-a",
+		McpDiscovery:  &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_COMPLETE},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+	snapshot, err = db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Same as above.
+	require.NoError(t, err)
+	require.Equal(t, "run-a", snapshot.AgentRunID)
+	require.Equal(t, database.WorkspaceAgentMcpDiscoveryPhaseComplete, snapshot.McpDiscoveryPhase)
+
+	// A push from a previous agent process is dropped without touching
+	// the stored snapshot.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       9,
+		AggregateHash: []byte{0x05},
+		AgentRunId:    "run-previous",
+		McpDiscovery:  &agentproto.MCPDiscovery{Phase: agentproto.MCPDiscovery_PENDING},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.GetAccepted())
+	snapshot, err = db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Same as above.
+	require.NoError(t, err)
+	require.EqualValues(t, 2, snapshot.Version)
+	require.Equal(t, "run-a", snapshot.AgentRunID)
 }
 
 // TestWorkspaceAgentPushContextStateDisabled verifies the

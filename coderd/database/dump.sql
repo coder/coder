@@ -678,6 +678,12 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_mcp_discovery_phase AS ENUM (
+    'unspecified',
+    'pending',
+    'complete'
+);
+
 CREATE TYPE workspace_agent_monitor_state AS ENUM (
     'OK',
     'NOK'
@@ -3581,7 +3587,9 @@ CREATE TABLE workspace_agent_context_snapshots (
     version bigint NOT NULL,
     aggregate_hash bytea NOT NULL,
     snapshot_error text DEFAULT ''::text NOT NULL,
-    received_at timestamp with time zone DEFAULT now() NOT NULL
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    agent_run_id text DEFAULT ''::text NOT NULL,
+    mcp_discovery_phase workspace_agent_mcp_discovery_phase DEFAULT 'unspecified'::workspace_agent_mcp_discovery_phase NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_snapshots IS 'Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.';
@@ -3593,6 +3601,10 @@ COMMENT ON COLUMN workspace_agent_context_snapshots.aggregate_hash IS 'sha256 ov
 COMMENT ON COLUMN workspace_agent_context_snapshots.snapshot_error IS 'Singular snapshot-level error string (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 COMMENT ON COLUMN workspace_agent_context_snapshots.received_at IS 'Time at which coderd received the push.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.agent_run_id IS 'agent_run_id of the agent process that pushed this snapshot. Compared with workspace_agents.agent_run_id to tell whether the snapshot describes the current process. Empty for legacy agents.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.mcp_discovery_phase IS 'Workspace MCP discovery completeness for the pushing process: unspecified (legacy agent, no guarantee), pending (initial reload not finished), complete (initial reload reached a terminal result before this snapshot).';
 
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
@@ -3767,6 +3779,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    agent_run_id text DEFAULT ''::text NOT NULL,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -3796,6 +3809,8 @@ COMMENT ON COLUMN workspace_agents.display_order IS 'Specifies the order in whic
 COMMENT ON COLUMN workspace_agents.api_key_scope IS 'Defines the scope of the API key associated with the agent. ''all'' allows access to everything, ''no_user_data'' restricts it to exclude user data.';
 
 COMMENT ON COLUMN workspace_agents.deleted IS 'Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.';
+
+COMMENT ON COLUMN workspace_agents.agent_run_id IS 'UUID the agent process generates once and reports in Startup. Stable across RPC reconnects, changes on process restart, empty for agents that predate the field. A context snapshot with the same agent_run_id was published by the current process.';
 
 CREATE UNLOGGED TABLE workspace_app_audit_sessions (
     agent_id uuid NOT NULL,

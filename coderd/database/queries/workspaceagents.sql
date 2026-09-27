@@ -117,7 +117,8 @@ SET
 	version = $2,
 	expanded_directory = $3,
 	subsystems = $4,
-	api_version = $5
+	api_version = $5,
+	agent_run_id = $6
 WHERE
 	id = $1;
 
