@@ -245,11 +245,14 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 							<Spinner loading={initiateMutation.isPending} />
 							Sign in again with {providerName}
 						</Button>
+						<Badge size="sm" variant="green">
+							Recommended
+						</Badge>
 					</div>
 					<p className="m-0 text-sm text-content-secondary">
-						Your saved sign-in expired and automatic refresh stopped. Sign in
-						again to continue. Your saved key is kept until the new sign-in
-						lands.
+						Recommended: sign-in completes here, with no copy-paste step. Your
+						saved sign-in expired and automatic refresh stopped. Sign in again
+						to continue. Your saved key is kept until the new sign-in lands.
 					</p>
 				</div>
 			);
@@ -267,11 +270,15 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 						<Spinner loading={initiateMutation.isPending} />
 						Sign in with {providerName}
 					</Button>
+					<Badge size="sm" variant="green">
+						Recommended
+					</Badge>
 				</div>
 				<p className="m-0 text-sm text-content-secondary">
-					Sign-in saves the provider credential as your personal key. Coder
-					refreshes it automatically; if the sign-in expires, sign in again for
-					a fresh code.
+					Recommended: sign-in completes here, with no copy-paste step. Approve
+					the code at {providerName} and you are done. Sign-in saves the
+					provider credential as your personal key. Coder refreshes it
+					automatically; if the sign-in expires, sign in again for a fresh code.
 				</p>
 			</div>
 		);
@@ -385,6 +392,71 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 };
 
 /**
+ * Client-side parse for the browser-door callback paste.
+ *
+ * The redirect URI is pinned to the loopback callback on the user's own
+ * machine, so approving at the provider always lands on a page that fails
+ * to load (localhost:1455, connection refused). The user copies that failed
+ * page's full address-bar URL back here, or just the code. The server does
+ * the same forgiving parse; this mirror only exists to fail loudly in the
+ * panel instead of silently doing nothing on an empty or malformed submit.
+ */
+export const BROWSER_CALLBACK_EMPTY_ERROR =
+	"Paste the callback first. After approving, copy the full address of the page that fails to load and paste it here.";
+export const BROWSER_CALLBACK_MALFORMED_ERROR =
+	"That does not look like the callback. Copy the full address-bar URL of the failed localhost:1455 page (it contains code=...) or paste just the code.";
+
+const BROWSER_BARE_CODE_PATTERN = /^[A-Za-z0-9._~+=-]+$/;
+
+export const parseBrowserCallbackInput = (
+	raw: string,
+): { ok: true; input: string } | { ok: false; error: string } => {
+	const trimmed = raw.trim();
+	if (trimmed.length === 0) {
+		return { ok: false, error: BROWSER_CALLBACK_EMPTY_ERROR };
+	}
+	if (trimmed.includes("code=")) {
+		const codeParam = trimmed.match(/(?:[?&#]|^)code=([^&#\s]*)/);
+		if (codeParam && codeParam[1].length > 0) {
+			return { ok: true, input: trimmed };
+		}
+		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+	}
+	// Pi's code#state shorthand: the server splits on the first "#".
+	if (trimmed.includes("#")) {
+		const hashIndex = trimmed.indexOf("#");
+		const before = trimmed.slice(0, hashIndex);
+		if (
+			before.length >= 4 &&
+			BROWSER_BARE_CODE_PATTERN.test(before) &&
+			!before.includes("/")
+		) {
+			return { ok: true, input: trimmed };
+		}
+		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+	}
+	// Anything URL-shaped, multi-word, or query-shaped without a code
+	// parameter is neither the full callback URL nor a bare code.
+	if (
+		trimmed.includes("://") ||
+		trimmed.startsWith("localhost") ||
+		trimmed.includes("/") ||
+		trimmed.includes("?") ||
+		trimmed.includes("&") ||
+		trimmed.includes("=") ||
+		/\s/.test(trimmed) ||
+		trimmed.includes("<") ||
+		trimmed.includes(">")
+	) {
+		return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+	}
+	if (trimmed.length >= 4 && BROWSER_BARE_CODE_PATTERN.test(trimmed)) {
+		return { ok: true, input: trimmed };
+	}
+	return { ok: false, error: BROWSER_CALLBACK_MALFORMED_ERROR };
+};
+
+/**
  * Paved browser PKCE sign-in for one BYOK provider, next to the
  * device-code door. The server builds the provider authorize URL; the
  * user approves there, then pastes the localhost callback back here.
@@ -402,6 +474,8 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 	const [callbackInput, setCallbackInput] = useState("");
 	const [exchangeResult, setExchangeResult] =
 		useState<AIBrowserGrantExchangeResponse | null>(null);
+	const [inputError, setInputError] = useState<string | null>(null);
+	const [pasteNote, setPasteNote] = useState<string | null>(null);
 
 	const initiateMutation = useMutation(initiateUserBrowserGrant(queryClient));
 	const exchangeMutation = useMutation(exchangeUserBrowserGrant(queryClient));
@@ -422,6 +496,8 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 			}
 			setExchangeResult(null);
 			setCallbackInput("");
+			setInputError(null);
+			setPasteNote(null);
 			setGrant(next);
 			// Open the authorize URL directly rather than pre-opening
 			// about:blank. The old pattern used noopener which returns a
@@ -438,18 +514,23 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 
 	const handleSubmit = async (event: FormEvent) => {
 		event.preventDefault();
-		if (
-			!grant ||
-			callbackInput.trim().length === 0 ||
-			exchangeMutation.isPending
-		) {
+		if (!grant || exchangeMutation.isPending) {
 			return;
 		}
+		// Forgiving client-side parse: full URL, bare code, or Pi shorthand,
+		// all whitespace-trimmed. Malformed or empty pastes fail loudly
+		// inline instead of silently doing nothing.
+		const parsed = parseBrowserCallbackInput(callbackInput);
+		if (!parsed.ok) {
+			setInputError(parsed.error);
+			return;
+		}
+		setInputError(null);
 		try {
 			const result = await exchangeMutation.mutateAsync({
 				providerConfigId: provider.provider_id,
 				grantId: grant.grant_id,
-				req: { input: callbackInput.trim() },
+				req: { input: parsed.input },
 			});
 			if (result.status === "authorized") {
 				toast.success("Signed in. Personal key saved.");
@@ -463,6 +544,31 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 			toast.error(getErrorMessage(error, "Error completing browser sign-in."), {
 				description: getErrorDetail(error),
 			});
+		}
+	};
+
+	const handlePasteFromClipboard = async () => {
+		try {
+			if (typeof navigator === "undefined" || !navigator.clipboard?.readText) {
+				setPasteNote(
+					"Clipboard read is not available in this browser. Copy the failed page's address and paste it manually.",
+				);
+				return;
+			}
+			const text = await navigator.clipboard.readText();
+			if (!text || text.trim().length === 0) {
+				setPasteNote(
+					"The clipboard was empty. Copy the failed page's address, then paste it manually.",
+				);
+				return;
+			}
+			setPasteNote(null);
+			setInputError(null);
+			setCallbackInput(text);
+		} catch {
+			setPasteNote(
+				"Could not read the clipboard. Copy the failed page's address and paste it manually.",
+			);
 		}
 	};
 
@@ -480,6 +586,8 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 		setGrant(null);
 		setCallbackInput("");
 		setExchangeResult(null);
+		setInputError(null);
+		setPasteNote(null);
 	};
 
 	if (!grant) {
@@ -499,7 +607,16 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 							<Spinner loading={initiateMutation.isPending} />
 							Sign in again with {providerName} in your browser
 						</Button>
+						<Badge size="sm" variant="default">
+							Advanced alternative
+						</Badge>
 					</div>
+					<p className="m-0 text-sm text-content-secondary">
+						Advanced alternative (CLI-style): approving lands on a page that
+						fails to load (localhost:1455, connection refused). That failure is
+						expected. Copy the full address-bar URL of that failed page and
+						paste it back here.
+					</p>
 				</div>
 			);
 		}
@@ -516,11 +633,17 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 						<Spinner loading={initiateMutation.isPending} />
 						Sign in with {providerName} in your browser
 					</Button>
+					<Badge size="sm" variant="default">
+						Advanced alternative
+					</Badge>
 				</div>
 				<p className="m-0 text-sm text-content-secondary">
-					Approve the sign-in in your browser, then paste the callback back
-					here. Coder refreshes it automatically; if the sign-in expires, sign
-					in again.
+					Advanced alternative (CLI-style). Prefer the recommended sign-in
+					above: it completes here. This door opens the provider page, and
+					approving lands on a page that fails to load (localhost:1455,
+					connection refused). That failure is expected. Copy the full
+					address-bar URL of that failed page and paste it back here. Coder
+					refreshes it automatically; if the sign-in expires, sign in again.
 				</p>
 			</div>
 		);
@@ -563,25 +686,47 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 				>
 					{providerName} sign-in
 				</a>{" "}
-				in your browser, approve it, then paste the localhost callback URL or
-				code below.
+				in your browser and approve it. Approving lands on a page that fails to
+				load (localhost:1455, connection refused). That failure is expected.
+				Copy the full address-bar URL of that failed page and paste it below.
+				Pasting just the code also works.
 			</p>
-			<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+			<form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor={inputId}>Authorization callback</Label>
 					<Input
 						id={inputId}
 						type="text"
 						value={callbackInput}
-						onChange={(event) => setCallbackInput(event.target.value)}
+						onChange={(event) => {
+							setCallbackInput(event.target.value);
+							if (inputError) {
+								setInputError(null);
+							}
+						}}
 						placeholder="http://localhost:1455/auth/callback?code=..."
 						disabled={exchangeMutation.isPending}
 						className="h-8 font-mono"
 						spellCheck={false}
 						autoComplete="off"
+						autoFocus
+						aria-invalid={inputError !== null}
+						aria-describedby={inputError ? `${inputId}-error` : undefined}
 					/>
+					{inputError && (
+						<p
+							id={`${inputId}-error`}
+							role="alert"
+							className="m-0 text-sm text-content-destructive"
+						>
+							{inputError}
+						</p>
+					)}
+					{pasteNote && (
+						<p className="m-0 text-sm text-content-secondary">{pasteNote}</p>
+					)}
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					{isTerminal ? (
 						<Button
 							type="button"
@@ -596,13 +741,19 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 							<Button
 								type="submit"
 								size="sm"
-								disabled={
-									callbackInput.trim().length === 0 ||
-									exchangeMutation.isPending
-								}
+								disabled={exchangeMutation.isPending}
 							>
 								<Spinner loading={exchangeMutation.isPending} />
 								Complete sign-in
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={handlePasteFromClipboard}
+								disabled={exchangeMutation.isPending}
+							>
+								Paste from clipboard
 							</Button>
 							<Button
 								type="button"

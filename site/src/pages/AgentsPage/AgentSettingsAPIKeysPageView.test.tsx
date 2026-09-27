@@ -16,6 +16,9 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	AgentSettingsAPIKeysPageView,
 	type AgentSettingsAPIKeysPageViewProps,
+	BROWSER_CALLBACK_EMPTY_ERROR,
+	BROWSER_CALLBACK_MALFORMED_ERROR,
+	parseBrowserCallbackInput,
 } from "./AgentSettingsAPIKeysPageView";
 
 const createProvider = (
@@ -1005,5 +1008,296 @@ describe("AgentSettingsAPIKeysPageView OAuth refresh state", () => {
 			);
 		});
 		await screen.findByText("ABCD-1234");
+	});
+});
+
+describe("parseBrowserCallbackInput", () => {
+	it("accepts the full callback URL", () => {
+		const parsed = parseBrowserCallbackInput(
+			"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		);
+		expect(parsed).toEqual({
+			ok: true,
+			input:
+				"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		});
+	});
+
+	it("accepts a bare code", () => {
+		expect(parseBrowserCallbackInput("test-code-123")).toEqual({
+			ok: true,
+			input: "test-code-123",
+		});
+	});
+
+	it("trims whitespace and newlines around a full URL", () => {
+		const parsed = parseBrowserCallbackInput(
+			"  http://localhost:1455/auth/callback?code=test-code&state=test-state\n",
+		);
+		expect(parsed).toEqual({
+			ok: true,
+			input:
+				"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+		});
+	});
+
+	it("trims whitespace around a bare code", () => {
+		expect(parseBrowserCallbackInput("  test-code-123\n")).toEqual({
+			ok: true,
+			input: "test-code-123",
+		});
+	});
+
+	it("rejects an empty paste with a specific error", () => {
+		expect(parseBrowserCallbackInput("   \n ")).toEqual({
+			ok: false,
+			error: BROWSER_CALLBACK_EMPTY_ERROR,
+		});
+	});
+
+	it("rejects garbage with a specific error", () => {
+		const parsed = parseBrowserCallbackInput("not a callback!!!");
+		expect(parsed.ok).toBe(false);
+		if (!parsed.ok) {
+			expect(parsed.error).toBe(BROWSER_CALLBACK_MALFORMED_ERROR);
+		}
+	});
+
+	it("rejects a URL without a code parameter", () => {
+		const parsed = parseBrowserCallbackInput(
+			"http://localhost:1455/auth/callback?state=test-state",
+		);
+		expect(parsed).toEqual({
+			ok: false,
+			error: BROWSER_CALLBACK_MALFORMED_ERROR,
+		});
+	});
+});
+
+describe("AgentSettingsAPIKeysPageView browser return guidance", () => {
+	const startBrowserGrant = async (
+		user: ReturnType<typeof userEvent.setup>,
+	) => {
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await screen.findByLabelText("Authorization callback");
+	};
+
+	it("warns before leaving that approval lands on a failed page to copy back", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		// No grant started: the pre-departure guidance must already name the
+		// failed page and the copy-back step.
+		expect(screen.getByText(/fails to load/)).toBeInTheDocument();
+		expect(screen.getByText(/localhost:1455/)).toBeInTheDocument();
+		expect(screen.getByText(/full address-bar URL/)).toBeInTheDocument();
+	});
+
+	it("labels the device door recommended and the browser door the advanced alternative", () => {
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		expect(screen.getByText("Recommended")).toBeInTheDocument();
+		expect(screen.getByText("Advanced alternative")).toBeInTheDocument();
+		expect(
+			screen.getByText(/completes here, with no copy-paste step/),
+		).toBeInTheDocument();
+	});
+
+	it("sends a trimmed full URL when the paste is whitespace-padded", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "authorized" }),
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		const callback = screen.getByLabelText("Authorization callback");
+		await user.type(
+			callback,
+			"  http://localhost:1455/auth/callback?code=test-code&state=test-state\n",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.exchangeUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+				{
+					input:
+						"http://localhost:1455/auth/callback?code=test-code&state=test-state",
+				},
+			);
+		});
+	});
+
+	it("sends a bare code without requiring the full URL", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		vi.spyOn(API.experimental, "exchangeUserAIBrowserGrant").mockResolvedValue(
+			browserExchange({ status: "authorized" }),
+		);
+		vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"test-code-123",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		await waitFor(() => {
+			expect(API.experimental.exchangeUserAIBrowserGrant).toHaveBeenCalledWith(
+				"prov-chatgpt",
+				"bgrant-1",
+				{ input: "test-code-123" },
+			);
+		});
+	});
+
+	it("shows a specific error and never calls exchange on garbage", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+		const exchangeSpy = vi.spyOn(
+			API.experimental,
+			"exchangeUserAIBrowserGrant",
+		);
+
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"not a callback!!!",
+		);
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			BROWSER_CALLBACK_MALFORMED_ERROR,
+		);
+		expect(exchangeSpy).not.toHaveBeenCalled();
+		expect(
+			screen.getByRole("button", { name: "Complete sign-in" }),
+		).toBeInTheDocument();
+	});
+
+	it("shows a specific error and never calls exchange on an empty submit", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+		const exchangeSpy = vi.spyOn(
+			API.experimental,
+			"exchangeUserAIBrowserGrant",
+		);
+
+		// The submit button stays enabled on an empty field so the empty
+		// submit fails loudly instead of silently doing nothing.
+		expect(
+			screen.getByRole("button", { name: "Complete sign-in" }),
+		).toBeEnabled();
+		await user.click(screen.getByRole("button", { name: "Complete sign-in" }));
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			BROWSER_CALLBACK_EMPTY_ERROR,
+		);
+		expect(exchangeSpy).not.toHaveBeenCalled();
+	});
+
+	it("auto-focuses the callback field once a grant exists", async () => {
+		const user = userEvent.setup();
+		await startBrowserGrant(user);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Authorization callback")).toHaveFocus();
+		});
+	});
+
+	it("fills the field from the clipboard when Paste from clipboard is clicked", async () => {
+		const user = userEvent.setup();
+		const pasted =
+			"http://localhost:1455/auth/callback?code=test-code&state=test-state";
+		Object.defineProperty(window.navigator, "clipboard", {
+			value: { readText: async () => pasted },
+			configurable: true,
+		});
+		await startBrowserGrant(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Paste from clipboard" }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByLabelText("Authorization callback")).toHaveValue(
+				pasted,
+			);
+		});
+	});
+
+	it("degrades gracefully when the clipboard API is missing", async () => {
+		const user = userEvent.setup();
+		Object.defineProperty(window.navigator, "clipboard", {
+			value: undefined,
+			configurable: true,
+		});
+		await startBrowserGrant(user);
+
+		await user.click(
+			screen.getByRole("button", { name: "Paste from clipboard" }),
+		);
+
+		expect(await screen.findByText(/paste it manually/)).toBeInTheDocument();
+		// Manual paste must always keep working.
+		await user.type(
+			screen.getByLabelText("Authorization callback"),
+			"test-code-123",
+		);
+		expect(screen.getByLabelText("Authorization callback")).toHaveValue(
+			"test-code-123",
+		);
 	});
 });
