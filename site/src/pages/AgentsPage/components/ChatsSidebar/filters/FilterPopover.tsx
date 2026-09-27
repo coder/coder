@@ -19,6 +19,7 @@ import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
+	DropdownMenuItem,
 	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
@@ -130,7 +131,7 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 };
 
 // Selecting a value would otherwise dismiss the menu before the next toggle.
-const keepSubmenuOpen = (event: Event) => {
+const keepMenuOpen = (event: Event) => {
 	event.preventDefault();
 };
 
@@ -256,7 +257,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 								key={option.value}
 								value={option.value}
 								className="gap-2 [&>svg]:size-icon-sm"
-								onSelect={keepSubmenuOpen}
+								onSelect={keepMenuOpen}
 							>
 								<Icon />
 								{option.label}
@@ -267,22 +268,21 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 
 				<DropdownMenuSeparator />
 
-				<DropdownMenuLabel className="flex items-center justify-between">
+				<DropdownMenuLabel className="flex items-center justify-between gap-2 pr-1">
 					<span>Filters</span>
-					<Button
-						variant="subtle"
-						size="sm"
+					<DropdownMenuItem
 						disabled={!filtersActive}
-						onClick={() =>
+						onSelect={(event) => {
+							keepMenuOpen(event);
 							onFiltersChange({
 								...DEFAULT_AGENT_SIDEBAR_FILTERS,
 								groupBy: filters.groupBy,
-							})
-						}
-						className="min-w-auto py-0 pl-0 pr-1"
+							});
+						}}
+						className="px-1 py-0 text-xs font-medium text-content-secondary"
 					>
 						Reset
-					</Button>
+					</DropdownMenuItem>
 				</DropdownMenuLabel>
 				<FilterSubmenu label="PR" summary={prSummary}>
 					{AGENT_PR_STATUS_ORDER.map((status) => {
@@ -294,7 +294,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 								onCheckedChange={(checked) =>
 									setPRStatus(status, checked === true)
 								}
-								onSelect={keepSubmenuOpen}
+								onSelect={keepMenuOpen}
 							>
 								<Icon />
 								{PR_STATUS_LABELS[status]}
@@ -313,7 +313,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 								onCheckedChange={(checked) =>
 									setChatStatus(option.value, checked === true)
 								}
-								onSelect={keepSubmenuOpen}
+								onSelect={keepMenuOpen}
 							>
 								<Icon />
 								{option.label}
@@ -332,7 +332,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 								onCheckedChange={(checked) =>
 									setSource(option.value, checked === true)
 								}
-								onSelect={keepSubmenuOpen}
+								onSelect={keepMenuOpen}
 							>
 								<Icon />
 								{option.label}
@@ -344,7 +344,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 				<DropdownMenuCheckboxItem
 					checked={filters.archiveStatus === "archived"}
 					onCheckedChange={(checked) => setArchived(checked === true)}
-					onSelect={keepSubmenuOpen}
+					onSelect={keepMenuOpen}
 					className="[&>span]:right-3.5"
 				>
 					Archived
