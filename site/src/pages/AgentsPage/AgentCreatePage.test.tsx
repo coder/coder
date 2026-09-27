@@ -1,6 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CanceledError } from "axios";
+import { AxiosError, CanceledError } from "axios";
 import { HttpResponse, http } from "msw";
 import type { ComponentProps } from "react";
 import { QueryClient } from "react-query";
@@ -336,6 +336,22 @@ const mockHookDispatchFailedError = {
 	},
 };
 
+const mockBadGatewayError = {
+	...mockApiError({ message: "Bad gateway." }),
+	response: { status: 502, data: { message: "Bad gateway." } },
+};
+
+const mockHookDeniedError = {
+	...mockApiError({ message: "Chat message denied by lifecycle hook." }),
+	response: {
+		status: 403,
+		data: {
+			kind: "hook_denied",
+			message: "Chat message denied by lifecycle hook.",
+		},
+	},
+};
+
 describe("AgentCreatePage workspace uploads", () => {
 	let events: string[];
 
@@ -633,6 +649,52 @@ describe("AgentCreatePage workspace uploads", () => {
 		});
 		expect(router.state.location.pathname).toBe("/agents");
 	});
+
+	it.each([
+		{
+			failure: "a network error",
+			sendError: new AxiosError("Network Error", AxiosError.ERR_NETWORK),
+			reportedError: {
+				message: "Network Error",
+				detail:
+					"The message may still have been sent. Check the chat list before sending again.",
+			},
+		},
+		{
+			failure: "a 502",
+			sendError: mockBadGatewayError,
+			reportedError: {
+				message: "Bad gateway.",
+				detail:
+					"The message may still have been sent. Check the chat list before sending again.",
+			},
+		},
+		{
+			failure: "a hook denial",
+			sendError: mockHookDeniedError,
+			reportedError: mockHookDeniedError,
+		},
+	])(
+		"reports $failure on the first message when the cleanup cannot check the chat",
+		async ({ sendError, reportedError }) => {
+			await renderUploadPage();
+			vi.mocked(API.experimental.createChatMessage).mockRejectedValue(
+				sendError,
+			);
+			vi.mocked(API.experimental.getChatMessages).mockRejectedValue(
+				mockApiError({ message: "Loading messages failed." }),
+			);
+			const uploadWorkspaceFiles = vi
+				.fn()
+				.mockResolvedValue([mockUploadedFile]);
+
+			await expect(submit({ uploadWorkspaceFiles })).rejects.toBe(sendError);
+
+			expect(API.experimental.updateChat).not.toHaveBeenCalled();
+			expect(toast.error).toHaveBeenCalledWith("Loading messages failed.");
+			expect(formProps.createError).toEqual(reportedError);
+		},
+	);
 
 	it("releases the composer when the cleanup archive stalls", async () => {
 		const router = await renderUploadPage();

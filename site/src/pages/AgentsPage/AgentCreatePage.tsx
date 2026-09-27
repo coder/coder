@@ -136,12 +136,6 @@ const sendTimeoutError: ApiErrorResponse = {
 	detail: "The message was not sent. Try again.",
 };
 
-const uncertainSendTimeoutError: ApiErrorResponse = {
-	message: "Sending the message took too long.",
-	detail:
-		"The message may still have been sent. Check the chat list before sending again.",
-};
-
 const pageLeftMessage = "The page was left before the first message was sent.";
 
 const cleanupFailureMessage = (error: unknown) =>
@@ -418,11 +412,21 @@ const AgentCreatePage: FC = () => {
 					const cleanup = await cleanUpAfterFailedSend(createdChat.id);
 					if (cleanup !== "committed") {
 						let reportedError = sendError;
-						if (sendError instanceof RequestTimeoutError) {
-							reportedError =
-								cleanup === "archived"
-									? sendTimeoutError
-									: uncertainSendTimeoutError;
+						// coderd refuses a message with a 4xx before storing it,
+						// while a timeout, network error, or 5xx can follow a commit.
+						const mayHaveCommitted =
+							!isApiError(sendError) || sendError.response.status >= 500;
+						if (cleanup === "unknown" && mayHaveCommitted) {
+							reportedError = {
+								message:
+									sendError instanceof RequestTimeoutError
+										? sendTimeoutError.message
+										: getErrorMessage(sendError, "Failed to send the message."),
+								detail:
+									"The message may still have been sent. Check the chat list before sending again.",
+							};
+						} else if (sendError instanceof RequestTimeoutError) {
+							reportedError = sendTimeoutError;
 						}
 						reportSubmitError(reportedError);
 						throw sendError;
