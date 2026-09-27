@@ -1650,17 +1650,77 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.EqualValues(t, migrationVersion, version)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	var siteRoles, orgRoles, defaultRoles pq.StringArray
-	err = sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", user.ID).Scan(&siteRoles)
-	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", org.ID, user.ID).Scan(&orgRoles)
-	require.NoError(t, err)
-	err = sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", org.ID).Scan(&defaultRoles)
-	require.NoError(t, err)
+	siteRoles := func(userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT rbac_roles FROM users WHERE id = $1", userID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+	memberRoles := func(orgID, userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgID, userID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+	defaultRoles := func(orgID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
 
-	require.Equal(t, []string{"auditor"}, []string(siteRoles))
-	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
-	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
+	require.Equal(t, []string{"auditor"}, siteRoles(user.ID))
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(org.ID, user.ID))
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(org.ID))
+
+	// With the backport marker, org defaults and member grants survive while
+	// site roles are still scrubbed.
+	_, err = sqlDB.ExecContext(ctx, "INSERT INTO site_configs (key, value) VALUES ($1, 'true')", agentsAccessBackfillMarker)
+	require.NoError(t, err)
+	optedOut := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access"},
+	})
+	optedIn := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
+	granted := dbgen.User(t, db, database.User{RBACRoles: []string{"agents-access"}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: optedOut.ID,
+		UserID:         granted.ID,
+		Roles:          []string{"agents-access"},
+	})
+
+	upSQL, err := os.ReadFile("000587_remove_agents_access_role.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Empty(t, siteRoles(granted.ID))
+	require.Equal(t, []string{"agents-access"}, memberRoles(optedOut.ID, granted.ID))
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
+	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedIn.ID))
+	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
+
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM site_configs WHERE key = $1", agentsAccessBackfillMarker)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Empty(t, memberRoles(optedOut.ID, granted.ID))
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedIn.ID))
+}
+
+// agentsAccessBackfillMarker is the site_configs key a release/2.37 backport
+// sets after restoring agents-access org defaults at startup.
+const agentsAccessBackfillMarker = "agents_access_default_role_backfilled"
+
+func agentsAccessBackfillMarkerExists(ctx context.Context, t *testing.T, sqlDB *sql.DB) bool {
+	t.Helper()
+	var exists bool
+	err := sqlDB.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM site_configs WHERE key = $1)", agentsAccessBackfillMarker).Scan(&exists)
+	require.NoError(t, err)
+	return exists
 }
 
 func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
@@ -1759,6 +1819,52 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
+	assertDefaults(true)
+
+	// With the backport marker, org defaults and member grants survive while
+	// custom roles named agents-access are still removed.
+	_, err = sqlDB.ExecContext(ctx, "INSERT INTO site_configs (key, value) VALUES ($1, 'true')", agentsAccessBackfillMarker)
+	require.NoError(t, err)
+	optedOut := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access"},
+	})
+	optedIn := dbgen.Organization(t, db, database.Organization{
+		DefaultOrgMemberRoles: []string{"organization-workspace-access", "agents-access"},
+	})
+	granted := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: optedOut.ID,
+		UserID:         granted.ID,
+		Roles:          []string{"agents-access"},
+	})
+	markedLegacyRole := dbgen.CustomRole(t, db, database.CustomRole{
+		Name:           "agents-access",
+		OrganizationID: uuid.NullUUID{UUID: optedIn.ID, Valid: true},
+	})
+	defaultRoles := func(orgID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
+	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedIn.ID))
+	var grantedRoles pq.StringArray
+	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", optedOut.ID, granted.ID).Scan(&grantedRoles)
+	require.NoError(t, err)
+	require.Equal(t, []string{"agents-access"}, []string(grantedRoles))
+	require.False(t, customRoleExists(markedLegacyRole.ID))
+	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
+
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM site_configs WHERE key = $1", agentsAccessBackfillMarker)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedOut.ID))
 	assertDefaults(true)
 }
 
