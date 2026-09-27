@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, within } from "storybook/test";
 import { createMockFile } from "#/testHelpers/files";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -39,6 +39,13 @@ export const RemoveDisabled: Story = {
 	args: {
 		uploads: [uploadedEntry("design-handoff.zip")],
 		removeDisabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		// Focus opens the tooltip explaining the lock.
+		const canvas = within(canvasElement);
+		(
+			await canvas.findByRole("button", { name: "Remove design-handoff.zip" })
+		).focus();
 	},
 };
 

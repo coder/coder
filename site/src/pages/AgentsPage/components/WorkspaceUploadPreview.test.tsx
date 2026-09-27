@@ -37,4 +37,26 @@ describe("WorkspaceUploadPreview", () => {
 
 		expect(onRemove).toHaveBeenCalledWith("uploaded-design-handoff.zip");
 	});
+
+	it("keeps a locked remove reachable by keyboard without removing the entry", async () => {
+		const user = userEvent.setup();
+		const onRemove = vi.fn();
+		renderComponent(
+			<WorkspaceUploadPreview
+				uploads={[uploadedEntry]}
+				onRemove={onRemove}
+				removeDisabled
+			/>,
+		);
+		const removeButton = screen.getByRole("button", {
+			name: "Remove design-handoff.zip",
+		});
+
+		await user.tab();
+		expect(removeButton).toHaveFocus();
+		await user.keyboard("{Enter}");
+		await user.click(removeButton);
+
+		expect(onRemove).not.toHaveBeenCalled();
+	});
 });

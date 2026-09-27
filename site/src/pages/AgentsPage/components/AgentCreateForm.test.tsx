@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, StrictMode } from "react";
 import { QueryClient } from "react-query";
@@ -38,6 +44,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
+import { workspaceUploadAgentLookupFailedMessage } from "../hooks/useWorkspaceUploadAgent";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	AgentCreateForm,
@@ -428,14 +435,25 @@ describe("AgentCreateForm workspace file uploads", () => {
 					}
 				}),
 		);
-		const uploadedNames: string[] = [];
+		const sentNames: string[][] = [];
+		let failSend = () => {};
 		const { onCreateChat } = renderForm();
 		onCreateChat.mockImplementation(async ({ uploadWorkspaceFiles }) => {
 			const uploaded = (await uploadWorkspaceFiles?.("chat-1")) ?? [];
-			uploadedNames.push(...uploaded.map((upload) => upload.file.name));
-			// The first message stays in flight.
-			await new Promise<void>(() => {});
+			sentNames.push(uploaded.map((upload) => upload.file.name));
+			// The first message stays in flight until the test fails it.
+			await new Promise<void>((_, reject) => {
+				failSend = () => reject(new Error("send failed"));
+			});
 		});
+		const finishSecondUpload = () =>
+			pendingUploads.get("second.zip")?.resolve({
+				path: "/home/coder/second.zip",
+				name: "second.zip",
+				size: 3,
+				media_type: "application/zip",
+				workspace_id: mockWorkspace.id,
+			});
 
 		await user().upload(screen.getByTestId("chat-attachment-file-input"), [
 			new File(["zip"], "first.zip", { type: "application/zip" }),
@@ -449,17 +467,21 @@ describe("AgentCreateForm workspace file uploads", () => {
 		);
 		expect(pendingUploads.get("first.zip")?.signal.aborted).toBe(true);
 
-		pendingUploads.get("second.zip")?.resolve({
-			path: "/home/coder/second.zip",
-			name: "second.zip",
-			size: 3,
-			media_type: "application/zip",
-			workspace_id: mockWorkspace.id,
-		});
-		await waitFor(() => expect(uploadedNames).toEqual(["second.zip"]));
-		expect(
+		finishSecondUpload();
+		await waitFor(() => expect(sentNames).toEqual([["second.zip"]]));
+		// The finished upload belongs to the pending message, so this click
+		// must not drop it from the retry after the send fails.
+		await user().click(
 			screen.getByRole("button", { name: "Remove second.zip" }),
-		).toBeDisabled();
+		);
+		pendingUploads.clear();
+		await act(async () => failSend());
+		await clickSend();
+		await waitFor(() => expect(pendingUploads.has("second.zip")).toBe(true));
+		finishSecondUpload();
+		await waitFor(() =>
+			expect(sentNames).toEqual([["second.zip"], ["second.zip"]]),
+		);
 	});
 
 	it("rejects workspace files after the chat was created", async () => {
@@ -668,7 +690,9 @@ describe("AgentCreateForm workspace file uploads", () => {
 		);
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
+		expect(toast.error).toHaveBeenCalledWith(
+			workspaceUploadAgentLookupFailedMessage,
+		);
 		expect(onCreateChat).not.toHaveBeenCalled();
 		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
 	});

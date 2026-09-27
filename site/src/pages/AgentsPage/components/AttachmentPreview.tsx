@@ -49,6 +49,9 @@ export const ImageThumbnail: FC<{
 	/>
 );
 
+export const attachmentActionsLockedMessage =
+	"Wait for the current message to finish sending.";
+
 /** Renders a horizontal strip of attachment thumbnails above the input. */
 export const AttachmentPreview: FC<{
 	attachments: readonly File[];
@@ -63,7 +66,8 @@ export const AttachmentPreview: FC<{
 		mediaType?: string,
 	) => void;
 	onInlineText?: (file: File, content?: string) => void;
-	// Disables remove and paste inline; previews stay available.
+	// Blocks remove and paste inline. They stay focusable so a tooltip
+	// can explain the lock; previews stay available.
 	actionsDisabled: boolean;
 }> = ({
 	attachments,
@@ -183,21 +187,34 @@ export const AttachmentPreview: FC<{
 								</div>
 							)}
 							{hasTextAttachment && (
-								<button
-									type="button"
-									onClick={async () => {
-										const nextContent = await loadTextAttachmentContent(
-											textContent,
-											textFileId,
-										);
-										onInlineText?.(file, nextContent);
-									}}
-									disabled={actionsDisabled}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:text-content-disabled disabled:hover:bg-surface-primary disabled:hover:text-content-disabled"
-									aria-label="Paste inline"
-								>
-									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
-								</button>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											onClick={async () => {
+												if (actionsDisabled) return;
+												const nextContent = await loadTextAttachmentContent(
+													textContent,
+													textFileId,
+												);
+												onInlineText?.(file, nextContent);
+											}}
+											aria-disabled={actionsDisabled}
+											className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:bg-surface-primary aria-disabled:hover:text-content-disabled"
+											aria-label="Paste inline"
+										>
+											<ClipboardPasteIcon
+												aria-hidden="true"
+												className="size-3.5"
+											/>
+										</button>
+									</TooltipTrigger>
+									{actionsDisabled && (
+										<TooltipContent side="top">
+											{attachmentActionsLockedMessage}
+										</TooltipContent>
+									)}
+								</Tooltip>
 							)}
 							{(uploadState?.status === "pending" ||
 								uploadState?.status === "processing" ||
@@ -224,15 +241,27 @@ export const AttachmentPreview: FC<{
 									</TooltipContent>
 								</Tooltip>
 							)}
-							<button
-								type="button"
-								onClick={() => onRemove(file)}
-								disabled={actionsDisabled}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:text-content-disabled disabled:hover:bg-surface-primary disabled:hover:text-content-disabled"
-								aria-label={`Remove ${file.name}`}
-							>
-								<XIcon aria-hidden="true" className="size-3.5" />
-							</button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										onClick={() => {
+											if (actionsDisabled) return;
+											onRemove(file);
+										}}
+										aria-disabled={actionsDisabled}
+										className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:bg-surface-primary aria-disabled:hover:text-content-disabled"
+										aria-label={`Remove ${file.name}`}
+									>
+										<XIcon aria-hidden="true" className="size-3.5" />
+									</button>
+								</TooltipTrigger>
+								{actionsDisabled && (
+									<TooltipContent side="top">
+										{attachmentActionsLockedMessage}
+									</TooltipContent>
+								)}
+							</Tooltip>
 						</div>
 					);
 				})}
