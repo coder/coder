@@ -1,5 +1,6 @@
 import {
 	CalendarIcon,
+	CircleOffIcon,
 	DotIcon,
 	FilterIcon,
 	GitMergeIcon,
@@ -45,6 +46,7 @@ const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
 	open: "PR Open",
 	merged: "PR Merged",
 	closed: "PR Closed",
+	none: "No PR",
 };
 
 const GROUP_OPTIONS: readonly Readonly<{
@@ -71,6 +73,7 @@ const PR_STATUS_ICONS: Record<AgentPRStatusFilter, LucideIcon> = {
 	open: GitPullRequestIcon,
 	merged: GitMergeIcon,
 	closed: GitPullRequestClosedIcon,
+	none: CircleOffIcon,
 };
 
 const CHAT_STATUS_ICONS: Record<AgentChatStatusFilter, LucideIcon> = {

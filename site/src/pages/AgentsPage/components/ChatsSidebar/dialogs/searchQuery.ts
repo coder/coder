@@ -1,3 +1,4 @@
+import { CHAT_LIST_PR_STATUS_ORDER } from "#/api/queries/chats";
 import type { SearchFilter } from "./ChatSearchInput";
 
 export const CHAT_SEARCH_FILTER_KEYS = [
@@ -46,7 +47,7 @@ export const normalizeChatSearchFilterValue = (
 	return sanitizedValue;
 };
 
-const validPRStatuses = new Set(["draft", "open", "merged", "closed"]);
+const validPRStatuses = new Set<string>(CHAT_LIST_PR_STATUS_ORDER);
 
 const validBooleans = new Set(["true", "false"]);
 
