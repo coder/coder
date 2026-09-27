@@ -743,8 +743,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
 		},
 		{
-			// An empty diff from the agent is reported as an empty
-			// diff, not as a missing one.
+			// An empty diff from the agent is kept, not omitted.
 			name:  "EmptyDiff",
 			input: `{"edits":[` + editA + `]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", "")}},
@@ -906,8 +905,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			// An edit whose old_text equals new_text rejects its file
-			// in coderd, without an agent request.
+			// The file is rejected without an agent request.
 			name:        "NoOpEditRejectsItsFile",
 			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"}]}`,
 			wantIsError: true,

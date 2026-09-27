@@ -312,8 +312,8 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
-	// checkFile runs the coderd checks tied to one file and returns the
-	// reason to reject that file, or "" when it passes.
+	// checkFile returns the reason to reject a file before any agent
+	// request for it, or "" when the file passes.
 	checkFile := func(path string, indexes []int) string {
 		hasPlanFileName := looksLikePlanFileName(path)
 		if hasPlanFileName && !isAbsolutePath(path) {
@@ -328,11 +328,11 @@ func executeEditFilesTool(
 				return resp.Content
 			}
 		}
-		// An edit whose old_text equals new_text (a no-op) changes nothing,
-		// so it is rejected rather than reported as applied. It rejects its
-		// whole file so that one rule covers every error in a file. Texts
-		// that differ only in whitespace or line endings can still change
-		// the file, so the comparison is byte for byte.
+		// An edit whose old_text equals new_text changes nothing, so it is
+		// rejected instead of reported as applied, and it rejects its whole
+		// file as every other error does. The comparison is byte for byte
+		// because texts that differ only in whitespace or line endings can
+		// still change the file.
 		var noOps []int
 		for _, i := range indexes {
 			if args.Edits[i].OldText == args.Edits[i].NewText {
