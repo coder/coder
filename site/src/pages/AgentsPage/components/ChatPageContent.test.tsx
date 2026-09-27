@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -57,13 +57,6 @@ const workspaceFileReference = (
 	workspace_file_size: 42,
 	workspace_file_workspace_id: workspaceId,
 	workspace_file_media_type: "text/csv",
-});
-
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
 });
 
 describe("ChatPageInput", () => {

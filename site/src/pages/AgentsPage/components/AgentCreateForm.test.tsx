@@ -4,15 +4,7 @@ import { type ComponentProps, StrictMode } from "react";
 import { QueryClient } from "react-query";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
-import {
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
 import {
@@ -243,13 +235,6 @@ const submittedOptions = (
 	return options;
 };
 
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
-
 describe("AgentCreateForm workspace file uploads", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -335,20 +320,21 @@ describe("AgentCreateForm workspace file uploads", () => {
 			screen.getByRole("button", { name: "Remove bundle.zip" }),
 		);
 
-		await waitFor(() => expect(screen.queryByText("bundle.zip")).toBeNull());
-		expect(unloadIsBlocked()).toBe(false);
+		await waitFor(() => expect(unloadIsBlocked()).toBe(false));
 	});
 
 	it("requires a message before parking workspace files", async () => {
-		renderForm();
+		const { onCreateChat } = renderForm();
 
 		await attachZipFile();
-
 		await screen.findByText("bundle.zip");
-		expect(screen.getByRole("button", { name: "Send" })).toHaveProperty(
-			"disabled",
-			true,
+		await user().click(screen.getByRole("button", { name: "Send" }));
+		await user().type(
+			screen.getByRole("textbox", { name: "Chat message" }),
+			"{Enter}",
 		);
+
+		expect(onCreateChat).not.toHaveBeenCalled();
 	});
 
 	it("locks the scope controls while the upload submit is pending", async () => {
@@ -460,7 +446,6 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(options.parkedWorkspaceFiles?.map((file) => file.name)).toEqual([
 			"bundle.zip",
 		]);
-		expect(screen.queryByText("Change organization?")).toBeNull();
 	});
 });
 

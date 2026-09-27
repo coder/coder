@@ -9,7 +9,7 @@ import {
 	useState,
 } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
@@ -68,13 +68,6 @@ const QueuedReplacementHarness: FC<{
 		</>
 	);
 };
-
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
 
 describe("ChatMessageInput", () => {
 	afterEach(() => {

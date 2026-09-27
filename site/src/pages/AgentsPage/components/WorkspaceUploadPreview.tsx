@@ -43,6 +43,7 @@ type WorkspaceUploadPreviewProps = {
 	uploads: readonly WorkspaceFileUpload[];
 	onRemove: (id: string) => void;
 	onRetry?: (id: string) => void;
+	isRetryDisabled?: boolean;
 	deferredLabel?: string;
 };
 
@@ -56,6 +57,7 @@ export const WorkspaceUploadPreview: FC<WorkspaceUploadPreviewProps> = ({
 	uploads,
 	onRemove,
 	onRetry,
+	isRetryDisabled = false,
 	deferredLabel = "Uploads when sent",
 }) => {
 	if (uploads.length === 0) {
@@ -105,6 +107,7 @@ export const WorkspaceUploadPreview: FC<WorkspaceUploadPreviewProps> = ({
 										size="icon"
 										className="size-5 shrink-0 text-content-secondary hover:text-content-primary"
 										aria-label={`Retry uploading ${name}`}
+										disabled={isRetryDisabled}
 										onClick={() => onRetry(upload.id)}
 									>
 										<RotateCcwIcon className="size-3.5" />

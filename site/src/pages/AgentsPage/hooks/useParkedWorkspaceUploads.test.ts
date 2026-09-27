@@ -232,7 +232,7 @@ describe("useParkedWorkspaceUploads", () => {
 		expect(sentFileNames(0)).toEqual(["flaky.tar.gz"]);
 	});
 
-	it("keeps uploaded files visible until the follow-up is sent", async () => {
+	it("keeps uploaded files parked until the follow-up is sent", async () => {
 		parkWorkspaceUploads("chat-1", [
 			createMockFile("logs.tar.gz", "application/gzip"),
 		]);
@@ -245,16 +245,46 @@ describe("useParkedWorkspaceUploads", () => {
 		const { result } = renderParked(true);
 
 		await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
-		expect(result.current.uploads.map((upload) => upload.status)).toEqual([
-			"uploaded",
-		]);
+		await waitFor(() => expect(result.current.uploads).toEqual([]));
+		expect(unloadIsBlocked()).toBe(true);
 
 		act(() => {
 			send.resolve({ queued: true });
 		});
 
-		await waitFor(() => expect(result.current.uploads).toEqual([]));
-		expect(getParkedWorkspaceUploads("chat-1")).toEqual([]);
+		await waitFor(() =>
+			expect(getParkedWorkspaceUploads("chat-1")).toEqual([]),
+		);
+		expect(unloadIsBlocked()).toBe(false);
+	});
+
+	it("offers a retry when the follow-up fails to send", async () => {
+		parkWorkspaceUploads("chat-1", [
+			createMockFile("logs.tar.gz", "application/gzip"),
+		]);
+		uploadMock.mockResolvedValue(mockUploadResponse);
+		sendMock.mockRejectedValueOnce(
+			mockApiError({ message: "Invalid input part." }),
+		);
+		const { result } = renderParked(true);
+
+		await waitFor(() =>
+			expect(
+				result.current.uploads.map(({ status, error }) => ({ status, error })),
+			).toEqual([{ status: "error", error: "Failed to send to the agent." }]),
+		);
+		expect(toast.error).toHaveBeenCalledWith("Invalid input part.");
+		expect(unloadIsBlocked()).toBe(true);
+
+		act(() => {
+			result.current.retry(result.current.uploads[0].id);
+		});
+
+		await waitFor(() =>
+			expect(getParkedWorkspaceUploads("chat-1")).toEqual([]),
+		);
+		expect(uploadMock).toHaveBeenCalledTimes(2);
+		expect(sendMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("uploads files attached after an earlier batch was delivered", async () => {

@@ -57,18 +57,24 @@ export function useParkedWorkspaceUploads(
 		),
 	);
 
+	const failUploads = (failed: readonly WorkspaceFileUpload[]) => {
+		for (const upload of failed) {
+			markParkedWorkspaceUploadFailed(chatId, upload);
+		}
+		setFailedUploads((current) => [...current, ...failed]);
+	};
+
 	const { isPending: isBatchPending, mutate: uploadBatch } = useMutation({
 		mutationFn: async () => {
 			const results = await uploadQueued(chatId);
 			// Files parked while this batch ran stay for the next one.
+			for (const upload of results) {
+				remove(upload.id);
+			}
 			const uploaded = results.filter((upload) => upload.response);
 			const failed = results.filter((upload) => !upload.response);
-			for (const upload of failed) {
-				remove(upload.id);
-				markParkedWorkspaceUploadFailed(chatId, upload);
-			}
 			if (failed.length > 0) {
-				setFailedUploads((current) => [...current, ...failed]);
+				failUploads(failed);
 				toast.error(
 					`Failed to upload to the workspace: ${failed.map((upload) => upload.file.name).join(", ")}`,
 				);
@@ -89,20 +95,29 @@ export function useParkedWorkspaceUploads(
 			if (content.length === 0) {
 				return;
 			}
-			// Chips stay until the follow-up is sent, so they do not disappear
-			// before the message shows up in the chat.
+			// The files stay parked until the follow-up exists, so a failed
+			// send leaves them for the user to retry.
 			await sendMessage({
 				chatId,
 				req: { content, busy_behavior: "queue" },
-			}).finally(() => {
-				for (const upload of uploaded) {
-					remove(upload.id);
-				}
-				unparkWorkspaceUploads(
-					chatId,
-					uploaded.map((upload) => upload.file),
-				);
-			});
+			}).then(
+				() =>
+					unparkWorkspaceUploads(
+						chatId,
+						uploaded.map((upload) => upload.file),
+					),
+				(error: unknown) => {
+					failUploads(
+						uploaded.map((upload) => ({
+							id: upload.id,
+							file: upload.file,
+							status: "error" as const,
+							error: "Failed to send to the agent.",
+						})),
+					);
+					throw error;
+				},
+			);
 		},
 		onError: (error) => {
 			// Unmounting cancels the batch, and its files stay parked for

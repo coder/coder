@@ -1306,6 +1306,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						]}
 						onRemove={workspaceUploads.onRemove}
 						onRetry={workspaceUploads.onRetry}
+						isRetryDisabled={isLoading}
 						deferredLabel={workspaceUploads.deferredLabel}
 					/>
 				)}

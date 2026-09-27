@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { createRef, type ReactNode } from "react";
 import { toast } from "sonner";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
@@ -55,13 +55,6 @@ const modelOptions = [
 const renderInput = (children: ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>);
 };
-
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -555,12 +548,51 @@ describe("AgentChatInput", () => {
 		);
 
 		const sendButton = screen.getByRole("button", { name: "Send" });
-		expect(sendButton).toHaveProperty("disabled", true);
+		await user.click(sendButton);
+		expect(onSend).not.toHaveBeenCalled();
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.paste("while the files upload");
 		await user.click(sendButton);
 
 		expect(onSend).toHaveBeenCalledWith("while the files upload");
+	});
+
+	it("blocks retrying a workspace upload while a send is pending", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [
+						{
+							id: "failed-upload",
+							file: createMockFile("logs.tar.gz", "application/gzip"),
+							status: "error",
+							error: "disk full",
+						},
+					],
+					onRemove: vi.fn(),
+					onRetry,
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Retry uploading logs.tar.gz" }),
+		);
+
+		expect(onRetry).not.toHaveBeenCalled();
 	});
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {

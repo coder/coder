@@ -3,15 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
-import {
-	afterEach,
-	beforeAll,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -119,14 +111,6 @@ const findEnabledSendButton = async () => {
 	await waitFor(() => expect(sendButton).toBeEnabled());
 	return sendButton;
 };
-
-// Lexical reads selection geometry when text is pasted; jsdom has none.
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
 
 afterEach(() => {
 	vi.restoreAllMocks();

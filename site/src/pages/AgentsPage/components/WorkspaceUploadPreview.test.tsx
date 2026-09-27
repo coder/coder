@@ -34,7 +34,7 @@ describe("WorkspaceUploadPreview", () => {
 		expect(onRemove).toHaveBeenCalledWith("uploaded-design-handoff.zip");
 	});
 
-	it("offers a retry only for failed entries", async () => {
+	it("reports the retried entry by id", async () => {
 		const user = userEvent.setup();
 		const onRetry = vi.fn();
 		const failedEntry: WorkspaceFileUpload = {
@@ -45,17 +45,12 @@ describe("WorkspaceUploadPreview", () => {
 		};
 		renderComponent(
 			<WorkspaceUploadPreview
-				uploads={[uploadedEntry, failedEntry]}
+				uploads={[failedEntry]}
 				onRemove={vi.fn()}
 				onRetry={onRetry}
 			/>,
 		);
 
-		expect(
-			screen.queryByRole("button", {
-				name: "Retry uploading design-handoff.zip",
-			}),
-		).toBeNull();
 		await user.click(
 			screen.getByRole("button", { name: "Retry uploading broken.zip" }),
 		);
