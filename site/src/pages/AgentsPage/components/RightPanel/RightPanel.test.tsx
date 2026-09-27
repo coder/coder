@@ -6,9 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import {
 	type AgentsPageOutletContext,
-	applyNarrowWidthCollapse,
-	createOpenPanelRegistry,
-	type SidebarCollapsedBy,
+	useSidebarCollapseState,
 } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
@@ -64,7 +62,7 @@ type SidebarHarnessProps = HarnessProps & {
 };
 
 /**
- * Owns the sidebar collapse state with the layout's updater and exposes a
+ * Owns the sidebar collapse state with the layout's hook and exposes a
  * button that toggles it as the user would.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
@@ -73,10 +71,14 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	panelKey,
 	...harnessProps
 }) => {
-	const [collapsedBy, setCollapsedBy] = useState<SidebarCollapsedBy>(
-		initialSidebarCollapsed ? "user" : null,
-	);
-	const isSidebarCollapsed = collapsedBy !== null;
+	const {
+		isSidebarCollapsed,
+		toggleSidebarByUser,
+		expandSidebar,
+		isSidebarCollapsedByNarrowWidth,
+		onSidebarCollapsedByNarrowWidthChange,
+		registerOpenRightPanel,
+	} = useSidebarCollapseState(initialSidebarCollapsed ? "user" : null);
 	const reportedCollapsed = useRef(isSidebarCollapsed);
 	useEffect(() => {
 		if (reportedCollapsed.current !== isSidebarCollapsed) {
@@ -84,12 +86,6 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 			onSidebarCollapsedChange?.(isSidebarCollapsed);
 		}
 	}, [isSidebarCollapsed, onSidebarCollapsedChange]);
-	const [registerOpenRightPanel] = useState(() =>
-		createOpenPanelRegistry(() =>
-			setCollapsedBy((prev) => applyNarrowWidthCollapse(prev, false)),
-		),
-	);
-	const toggleByUser = () => setCollapsedBy(isSidebarCollapsed ? null : "user");
 	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons: {},
 		setChatErrorReason: () => {},
@@ -103,11 +99,10 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		archivingChatId: undefined,
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed: toggleByUser,
-		onExpandSidebar: () => setCollapsedBy(null),
-		isSidebarCollapsedByNarrowWidth: collapsedBy === "narrowWidth",
-		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
-			setCollapsedBy((prev) => applyNarrowWidthCollapse(prev, collapsed)),
+		onToggleSidebarCollapsed: toggleSidebarByUser,
+		onExpandSidebar: expandSidebar,
+		isSidebarCollapsedByNarrowWidth,
+		onSidebarCollapsedByNarrowWidthChange,
 		getExpandedSidebarWidth: () => 320,
 		registerOpenRightPanel,
 		onChatReady: () => {},
@@ -115,7 +110,7 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 
 	return (
 		<>
-			<button type="button" onClick={toggleByUser}>
+			<button type="button" onClick={toggleSidebarByUser}>
 				Toggle sidebar
 			</button>
 			<Routes>

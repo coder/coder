@@ -5,7 +5,7 @@ import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
-	readLeftSidebarWidth,
+	readExpandedLeftSidebarWidth,
 } from "./sidebarWidth";
 
 // Pointer events are dispatched with fireEvent because userEvent cannot emit
@@ -155,7 +155,7 @@ describe("ResizableChatsSidebarFrame", () => {
 		expect(onViewportSlideEnd).toHaveBeenCalledOnce();
 	});
 
-	it("exposes its expanded width to readLeftSidebarWidth while collapsed", () => {
+	it("exposes its expanded width to readExpandedLeftSidebarWidth while collapsed", () => {
 		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
 		const ref = createRef<HTMLDivElement>();
 		render(
@@ -164,6 +164,6 @@ describe("ResizableChatsSidebarFrame", () => {
 			</ResizableChatsSidebarFrame>,
 		);
 
-		expect(readLeftSidebarWidth(ref.current)).toBe(400);
+		expect(readExpandedLeftSidebarWidth(ref.current)).toBe(400);
 	});
 });

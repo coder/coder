@@ -364,7 +364,8 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
-	// While open, keep a sidebar collapsed to fit this panel from being restored.
+	// Registers this panel while open. The layout clears a narrow-width
+	// collapse a frame after no open panel remains.
 	useEffect(() => {
 		if (!isOpen) {
 			return;

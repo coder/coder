@@ -7,6 +7,7 @@ import {
 	createOpenPanelRegistry,
 	nextSidebarViewportSlide,
 	shouldInvalidateFilteredChatList,
+	useSidebarCollapseState,
 } from "./AgentsPageLayout";
 import {
 	emptyInputStorageKey,
@@ -1170,5 +1171,44 @@ describe("createOpenPanelRegistry", () => {
 		register();
 		await nextFrame();
 		expect(onNoneOpen).not.toHaveBeenCalled();
+	});
+});
+
+describe("useSidebarCollapseState", () => {
+	const nextFrame = () =>
+		new Promise((resolve) => requestAnimationFrame(resolve));
+
+	it("restores a narrow-width collapse once no right panel is open", async () => {
+		const { result } = renderHook(() => useSidebarCollapseState());
+
+		let unregister = () => {};
+		act(() => {
+			unregister = result.current.registerOpenRightPanel();
+			result.current.onSidebarCollapsedByNarrowWidthChange(true);
+		});
+		expect(result.current.isSidebarCollapsedByNarrowWidth).toBe(true);
+
+		await act(async () => {
+			unregister();
+			await nextFrame();
+		});
+		expect(result.current.isSidebarCollapsed).toBe(false);
+	});
+
+	it("keeps a user collapse after the last right panel closes", async () => {
+		const { result } = renderHook(() => useSidebarCollapseState());
+
+		let unregister = () => {};
+		act(() => {
+			unregister = result.current.registerOpenRightPanel();
+			result.current.toggleSidebarByUser();
+		});
+
+		await act(async () => {
+			unregister();
+			await nextFrame();
+		});
+		expect(result.current.isSidebarCollapsed).toBe(true);
+		expect(result.current.isSidebarCollapsedByNarrowWidth).toBe(false);
 	});
 });
