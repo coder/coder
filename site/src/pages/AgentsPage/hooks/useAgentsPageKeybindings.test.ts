@@ -89,6 +89,25 @@ describe("useAgentsPageKeybindings", () => {
 		expect(onToggleSearch).not.toHaveBeenCalled();
 	});
 
+	it("opens settings with Ctrl+,", () => {
+		isMacMock.mockReturnValue(false);
+		const onNewAgent = vi.fn();
+		const onOpenSettings = vi.fn();
+
+		renderHook(() =>
+			useAgentsPageKeybindings({
+				onNewAgent,
+				onOpenSettings,
+			}),
+		);
+
+		const event = dispatchKeyDown(",", { ctrlKey: true });
+
+		expect(event.defaultPrevented).toBe(true);
+		expect(onOpenSettings).toHaveBeenCalledTimes(1);
+		expect(onNewAgent).not.toHaveBeenCalled();
+	});
+
 	it("handles shortcuts from editable elements", () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
