@@ -59,9 +59,8 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 	};
 });
 
-const workspaceUploadUnavailableMessage =
-	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
-const removedQueuedFileMessage = "Removed 1 file that uploads to the workspace";
+const parkedUploadNeedsMessage =
+	"Add a message so the agent can start a workspace for these files.";
 const attachDuringSubmitMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
@@ -279,18 +278,23 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
 	});
 
-	it("rejects workspace files when no workspace is selected", async () => {
+	it("parks workspace files when no workspace is selected", async () => {
 		const { onCreateChat } = renderForm();
 
 		await attachZipFile();
+		await screen.findByText("Uploads when the workspace starts");
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+		const options = submittedOptions(onCreateChat);
+		expect(options.uploadWorkspaceFiles).toBeUndefined();
+		expect(options.parkedWorkspaceFiles?.map((file) => file.name)).toEqual([
+			"bundle.zip",
+		]);
+		expect(toast.error).not.toHaveBeenCalled();
 	});
 
-	it("rejects workspace files when the selected agent is disconnected", async () => {
+	it("parks workspace files when the selected agent is disconnected", async () => {
 		localStorage.setItem(
 			"agents.selected-workspace-id",
 			mockStoppedWorkspace.id,
@@ -302,9 +306,21 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await attachZipFile();
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+		const options = submittedOptions(onCreateChat);
+		expect(options.workspaceId).toBe(mockStoppedWorkspace.id);
+		expect(options.uploadWorkspaceFiles).toBeUndefined();
+		expect(options.parkedWorkspaceFiles).toHaveLength(1);
+	});
+
+	it("requires a message before parking workspace files", async () => {
+		const { onCreateChat } = renderForm();
+
+		await attachZipFile();
+		await clickSend();
+
+		expect(toast.error).toHaveBeenCalledWith(parkedUploadNeedsMessage);
+		expect(onCreateChat).not.toHaveBeenCalled();
 	});
 
 	it("locks the scope controls while the upload submit is pending", async () => {
@@ -384,7 +400,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(toast.error).toHaveBeenCalledWith(attachDuringSubmitMessage);
 	});
 
-	it("drops queued files when the workspace is detached", async () => {
+	it("parks queued files when the workspace is detached", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const { onCreateChat } = renderForm();
 
@@ -392,32 +408,12 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await user().click(
 			screen.getByRole("button", { name: "Remove workspace my-project" }),
 		);
+		await submitMessage("inspect this archive");
 
-		await waitFor(() =>
-			expect(toast.warning).toHaveBeenCalledWith(removedQueuedFileMessage),
-		);
-		await submitMessage("plain text message");
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
-	});
-
-	it("drops queued files when switching to a stopped workspace", async () => {
-		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
-		renderForm({
-			workspaceCount: 2,
-			workspaceOptions: [mockWorkspace, mockStoppedWorkspace],
-		});
-
-		await attachZipFile();
-		await user().click(screen.getByRole("button", { name: "More options" }));
-		await user().click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
-		);
-		await user().click(await screen.findByText("stopped-project"));
-
-		await waitFor(() =>
-			expect(toast.warning).toHaveBeenCalledWith(removedQueuedFileMessage),
-		);
+		const options = submittedOptions(onCreateChat);
+		expect(options.uploadWorkspaceFiles).toBeUndefined();
+		expect(options.parkedWorkspaceFiles).toHaveLength(1);
 	});
 
 	it("keeps queued files when an organization change is cancelled", async () => {
@@ -438,27 +434,6 @@ describe("AgentCreateForm workspace file uploads", () => {
 			uploadWorkspaceFiles: expect.any(Function),
 		});
 	});
-
-	it("keeps queued files across an agent status flap on the same workspace", async () => {
-		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
-		const { onCreateChat, rerender } = renderForm();
-
-		await attachZipFile();
-		rerender({ workspaceOptions: [mockDisconnectedWorkspace] });
-		await submitMessage("inspect this archive");
-
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
-		expect(onCreateChat).not.toHaveBeenCalled();
-
-		rerender({ workspaceOptions: [mockWorkspace] });
-		await clickSend();
-
-		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toEqual(
-			expect.any(Function),
-		);
-		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
-	});
 });
 
 const userDraftAttachments = JSON.stringify([
@@ -474,6 +449,7 @@ const userDraftAttachments = JSON.stringify([
 afterEach(() => {
 	vi.restoreAllMocks();
 	localStorage.clear();
+	dashboard.showOrganizations = false;
 });
 
 describe("AgentCreateForm prefill", () => {

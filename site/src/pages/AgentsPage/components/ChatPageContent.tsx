@@ -23,6 +23,7 @@ import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import { useParkedWorkspaceUploads } from "../hooks/useParkedWorkspaceUploads";
 import {
 	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
@@ -694,6 +695,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const canUploadWorkspaceFiles = Boolean(
 		chatId && workspace && uploadAgentConnected,
 	);
+	const parkedWorkspaceUploads = useParkedWorkspaceUploads(
+		chatId,
+		canUploadWorkspaceFiles,
+	);
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
@@ -701,6 +706,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
 	const handleRemoveWorkspaceUpload = (id: string) => {
+		if (parkedWorkspaceUploads.uploads.some((upload) => upload.id === id)) {
+			parkedWorkspaceUploads.remove(id);
+			return;
+		}
 		if (
 			isEditing &&
 			preservedWorkspaceUploads.some((upload) => upload.id === id)
@@ -803,11 +812,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
+				uploads: [
+					...parkedWorkspaceUploads.uploads,
+					...visibleWorkspaceUploads,
+				],
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
 				onRemove: handleRemoveWorkspaceUpload,
+				deferredLabel: "Uploads when the workspace starts",
 			}}
 			inputRef={inputRef}
 			initialValue={initialValue}

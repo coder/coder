@@ -119,14 +119,12 @@ type WorkspaceUploadsProps = {
 	// connected agent; its absence hides the whole affordance.
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
-	// Toast shown when a workspace-routed file arrives while onAttach
-	// is unavailable. Overridden on the new-chat page, where the fix
-	// is selecting a workspace rather than attaching one to the chat.
-	unavailableMessage?: string;
 	// Deferred mode (new-chat page): entries upload during submit and
 	// every entry re-uploads on the next send after a failure, so
 	// error chips still count as sendable content.
 	deferred?: boolean;
+	// Status shown on deferred chips.
+	deferredLabel?: string;
 };
 
 const workspaceRequiredAttachmentMessage =
@@ -867,8 +865,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			toast.error(
 				workspaceAttachBlockedBySend
 					? workspaceUploadPendingSendMessage
-					: (workspaceUploads?.unavailableMessage ??
-							workspaceRequiredAttachmentMessage),
+					: workspaceRequiredAttachmentMessage,
 			);
 		}
 		if (rejected.length > 0) {
@@ -1000,8 +997,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		workspaceUploadEntries.some(
 			(upload) =>
 				upload.status === "uploaded" ||
-				upload.status === "deferred" ||
-				(workspaceUploads?.deferred === true && upload.status === "error"),
+				(workspaceUploads?.deferred === true &&
+					(upload.status === "deferred" || upload.status === "error")),
 		);
 	const hasDraftContext =
 		hasContent ||
@@ -1302,6 +1299,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					<WorkspaceUploadPreview
 						uploads={workspaceUploads.uploads}
 						onRemove={workspaceUploads.onRemove}
+						deferredLabel={workspaceUploads.deferredLabel}
 					/>
 				)}
 				<ChatMessageInput

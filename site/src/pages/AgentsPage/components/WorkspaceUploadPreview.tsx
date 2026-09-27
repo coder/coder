@@ -14,10 +14,13 @@ import {
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
 
-const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
+const uploadStatusLabel = (
+	upload: WorkspaceFileUpload,
+	deferredLabel: string,
+): string => {
 	switch (upload.status) {
 		case "deferred":
-			return "Uploads when sent";
+			return deferredLabel;
 		case "queued":
 			return "Waiting to upload...";
 		case "uploading":
@@ -40,7 +43,8 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 export const WorkspaceUploadPreview: FC<{
 	uploads: readonly WorkspaceFileUpload[];
 	onRemove: (id: string) => void;
-}> = ({ uploads, onRemove }) => {
+	deferredLabel?: string;
+}> = ({ uploads, onRemove, deferredLabel = "Uploads when sent" }) => {
 	if (uploads.length === 0) {
 		return null;
 	}
@@ -76,7 +80,7 @@ export const WorkspaceUploadPreview: FC<{
 										: "text-content-secondary",
 								)}
 							>
-								{uploadStatusLabel(upload)}
+								{uploadStatusLabel(upload, deferredLabel)}
 							</div>
 						</div>
 						<Tooltip>

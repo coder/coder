@@ -56,11 +56,8 @@ export const emptyInputStorageKey = "agents.empty-input";
 export const selectedOrganizationIdStorageKey =
 	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-// Deferred uploads need a selected workspace with a connected agent;
-// the same copy covers attaching without one and submitting after a
-// same-workspace status flap.
-const workspaceUploadUnavailableMessage =
-	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
+const parkedUploadNeedsMessage =
+	"Add a message so the agent can start a workspace for these files.";
 const attachDuringSubmitMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
@@ -80,6 +77,10 @@ export type CreateChatOptions = {
 	uploadWorkspaceFiles?: (
 		chatId: string,
 	) => Promise<readonly WorkspaceFileUpload[]>;
+	// Workspace files submitted without a running workspace. The page
+	// creates the chat with the first message and parks these for the
+	// chat page, which uploads them once a workspace has started.
+	parkedWorkspaceFiles?: readonly File[];
 };
 
 /**
@@ -550,13 +551,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	// Deferred uploads eventually hit the same agent endpoint as the
-	// chat view, which rejects unless the agent is connected. No chat
-	// exists yet to carry the server-selected agent ID, so gate the
-	// affordance on any connected root agent: a stopped workspace then
-	// fails at attach time instead of after creating a chat destined
-	// for an upload failure, and the rare mismatch with the server's
-	// pick still surfaces as an upload error on submit.
+	// Deferred uploads hit the same agent endpoint as the chat view,
+	// which rejects unless the agent is connected. No chat exists yet to
+	// carry the server-selected agent ID, so any connected root agent
+	// selects the upload-before-send path. Otherwise the files park until
+	// the chat's turn starts a workspace.
 	const selectedWorkspace = filteredWorkspaces.find(
 		(ws) => ws.id === effectiveWorkspaceId,
 	);
@@ -570,6 +569,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		message: string,
 		fileIDs?: string[],
 		uploadWorkspaceFiles?: CreateChatOptions["uploadWorkspaceFiles"],
+		parkedWorkspaceFiles?: CreateChatOptions["parkedWorkspaceFiles"],
 	) => {
 		submitDraft();
 		await onCreateChat({
@@ -585,6 +585,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
 			uploadWorkspaceFiles,
+			parkedWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
 			throw err;
@@ -610,39 +611,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const submitInFlightRef = useRef(false);
 	const isSubmitPending = isCreating || isSubmitSequencePending;
 
-	// Workspace files can only upload into a workspace whose agent is
-	// connected. An explicit scope change that loses that (deselecting,
-	// an org change, or switching to a stopped workspace) drops the
-	// queued files; keeping them would let a submit create an idle chat
-	// whose uploads are guaranteed to fail. A status flap on the same
-	// workspace (a passive refetch reporting the agent disconnected)
-	// keeps the queue and only blocks submit until it reconnects: the
-	// queued File objects cannot be restored once dropped.
 	const workspaceUploadCount = workspaceUploadEntries.length;
-	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
-	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
-	useEffect(() => {
-		if (
-			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
-		) {
-			return;
-		}
-		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
-		if (canUploadWorkspaceFiles || workspaceUploadCount === 0) {
-			return;
-		}
-		resetWorkspaceUploads();
-		toast.warning(
-			workspaceUploadCount === 1
-				? "Removed 1 file that uploads to the workspace"
-				: `Removed ${workspaceUploadCount} files that upload to the workspace`,
-		);
-	}, [
-		workspaceUploadScopeKey,
-		canUploadWorkspaceFiles,
-		workspaceUploadCount,
-		resetWorkspaceUploads,
-	]);
 
 	const handleAttachWhenIdle = (files: File[]) => {
 		if (submitInFlightRef.current) {
@@ -656,8 +625,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (submitInFlightRef.current) {
 			return;
 		}
-		if (workspaceUploadCount > 0 && !canUploadWorkspaceFiles) {
-			toast.error(workspaceUploadUnavailableMessage);
+		const parkWorkspaceFiles =
+			workspaceUploadCount > 0 && !canUploadWorkspaceFiles;
+		if (parkWorkspaceFiles && !message.trim()) {
+			toast.error(parkedUploadNeedsMessage);
 			return;
 		}
 		submitInFlightRef.current = true;
@@ -684,11 +655,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		// callback bound to this hook. It re-uploads every entry, so a
 		// retry after failure targets the fresh chat.
 		const uploadWorkspaceFiles =
-			workspaceUploadEntries.length > 0
+			workspaceUploadCount > 0 && !parkWorkspaceFiles
 				? uploadQueuedWorkspaceFiles
 				: undefined;
+		const parkedWorkspaceFiles = parkWorkspaceFiles
+			? workspaceUploadEntries.map((upload) => upload.file)
+			: undefined;
 		try {
-			await handleSend(message, fileArg, uploadWorkspaceFiles);
+			await handleSend(
+				message,
+				fileArg,
+				uploadWorkspaceFiles,
+				parkedWorkspaceFiles,
+			);
 		} catch {
 			// Attachments and queued files preserved for retry.
 			submitInFlightRef.current = false;
@@ -843,12 +822,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						textContents={textContents}
 						workspaceUploads={{
 							uploads: workspaceUploadEntries,
-							onAttach: canUploadWorkspaceFiles
-								? workspaceUploads.attach
-								: undefined,
+							onAttach: workspaceUploads.attach,
 							onRemove: workspaceUploads.remove,
-							unavailableMessage: workspaceUploadUnavailableMessage,
 							deferred: true,
+							deferredLabel: canUploadWorkspaceFiles
+								? undefined
+								: "Uploads when the workspace starts",
 						}}
 						mcpServers={mcpServers}
 						chatOrganizationId={organizationId}
