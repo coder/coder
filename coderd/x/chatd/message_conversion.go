@@ -789,6 +789,12 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
+	// streamedRun holds the text of the open text or reasoning run at
+	// assistantParts[streamedRunIndex]. Appending to the part's Text instead
+	// copied the whole run on every delta.
+	streamedRun      strings.Builder
+	streamedRunIndex int
+	streamedRunOpen  bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -823,7 +829,10 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
-		s.assistantParts = append(s.assistantParts, part)
+		if s.appendStreamedDelta(part) {
+			return
+		}
+		s.appendAssistantPart(part)
 		return
 	}
 	if part.ToolCallID == "" {
@@ -868,6 +877,58 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// appendStreamedDelta merges a text or reasoning delta into the open run of
+// the same type, so an interrupted turn persists one part per run like a
+// completed turn (processStepStream) instead of one part per token. Metadata
+// and timestamps merge the way processStepStream merges them.
+func (s *partialMessageConversionState) appendStreamedDelta(part codersdk.ChatMessagePart) bool {
+	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
+		return false
+	}
+	if !s.streamedRunOpen {
+		return false
+	}
+	prev := &s.assistantParts[s.streamedRunIndex]
+	if prev.Type != part.Type {
+		return false
+	}
+	_, _ = s.streamedRun.WriteString(part.Text)
+	if len(part.ProviderMetadata) > 0 {
+		prev.ProviderMetadata = part.ProviderMetadata
+	}
+	if part.CompletedAt != nil {
+		prev.CompletedAt = part.CompletedAt
+	}
+	if prev.CreatedAt == nil {
+		prev.CreatedAt = part.CreatedAt
+	}
+	return true
+}
+
+// appendAssistantPart closes the open run; a text or reasoning part opens a
+// new one.
+func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	s.closeStreamedRun()
+	s.assistantParts = append(s.assistantParts, part)
+	if part.Type != codersdk.ChatMessagePartTypeText && part.Type != codersdk.ChatMessagePartTypeReasoning {
+		return
+	}
+	s.streamedRunIndex = len(s.assistantParts) - 1
+	s.streamedRunOpen = true
+	s.streamedRun.Reset()
+	_, _ = s.streamedRun.WriteString(part.Text)
+}
+
+// closeStreamedRun writes the accumulated text back onto the run's part.
+func (s *partialMessageConversionState) closeStreamedRun() {
+	if !s.streamedRunOpen {
+		return
+	}
+	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
+	s.streamedRun.Reset()
+	s.streamedRunOpen = false
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -940,6 +1001,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
+	s.closeStreamedRun()
 	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
 	return call
 }
@@ -980,6 +1042,7 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 }
 
 func (s *partialMessageConversionState) flushAssistant() error {
+	s.closeStreamedRun()
 	if len(s.assistantParts) == 0 {
 		return nil
 	}

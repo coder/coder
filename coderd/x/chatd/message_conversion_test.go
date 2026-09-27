@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -879,6 +880,76 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	syntheticParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Len(t, syntheticParts, 1)
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
+}
+
+func TestBufferedPartsToPartialMessages_CoalescesStreamedTextDeltas(t *testing.T) {
+	t.Parallel()
+
+	// Streams deliver text one token at a time; an interrupted turn must
+	// persist one part per run, as a completed turn does, not one per token.
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("think")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageReasoning("ing")},
+		{Seq: 3, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("Hel")},
+		{Seq: 4, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("lo, ")},
+		{Seq: 5, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("world")},
+		{Seq: 6, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+		{Seq: 7, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("after")},
+		{Seq: 8, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText(" the call")},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	assistantParts := parseMessageParts(t, got[0].Role, got[0].Content)
+
+	var summary []string
+	for _, part := range assistantParts {
+		summary = append(summary, string(part.Type)+":"+part.Text)
+	}
+	require.Equal(t, []string{
+		"reasoning:thinking",
+		"text:Hello, world",
+		"tool-call:",
+		"text:after the call",
+	}, summary, "adjacent deltas of the same type must be persisted as one part")
+}
+
+// BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas persists N text
+// deltas; B/op should be linear in N. A measured interrupted turn had 3,987.
+func BenchmarkBufferedPartsToPartialMessages_StreamedTextDeltas(b *testing.B) {
+	for _, n := range []int{1000, 4000} {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			parts := make([]messagepartbuffer.Part, n)
+			for i := range parts {
+				parts[i] = messagepartbuffer.Part{
+					Seq:         int64(i + 1),
+					Role:        codersdk.ChatMessageRoleAssistant,
+					MessagePart: codersdk.ChatMessageText("1234567"),
+				}
+			}
+			input := bufferedPartsToPartialMessagesInput{
+				parts:          parts,
+				modelConfigID:  uuid.New(),
+				contentVersion: chatprompt.CurrentContentVersion,
+				logger:         slog.Make(),
+				interruptedAt:  time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC),
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for range b.N {
+				if _, err := bufferedPartsToPartialMessages(input); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }
 
 func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
