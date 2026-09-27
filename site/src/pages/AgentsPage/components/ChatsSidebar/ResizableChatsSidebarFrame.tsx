@@ -20,14 +20,20 @@ import {
 type ResizableChatsSidebarFrameProps = {
 	children: ReactNode;
 	className?: string;
+	/** Collapses the frame to zero width on sm+ viewports. */
+	isCollapsed?: boolean;
 };
 
 export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
+	isCollapsed = false,
 }: ResizableChatsSidebarFrameProps) => {
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
+	// Width transitions are disabled while dragging so the frame tracks
+	// the pointer without lag.
+	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);
 	const activePointerId = useRef<number | null>(null);
 	const startX = useRef(0);
@@ -65,6 +71,7 @@ export const ResizableChatsSidebarFrame = ({
 		activePointerId.current = e.pointerId;
 		startX.current = e.clientX;
 		startWidth.current = width;
+		setIsPointerResizing(true);
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
@@ -88,6 +95,7 @@ export const ResizableChatsSidebarFrame = ({
 
 		isDragging.current = false;
 		activePointerId.current = null;
+		setIsPointerResizing(false);
 		if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
 			e.currentTarget.releasePointerCapture?.(e.pointerId);
 		}
@@ -124,10 +132,19 @@ export const ResizableChatsSidebarFrame = ({
 			}}
 			className={cn(
 				className,
-				"relative sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width) sm:max-w-(--agents-left-sidebar-max-width)",
+				"relative sm:overflow-hidden sm:max-w-(--agents-left-sidebar-max-width)",
+				!isPointerResizing &&
+					"sm:transition-[width,min-width,visibility] sm:duration-200 sm:ease-out",
+				isCollapsed
+					? "sm:invisible sm:w-0 sm:min-w-0"
+					: "sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width)",
 			)}
 		>
-			{children}
+			{/* Keeps the content at full width while the frame animates so it
+			    slides behind the edge instead of reflowing on every frame. */}
+			<div className="size-full sm:w-(--agents-left-sidebar-width)">
+				{children}
+			</div>
 			<div
 				role="separator"
 				aria-orientation="vertical"

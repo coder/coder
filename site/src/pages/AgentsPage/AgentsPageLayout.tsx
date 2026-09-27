@@ -722,8 +722,8 @@ const AgentsPageLayout: FC = () => {
 							: isSettingsDetail
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
-						isSidebarCollapsed && "sm:hidden",
 					)}
+					isCollapsed={isSidebarCollapsed}
 				>
 					<ChatsSidebar
 						chats={chatList}

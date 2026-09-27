@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,18 +45,22 @@ const RightPanelHarness: FC<HarnessProps> = ({
 };
 
 type SidebarHarnessProps = HarnessProps & {
+	initialSidebarCollapsed?: boolean;
 	onSidebarCollapsedChange?: (isCollapsed: boolean) => void;
 };
 
 /**
- * Supplies the outlet context the panel uses to collapse the chats
- * sidebar while the pointer is at the left edge of the viewport.
+ * Supplies the outlet context the panel uses to collapse and restore the
+ * chats sidebar.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
+	initialSidebarCollapsed = false,
 	onSidebarCollapsedChange,
 	...harnessProps
 }) => {
-	const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(false);
+	const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(
+		initialSidebarCollapsed,
+	);
 	const setIsSidebarCollapsed = (next: boolean) => {
 		setIsSidebarCollapsedState(next);
 		onSidebarCollapsedChange?.(next);
@@ -314,5 +318,72 @@ describe("RightPanel resize drag", () => {
 			expect(onVisualExpandedChange).toHaveBeenLastCalledWith(null);
 			expect(persistedWidth()).toBe("600");
 		});
+	});
+});
+
+describe("RightPanel sidebar auto-collapse", () => {
+	// jsdom has no layout, so the panel's parent width is driven through
+	// clientWidth. The chat needs 360px and the panel 360px, so the sidebar
+	// collapses below 720px of parent width. Restoring the default 320px
+	// sidebar needs 720 + 320 plus the hysteresis margin.
+	let parentWidth = 0;
+	const resizeWindow = (width: number) => {
+		parentWidth = width;
+		fireEvent(window, new Event("resize"));
+	};
+
+	beforeEach(() => {
+		vi.stubGlobal("innerWidth", 1440);
+		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
+			() => parentWidth,
+		);
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("restores a sidebar it collapsed once the window widens", async () => {
+		parentWidth = 700;
+		const onSidebarCollapsedChange = vi.fn();
+		render(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
+		);
+
+		// Still too narrow to fit the sidebar back.
+		resizeWindow(1040);
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
+
+		resizeWindow(1100);
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(false),
+		);
+		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(2);
+	});
+
+	it("leaves a sidebar the user collapsed alone", async () => {
+		parentWidth = 1400;
+		const onSidebarCollapsedChange = vi.fn();
+		render(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					initialSidebarCollapsed
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+
+		resizeWindow(1500);
+		await new Promise((resolve) => requestAnimationFrame(resolve));
+		expect(onSidebarCollapsedChange).not.toHaveBeenCalled();
 	});
 });
