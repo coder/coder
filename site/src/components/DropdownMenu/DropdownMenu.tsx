@@ -137,3 +137,24 @@ export const DropdownMenuSeparator: React.FC<
 		/>
 	);
 };
+
+type DropdownMenuLabelProps = React.ComponentProps<
+	typeof DropdownMenuPrimitive.Label
+> & {
+	inset?: boolean;
+};
+
+export const DropdownMenuLabel: React.FC<DropdownMenuLabelProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<DropdownMenuPrimitive.Label
+			className={cn(
+				"px-2 py-1.5 text-xs font-medium text-content-secondary",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};

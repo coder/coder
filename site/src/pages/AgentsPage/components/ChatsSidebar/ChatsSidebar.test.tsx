@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
@@ -230,8 +236,28 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+const openFilterSubmenu = async (
+	user: ReturnType<typeof userEvent.setup>,
+	name: string | RegExp,
+) => {
+	const menuOpen = screen.queryByRole("menu", { name: "Filter agents" });
+	if (!menuOpen) {
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+	}
+	await user.click(await screen.findByRole("menuitem", { name }));
+};
+
+// user-event pointerdown dismisses portaled submenus in jsdom before the
+// click can select. Radix selects on click, which fireEvent delivers.
+const chooseFilterOption = async (
+	role: "menuitemcheckbox" | "menuitemradio",
+	name: string,
+) => {
+	fireEvent.click(await screen.findByRole(role, { name }));
+};
+
 describe("ChatsSidebar filters", () => {
-	it("calls the sidebar filter change callback after Apply is clicked", async () => {
+	it("applies the archived checkbox", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -246,11 +272,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("radio", { name: "Archived" }));
-
-		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
-
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -312,9 +336,8 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await openFilterSubmenu(user, "Source");
+		await chooseFilterOption("menuitemcheckbox", "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
@@ -334,13 +357,65 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await chooseFilterOption("menuitemcheckbox", "Created by me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			sources: ["shared_with_me"],
+		});
+	});
+
+	it("keeps one chat status and one source selected", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						chatStatuses: ["unread"],
+						sources: ["shared_with_me"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await openFilterSubmenu(user, /Chat status/);
+		await chooseFilterOption("menuitemcheckbox", "Unread");
+		await openFilterSubmenu(user, /Source/);
+		await chooseFilterOption("menuitemcheckbox", "Shared with me");
+
+		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
+	});
+
+	it("clears every sidebar filter from the menu", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						archiveStatus: "archived",
+						groupBy: "chat_status",
+						prStatuses: ["draft"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(await screen.findByRole("button", { name: "Reset" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			groupBy: "chat_status",
 		});
 	});
 
