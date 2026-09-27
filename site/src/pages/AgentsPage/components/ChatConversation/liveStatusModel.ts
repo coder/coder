@@ -13,7 +13,7 @@ const RECONNECTING_MESSAGE = "Chat stream disconnected. Reconnecting…";
 export type LiveStatusModel =
 	| ({ phase: "idle" } & LiveStatusBase)
 	| ({ phase: "starting" } & LiveStatusBase)
-	| ({ phase: "streaming" } & LiveStatusBase)
+	| ({ phase: "streaming"; hasRecentOutput: boolean } & LiveStatusBase)
 	| ({ phase: "interrupting" } & LiveStatusBase)
 	| ({
 			phase: "retrying";
@@ -60,6 +60,8 @@ export type DeriveLiveStatusParams = {
 	persistedError: ChatDetailError | null;
 	isAwaitingFirstStreamChunk: boolean;
 	chatStatus: TypesGen.ChatStatus | null;
+	/** Whether the stream state changed within the recent-output window. */
+	hasRecentStreamOutput: boolean;
 };
 
 const getHasAccumulatedOutput = (streamState: StreamState | null): boolean =>
@@ -112,6 +114,7 @@ export const deriveLiveStatus = ({
 	persistedError,
 	isAwaitingFirstStreamChunk,
 	chatStatus,
+	hasRecentStreamOutput,
 }: DeriveLiveStatusParams): LiveStatusModel => {
 	const hasAccumulatedOutput = getHasAccumulatedOutput(streamState);
 	// The stream is cleared on error, so leftover blocks are stale.
@@ -147,7 +150,11 @@ export const deriveLiveStatus = ({
 	}
 
 	if (streamState !== null && chatStatus !== "error") {
-		return { phase: "streaming", hasAccumulatedOutput };
+		return {
+			phase: "streaming",
+			hasAccumulatedOutput,
+			hasRecentOutput: hasRecentStreamOutput,
+		};
 	}
 
 	if (persistedError) {

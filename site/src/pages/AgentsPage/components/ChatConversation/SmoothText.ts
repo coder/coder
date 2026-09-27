@@ -1,4 +1,9 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import {
+	useEffect,
+	useLayoutEffect,
+	useState,
+	useSyncExternalStore,
+} from "react";
 
 // Smooth streaming presentation constants. These control the jitter
 // buffer that makes streamed text appear at a steady cadence instead
@@ -50,6 +55,12 @@ function getAdaptiveRate(backlog: number): number {
 	);
 }
 
+type SmoothTextInput = {
+	fullText: string;
+	isStreaming: boolean;
+	bypassSmoothing: boolean;
+};
+
 /**
  * Deterministic text reveal engine for smoothing streamed output.
  *
@@ -70,6 +81,43 @@ export class SmoothTextEngine {
 	private rafId: number | null = null;
 	private previousTimestamp: number | null = null;
 	private listeners = new Set<() => void>();
+
+	/**
+	 * An initial input sets the starting visible length without starting
+	 * the animation loop, so a component can create the engine during
+	 * render and show the right prefix on its first paint.
+	 */
+	constructor(initial?: SmoothTextInput) {
+		if (initial) {
+			this.applyInput(
+				initial.fullText,
+				initial.isStreaming,
+				initial.bypassSmoothing,
+			);
+		}
+	}
+
+	private applyInput(
+		fullText: string,
+		isStreaming: boolean,
+		bypassSmoothing: boolean,
+	): void {
+		this.fullLength = fullText.length;
+		this.isStreaming = isStreaming;
+		this.bypassSmoothing = bypassSmoothing;
+
+		if (this.fullLength < this.visibleLengthValue) {
+			this.visibleLengthValue = this.fullLength;
+			this.charBudget = 0;
+		}
+
+		if (!isStreaming || bypassSmoothing) {
+			this.visibleLengthValue = this.fullLength;
+			this.charBudget = 0;
+		} else {
+			this.enforceMaxVisualLag();
+		}
+	}
 
 	private enforceMaxVisualLag(): void {
 		if (!this.isStreaming || this.bypassSmoothing) {
@@ -94,7 +142,10 @@ export class SmoothTextEngine {
 		}
 	}
 
-	private stopLoop(): void {
+	/**
+	 * Stop the animation loop. The next `update` restarts it.
+	 */
+	stop(): void {
 		if (this.rafId !== null) {
 			cancelAnimationFrame(this.rafId);
 			this.rafId = null;
@@ -141,24 +192,11 @@ export class SmoothTextEngine {
 	): void {
 		const prevVisible = this.visibleLengthValue;
 
-		this.fullLength = fullText.length;
-		this.isStreaming = isStreaming;
-		this.bypassSmoothing = bypassSmoothing;
-
-		if (this.fullLength < this.visibleLengthValue) {
-			this.visibleLengthValue = this.fullLength;
-			this.charBudget = 0;
-		}
-
+		this.applyInput(fullText, isStreaming, bypassSmoothing);
 		if (!isStreaming || bypassSmoothing) {
-			this.visibleLengthValue = this.fullLength;
-			this.charBudget = 0;
-			this.stopLoop();
-		} else {
-			this.enforceMaxVisualLag();
-			if (!this.isCaughtUp) {
-				this.startLoop();
-			}
+			this.stop();
+		} else if (!this.isCaughtUp) {
+			this.startLoop();
 		}
 
 		if (this.visibleLengthValue !== prevVisible) {
@@ -239,30 +277,18 @@ export class SmoothTextEngine {
 	 * Reset all engine state, typically when a new stream starts.
 	 */
 	reset(): void {
-		this.stopLoop();
+		this.stop();
 		this.fullLength = 0;
 		this.visibleLengthValue = 0;
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
 	}
-
-	/**
-	 * Stop the animation loop and release resources. Call when the
-	 * engine instance is being discarded.
-	 */
-	dispose(): void {
-		this.stopLoop();
-		this.listeners.clear();
-	}
 }
 
 // ── Hook ────────────────────────────────────────────────────────────
 
-type UseSmoothStreamingTextOptions = {
-	fullText: string;
-	isStreaming: boolean;
-	bypassSmoothing: boolean;
+type UseSmoothStreamingTextOptions = SmoothTextInput & {
 	/** Changing this resets the engine (new stream). */
 	streamKey: string;
 };
@@ -359,46 +385,42 @@ function sliceAtGraphemeBoundary(
 	return text.slice(0, safeEnd);
 }
 
-export function useSmoothStreamingText(
-	options: UseSmoothStreamingTextOptions,
-): UseSmoothStreamingTextResult {
-	// Store the engine and the streamKey it was created for together
-	// in a single useState. When the streamKey changes during render,
-	// we dispose the old engine and create a fresh one inline — this
-	// is the "derive state from props" pattern React documents for
-	// useState, avoiding useEffect for reset logic.
-	const [{ engine, streamKey }, setEngineState] = useState(() => ({
-		engine: new SmoothTextEngine(),
-		streamKey: options.streamKey,
+export function useSmoothStreamingText({
+	fullText,
+	isStreaming,
+	bypassSmoothing,
+	streamKey,
+}: UseSmoothStreamingTextOptions): UseSmoothStreamingTextResult {
+	// A new streamKey is a new stream, so it gets a fresh engine.
+	const [engineState, setEngineState] = useState(() => ({
+		engine: new SmoothTextEngine({ fullText, isStreaming, bypassSmoothing }),
+		streamKey,
 	}));
-
-	if (streamKey !== options.streamKey) {
-		engine.dispose();
-		const next = new SmoothTextEngine();
-		setEngineState({ engine: next, streamKey: options.streamKey });
-		// Use the new engine for the rest of this render.
-		next.update(options.fullText, options.isStreaming, options.bypassSmoothing);
-	} else {
-		engine.update(
-			options.fullText,
-			options.isStreaming,
-			options.bypassSmoothing,
-		);
+	let { engine } = engineState;
+	if (engineState.streamKey !== streamKey) {
+		engine = new SmoothTextEngine({ fullText, isStreaming, bypassSmoothing });
+		setEngineState({ engine, streamKey });
 	}
 
-	// Dispose on unmount.
-	useEffect(() => {
-		return () => engine.dispose();
-	}, [engine]);
+	// The engine drives its own animation loop, so render only reads it.
+	// A layout effect feeds a mounted engine new input, so a lag catch-up
+	// renders before paint.
+	useLayoutEffect(() => {
+		engine.update(fullText, isStreaming, bypassSmoothing);
+	}, [engine, fullText, isStreaming, bypassSmoothing]);
+
+	// StrictMode and <Activity> can run this cleanup on a mounted component;
+	// they re-run the layout effect above too, and its `update` restarts the loop.
+	useEffect(() => () => engine.stop(), [engine]);
 
 	const visibleLength = useSyncExternalStore(
 		engine.subscribe,
 		() => engine.visibleLength,
 	);
 
-	if (!options.isStreaming || options.bypassSmoothing) {
+	if (!isStreaming || bypassSmoothing) {
 		return {
-			visibleText: options.fullText,
+			visibleText: fullText,
 			isCaughtUp: true,
 		};
 	}
@@ -406,16 +428,13 @@ export function useSmoothStreamingText(
 	const visiblePrefixLength = Math.min(
 		visibleLength,
 		engine.visibleLength,
-		options.fullText.length,
+		fullText.length,
 	);
 
-	const visibleText = sliceAtGraphemeBoundary(
-		options.fullText,
-		visiblePrefixLength,
-	);
+	const visibleText = sliceAtGraphemeBoundary(fullText, visiblePrefixLength);
 
 	return {
 		visibleText,
-		isCaughtUp: visibleText.length === options.fullText.length,
+		isCaughtUp: visibleText.length === fullText.length,
 	};
 }
