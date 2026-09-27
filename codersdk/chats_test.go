@@ -245,7 +245,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
-		"invalid_args":                 "internal only, stripped before API responses (typescript:\"-\")",
+		"invalid_args":                 "internal only, cleared by StripInternal (typescript:\"-\")",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
