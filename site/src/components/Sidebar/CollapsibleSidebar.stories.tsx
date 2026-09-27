@@ -1,0 +1,310 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { CircleIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link, useLocation } from "react-router";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { CollapsibleSidebar } from "./CollapsibleSidebar";
+import { useSidebarContext } from "./SidebarContext";
+import { SidebarGroup } from "./SidebarGroup";
+import { SidebarHeader, SidebarHeaderTitle } from "./SidebarHeader";
+import { SidebarNavLink } from "./SidebarNavLink";
+
+const STORAGE_KEY = "story-collapsible-sidebar";
+const LABEL = "Demo settings";
+
+/** Nav content with a collapsed variant. */
+const DemoNav: FC = () => {
+	const { collapsed, expand } = useSidebarContext();
+	if (collapsed) {
+		return (
+			<Link
+				to="/demo/one"
+				onClick={expand}
+				aria-label="Demo home"
+				className="flex size-10 items-center justify-center rounded-md text-content-secondary hover:bg-surface-secondary"
+			>
+				<CircleIcon className="size-4" />
+			</Link>
+		);
+	}
+	return (
+		<SidebarGroup label="Demo">
+			<SidebarNavLink href="/demo/one">One</SidebarNavLink>
+			<SidebarNavLink href="/demo/two">Two</SidebarNavLink>
+		</SidebarGroup>
+	);
+};
+
+/** Renders the current path for assertions. */
+const LocationProbe: FC = () => {
+	const { pathname } = useLocation();
+	return (
+		<p role="status" aria-label="Current location">
+			{pathname}
+		</p>
+	);
+};
+
+const meta: Meta<typeof CollapsibleSidebar> = {
+	title: "components/Sidebar/CollapsibleSidebar",
+	component: CollapsibleSidebar,
+	args: {
+		label: LABEL,
+		storageKey: STORAGE_KEY,
+		header: (
+			<SidebarHeader>
+				<SidebarHeaderTitle>{LABEL}</SidebarHeaderTitle>
+			</SidebarHeader>
+		),
+		children: <DemoNav />,
+	},
+	// Reset the persisted state per story.
+	beforeEach: () => {
+		localStorage.setItem(STORAGE_KEY, "expanded");
+		return () => localStorage.removeItem(STORAGE_KEY);
+	},
+	decorators: [
+		(Story) => (
+			<div className="flex">
+				<div className="relative border-0 border-r border-solid border-border">
+					<Story />
+				</div>
+				<main className="flex-1 p-6 text-sm text-content-secondary">
+					<p>Page content</p>
+					<LocationProbe />
+				</main>
+			</div>
+		),
+	],
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/demo/one" },
+			routing: [
+				{ path: "/demo/one", useStoryElement: true },
+				{ path: "/demo/two", useStoryElement: true },
+			],
+		}),
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof CollapsibleSidebar>;
+
+const expectExpanded = async (canvas: ReturnType<typeof within>) => {
+	await waitFor(() => {
+		expect(canvas.getByRole("link", { name: "One" })).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		).toBeVisible();
+	});
+};
+
+const expectCollapsed = async (canvas: ReturnType<typeof within>) => {
+	await waitFor(() => {
+		expect(canvas.queryByRole("link", { name: "One" })).toBeNull();
+		expect(canvas.getByRole("link", { name: "Demo home" })).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Expand sidebar" }),
+		).toBeVisible();
+	});
+};
+
+/** The header toggle collapses, expands, and persists. */
+export const ToggleFromHeader: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expectExpanded(canvas);
+		expect(canvas.getByRole("navigation", { name: LABEL })).toBeVisible();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		);
+		await expectCollapsed(canvas);
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("collapsed");
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand sidebar" }),
+		);
+		await expectExpanded(canvas);
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
+	},
+};
+
+/** A persisted collapsed state is restored. */
+export const RestoresCollapsedPreference: Story = {
+	beforeEach: () => {
+		localStorage.setItem(STORAGE_KEY, "collapsed");
+		return () => localStorage.removeItem(STORAGE_KEY);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expectCollapsed(canvas);
+
+		// The collapsed variant's own control re-expands the sidebar.
+		await userEvent.click(canvas.getByRole("link", { name: "Demo home" }));
+		await expectExpanded(canvas);
+	},
+};
+
+/** Click toggles; drag snaps in its direction. */
+export const DragHandle: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const handle = canvas.getByRole("separator", { name: "Resize sidebar" });
+		// Synthetic pointer events have no active pointer to capture.
+		handle.setPointerCapture = () => {};
+		handle.releasePointerCapture = () => {};
+
+		const drag = async (fromX: number, toX: number) => {
+			await fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
+			await fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
+			await fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+		};
+
+		expect(handle).toHaveAttribute("aria-valuenow", "240");
+
+		// Under the dead zone, so a click.
+		await drag(240, 242);
+		await expectCollapsed(canvas);
+		expect(handle).toHaveAttribute("aria-valuenow", "64");
+
+		await drag(64, 66);
+		await expectExpanded(canvas);
+
+		// Drag left collapses.
+		await drag(240, 180);
+		await expectCollapsed(canvas);
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("collapsed");
+
+		// Drag right expands.
+		await drag(64, 140);
+		await expectExpanded(canvas);
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
+
+		// Drag clamped at the start edge is a no-op.
+		await drag(240, 400);
+		await expectExpanded(canvas);
+
+		// Canceled gestures never toggle.
+		await fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 });
+		await fireEvent.pointerCancel(handle, { clientX: 240, pointerId: 1 });
+		await expectExpanded(canvas);
+		await fireEvent.pointerDown(handle, { clientX: 240, pointerId: 1 });
+		await fireEvent.pointerMove(handle, { clientX: 120, pointerId: 1 });
+		await fireEvent.pointerCancel(handle, { clientX: 120, pointerId: 1 });
+		await expectExpanded(canvas);
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
+	},
+};
+
+/** Arrow, Home, and End keys collapse and expand. */
+export const KeyboardHandle: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const handle = canvas.getByRole("separator", { name: "Resize sidebar" });
+		handle.focus();
+
+		await userEvent.keyboard("{ArrowLeft}");
+		await expectCollapsed(canvas);
+		expect(handle).toHaveAttribute("aria-valuenow", "64");
+
+		await userEvent.keyboard("{ArrowRight}");
+		await expectExpanded(canvas);
+		expect(handle).toHaveAttribute("aria-valuenow", "240");
+
+		await userEvent.keyboard("{Home}");
+		await expectCollapsed(canvas);
+		await userEvent.keyboard("{End}");
+		await expectExpanded(canvas);
+	},
+};
+
+/** Below lg it starts collapsed and expands inline, not as a drawer. */
+export const StartsCollapsedBelowLg: Story = {
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+		// Pixel has no viewport width between md and lg.
+		pixel: { exclude: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expectCollapsed(canvas);
+		// Not persisted.
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand sidebar" }),
+		);
+		await expectExpanded(canvas);
+		expect(within(document.body).queryByRole("dialog")).toBeNull();
+	},
+};
+
+/** Below md it opens as a drawer that closes on Escape, outside, or link click. */
+export const MobileDrawer: Story = {
+	parameters: {
+		viewport: { defaultViewport: "iphone12" },
+		// Pixel ignores `viewport`; its phone width is also 390px.
+		layout: "fullscreen",
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		await expectCollapsed(canvas);
+
+		const openDrawer = async () => {
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Expand sidebar" }),
+			);
+			const drawer = await body.findByRole("dialog", { name: LABEL });
+			const inDrawer = within(drawer);
+			await waitFor(() => {
+				expect(inDrawer.getByRole("link", { name: "One" })).toBeVisible();
+			});
+			return inDrawer;
+		};
+		const expectClosed = async () => {
+			await waitFor(() => {
+				expect(body.queryByRole("dialog")).toBeNull();
+				expect(
+					canvas.getByRole("button", { name: "Expand sidebar" }),
+				).toHaveFocus();
+			});
+		};
+
+		// Escape.
+		let drawer = await openDrawer();
+		await waitFor(() => {
+			expect(
+				drawer.getByRole("button", { name: "Collapse sidebar" }),
+			).toHaveFocus();
+		});
+		await userEvent.keyboard("{Escape}");
+		await expectClosed();
+
+		// Toggle.
+		drawer = await openDrawer();
+		await userEvent.click(
+			drawer.getByRole("button", { name: "Collapse sidebar" }),
+		);
+		await expectClosed();
+
+		// Outside click. The page is inert, so skip user-event's pointer-events check.
+		await openDrawer();
+		const pageUser = userEvent.setup({ pointerEventsCheck: 0 });
+		await pageUser.click(canvas.getByText("Page content"));
+		await expectClosed();
+
+		// Link click.
+		drawer = await openDrawer();
+		await userEvent.click(drawer.getByRole("link", { name: "Two" }));
+		await expectClosed();
+		expect(
+			canvas.getByRole("status", { name: "Current location" }),
+		).toHaveTextContent("/demo/two");
+
+		expect(localStorage.getItem(STORAGE_KEY)).toBe("expanded");
+	},
+};
