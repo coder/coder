@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	getParkedWorkspaceUploads,
+	unparkWorkspaceUploads,
+} from "../utils/parkedWorkspaceUploads";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
 
@@ -101,5 +105,37 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("parks workspace files until the chat has a running workspace", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const chatId = "chat-without-workspace";
+		renderChatPageInput(createChatStore(), {
+			chat: { ...MockChat, id: chatId, organization_id: "", workspace_id: "" },
+			onSend,
+		});
+
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File([new Uint8Array(4)], "bundle.zip", { type: "application/zip" }),
+		);
+		await screen.findByText(
+			"Uploads when the workspace starts. Keep this chat open.",
+		);
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("create a workspace and unpack the bundle");
+		await user.click(screen.getByRole("button", { name: "Send" }));
+
+		await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+		expect(onSend.mock.calls[0][0]).toMatchObject({
+			message: "create a workspace and unpack the bundle",
+			workspaceUploads: undefined,
+		});
+		const parkedFiles = getParkedWorkspaceUploads(chatId).map(
+			(upload) => upload.file,
+		);
+		expect(parkedFiles.map((file) => file.name)).toEqual(["bundle.zip"]);
+		unparkWorkspaceUploads(chatId, parkedFiles);
 	});
 });

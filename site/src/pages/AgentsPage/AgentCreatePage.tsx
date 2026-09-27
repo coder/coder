@@ -34,6 +34,7 @@ import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
+import { parkWorkspaceUploads } from "./utils/parkedWorkspaceUploads";
 import {
 	debugWorkspaceBuildLogsFileName,
 	debugWorkspaceBuildPrompt,
@@ -201,6 +202,7 @@ const AgentCreatePage: FC = () => {
 		organizationId,
 		planMode,
 		uploadWorkspaceFiles,
+		parkedWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
@@ -303,6 +305,9 @@ const AgentCreatePage: FC = () => {
 			}
 		}
 
+		if (parkedWorkspaceFiles) {
+			parkWorkspaceUploads(createdChat.id, parkedWorkspaceFiles);
+		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
 			search: location.search,

@@ -8,7 +8,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, createRef, type ReactNode } from "react";
 import { toast } from "sonner";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
@@ -111,13 +111,6 @@ const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 const renderInput = (children: ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>);
 };
-
-beforeAll(() => {
-	Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-		configurable: true,
-		value: () => new DOMRect(0, 0, 1, 16),
-	});
-});
 
 afterEach(() => {
 	vi.unstubAllGlobals();
@@ -675,6 +668,96 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"Wait for the current message to finish sending, then add the file again.",
 		);
+	});
+
+	it("keeps parked uploads out of the composer's send", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					parkedUploads: [
+						{
+							id: "parked-uploading",
+							file: createMockFile("logs.tar.gz", "application/gzip"),
+							status: "uploading",
+						},
+						{
+							id: "parked-uploaded",
+							file: createMockFile("data.tar.gz", "application/gzip"),
+							status: "uploaded",
+							response: {
+								path: "/home/coder/.coder/chats/chat-1/files/data.tar.gz",
+								name: "data.tar.gz",
+								size: 8,
+								media_type: "application/gzip",
+								workspace_id: "ws-1",
+							},
+						},
+					],
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		await user.click(sendButton);
+		expect(onSend).not.toHaveBeenCalled();
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("while the files upload");
+		await user.click(sendButton);
+
+		expect(onSend).toHaveBeenCalledWith("while the files upload");
+	});
+
+	it("blocks retrying a workspace upload while a send is pending", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [
+						{
+							id: "failed-upload",
+							file: createMockFile("logs.tar.gz", "application/gzip"),
+							status: "error",
+							error: "disk full",
+						},
+					],
+					onRemove: vi.fn(),
+					onRetry,
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Retry uploading logs.tar.gz" }),
+		);
+
+		expect(onRetry).not.toHaveBeenCalled();
 	});
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {

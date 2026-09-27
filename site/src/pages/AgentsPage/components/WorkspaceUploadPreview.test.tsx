@@ -33,4 +33,28 @@ describe("WorkspaceUploadPreview", () => {
 
 		expect(onRemove).toHaveBeenCalledWith("uploaded-design-handoff.zip");
 	});
+
+	it("reports the retried entry by id", async () => {
+		const user = userEvent.setup();
+		const onRetry = vi.fn();
+		const failedEntry: WorkspaceFileUpload = {
+			id: "error-broken.zip",
+			file: createMockFile("broken.zip", "application/zip"),
+			status: "error",
+			error: "Failed to upload file to workspace agent.",
+		};
+		renderComponent(
+			<WorkspaceUploadPreview
+				uploads={[failedEntry]}
+				onRemove={vi.fn()}
+				onRetry={onRetry}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Retry uploading broken.zip" }),
+		);
+
+		expect(onRetry).toHaveBeenCalledWith("error-broken.zip");
+	});
 });

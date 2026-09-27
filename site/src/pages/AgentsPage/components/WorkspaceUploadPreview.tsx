@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { HardDriveUploadIcon, XIcon } from "lucide-react";
+import { HardDriveUploadIcon, RotateCcwIcon, XIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
@@ -14,14 +14,22 @@ import {
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
 
-const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
+export const parkedWorkspaceUploadLabel =
+	"Uploads when the workspace starts. Keep this chat open.";
+
+const uploadStatusLabel = (
+	upload: WorkspaceFileUpload,
+	deferredLabel: string,
+): string => {
 	switch (upload.status) {
 		case "deferred":
-			return "Uploads when sent";
+			return deferredLabel;
 		case "queued":
 			return "Waiting to upload...";
 		case "uploading":
-			return "Uploading to workspace...";
+			return upload.progress === undefined
+				? "Uploading to workspace..."
+				: `Uploading to workspace... ${upload.progress}%`;
 		case "uploaded":
 			return upload.response
 				? `${prettyBytes(upload.response.size)} in workspace`
@@ -31,16 +39,27 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 	}
 };
 
+type WorkspaceUploadPreviewProps = {
+	uploads: readonly WorkspaceFileUpload[];
+	onRemove: (id: string) => void;
+	onRetry?: (id: string) => void;
+	isRetryDisabled?: boolean;
+	deferredLabel?: string;
+};
+
 /**
  * Composer chip strip for files streamed into the chat's workspace
  * filesystem. Uploads are eager, so removing a chip only detaches the
  * reference from the draft message; bytes already written stay in the
  * workspace.
  */
-export const WorkspaceUploadPreview: FC<{
-	uploads: readonly WorkspaceFileUpload[];
-	onRemove: (id: string) => void;
-}> = ({ uploads, onRemove }) => {
+export const WorkspaceUploadPreview: FC<WorkspaceUploadPreviewProps> = ({
+	uploads,
+	onRemove,
+	onRetry,
+	isRetryDisabled = false,
+	deferredLabel = "Uploads when sent",
+}) => {
 	if (uploads.length === 0) {
 		return null;
 	}
@@ -70,15 +89,33 @@ export const WorkspaceUploadPreview: FC<{
 							</div>
 							<div
 								className={cn(
-									"truncate text-2xs",
+									"line-clamp-2 wrap-anywhere text-2xs",
 									upload.status === "error"
 										? "text-content-destructive"
 										: "text-content-secondary",
 								)}
 							>
-								{uploadStatusLabel(upload)}
+								{uploadStatusLabel(upload, deferredLabel)}
 							</div>
 						</div>
+						{onRetry && upload.status === "error" && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										type="button"
+										variant="subtle"
+										size="icon"
+										className="size-5 shrink-0 text-content-secondary hover:text-content-primary"
+										aria-label={`Retry uploading ${name}`}
+										disabled={isRetryDisabled}
+										onClick={() => onRetry(upload.id)}
+									>
+										<RotateCcwIcon className="size-3.5" />
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">Retry this upload</TooltipContent>
+							</Tooltip>
+						)}
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button

@@ -39,7 +39,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
@@ -2198,10 +2198,11 @@ export const PrefilledWorkspaceBuildDebug: Story = {
 	},
 };
 
-// Deferred workspace uploads: with a workspace selected, files that
-// cannot ride the attachment pipeline (e.g. zips) queue locally and
-// upload during submit, after the chat is created. Behavior is covered
-// in AgentCreateForm.test.tsx; these stories capture the visual states.
+// Deferred workspace uploads: files that cannot ride the attachment
+// pipeline (e.g. zips) queue locally. With a running workspace they
+// upload during submit; otherwise they park until a workspace starts.
+// Behavior is covered in AgentCreateForm.test.tsx; these stories
+// capture the visual states.
 
 const attachZipFile = async (canvasElement: HTMLElement) => {
 	// The hidden input has no role or accessible name.
@@ -2229,20 +2230,16 @@ export const WorkspaceFileQueuedForDeferredUpload: Story = {
 	},
 };
 
-export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
+export const WorkspaceFileParkedWithoutWorkspace: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
 		workspaceCount: mockWorkspaces.length,
 	},
-	decorators: [withToaster],
 	beforeEach: () => {
 		localStorage.clear();
 	},
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
-		await within(canvasElement.ownerDocument.body).findByText(
-			"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.",
-		);
 	},
 };
 
@@ -2270,28 +2267,5 @@ export const WorkspaceFileSubmissionLocksScopeControls: Story = {
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
 		await submitMessage(canvasElement, "inspect this archive");
-	},
-};
-
-export const DetachingWorkspaceDropsQueuedFiles: Story = {
-	args: {
-		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
-	},
-	decorators: [withToaster],
-	beforeEach: () => {
-		localStorage.clear();
-		localStorage.setItem("agents.selected-workspace-id", "ws-1");
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await attachZipFile(canvasElement);
-		await canvas.findByText("bundle.zip");
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Remove workspace my-project" }),
-		);
-		await within(canvasElement.ownerDocument.body).findByText(
-			"Removed 1 file that uploads to the workspace",
-		);
 	},
 };
