@@ -1191,8 +1191,8 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 			wantRequest: groupedRequest,
 		},
 		{
-			// Hooks see the paths the tool executes, while the stored
-			// call keeps the paths the model sent.
+			// Hooks see the paths the tool uses, while the stored call
+			// keeps the paths the model sent.
 			name: "HookSeesTrimmedPaths",
 			modelEdits: `{"edits":[` +
 				`{"path":" /repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +

@@ -86,12 +86,11 @@ var editFilesHookInputProperties = schema.ToParameters(schema.Generate(reflect.T
 
 // presentHookToolInputs returns the calls to send to pre_tool_use and the
 // model inputs it replaced, keyed by tool call ID. Hooks receive builtin
-// edit_files input grouped by path, the shape hook policies were written
-// for, instead of the model's flat edits list, with paths normalized the
-// way the tool executes them. Decoding drops keys the flat schema does
-// not declare. Input that does not decode is sent unchanged; the tool
-// rejects it without executing anything. Callers must have rejected
-// duplicate tool call IDs.
+// edit_files input grouped by path, the shape edit_files used before the
+// flat list, with paths normalized the way the tool uses them. Decoding
+// drops keys the flat schema does not declare. Input that does not
+// decode is sent unchanged; the tool rejects it without executing
+// anything. Callers must have rejected duplicate tool call IDs.
 func presentHookToolInputs(
 	prepared generationPrepared,
 	toolCalls []fantasy.ToolCallContent,
@@ -119,14 +118,13 @@ func presentHookToolInputs(
 	return presented, modelInputs
 }
 
-// restoreHookToolInputs undoes presentHookToolInputs on the pre_tool_use
-// result so persistence and execution see flat edit_files input: a call
-// without an override gets its model input back, and an override, which
-// must use the grouped form, is flattened. Persistence reads the flat
-// override from preflight.Overrides; the preflight.Allowed writes keep
-// that slice consistent for later readers, of which override validation
-// is currently the only one. The model cannot fix a bad override, so one
-// that is ambiguous or does not decode fails closed.
+// restoreHookToolInputs undoes presentHookToolInputs so persistence and
+// execution see flat edit_files input. A call without an override gets
+// its model input back. A grouped override is flattened into
+// preflight.Overrides, which persistence reads, and into
+// preflight.Allowed for later readers (currently only override
+// validation). The model cannot fix a bad override, so one that is
+// ambiguous or does not decode fails closed.
 func restoreHookToolInputs(
 	prepared generationPrepared,
 	preflight *chathooks.PreToolUseExecutionResult,
