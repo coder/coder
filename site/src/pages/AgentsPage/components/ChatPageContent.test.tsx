@@ -239,7 +239,7 @@ describe("ChatPageInput", () => {
 		vi.spyOn(toast, "error");
 
 		renderChatPageInput(createChatStore(), {
-			chat: { ...MockChat, organization_id: "" },
+			chat: { ...MockChat, organization_id: "", workspace_id: undefined },
 		});
 		await attachZipFile(user);
 
