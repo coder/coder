@@ -28,6 +28,17 @@ export const buildAttachmentMediaTypes = (
 	);
 };
 
+export const toWorkspaceFileReferencePart = (
+	upload: PendingWorkspaceUpload,
+): TypesGen.ChatWorkspaceFileReferencePart => ({
+	type: "workspace-file-reference",
+	workspace_file_path: upload.path,
+	workspace_file_name: upload.name,
+	workspace_file_size: upload.size,
+	workspace_file_media_type: upload.mediaType || "application/octet-stream",
+	workspace_file_workspace_id: upload.workspaceId,
+});
+
 /**
  * When `composerParts` is provided, file-reference chips stay in document
  * order. Omit it to send `message` as text only.
@@ -78,15 +89,7 @@ export const buildChatInputContent = ({
 
 	if (workspaceUploads && workspaceUploads.length > 0) {
 		for (const upload of workspaceUploads) {
-			content.push({
-				type: "workspace-file-reference",
-				workspace_file_path: upload.path,
-				workspace_file_name: upload.name,
-				workspace_file_size: upload.size,
-				workspace_file_media_type:
-					upload.mediaType || "application/octet-stream",
-				workspace_file_workspace_id: upload.workspaceId,
-			});
+			content.push(toWorkspaceFileReferencePart(upload));
 		}
 	}
 

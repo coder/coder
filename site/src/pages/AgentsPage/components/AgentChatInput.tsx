@@ -123,6 +123,10 @@ type WorkspaceUploadsProps = {
 	// is unavailable. Overridden on the new-chat page, where the fix
 	// is selecting a workspace rather than attaching one to the chat.
 	unavailableMessage?: string;
+	// Deferred mode (new-chat page): entries upload during submit and
+	// every entry re-uploads on the next send after a failure, so
+	// error chips still count as sendable content.
+	deferred?: boolean;
 };
 
 const workspaceRequiredAttachmentMessage =
@@ -987,9 +991,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
 		workspaceUploadEntries.some(isWorkspaceUploadInProgress);
+	// Deferred workspace entries upload during submit, so they count as
+	// sendable content just like finished uploads. In deferred mode
+	// failed entries stay sendable too: the next send re-uploads them
+	// against the fresh chat.
 	const hasUploadedAttachments =
 		attachments.some((f) => uploadStates?.get(f)?.status === "uploaded") ||
-		workspaceUploadEntries.some((upload) => upload.status === "uploaded");
+		workspaceUploadEntries.some(
+			(upload) =>
+				upload.status === "uploaded" ||
+				upload.status === "deferred" ||
+				(workspaceUploads?.deferred === true && upload.status === "error"),
+		);
 	const hasDraftContext =
 		hasContent ||
 		attachments.length > 0 ||
@@ -1294,6 +1307,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
+					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
@@ -1333,16 +1347,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					</div>
 				)}
 				{/* Hidden file input for attaching files. When workspace
-				uploads are available every file type is selectable:
-				non-allowlisted types stream into the workspace instead
-				of the attachment pipeline. */}
+				uploads are wired, every file type stays selectable even
+				while no workspace is ready: iOS silently greys out
+				filtered types, so routeFiles explains the refusal. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
 						type="file"
+						data-testid="chat-attachment-file-input"
 						multiple
 						accept={
-							onWorkspaceAttach ? undefined : chatAttachmentAcceptAttribute
+							workspaceUploads ? undefined : chatAttachmentAcceptAttribute
 						}
 						onChange={handleFileSelect}
 						className="hidden"
