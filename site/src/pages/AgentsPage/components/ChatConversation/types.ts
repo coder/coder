@@ -120,6 +120,5 @@ export type StreamState = {
 	toolCalls: Record<string, StreamToolCall>;
 	toolResults: Record<string, StreamToolResult>;
 	sources: Array<{ url: string; title: string }>;
-	/** Earliest reasoning or tool part timestamp. */
 	startedAt?: string;
 };
