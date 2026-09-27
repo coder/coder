@@ -699,18 +699,18 @@ func TestEditFiles_Grouping(t *testing.T) {
 	tests := []struct {
 		name  string
 		edits []chattool.EditFilesEdit
-		// agentFiles is the grouped agent request form.
+		// agentFiles is the expected GroupEditsByPath result.
 		agentFiles []workspacesdk.FileEdits
-		// hookJSON is the exact pre_tool_use tool_input.
+		// hookJSON is the exact JSON encoding of NewEditFilesHookInput.
 		hookJSON string
-		// flattened is the result of flattening hookJSON back to
-		// schema B.
+		// flattened is hookJSON decoded and flattened back to edits.
 		flattened []chattool.EditFilesEdit
 	}{
 		{
 			name:  "Empty",
 			edits: nil,
-			// An empty slice, not nil, so hooks see an array.
+			// Empty, not nil, so the encoded forms hold [] instead of
+			// null.
 			agentFiles: []workspacesdk.FileEdits{},
 			hookJSON:   `{"files":[]}`,
 			flattened:  []chattool.EditFilesEdit{},
@@ -820,9 +820,8 @@ func TestEditFiles_Grouping(t *testing.T) {
 		})
 	}
 
-	// A grouped override must accept only old_text/new_text, not the
-	// deprecated search/replace keys that workspacesdk.FileEdit
-	// decodes for old agents.
+	// Decoding a grouped override ignores the deprecated search/replace
+	// keys that workspacesdk.FileEdit falls back to.
 	t.Run("OverrideIgnoresSearchReplace", func(t *testing.T) {
 		t.Parallel()
 
