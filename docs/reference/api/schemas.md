@@ -5509,6 +5509,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
+## codersdk.ChatWorkspaceAgent
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description                                                                                             |
+|------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              | Agent ID is the selected agent in the workspace's latest build. It is absent when no agent is eligible. |
+
 ## codersdk.ChatWorkspaceTTLResponse
 
 ```json

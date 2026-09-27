@@ -1519,6 +1519,48 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get the chat agent for a workspace
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/workspace-agent?workspace_id=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/workspace-agent`
+
+Reports the agent in the workspace's latest build that
+uploads and generation select for a chat without a bound
+agent. The agent ID is absent when no agent is eligible.
+The response does not reflect agent connection status.
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description  |
+|----------------|-------|--------------|----------|--------------|
+| `workspace_id` | query | string(uuid) | true     | Workspace ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatWorkspaceAgent](schemas.md#codersdkchatworkspaceagent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get chat by ID
 
 ### Code samples

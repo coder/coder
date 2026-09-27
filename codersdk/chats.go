@@ -816,6 +816,14 @@ type UploadChatWorkspaceFileResponse struct {
 	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
 }
 
+// ChatWorkspaceAgent reports the workspace agent that uploads and
+// generation select for a chat without a bound agent.
+type ChatWorkspaceAgent struct {
+	// AgentID is the selected agent in the workspace's latest build.
+	// It is absent when no agent is eligible.
+	AgentID *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
+}
+
 // ChatMessagesResponse contains the messages and queued messages for a chat.
 type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
@@ -3347,6 +3355,21 @@ func (c *Client) SubmitToolResults(ctx context.Context, chatID uuid.UUID, req Su
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// GetChatWorkspaceAgent returns the agent the server selects for chats
+// in the workspace that have no bound agent.
+func (c *Client) GetChatWorkspaceAgent(ctx context.Context, workspaceID uuid.UUID) (ChatWorkspaceAgent, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/chats/workspace-agent?workspace_id=%s", workspaceID), nil)
+	if err != nil {
+		return ChatWorkspaceAgent{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatWorkspaceAgent{}, ReadBodyAsError(res)
+	}
+	var result ChatWorkspaceAgent
+	return result, ReadBodyAsJSON(res, &result)
 }
 
 // GetChatsByWorkspace returns a mapping of workspace ID to the latest

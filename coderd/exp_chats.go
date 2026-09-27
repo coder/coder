@@ -6989,6 +6989,62 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get the chat agent for a workspace
+// @ID get-the-chat-agent-for-a-workspace
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param workspace_id query string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.ChatWorkspaceAgent
+// @Router /api/v2/chats/workspace-agent [get]
+// @Description Reports the agent in the workspace's latest build that
+// @Description uploads and generation select for a chat without a bound
+// @Description agent. The agent ID is absent when no agent is eligible.
+// @Description The response does not reflect agent connection status.
+func (api *API) chatWorkspaceAgent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	vals := r.URL.Query()
+	parser := httpapi.NewQueryParamParser().RequiredNotEmpty("workspace_id")
+	workspaceID := parser.UUID(vals, uuid.Nil, "workspace_id")
+	parser.ErrorExcessParams(vals)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var resp codersdk.ChatWorkspaceAgent
+	if agent, err := agentselect.FindChatAgent(agents); err == nil {
+		resp.AgentID = &agent.ID
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // chatWorkspaceUploadAgent prefers the chat's bound agent when it is
 // still part of the latest build so uploads land on the same agent the
 // generation path uses. Otherwise it falls back to the deterministic

@@ -32,6 +32,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			})
 		})
 		r.Get("/by-workspace", api.chatsByWorkspace)
+		r.Get("/workspace-agent", api.chatWorkspaceAgent)
 		r.Get("/", api.listChats)
 		r.Post("/", api.postChats)
 		r.Get("/watch", api.watchChats)
