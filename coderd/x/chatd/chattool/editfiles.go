@@ -328,11 +328,11 @@ func executeEditFilesTool(
 				return resp.Content
 			}
 		}
-		// An edit whose old_text equals new_text (a no-op) rejects its file
-		// like any other error. In dogfood data, calls with one were followed
-		// by rework on that file more often than other calls. Texts that
-		// differ only in whitespace or line endings can still change the
-		// file, so the comparison is byte for byte.
+		// An edit whose old_text equals new_text (a no-op) changes nothing,
+		// so it is rejected rather than reported as applied. It rejects its
+		// whole file so that one rule covers every error in a file. Texts
+		// that differ only in whitespace or line endings can still change
+		// the file, so the comparison is byte for byte.
 		var noOps []int
 		for _, i := range indexes {
 			if args.Edits[i].OldText == args.Edits[i].NewText {
