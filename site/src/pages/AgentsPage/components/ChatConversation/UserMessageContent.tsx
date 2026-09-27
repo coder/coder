@@ -15,6 +15,7 @@ import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
 } from "./messageHelpers";
+import { WorkspaceFileChip } from "./WorkspaceFileChip";
 
 const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
@@ -105,6 +106,23 @@ export const UserMessageContent: FC<{
 									onImageClick={onImageClick}
 									onTextFileClick={onTextFileClick}
 									showTextStatus
+								/>
+							))}
+						</div>
+					)}
+					{displayState.hasWorkspaceFileReferences && (
+						<div
+							className={cn(
+								displayState.hasUserMessageBody && "mt-2",
+								"flex flex-wrap gap-2",
+							)}
+						>
+							{displayState.workspaceFileBlocks.map((block, index) => (
+								<WorkspaceFileChip
+									key={`workspace-file-${block.workspace_file_path}-${index}`}
+									name={block.workspace_file_name}
+									path={block.workspace_file_path}
+									size={block.workspace_file_size}
 								/>
 							))}
 						</div>

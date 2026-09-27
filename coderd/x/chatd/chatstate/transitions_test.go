@@ -43,6 +43,9 @@ func TestTransitionCreate_NToR0(t *testing.T) {
 	require.NotEmpty(t, res.InitialMessages)
 	require.Equal(t, int64(1), res.InitialMessages[0].Revision)
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, res.Chat.ID))
+	require.Contains(t,
+		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
+		chatstate.StateR0, "transition matrix must admit the N -> R0 create path")
 	require.True(t, f.Pub.hasOwnership(), "newly created chat is runnable and unowned")
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }
@@ -60,11 +63,67 @@ func TestCreateChat_RejectsEmptyInitialMessages(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		ClientType:        database.ChatClientTypeApi,
 		Title:             "t",
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   nil,
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 	require.Empty(t, f.Pub.channels, "rejected create must not publish")
+}
+
+// TestTransitionCreate_NToW verifies that CreateChat with
+// InitialStatus waiting lands a fresh chat in W: the chat is created
+// idle, so no ownership hint is published and no worker acquires it.
+func TestTransitionCreate_NToW(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	systemMsg := userTextMessage("system context", f.User.ID, f.Model.ID)
+	systemMsg.Role = database.ChatMessageRoleSystem
+	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:    f.Org.ID,
+		OwnerID:           f.User.ID,
+		LastModelConfigID: f.Model.ID,
+		Title:             "t",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusWaiting,
+		InitialMessages:   []chatstate.Message{systemMsg},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, res.Chat.Status)
+	require.Equal(t, int64(1), res.Chat.SnapshotVersion)
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, res.Chat.ID))
+	require.Contains(t,
+		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
+		chatstate.StateW, "transition matrix must admit the N -> W create path")
+	require.False(t, f.Pub.hasOwnership(), "waiting chat is not runnable, must not publish an ownership hint")
+	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
+}
+
+// TestCreateChat_RejectsInvalidInitialStatus verifies that CreateChat
+// only accepts waiting or running as the initial status. The zero
+// value defaults to running (see CreateChatInput), so only explicit
+// non-initial statuses are rejected.
+func TestCreateChat_RejectsInvalidInitialStatus(t *testing.T) {
+	t.Parallel()
+	for _, status := range []database.ChatStatus{database.ChatStatusError, database.ChatStatusInterrupting} {
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+			OrganizationID:    f.Org.ID,
+			OwnerID:           f.User.ID,
+			LastModelConfigID: f.Model.ID,
+			Title:             "t",
+			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     status,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", f.User.ID, f.Model.ID),
+			},
+		})
+		require.Error(t, err, "status %q", status)
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed, "status %q", status)
+		require.Empty(t, f.Pub.channels, "rejected create must not publish")
+	}
 }
 
 func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
@@ -79,6 +138,7 @@ func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   []chatstate.Message{assistant},
 	})
 	require.NoError(t, err)
@@ -95,6 +155,7 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("context user", f.User.ID, f.Model.ID),
 			userTextMessage("final user", f.User.ID, f.Model.ID),

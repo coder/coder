@@ -4,7 +4,7 @@
 
 ### Before Starting
 
-- [ ] Run `git pull` to ensure you're on latest code
+- [ ] Inspect the working tree and current branch; for an existing PR, check out its branch (see [Working on PR branches](#working-on-pr-branches))
 - [ ] Check if feature touches database - you'll need migrations
 - [ ] Check if feature touches audit logs - update `enterprise/audit/table.go`
 
@@ -30,7 +30,7 @@
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go's Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Create packages when used during implementation
 - Validate abstractions against implementations
-- **Test packages**: Use `package_test` naming (e.g., `identityprovider_test`) for black-box testing
+- **Test packages**: Use `package_test` naming (e.g., `oauth2provider_test`) for black-box testing
 
 ### Error Handling
 
@@ -38,7 +38,7 @@
 - Wrap errors with context
 - Propagate errors appropriately
 - Use proper error types
-- Pattern: `xerrors.Errorf("failed to X: %w", err)`
+- Pattern: `xerrors.Errorf("get workspace: %w", err)`; name the operation and omit "failed to" (see [ARCHITECTURE.md](ARCHITECTURE.md#development-philosophy))
 
 ## Naming Conventions
 
@@ -135,8 +135,8 @@
 
 ### Git Hooks
 
-**You MUST install and use the git hooks. NEVER bypass them with
-`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.**
+Install and use the git hooks, and do not bypass them with
+`--no-verify`. Skipping them pushes the same failures to CI and wastes CI cycles.
 
 The first run will be slow as caches warm up. Consecutive runs are
 **significantly faster** (often 10x) thanks to Go build cache,
@@ -192,7 +192,7 @@ Then make your changes and push normally. Don't use `git push --force` unless th
 
 ## Commit Style
 
-Format: `type(scope): message`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
+Format: `type(scope): message`. See [CONTRIBUTING.md](../../CONTRIBUTING.md#commit-messages) for full rules. PR titles are linted in CI.
 
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`
 - Scopes must be a real path (directory or file stem) containing all changed files
@@ -202,18 +202,18 @@ Format: `type(scope): message`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-mes
 
 ## Code Navigation and Investigation
 
-### Using LSP Tools (STRONGLY RECOMMENDED)
+### Using Language Servers
 
-**IMPORTANT**: Always use LSP tools for code navigation and understanding. These tools provide accurate, real-time analysis of the codebase and should be your first choice for code investigation.
+Use the Go and TypeScript language servers when available for definitions, references, type information, diagnostics, and renames. They resolve symbols across packages more reliably than text search; text search remains the right tool for string literals, SQL, configuration, and docs. The tool names below are the ones Claude Code exposes from `.mcp.json`; other harnesses name the same operations differently.
 
 #### Go LSP Tools (for backend code)
 
-1. **Find function definitions** (USE THIS FREQUENTLY):
+1. **Find function definitions**:
    - `mcp__go-language-server__definition symbolName`
    - Example: `mcp__go-language-server__definition getOAuth2ProviderAppAuthorize`
    - Quickly jump to function implementations across packages
 
-2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+2. **Find symbol references**:
    - `mcp__go-language-server__references symbolName`
    - Locate all usages of functions, types, or variables
    - Critical for refactoring and understanding data flow
@@ -224,12 +224,12 @@ Format: `type(scope): message`. See [CONTRIBUTING.md](CONTRIBUTING.md#commit-mes
 
 #### TypeScript LSP Tools (for frontend code in site/)
 
-1. **Find component/function definitions** (USE THIS FREQUENTLY):
+1. **Find component/function definitions**:
    - `mcp__typescript-language-server__definition symbolName`
    - Example: `mcp__typescript-language-server__definition LoginPage`
    - Quickly navigate to React components, hooks, and utility functions
 
-2. **Find symbol references** (ESSENTIAL FOR UNDERSTANDING IMPACT):
+2. **Find symbol references**:
    - `mcp__typescript-language-server__references symbolName`
    - Locate all usages of components, types, or functions
    - Critical for refactoring React components and understanding prop usage

@@ -40,7 +40,6 @@ import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../../utils/agentChatSendShortcut";
-import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
@@ -153,7 +152,7 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 // user intent to paste inline, so the large-paste-to-attachment
 // conversion is bypassed for that shortcut.
 const PasteSanitizationPlugin: FC<{
-	onFilePaste?: (file: File) => void;
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
@@ -228,20 +227,25 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for attachable files in the clipboard (e.g.
-					// pasted screenshots). Forward them to the parent
-					// via callback instead of inserting text.
+					// Check for files in the clipboard, such as pasted
+					// screenshots or archives. Forward all files to the
+					// parent, which routes each one to the attachment
+					// pipeline or a workspace upload by MIME type.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const attachable = Array.from(dataTransfer.files).filter(
-							isChatAttachmentFile,
-						);
-						if (attachable.length > 0) {
-							event.preventDefault();
-							for (const file of attachable) {
-								onFilePaste(file);
+						let routed = false;
+						for (const file of Array.from(dataTransfer.files)) {
+							if (onFilePaste(file)) {
+								routed = true;
 							}
+						}
+						if (routed) {
+							event.preventDefault();
 							return true;
 						}
+						// Every file was refused (for example an archive
+						// pasted while workspace uploads are unavailable).
+						// Fall through so accompanying clipboard text still
+						// pastes.
 					}
 
 					const text = getPastedPlainText(event, dataTransfer);
@@ -279,6 +283,37 @@ const PasteSanitizationPlugin: FC<{
 			unregister();
 		};
 	}, [allowTextAttachmentPaste, editor, onFilePaste]);
+
+	return null;
+};
+
+// Lexical ignores paste events while the editor is not editable, so a
+// composer locked for a pending send would silently drop pasted files
+// that the picker and drop target still route through onFilePaste.
+const LockedFilePastePlugin: FC<{
+	onFilePaste: (file: File) => boolean;
+}> = function LockedFilePastePlugin({ onFilePaste }) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		const handlePaste = (event: ClipboardEvent) => {
+			const files = event.clipboardData?.files;
+			if (editor.isEditable() || !files?.length) {
+				return;
+			}
+			event.preventDefault();
+			for (const file of Array.from(files)) {
+				onFilePaste(file);
+			}
+		};
+		return editor.registerRootListener((rootElement) => {
+			if (!rootElement) {
+				return;
+			}
+			rootElement.addEventListener("paste", handlePaste);
+			return () => rootElement.removeEventListener("paste", handlePaste);
+		});
+	}, [editor, onFilePaste]);
 
 	return null;
 };
@@ -501,8 +536,14 @@ type ChatMessageInputProps = Omit<
 	rows?: number;
 	onEnter?: () => void;
 	sendShortcut?: TypesGen.AgentChatSendShortcut;
-	onFilePaste?: (file: File) => void;
+	// Returns whether the file was routed anywhere (attachment or
+	// workspace upload). Refused files let the paste fall back to
+	// the clipboard's text payload.
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
+	// Keeps routing pasted files through onFilePaste while disabled, so
+	// the parent can refuse them visibly instead of losing them.
+	acceptFilePasteWhileDisabled?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
 	/**
@@ -591,6 +632,7 @@ const ChatMessageInput = ({
 	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	onFilePaste,
 	allowTextAttachmentPaste,
+	acceptFilePasteWhileDisabled,
 	disabled,
 	autoFocus,
 	hasWorkspace,
@@ -996,6 +1038,9 @@ const ChatMessageInput = ({
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
+				{onFilePaste && acceptFilePasteWhileDisabled && (
+					<LockedFilePastePlugin onFilePaste={onFilePaste} />
+				)}
 				{autoFocus && <AutoFocusPlugin />}
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}
