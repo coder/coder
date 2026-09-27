@@ -24,8 +24,8 @@ type EditFilesArgs struct {
 // EditFilesToolName is the registered name of the edit_files tool.
 const EditFilesToolName = "edit_files"
 
-// EditFilesEdit is one edit in the edit_files tool input. Unlike
-// workspacesdk.FileEdit, it carries the path of the file it changes.
+// EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
+// carries the path of the file it changes.
 type EditFilesEdit struct {
 	Path       string `json:"path" description:"Absolute path of the file to edit."`
 	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
