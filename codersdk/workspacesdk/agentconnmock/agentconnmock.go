@@ -469,6 +469,21 @@ func (mr *MockAgentConnMockRecorder) RecreateDevcontainer(ctx, devcontainerID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecreateDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).RecreateDevcontainer), ctx, devcontainerID)
 }
 
+// ResolveContextInstructions mocks base method.
+func (m *MockAgentConn) ResolveContextInstructions(ctx context.Context, req workspacesdk.ResolveContextInstructionsRequest) (workspacesdk.ResolveContextInstructionsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveContextInstructions", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.ResolveContextInstructionsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveContextInstructions indicates an expected call of ResolveContextInstructions.
+func (mr *MockAgentConnMockRecorder) ResolveContextInstructions(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveContextInstructions", reflect.TypeOf((*MockAgentConn)(nil).ResolveContextInstructions), ctx, req)
+}
+
 // ResolvePath mocks base method.
 func (m *MockAgentConn) ResolvePath(ctx context.Context, path string) (string, error) {
 	m.ctrl.T.Helper()
