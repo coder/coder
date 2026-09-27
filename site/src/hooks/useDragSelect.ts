@@ -1,6 +1,8 @@
 import {
 	type MouseEventHandler,
 	type PointerEventHandler,
+	useCallback,
+	useEffect,
 	useRef,
 } from "react";
 
@@ -13,18 +15,17 @@ type UseDragSelectOptions<T> = {
 };
 
 type DragState = {
-	anchor: number;
+	anchorId: string;
+	pointerId: number;
 	select: boolean;
 	initialIds: ReadonlySet<string>;
-	/** Set once the pointer has entered a row other than the anchor. */
 	moved: boolean;
 };
 
 /**
- * Selects a contiguous range of rows by holding the pointer down on one row's
- * checkbox and dragging across other rows. The range is set to match the
- * anchor row: dragging from an unchecked row selects, from a checked row
- * deselects. Dragging back over the range shrinks it again.
+ * Mouse-drag selection starting at a row's checkbox. Dragging from a selected
+ * row deselects the range; dragging back restores the original selection
+ * outside it.
  *
  * Spread `getHandleProps` on each row's checkbox, `getRowProps` on each row
  * element, and `getContainerProps` on their common parent.
@@ -37,92 +38,119 @@ export const useDragSelect = <T>({
 	onChange,
 }: UseDragSelectOptions<T>) => {
 	const dragRef = useRef<DragState | null>(null);
+	const suppressClickRef = useRef(false);
+	const clickTimeoutRef = useRef<number | undefined>(undefined);
 
-	const applyRange = (to: number) => {
-		const drag = dragRef.current;
-		if (!drag) {
-			return;
-		}
-		const ids = new Set(drag.initialIds);
-		const [start, end] =
-			drag.anchor < to ? [drag.anchor, to] : [to, drag.anchor];
-		for (const item of items.slice(start, end + 1)) {
-			if (isSelectable && !isSelectable(item)) {
-				continue;
-			}
-			if (drag.select) {
-				ids.add(getId(item));
-			} else {
-				ids.delete(getId(item));
-			}
-		}
-		onChange(items.filter((item) => ids.has(getId(item))));
-	};
+	const cancelDrag = useCallback(() => {
+		dragRef.current = null;
+		suppressClickRef.current = false;
+		window.clearTimeout(clickTimeoutRef.current);
+	}, []);
 
-	const endDrag = () => {
-		window.removeEventListener("pointerup", endDrag);
-		window.removeEventListener("pointercancel", endDrag);
-		// The click that follows pointerup still needs to see `moved` so it can
-		// be swallowed, so defer clearing until after it has been dispatched.
-		const drag = dragRef.current;
-		setTimeout(() => {
-			if (dragRef.current === drag) {
-				dragRef.current = null;
+	useEffect(() => {
+		const endDrag = (event: PointerEvent) => {
+			const drag = dragRef.current;
+			if (!drag || event.pointerId !== drag.pointerId) {
+				return;
 			}
-		}, 0);
-	};
+			cancelDrag();
+			if (drag.moved) {
+				// Ignore the click dispatched after pointerup, but not the next click
+				// if releasing outside the table produces no click here.
+				suppressClickRef.current = true;
+				clickTimeoutRef.current = window.setTimeout(() => {
+					suppressClickRef.current = false;
+				}, 0);
+			}
+		};
+		const onPointerCancel = (event: PointerEvent) => {
+			if (event.pointerId === dragRef.current?.pointerId) {
+				cancelDrag();
+			}
+		};
+
+		window.addEventListener("pointerup", endDrag, true);
+		window.addEventListener("pointercancel", onPointerCancel, true);
+		window.addEventListener("blur", cancelDrag);
+		return () => {
+			window.removeEventListener("pointerup", endDrag, true);
+			window.removeEventListener("pointercancel", onPointerCancel, true);
+			window.removeEventListener("blur", cancelDrag);
+			cancelDrag();
+		};
+	}, [cancelDrag]);
 
 	const getHandleProps = (
 		index: number,
-	): { onPointerDown: PointerEventHandler } => ({
+	): { onPointerDown: PointerEventHandler<HTMLElement> } => ({
 		onPointerDown: (event) => {
 			const item = items[index];
 			if (
 				event.button !== 0 ||
-				event.pointerType === "touch" ||
+				event.pointerType !== "mouse" ||
+				event.ctrlKey ||
 				item === undefined ||
 				(isSelectable && !isSelectable(item))
 			) {
 				return;
 			}
-			// Stops the browser from starting a text selection along the drag.
+			// Preventing text selection also suppresses the browser's normal focus.
 			event.preventDefault();
+			event.currentTarget.focus({ preventScroll: true });
+			cancelDrag();
 			const id = getId(item);
 			dragRef.current = {
-				anchor: index,
+				anchorId: id,
+				pointerId: event.pointerId,
 				select: !selected.some((s) => getId(s) === id),
 				initialIds: new Set(selected.map(getId)),
 				moved: false,
 			};
-			window.addEventListener("pointerup", endDrag);
-			window.addEventListener("pointercancel", endDrag);
 		},
 	});
 
 	const getRowProps = (
 		index: number,
 	): { onPointerEnter: PointerEventHandler } => ({
-		onPointerEnter: () => {
+		onPointerEnter: (event) => {
 			const drag = dragRef.current;
-			if (!drag) {
+			if (!drag || event.pointerId !== drag.pointerId) {
 				return;
 			}
-			if (index !== drag.anchor) {
+			const anchor = items.findIndex((item) => getId(item) === drag.anchorId);
+			if ((event.buttons & 1) === 0 || anchor === -1) {
+				cancelDrag();
+				return;
+			}
+			if (index !== anchor) {
 				drag.moved = true;
 			}
-			if (drag.moved) {
-				applyRange(index);
+			if (!drag.moved) {
+				return;
 			}
+
+			const ids = new Set(drag.initialIds);
+			const [start, end] = anchor < index ? [anchor, index] : [index, anchor];
+			for (const item of items.slice(start, end + 1)) {
+				if (isSelectable && !isSelectable(item)) {
+					continue;
+				}
+				if (drag.select) {
+					ids.add(getId(item));
+				} else {
+					ids.delete(getId(item));
+				}
+			}
+			onChange(items.filter((item) => ids.has(getId(item))));
 		},
 	});
 
 	const getContainerProps = (): { onClickCapture: MouseEventHandler } => ({
 		onClickCapture: (event) => {
-			// Releasing back on the anchor row would otherwise register as a
-			// click on it, navigating away or toggling the checkbox again.
-			if (dragRef.current?.moved) {
+			if (suppressClickRef.current && event.detail !== 0) {
+				event.preventDefault();
 				event.stopPropagation();
-				dragRef.current = null;
+				cancelDrag();
 			}
 		},
 	});

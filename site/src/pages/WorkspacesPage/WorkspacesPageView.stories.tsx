@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
+import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
@@ -633,6 +634,18 @@ export const WithCheckedWorkspaces: Story = {
 		workspaces: allWorkspaces.slice(0, 5),
 		checkedWorkspaces: allWorkspaces.slice(0, 2),
 		count: 5,
+	},
+	render: function WithCheckedWorkspacesRender(args) {
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState(
+			args.checkedWorkspaces,
+		);
+		return (
+			<WorkspacesPageView
+				{...args}
+				checkedWorkspaces={checkedWorkspaces}
+				onCheckChange={setCheckedWorkspaces}
+			/>
+		);
 	},
 };
 
