@@ -55,6 +55,12 @@ function getAdaptiveRate(backlog: number): number {
 	);
 }
 
+type SmoothTextInput = {
+	fullText: string;
+	isStreaming: boolean;
+	bypassSmoothing: boolean;
+};
+
 /**
  * Deterministic text reveal engine for smoothing streamed output.
  *
@@ -81,11 +87,7 @@ export class SmoothTextEngine {
 	 * the animation loop, so a component can create the engine during
 	 * render and show the right prefix on its first paint.
 	 */
-	constructor(initial?: {
-		fullText: string;
-		isStreaming: boolean;
-		bypassSmoothing: boolean;
-	}) {
+	constructor(initial?: SmoothTextInput) {
 		if (initial) {
 			this.applyInput(
 				initial.fullText,
@@ -140,7 +142,10 @@ export class SmoothTextEngine {
 		}
 	}
 
-	private stopLoop(): void {
+	/**
+	 * Stop the animation loop. The next `update` restarts it.
+	 */
+	stop(): void {
 		if (this.rafId !== null) {
 			cancelAnimationFrame(this.rafId);
 			this.rafId = null;
@@ -189,7 +194,7 @@ export class SmoothTextEngine {
 
 		this.applyInput(fullText, isStreaming, bypassSmoothing);
 		if (!isStreaming || bypassSmoothing) {
-			this.stopLoop();
+			this.stop();
 		} else if (!this.isCaughtUp) {
 			this.startLoop();
 		}
@@ -272,38 +277,18 @@ export class SmoothTextEngine {
 	 * Reset all engine state, typically when a new stream starts.
 	 */
 	reset(): void {
-		this.stopLoop();
+		this.stop();
 		this.fullLength = 0;
 		this.visibleLengthValue = 0;
 		this.charBudget = 0;
 		this.isStreaming = false;
 		this.bypassSmoothing = false;
 	}
-
-	/**
-	 * Start the animation loop if streamed text is still hidden. Safe to call
-	 * while the loop is already running.
-	 */
-	start(): void {
-		if (this.isStreaming && !this.bypassSmoothing && !this.isCaughtUp) {
-			this.startLoop();
-		}
-	}
-
-	/**
-	 * Stop the animation loop. `start` or the next `update` restarts it.
-	 */
-	stop(): void {
-		this.stopLoop();
-	}
 }
 
 // ── Hook ────────────────────────────────────────────────────────────
 
-type UseSmoothStreamingTextOptions = {
-	fullText: string;
-	isStreaming: boolean;
-	bypassSmoothing: boolean;
+type UseSmoothStreamingTextOptions = SmoothTextInput & {
 	/** Changing this resets the engine (new stream). */
 	streamKey: string;
 };
@@ -406,9 +391,7 @@ export function useSmoothStreamingText({
 	bypassSmoothing,
 	streamKey,
 }: UseSmoothStreamingTextOptions): UseSmoothStreamingTextResult {
-	// A new streamKey is a new stream, so it gets a fresh engine. Creating
-	// one from its first input has no side effects, so doing it during
-	// render is safe, and the first paint already shows the right prefix.
+	// A new streamKey is a new stream, so it gets a fresh engine.
 	const [engineState, setEngineState] = useState(() => ({
 		engine: new SmoothTextEngine({ fullText, isStreaming, bypassSmoothing }),
 		streamKey,
@@ -420,20 +403,15 @@ export function useSmoothStreamingText({
 	}
 
 	// The engine drives its own animation loop, so render only reads it.
-	// A layout effect feeds a mounted engine new input, so synchronous
-	// visible-length changes (stream end, bypass, shrink, lag catch-up)
-	// render before paint.
+	// A layout effect feeds a mounted engine new input, so a lag catch-up
+	// renders before paint.
 	useLayoutEffect(() => {
 		engine.update(fullText, isStreaming, bypassSmoothing);
 	}, [engine, fullText, isStreaming, bypassSmoothing]);
 
-	// React can run this cleanup and then setup again on a mounted component
-	// (StrictMode in development, <Activity> when a subtree is hidden and
-	// shown), so setup must restart what cleanup stops.
-	useEffect(() => {
-		engine.start();
-		return () => engine.stop();
-	}, [engine]);
+	// StrictMode and <Activity> can run this cleanup on a mounted component;
+	// they re-run the layout effect above too, and its `update` restarts the loop.
+	useEffect(() => () => engine.stop(), [engine]);
 
 	const visibleLength = useSyncExternalStore(
 		engine.subscribe,

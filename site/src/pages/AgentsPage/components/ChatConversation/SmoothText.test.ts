@@ -161,7 +161,7 @@ describe("SmoothTextEngine", () => {
 		expect(Math.abs(at60Hz - at240Hz)).toBeLessThanOrEqual(2);
 	});
 
-	it("pauses the reveal on stop and resumes it on start", () => {
+	it("pauses the reveal on stop and resumes it on the next update", () => {
 		vi.useFakeTimers({
 			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
 		});
@@ -173,15 +173,15 @@ describe("SmoothTextEngine", () => {
 				bypassSmoothing: false,
 			});
 
-			// `update` and `start` can both run before `stop`, so a second start
-			// must not leave a loop running that `stop` cannot cancel.
+			// A second `update` must not leave a loop running that `stop` cannot
+			// cancel.
 			engine.update(fullText, true, false);
-			engine.start();
+			engine.update(fullText, true, false);
 			engine.stop();
 			vi.advanceTimersByTime(1_000);
 			expect(engine.visibleLength).toBe(0);
 
-			engine.start();
+			engine.update(fullText, true, false);
 			vi.advanceTimersByTime(1_000);
 			expect(engine.visibleLength).toBe(fullText.length);
 		} finally {
