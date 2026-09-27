@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import {
 	type AgentsPageOutletContext,
 	applyNarrowWidthCollapse,
+	createOpenPanelRegistry,
 	type SidebarCollapsedBy,
 } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
@@ -72,16 +73,22 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	panelKey,
 	...harnessProps
 }) => {
-	const [collapsedBy, setCollapsedByState] = useState<SidebarCollapsedBy>(
+	const [collapsedBy, setCollapsedBy] = useState<SidebarCollapsedBy>(
 		initialSidebarCollapsed ? "user" : null,
 	);
 	const isSidebarCollapsed = collapsedBy !== null;
-	const setCollapsedBy = (next: SidebarCollapsedBy) => {
-		setCollapsedByState(next);
-		if ((next !== null) !== isSidebarCollapsed) {
-			onSidebarCollapsedChange?.(next !== null);
+	const reportedCollapsed = useRef(isSidebarCollapsed);
+	useEffect(() => {
+		if (reportedCollapsed.current !== isSidebarCollapsed) {
+			reportedCollapsed.current = isSidebarCollapsed;
+			onSidebarCollapsedChange?.(isSidebarCollapsed);
 		}
-	};
+	}, [isSidebarCollapsed, onSidebarCollapsedChange]);
+	const [registerOpenRightPanel] = useState(() =>
+		createOpenPanelRegistry(() =>
+			setCollapsedBy((prev) => applyNarrowWidthCollapse(prev, false)),
+		),
+	);
 	const toggleByUser = () => setCollapsedBy(isSidebarCollapsed ? null : "user");
 	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons: {},
@@ -100,8 +107,9 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		onExpandSidebar: () => setCollapsedBy(null),
 		isSidebarCollapsedByNarrowWidth: collapsedBy === "narrowWidth",
 		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
-			setCollapsedBy(applyNarrowWidthCollapse(collapsedBy, collapsed)),
+			setCollapsedBy((prev) => applyNarrowWidthCollapse(prev, collapsed)),
 		getExpandedSidebarWidth: () => 320,
+		registerOpenRightPanel,
 		onChatReady: () => {},
 	};
 
@@ -425,6 +433,10 @@ describe("RightPanel sidebar auto-collapse", () => {
 				/>
 			</MemoryRouter>,
 		);
+		await nextFrame();
+		await nextFrame();
+		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
+
 		resizeWindow(1100);
 
 		await waitFor(() =>
@@ -496,6 +508,8 @@ describe("RightPanel sidebar auto-collapse", () => {
 
 		await user.click(screen.getByRole("button", { name: "Close panel" }));
 
-		expect(onSidebarCollapsedChange.mock.calls).toEqual([[true], [false]]);
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange.mock.calls).toEqual([[true], [false]]),
+		);
 	});
 });

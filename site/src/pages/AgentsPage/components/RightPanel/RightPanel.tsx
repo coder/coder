@@ -260,6 +260,7 @@ export const RightPanel = ({
 		isSidebarCollapsedByNarrowWidth,
 		onSidebarCollapsedByNarrowWidthChange,
 		getExpandedSidebarWidth,
+		registerOpenRightPanel,
 	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
@@ -363,16 +364,13 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
-	// A sidebar collapsed to fit the panel comes back once the panel closes.
+	// While open, keep a sidebar collapsed to fit this panel from being restored.
 	useEffect(() => {
-		if (!isOpen && isSidebarCollapsedByNarrowWidth) {
-			onSidebarCollapsedByNarrowWidthChange?.(false);
+		if (!isOpen) {
+			return;
 		}
-	}, [
-		isOpen,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-	]);
+		return registerOpenRightPanel?.();
+	}, [isOpen, registerOpenRightPanel]);
 
 	const getPanelWidth = useEffectEvent(() => width);
 

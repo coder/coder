@@ -33,7 +33,10 @@ export function clampLeftSidebarWidth(width: number): number {
 	);
 }
 
-/** The stored width before clamping to the current viewport. */
+/**
+ * The stored width before clamping to the current viewport, or
+ * LEFT_SIDEBAR_DEFAULT_WIDTH when storage is unreadable, empty, or out of range.
+ */
 export function loadStoredLeftSidebarWidth(): number {
 	let stored: string | null;
 	try {
@@ -58,8 +61,22 @@ export function loadStoredLeftSidebarWidth(): number {
 	return parsed;
 }
 
-export function loadPersistedLeftSidebarWidth(): number {
+/** The stored width clamped to fit the current viewport. */
+export function loadClampedLeftSidebarWidth(): number {
 	return clampLeftSidebarWidth(loadStoredLeftSidebarWidth());
+}
+
+/** CSS variable the sidebar frame sets to its expanded width. */
+export const LEFT_SIDEBAR_WIDTH_VAR = "--agents-left-sidebar-width";
+
+/** Reads the expanded width a sidebar frame renders, even while collapsed. */
+export function readLeftSidebarWidth(
+	frame: HTMLElement | null,
+): number | undefined {
+	const width = Number.parseFloat(
+		frame?.style.getPropertyValue(LEFT_SIDEBAR_WIDTH_VAR) ?? "",
+	);
+	return width > 0 ? width : undefined;
 }
 
 export function persistLeftSidebarWidth(width: number): void {

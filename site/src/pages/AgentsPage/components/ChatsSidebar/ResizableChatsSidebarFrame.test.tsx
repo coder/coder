@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
+	readLeftSidebarWidth,
 } from "./sidebarWidth";
 
 // Pointer events are dispatched with fireEvent because userEvent cannot emit
@@ -151,5 +153,17 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		fireEvent.animationEnd(screen.getByTestId("agents-sidebar-panel"));
 		expect(onViewportSlideEnd).toHaveBeenCalledOnce();
+	});
+
+	it("exposes its expanded width to readLeftSidebarWidth while collapsed", () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+		const ref = createRef<HTMLDivElement>();
+		render(
+			<ResizableChatsSidebarFrame ref={ref} isCollapsed>
+				<div>sidebar</div>
+			</ResizableChatsSidebarFrame>,
+		);
+
+		expect(readLeftSidebarWidth(ref.current)).toBe(400);
 	});
 });

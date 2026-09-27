@@ -4,6 +4,8 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	applyNarrowWidthCollapse,
 	chatCostIdToInvalidate,
+	createOpenPanelRegistry,
+	nextSidebarViewportSlide,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import {
@@ -1069,4 +1071,104 @@ describe("applyNarrowWidthCollapse", () => {
 			expect(applyNarrowWidthCollapse(prev, collapsed)).toBe(expected);
 		},
 	);
+});
+
+describe("nextSidebarViewportSlide", () => {
+	const chatRoute = {
+		isSidebarHiddenOnMobile: true,
+		isSidebarCollapsed: false,
+	};
+	it.each([
+		{
+			name: "starts sliding out when crossing to mobile",
+			input: {
+				...chatRoute,
+				slide: null,
+				isMobileViewport: true,
+				prevIsMobileViewport: false,
+			},
+			expected: "out",
+		},
+		{
+			name: "starts sliding in when crossing to desktop",
+			input: {
+				...chatRoute,
+				slide: null,
+				isMobileViewport: false,
+				prevIsMobileViewport: true,
+			},
+			expected: "in",
+		},
+		{
+			name: "keeps a running slide",
+			input: {
+				...chatRoute,
+				slide: "out",
+				isMobileViewport: true,
+				prevIsMobileViewport: true,
+			},
+			expected: "out",
+		},
+		{
+			name: "stops a stale out after navigating to the chat list",
+			input: {
+				...chatRoute,
+				isSidebarHiddenOnMobile: false,
+				slide: "out",
+				isMobileViewport: true,
+				prevIsMobileViewport: true,
+			},
+			expected: null,
+		},
+		{
+			name: "stops a stale in after a user collapse",
+			input: {
+				...chatRoute,
+				isSidebarCollapsed: true,
+				slide: "in",
+				isMobileViewport: false,
+				prevIsMobileViewport: false,
+			},
+			expected: null,
+		},
+		{
+			name: "does not slide a collapsed sidebar across the breakpoint",
+			input: {
+				...chatRoute,
+				isSidebarCollapsed: true,
+				slide: null,
+				isMobileViewport: true,
+				prevIsMobileViewport: false,
+			},
+			expected: null,
+		},
+	] as const)("$name", ({ input, expected }) => {
+		expect(nextSidebarViewportSlide(input)).toBe(expected);
+	});
+});
+
+describe("createOpenPanelRegistry", () => {
+	const nextFrame = () =>
+		new Promise((resolve) => requestAnimationFrame(resolve));
+
+	it("reports none open a frame after the last panel unregisters", async () => {
+		const onNoneOpen = vi.fn();
+		const register = createOpenPanelRegistry(onNoneOpen);
+
+		register()();
+		expect(onNoneOpen).not.toHaveBeenCalled();
+		await nextFrame();
+		expect(onNoneOpen).toHaveBeenCalledOnce();
+	});
+
+	it("ignores an unregister followed by a register in the same frame", async () => {
+		const onNoneOpen = vi.fn();
+		const register = createOpenPanelRegistry(onNoneOpen);
+
+		const unregisterFirst = register();
+		unregisterFirst();
+		register();
+		await nextFrame();
+		expect(onNoneOpen).not.toHaveBeenCalled();
+	});
 });

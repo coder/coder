@@ -78,6 +78,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { readLeftSidebarWidth } from "./components/ChatsSidebar/sidebarWidth";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -125,8 +126,17 @@ export type AgentsPageOutletContext = {
 	isSidebarCollapsedByNarrowWidth?: boolean;
 	/** Records or clears a narrow-width collapse. Never changes a user collapse. */
 	onSidebarCollapsedByNarrowWidthChange?: (collapsed: boolean) => void;
-	/** The sidebar frame's current width, even while collapsed. */
+	/**
+	 * The width the sidebar frame expands to, readable while collapsed.
+	 * Undefined when the frame is not mounted; RightPanel then skips the
+	 * restore check.
+	 */
 	getExpandedSidebarWidth?: () => number | undefined;
+	/**
+	 * Registers an open RightPanel and returns its unregister function. A
+	 * narrow-width collapse is cleared once no open panel remains.
+	 */
+	registerOpenRightPanel?: () => () => void;
 	onChatReady: () => void;
 };
 
@@ -141,6 +151,56 @@ export const applyNarrowWidthCollapse = (
 		return prev ?? "narrowWidth";
 	}
 	return prev === "narrowWidth" ? null : prev;
+};
+
+/**
+ * Counts mounted open right panels and calls onNoneOpen once none remain
+ * after a frame. Waiting a frame keeps a chat switch, which unmounts one
+ * panel and mounts the next, from counting as all closed.
+ */
+export const createOpenPanelRegistry = (onNoneOpen: () => void) => {
+	let openCount = 0;
+	return () => {
+		openCount += 1;
+		return () => {
+			openCount -= 1;
+			requestAnimationFrame(() => {
+				if (openCount === 0) {
+					onNoneOpen();
+				}
+			});
+		};
+	};
+};
+
+export type SidebarViewportSlide = "in" | "out" | null;
+
+/**
+ * The sidebar slide after a render. Crossing the sm breakpoint starts one on
+ * routes that hide the sidebar on mobile. A slide that no longer applies is
+ * stopped: left running, "out" hides the mobile chat list until it ends, and
+ * "in" grows a sidebar the user just collapsed.
+ */
+export const nextSidebarViewportSlide = ({
+	slide,
+	isMobileViewport,
+	prevIsMobileViewport,
+	isSidebarHiddenOnMobile,
+	isSidebarCollapsed,
+}: {
+	slide: SidebarViewportSlide;
+	isMobileViewport: boolean;
+	prevIsMobileViewport: boolean;
+	isSidebarHiddenOnMobile: boolean;
+	isSidebarCollapsed: boolean;
+}): SidebarViewportSlide => {
+	if (!isSidebarHiddenOnMobile || isSidebarCollapsed) {
+		return null;
+	}
+	if (isMobileViewport !== prevIsMobileViewport) {
+		return isMobileViewport ? "out" : "in";
+	}
+	return slide;
 };
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -378,6 +438,11 @@ const AgentsPageLayout: FC = () => {
 		useState<SidebarCollapsedBy>(null);
 	const isSidebarCollapsed = sidebarCollapsedBy !== null;
 	const sidebarFrameRef = useRef<HTMLDivElement>(null);
+	const [registerOpenRightPanel] = useState(() =>
+		createOpenPanelRegistry(() =>
+			setSidebarCollapsedBy((prev) => applyNarrowWidthCollapse(prev, false)),
+		),
+	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -699,29 +764,22 @@ const AgentsPageLayout: FC = () => {
 
 	// Mobile hides the sidebar on these routes, so slide it across the sm breakpoint.
 	const isMobileViewport = useMediaQuery(mobileViewportMediaQuery);
-	const isSidebarHiddenOnMobile = Boolean(agentId) || isSettingsDetail;
 	const [prevIsMobileViewport, setPrevIsMobileViewport] =
 		useState(isMobileViewport);
-	const [sidebarViewportSlide, setSidebarViewportSlide] = useState<
-		"in" | "out" | null
-	>(null);
+	const [sidebarViewportSlide, setSidebarViewportSlide] =
+		useState<SidebarViewportSlide>(null);
+	const nextViewportSlide = nextSidebarViewportSlide({
+		slide: sidebarViewportSlide,
+		isMobileViewport,
+		prevIsMobileViewport,
+		isSidebarHiddenOnMobile: Boolean(agentId) || isSettingsDetail,
+		isSidebarCollapsed,
+	});
 	if (isMobileViewport !== prevIsMobileViewport) {
 		setPrevIsMobileViewport(isMobileViewport);
-		setSidebarViewportSlide(
-			isSidebarHiddenOnMobile && !isSidebarCollapsed
-				? isMobileViewport
-					? "out"
-					: "in"
-				: null,
-		);
-	} else if (
-		sidebarViewportSlide !== null &&
-		(!isSidebarHiddenOnMobile || isSidebarCollapsed)
-	) {
-		// Stop a slide that no longer applies. Left running, "out" hides the
-		// mobile chat list until it ends, and "in" grows a sidebar the user
-		// just collapsed.
-		setSidebarViewportSlide(null);
+	}
+	if (nextViewportSlide !== sidebarViewportSlide) {
+		setSidebarViewportSlide(nextViewportSlide);
 	}
 
 	// The sidebar expects plain string error messages, but the outlet
@@ -760,14 +818,9 @@ const AgentsPageLayout: FC = () => {
 			setSidebarCollapsedBy((prev) =>
 				applyNarrowWidthCollapse(prev, collapsed),
 			),
-		getExpandedSidebarWidth: () => {
-			const width = Number.parseFloat(
-				sidebarFrameRef.current?.style.getPropertyValue(
-					"--agents-left-sidebar-width",
-				) ?? "",
-			);
-			return width > 0 ? width : undefined;
-		},
+		getExpandedSidebarWidth: () =>
+			readLeftSidebarWidth(sidebarFrameRef.current),
+		registerOpenRightPanel,
 		onChatReady: () => {},
 	};
 

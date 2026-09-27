@@ -13,6 +13,7 @@ import {
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
+	LEFT_SIDEBAR_WIDTH_VAR,
 	loadStoredLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
@@ -132,7 +133,7 @@ export const ResizableChatsSidebarFrame = ({
 			ref={ref}
 			data-testid="agents-sidebar-panel"
 			style={{
-				"--agents-left-sidebar-width": `${width}px`,
+				[LEFT_SIDEBAR_WIDTH_VAR]: `${width}px`,
 				"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
 				"--agents-left-sidebar-max-width": `${maxWidth}px`,
 				"--panel-width": `${width}px`,
