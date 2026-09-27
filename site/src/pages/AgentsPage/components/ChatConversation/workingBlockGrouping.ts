@@ -42,6 +42,8 @@ export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
 	/** The turn is still producing output (any non-idle, non-failed phase). */
 	isTurnActive: boolean;
+	/** The agent is producing output; false while an interrupt drains the turn. */
+	isWorking: boolean;
 	/**
 	 * Whether the live row may be folded into the block: the turn is
 	 * starting a step or streaming one. Retry, reconnect, and interrupt
@@ -237,7 +239,7 @@ export const groupWorkingBlocks = (
 		// follows its last step.
 		const lastMemberId = Math.max(...memberIds);
 		const isLive =
-			options.isTurnActive &&
+			options.isWorking &&
 			(draft.containsLiveRow ||
 				(lastRowIndex >= lastMessageRowIndex &&
 					lastMemberId > lastUserMessageId));
