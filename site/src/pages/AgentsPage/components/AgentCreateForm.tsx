@@ -20,7 +20,10 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import { useWorkspaceUploadAgent } from "../hooks/useWorkspaceUploadAgent";
+import {
+	useWorkspaceUploadAgent,
+	workspaceUploadAgentLookupFailedMessage,
+} from "../hooks/useWorkspaceUploadAgent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -555,8 +558,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const selectedWorkspace = filteredWorkspaces.find(
 		(ws) => ws.id === effectiveWorkspaceId,
 	);
-	const { canUpload: canUploadWorkspaceFiles, isResolved } =
-		useWorkspaceUploadAgent(selectedWorkspace);
+	const {
+		canUpload: canUploadWorkspaceFiles,
+		isResolved,
+		lookupFailed,
+	} = useWorkspaceUploadAgent(selectedWorkspace);
+	const workspaceUploadBlockedMessage = lookupFailed
+		? workspaceUploadAgentLookupFailedMessage
+		: workspaceUploadUnavailableMessage;
 	// A selected workspace missing from a loading list is as unknown as
 	// a pending agent selection.
 	const isWorkspaceUploadTargetResolved =
@@ -665,7 +674,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return;
 		}
 		if (workspaceUploadCount > 0 && !canUploadWorkspaceFiles) {
-			toast.error(workspaceUploadUnavailableMessage);
+			toast.error(workspaceUploadBlockedMessage);
 			return;
 		}
 		submitInFlightRef.current = true;
@@ -856,7 +865,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								: undefined,
 							onRemove: workspaceUploads.remove,
 							removeDisabled: isSubmitPending && areWorkspaceUploadsSettled,
-							unavailableMessage: workspaceUploadUnavailableMessage,
+							unavailableMessage: workspaceUploadBlockedMessage,
 							deferred: true,
 						}}
 						mcpServers={mcpServers}
