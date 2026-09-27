@@ -98,6 +98,7 @@ Keep the following behavior in mind:
 - Service accounts don't inherit `agents-access` from the default roles.
   Assign the role to a service account directly if it needs Coder Agents.
 - Members without the role can't use Coder Agents or open chats they created earlier.
+  Their chats are kept and become available again when they regain the role.
   A chat shared with them stays readable.
 - [Model permissions](./models.md#manage-model-permissions) still apply: users also need read access to at least one model.
 

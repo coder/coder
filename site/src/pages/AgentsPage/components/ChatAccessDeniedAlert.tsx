@@ -20,7 +20,8 @@ export const ChatAccessDeniedAlert: FC = () => {
 		>
 			<AlertTitle>Permission required</AlertTitle>
 			<AlertDescription>
-				You don't have permission to use Coder Agents. Contact your Coder
+				You don't have permission to use Coder Agents. Your existing chats are
+				kept and reappear when your access is restored. Contact your Coder
 				administrator, then refresh this page.{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
 					View Docs
