@@ -277,8 +277,11 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 		);
 	}
 
-	const verificationUrl =
-		grant.verification_uri_complete || grant.verification_uri;
+	// Always link the bare verification URI so the user lands on the
+	// provider's device-code entry page and types the code themselves.
+	// The server's verification_uri_complete appends the code to the URL
+	// path, which OpenAI's device page does not consume correctly.
+	const verificationUrl = grant.verification_uri;
 	let statusLine: ReactNode;
 	if (pollQuery.isError) {
 		statusLine = (
@@ -407,21 +410,26 @@ const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 	const providerName = provider.display_name || provider.provider;
 
 	const handleStart = async () => {
-		// Open the tab inside the click gesture so popup blockers let it
-		// through, then navigate it once the authorize URL lands.
-		const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
 		try {
 			const next = await initiateMutation.mutateAsync({
 				providerConfigId: provider.provider_id,
 			});
+			if (!next.authorize_url) {
+				toast.error(
+					"Browser sign-in failed: no authorize URL received from the server.",
+				);
+				return;
+			}
 			setExchangeResult(null);
 			setCallbackInput("");
 			setGrant(next);
-			if (popup) {
-				popup.location.href = next.authorize_url;
-			}
+			// Open the authorize URL directly rather than pre-opening
+			// about:blank. The old pattern used noopener which returns a
+			// null handle, making the subsequent navigate silently fail and
+			// leaving the tab stuck at about:blank. We no longer need the
+			// handle, so noopener,noreferrer is safe here.
+			window.open(next.authorize_url, "_blank", "noopener,noreferrer");
 		} catch (error) {
-			popup?.close();
 			toast.error(getErrorMessage(error, "Error starting browser sign-in."), {
 				description: getErrorDetail(error),
 			});

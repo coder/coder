@@ -343,9 +343,12 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 			);
 		});
 		expect(screen.getByText("ABCD-1234")).toBeInTheDocument();
+		// The link must use the bare verification_uri (not
+		// verification_uri_complete) so the user lands on the provider's
+		// device-code entry page and types the code.
 		expect(screen.getByRole("link")).toHaveAttribute(
 			"href",
-			"https://auth.example.com/device/ABCD-1234",
+			"https://auth.example.com/device",
 		);
 		expect(screen.getByText(/Waiting for approval/)).toBeInTheDocument();
 	});
@@ -486,6 +489,41 @@ describe("AgentSettingsAPIKeysPageView device-code sign-in", () => {
 			screen.getByRole("button", { name: "Start over" }),
 		).toBeInTheDocument();
 	});
+
+	it("renders the bare verification URI as the link, not the code-in-path form", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIDeviceGrant").mockResolvedValue(
+			deviceGrant,
+		);
+		vi.spyOn(API.experimental, "getUserAIDeviceGrant").mockResolvedValue(
+			devicePoll({ status: "pending" }),
+		);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+		);
+
+		await screen.findByText("ABCD-1234");
+		// The link must point to the bare verification_uri so the user
+		// stays on the provider's code-entry page. It must NOT use the
+		// verification_uri_complete (which embeds the code in the path and
+		// causes OpenAI's device page to lose the return path).
+		const link = screen.getByRole("link");
+		expect(link).toHaveAttribute("href", deviceGrant.verification_uri);
+		expect(link).not.toHaveAttribute(
+			"href",
+			deviceGrant.verification_uri_complete,
+		);
+		// The user code is shown prominently for the user to type.
+		expect(screen.getByText(deviceGrant.user_code)).toBeInTheDocument();
+	});
 });
 
 describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
@@ -545,7 +583,7 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 			);
 		});
 		expect(openSpy).toHaveBeenCalledWith(
-			"about:blank",
+			browserGrant.authorize_url,
 			"_blank",
 			"noopener,noreferrer",
 		);
@@ -793,6 +831,84 @@ describe("AgentSettingsAPIKeysPageView browser sign-in", () => {
 		expect(
 			screen.getByRole("button", { name: "Start over" }),
 		).toBeInTheDocument();
+	});
+
+	it("does not open about:blank or depend on a null popup handle", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue(
+			browserGrant,
+		);
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalled();
+		});
+
+		// The browser door must open the authorize URL directly, never
+		// about:blank. The old about:blank + noopener pattern returned a
+		// null handle and silently failed to navigate.
+		expect(openSpy).not.toHaveBeenCalledWith(
+			"about:blank",
+			expect.anything(),
+			expect.anything(),
+		);
+		expect(openSpy).toHaveBeenCalledWith(
+			browserGrant.authorize_url,
+			"_blank",
+			"noopener,noreferrer",
+		);
+		// The panel still renders the in-page link as a fallback for
+		// popup-blocked scenarios.
+		expect(screen.getByRole("link")).toHaveAttribute(
+			"href",
+			browserGrant.authorize_url,
+		);
+	});
+
+	it("does not open a popup when authorize_url is empty", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "initiateUserAIBrowserGrant").mockResolvedValue({
+			...browserGrant,
+			authorize_url: "",
+		});
+		const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+		renderView(
+			<AgentSettingsAPIKeysPageView
+				{...defaultProps}
+				providers={[chatgptProvider]}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Sign in with ChatGPT in your browser",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(API.experimental.initiateUserAIBrowserGrant).toHaveBeenCalled();
+		});
+
+		// When authorize_url is empty, no popup should be opened and the
+		// grant panel should NOT be shown (early return with toast error).
+		expect(openSpy).not.toHaveBeenCalled();
+		expect(
+			screen.queryByLabelText("Authorization callback"),
+		).not.toBeInTheDocument();
 	});
 });
 
