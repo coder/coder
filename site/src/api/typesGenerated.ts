@@ -8714,8 +8714,8 @@ export interface Role {
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
  * RoleAgentsAccess is the organization role that grants Coder Agents
- * chat access. New organizations include it in their default member
- * roles.
+ * chat access. Organizations include it in their default member roles
+ * unless an administrator removes it.
  */
 export const RoleAgentsAccess = "agents-access";
 

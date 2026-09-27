@@ -204,9 +204,8 @@ const DefaultRolesSection: FC<DefaultRolesSectionProps> = ({
 			<div className="text-sm">
 				{organization.default_org_member_roles.length === 0 ? (
 					<span className="text-content-secondary">
-						No default roles. Members have only the permissions of their
-						directly assigned roles, which excludes creating and using
-						workspaces and using Coder Agents.
+						No default roles. Members can create and use workspaces or use Coder
+						Agents only through directly assigned roles.
 					</span>
 				) : (
 					<DefaultRolesSummary

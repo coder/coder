@@ -8,8 +8,8 @@ const (
 	RoleUserAdmin     string = "user-admin"
 	RoleAuditor       string = "auditor"
 	// RoleAgentsAccess is the organization role that grants Coder Agents
-	// chat access. New organizations include it in their default member
-	// roles.
+	// chat access. Organizations include it in their default member roles
+	// unless an administrator removes it.
 	RoleAgentsAccess string = "agents-access"
 
 	RoleOrganizationAdmin                string = "organization-admin"

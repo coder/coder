@@ -76,8 +76,11 @@ It also provisions a workspace for tasks that need file access, command executio
 
 ## Control who can use Coder Agents
 
-Every organization member can use Coder Agents by default.
-Access comes from the **Coder Agents User** (`agents-access`) organization role, which each organization grants to all members through its [default member roles](../../admin/users/organizations.md#default-member-roles).
+Organization members can use Coder Agents by default.
+Access comes from the **Coder Agents User** (`agents-access`) organization role, which each organization grants to members through its [default member roles](../../admin/users/organizations.md#default-member-roles).
+
+Members who don't hold the role directly lose Coder Agents access when you remove **Coder Agents User** from the default roles.
+Role sync assigns roles at sign-in and doesn't store default roles, so members who get the role through role sync regain access at their next sign-in, and mapping the role in advance doesn't shorten the gap.
 
 To limit Coder Agents to a subset of members in an organization (requires a Premium license):
 
@@ -90,10 +93,7 @@ To limit Coder Agents to a subset of members in an organization (requires a Prem
 
 Keep the following behavior in mind:
 
-- Role sync runs when a user signs in.
-  After you remove the default, members who should keep access get the role at their next sign-in, and lose Coder Agents access until then.
-  Removing a user from the mapped IdP group takes effect at their next sign-in.
-- While `agents-access` is a default role, role sync doesn't store it on members, so configuring the mapping before you remove the default doesn't grant the role in advance.
+- Removing a user from the mapped IdP group or role removes their Coder Agents access at their next sign-in.
 - Owners and Organization Admins can always use Coder Agents, whatever the default roles are.
 - Service accounts don't inherit `agents-access` from the default roles.
   Assign the role to a service account directly if it needs Coder Agents.

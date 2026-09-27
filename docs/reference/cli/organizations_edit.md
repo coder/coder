@@ -21,7 +21,7 @@ coder organizations edit [flags]
 
      $ coder organizations edit --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin
 
-  - Restrict Coder Agents to members granted agents-access explicitly:
+  - Restrict Coder Agents to members assigned agents-access directly:
 
      $ coder organizations edit --default-org-member-roles organization-workspace-access
 

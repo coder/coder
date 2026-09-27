@@ -63,8 +63,8 @@ Coder ships the following organization roles:
 - **Organization Template Admin**: manages the organization's templates and provisioners, and reads its workspaces.
 - **Organization Auditor**: reads the organization's audit logs and connection logs, along with the resources those logs reference.
 - **Organization Workspace Access**: creates and operates the user's own workspaces in the organization.
-- **Coder Agents User**: uses [Coder Agents](../../ai-coder/agents/index.md) in the organization. Every member holds this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 - **Organization Workspace Creation Ban**: blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
+- **Coder Agents User**: uses [Coder Agents](../../ai-coder/agents/index.md) in the organization. Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.
 A user with that role can read, build, stop, and delete those workspaces.

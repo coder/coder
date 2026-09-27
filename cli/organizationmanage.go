@@ -73,7 +73,7 @@ func (r *RootCmd) editOrganization(orgContext *OrganizationContext) *serpent.Com
 				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin",
 			},
 			Example{
-				Description: "Restrict Coder Agents to members granted agents-access explicitly",
+				Description: "Restrict Coder Agents to members assigned agents-access directly",
 				Command:     "coder organizations edit --default-org-member-roles organization-workspace-access",
 			},
 			Example{
