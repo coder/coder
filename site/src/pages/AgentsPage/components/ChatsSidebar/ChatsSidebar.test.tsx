@@ -849,28 +849,32 @@ describe("ChatsSidebar copy actions", () => {
 		});
 	});
 
-	it("omits the branch item when the chat has no branch", async () => {
+	it("copies the ID of a chat the user does not own", async () => {
 		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "no-branch-chat",
-							title: "No branch chat",
-							diff_status: undefined,
+							id: "shared-copy-chat",
+							title: "Shared copy chat",
+							owner_id: "sharing-user-id",
+							shared: true,
 						}),
 					]}
 				/>
 			</Wrapper>,
 		);
 
-		await openCopySubmenu(user, "No branch chat");
-		await screen.findByRole("menuitem", { name: "Copy ID" });
+		await openCopySubmenu(user, "Shared copy chat");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
 
-		expect(
-			screen.queryByRole("menuitem", { name: "Copy branch" }),
-		).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
+		});
 	});
 });

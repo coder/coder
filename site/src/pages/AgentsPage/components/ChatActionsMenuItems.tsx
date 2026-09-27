@@ -76,33 +76,16 @@ export const canManageChat = (
 	currentUserId: string,
 ): boolean => chat.owner_id === currentUserId;
 
-type ChatMenuActionsOptions = {
-	readonly canManage: boolean;
-	/** Whether the menu offers the subagents toggle, the only viewer action. */
-	readonly hasSubagentsToggle?: boolean;
-};
-
 /**
- * Archive state is root-only on the backend and cascades to children, so
- * child chats expose no archive or unarchive actions. An archived child chat
- * therefore has no menu actions at all, and a non-owner only has the
- * subagents toggle; call sites use this to hide the menu trigger instead of
- * rendering an empty menu.
+ * Every chat exposes the copy submenu, so the menu itself is never empty and
+ * call sites always render their trigger.
  */
-export const chatHasMenuActions = (
-	chat: TypesGen.Chat,
-	{ canManage, hasSubagentsToggle = false }: ChatMenuActionsOptions,
-): boolean => {
-	if (!canManage) {
-		return hasSubagentsToggle;
-	}
-	const isArchivedChild = chat.archived && getParentChatID(chat) !== undefined;
-	return !isArchivedChild;
-};
-
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
+	/**
+	 * See {@link canManageChat}. When false, only the subagents toggle and the
+	 * copy submenu render.
+	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
@@ -158,7 +141,18 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	const showReadToggle = Boolean(onMarkRead && onMarkUnread);
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
-	const showArchiveActions = !isArchived && !isChildChat;
+	// Archive state is root-only on the backend and cascades to children, so
+	// child chats expose neither archive nor unarchive.
+	const showArchiveActions = canManage && !isArchived && !isChildChat;
+	const showUnarchiveAction = canManage && isArchived && !isChildChat;
+	const hasActionsAboveCopy = canManage
+		? showUnarchiveAction ||
+			(!isArchived &&
+				(Boolean(onOpenRenameDialog) ||
+					showPinAction ||
+					showSubagentsToggle ||
+					showReadToggle))
+		: showSubagentsToggle;
 	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
@@ -220,7 +214,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	);
 
 	if (!canManage) {
-		return subagentToggle;
+		return (
+			<>
+				{subagentToggle}
+				{hasActionsAboveCopy && <Separator />}
+				{copySubmenu}
+			</>
+		);
 	}
 
 	return (
@@ -241,7 +241,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 				</Item>
 			)}
 			{isArchived ? (
-				!isChildChat && (
+				showUnarchiveAction && (
 					<>
 						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
 							<ArchiveRestoreIcon className="size-3.5" />
@@ -249,8 +249,6 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 						{subagentToggle}
 						{readToggle}
-						<Separator />
-						{copySubmenu}
 					</>
 				)
 			) : (
@@ -263,43 +261,40 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 					)}
 					{subagentToggle}
 					{readToggle}
-					{(onOpenRenameDialog ||
-						showPinAction ||
-						showSubagentsToggle ||
-						showReadToggle) && <Separator />}
-					{copySubmenu}
-					{showArchiveActions && (
-						<>
-							<Separator />
-							<Item
-								className="text-content-destructive focus:text-content-destructive"
-								aria-describedby={archiveBlockedDescribedBy}
-								disabled={isArchiving || isArchiveBlocked}
-								onSelect={onArchiveAgent}
-							>
-								<ArchiveIcon className="size-3.5" />
-								Archive agent
-							</Item>
-							{hasWorkspace && (
-								<Item
-									className="text-content-destructive focus:text-content-destructive"
-									aria-describedby={archiveBlockedDescribedBy}
-									disabled={isArchiving || isArchiveBlocked}
-									onSelect={onArchiveAndDeleteWorkspace}
-								>
-									<Trash2Icon className="size-3.5" />
-									Archive & delete workspace
-								</Item>
-							)}
-							{isArchiveBlocked && (
-								<div
-									id={archiveBlockedHintId}
-									className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
-								>
-									Interrupt or wait for the agent to finish first.
-								</div>
-							)}
-						</>
+				</>
+			)}
+			{hasActionsAboveCopy && <Separator />}
+			{copySubmenu}
+			{showArchiveActions && (
+				<>
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						aria-describedby={archiveBlockedDescribedBy}
+						disabled={isArchiving || isArchiveBlocked}
+						onSelect={onArchiveAgent}
+					>
+						<ArchiveIcon className="size-3.5" />
+						Archive agent
+					</Item>
+					{hasWorkspace && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							aria-describedby={archiveBlockedDescribedBy}
+							disabled={isArchiving || isArchiveBlocked}
+							onSelect={onArchiveAndDeleteWorkspace}
+						>
+							<Trash2Icon className="size-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+					{isArchiveBlocked && (
+						<div
+							id={archiveBlockedHintId}
+							className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
+						>
+							Interrupt or wait for the agent to finish first.
+						</div>
 					)}
 				</>
 			)}

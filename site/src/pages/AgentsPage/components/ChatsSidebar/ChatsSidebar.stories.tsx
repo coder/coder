@@ -2356,6 +2356,125 @@ export const CopySubmenuContextMenu: Story = {
 	},
 };
 
+export const CopySubmenuWithoutBranch: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "no-branch-agent",
+				title: "No branch agent",
+				updated_at: recentTimestamp,
+				diff_status: undefined,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for No branch agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/** Copying is read-only, so it stays available on another user's shared chat. */
+export const CopySubmenuOnSharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-copy-agent",
+				title: "Shared copy agent",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Shared copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/**
+ * Archived child chats have no archive or unarchive actions, so the copy
+ * submenu is the whole menu.
+ */
+export const CopySubmenuOnArchivedChildChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-copy-parent",
+				title: "Archived copy parent",
+				archived: true,
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "archived-copy-child",
+						title: "Archived copy child",
+						archived: true,
+						parent_chat_id: "archived-copy-parent",
+						root_chat_id: "archived-copy-parent",
+						updated_at: recentTimestamp,
+					}),
+				],
+			}),
+			buildChat({
+				id: "archived-copy-child",
+				title: "Archived copy child",
+				archived: true,
+				parent_chat_id: "archived-copy-parent",
+				root_chat_id: "archived-copy-parent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy parent"),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Show subagents (1)" }),
+		);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy child"),
+		);
+		await userEvent.click(await body.findByRole("menuitem", { name: "Copy" }));
+		await body.findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
 		chats: [

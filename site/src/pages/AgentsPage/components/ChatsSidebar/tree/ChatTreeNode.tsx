@@ -35,7 +35,6 @@ import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -158,10 +157,6 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
-		canManage,
-		hasSubagentsToggle: hasChildren,
-	});
 
 	const sharedMenuItemProps = {
 		chat,
@@ -193,7 +188,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
-				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
+				<ContextMenuTrigger asChild>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
@@ -318,11 +313,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 											// The timestamp swaps out for the actions trigger on
-											// hover or while a menu is open. Without menu actions,
-											// there is no trigger, so keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
+											// hover or while a menu is open.
+											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+											isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
@@ -353,7 +346,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 									aria-label="Shared chat"
 								/>
 							)}
-							{hasMenuActions && !isArchivingThisChat && (
+							{!isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
