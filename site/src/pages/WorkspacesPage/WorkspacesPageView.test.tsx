@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
+	MockPendingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockWorkspace,
@@ -146,5 +147,71 @@ describe("WorkspacesPageView", () => {
 		expect(
 			screen.queryByRole("menuitem", { name: /restart/i }),
 		).not.toBeInTheDocument();
+	});
+
+	describe("drag to select", () => {
+		const alpha = { ...MockWorkspace, id: "ws-alpha", name: "alpha" };
+		const bravo = { ...MockPendingWorkspace, id: "ws-bravo", name: "bravo" };
+		const charlie = {
+			...MockStoppedWorkspace,
+			id: "ws-charlie",
+			name: "charlie",
+		};
+		const delta = { ...MockWorkspace, id: "ws-delta", name: "delta" };
+		const workspaces = [alpha, bravo, charlie, delta];
+
+		const checkboxFor = (workspace: { name: string }) =>
+			screen.getByRole("checkbox", {
+				name: `Select workspace ${workspace.name}`,
+			});
+
+		it("selects the checkable rows between the anchor and the pointer, shrinking when dragged back", async () => {
+			const user = userEvent.setup();
+			const onCheckChange = vi.fn();
+
+			renderWithAuth(
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={workspaces}
+					count={workspaces.length}
+					onCheckChange={onCheckChange}
+				/>,
+			);
+			await screen.findByText(alpha.name);
+
+			await user.pointer([
+				{ keys: "[MouseLeft>]", target: checkboxFor(alpha) },
+				{ target: checkboxFor(delta) },
+				{ target: checkboxFor(charlie) },
+				{ keys: "[/MouseLeft]" },
+			]);
+
+			expect(onCheckChange).toHaveBeenNthCalledWith(1, [alpha, charlie, delta]);
+			expect(onCheckChange).toHaveBeenLastCalledWith([alpha, charlie]);
+		});
+
+		it("deselects the dragged range when the anchor row is already checked", async () => {
+			const user = userEvent.setup();
+			const onCheckChange = vi.fn();
+
+			renderWithAuth(
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={workspaces}
+					count={workspaces.length}
+					checkedWorkspaces={[alpha, charlie, delta]}
+					onCheckChange={onCheckChange}
+				/>,
+			);
+			await screen.findByText(alpha.name);
+
+			await user.pointer([
+				{ keys: "[MouseLeft>]", target: checkboxFor(delta) },
+				{ target: checkboxFor(charlie) },
+				{ keys: "[/MouseLeft]" },
+			]);
+
+			expect(onCheckChange).toHaveBeenLastCalledWith([alpha]);
+		});
 	});
 });
