@@ -66,7 +66,7 @@ export const AssistantOutput: React.FC<AssistantOutputProps> = ({
 	let activityRow: React.ReactNode = null;
 	if (showsActivity) {
 		activityRow = (
-			<LiveActivitySlot interrupting={liveStatus?.phase === "interrupting"} />
+			<LiveActivitySlot interrupting={liveStatus.phase === "interrupting"} />
 		);
 	} else if (holdsActivityRow) {
 		activityRow = <div aria-hidden className="h-6" />;
