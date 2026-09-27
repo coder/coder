@@ -200,20 +200,11 @@ const (
 	TemplateAppsTypeApp     TemplateAppsType = "app"
 )
 
-// Enums define the display name of the builtin app reported.
-const (
-	TemplateBuiltinAppDisplayNameVSCode      string = "Visual Studio Code"
-	TemplateBuiltinAppDisplayNameJetBrains   string = "JetBrains"
-	TemplateBuiltinAppDisplayNameWebTerminal string = "Web Terminal"
-	TemplateBuiltinAppDisplayNameSSH         string = "SSH"
-	TemplateBuiltinAppDisplayNameSFTP        string = "SFTP"
-)
-
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
 	Type        TemplateAppsType `json:"type" example:"builtin"`
-	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
+	DisplayName string           `json:"display_name" example:"VS Code Family"`
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`

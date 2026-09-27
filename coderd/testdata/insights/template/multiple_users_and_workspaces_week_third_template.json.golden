@@ -10,7 +10,7 @@
       {
         "template_ids": [],
         "type": "builtin",
-        "display_name": "Visual Studio Code",
+        "display_name": "VS Code Family",
         "slug": "vscode",
         "icon": "/icon/code.svg",
         "seconds": 0,

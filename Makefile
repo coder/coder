@@ -71,6 +71,7 @@ endif
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
@@ -588,6 +589,7 @@ scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json script
 
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -1125,6 +1127,7 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
+		site/src/api/appFamiliesGenerated.ts \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1326,6 +1329,9 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 	# Generate SDK constants for external API key scopes.
 	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
+
+site/src/api/appFamiliesGenerated.ts: site/node_modules/.installed scripts/typegen/appfamilies.tstmpl scripts/typegen/main.go codersdk/appname.go codersdk/insights.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen appfamilies,./scripts/biome_format.sh)
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
