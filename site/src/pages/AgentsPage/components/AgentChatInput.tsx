@@ -120,7 +120,7 @@ type WorkspaceUploadsProps = {
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
 	// Set once the uploaded references belong to a pending send.
-	removeDisabled?: boolean;
+	removeDisabled: boolean;
 	// Toast shown when a workspace-routed file arrives while onAttach
 	// is unavailable. Overridden on the new-chat page, where the fix
 	// is selecting a workspace rather than attaching one to the chat.

@@ -40,8 +40,8 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 export const WorkspaceUploadPreview: FC<{
 	uploads: readonly WorkspaceFileUpload[];
 	onRemove: (id: string) => void;
-	removeDisabled?: boolean;
-}> = ({ uploads, onRemove, removeDisabled = false }) => {
+	removeDisabled: boolean;
+}> = ({ uploads, onRemove, removeDisabled }) => {
 	if (uploads.length === 0) {
 		return null;
 	}

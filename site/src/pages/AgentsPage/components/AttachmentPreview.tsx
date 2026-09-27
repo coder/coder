@@ -64,7 +64,7 @@ export const AttachmentPreview: FC<{
 	) => void;
 	onInlineText?: (file: File, content?: string) => void;
 	// Disables remove and paste inline; previews stay available.
-	actionsDisabled?: boolean;
+	actionsDisabled: boolean;
 }> = ({
 	attachments,
 	onRemove,
@@ -74,7 +74,7 @@ export const AttachmentPreview: FC<{
 	textContents,
 	onTextPreview,
 	onInlineText,
-	actionsDisabled = false,
+	actionsDisabled,
 }) => {
 	const textAttachmentRequest = useLatestAbortController();
 

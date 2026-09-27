@@ -369,6 +369,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading={false}
@@ -404,6 +405,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled
 				isLoading={false}
@@ -443,6 +445,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading
@@ -486,6 +489,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading
@@ -654,6 +658,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: undefined,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading={false}

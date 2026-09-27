@@ -22,6 +22,7 @@ const meta: Meta<typeof WorkspaceUploadPreview> = {
 	component: WorkspaceUploadPreview,
 	args: {
 		onRemove: fn(),
+		removeDisabled: false,
 	},
 };
 
