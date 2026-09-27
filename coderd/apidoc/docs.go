@@ -2568,6 +2568,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/workspace-agent": {
+            "get": {
+                "description": "Reports the agent in the workspace's latest build that\nuploads and generation select for a chat without a bound\nagent. The agent ID is absent when no agent can be selected.\nThe response does not reflect agent connection status.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get the chat agent for a workspace",
+                "operationId": "get-the-chat-agent-for-a-workspace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatWorkspaceAgent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/chats/{chat}": {
             "get": {
                 "produces": [
@@ -21792,6 +21828,16 @@ const docTemplate = `{
                 "ChatWatchEventKindActionRequired",
                 "ChatWatchEventKindContextDirty"
             ]
+        },
+        "codersdk.ChatWorkspaceAgent": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "description": "AgentID is the selected agent in the workspace's latest build.\nIt is absent when no agent can be selected.",
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.ChatWorkspaceTTLResponse": {
             "type": "object",

@@ -3680,6 +3680,19 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 ];
 
 // From codersdk/chats.go
+/**
+ * ChatWorkspaceAgent reports the workspace agent that uploads and
+ * generation select for a chat without a bound agent.
+ */
+export interface ChatWorkspaceAgent {
+	/**
+	 * AgentID is the selected agent in the workspace's latest build.
+	 * It is absent when no agent can be selected.
+	 */
+	readonly agent_id?: string;
+}
+
+// From codersdk/chats.go
 export interface ChatWorkspaceFileReferencePart {
 	readonly type: "workspace-file-reference";
 	/**
