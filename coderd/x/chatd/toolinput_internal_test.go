@@ -118,8 +118,6 @@ func TestValidateOverriddenToolInputs(t *testing.T) {
 	require.NoError(t, validateOverriddenToolInputs(prepared, untouched))
 }
 
-// The flattened override is stored and replayed to the model, so text
-// is kept as written rather than HTML-escaped.
 func TestFlattenEditFilesOverrideKeepsText(t *testing.T) {
 	t.Parallel()
 

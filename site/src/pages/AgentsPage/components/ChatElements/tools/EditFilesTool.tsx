@@ -23,13 +23,12 @@ import {
 const EDIT_FILES_AUTO_DISPLAY_STATE: AgentDisplayState = "preview";
 
 /**
- * One file of an edit_files call. An "applied" row shows `diff`, which
- * is the server diff, or a diff built from the args while the call runs
- * or when an older result omits the file. A "rejected" row was not
- * written and shows `error`. An "unknown" row may or may not have been
- * written and shows `error`. An "unreported" row is a file the result
- * did not mention. A "failed" row belongs to a call that failed as a
- * whole and shows nothing.
+ * One file of an edit_files call. An "applied" row shows `diff` when
+ * it has one and counts toward the header; while the call runs, every
+ * row is "applied" with an args diff, built from the edits in the call.
+ * "rejected" and "unknown" rows show `error`. An "unreported" row is a
+ * file the result did not mention. A "failed" row belongs to a call
+ * that failed as a whole and shows nothing.
  */
 export type EditFilesRow = {
 	path: string;

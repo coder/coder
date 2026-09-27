@@ -21,9 +21,8 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
-	// The generated schema is the model-facing contract: a flat edits
-	// list whose items carry their own path. fantasy cannot express
-	// minItems, so "at least one edit" is enforced by validation.
+	// fantasy cannot express minItems, so validation enforces at least
+	// one edit.
 	t.Run("SchemaIsFlatEditsList", func(t *testing.T) {
 		t.Parallel()
 		info := chattool.EditFiles(chattool.EditFilesOptions{}).Info()
@@ -38,7 +37,7 @@ func TestEditFiles(t *testing.T) {
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
-		assert.Contains(t, info.Description, "Each file's edits are validated before that file is written: a file with any error is left unchanged, and the other files are still applied.")
+		assert.Contains(t, info.Description, "Each file's edits are validated before that file is written: a file with any error is left unchanged, and files without errors are still applied.")
 		assert.NotContains(t, info.Description, "All edits in a batch")
 	})
 
@@ -58,7 +57,7 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; path is required in every edit\nNo files were applied.",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo files were applied.",
 			},
 			{
 				name:    "EmptyEdits",
@@ -78,12 +77,12 @@ func TestEditFiles(t *testing.T) {
 			{
 				// fantasy's own decode error names Go types and does
 				// not say that edits must be an array. chatloop decodes
-				// a string holding an array before the tool runs, so
-				// this string holds something else.
+				// a string holding an array of objects before the tool
+				// runs, so this string holds something else.
 				name:  "EditsNotAnArray",
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
-					"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example " + example,
+					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
 					"\nNo files were applied.",
 				},
 			},
@@ -844,8 +843,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			// A single-file request writes nothing on any agent
-			// error, including a write-phase 500.
+			// A failed single-file request is reported as not applied
+			// on any agent error, including a write-phase 500.
 			name:  "NothingApplied",
 			input: `{"edits":[` + editA + `,` + editB + `]}`,
 			calls: []fileCall{
@@ -1041,13 +1040,10 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 		})
 	}
 
-	// A result produced after cancellation can still be persisted, so
-	// files not yet sent are reported as not applied rather than
-	// unknown, and no request is made for them. The interrupt is checked
-	// before the path checks, so a plan-named file gets the interrupt
-	// reason rather than a resolver error. There is nothing to fix in a
-	// file skipped by the interrupt, so its message has no resend
-	// instruction.
+	// Files not yet sent when the call is interrupted are reported as not
+	// applied, without a request or a resend instruction. The interrupt
+	// is checked before the path checks, so a plan-named file gets the
+	// interrupt reason rather than a resolver error.
 	t.Run("Interrupted", func(t *testing.T) {
 		t.Parallel()
 		interruptTests := []struct {
@@ -1260,18 +1256,18 @@ func TestEditFiles_Grouping(t *testing.T) {
 	tests := []struct {
 		name  string
 		edits []chattool.EditFilesEdit
-		// agentFiles is the grouped agent request form.
+		// agentFiles is the expected GroupEditsByPath result.
 		agentFiles []workspacesdk.FileEdits
-		// hookJSON is the exact pre_tool_use tool_input.
+		// hookJSON is the exact JSON encoding of NewEditFilesHookInput.
 		hookJSON string
-		// flattened is the result of flattening hookJSON back to
-		// schema B.
+		// flattened is hookJSON decoded and flattened back to edits.
 		flattened []chattool.EditFilesEdit
 	}{
 		{
 			name:  "Empty",
 			edits: nil,
-			// An empty slice, not nil, so hooks see an array.
+			// Empty, not nil, so the encoded forms hold [] instead of
+			// null.
 			agentFiles: []workspacesdk.FileEdits{},
 			hookJSON:   `{"files":[]}`,
 			flattened:  []chattool.EditFilesEdit{},
@@ -1381,9 +1377,8 @@ func TestEditFiles_Grouping(t *testing.T) {
 		})
 	}
 
-	// A grouped override must accept only old_text/new_text, not the
-	// deprecated search/replace keys that workspacesdk.FileEdit
-	// decodes for old agents.
+	// Decoding a grouped override ignores the deprecated search/replace
+	// keys that workspacesdk.FileEdit falls back to.
 	t.Run("OverrideIgnoresSearchReplace", func(t *testing.T) {
 		t.Parallel()
 

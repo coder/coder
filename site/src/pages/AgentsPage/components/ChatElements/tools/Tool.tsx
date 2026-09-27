@@ -404,18 +404,19 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 				error: entry.error || "Not applied",
 			};
 		}
-		// The server could not tell whether the file was written.
 		if (entry?.status === "unknown") {
 			return {
 				path,
 				status: "unknown",
 				diff: null,
-				error:
-					entry.error || "Could not confirm whether these edits were applied.",
+				error: [
+					"Could not confirm whether these edits were applied.",
+					entry.error,
+				]
+					.filter(Boolean)
+					.join("\n"),
 			};
 		}
-		// An entry without a diff comes from an agent that predates
-		// per-file diffs; an empty diff is a no-op edit.
 		if (entry) {
 			return {
 				path,
@@ -426,11 +427,10 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 						: parseServerEditDiffText(entry.diff),
 			};
 		}
-		// A partial result lists every file with its outcome, so a file
-		// it omits has no known outcome and must not get an args-derived
-		// diff. Applied and older results may omit files (agents that
-		// return no per-file results), but they only report success when
-		// every file was written, so those fall back to the args diff.
+		// A partial result lists every file, so an omitted file has no
+		// known outcome and gets no args diff. Other results report
+		// success only when every file was written; older ones may omit
+		// files, which get the args diff.
 		if (isPartial) return { path, status: "unreported", diff: null };
 		return { path, status: "applied", diff: buildEditDiff(path, edits) };
 	});

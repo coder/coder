@@ -537,12 +537,11 @@ export const COLLAPSED_REPORT_HEIGHT = 72;
 
 /**
  * Parses the args of an edit_files tool call into a typed array
- * of file entries. Accepts the grouped `files` shape stored in
- * existing chats and the flat `edits` shape, where each edit carries
- * its own `path`. Flat edits are grouped by path in order of first
- * appearance, keeping each file's edit order. Paths are trimmed, as
- * the backend trims them before grouping and running the edits, so
- * they match the paths in the tool result.
+ * of file entries. Reads the grouped `files` shape that existing chats
+ * store, or else the flat `edits` shape, grouping its edits by path in
+ * order of first appearance and keeping each file's edit order. Paths are
+ * trimmed, as the backend trims them before grouping and running the
+ * edits, so they match the paths in the tool result.
  */
 export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	const parsed = parseArgs(args);
@@ -643,8 +642,9 @@ const snippetLineCount = (snippet: string): number =>
  * the caller-supplied path (pre-symlink resolution). `diff` is a
  * unified-diff string, empty for no-op edits, or undefined when the
  * entry has no diff (agents older than include_diff). `status` and
- * `error` are set by results that report per-file outcomes; a
- * "rejected" file was not written and `error` says why.
+ * `error` are set by results that report per-file outcomes: a
+ * "rejected" file was not written and `error` says why; for an
+ * "unknown" file the server could not tell whether it was written.
  */
 type ServerEditResult = {
 	path: string;

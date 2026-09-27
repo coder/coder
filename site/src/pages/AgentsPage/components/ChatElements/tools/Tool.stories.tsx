@@ -1995,8 +1995,7 @@ export const EditFilesPartial: Story = {
 				{
 					path: "src/routes.ts",
 					status: "unknown",
-					error:
-						"The workspace agent connection closed before it responded. Read the file to check whether the edit was applied.",
+					error: 'Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF',
 				},
 				{
 					path: "src/config.ts",
