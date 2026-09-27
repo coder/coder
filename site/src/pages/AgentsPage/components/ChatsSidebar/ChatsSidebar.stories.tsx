@@ -2285,6 +2285,39 @@ export const ReadStateContextMenu: Story = {
 	},
 };
 
+/**
+ * The read toggle is hidden for the chat the user already has open,
+ * because opening a chat marks it read and would undo the toggle.
+ */
+export const ActiveChatContextMenuHasNoReadToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-unread-agent",
+				title: "Active unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-unread-agent",
+				pathParams: { agentId: "active-unread-agent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Active unread agent"),
+		);
+		await within(document.body).findByText("Rename chat");
+	},
+};
+
 export const CopySubmenuContextMenu: Story = {
 	args: {
 		chats: [
