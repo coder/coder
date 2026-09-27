@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -98,6 +99,42 @@ func UnsupportedProviders(configured []ConfiguredProvider) []codersdk.ChatUnsupp
 // API key.
 func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
+}
+
+// ChatGPTCodexBackendHost is the host of the ChatGPT subscription
+// inference backend.
+const ChatGPTCodexBackendHost = "chatgpt.com"
+
+// ChatGPTCodexBackendPath is the path prefix of the ChatGPT
+// subscription inference backend under ChatGPTCodexBackendHost.
+const ChatGPTCodexBackendPath = "/backend-api/codex"
+
+// IsChatGPTCodexBackend reports whether baseURL points at the ChatGPT
+// subscription inference backend. The match is on host plus path
+// prefix so scheme and trailing segments do not matter, and a URL
+// that fails to parse falls back to a substring match rather than
+// silently treating the backend as a generic OpenAI endpoint.
+func IsChatGPTCodexBackend(baseURL string) bool {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
+		return false
+	}
+	if parsed, err := url.Parse(trimmed); err == nil && parsed.Host != "" {
+		return strings.EqualFold(parsed.Hostname(), ChatGPTCodexBackendHost) &&
+			strings.HasPrefix(strings.ToLower(parsed.Path), ChatGPTCodexBackendPath)
+	}
+	return strings.Contains(strings.ToLower(trimmed),
+		ChatGPTCodexBackendHost+ChatGPTCodexBackendPath)
+}
+
+// SupportsMaxOutputTokens reports whether the backend behind baseURL
+// accepts the Responses API max_output_tokens parameter. The ChatGPT
+// subscription backend speaks the Responses API but rejects
+// max_output_tokens with HTTP 400, so calls routed there must omit
+// it; every other backend keeps the parameter. This mirrors Pi's
+// supportsMaxOutputTokens capability for the same backend.
+func SupportsMaxOutputTokens(baseURL string) bool {
+	return !IsChatGPTCodexBackend(baseURL)
 }
 
 // InlineImageCapBytes returns the per-image byte cap for inline
@@ -314,8 +351,8 @@ func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	}
 	for provider, baseURL := range fallback.BaseURLByProvider {
 		if normalized := NormalizeProvider(provider); normalized != "" {
-			if url := strings.TrimSpace(baseURL); url != "" {
-				merged.BaseURLByProvider[normalized] = url
+			if trimmed := strings.TrimSpace(baseURL); trimmed != "" {
+				merged.BaseURLByProvider[normalized] = trimmed
 			}
 		}
 	}
@@ -359,8 +396,8 @@ func ResolveUserProviderKeys(
 			continue
 		}
 
-		if url := strings.TrimSpace(provider.BaseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
+		if trimmed := strings.TrimSpace(provider.BaseURL); trimmed != "" {
+			merged.BaseURLByProvider[normalizedProvider] = trimmed
 		}
 		merged.setRegion(normalizedProvider, provider.Region)
 

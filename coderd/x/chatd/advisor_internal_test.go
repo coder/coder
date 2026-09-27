@@ -129,6 +129,15 @@ func resolveAdvisorModelOverrideForTest(
 // the advisor chat-model path can resolve without an override.
 func advisorChatModelFixture(t *testing.T, options json.RawMessage) (database.Chat, *advisorOverrideStubStore) {
 	t.Helper()
+	return advisorChatModelFixtureWithBaseURL(t, options, "")
+}
+
+// advisorChatModelFixtureWithBaseURL is advisorChatModelFixture with an
+// explicit provider base URL, so tests can route the advisor through a
+// backend with different capabilities, such as the ChatGPT backend that
+// rejects max_output_tokens.
+func advisorChatModelFixtureWithBaseURL(t *testing.T, options json.RawMessage, baseURL string) (database.Chat, *advisorOverrideStubStore) {
+	t.Helper()
 	configID := uuid.New()
 	providerID := uuid.New()
 	organizationID := uuid.New()
@@ -145,7 +154,9 @@ func advisorChatModelFixture(t *testing.T, options json.RawMessage) (database.Ch
 			}, nil
 		},
 		getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
-			return aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil
+			provider := aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)
+			provider.BaseUrl = baseURL
+			return provider, nil
 		},
 	}
 	return database.Chat{LastModelConfigID: configID, OrganizationID: organizationID}, store
@@ -473,6 +484,32 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			logger,
 		)
 		require.NoError(t, err, "a failed chat-model resolution must skip the advisor, not fail the turn")
+		require.Nil(t, rt)
+	})
+
+	t.Run("ChatGPTBackendSkipsAdvisor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		// The ChatGPT subscription backend rejects max_output_tokens,
+		// which the advisor runtime always sends, so the advisor must
+		// stand down rather than fail the turn with a 400.
+		chat, store := advisorChatModelFixtureWithBaseURL(t, nil, "https://chatgpt.com/backend-api/codex")
+		p := newAdvisorTestServer(ctx, t, store)
+		p.aibridgeTransportFactory = aibridgeTestFactoryPointer(advisorTestTransportFactory())
+
+		rt, err := p.newAdvisorRuntime(
+			ctx,
+			chat,
+			advisorRuntimeConfig{
+				Enabled:         true,
+				MaxUsesPerRun:   3,
+				MaxOutputTokens: 16384,
+			},
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			logger,
+		)
+		require.NoError(t, err, "an unsupported backend must skip the advisor, not fail the turn")
 		require.Nil(t, rt)
 	})
 

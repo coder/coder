@@ -1805,3 +1805,30 @@ func TestUnsupportedProviders(t *testing.T) {
 		require.Equal(t, "copilot", got[0].Provider)
 	})
 }
+
+func TestSupportsMaxOutputTokens(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		baseURL string
+		want    bool
+	}{
+		{"empty keeps", "", true},
+		{"openai default keeps", "https://api.openai.com/v1", true},
+		{"other openai-compatible keeps", "https://llm.example.com/v1", true},
+		{"chatgpt backend omits", "https://chatgpt.com/backend-api/codex", false},
+		{"chatgpt backend with trailing slash omits", "https://chatgpt.com/backend-api/codex/", false},
+		{"chatgpt backend case-insensitive omits", "HTTPS://CHATGPT.COM/backend-api/codex", false},
+		{"chatgpt other path keeps", "https://chatgpt.com/backend-api/other", true},
+		{"chatgpt lookalike host keeps", "https://chatgpt.com.evil.example/backend-api/codex", true},
+		{"unparseable chatgpt reference omits", "https://chatgpt.com/backend-api/codex\x7f", false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, chatprovider.SupportsMaxOutputTokens(tc.baseURL))
+		})
+	}
+}
