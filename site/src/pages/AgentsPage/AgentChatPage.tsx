@@ -692,32 +692,32 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		});
 	};
 
-	const loadingViewProps = {
-		inputRef: editing.chatInputRef,
-		initialValue: editing.editorInitialValue,
-		initialEditorState: editing.initialEditorState,
-		remountKey: editing.remountKey,
-		onContentChange: editing.handleLoadingDraftChange,
-		effectiveSelectedModel,
-		setSelectedModel,
-		modelOptions,
-		modelSelectorPlaceholder,
-		hasModelOptions,
-		isModelCatalogLoading: isModelDataPending,
-		planModeEnabled,
-		onPlanModeToggle: handlePlanModeToggle,
-		showRightPanel: showSidebarPanel,
-	};
-
 	return (
 		<>
 			<title>
 				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
 			</title>
-			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
+			{chatQuery.isLoading ||
+			chatMessagesQuery.isLoading ||
+			preferencesQuery.isLoading ? (
 				<AgentChatPageLoadingView
-					{...loadingViewProps}
-					isInputDisabled={isInputDisabled}
+					inputRef={editing.chatInputRef}
+					initialValue={editing.editorInitialValue}
+					initialEditorState={editing.initialEditorState}
+					remountKey={editing.remountKey}
+					onContentChange={editing.handleLoadingDraftChange}
+					// The loading view drops sends, so keep the composer disabled
+					// until the transcript can mount.
+					isInputDisabled={isInputDisabled || preferencesQuery.isLoading}
+					effectiveSelectedModel={effectiveSelectedModel}
+					setSelectedModel={setSelectedModel}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder={modelSelectorPlaceholder}
+					hasModelOptions={hasModelOptions}
+					isModelCatalogLoading={isModelDataPending}
+					planModeEnabled={planModeEnabled}
+					onPlanModeToggle={handlePlanModeToggle}
+					showRightPanel={showSidebarPanel}
 				/>
 			) : chatQuery.isLoadingError || chatMessagesQuery.isLoadingError ? (
 				getErrorStatus(chatQuery.error) === 404 ? (
@@ -741,10 +741,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 				)
 			) : !chat || !chatMessagesQuery.data?.pages?.length ? (
 				<AgentChatPageNotFoundView />
-			) : preferencesQuery.isLoading ? (
-				// The loading view drops sends, so keep the composer disabled
-				// until the transcript can mount.
-				<AgentChatPageLoadingView {...loadingViewProps} isInputDisabled />
 			) : (
 				<AgentChatPageView
 					key={agentId}
