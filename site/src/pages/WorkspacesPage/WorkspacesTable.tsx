@@ -14,6 +14,7 @@ import {
 import type React from "react";
 import {
 	type FC,
+	type PointerEventHandler,
 	type PropsWithChildren,
 	type ReactNode,
 	useState,
@@ -65,6 +66,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { useDragSelect } from "#/hooks/useDragSelect";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -119,6 +121,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	const isLoading = !workspaces;
 	const isEmpty = workspaces && workspaces.length === 0;
 	const hideHeaders = isLoading || isEmpty;
+	const dragSelect = useDragSelect({
+		items: workspaces ?? [],
+		selected: checkedWorkspaces,
+		getId: (workspace) => workspace.id,
+		isSelectable: (workspace) => !cantBeChecked(workspace),
+		onChange: onCheckChange,
+	});
 
 	return (
 		<Table>
@@ -164,7 +173,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody className="[&_td]:h-[72px]">
+			<TableBody
+				className="[&_td]:h-[72px]"
+				{...dragSelect.getContainerProps()}
+			>
 				{isLoading && <TableLoader />}
 				{isEmpty && (
 					<TableRow>
@@ -179,7 +191,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 						</TableCell>
 					</TableRow>
 				)}
-				{workspaces?.map((workspace) => {
+				{workspaces?.map((workspace, index) => {
 					const checked = checkedWorkspaces.some((w) => w.id === workspace.id);
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
@@ -192,6 +204,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
+							{...dragSelect.getRowProps(index)}
 						>
 							<TableCell>
 								<div className="flex items-center gap-5">
@@ -202,6 +215,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 										onClick={(e) => {
 											e.stopPropagation();
 										}}
+										{...dragSelect.getHandleProps(index)}
 										onCheckedChange={(checked) => {
 											if (checked) {
 												onCheckChange([...checkedWorkspaces, workspace]);
@@ -317,6 +331,7 @@ type WorkspacesRowProps = {
 	workspacePageLink: string;
 	children?: ReactNode;
 	checked: boolean;
+	onPointerEnter: PointerEventHandler<HTMLTableRowElement>;
 };
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
@@ -324,6 +339,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspacePageLink,
 	children,
 	checked,
+	onPointerEnter,
 }) => {
 	const navigate = useNavigate();
 
@@ -348,6 +364,7 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	return (
 		<TableRow
 			{...clickableProps}
+			onPointerEnter={onPointerEnter}
 			data-testid={`workspace-${workspace.id}`}
 			className={cn([
 				checked ? "bg-surface-secondary hover:bg-surface-secondary" : undefined,
