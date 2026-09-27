@@ -57,7 +57,10 @@ import {
 	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
-import { buildStreamTools } from "./ChatConversation/streamState";
+import {
+	buildStreamTools,
+	excludeDurableCallResults,
+} from "./ChatConversation/streamState";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
@@ -158,8 +161,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 	const isChatCompleted = !hasStream;
 
+	const liveStreamState =
+		streamState && excludeDurableCallResults(streamState, messagesByID);
 	const liveStatus = deriveLiveStatus({
-		streamState,
+		streamState: liveStreamState,
 		retryState,
 		reconnectState,
 		streamError,
@@ -168,8 +173,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 		chatStatus,
 	});
 	const streamTools = buildStreamTools(
-		streamState?.toolCalls,
-		streamState?.toolResults,
+		liveStreamState?.toolCalls,
+		liveStreamState?.toolResults,
 	);
 
 	const messages = orderedMessageIDs
@@ -188,6 +193,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
+		liveToolResults: streamState?.toolResults,
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
@@ -213,7 +219,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					parsedMessages={parsedMessages}
 					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={streamState}
+					streamState={liveStreamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
 					subagentStatusOverrides={subagentStatusOverrides}

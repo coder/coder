@@ -129,6 +129,53 @@ func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
+func TestAdvisorRunStreamsReasoningDeltasSeparatelyFromAdvice(t *testing.T) {
+	t.Parallel()
+
+	var (
+		adviceDeltas    []string
+		reasoningDeltas []string
+	)
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "checking "},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "tradeoffs"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the smaller diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, &chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			adviceDeltas = append(adviceDeltas, delta)
+		},
+		OnReasoningDelta: func(delta string) {
+			reasoningDeltas = append(reasoningDeltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"checking ", "tradeoffs"}, reasoningDeltas)
+	require.Equal(t, []string{"Use ", "the smaller diff."}, adviceDeltas)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Use the smaller diff.", result.Advice)
+	require.NotContains(t, result.Advice, "checking")
+	require.Equal(t, 1, result.RemainingUses)
+}
+
 func TestAdvisorRunResetsAdviceDeltasOnRetry(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +213,7 @@ func TestAdvisorRunResetsAdviceDeltasOnRetry(t *testing.T) {
 		OnAdviceDelta: func(delta string) {
 			events = append(events, "delta:"+delta)
 		},
-		OnAdviceReset: func() {
+		OnLiveOutputReset: func() {
 			events = append(events, "reset")
 		},
 	})

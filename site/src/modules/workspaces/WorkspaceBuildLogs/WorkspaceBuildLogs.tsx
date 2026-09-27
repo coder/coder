@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { ProvisionerJobLog, WorkspaceBuild } from "#/api/typesGenerated";
 import type { Line } from "#/components/Logs/LogLine";
-import { DEFAULT_LOG_LINE_SIDE_PADDING, Logs } from "#/components/Logs/Logs";
+import { Logs, LogsHeader } from "#/components/Logs/Logs";
 
 type Stage = ProvisionerJobLog["stage"];
 type LogsGroupedByStage = Record<Stage, ProvisionerJobLog[]>;
@@ -82,28 +82,15 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
 					sourceId: log.log_source,
 				}));
 				const duration = getStageDurationInSeconds(logs);
-				const shouldDisplayDuration = duration !== undefined;
 
 				return (
 					<Fragment key={stage}>
-						<div
-							className={cn(
-								"logs-header",
-								"flex items-center border-solid border-0 border-b last:border-b-0 border-border font-sans",
-								"bg-surface-primary text-xs font-semibold leading-none",
-								"first-of-type:pt-4",
-							)}
-							style={{
-								padding: `12px var(--log-line-side-padding, ${DEFAULT_LOG_LINE_SIDE_PADDING}px)`,
-							}}
-						>
-							<div>{stage}</div>
-							{shouldDisplayDuration && (
-								<div className="ml-auto text-xs text-content-secondary">
-									{duration} seconds
-								</div>
-							)}
-						</div>
+						<LogsHeader
+							title={stage}
+							detail={
+								duration === undefined ? undefined : `${duration} seconds`
+							}
+						/>
 						{!isEmpty && (
 							<Logs
 								className="min-h-0 border-b-border"

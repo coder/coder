@@ -16,14 +16,16 @@ type WriteFileOptions struct {
 }
 
 type WriteFileArgs struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
+	Path    string `json:"path" description:"Absolute path of the file to write. Plan files must use the chat-specific absolute plan path."`
+	Content string `json:"content" description:"Complete file contents. Replaces any existing contents."`
 }
 
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"write_file",
-		"Write a file to the workspace.",
+		"Create a file in the workspace or overwrite an existing one with the given content. "+
+			"Use edit_files for targeted changes to an existing file. "+
+			"During plan turns, only the chat-specific plan file path is writable.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
 			if options.IsPlanTurn {

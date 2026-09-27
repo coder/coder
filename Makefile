@@ -23,9 +23,14 @@ SHELL := bash
 # elapsed wall-clock time for each recipe. pre-commit and pre-push
 # set this on their sub-makes so every parallel job reports its
 # duration. Ad-hoc usage: make MAKE_TIMED=1 test
+# The target name is prefixed with "target:" because GNU make 4.4 with
+# .ONESHELL mangles the arguments when the first word of .SHELLFLAGS is
+# a shell builtin such as test, exec, or cd. SHELL then receives
+# "/bin/sh -c '<target> -ceu' <recipe>", which skips the recipe for the
+# test target or crashes make.
 ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
-.SHELLFLAGS = $@ -ceu
+.SHELLFLAGS = target:$@ -ceu
 export MAKE_TIMED
 export MAKE_LOGDIR
 endif

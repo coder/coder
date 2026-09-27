@@ -403,7 +403,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
-		{"Migration000600RestoreAgentsAccessDefaultRole", 600, testMigration000600RestoreAgentsAccessDefaultRole},
+		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1663,8 +1663,8 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
 }
 
-func testMigration000600RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
-	const migrationVersion = 600
+func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 602
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db := database.New(sqlDB)
@@ -1747,7 +1747,7 @@ func testMigration000600RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 	_, err = sqlDB.ExecContext(ctx, "UPDATE organization_members SET roles = array_append(roles, 'agents-access') WHERE user_id = $1", serviceAccount.ID)
 	require.NoError(t, err)
 
-	downSQL, err := os.ReadFile("000600_restore_agents_access_default_role.down.sql")
+	downSQL, err := os.ReadFile("000602_restore_agents_access_default_role.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
@@ -1755,7 +1755,7 @@ func testMigration000600RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 	require.Equal(t, []string{"organization-auditor"}, memberRoles(member.ID))
 	require.Empty(t, memberRoles(serviceAccount.ID))
 
-	upSQL, err := os.ReadFile("000600_restore_agents_access_default_role.up.sql")
+	upSQL, err := os.ReadFile("000602_restore_agents_access_default_role.up.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)

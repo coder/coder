@@ -2,6 +2,7 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
@@ -53,12 +54,18 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	return (
 		<div className="flex max-w-[1100px] flex-col gap-4">
 			<SettingsHeader>
-				<SettingsHeaderTitle>User spend</SettingsHeaderTitle>
+				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
+					User spend
+				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			<Alert severity="warning">
+				This page is experimental. Reports may load slowly on large deployments,
+				and the page may change or be removed.
+			</Alert>
 			<SpendPageContent {...contentProps} />
 		</div>
 	);

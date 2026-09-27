@@ -5940,8 +5940,10 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 
 	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
 		t.Cleanup(func() {
 			rbac.ReloadBuiltinRoles(nil)
+			rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled)
 		})
 
 		var (
