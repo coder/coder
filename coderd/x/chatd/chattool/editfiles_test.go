@@ -37,7 +37,7 @@ func TestEditFiles(t *testing.T) {
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
-		assert.Contains(t, info.Description, "Each file's edits are validated before that file is written: a file with any error is left unchanged, and the other files are still applied.")
+		assert.Contains(t, info.Description, "Each file's edits are validated before that file is written: a file with any error is left unchanged, and files without errors are still applied.")
 		assert.NotContains(t, info.Description, "All edits in a batch")
 	})
 
@@ -843,8 +843,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			// A single-file request writes nothing on any agent
-			// error, including a write-phase 500.
+			// A failed single-file request is reported as not applied
+			// on any agent error, including a write-phase 500.
 			name:  "NothingApplied",
 			input: `{"edits":[` + editA + `,` + editB + `]}`,
 			calls: []fileCall{
@@ -941,13 +941,10 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 		})
 	}
 
-	// A result produced after cancellation can still be persisted, so
-	// files not yet sent are reported as not applied rather than
-	// unknown, and no request is made for them. The interrupt is checked
-	// before the path checks, so a plan-named file gets the interrupt
-	// reason rather than a resolver error. There is nothing to fix in a
-	// file skipped by the interrupt, so its message has no resend
-	// instruction.
+	// Files not yet sent when the call is interrupted are reported as not
+	// applied, without a request or a resend instruction. The interrupt
+	// is checked before the path checks, so a plan-named file gets the
+	// interrupt reason rather than a resolver error.
 	t.Run("Interrupted", func(t *testing.T) {
 		t.Parallel()
 		interruptTests := []struct {

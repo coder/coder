@@ -245,7 +245,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			" old_text matches zero locations, or more than one unless"+
 			" replace_all is set. Each file's edits are validated before that"+
 			" file is written: a file with any error is left unchanged, and"+
-			" the other files are still applied.",
+			" files without errors are still applied.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
 				return rejectEditFiles("Add at least one edit to edits"), nil
@@ -335,11 +335,10 @@ func executeEditFilesTool(
 	var applied, notApplied []editFilesFileResult
 	for _, file := range GroupEditsByPath(args.Edits) {
 		indexes := editIndexes[file.Path]
-		// The interrupt handler can persist a result produced after
-		// cancellation, so a file not yet sent is reported as not
-		// applied instead of failing with an outcome that looks unknown.
-		// This runs first so the interrupt, not a check that needs the
-		// workspace, is the reason given.
+		// The interrupt handler can persist this result, so an unsent file
+		// is reported as not applied rather than sent and failed as
+		// unknown. This check runs before checkPath so the interrupt is
+		// the reason given.
 		if ctx.Err() != nil {
 			notApplied = append(notApplied, editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: editFilesInterruptedError,
@@ -357,6 +356,10 @@ func executeEditFilesTool(
 			IncludeDiff: true,
 		})
 		if err != nil {
+			// An agent response means nothing was written: the agent
+			// validates the file first and commits it with a rename, so
+			// only a panic after the rename errors after writing. A
+			// dropped connection may follow a completed write.
 			status := editFilesStatusUnknown
 			if isAgentResponse(err) {
 				status = editFilesStatusRejected
@@ -394,19 +397,15 @@ func executeEditFilesTool(
 }
 
 // isAgentResponse reports whether an EditFiles error carries the
-// agent's response. A single-file request then wrote nothing: the agent
-// validates the file before writing and writes through a temporary file
-// and rename, so every error it returns leaves the file unchanged. The
-// exception is a panic after the rename, which the agent's recovery
-// middleware turns into a 500. An error without a response, such as a
-// dropped connection, may follow a completed write.
+// agent's response rather than a transport or decoding failure.
 func isAgentResponse(err error) bool {
 	_, ok := codersdk.AsError(err)
 	return ok
 }
 
 // partialEditFilesMessage summarizes a result where some files were
-// applied, naming each file that was not in the order of notApplied.
+// applied, naming each file that was not applied, in the order of
+// notApplied.
 func partialEditFilesMessage(applied int, notApplied []editFilesFileResult) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "Applied %d %s.", applied, pluralFiles(applied))
@@ -453,8 +452,9 @@ func noneAppliedEditFilesMessage(files []editFilesFileResult) string {
 }
 
 // editFilesInterruptedError is the error of a file that was not sent
-// because the tool call was interrupted. Such a file has nothing to fix,
-// so messages name it without a resend instruction.
+// because the tool call was interrupted. Nothing is known to be wrong
+// with such a file, and the user may have interrupted to stop it, so
+// messages name it without a resend instruction.
 const editFilesInterruptedError = "not sent because the tool call was interrupted"
 
 func interruptedFileSentence(path string) string {
