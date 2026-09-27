@@ -10,9 +10,29 @@ const sharedByAnotherUser = {
 };
 
 describe("canManageChat", () => {
-	it("is true only for the chat owner", () => {
-		expect(canManageChat(MockChat, MockUserOwner.id)).toBe(true);
-		expect(canManageChat(sharedByAnotherUser, MockUserOwner.id)).toBe(false);
+	it("is true for the chat owner before permissions load", () => {
+		expect(canManageChat(MockChat, MockUserOwner.id, undefined)).toBe(true);
+		expect(
+			canManageChat(sharedByAnotherUser, MockUserOwner.id, undefined),
+		).toBe(false);
+	});
+
+	it("follows the organization-wide chat:update permission for other users' chats", () => {
+		const canUpdate = { [MockChat.organization_id]: true };
+		const cannotUpdate = { [MockChat.organization_id]: false };
+		expect(
+			canManageChat(sharedByAnotherUser, MockUserOwner.id, canUpdate),
+		).toBe(true);
+		expect(
+			canManageChat(sharedByAnotherUser, MockUserOwner.id, cannotUpdate),
+		).toBe(false);
+		expect(
+			canManageChat(
+				{ ...sharedByAnotherUser, organization_id: "other-org" },
+				MockUserOwner.id,
+				canUpdate,
+			),
+		).toBe(false);
 	});
 });
 

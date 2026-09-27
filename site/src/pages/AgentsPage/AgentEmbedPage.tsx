@@ -1,7 +1,9 @@
 import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useMutation, useQueryClient } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import { chatUpdatePermissionsByOrganization } from "#/api/queries/chats";
+import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
@@ -15,6 +17,7 @@ import {
 	isConcreteThemeName,
 } from "#/theme";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import { canManageChat } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -216,6 +219,13 @@ const AgentEmbedPage: FC = () => {
 		window.parent.postMessage({ type: "coder:chat-ready" }, "*");
 	};
 
+	const chatUpdatePermissionsQuery = useQuery(
+		chatUpdatePermissionsByOrganization(auth.user?.organization_ids ?? []),
+	);
+	const canManageChatAsUser = (chat: TypesGen.Chat) =>
+		auth.user !== undefined &&
+		canManageChat(chat, auth.user.id, chatUpdatePermissionsQuery.data);
+
 	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -228,6 +238,7 @@ const AgentEmbedPage: FC = () => {
 		isArchiving: false,
 		archivingChatId: undefined,
 		activeChatChildren: undefined,
+		canManageChat: canManageChatAsUser,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

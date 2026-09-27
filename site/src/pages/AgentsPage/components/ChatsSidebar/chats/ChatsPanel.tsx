@@ -98,6 +98,7 @@ type ChatsPanelProps = {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
+	readonly canManageChat: (chat: Chat) => boolean;
 };
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -131,6 +132,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isChatsActive,
 	location,
 	currentUserId,
+	canManageChat,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -300,7 +302,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
-		currentUserId,
+		canManageChat,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,

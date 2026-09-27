@@ -73,6 +73,7 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		isArchiving: false,
 		archivingChatId: undefined,
 		activeChatChildren: undefined,
+		canManageChat: () => true,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: () => setIsSidebarCollapsed(!isSidebarCollapsed),
 		onExpandSidebar: () => setIsSidebarCollapsed(false),

@@ -24,12 +24,10 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
-	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
@@ -97,7 +95,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	panel,
 }) => {
 	const { isEmbedded } = useEmbedContext();
-	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -132,6 +129,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		requestPinAgent,
 		requestUnpinAgent,
 		onOpenRenameDialog,
+		canManageChat,
 		isArchiving = false,
 		archivingChatId,
 		activeChatChildren,
@@ -140,7 +138,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
-	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
+	const canManage = chat !== undefined && Boolean(canManageChat?.(chat));
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = Boolean(
 		isArchiving &&
@@ -157,7 +155,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
 	// Suppressed when there is no chat to act on (loading and not-found views)
 	// and when the chat has no menu actions (archived child chats and chats
-	// shared by another user).
+	// the user may only read).
 	const showActionsMenu =
 		!isEmbedded &&
 		chat !== undefined &&

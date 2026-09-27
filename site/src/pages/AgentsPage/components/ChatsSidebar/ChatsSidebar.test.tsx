@@ -123,6 +123,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	sidebarFilters: defaultSidebarFilters,
 	onSidebarFiltersChange: vi.fn(),
 	currentUserId: MockUserOwner.id,
+	canManageChat: (chat) => chat.owner_id === MockUserOwner.id,
 };
 
 // ---- Tests ----
