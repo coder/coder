@@ -804,8 +804,6 @@ describe("parseEditFilesArgs", () => {
 		expect(buildEditDiff(parsed[0].path, parsed[0].edits)).toBeNull();
 	});
 
-	// Flat args carry the path on every edit. They are grouped by path
-	// in order of first appearance, keeping each file's edit order.
 	it.each<{ name: string; args: unknown; expected: EditFilesFileEntry[] }>([
 		{
 			name: "flat edits for one file",
@@ -867,7 +865,7 @@ describe("parseEditFilesArgs", () => {
 			],
 		},
 		{
-			name: "flat edits without a non-empty string path are skipped",
+			name: "flat edits with a missing, empty, or non-string path are skipped",
 			args: {
 				edits: [
 					{ old_text: "no path", new_text: "x" },
@@ -907,7 +905,7 @@ describe("parseEditFilesArgs", () => {
 			],
 		},
 		{
-			name: "files shape is unchanged",
+			name: "files shape keeps duplicate paths as separate entries",
 			args: {
 				files: [
 					{ path: "/repo/a.go", edits: [{ old_text: "one", new_text: "1" }] },
@@ -922,7 +920,7 @@ describe("parseEditFilesArgs", () => {
 			],
 		},
 		{
-			name: "files array takes precedence over flat edits",
+			name: "files shape takes precedence over flat edits",
 			args: {
 				files: [
 					{ path: "/repo/a.go", edits: [{ old_text: "x", new_text: "y" }] },

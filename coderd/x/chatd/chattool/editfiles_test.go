@@ -21,9 +21,8 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
-	// The generated schema is the model-facing contract: a flat edits
-	// list whose items carry their own path. fantasy cannot express
-	// minItems, so "at least one edit" is enforced by validation.
+	// fantasy cannot express minItems, so validation enforces at least
+	// one edit.
 	t.Run("SchemaIsFlatEditsList", func(t *testing.T) {
 		t.Parallel()
 		info := chattool.EditFiles(chattool.EditFilesOptions{}).Info()
@@ -58,7 +57,7 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; path is required in every edit\nNo files were applied.",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo files were applied.",
 			},
 			{
 				name:    "EmptyEdits",
@@ -78,12 +77,12 @@ func TestEditFiles(t *testing.T) {
 			{
 				// fantasy's own decode error names Go types and does
 				// not say that edits must be an array. chatloop decodes
-				// a string holding an array before the tool runs, so
-				// this string holds something else.
+				// a string holding an array of objects before the tool
+				// runs, so this string holds something else.
 				name:  "EditsNotAnArray",
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
-					"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example " + example,
+					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
 					"\nNo files were applied.",
 				},
 			},
@@ -1149,18 +1148,18 @@ func TestEditFiles_Grouping(t *testing.T) {
 	tests := []struct {
 		name  string
 		edits []chattool.EditFilesEdit
-		// agentFiles is the grouped agent request form.
+		// agentFiles is the expected GroupEditsByPath result.
 		agentFiles []workspacesdk.FileEdits
-		// hookJSON is the exact pre_tool_use tool_input.
+		// hookJSON is the exact JSON encoding of NewEditFilesHookInput.
 		hookJSON string
-		// flattened is the result of flattening hookJSON back to
-		// schema B.
+		// flattened is hookJSON decoded and flattened back to edits.
 		flattened []chattool.EditFilesEdit
 	}{
 		{
 			name:  "Empty",
 			edits: nil,
-			// An empty slice, not nil, so hooks see an array.
+			// Empty, not nil, so the encoded forms hold [] instead of
+			// null.
 			agentFiles: []workspacesdk.FileEdits{},
 			hookJSON:   `{"files":[]}`,
 			flattened:  []chattool.EditFilesEdit{},
@@ -1270,9 +1269,8 @@ func TestEditFiles_Grouping(t *testing.T) {
 		})
 	}
 
-	// A grouped override must accept only old_text/new_text, not the
-	// deprecated search/replace keys that workspacesdk.FileEdit
-	// decodes for old agents.
+	// Decoding a grouped override ignores the deprecated search/replace
+	// keys that workspacesdk.FileEdit falls back to.
 	t.Run("OverrideIgnoresSearchReplace", func(t *testing.T) {
 		t.Parallel()
 

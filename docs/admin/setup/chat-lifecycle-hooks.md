@@ -88,7 +88,7 @@ The model sends a flat `edits` list in which every edit names its own `path`, an
 ```
 
 Each edit carries `old_text` and `new_text`, and `replace_all` only when it's `true`.
-Paths appear as the tool uses them, with surrounding whitespace removed, so edits whose paths differ only by that whitespace appear under one file.
+Paths appear as the tool uses them, with surrounding whitespace removed.
 Coder builds this view from the decoded edits and drops keys the `edits` schema doesn't declare, so a call that uses the retired `files` shape appears as `{"files":[]}`, and the tool rejects it.
 Only input that fails to decode reaches `pre_tool_use` as the model's bytes; the tool rejects that call too, without editing any file.
 

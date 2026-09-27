@@ -27,10 +27,8 @@ type EditFilesArgs struct {
 	Edits []EditFilesEdit `json:"edits"`
 }
 
-// EditFilesEdit is one edit in the flat edit_files input: a single
-// old_text to new_text replacement that carries the path of the file
-// it applies to. It is distinct from workspacesdk.FileEdit, which has
-// no path and is grouped under workspacesdk.FileEdits for the agent.
+// EditFilesEdit is one edit in the edit_files tool input. Unlike
+// workspacesdk.FileEdit, it carries the path of the file it changes.
 type EditFilesEdit struct {
 	Path       string `json:"path" description:"Absolute path of the file to edit."`
 	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
@@ -38,12 +36,10 @@ type EditFilesEdit struct {
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
-// GroupEditsByPath groups edits into one entry per path for the
-// workspace agent request. Paths compare exactly as given. Files
-// appear in order of each path's first edit, and each file keeps its
-// edits in their original order, so interleaved paths (a, b, a) group
-// to a: [1st, 3rd], b: [2nd]. The result is empty, not nil, for empty
-// input.
+// GroupEditsByPath groups edits into one file per path for the
+// workspace agent request. Paths are compared exactly as given. Files
+// are ordered by each path's first edit, and each file keeps its edits
+// in their original order. Empty input returns an empty slice, not nil.
 func GroupEditsByPath(edits []EditFilesEdit) []workspacesdk.FileEdits {
 	files := make([]workspacesdk.FileEdits, 0, len(edits))
 	indexByPath := make(map[string]int, len(edits))
@@ -63,14 +59,13 @@ func GroupEditsByPath(edits []EditFilesEdit) []workspacesdk.FileEdits {
 	return files
 }
 
-// EditFilesHookInput is the grouped form of edit_files input that
-// pre_tool_use hooks receive as tool_input and return as
-// input_override: {"files":[{"path":...,"edits":[...]}]}.
+// EditFilesHookInput is edit_files input grouped by path, in the shape
+// pre_tool_use hooks read as tool_input and send as input_override.
 //
-// It deliberately does not reuse workspacesdk.FileEdits: the JSON
-// methods on workspacesdk.FileEdit emit and accept the deprecated
-// search/replace keys for old agents, and hooks must see and send only
-// old_text/new_text.
+// It does not reuse workspacesdk.FileEdits: hooks must see and send
+// only old_text/new_text, but the JSON methods on workspacesdk.FileEdit
+// also write the deprecated search/replace keys and fall back to
+// reading them.
 type EditFilesHookInput struct {
 	Files []EditFilesHookFile `json:"files"`
 }
@@ -107,9 +102,9 @@ func NewEditFilesHookInput(edits []EditFilesEdit) EditFilesHookInput {
 	return input
 }
 
-// Edits flattens the grouped input back to one edit per entry: files
-// in order, then each file's edits in order. The result is empty, not
-// nil, when there are no edits.
+// Edits flattens the grouped input: files in order, then each file's
+// edits in order. It returns an empty slice, not nil, when there are no
+// edits.
 func (in EditFilesHookInput) Edits() []EditFilesEdit {
 	edits := make([]EditFilesEdit, 0)
 	for _, file := range in.Files {
@@ -129,9 +124,7 @@ func (in EditFilesHookInput) Edits() []EditFilesEdit {
 const EditFilesName = "edit_files"
 
 // NormalizeEditPaths returns a copy of edits with each path in the form
-// the tool executes it: surrounding whitespace removed. The hook
-// presentation uses the same function so hooks see the paths the tool
-// edits.
+// the tool uses it: surrounding whitespace removed.
 func NormalizeEditPaths(edits []EditFilesEdit) []EditFilesEdit {
 	normalized := slices.Clone(edits)
 	for i := range normalized {
@@ -145,19 +138,18 @@ func NormalizeEditPaths(edits []EditFilesEdit) []EditFilesEdit {
 const editFilesExample = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
 
 // editFilesTool adds input handling that the typed fantasy wrapper
-// cannot express: decoding a string-encoded edits array where the call
-// arrives, and whole-call errors that show the accepted shape.
+// cannot express: a decoder chatloop applies to a string-encoded edits
+// array, and whole-call errors that show the accepted shape.
 type editFilesTool struct {
 	fantasy.AgentTool
 }
 
 // DecodeToolInput replaces a top-level edits value that is a JSON
 // string with the string's content when that content parses as-is into
-// a JSON array of objects. The content bytes are spliced in verbatim
-// and the rest of the input is kept byte for byte, so the ambiguity
-// check still sees the model's key spelling. Any other input, including
-// a repeated or differently capitalized edits key, returns false and is
-// left for the ambiguity check and the tool to reject.
+// a JSON array of objects. Nothing is re-encoded, so the ambiguity
+// check still sees the model's key spelling. Any other input returns
+// false; a repeated or differently capitalized edits key is left for the
+// ambiguity check to reject.
 func (editFilesTool) DecodeToolInput(input string) (string, bool) {
 	decoder := json.NewDecoder(strings.NewReader(input))
 	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
@@ -234,7 +226,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	var args EditFilesArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return rejectEditFiles(fmt.Sprintf(
-			"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example %s; the input did not match (%s)",
+			"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example %s; decoding failed (%s)",
 			editFilesExample, err,
 		)), nil
 	}
@@ -267,8 +259,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			}
 			if len(missingPath) > 0 {
 				return rejectEditFiles(
-					"Set path to the absolute path of the file to edit in " + strings.Join(missingPath, ", ") +
-						"; path is required in every edit",
+					"Set path to the absolute path of the file to edit in " + strings.Join(missingPath, ", "),
 				), nil
 			}
 			var planPath string
@@ -479,8 +470,8 @@ func formatEditIndexes(indexes []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// editFilesNoneApplied is the statement in every edit_files error
-// result that is known to have written nothing.
+// editFilesNoneApplied is the statement every edit_files error result
+// makes when the call is known to have written nothing.
 const editFilesNoneApplied = "No files were applied."
 
 // File and result statuses in edit_files results.
@@ -520,8 +511,7 @@ func pluralFiles(n int) string {
 }
 
 // rejectEditFiles returns a whole-call rejection decided before any
-// edit request reached the agent, so no file was written. reason
-// leads with what to change when the model can change anything.
+// edit request reached the agent, so no file was written.
 func rejectEditFiles(reason string) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
 }

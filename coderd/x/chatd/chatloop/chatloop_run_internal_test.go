@@ -274,14 +274,14 @@ func TestGenerateAssistant_DecodesToolInput(t *testing.T) {
 			wantInput: rawInput,
 		},
 		{
-			name:          "call names a tool without decoder while another has one",
+			name:          "call to a tool without decoder while another tool has one",
 			decoder:       true,
 			decodeOK:      true,
 			callOtherTool: true,
 			wantInput:     rawInput,
 		},
 		{
-			name:             "provider executed call",
+			name:             "provider-executed call",
 			decoder:          true,
 			decodeOK:         true,
 			providerExecuted: true,

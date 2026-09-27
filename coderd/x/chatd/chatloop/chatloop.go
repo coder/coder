@@ -1470,16 +1470,17 @@ type serialToolCaller interface{ SerialToolCalls() bool }
 // toolInputDecoder is implemented by tools that accept an alternative
 // encoding of their input, for example an array argument sent as a JSON
 // string. DecodeToolInput returns the input in the shape the tool's
-// schema declares. It returns false when the input needs no change or
-// cannot be decoded; the input is then used unchanged.
+// schema declares, or false to keep the input unchanged when it needs no
+// change or cannot be decoded. The decoded input replaces the model's
+// input before the call is published, so the published part, hook
+// input, stored call and execution all start from it.
 type toolInputDecoder interface {
 	DecodeToolInput(input string) (decoded string, ok bool)
 }
 
 // toolInputDecodeFunc returns the processStepStream callback that
 // decodes tool-call input for the tools implementing toolInputDecoder,
-// or nil when none do. Decoding where the call arrives means clients,
-// hooks, persistence and execution all read the same input.
+// or nil when none do.
 func toolInputDecodeFunc(
 	ctx context.Context,
 	logger slog.Logger,
