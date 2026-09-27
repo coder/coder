@@ -2,7 +2,6 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { API } from "#/api/api";
 import {
 	type ApiErrorResponse,
 	getErrorMessage,
@@ -10,9 +9,11 @@ import {
 } from "#/api/errors";
 import {
 	archiveChat,
+	chatHasMessages,
 	createChat,
 	createChatMessageByChatId,
-	invalidateChatListQueries,
+	invalidateChatCollections,
+	unarchiveChat,
 } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
@@ -157,6 +158,7 @@ const AgentCreatePage: FC = () => {
 		createChatMessageByChatId(queryClient),
 	);
 	const archiveMutation = useMutation(archiveChat(queryClient));
+	const unarchiveMutation = useMutation(unarchiveChat(queryClient));
 	const [submitError, setSubmitError] = useState<unknown>(null);
 	// A submit outlives the page when the user leaves mid-request. After
 	// that it must not navigate or report anything, but its requests keep
@@ -186,23 +188,32 @@ const AgentCreatePage: FC = () => {
 		});
 	};
 	// A failed send can still commit, and an answered chat is idle again,
-	// so archiving alone cannot tell. Only a successful archive proves the
-	// message is absent, because an archived chat refuses a late send.
+	// so archiving alone cannot tell. An archived chat refuses a late send,
+	// so a check after the archive settles whether the message landed.
 	const cleanUpAfterFailedSend = async (
 		chatId: string,
 	): Promise<"committed" | "archived" | "unknown"> => {
-		try {
-			const { messages } = await withTimeout(
-				() => API.experimental.getChatMessages(chatId, { limit: 1 }),
+		const hasMessages = () =>
+			withTimeout(
+				() => queryClient.fetchQuery(chatHasMessages(chatId)),
 				cleanupRequestTimeoutMs,
 			);
-			if (messages.length > 0) {
+		try {
+			if (await hasMessages()) {
 				return "committed";
 			}
 			await withTimeout(
 				() => archiveMutation.mutateAsync(chatId),
 				cleanupRequestTimeoutMs,
 			);
+			// The send can commit between the first check and the archive.
+			if (await hasMessages()) {
+				await withTimeout(
+					() => unarchiveMutation.mutateAsync(chatId),
+					cleanupRequestTimeoutMs,
+				);
+				return "committed";
+			}
 			return "archived";
 		} catch (error) {
 			if (isConflictError(error)) {
@@ -320,8 +331,8 @@ const AgentCreatePage: FC = () => {
 		} catch (error) {
 			if (error instanceof RequestTimeoutError) {
 				// The chat may exist without the page knowing its ID, so
-				// refresh the sidebar where it would show up.
-				void invalidateChatListQueries(queryClient);
+				// refresh every list it would show up in.
+				void invalidateChatCollections(queryClient);
 				reportSubmitError(createTimeoutError);
 			} else {
 				reportSubmitError(error);

@@ -19,7 +19,7 @@ import {
 } from "./chatMessageEdits";
 import { organizationsPermissions } from "./organizations";
 
-const chatCollectionsKey = ["chats", "collections"] as const;
+export const chatCollectionsKey = ["chats", "collections"] as const;
 
 export const chatListFamilyKey = [...chatCollectionsKey, "list"] as const;
 
@@ -748,6 +748,13 @@ export const invalidateChatListQueries = (queryClient: QueryClient) =>
 		queryKey: chatListFamilyKey,
 	});
 
+// A new chat can show up in every collection: the sidebar list, the
+// per-workspace lookups, and search results.
+export const invalidateChatCollections = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({
+		queryKey: chatCollectionsKey,
+	});
+
 // Event kinds that can change which chat is newest for a workspace.
 const BY_WORKSPACE_AFFECTING_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>(
 	["status_change", "action_required"],
@@ -1210,6 +1217,19 @@ const chatQueueConvergenceKey = (chatId: string) =>
 export const chatQueueConvergence = (chatId: string) => ({
 	queryKey: chatQueueConvergenceKey(chatId),
 	queryFn: () => API.experimental.getChatMessages(chatId),
+	gcTime: 0,
+});
+
+// A one-off server check that keeps the paginated messages cache
+// untouched, for callers deciding whether a chat is still empty.
+export const chatHasMessages = (chatId: string) => ({
+	queryKey: [...chatEntityKey(chatId), "has-messages"] as const,
+	queryFn: async () => {
+		const { messages } = await API.experimental.getChatMessages(chatId, {
+			limit: 1,
+		});
+		return messages.length > 0;
+	},
 	gcTime: 0,
 });
 
@@ -1721,9 +1741,7 @@ export const createChat = (queryClient: QueryClient) => ({
 		signal: AbortSignal;
 	}) => API.experimental.createChat(req, signal),
 	onSuccess: () => {
-		void invalidateChatListQueries(queryClient);
-		void invalidateChatsByWorkspace(queryClient);
-		void invalidateChatSearches(queryClient);
+		void invalidateChatCollections(queryClient);
 	},
 });
 

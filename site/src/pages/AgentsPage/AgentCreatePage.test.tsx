@@ -1,5 +1,5 @@
 import { act, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { AxiosError, CanceledError } from "axios";
 import { HttpResponse, http } from "msw";
 import type { ComponentProps } from "react";
@@ -15,7 +15,7 @@ import {
 	vi,
 } from "vitest";
 import { API } from "#/api/api";
-import { chatListFamilyKey } from "#/api/queries/chats";
+import { chatCollectionsKey } from "#/api/queries/chats";
 import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import {
@@ -27,6 +27,8 @@ import {
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
 	MockUserPreferenceSettings,
+	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceBuildLogs,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -50,10 +52,11 @@ const formProps = vi.hoisted(() => ({
 		| ((options: CreateChatOptions) => Promise<void>)
 		| undefined,
 	createError: undefined as unknown,
+	submissions: [] as Promise<{ rejected: boolean }>[],
 }));
 
 // Captures the submit props so upload tests can drive the page's submit
-// path directly while other tests still use the real form.
+// path directly, and records how each real Send settles.
 vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 	const actual = await importOriginal<typeof AgentCreateFormModule>();
 	return {
@@ -61,7 +64,21 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		AgentCreateForm: (props: ComponentProps<typeof actual.AgentCreateForm>) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
-			return <actual.AgentCreateForm {...props} />;
+			return (
+				<actual.AgentCreateForm
+					{...props}
+					onCreateChat={(options) => {
+						const submission = props.onCreateChat(options);
+						formProps.submissions.push(
+							submission.then(
+								() => ({ rejected: false }),
+								() => ({ rejected: true }),
+							),
+						);
+						return submission;
+					}}
+				/>
+			);
 		},
 	};
 });
@@ -238,17 +255,19 @@ describe("AgentCreatePage debug deep link", () => {
 	});
 });
 
+const mockUploadResponse = {
+	path: "/home/coder/bundle.zip",
+	name: "bundle.zip",
+	size: 2,
+	media_type: "application/zip",
+	workspace_id: "ws-1",
+};
+
 const mockUploadedFile: WorkspaceFileUpload = {
 	id: "upload-1",
 	file: new File(["PK"], "bundle.zip", { type: "application/zip" }),
 	status: "uploaded",
-	response: {
-		path: "/home/coder/bundle.zip",
-		name: "bundle.zip",
-		size: 2,
-		media_type: "application/zip",
-		workspace_id: "ws-1",
-	},
+	response: mockUploadResponse,
 };
 
 const mockConflictError = {
@@ -298,18 +317,46 @@ const submit = async (options: Partial<CreateChatOptions>) => {
 	}
 };
 
-type SubmitOutcome = { rejected: boolean };
-
-// Starts a submit without awaiting it, so timers and navigation can run
-// while its requests are pending. A rejection keeps the form's draft and
-// releases its composer.
-const startSubmit = (
-	options: Partial<CreateChatOptions>,
-): Promise<SubmitOutcome> =>
-	createChatFromForm(options).then(
-		() => ({ rejected: false }),
-		() => ({ rejected: true }),
+// Drafts through the real composer before any fake timers start, so its
+// model and upload agent queries can settle.
+const fillComposer = async (
+	user: UserEvent,
+	{ withWorkspaceFile }: { withWorkspaceFile: boolean },
+) => {
+	await user.click(
+		await screen.findByRole("textbox", { name: "Chat message" }),
 	);
+	await user.paste("inspect this archive");
+	if (withWorkspaceFile) {
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalled(),
+		);
+		await user.upload(
+			screen.getByTestId("chat-attachment-file-input"),
+			new File(["PK"], "bundle.zip", { type: "application/zip" }),
+		);
+		await screen.findByRole("button", { name: "Remove bundle.zip" });
+	}
+	return findEnabledSendButton();
+};
+
+const lastSubmission = () => {
+	const submission = formProps.submissions.at(-1);
+	if (!submission) {
+		throw new Error("Send did not submit.");
+	}
+	return submission;
+};
+
+// A released composer keeps the draft and attachments, so Send issues a
+// fresh create request.
+const retrySend = async (user: UserEvent, sendButton: HTMLElement) => {
+	await act(async () => {
+		await user.click(sendButton);
+		await vi.advanceTimersByTimeAsync(0);
+	});
+	expect(API.experimental.createChat).toHaveBeenCalledTimes(2);
+};
 
 const stallUntilAborted = (signal: AbortSignal | undefined) =>
 	new Promise<never>((_, reject) => {
@@ -352,7 +399,20 @@ describe("AgentCreatePage workspace uploads", () => {
 
 	beforeEach(() => {
 		formProps.onCreateChat = undefined;
+		formProps.submissions = [];
 		events = [];
+		mockPageQueries();
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [MockWorkspace],
+			count: 1,
+		});
+		localStorage.setItem("agents.selected-workspace-id", MockWorkspace.id);
+		vi.spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({
+			agent_id: MockWorkspaceAgent.id,
+		});
+		vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue(
+			mockUploadResponse,
+		);
 		vi.spyOn(API.experimental, "createChat").mockImplementation(async () => {
 			events.push("create");
 			return MockChat;
@@ -538,9 +598,9 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
-	it("archives a stalled first message and reports the timeout inline", async () => {
+	it("archives a stalled first message, reports the timeout inline, and lets Send retry", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
-		vi.useFakeTimers();
 		let sendSignal: AbortSignal | undefined;
 		vi.mocked(API.experimental.createChatMessage).mockImplementation(
 			(_chatId, _req, signal) => {
@@ -549,11 +609,11 @@ describe("AgentCreatePage workspace uploads", () => {
 				return stallUntilAborted(signal);
 			},
 		);
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({ uploadWorkspaceFiles });
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(29_999);
 		});
 		expect(events).toEqual(["create", "send"]);
@@ -561,7 +621,7 @@ describe("AgentCreatePage workspace uploads", () => {
 
 		await act(() => vi.advanceTimersByTimeAsync(1));
 
-		expect(await outcome).toEqual({ rejected: true });
+		expect(await lastSubmission()).toEqual({ rejected: true });
 		expect(sendSignal?.aborted).toBe(true);
 		expect(events).toEqual(["create", "send", "archive"]);
 		expect(formProps.createError).toEqual({
@@ -570,31 +630,34 @@ describe("AgentCreatePage workspace uploads", () => {
 		});
 		expect(toast.error).not.toHaveBeenCalled();
 		expect(router.state.location.pathname).toBe("/agents");
+
+		await retrySend(user, sendButton);
+		expect(API.experimental.uploadChatWorkspaceFile).toHaveBeenCalledTimes(2);
 	});
 
 	it("navigates when a stalled first message was committed", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
-		vi.useFakeTimers();
 		vi.mocked(API.experimental.createChatMessage).mockImplementation(
 			(_chatId, _req, signal) => stallUntilAborted(signal),
 		);
 		vi.mocked(API.experimental.updateChat).mockRejectedValue(mockConflictError);
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({ uploadWorkspaceFiles });
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(30_000);
 		});
 
-		expect(await outcome).toEqual({ rejected: false });
+		expect(await lastSubmission()).toEqual({ rejected: false });
 		expect(formProps.createError).toBeNull();
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
 	it("navigates when a stalled first message was already answered", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
-		vi.useFakeTimers();
 		vi.mocked(API.experimental.createChatMessage).mockImplementation(
 			(_chatId, _req, signal) => stallUntilAborted(signal),
 		);
@@ -603,38 +666,72 @@ describe("AgentCreatePage workspace uploads", () => {
 			queued_messages: [],
 			has_more: true,
 		});
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({ uploadWorkspaceFiles });
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(30_000);
 		});
 
-		expect(await outcome).toEqual({ rejected: false });
+		expect(await lastSubmission()).toEqual({ rejected: false });
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 		expect(formProps.createError).toBeNull();
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
-	it("says a stalled first message may have been sent when the cleanup cannot tell", async () => {
+	it("restores the chat when a stalled first message lands before the archive", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
+		vi.mocked(API.experimental.createChatMessage).mockImplementation(
+			(_chatId, _req, signal) => stallUntilAborted(signal),
+		);
+		vi.mocked(API.experimental.getChatMessages)
+			.mockResolvedValueOnce({
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			})
+			.mockResolvedValue({
+				messages: [MockChatMessage],
+				queued_messages: [],
+				has_more: false,
+			});
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
 		vi.useFakeTimers();
+
+		await act(async () => {
+			await user.click(sendButton);
+			await vi.advanceTimersByTimeAsync(30_000);
+		});
+
+		expect(await lastSubmission()).toEqual({ rejected: false });
+		expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
+			[MockChat.id, { archived: true }],
+			[MockChat.id, { archived: false }],
+		]);
+		expect(formProps.createError).toBeNull();
+		expect(router.state.location.pathname).toBe(chatPath);
+	});
+
+	it("says a stalled first message may have been sent when the cleanup cannot tell", async () => {
+		const user = userEvent.setup({ delay: null });
+		const router = await renderUploadPage();
 		vi.mocked(API.experimental.createChatMessage).mockImplementation(
 			(_chatId, _req, signal) => stallUntilAborted(signal),
 		);
 		vi.mocked(API.experimental.getChatMessages).mockRejectedValue(
 			mockApiError({ message: "Loading messages failed." }),
 		);
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({ uploadWorkspaceFiles });
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(30_000);
 		});
 
-		expect(await outcome).toEqual({ rejected: true });
+		expect(await lastSubmission()).toEqual({ rejected: true });
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 		expect(toast.error).toHaveBeenCalledWith("Loading messages failed.");
 		expect(formProps.createError).toEqual({
@@ -695,32 +792,34 @@ describe("AgentCreatePage workspace uploads", () => {
 	);
 
 	it("releases the composer when the cleanup archive stalls", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
-		vi.useFakeTimers();
 		const sendError = mockApiError({ message: "Send failed." });
 		vi.mocked(API.experimental.createChatMessage).mockRejectedValue(sendError);
 		vi.mocked(API.experimental.updateChat).mockImplementation(
 			() => new Promise<never>(() => {}),
 		);
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({ uploadWorkspaceFiles });
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(10_000);
 		});
 
-		expect(await outcome).toEqual({ rejected: true });
+		expect(await lastSubmission()).toEqual({ rejected: true });
 		expect(toast.error).toHaveBeenCalledWith(
 			"Failed to clean up the unused chat.",
 		);
 		expect(formProps.createError).toBe(sendError);
 		expect(router.state.location.pathname).toBe("/agents");
+
+		await retrySend(user, sendButton);
 	});
 
 	it("reports that a stalled create may have created the chat", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
-		vi.useFakeTimers();
 		const invalidateQueries = vi.spyOn(
 			QueryClient.prototype,
 			"invalidateQueries",
@@ -732,63 +831,68 @@ describe("AgentCreatePage workspace uploads", () => {
 				return stallUntilAborted(signal);
 			},
 		);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: false });
+		vi.useFakeTimers();
 
-		let outcome: Promise<SubmitOutcome> | undefined;
 		await act(async () => {
-			outcome = startSubmit({});
+			await user.click(sendButton);
 			await vi.advanceTimersByTimeAsync(30_000);
 		});
 
-		expect(await outcome).toEqual({ rejected: true });
+		expect(await lastSubmission()).toEqual({ rejected: true });
 		expect(createSignal?.aborted).toBe(true);
 		expect(invalidateQueries).toHaveBeenCalledWith({
-			queryKey: chatListFamilyKey,
+			queryKey: chatCollectionsKey,
 		});
 		expect(formProps.createError).toEqual({
 			message: "Creating the chat took too long.",
 			detail:
 				"The chat may still have been created. Check the chat list before sending again.",
 		});
-		expect(API.experimental.createChat).toHaveBeenCalledTimes(1);
 		expect(router.state.location.pathname).toBe("/agents");
+
+		await retrySend(user, sendButton);
 	});
 
 	it("archives a shell chat created after the page was left", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
 		const created = createDeferred<typeof MockChat>();
 		vi.mocked(API.experimental.createChat).mockImplementation(() => {
 			events.push("create");
 			return created.promise;
 		});
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
 
-		const outcome = startSubmit({ uploadWorkspaceFiles });
+		await user.click(sendButton);
+		await waitFor(() => expect(events).toEqual(["create"]));
 		await act(() => router.navigate("/agents/other-chat"));
 		created.resolve(MockChat);
 
-		expect(await outcome).toEqual({ rejected: true });
+		expect(await lastSubmission()).toEqual({ rejected: true });
 		await waitFor(() => expect(events).toEqual(["create", "archive"]));
-		expect(uploadWorkspaceFiles).not.toHaveBeenCalled();
+		expect(API.experimental.uploadChatWorkspaceFile).not.toHaveBeenCalled();
 		expect(API.experimental.createChatMessage).not.toHaveBeenCalled();
 		expect(toast.error).not.toHaveBeenCalled();
 		expect(router.state.location.pathname).toBe("/agents/other-chat");
 	});
 
 	it("stays on the page the user moved to when the first message lands", async () => {
+		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
 		const sent = createDeferred<{ queued: boolean }>();
 		vi.mocked(API.experimental.createChatMessage).mockImplementation(() => {
 			events.push("send");
 			return sent.promise;
 		});
-		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
 
-		const outcome = startSubmit({ uploadWorkspaceFiles });
+		await user.click(sendButton);
 		await waitFor(() => expect(events).toEqual(["create", "send"]));
 		await act(() => router.navigate("/agents/other-chat"));
 		sent.resolve({ queued: false });
 
-		expect(await outcome).toEqual({ rejected: false });
+		expect(await lastSubmission()).toEqual({ rejected: false });
 		expect(events).toEqual(["create", "send"]);
 		expect(router.state.location.pathname).toBe("/agents/other-chat");
 	});
@@ -808,18 +912,23 @@ describe("AgentCreatePage workspace uploads", () => {
 	});
 
 	it("clears the previous error when a new submit starts", async () => {
+		const user = userEvent.setup({ delay: null });
 		await renderUploadPage();
 		const createError = mockApiError({ message: "Create failed." });
 		vi.mocked(API.experimental.createChat).mockRejectedValueOnce(createError);
-		await expect(submit({})).rejects.toBe(createError);
-		expect(formProps.createError).toBe(createError);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: false });
+
+		await user.click(sendButton);
+		await waitFor(() => expect(API.experimental.createChat).toHaveBeenCalled());
+		expect(await lastSubmission()).toEqual({ rejected: true });
+		await waitFor(() => expect(formProps.createError).toBe(createError));
 
 		const created = createDeferred<typeof MockChat>();
 		vi.mocked(API.experimental.createChat).mockReturnValueOnce(created.promise);
-		const outcome = startSubmit({});
+		await user.click(await findEnabledSendButton());
 
 		await waitFor(() => expect(formProps.createError).toBeNull());
 		created.resolve(MockChat);
-		expect(await outcome).toEqual({ rejected: false });
+		expect(await lastSubmission()).toEqual({ rejected: false });
 	});
 });
