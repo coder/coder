@@ -152,6 +152,38 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
+export const CollapseAssistantStepsLoadError: Story = {
+	// Drop the seeded preferences so the component fetches and hits the error.
+	parameters: { queries: [] },
+	beforeEach: () => {
+		spyOn(API, "getUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(
+			"Failed to load your collapse assistant steps preference.",
+		);
+	},
+};
+
+export const CollapseAssistantStepsSaveError: Story = {
+	beforeEach: () => {
+		spyOn(API, "updateUserPreferenceSettings").mockRejectedValue(
+			new Error("boom"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("switch", { name: "Collapse assistant steps" }),
+		);
+		await canvas.findByText(
+			"Failed to save your collapse assistant steps preference.",
+		);
+	},
+};
+
 export const ShowsChatDebugLoggingToggle: Story = {
 	args: {
 		userDebugLoggingData: {
