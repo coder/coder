@@ -225,6 +225,16 @@ func TestCustomOrganizationRole(t *testing.T) {
 			OrganizationID: first.OrganizationID.String(),
 		})
 		require.ErrorContains(t, err, "Reserved")
+
+		// Custom role names are stored lowercase, so a case variant would
+		// shadow the built-in role.
+		//nolint:gocritic // owner is required for this
+		_, err = owner.CreateOrganizationRole(ctx, codersdk.Role{
+			Name:           "Agents-Access",
+			DisplayName:    "Testing Purposes",
+			OrganizationID: first.OrganizationID.String(),
+		})
+		require.ErrorContains(t, err, "Reserved")
 	})
 
 	// Attempt to add site & user permissions, which is not allowed
