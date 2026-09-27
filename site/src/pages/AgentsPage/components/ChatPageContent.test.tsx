@@ -228,11 +228,25 @@ describe("ChatPageInput", () => {
 			await attachZipFile(user);
 
 			expect(toast.error).toHaveBeenCalledWith(
-				"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+				"This file type is uploaded into the chat's workspace, which needs a connected agent. Start the workspace or wait for its agent to connect, then try again.",
 			);
 			expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
 		},
 	);
+
+	it("asks for a workspace when the chat has none", async () => {
+		const user = userEvent.setup({ applyAccept: true });
+		vi.spyOn(toast, "error");
+
+		renderChatPageInput(createChatStore(), {
+			chat: { ...MockChat, organization_id: "" },
+		});
+		await attachZipFile(user);
+
+		expect(toast.error).toHaveBeenCalledWith(
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		);
+	});
 
 	it("uploads to the server-selected agent when it is connected", async () => {
 		const user = userEvent.setup({ applyAccept: true });

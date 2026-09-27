@@ -84,6 +84,9 @@ import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
+const workspaceAgentUnavailableMessage =
+	"This file type is uploaded into the chat's workspace, which needs a connected agent. Start the workspace or wait for its agent to connect, then try again.";
+
 const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
@@ -794,6 +797,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: visibleWorkspaceUploads,
+				unavailableMessage: selectedWorkspaceId
+					? workspaceAgentUnavailableMessage
+					: undefined,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,
