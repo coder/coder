@@ -1407,8 +1407,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatUsageCRU",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+			Name:     "ChatUsageCreateReadShare",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionShare},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgMemberMe},
@@ -1416,12 +1416,14 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatUsageShare",
-			Actions:  []policy.Action{policy.ActionShare},
+			// Chats are personal: only their owner may update one, even
+			// against admin roles.
+			Name:     "ChatUsageUpdate",
+			Actions:  []policy.Action{policy.ActionUpdate},
 			Resource: rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+				true:  {orgMemberMe},
+				false: {owner, orgAdmin, setOtherOrg, memberMe, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
 			},
 		},
 		{

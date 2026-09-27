@@ -10350,9 +10350,9 @@ func TestCompactChat(t *testing.T) {
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-					// dbgen seeds rows with a synthetic "owner" subject;
-					// message inserts need chat update, so let them pass.
-					if subject.ID == "owner" {
+					// dbgen seeds chat rows as the system actor and other
+					// rows with a synthetic "owner" subject; let both pass.
+					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -10611,9 +10611,9 @@ func TestClearChat(t *testing.T) {
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
 				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
-					// dbgen seeds rows with a synthetic "owner" subject;
-					// message inserts need chat update, so let them pass.
-					if subject.ID == "owner" {
+					// dbgen seeds chat rows as the system actor and other
+					// rows with a synthetic "owner" subject; let both pass.
+					if subject.ID == "owner" || subject.Type == rbac.SubjectTypeSystemRestricted {
 						return nil
 					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
@@ -17970,6 +17970,11 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 // ActionUpdate check (org-level permission) but must still be blocked
 // because processing forwards the *owner's* credentials to external
 // services.
+// TestChatOwnerOnlyWriteHandlers verifies that an org admin, whose role
+// grants create, read, share, and delete on every chat in the
+// organization, still cannot drive another user's chat. Admin roles hold
+// no chat update permission, so RBAC rejects these requests as not found
+// before the handlers' own owner checks run.
 func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -18023,8 +18028,25 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to send this",
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	// Renaming, pinning, and archiving all go through PATCH /chats/{chat},
+	// which is the path an admin viewing a shared chat used to reach.
+	t.Run("PatchChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		ownerClient, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
+
+		err := adminClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("renamed by org admin"),
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+
+		unchanged, err := ownerClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.Title, unchanged.Title)
 	})
 
 	t.Run("CompactChat", func(t *testing.T) {
@@ -18034,8 +18056,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
 		_, err := adminClient.CompactChat(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PatchChatMessage", func(t *testing.T) {
@@ -18062,8 +18083,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Text: "org admin should not be able to edit this",
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
@@ -18088,7 +18108,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusForbidden, promoteRes.StatusCode)
+		require.Equal(t, http.StatusNotFound, promoteRes.StatusCode)
 	})
 
 	t.Run("SubmitToolResults", func(t *testing.T) {
@@ -18103,8 +18123,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Output:     json.RawMessage(`"forbidden"`),
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("ProposeChatTitle", func(t *testing.T) {
@@ -18114,8 +18133,7 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
 
 		_, err := adminClient.ProposeChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	// Verify the owner can still operate normally.
