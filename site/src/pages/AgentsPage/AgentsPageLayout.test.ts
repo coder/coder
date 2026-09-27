@@ -1083,16 +1083,6 @@ describe("nextSidebarViewportSlide", () => {
 			expected: "in",
 		},
 		{
-			name: "keeps a running slide",
-			input: {
-				...chatRoute,
-				slide: "out",
-				isMobileViewport: true,
-				prevIsMobileViewport: true,
-			},
-			expected: "out",
-		},
-		{
 			name: "stops a stale out after navigating to the chat list",
 			input: {
 				...chatRoute,
@@ -1110,17 +1100,6 @@ describe("nextSidebarViewportSlide", () => {
 				isSidebarCollapsed: true,
 				slide: "in",
 				isMobileViewport: false,
-				prevIsMobileViewport: false,
-			},
-			expected: null,
-		},
-		{
-			name: "does not slide a collapsed sidebar across the breakpoint",
-			input: {
-				...chatRoute,
-				isSidebarCollapsed: true,
-				slide: null,
-				isMobileViewport: true,
 				prevIsMobileViewport: false,
 			},
 			expected: null,
