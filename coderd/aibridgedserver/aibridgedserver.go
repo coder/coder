@@ -409,6 +409,10 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 	// interception crossed.
 	var crossings []budgetThresholdCrossing
 	err := s.store.InTx(func(tx database.Store) error {
+		// Serialize retention with usage writes for the same interception.
+		if _, err := tx.LockAIBridgeInterceptionForUsage(ctx, intc.ID); err != nil {
+			return xerrors.Errorf("lock interception for usage: %w", err)
+		}
 		if _, err := tx.InsertAIBridgeTokenUsage(ctx, database.InsertAIBridgeTokenUsageParams{
 			ID:                    uuid.New(),
 			InterceptionID:        intc.ID,
@@ -427,6 +431,17 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CostMicros:            cost.costMicros,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
+		}
+
+		if cost.effectiveGroupID.Valid {
+			if err := tx.IncrementAIBridgeTokenUsageHourly(ctx, database.IncrementAIBridgeTokenUsageHourlyParams{
+				CreatedAt: createdAt, EffectiveGroupID: cost.effectiveGroupID.UUID,
+				InitiatorID: intc.InitiatorID, Provider: intc.Provider,
+				ProviderName: intc.ProviderName, Model: intc.Model,
+				Client: intc.Client, CostMicros: cost.costMicros,
+			}); err != nil {
+				return xerrors.Errorf("increment hourly token usage: %w", err)
+			}
 		}
 
 		// Skip the spend update when there is no effective group or the interception has no cost.

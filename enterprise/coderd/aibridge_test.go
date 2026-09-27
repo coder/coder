@@ -5488,6 +5488,14 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: seed.group, CostMicros: seed.cost,
 			})
+			if seed.group.Valid {
+				err := db.IncrementAIBridgeTokenUsageHourly(testutil.Context(t, testutil.WaitLong), database.IncrementAIBridgeTokenUsageHourlyParams{
+					CreatedAt: inMonth, EffectiveGroupID: seed.group.UUID, InitiatorID: seed.user.ID,
+					Provider: seed.provider, ProviderName: seed.providerName, Model: seed.model,
+					Client: seed.client, CostMicros: seed.cost,
+				})
+				require.NoError(t, err)
+			}
 		}
 
 		user := func(u codersdk.User, providers, clients, models []string, cost, unpriced int64) codersdk.OrganizationAISpendUser {
@@ -5739,6 +5747,12 @@ func TestOrganizationAISpendUsersRoleAccess(t *testing.T) {
 			EffectiveGroupID: uuid.NullUUID{UUID: group.ID, Valid: true},
 			CostMicros:       sql.NullInt64{Int64: 1000, Valid: true},
 		})
+		err := db.IncrementAIBridgeTokenUsageHourly(ctx, database.IncrementAIBridgeTokenUsageHourlyParams{
+			CreatedAt: inMonth, EffectiveGroupID: group.ID, InitiatorID: initiator,
+			Provider: intc.Provider, ProviderName: intc.ProviderName, Model: intc.Model,
+			Client: intc.Client, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+		require.NoError(t, err)
 	}
 
 	cases := []struct {

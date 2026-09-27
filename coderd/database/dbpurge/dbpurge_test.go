@@ -1628,6 +1628,32 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	}
 }
 
+func TestDeleteOldAIBridgeRecordsEmptyBatch(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clk := quartz.NewMock(t)
+	clk.Set(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)).MustWait(ctx)
+	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	user := dbgen.User(t, db, database.User{})
+	var hourlyID int64
+	require.NoError(t, rawDB.QueryRowContext(ctx,
+		"INSERT INTO aibridge_token_usage_hourly (organization_id, hour, effective_group_id, initiator_id, provider, provider_name, model, client, usage_count) VALUES ($1, $2, $3, $4, 'wire', 'configured', 'model', 'client', 0) RETURNING id",
+		org.ID, time.Now().UTC(), group.ID, user.ID,
+	).Scan(&hourlyID))
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), db, &codersdk.DeploymentValues{
+		AI: codersdk.AIConfig{BridgeConfig: codersdk.AIBridgeConfig{Retention: serpent.Duration(24 * time.Hour)}},
+	}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+	defer closer.Close()
+	testutil.TryReceive(ctx, t, done)
+	var remaining int64
+	require.NoError(t, rawDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM aibridge_token_usage_hourly WHERE id=$1", hourlyID).Scan(&remaining))
+	require.EqualValues(t, 1, remaining)
+}
+
 func TestDeleteOldAuditLogs(t *testing.T) {
 	t.Parallel()
 

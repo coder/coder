@@ -27,6 +27,8 @@ const (
 	auditLogConnectionEventBatchSize = 1000
 	// Batch size for connection log deletion.
 	connectionLogsBatchSize = 10000
+	// Cap expired AI Bridge rows processed per tick.
+	aiBridgeInterceptionsBatchSize = 10000
 	// Batch size for audit log deletion.
 	auditLogsBatchSize = 10000
 	// Batch size for boundary log deletion.
@@ -256,10 +258,26 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		aibridgeRetention := i.vals.AI.BridgeConfig.Retention.Value()
 		if aibridgeRetention > 0 {
 			deleteAIBridgeRecordsBefore := start.Add(-aibridgeRetention)
-			// nolint:gocritic // Needs to run as aibridge context.
-			purgedAIBridgeRecords, err = tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
-			if err != nil {
-				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			// Lock selection must finish before deletion starts so READ COMMITTED sees
+			// usage committed by any writer that held an interception lock.
+			//nolint:gocritic // Purge needs internal access to lock interceptions.
+			lockedIDs, lockErr := tx.LockOldAIBridgeInterceptionsForPurge(dbauthz.AsAIBridged(ctx), database.LockOldAIBridgeInterceptionsForPurgeParams{BeforeTime: deleteAIBridgeRecordsBefore, LimitCount: aiBridgeInterceptionsBatchSize})
+			if lockErr != nil {
+				return xerrors.Errorf("failed to lock old aibridge interceptions: %w", lockErr)
+			}
+			if len(lockedIDs) > 0 {
+				//nolint:gocritic // Purge needs internal access to delete interceptions.
+				result, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), lockedIDs)
+				if err != nil {
+					return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+				}
+				purgedAIBridgeRecords = result.TotalDeleted
+				if len(result.EmptyHourlyIds) > 0 {
+					//nolint:gocritic // Purge needs internal access to remove usage aggregates.
+					if err := tx.DeleteEmptyAIBridgeTokenUsageHourly(dbauthz.AsAIBridged(ctx), result.EmptyHourlyIds); err != nil {
+						return xerrors.Errorf("failed to remove empty AI usage hours: %w", err)
+					}
+				}
 			}
 		}
 

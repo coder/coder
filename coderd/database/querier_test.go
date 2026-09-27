@@ -19342,6 +19342,14 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: intc.ID, CreatedAt: u.at, EffectiveGroupID: u.group, CostMicros: u.cost,
 		})
+		if u.group.Valid {
+			err := db.IncrementAIBridgeTokenUsageHourly(testutil.Context(t, testutil.WaitLong), database.IncrementAIBridgeTokenUsageHourlyParams{
+				CreatedAt: u.at, EffectiveGroupID: u.group.UUID,
+				InitiatorID: u.user.ID, Provider: intc.Provider, ProviderName: intc.ProviderName,
+				Model: intc.Model, Client: intc.Client, CostMicros: u.cost,
+			})
+			require.NoError(t, err)
+		}
 	}
 
 	row := func(user database.User, providers, clients, models []string, cost, unpriced, count, totalCost, totalUnpriced int64) database.ListOrganizationAISpendUsersRow {
