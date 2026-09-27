@@ -331,7 +331,7 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 		"provider_model":               "internal only, stripped by db2sdk before API responses",
 		"provider_credential":          "internal only, stripped by db2sdk before API responses",
 		"reasoning_epoch":              "internal only, stripped by db2sdk before API responses",
-		"invalid_args":                 "internal only, stripped before API responses (typescript:\"-\")",
+		"invalid_args":                 "internal only, cleared by StripInternal (typescript:\"-\")",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
 		"context_file_directory":       "internal only, used during prompt expansion (typescript:\"-\")",
