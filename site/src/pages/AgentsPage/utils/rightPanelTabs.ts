@@ -12,23 +12,51 @@ import { canShowPortForwarding } from "#/modules/resources/usePortsData";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 /**
- * Built-in panels that the user shows or hides from the add-tab dropdown.
- * Each one can appear at most once, so the tab ID is the panel ID.
+ * Tabs in the right panel strip, in display order. The strip is fixed: a
+ * tab appears when its content is available and is never closed by the
+ * user. Terminals and app or port previews live one level down, inside the
+ * Terminal and Workspace tabs.
  */
-export const singletonRightPanelTabIds = [
+const rightPanelTabIds = [
+	"summary",
+	"git",
+	"terminal",
 	"browser",
 	"desktop",
+	"workspace",
 	"debug",
 ] as const;
 
-export type SingletonRightPanelTabId =
-	(typeof singletonRightPanelTabIds)[number];
+export type RightPanelTabId = (typeof rightPanelTabIds)[number];
 
-export function isSingletonRightPanelTabId(
-	value: unknown,
-): value is SingletonRightPanelTabId {
-	return singletonRightPanelTabIds.some((id) => id === value);
+function isRightPanelTabId(value: unknown): value is RightPanelTabId {
+	return rightPanelTabIds.some((id) => id === value);
 }
+
+/**
+ * Maps a persisted tab ID from the previous strip, where every terminal, app,
+ * and port preview was its own top-level tab, onto the tab that now holds it.
+ */
+export function resolveRightPanelTabId(
+	value: string | null,
+): RightPanelTabId | null {
+	if (value === null) {
+		return null;
+	}
+	if (isRightPanelTabId(value)) {
+		return value;
+	}
+	if (value.startsWith("terminal-")) {
+		return "terminal";
+	}
+	if (value.startsWith("workspace_app-") || value.startsWith("port-")) {
+		return "workspace";
+	}
+	return null;
+}
+
+/** Tabs that own a sub-layer of closeable chips. */
+export type RightPanelGroupTabId = "terminal" | "workspace";
 
 export type PortSelection = {
 	label: string;
@@ -37,19 +65,25 @@ export type PortSelection = {
 };
 
 export type UserRightPanelTab =
-	| {
-			id: string;
-			kind: "terminal";
-			label?: string;
-			reconnectionToken: string;
-			/**
-			 * Command run when the PTY session is first created. The backend only
-			 * runs it for a fresh reconnect token, so reattaching does not re-run it.
-			 */
-			initialCommand?: string;
-			/** ID of the command app that opened this terminal, used to dedupe tabs. */
-			sourceAppId?: string;
-	  }
+	| TerminalRightPanelTab
+	| WorkspacePreviewRightPanelTab;
+
+type TerminalRightPanelTab = {
+	id: string;
+	kind: "terminal";
+	label?: string;
+	reconnectionToken: string;
+	/**
+	 * Command run when the PTY session is first created. The backend only
+	 * runs it for a fresh reconnect token, so reattaching does not re-run it.
+	 */
+	initialCommand?: string;
+	/** ID of the command app that opened this terminal, used to dedupe tabs. */
+	sourceAppId?: string;
+};
+
+/** App and port previews shown as chips inside the Workspace tab. */
+export type WorkspacePreviewRightPanelTab =
 	| {
 			id: string;
 			kind: "workspace_app";
@@ -65,6 +99,18 @@ export type UserRightPanelTab =
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
 	  };
+
+export function isTerminalRightPanelTab(
+	tab: UserRightPanelTab,
+): tab is TerminalRightPanelTab {
+	return tab.kind === "terminal";
+}
+
+export function isWorkspacePreviewRightPanelTab(
+	tab: UserRightPanelTab,
+): tab is WorkspacePreviewRightPanelTab {
+	return tab.kind === "workspace_app" || tab.kind === "port";
+}
 
 type ValidateUserRightPanelTabsOptions = {
 	workspace: Workspace | undefined;
