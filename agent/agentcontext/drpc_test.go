@@ -54,6 +54,7 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				Status:      agentcontext.StatusOK,
 				Description: "tagline",
 				SourcePath:  "/tmp",
+				Global:      true,
 			},
 			{
 				ID:        "skill:/tmp/.agents/skills/foo",
@@ -128,6 +129,7 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	instrBody := instr.GetInstructionFile()
 	require.NotNil(t, instrBody, "instruction_file body must be set")
 	require.Equal(t, []byte("body"), instrBody.GetContent())
+	require.True(t, instrBody.GetGlobal())
 	require.Nil(t, instr.GetSkill())
 	require.Nil(t, instr.GetMcpConfig())
 	require.Nil(t, instr.GetMcpServer())

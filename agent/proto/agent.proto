@@ -606,6 +606,11 @@ message ContextResource {
 // limit).
 message InstructionFileBody {
 	bytes content = 1;
+	// global is set for a file that sits directly in the agent's
+	// ~/.coder directory, which applies to the whole conversation
+	// rather than to a directory tree, whichever scan root reached
+	// it.
+	bool global = 2;
 }
 
 // SkillMetaBody carries the SKILL.md meta file content plus the
