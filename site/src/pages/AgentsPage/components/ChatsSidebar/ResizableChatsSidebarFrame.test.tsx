@@ -100,7 +100,6 @@ describe("ResizableChatsSidebarFrame", () => {
 		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
 		const handle = renderHandle();
 
-		// 700px leaves room for a 340px sidebar beside the 360px main panel.
 		vi.stubGlobal("innerWidth", 700);
 		fireEvent(window, new Event("resize"));
 		expect(handle).toHaveAttribute("aria-valuenow", "340");

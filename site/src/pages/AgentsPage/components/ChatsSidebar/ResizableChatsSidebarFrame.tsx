@@ -20,13 +20,8 @@ import {
 type ResizableChatsSidebarFrameProps = {
 	children: ReactNode;
 	className?: string;
-	/** Collapses the frame to zero width on sm+ viewports. */
 	isCollapsed?: boolean;
-	/**
-	 * Slides the frame in or out when a viewport breakpoint crossing shows
-	 * or hides it. "out" replaces the route layout classes so the frame stays
-	 * beside the main panel while it slides closed.
-	 */
+	/** "out" replaces the route classes so the frame stays beside the main panel. */
 	viewportSlide?: "in" | "out" | null;
 	onViewportSlideEnd?: () => void;
 };
@@ -40,8 +35,6 @@ export const ResizableChatsSidebarFrame = ({
 }: ResizableChatsSidebarFrameProps) => {
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
-	// Width transitions are disabled while dragging so the frame tracks
-	// the pointer without lag.
 	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);
 	const activePointerId = useRef<number | null>(null);
@@ -59,8 +52,7 @@ export const ResizableChatsSidebarFrame = ({
 		persistLeftSidebarWidth(clampedWidth);
 	};
 
-	// Re-clamp from the persisted width so a sidebar squeezed by a narrow
-	// window grows back to the user's chosen width when it widens again.
+	// Clamp from the persisted width so a squeezed sidebar grows back.
 	const handleResize = useEffectEvent(() => {
 		setWidth(loadPersistedLeftSidebarWidth());
 	});
@@ -161,8 +153,7 @@ export const ResizableChatsSidebarFrame = ({
 						)
 			}
 		>
-			{/* Keeps the content at full width while the frame animates so it
-			    slides behind the edge instead of reflowing on every frame. */}
+			{/* Fixed width so content slides behind the edge instead of reflowing. */}
 			<div
 				className={
 					viewportSlide === "out"

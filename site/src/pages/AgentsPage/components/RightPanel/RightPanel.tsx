@@ -24,8 +24,7 @@ const DEFAULT_WIDTH = 480;
 
 const SNAP_THRESHOLD = 80;
 const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
-// Extra room required before re-expanding an auto-collapsed left sidebar,
-// so sub-pixel layout differences cannot toggle it back and forth.
+// Prevents sub-pixel differences from toggling the sidebar back and forth.
 const SIDEBAR_RESTORE_HYSTERESIS = 24;
 
 function getMaxWidth(): number {
@@ -314,9 +313,7 @@ export const RightPanel = ({
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
 
-	// While the panel animates open, pin the content to its final width so
-	// it slides in instead of reflowing (and refitting terminals) on every
-	// frame. Closed panels are always pinned. Drag snaps skip the animation.
+	// Pin content width while opening so terminals don't refit every frame.
 	const [prevVisualOpen, setPrevVisualOpen] = useState(visualOpen);
 	const [isAnimatingOpen, setIsAnimatingOpen] = useState(false);
 	if (visualOpen !== prevVisualOpen) {
@@ -330,10 +327,7 @@ export const RightPanel = ({
 	};
 	const isContentPinned = !visualExpanded && (!visualOpen || isAnimatingOpen);
 
-	// Narrowing the window below the side-by-side breakpoint suppresses the
-	// panel. Its lg: styles stop applying at the same moment, so a width
-	// transition has nothing to animate from; slide it out with a keyframe
-	// animation that starts from the last panel width instead.
+	// Dropping below lg removes the lg: styles immediately, so use a keyframe slide-out.
 	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
 	const isSideBySide = visualOpen && !visualExpanded && !isBelowLg;
 	const [prevIsSideBySide, setPrevIsSideBySide] = useState(isSideBySide);
@@ -349,9 +343,7 @@ export const RightPanel = ({
 		}
 	};
 
-	// Tracks whether the left sidebar was collapsed to make room for this
-	// panel, so it can be restored once the window is wide enough again.
-	// A sidebar the user collapsed is left alone.
+	// Only a sidebar this panel collapsed is restored; user collapses stick.
 	const sidebarAutoCollapsed = useRef(false);
 	useEffect(() => {
 		if (!isSidebarCollapsed) {

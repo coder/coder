@@ -675,8 +675,7 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 
-	// On routes where mobile shows only the main panel, crossing the sm
-	// breakpoint hides or shows the sidebar. Slide it instead of snapping.
+	// Mobile hides the sidebar on these routes, so slide it across the sm breakpoint.
 	const isMobileViewport = useMediaQuery(mobileViewportMediaQuery);
 	const isSidebarHiddenOnMobile = Boolean(agentId) || isSettingsDetail;
 	const [prevIsMobileViewport, setPrevIsMobileViewport] =
@@ -694,8 +693,7 @@ const AgentsPageLayout: FC = () => {
 				: null,
 		);
 	}
-	// A slide only applies while its route and viewport still match, so a
-	// slide that never received animationend cannot hide the mobile list.
+	// Guards against a slide stuck without animationend hiding the mobile list.
 	const activeSidebarViewportSlide =
 		isSidebarHiddenOnMobile &&
 		!isSidebarCollapsed &&

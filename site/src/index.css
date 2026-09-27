@@ -160,11 +160,8 @@
 		}
 	}
 
-	/* Slide a side-by-side panel closed from, or open to, its width. Keyframe
-		animations are used instead of transitions because the viewport
-		breakpoint that triggers them changes the panel's styles before React
-		re-renders, so there is no reliable starting width to transition from.
-		min-width is held at 0 so a panel minimum cannot cut the slide short. */
+	/* Keyframes rather than transitions: breakpoint CSS changes before React
+		re-renders, leaving no start width to transition from. */
 	@keyframes panel-slide-out {
 		from {
 			width: var(--panel-width);

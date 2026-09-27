@@ -322,10 +322,8 @@ describe("RightPanel resize drag", () => {
 });
 
 describe("RightPanel sidebar auto-collapse", () => {
-	// jsdom has no layout, so the panel's parent width is driven through
-	// clientWidth. The chat needs 360px and the panel 360px, so the sidebar
-	// collapses below 720px of parent width. Restoring the default 320px
-	// sidebar needs 720 + 320 plus the hysteresis margin.
+	// jsdom has no layout; clientWidth drives the parent width. Collapse is
+	// below 720px, restore needs 720 + 320 + hysteresis.
 	let parentWidth = 0;
 	const resizeWindow = (width: number) => {
 		parentWidth = width;
@@ -358,7 +356,6 @@ describe("RightPanel sidebar auto-collapse", () => {
 			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
 		);
 
-		// Still too narrow to fit the sidebar back.
 		resizeWindow(1040);
 		await new Promise((resolve) => requestAnimationFrame(resolve));
 		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
