@@ -26,14 +26,22 @@ export const isWatchedWorkspaceViewUnchanged = (
 	const nextAgent = getWorkspaceAgent(next, chatAgentId);
 	const prevApps = prevAgent?.apps ?? [];
 	const nextApps = nextAgent?.apps ?? [];
+	// Uploads can target a server-selected agent instead of the chat's bound
+	// agent, so every agent's connection status has to reach the UI.
+	const prevAgents = getWorkspaceAgents(prev);
+	const nextAgents = getWorkspaceAgents(next);
 	return (
 		prev.latest_build.id === next.latest_build.id &&
 		prev.latest_build.status === next.latest_build.status &&
 		prev.health.healthy === next.health.healthy &&
 		prev.name === next.name &&
 		prev.owner_name === next.owner_name &&
-		prevAgent?.id === nextAgent?.id &&
-		prevAgent?.status === nextAgent?.status &&
+		prevAgents.length === nextAgents.length &&
+		prevAgents.every(
+			(agent, index) =>
+				agent.id === nextAgents[index].id &&
+				agent.status === nextAgents[index].status,
+		) &&
 		prevAgent?.name === nextAgent?.name &&
 		prevAgent?.expanded_directory === nextAgent?.expanded_directory &&
 		prevAgent?.lifecycle_state === nextAgent?.lifecycle_state &&
