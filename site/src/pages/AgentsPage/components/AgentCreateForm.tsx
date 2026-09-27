@@ -639,12 +639,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (submitInFlightRef.current) {
 			return;
 		}
-		if (shouldParkWorkspaceFiles && !message.trim()) {
-			toast.error(parkedUploadRequiresPromptMessage);
-			return;
-		}
-		submitInFlightRef.current = true;
-		setIsSubmitSequencePending(true);
 		const fileIds: string[] = [];
 		let skippedErrors = 0;
 		for (const file of attachments) {
@@ -657,6 +651,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				fileIds.push(state.fileId);
 			}
 		}
+		// Parked files upload only after the workspace starts, so the first
+		// message needs text or an attachment of its own.
+		if (shouldParkWorkspaceFiles && !message.trim() && fileIds.length === 0) {
+			toast.error(parkedUploadRequiresPromptMessage);
+			return;
+		}
+		submitInFlightRef.current = true;
+		setIsSubmitSequencePending(true);
 		if (skippedErrors > 0) {
 			toast.warning(
 				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,

@@ -337,6 +337,24 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(onCreateChat).not.toHaveBeenCalled();
 	});
 
+	it("starts the chat from an attachment while workspace files are parked", async () => {
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "uploaded-image",
+		});
+		const { onCreateChat } = renderForm();
+
+		await attachZipFile();
+		await attachImageFile();
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		const options = submittedOptions(onCreateChat);
+		expect(options.fileIDs).toEqual(["uploaded-image"]);
+		expect(options.parkedWorkspaceFiles?.map((file) => file.name)).toEqual([
+			"bundle.zip",
+		]);
+	});
+
 	it("locks the scope controls while the upload submit is pending", async () => {
 		dashboard.showOrganizations = true;
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
