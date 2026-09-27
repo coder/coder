@@ -59,8 +59,6 @@ vi.mock("#/modules/dashboard/useDashboard", async () => {
 	};
 });
 
-const parkedUploadNeedsMessage =
-	"Add a message so the agent can start a workspace for these files.";
 const attachDuringSubmitMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
@@ -138,15 +136,20 @@ const createQueryClient = () => {
 			queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
 		},
 	});
-	queryClient.setQueryData(
-		organizationChatModelsKey(MockDefaultOrganization.id),
-		mockModelCatalog,
-	);
-	queryClient.setQueryData(
-		userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
-		mockPersonalModelOverrides,
-	);
-	queryClient.setQueryData(mcpServerConfigsKey(MockDefaultOrganization.id), []);
+	for (const organization of [MockDefaultOrganization, MockOrganization2]) {
+		queryClient.setQueryData(organizationChatModelsKey(organization.id), {
+			...mockModelCatalog,
+			models: mockModelCatalog.models.map((model) => ({
+				...model,
+				organization_id: organization.id,
+			})),
+		});
+		queryClient.setQueryData(
+			userChatPersonalModelOverrides(organization.id).queryKey,
+			mockPersonalModelOverrides,
+		);
+		queryClient.setQueryData(mcpServerConfigsKey(organization.id), []);
+	}
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 	queryClient.setQueryData(
 		permittedOrganizationsKey({
@@ -314,13 +317,15 @@ describe("AgentCreateForm workspace file uploads", () => {
 	});
 
 	it("requires a message before parking workspace files", async () => {
-		const { onCreateChat } = renderForm();
+		renderForm();
 
 		await attachZipFile();
-		await clickSend();
 
-		expect(toast.error).toHaveBeenCalledWith(parkedUploadNeedsMessage);
-		expect(onCreateChat).not.toHaveBeenCalled();
+		await screen.findByText("bundle.zip");
+		expect(screen.getByRole("button", { name: "Send" })).toHaveProperty(
+			"disabled",
+			true,
+		);
 	});
 
 	it("locks the scope controls while the upload submit is pending", async () => {
@@ -416,7 +421,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(options.parkedWorkspaceFiles).toHaveLength(1);
 	});
 
-	it("keeps queued files when an organization change is cancelled", async () => {
+	it("keeps queued files across an organization change", async () => {
 		dashboard.showOrganizations = true;
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const { onCreateChat } = renderForm();
@@ -424,15 +429,15 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await attachZipFile();
 		await user().click(screen.getByRole("button", { name: /^Organization:/ }));
 		await user().click(await screen.findByText("My Organization 2"));
-		await user().click(await screen.findByRole("button", { name: /cancel/i }));
 		await submitMessage("inspect this archive");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
-		expect(submittedOptions(onCreateChat)).toMatchObject({
-			organizationId: MockDefaultOrganization.id,
-			workspaceId: mockWorkspace.id,
-			uploadWorkspaceFiles: expect.any(Function),
-		});
+		const options = submittedOptions(onCreateChat);
+		expect(options.organizationId).toBe(MockOrganization2.id);
+		expect(options.parkedWorkspaceFiles?.map((file) => file.name)).toEqual([
+			"bundle.zip",
+		]);
+		expect(screen.queryByText("Change organization?")).toBeNull();
 	});
 });
 

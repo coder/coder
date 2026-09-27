@@ -81,6 +81,7 @@ import {
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { parkedWorkspaceUploadLabel } from "./WorkspaceUploadPreview";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -680,9 +681,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	const isStreaming = hasStreamState || isActiveChatStatus(chatStatus);
 
-	// The workspace upload affordance requires an existing chat bound
-	// to a workspace whose agent is connected; the agent writes the
-	// bytes into its home directory. A freshly attached or rebound
+	// Eager workspace uploads require an existing chat bound to a
+	// workspace whose agent is connected; the agent writes the bytes
+	// into its home directory. A freshly attached or rebound
 	// workspace has no bound agent until the next generation, and the
 	// upload handler then selects one itself, so any connected root
 	// agent qualifies in that case (mirrors the new-chat page).
@@ -702,11 +703,26 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	// Without a connected agent, composed files park until the
+	// workspace starts. An edit replaces one message, so parking
+	// would detach the files from it.
+	const parkWorkspaceFiles = isEditing
+		? undefined
+		: parkedWorkspaceUploads.attach;
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
+	const isParkedWorkspaceUpload = (id: string) =>
+		parkedWorkspaceUploads.uploads.some((upload) => upload.id === id);
+	const handleRetryWorkspaceUpload = (id: string) => {
+		if (isParkedWorkspaceUpload(id)) {
+			parkedWorkspaceUploads.retry(id);
+			return;
+		}
+		modeWorkspaceUploads.retry(id);
+	};
 	const handleRemoveWorkspaceUpload = (id: string) => {
-		if (parkedWorkspaceUploads.uploads.some((upload) => upload.id === id)) {
+		if (isParkedWorkspaceUpload(id)) {
 			parkedWorkspaceUploads.remove(id);
 			return;
 		}
@@ -812,15 +828,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: [
-					...parkedWorkspaceUploads.uploads,
-					...visibleWorkspaceUploads,
-				],
+				uploads: visibleWorkspaceUploads,
+				parkedUploads: parkedWorkspaceUploads.uploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
-					: undefined,
+					: parkWorkspaceFiles,
 				onRemove: handleRemoveWorkspaceUpload,
-				deferredLabel: "Uploads when the workspace starts",
+				onRetry: handleRetryWorkspaceUpload,
+				deferredLabel: parkedWorkspaceUploadLabel,
 			}}
 			inputRef={inputRef}
 			initialValue={initialValue}

@@ -3231,6 +3231,7 @@ class ExperimentalApiMethods {
 		chatId: string,
 		file: File,
 		signal?: AbortSignal,
+		onProgress?: (sentBytes: number) => void,
 	): Promise<TypesGen.UploadChatWorkspaceFileResponse> => {
 		const response = await this.axios.post(
 			`/api/v2/chats/${chatId}/workspace-files`,
@@ -3238,6 +3239,9 @@ class ExperimentalApiMethods {
 			{
 				headers: chatFileUploadHeaders(file),
 				signal,
+				onUploadProgress: onProgress
+					? (event) => onProgress(event.loaded)
+					: undefined,
 			},
 		);
 		return response.data;

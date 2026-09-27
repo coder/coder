@@ -70,6 +70,7 @@ describe("useWorkspaceFileUploads", () => {
 			"chat-1",
 			expect.any(File),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		);
 	});
 
@@ -97,6 +98,58 @@ describe("useWorkspaceFileUploads", () => {
 		expect(result.current.uploads[0].error).toBe(
 			"Failed to upload file to workspace agent. The workspace agent could not be reached.",
 		);
+	});
+
+	it("retries a failed upload into the same chat", async () => {
+		uploadMock
+			.mockRejectedValueOnce(mockApiError({ message: "Agent unreachable." }))
+			.mockResolvedValueOnce(okResponse);
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads("chat-1", "ws-1"),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		await waitFor(() => {
+			expect(result.current.uploads[0].status).toBe("error");
+		});
+		act(() => {
+			result.current.retry(result.current.uploads[0].id);
+		});
+
+		await waitFor(() => {
+			expect(result.current.uploads[0].status).toBe("uploaded");
+		});
+		expect(result.current.uploads[0].error).toBeUndefined();
+		expect(uploadMock).toHaveBeenCalledTimes(2);
+		expect(uploadMock).toHaveBeenLastCalledWith(
+			"chat-1",
+			expect.any(File),
+			expect.any(AbortSignal),
+			expect.any(Function),
+		);
+	});
+
+	it("reports upload progress as a whole percent", async () => {
+		let reportProgress: (sentBytes: number) => void = () => {};
+		uploadMock.mockImplementationOnce((_chatId, _file, _signal, onProgress) => {
+			reportProgress = onProgress ?? reportProgress;
+			return new Promise(() => {});
+		});
+		const { result } = renderHook(() =>
+			useWorkspaceFileUploads("chat-1", "ws-1"),
+		);
+
+		act(() => {
+			result.current.attach([makeFile()]);
+		});
+		await waitFor(() => expect(uploadMock).toHaveBeenCalled());
+		act(() => {
+			reportProgress(7);
+		});
+
+		expect(result.current.uploads[0].progress).toBe(43);
 	});
 
 	it("marks files beyond the concurrency limit as queued", () => {
@@ -152,6 +205,7 @@ describe("useWorkspaceFileUploads", () => {
 			"chat-9",
 			expect.any(File),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		);
 	});
 
@@ -324,6 +378,7 @@ describe("useWorkspaceFileUploads", () => {
 			"chat-2",
 			expect.any(File),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		);
 	});
 
@@ -552,6 +607,7 @@ describe("useWorkspaceFileUploads", () => {
 			"chat-2",
 			expect.any(File),
 			expect.any(AbortSignal),
+			expect.any(Function),
 		);
 	});
 

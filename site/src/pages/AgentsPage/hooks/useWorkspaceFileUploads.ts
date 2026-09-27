@@ -20,6 +20,8 @@ export type WorkspaceFileUpload = {
 	// Set once status is "uploaded". Carries the final path, name,
 	// size, and media type reported by the workspace agent.
 	response?: UploadChatWorkspaceFileResponse;
+	// 0 to 100.
+	progress?: number;
 };
 
 export const isWorkspaceUploadInProgress = (
@@ -30,6 +32,9 @@ type UseWorkspaceFileUploadsReturn = {
 	uploads: readonly WorkspaceFileUpload[];
 	attach: (files: File[]) => void;
 	remove: (id: string) => void;
+	// Re-uploads a failed entry. Only entries uploaded eagerly into a
+	// chat can retry; deferred entries re-upload through uploadQueued.
+	retry: (id: string) => void;
 	reset: () => void;
 	// Uploads every entry into the given chat and resolves with the
 	// settled per-file results (entries removed mid-flight are
@@ -68,7 +73,8 @@ const createUploadCancellationError = (): Error => {
  * bounded to a small number of concurrent streams. Without a chat ID,
  * attached files queue locally (deferred mode, used by the new-chat
  * page) until `uploadQueued` runs them against a just-created chat.
- * Removing an entry aborts its in-flight upload, but bytes that
+ * `initialDeferredFiles` seeds that queue on mount; later values are
+ * ignored. Removing an entry aborts its in-flight upload, but bytes that
  * already reached the workspace stay there; removal only drops the
  * composer reference.
  *
@@ -80,9 +86,16 @@ const createUploadCancellationError = (): Error => {
 export function useWorkspaceFileUploads(
 	chatId: string | undefined,
 	workspaceId: string | undefined,
+	initialDeferredFiles: readonly File[] = [],
 ): UseWorkspaceFileUploadsReturn {
-	const [uploads, setUploads] = useState<readonly WorkspaceFileUpload[]>([]);
-	const uploadsRef = useRef<readonly WorkspaceFileUpload[]>([]);
+	const [uploads, setUploads] = useState<readonly WorkspaceFileUpload[]>(() =>
+		initialDeferredFiles.map((file) => ({
+			id: createUploadId(),
+			file: renameChatFileForUpload(file),
+			status: "deferred" as const,
+		})),
+	);
+	const uploadsRef = useRef(uploads);
 	const generationRef = useRef(0);
 	// Deferred callbacks capture this render's generation. A reset
 	// updates the state after incrementing the ref, so callbacks from
@@ -114,11 +127,19 @@ export function useWorkspaceFileUploads(
 			uploadChatId,
 			file,
 			signal,
+			onProgress,
 		}: {
 			uploadChatId: string;
 			file: File;
 			signal: AbortSignal;
-		}) => API.experimental.uploadChatWorkspaceFile(uploadChatId, file, signal),
+			onProgress: (sentBytes: number) => void;
+		}) =>
+			API.experimental.uploadChatWorkspaceFile(
+				uploadChatId,
+				file,
+				signal,
+				onProgress,
+			),
 	});
 	const { mutateAsync: uploadFile } = uploadMutation;
 
@@ -207,11 +228,26 @@ export function useWorkspaceFileUploads(
 			const controller = abortControllersRef.current.get(next.id);
 			if (controller) {
 				setUploadResult(next.id, { status: "uploading" });
+				const uploadId = next.id;
+				const fileSize = Math.max(next.file.size, 1);
+				let reportedPercent = 0;
 				try {
 					const response = await uploadFile({
 						uploadChatId,
 						file: next.file,
 						signal: controller.signal,
+						// Progress events fire far more often than the
+						// rounded percent changes; skip the redundant renders.
+						onProgress: (sentBytes) => {
+							const percent = Math.min(
+								100,
+								Math.floor((sentBytes / fileSize) * 100),
+							);
+							if (percent > reportedPercent && !controller.signal.aborted) {
+								reportedPercent = percent;
+								setUploadResult(uploadId, { progress: percent });
+							}
+						},
 					});
 					setUploadResult(next.id, { status: "uploaded", response });
 					settleUpload(next.id, {
@@ -329,6 +365,21 @@ export function useWorkspaceFileUploads(
 		);
 	};
 
+	const retry = (id: string) => {
+		const upload = uploadsRef.current.find((entry) => entry.id === id);
+		if (!chatId || upload?.status !== "error") {
+			return;
+		}
+		setUploadResult(id, {
+			status: "queued",
+			error: undefined,
+			progress: undefined,
+		});
+		abortControllersRef.current.set(id, new AbortController());
+		pendingQueueRef.current.push({ id, file: upload.file });
+		pumpQueue(chatId);
+	};
+
 	const remove = (id: string) => {
 		removedIdsRef.current.add(id);
 		abortControllersRef.current.get(id)?.abort();
@@ -340,5 +391,5 @@ export function useWorkspaceFileUploads(
 		updateUploads((current) => current.filter((upload) => upload.id !== id));
 	};
 
-	return { uploads, attach, remove, reset, uploadQueued };
+	return { uploads, attach, remove, retry, reset, uploadQueued };
 }

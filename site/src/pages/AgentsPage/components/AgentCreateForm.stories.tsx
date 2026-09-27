@@ -2200,8 +2200,9 @@ export const PrefilledWorkspaceBuildDebug: Story = {
 
 // Deferred workspace uploads: files that cannot ride the attachment
 // pipeline (e.g. zips) queue locally. With a running workspace they
-// upload during submit; otherwise they park until a workspace starts. Behavior is covered
-// in AgentCreateForm.test.tsx; these stories capture the visual states.
+// upload during submit; otherwise they park until a workspace starts.
+// Behavior is covered in AgentCreateForm.test.tsx; these stories
+// capture the visual states.
 
 const attachZipFile = async (canvasElement: HTMLElement) => {
 	// The hidden input has no role or accessible name.
@@ -2239,7 +2240,6 @@ export const WorkspaceFileParkedWithoutWorkspace: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await attachZipFile(canvasElement);
-		await within(canvasElement).findByText("Uploads when the workspace starts");
 	},
 };
 

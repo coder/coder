@@ -512,6 +512,57 @@ describe("AgentChatInput", () => {
 		);
 	});
 
+	it("keeps parked uploads out of the composer's send", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={onSend}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					parkedUploads: [
+						{
+							id: "parked-uploading",
+							file: createMockFile("logs.tar.gz", "application/gzip"),
+							status: "uploading",
+						},
+						{
+							id: "parked-uploaded",
+							file: createMockFile("data.tar.gz", "application/gzip"),
+							status: "uploaded",
+							response: {
+								path: "/home/coder/.coder/chats/chat-1/files/data.tar.gz",
+								name: "data.tar.gz",
+								size: 8,
+								media_type: "application/gzip",
+								workspace_id: "ws-1",
+							},
+						},
+					],
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const sendButton = screen.getByRole("button", { name: "Send" });
+		expect(sendButton).toHaveProperty("disabled", true);
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("while the files upload");
+		await user.click(sendButton);
+
+		expect(onSend).toHaveBeenCalledWith("while the files upload");
+	});
+
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
 		const onAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");

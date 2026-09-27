@@ -115,16 +115,19 @@ export type { AgentContextUsage } from "./ContextUsageIndicator";
 
 type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
-	// Present only when the chat has a bound workspace with a
-	// connected agent; its absence hides the whole affordance.
+	// Absent when workspace files cannot be accepted right now; such
+	// files are refused with a toast instead.
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
+	onRetry?: (id: string) => void;
 	// Deferred mode (new-chat page): entries upload during submit and
 	// every entry re-uploads on the next send after a failure, so
 	// error chips still count as sendable content.
 	deferred?: boolean;
-	// Status shown on deferred chips.
 	deferredLabel?: string;
+	// Files waiting for the chat's workspace to start. They upload and
+	// send on their own, so they never gate or join this composer's send.
+	parkedUploads?: readonly WorkspaceFileUpload[];
 };
 
 const workspaceRequiredAttachmentMessage =
@@ -1297,8 +1300,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				)}
 				{workspaceUploads && (
 					<WorkspaceUploadPreview
-						uploads={workspaceUploads.uploads}
+						uploads={[
+							...(workspaceUploads.parkedUploads ?? []),
+							...workspaceUploads.uploads,
+						]}
 						onRemove={workspaceUploads.onRemove}
+						onRetry={workspaceUploads.onRetry}
 						deferredLabel={workspaceUploads.deferredLabel}
 					/>
 				)}

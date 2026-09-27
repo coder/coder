@@ -58,11 +58,38 @@ export const Uploading: Story = {
 	},
 };
 
+export const UploadProgress: Story = {
+	args: {
+		uploads: [
+			{
+				id: "uploading-progress-1",
+				file: createMockFile("dataset.tar.gz", "application/gzip"),
+				status: "uploading",
+				progress: 42,
+			},
+		],
+	},
+};
+
 export const UploadError: Story = {
 	args: {
 		uploads: [
 			{
 				id: "error-1",
+				file: createMockFile("broken.zip", "application/zip"),
+				status: "error",
+				error: "Failed to upload file to workspace agent.",
+			},
+		],
+	},
+};
+
+export const RetryableUploadError: Story = {
+	args: {
+		onRetry: fn(),
+		uploads: [
+			{
+				id: "error-retry-1",
 				file: createMockFile("broken.zip", "application/zip"),
 				status: "error",
 				error: "Failed to upload file to workspace agent.",
