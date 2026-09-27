@@ -9,7 +9,6 @@ import { findWorkspaceAgent } from "#/utils/workspace";
  * the server selects for the workspace. `isResolved` stays false while
  * that selection is loading or failed to load, so callers can tell an
  * unknown target apart from a workspace without an eligible agent.
- * `canUpload` requires a running latest build and a connected target.
  */
 export const useWorkspaceUploadAgent = (
 	workspace: TypesGen.Workspace | undefined,

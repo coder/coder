@@ -682,12 +682,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	// The workspace upload affordance requires an existing chat bound
 	// to a workspace whose upload agent is connected; the agent writes
 	// the bytes into its home directory.
-	const workspaceUploadAgent = useWorkspaceUploadAgent(
-		workspace,
-		chat.agent_id,
-	);
-	const canUploadWorkspaceFiles =
-		Boolean(chatId) && workspaceUploadAgent.canUpload;
+	const { canUpload } = useWorkspaceUploadAgent(workspace, chat.agent_id);
+	const canUploadWorkspaceFiles = Boolean(chatId) && canUpload;
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
