@@ -27,7 +27,10 @@ import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import { useWorkspaceUploadAgent } from "../hooks/useWorkspaceUploadAgent";
+import {
+	useWorkspaceUploadAgent,
+	workspaceUploadAgentLookupFailedMessage,
+} from "../hooks/useWorkspaceUploadAgent";
 import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
@@ -682,7 +685,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	// The workspace upload affordance requires an existing chat bound
 	// to a workspace whose upload agent is connected; the agent writes
 	// the bytes into its home directory.
-	const { canUpload } = useWorkspaceUploadAgent(workspace, chat.agent_id);
+	const { canUpload, lookupFailed } = useWorkspaceUploadAgent(
+		workspace,
+		chat.agent_id,
+	);
 	const canUploadWorkspaceFiles = Boolean(chatId) && canUpload;
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
@@ -794,9 +800,11 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			textContents={textContents}
 			workspaceUploads={{
 				uploads: visibleWorkspaceUploads,
-				unavailableMessage: selectedWorkspaceId
-					? "This file type is uploaded into the chat's workspace, which needs a connected agent. Start the workspace or wait for its agent to connect, then try again."
-					: undefined,
+				unavailableMessage: lookupFailed
+					? workspaceUploadAgentLookupFailedMessage
+					: selectedWorkspaceId
+						? "This file type is uploaded into the chat's workspace, which needs a connected agent. Start the workspace or wait for its agent to connect, then try again."
+						: undefined,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,

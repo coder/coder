@@ -38,6 +38,7 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
+import { workspaceUploadAgentLookupFailedMessage } from "../hooks/useWorkspaceUploadAgent";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	AgentCreateForm,
@@ -611,7 +612,9 @@ describe("AgentCreateForm workspace file uploads", () => {
 		);
 		await submitMessage("inspect this archive");
 
-		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
+		expect(toast.error).toHaveBeenCalledWith(
+			workspaceUploadAgentLookupFailedMessage,
+		);
 		expect(onCreateChat).not.toHaveBeenCalled();
 		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
 	});

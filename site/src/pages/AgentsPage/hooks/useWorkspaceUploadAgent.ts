@@ -3,12 +3,16 @@ import { chatWorkspaceAgent } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
+export const workspaceUploadAgentLookupFailedMessage =
+	"Couldn't determine which workspace agent receives uploads. Try again in a moment.";
+
 /**
  * Resolves the agent that workspace uploads target: the chat's bound
  * agent when it is in the workspace's latest build, otherwise the agent
  * the server selects for the workspace. `isResolved` stays false while
  * that selection is loading or failed to load, so callers can tell an
- * unknown target apart from a workspace without an eligible agent.
+ * unknown target apart from a workspace without an eligible agent;
+ * `lookupFailed` marks the failed case until a retry succeeds.
  */
 export const useWorkspaceUploadAgent = (
 	workspace: TypesGen.Workspace | undefined,
@@ -37,6 +41,7 @@ export const useWorkspaceUploadAgent = (
 	const isResolved = !needsSelection || selectionQuery.data !== undefined;
 	return {
 		isResolved,
+		lookupFailed: needsSelection && selectionQuery.isError,
 		canUpload: isResolved && isRunning && agent?.status === "connected",
 	};
 };
