@@ -1983,7 +1983,7 @@ export const EditFilesPartial: Story = {
 		result: {
 			status: "partial",
 			message:
-				"Applied 1 file. src/server.ts was not applied (none of edits[1] were applied): fix and resend only the edits for src/server.ts.",
+				"Applied 1 file. src/server.ts was not applied (edits[1]): fix and resend only the edits for src/server.ts. It is unknown whether src/routes.ts was applied (edits[2]): re-read src/routes.ts before resending its edits.",
 			files: [
 				{
 					path: "src/server.ts",
@@ -1995,6 +1995,7 @@ export const EditFilesPartial: Story = {
 				{
 					path: "src/routes.ts",
 					status: "unknown",
+					edits: [2],
 					error: 'Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF',
 				},
 				{

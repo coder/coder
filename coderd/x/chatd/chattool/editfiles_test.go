@@ -72,7 +72,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -123,8 +123,8 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	// Failures before the edit request reaches the agent write nothing,
-	// so the result says so.
+	// Failures before the edit request reaches the agent report that no
+	// files were applied.
 	t.Run("WorkspaceUnavailableAppliesNothing", func(t *testing.T) {
 		t.Parallel()
 		const input = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`
@@ -366,7 +366,7 @@ func TestEditFiles(t *testing.T) {
 					`]}`,
 				sentPath: "/Users/dev/subdir/plan.md",
 				want: `{"status":"partial",` +
-					`"message":"Applied 1 file. /Users/dev/plan.md was not applied (edits[1] was not applied): fix and resend only the edits for /Users/dev/plan.md.",` +
+					`"message":"Applied 1 file. /Users/dev/plan.md was not applied (edits[1]): fix and resend only the edits for /Users/dev/plan.md.",` +
 					`"files":[` +
 					`{"path":"/Users/dev/plan.md","status":"rejected","edits":[1],"error":"` +
 					sharedPlanPathResolvedMessage("/Users/dev/plan.md", "/Users/dev/.coder/plans/PLAN-chat.md") + `"},` +
@@ -836,15 +836,15 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/c.go", edits: []workspacesdk.FileEdit{fileEditC}, err: xerrors.New("decode response body: unexpected EOF")},
 			},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1] was not applied): fix and resend only the edits for /repo/b.go. It is unknown whether /repo/c.go was applied (edits[2]): re-read /repo/c.go before resending its edits.",` +
+				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go. It is unknown whether /repo/c.go was applied (edits[2]): re-read /repo/c.go before resending its edits.",` +
 				`"files":[` +
 				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"open /repo/b.go: file does not exist"},` +
 				`{"path":"/repo/c.go","status":"unknown","edits":[2],"error":"decode response body: unexpected EOF"},` +
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			// A failed single-file request is reported as not applied
-			// on any agent error, including a write-phase 500.
+			// Any agent error on a single-file request rejects the file,
+			// including a write-phase 500.
 			name:  "NothingApplied",
 			input: `{"edits":[` + editA + `,` + editB + `]}`,
 			calls: []fileCall{
@@ -899,7 +899,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			},
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. plan.md was not applied (edits[0] was not applied): fix and resend only the edits for plan.md. /home/coder/plan.md was not applied (edits[2] was not applied): fix and resend only the edits for /home/coder/plan.md.",` +
+				`"message":"Applied 1 file. plan.md was not applied (edits[0]): fix and resend only the edits for plan.md. /home/coder/plan.md was not applied (edits[2]): fix and resend only the edits for /home/coder/plan.md.",` +
 				`"files":[` +
 				`{"path":"plan.md","status":"rejected","edits":[0],"error":"Use the chat-specific absolute plan path; plan files must use absolute paths"},` +
 				`{"path":"/home/coder/plan.md","status":"rejected","edits":[2],"error":"the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md"},` +
@@ -939,7 +939,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			input: `{"edits":[` + editA + `,{"path":"/repo/b.go","old_text":"foo()","new_text":"foo()"}]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1] was not applied): fix and resend only the edits for /repo/b.go.",` +
+				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",` +
 				`"files":[` +
 				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"Change new_text or remove the edit: edits[1] has identical old_text and new_text, so it changes nothing"},` +
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,

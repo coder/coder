@@ -27,8 +27,8 @@ type EditFilesArgs struct {
 	Edits []EditFilesEdit `json:"edits"`
 }
 
-// EditFilesEdit is one edit in the edit_files tool input. Unlike
-// workspacesdk.FileEdit, it carries the path of the file it changes.
+// EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
+// carries the path of the file it changes.
 type EditFilesEdit struct {
 	Path       string `json:"path" description:"Absolute path of the file to edit."`
 	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
@@ -219,7 +219,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	}
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
 		return rejectEditFiles(
-			"Send a flat edits list where every edit has its own path, for example " + editFilesExample +
+			"Send a flat list of edits where every edit has its own path, for example " + editFilesExample +
 				"; the files key is not supported",
 		), nil
 	}
@@ -352,10 +352,10 @@ func executeEditFilesTool(
 	var applied, notApplied []editFilesFileResult
 	for _, file := range GroupEditsByPath(args.Edits) {
 		indexes := editIndexes[file.Path]
-		// The interrupt handler can persist this result, so an unsent file
-		// is reported as not applied rather than sent and failed as
-		// unknown. This check runs before checkFile so the interrupt is
-		// the reason given.
+		// The interrupt handler can persist this result, so a file not yet
+		// sent is reported as not applied; sending it now would fail and
+		// report its outcome as unknown. This check runs before checkFile
+		// so the interrupt is the reason given.
 		if ctx.Err() != nil {
 			notApplied = append(notApplied, editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: editFilesInterruptedError,
@@ -374,9 +374,10 @@ func executeEditFilesTool(
 		})
 		if err != nil {
 			// An agent response means nothing was written: the agent
-			// validates the file first and commits it with a rename, so
-			// only a panic after the rename errors after writing. A
-			// dropped connection may follow a completed write.
+			// validates the file, writes a temporary file and renames it
+			// into place, and only a panic after the rename returns an
+			// error after writing. A dropped connection may follow a
+			// completed write.
 			status := editFilesStatusUnknown
 			if isAgentResponse(err) {
 				status = editFilesStatusRejected
@@ -434,7 +435,7 @@ func partialEditFilesMessage(applied int, notApplied []editFilesFileResult) stri
 		case file.Error == editFilesInterruptedError:
 			_, _ = fmt.Fprintf(&sb, " %s (%s).", interruptedFileSentence(file.Path), indexes)
 		case len(file.Edits) == 1:
-			_, _ = fmt.Fprintf(&sb, " %s was not applied (%s was not applied): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
+			_, _ = fmt.Fprintf(&sb, " %s was not applied (%s): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
 		default:
 			_, _ = fmt.Fprintf(&sb, " %s was not applied (none of %s were applied): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
 		}
@@ -487,8 +488,8 @@ func formatEditIndexes(indexes []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// editFilesNoneApplied is the statement every edit_files error result
-// makes when the call is known to have written nothing.
+// editFilesNoneApplied appears in every edit_files error result for a
+// call that is known to have written nothing.
 const editFilesNoneApplied = "No files were applied."
 
 // File and result statuses in edit_files results.
