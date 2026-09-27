@@ -123,20 +123,20 @@ export type AgentsPageOutletContext = {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	/** True when RightPanel collapsed the sidebar to fit the panel, not the user. */
-	isSidebarCollapsedByNarrowWidth?: boolean;
+	isSidebarCollapsedByNarrowWidth: boolean;
 	/** Records or clears a narrow-width collapse. Never changes a user collapse. */
-	onSidebarCollapsedByNarrowWidthChange?: (collapsed: boolean) => void;
+	onSidebarCollapsedByNarrowWidthChange: (collapsed: boolean) => void;
 	/**
 	 * The width the sidebar frame expands to, readable while collapsed.
 	 * Undefined when the frame is not mounted; RightPanel then skips the
 	 * restore check.
 	 */
-	getExpandedSidebarWidth?: () => number | undefined;
+	getExpandedSidebarWidth: () => number | undefined;
 	/**
 	 * Registers an open RightPanel and returns its unregister function. A
 	 * narrow-width collapse is cleared once no open panel remains.
 	 */
-	registerOpenRightPanel?: () => () => void;
+	registerOpenRightPanel: () => () => void;
 	onChatReady: () => void;
 };
 

@@ -58,6 +58,10 @@ const chatTopBarOutletContext = {
 	isSidebarCollapsed: false,
 	onToggleSidebarCollapsed: fn(),
 	onExpandSidebar: () => {},
+	isSidebarCollapsedByNarrowWidth: false,
+	onSidebarCollapsedByNarrowWidthChange: () => {},
+	getExpandedSidebarWidth: () => undefined,
+	registerOpenRightPanel: () => () => {},
 	onChatReady: () => {},
 } satisfies AgentsPageOutletContext;
 
