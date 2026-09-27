@@ -1470,10 +1470,9 @@ type serialToolCaller interface{ SerialToolCalls() bool }
 // toolInputDecoder is implemented by tools that accept an alternative
 // encoding of their input, for example an array argument sent as a JSON
 // string. DecodeToolInput returns the input in the shape the tool's
-// schema declares, or false to keep the input unchanged when it needs no
-// change or cannot be decoded. The decoded input replaces the model's
-// input before the call is published, so the published part, hook
-// input, stored call and execution all start from it.
+// schema declares, which becomes the call's input before the call is
+// published, stored or sent to hooks. It returns false when the input
+// needs no decoding or cannot be decoded, and the model's input is kept.
 type toolInputDecoder interface {
 	DecodeToolInput(input string) (decoded string, ok bool)
 }
