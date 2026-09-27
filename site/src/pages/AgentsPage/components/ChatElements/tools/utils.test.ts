@@ -932,8 +932,6 @@ describe("parseEditFilesArgs", () => {
 			],
 		},
 		{
-			// The backend trims paths before grouping and running the edits,
-			// so result entries carry the trimmed path.
 			name: "flat paths are trimmed before grouping",
 			args: {
 				edits: [

@@ -642,8 +642,9 @@ const snippetLineCount = (snippet: string): number =>
  * the caller-supplied path (pre-symlink resolution). `diff` is a
  * unified-diff string, empty for no-op edits, or undefined when the
  * entry has no diff (agents older than include_diff). `status` and
- * `error` are set by results that report per-file outcomes; a
- * "rejected" file was not written and `error` says why.
+ * `error` are set by results that report per-file outcomes: a
+ * "rejected" file was not written and `error` says why; for an
+ * "unknown" file the server could not tell whether it was written.
  */
 type ServerEditResult = {
 	path: string;

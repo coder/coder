@@ -115,8 +115,8 @@ describe("Tool edit_files rows", () => {
 	const threeFiles = {
 		edits: [edit("/repo/a.go"), edit("/repo/b.go"), edit("/repo/c.go")],
 	};
-	// Server diffs add a line that differs from new_text, so a diff built
-	// from the args instead would not show it.
+	// Server diffs add a line that differs from new_text, so an args diff
+	// would not show it.
 	const diff = (path: string) =>
 		`--- ${path}\n+++ ${path}\n@@ -1,1 +1,1 @@\n-old\n+new // server\n`;
 	const applied = (path: string) => ({
@@ -142,10 +142,10 @@ describe("Tool edit_files rows", () => {
 	];
 	const unknownRow = (path: string, error: string) => [
 		`Edits to ${path} may not have been applied`,
-		`${path}${error}`,
+		`${path}Could not confirm whether these edits were applied.\n${error}`,
 	];
 	const transportError =
-		"the workspace agent connection closed before a response arrived";
+		'Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF';
 
 	it.each<{
 		name: string;
