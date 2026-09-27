@@ -108,6 +108,13 @@ export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	};
 };
 
+// The selection is a pure function of the latest build's agents, so
+// keying on the build refetches it after a rebuild.
+export const chatWorkspaceAgent = (workspaceId: string, buildId: string) => ({
+	queryKey: ["chats", "workspace-agent", workspaceId, buildId] as const,
+	queryFn: () => API.experimental.getChatWorkspaceAgent(workspaceId),
+});
+
 /**
  * Writes an updater across every cached chat list entry by targeting the
  * list family prefix. Each filter combination is a separate query whose

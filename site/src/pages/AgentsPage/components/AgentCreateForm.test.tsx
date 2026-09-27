@@ -133,6 +133,36 @@ const mockStoppedWorkspace: TypesGen.Workspace = {
 	},
 };
 
+const mockMainAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "agent-main",
+	name: "main",
+	status: "connected",
+};
+
+const mockChatAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "agent-chat",
+	name: "dev-coderd-chat",
+	status: "disconnected",
+};
+
+const mockMultiAgentWorkspace: TypesGen.Workspace = {
+	...mockWorkspace,
+	id: "ws-multi",
+	name: "multi-agent-project",
+	latest_build: {
+		...mockWorkspace.latest_build,
+		id: "build-multi",
+		resources: [
+			{
+				...mockWorkspace.latest_build.resources[0],
+				agents: [mockMainAgent, mockChatAgent],
+			},
+		],
+	},
+};
+
 const createQueryClient = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -248,6 +278,9 @@ describe("AgentCreateForm workspace file uploads", () => {
 		dashboard.showOrganizations = false;
 		vi.spyOn(toast, "error");
 		vi.spyOn(toast, "warning");
+		vi.spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({
+			agent_id: MockWorkspaceAgent.id,
+		});
 	});
 
 	afterEach(() => {
@@ -437,6 +470,150 @@ describe("AgentCreateForm workspace file uploads", () => {
 			workspaceId: mockWorkspace.id,
 			uploadWorkspaceFiles: expect.any(Function),
 		});
+	});
+
+	it("rejects workspace files when the server-selected agent is disconnected", async () => {
+		vi.mocked(API.experimental.getChatWorkspaceAgent).mockResolvedValue({
+			agent_id: mockChatAgent.id,
+		});
+		localStorage.setItem(
+			"agents.selected-workspace-id",
+			mockMultiAgentWorkspace.id,
+		);
+		const { onCreateChat } = renderForm({
+			workspaceOptions: [mockMultiAgentWorkspace],
+		});
+
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalledWith(
+				mockMultiAgentWorkspace.id,
+			),
+		);
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+
+		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toBeUndefined();
+	});
+
+	it("accepts workspace files when the server-selected agent is connected", async () => {
+		vi.mocked(API.experimental.getChatWorkspaceAgent).mockResolvedValue({
+			agent_id: mockMainAgent.id,
+		});
+		localStorage.setItem(
+			"agents.selected-workspace-id",
+			mockMultiAgentWorkspace.id,
+		);
+		const { onCreateChat } = renderForm({
+			workspaceOptions: [
+				{
+					...mockMultiAgentWorkspace,
+					latest_build: {
+						...mockMultiAgentWorkspace.latest_build,
+						resources: [
+							{
+								...mockMultiAgentWorkspace.latest_build.resources[0],
+								agents: [mockMainAgent, { ...mockChatAgent, name: "sidecar" }],
+							},
+						],
+					},
+				},
+			],
+		});
+
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalled(),
+		);
+		await attachZipFile();
+		await submitMessage("inspect this archive");
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat).uploadWorkspaceFiles).toEqual(
+			expect.any(Function),
+		);
+		expect(toast.error).not.toHaveBeenCalled();
+	});
+
+	it("keeps queued files while the new workspace's agent selection loads", async () => {
+		let resolveSelection: (value: TypesGen.ChatWorkspaceAgent) => void =
+			() => {};
+		vi.mocked(API.experimental.getChatWorkspaceAgent).mockImplementation(
+			async (workspaceId) => {
+				if (workspaceId !== mockMultiAgentWorkspace.id) {
+					return { agent_id: MockWorkspaceAgent.id };
+				}
+				return new Promise((resolve) => {
+					resolveSelection = resolve;
+				});
+			},
+		);
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm({
+			workspaceCount: 2,
+			workspaceOptions: [mockWorkspace, mockMultiAgentWorkspace],
+		});
+
+		await attachZipFile();
+		await user().click(screen.getByRole("button", { name: "More options" }));
+		await user().click(
+			await screen.findByRole("button", { name: /Attach workspace/ }),
+		);
+		await user().click(await screen.findByText("multi-agent-project"));
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalledWith(
+				mockMultiAgentWorkspace.id,
+			),
+		);
+
+		await typeMessage("inspect this archive");
+		await user().click(screen.getByRole("button", { name: "Send" }));
+		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
+		expect(onCreateChat).not.toHaveBeenCalled();
+		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
+
+		resolveSelection({ agent_id: mockMainAgent.id });
+		await clickSend();
+
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+		expect(submittedOptions(onCreateChat)).toMatchObject({
+			workspaceId: mockMultiAgentWorkspace.id,
+			uploadWorkspaceFiles: expect.any(Function),
+		});
+		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
+	});
+
+	it("keeps queued files when the new workspace's agent selection fails", async () => {
+		vi.mocked(API.experimental.getChatWorkspaceAgent).mockImplementation(
+			async (workspaceId) => {
+				if (workspaceId === mockMultiAgentWorkspace.id) {
+					throw new Error("selection failed");
+				}
+				return { agent_id: MockWorkspaceAgent.id };
+			},
+		);
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		const { onCreateChat } = renderForm({
+			workspaceCount: 2,
+			workspaceOptions: [mockWorkspace, mockMultiAgentWorkspace],
+		});
+
+		await attachZipFile();
+		await user().click(screen.getByRole("button", { name: "More options" }));
+		await user().click(
+			await screen.findByRole("button", { name: /Attach workspace/ }),
+		);
+		await user().click(await screen.findByText("multi-agent-project"));
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalledWith(
+				mockMultiAgentWorkspace.id,
+			),
+		);
+		await submitMessage("inspect this archive");
+
+		expect(toast.error).toHaveBeenCalledWith(workspaceUploadUnavailableMessage);
+		expect(onCreateChat).not.toHaveBeenCalled();
+		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
 	});
 
 	it("keeps queued files across an agent status flap on the same workspace", async () => {
