@@ -1124,11 +1124,10 @@ func TestPreToolUseHookRejectsAmbiguousInputOverride(t *testing.T) {
 		`hook input override for tool read_file: input key "PATH" differs from schema property "path" only by case`)
 }
 
-// edit_files input is flat, but pre_tool_use keeps the grouped files
-// form: hooks receive the edits grouped by path, and an input_override
-// in that form is flattened before it is validated, persisted and
-// executed. A string-encoded edits array is decoded before any of this,
-// with or without hooks.
+// edit_files input is flat, but pre_tool_use hooks receive it grouped by
+// path, and a grouped input_override is flattened before it is
+// validated, persisted and executed. A string-encoded edits array is
+// decoded first, with or without hooks.
 func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 	t.Parallel()
 

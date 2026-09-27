@@ -27,8 +27,8 @@ type EditFilesArgs struct {
 	Edits []EditFilesEdit `json:"edits"`
 }
 
-// EditFilesEdit is one edit in the edit_files tool input. Unlike
-// workspacesdk.FileEdit, it carries the path of the file it changes.
+// EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
+// carries the path of the file it changes.
 type EditFilesEdit struct {
 	Path       string `json:"path" description:"Absolute path of the file to edit."`
 	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
@@ -219,7 +219,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	}
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
 		return rejectEditFiles(
-			"Send a flat edits list where every edit has its own path, for example " + editFilesExample +
+			"Send a flat list of edits where every edit has its own path, for example " + editFilesExample +
 				"; the files key is not supported",
 		), nil
 	}
@@ -470,8 +470,8 @@ func formatEditIndexes(indexes []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// editFilesNoneApplied is the statement every edit_files error result
-// makes when the call is known to have written nothing.
+// editFilesNoneApplied appears in every edit_files error result for a
+// call that is known to have written nothing.
 const editFilesNoneApplied = "No files were applied."
 
 // File and result statuses in edit_files results.

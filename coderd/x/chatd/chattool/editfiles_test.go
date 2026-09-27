@@ -72,7 +72,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -123,8 +123,8 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	// Failures before the edit request reaches the agent write nothing,
-	// so the result says so.
+	// Failures before the edit request reaches the agent report that no
+	// files were applied.
 	t.Run("WorkspaceUnavailableAppliesNothing", func(t *testing.T) {
 		t.Parallel()
 		const input = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`
