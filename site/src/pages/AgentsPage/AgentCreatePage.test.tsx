@@ -17,7 +17,7 @@ import {
 import { API } from "#/api/api";
 import { chatListFamilyKey } from "#/api/queries/chats";
 import { buildDebugWorkspaceBuildPath } from "#/modules/workspaces/workspaceBuildDebugLink";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatMessage } from "#/testHelpers/chatEntities";
 import {
 	MockChatModelProviderDescriptor,
 	MockDefaultChatModel,
@@ -355,6 +355,11 @@ describe("AgentCreatePage workspace uploads", () => {
 		vi.spyOn(API.experimental, "updateChat").mockImplementation(async () => {
 			events.push("archive");
 		});
+		vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+		});
 		vi.spyOn(toast, "error");
 	});
 
@@ -572,6 +577,31 @@ describe("AgentCreatePage workspace uploads", () => {
 		});
 
 		expect(await outcome).toEqual({ rejected: false });
+		expect(formProps.createError).toBeNull();
+		expect(router.state.location.pathname).toBe(chatPath);
+	});
+
+	it("navigates when a stalled first message was already answered", async () => {
+		const router = await renderUploadPage();
+		vi.useFakeTimers();
+		vi.mocked(API.experimental.createChatMessage).mockImplementation(
+			(_chatId, _req, signal) => stallUntilAborted(signal),
+		);
+		vi.mocked(API.experimental.getChatMessages).mockResolvedValue({
+			messages: [MockChatMessage],
+			queued_messages: [],
+			has_more: true,
+		});
+		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+
+		let outcome: Promise<SubmitOutcome> | undefined;
+		await act(async () => {
+			outcome = startSubmit({ uploadWorkspaceFiles });
+			await vi.advanceTimersByTimeAsync(30_000);
+		});
+
+		expect(await outcome).toEqual({ rejected: false });
+		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 		expect(formProps.createError).toBeNull();
 		expect(router.state.location.pathname).toBe(chatPath);
 	});

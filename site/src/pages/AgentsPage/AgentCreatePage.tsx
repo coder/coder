@@ -2,6 +2,7 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { API } from "#/api/api";
 import {
 	type ApiErrorResponse,
 	getErrorMessage,
@@ -185,10 +186,18 @@ const AgentCreatePage: FC = () => {
 		});
 	};
 	// Resolves true when the chat already holds the first message. A
-	// failed send can still commit server-side; the chat then left the
-	// idle state and archiving it returns 409.
+	// failed send can still commit server-side. Archiving returns 409
+	// only while the reply is generating; once it finishes the chat is
+	// idle again and would archive, so check for messages first.
 	const archiveChatAfterFailedSend = async (chatId: string) => {
 		try {
+			const { messages } = await withTimeout(
+				() => API.experimental.getChatMessages(chatId, { limit: 1 }),
+				cleanupArchiveTimeoutMs,
+			);
+			if (messages.length > 0) {
+				return true;
+			}
 			await withTimeout(
 				() => archiveMutation.mutateAsync(chatId),
 				cleanupArchiveTimeoutMs,
