@@ -431,6 +431,7 @@ describe("AgentCreatePage workspace uploads", () => {
 			queued_messages: [],
 			has_more: false,
 		});
+		vi.spyOn(API.experimental, "getChat").mockResolvedValue(MockChat);
 		vi.spyOn(toast, "error");
 	});
 
@@ -680,39 +681,56 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
-	it("restores the chat when a stalled first message lands before the archive", async () => {
-		const user = userEvent.setup({ delay: null });
-		const router = await renderUploadPage();
-		vi.mocked(API.experimental.createChatMessage).mockImplementation(
-			(_chatId, _req, signal) => stallUntilAborted(signal),
-		);
-		vi.mocked(API.experimental.getChatMessages)
-			.mockResolvedValueOnce({
-				messages: [],
-				queued_messages: [],
-				has_more: false,
-			})
-			.mockResolvedValue({
-				messages: [MockChatMessage],
-				queued_messages: [],
-				has_more: false,
+	it.each([
+		{ archive: "succeeds", archiveResult: () => Promise.resolve() },
+		{
+			archive: "applies but loses its response",
+			archiveResult: () =>
+				Promise.reject(new AxiosError("Network Error", AxiosError.ERR_NETWORK)),
+		},
+	])(
+		"restores the chat when a stalled first message lands before an archive that $archive",
+		async ({ archiveResult }) => {
+			const user = userEvent.setup({ delay: null });
+			const router = await renderUploadPage();
+			vi.mocked(API.experimental.createChatMessage).mockImplementation(
+				(_chatId, _req, signal) => stallUntilAborted(signal),
+			);
+			vi.mocked(API.experimental.getChatMessages)
+				.mockResolvedValueOnce({
+					messages: [],
+					queued_messages: [],
+					has_more: false,
+				})
+				.mockResolvedValue({
+					messages: [MockChatMessage],
+					queued_messages: [],
+					has_more: false,
+				});
+			vi.mocked(API.experimental.updateChat).mockImplementationOnce(
+				archiveResult,
+			);
+			vi.mocked(API.experimental.getChat).mockResolvedValue({
+				...MockChat,
+				archived: true,
 			});
-		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
-		vi.useFakeTimers();
+			const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+			vi.useFakeTimers();
 
-		await act(async () => {
-			await user.click(sendButton);
-			await vi.advanceTimersByTimeAsync(30_000);
-		});
+			await act(async () => {
+				await user.click(sendButton);
+				await vi.advanceTimersByTimeAsync(30_000);
+			});
 
-		expect(await lastSubmission()).toEqual({ rejected: false });
-		expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
-			[MockChat.id, { archived: true }],
-			[MockChat.id, { archived: false }],
-		]);
-		expect(formProps.createError).toBeNull();
-		expect(router.state.location.pathname).toBe(chatPath);
-	});
+			expect(await lastSubmission()).toEqual({ rejected: false });
+			expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
+				[MockChat.id, { archived: true }],
+				[MockChat.id, { archived: false }],
+			]);
+			expect(formProps.createError).toBeNull();
+			expect(router.state.location.pathname).toBe(chatPath);
+		},
+	);
 
 	it("says a stalled first message may have been sent when the cleanup cannot tell", async () => {
 		const user = userEvent.setup({ delay: null });
@@ -741,6 +759,113 @@ describe("AgentCreatePage workspace uploads", () => {
 		});
 		expect(router.state.location.pathname).toBe("/agents");
 	});
+
+	it("does not restore a chat that a failed archive left unarchived", async () => {
+		const user = userEvent.setup({ delay: null });
+		const router = await renderUploadPage();
+		vi.mocked(API.experimental.createChatMessage).mockImplementation(
+			(_chatId, _req, signal) => stallUntilAborted(signal),
+		);
+		vi.mocked(API.experimental.getChatMessages)
+			.mockResolvedValueOnce({
+				messages: [],
+				queued_messages: [],
+				has_more: false,
+			})
+			.mockResolvedValue({
+				messages: [MockChatMessage],
+				queued_messages: [],
+				has_more: false,
+			});
+		vi.mocked(API.experimental.updateChat).mockRejectedValueOnce(
+			new AxiosError("Network Error", AxiosError.ERR_NETWORK),
+		);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
+
+		await act(async () => {
+			await user.click(sendButton);
+			await vi.advanceTimersByTimeAsync(30_000);
+		});
+
+		expect(await lastSubmission()).toEqual({ rejected: true });
+		expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
+			[MockChat.id, { archived: true }],
+		]);
+		expect(toast.error).toHaveBeenCalledWith("Network Error");
+		expect(formProps.createError).toEqual({
+			message: "Sending the message took too long.",
+			detail:
+				"The message may still have been sent. Check the chat list before sending again.",
+		});
+		expect(router.state.location.pathname).toBe("/agents");
+	});
+
+	it.each([
+		{
+			step: "the check",
+			failure: "Loading messages failed.",
+			arrange: (failure: string) => {
+				vi.mocked(API.experimental.getChatMessages)
+					.mockResolvedValueOnce({
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					})
+					.mockRejectedValue(mockApiError({ message: failure }));
+			},
+		},
+		{
+			step: "the restore",
+			failure: "Restoring the chat failed.",
+			arrange: (failure: string) => {
+				vi.mocked(API.experimental.getChatMessages)
+					.mockResolvedValueOnce({
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					})
+					.mockResolvedValue({
+						messages: [MockChatMessage],
+						queued_messages: [],
+						has_more: false,
+					});
+				vi.mocked(API.experimental.updateChat)
+					.mockResolvedValueOnce(undefined)
+					.mockRejectedValue(mockApiError({ message: failure }));
+			},
+		},
+	])(
+		"attempts a restore and reports an unknown outcome when $step after the archive fails",
+		async ({ failure, arrange }) => {
+			const user = userEvent.setup({ delay: null });
+			const router = await renderUploadPage();
+			vi.mocked(API.experimental.createChatMessage).mockImplementation(
+				(_chatId, _req, signal) => stallUntilAborted(signal),
+			);
+			arrange(failure);
+			const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+			vi.useFakeTimers();
+
+			await act(async () => {
+				await user.click(sendButton);
+				await vi.advanceTimersByTimeAsync(30_000);
+			});
+
+			expect(await lastSubmission()).toEqual({ rejected: true });
+			expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
+				[MockChat.id, { archived: true }],
+				[MockChat.id, { archived: false }],
+			]);
+			expect(toast.error).toHaveBeenCalledWith(failure);
+			expect(formProps.createError).toEqual({
+				message: "Sending the message took too long.",
+				detail:
+					"The message may still have been sent. Check the chat list before sending again.",
+			});
+			expect(router.state.location.pathname).toBe("/agents");
+		},
+	);
 
 	it.each([
 		{
