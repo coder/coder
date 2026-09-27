@@ -2167,6 +2167,9 @@ describe("getChatListQueryString", () => {
 		).toBe(
 			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		);
+		expect(
+			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
+		).toBe("archived:false pr_status:none");
 	});
 });
 

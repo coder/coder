@@ -65,6 +65,14 @@ describe(getAgentSidebarFilters.name, () => {
 				prStatuses: ["draft", "merged"],
 			},
 		},
+		{
+			name: "keeps the none pull request status",
+			route: "/agents?pr_status=none,bogus,draft",
+			expected: {
+				...defaultFilters,
+				prStatuses: ["draft", "none"],
+			},
+		},
 	])("$name", async ({ route, expected }) => {
 		const { result } = await renderFilters(route);
 		expect(result.current[0]).toEqual(expected);
