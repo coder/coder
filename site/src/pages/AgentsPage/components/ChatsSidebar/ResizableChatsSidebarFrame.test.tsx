@@ -111,6 +111,17 @@ describe("ResizableChatsSidebarFrame", () => {
 		expect(persistedWidth()).toBe(400);
 	});
 
+	it("grows a sidebar squeezed at mount back to the stored width", () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "600");
+		vi.stubGlobal("innerWidth", 800);
+		const handle = renderHandle();
+		expect(handle).toHaveAttribute("aria-valuenow", "440");
+
+		vi.stubGlobal("innerWidth", 1440);
+		fireEvent(window, new Event("resize"));
+		expect(handle).toHaveAttribute("aria-valuenow", "600");
+	});
+
 	it("keeps the chosen width across resizes when storage writes fail", () => {
 		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
 			throw new Error("quota exceeded");

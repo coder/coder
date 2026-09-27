@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	applyNarrowWidthCollapse,
 	chatCostIdToInvalidate,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
@@ -1053,4 +1054,19 @@ describe(chatCostIdToInvalidate.name, () => {
 	])("$name", ({ updatedChat, eventKind, expected }) => {
 		expect(chatCostIdToInvalidate(updatedChat, eventKind)).toBe(expected);
 	});
+});
+
+describe("applyNarrowWidthCollapse", () => {
+	it.each([
+		{ prev: null, collapsed: true, expected: "narrowWidth" },
+		{ prev: "narrowWidth", collapsed: false, expected: null },
+		{ prev: "user", collapsed: true, expected: "user" },
+		{ prev: "user", collapsed: false, expected: "user" },
+		{ prev: null, collapsed: false, expected: null },
+	] as const)(
+		"$prev with collapsed=$collapsed gives $expected",
+		({ prev, collapsed, expected }) => {
+			expect(applyNarrowWidthCollapse(prev, collapsed)).toBe(expected);
+		},
+	);
 });

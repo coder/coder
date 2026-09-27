@@ -4,7 +4,11 @@ import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MockResizeObserver } from "#/testHelpers/resizeObserver";
-import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
+import {
+	type AgentsPageOutletContext,
+	applyNarrowWidthCollapse,
+	type SidebarCollapsedBy,
+} from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
 type HarnessProps = {
@@ -34,15 +38,20 @@ const RightPanelHarness: FC<HarnessProps> = ({
 	};
 
 	return (
-		<RightPanel
-			isOpen={isOpen}
-			isExpanded={isOpen && isExpanded}
-			onToggleExpanded={() => setIsExpanded(!isExpanded)}
-			onClose={() => setIsOpen(false)}
-			onVisualExpandedChange={onVisualExpandedChange}
-		>
-			<div>Panel content</div>
-		</RightPanel>
+		<>
+			<button type="button" onClick={() => setIsOpen(false)}>
+				Close panel
+			</button>
+			<RightPanel
+				isOpen={isOpen}
+				isExpanded={isOpen && isExpanded}
+				onToggleExpanded={() => setIsExpanded(!isExpanded)}
+				onClose={() => setIsOpen(false)}
+				onVisualExpandedChange={onVisualExpandedChange}
+			>
+				<div>Panel content</div>
+			</RightPanel>
+		</>
 	);
 };
 
@@ -54,8 +63,8 @@ type SidebarHarnessProps = HarnessProps & {
 };
 
 /**
- * Owns the sidebar collapse state the way AgentsPageLayout does and
- * exposes a button that toggles it as the user would.
+ * Owns the sidebar collapse state with the layout's updater and exposes a
+ * button that toggles it as the user would.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	initialSidebarCollapsed = false,
@@ -63,13 +72,15 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	panelKey,
 	...harnessProps
 }) => {
-	const [collapsedBy, setCollapsedByState] = useState<
-		"user" | "narrowWidth" | null
-	>(initialSidebarCollapsed ? "user" : null);
+	const [collapsedBy, setCollapsedByState] = useState<SidebarCollapsedBy>(
+		initialSidebarCollapsed ? "user" : null,
+	);
 	const isSidebarCollapsed = collapsedBy !== null;
-	const setCollapsedBy = (next: "user" | "narrowWidth" | null) => {
+	const setCollapsedBy = (next: SidebarCollapsedBy) => {
 		setCollapsedByState(next);
-		onSidebarCollapsedChange?.(next !== null);
+		if ((next !== null) !== isSidebarCollapsed) {
+			onSidebarCollapsedChange?.(next !== null);
+		}
 	};
 	const toggleByUser = () => setCollapsedBy(isSidebarCollapsed ? null : "user");
 	const outletContext: AgentsPageOutletContext = {
@@ -89,7 +100,7 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		onExpandSidebar: () => setCollapsedBy(null),
 		isSidebarCollapsedByNarrowWidth: collapsedBy === "narrowWidth",
 		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
-			setCollapsedBy(collapsed ? "narrowWidth" : null),
+			setCollapsedBy(applyNarrowWidthCollapse(collapsedBy, collapsed)),
 		getExpandedSidebarWidth: () => 320,
 		onChatReady: () => {},
 	};
@@ -466,5 +477,25 @@ describe("RightPanel sidebar auto-collapse", () => {
 		resizeWindow(1500);
 		await nextFrame();
 		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(3);
+	});
+
+	it("restores a sidebar it collapsed when the panel closes", async () => {
+		parentWidth = 700;
+		const user = userEvent.setup();
+		const onSidebarCollapsedChange = vi.fn();
+		render(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Close panel" }));
+
+		expect(onSidebarCollapsedChange.mock.calls).toEqual([[true], [false]]);
 	});
 });

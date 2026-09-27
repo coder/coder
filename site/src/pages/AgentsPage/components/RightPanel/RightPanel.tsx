@@ -5,6 +5,7 @@ import {
 	type PointerEvent as ReactPointerEvent,
 	type TransitionEvent as ReactTransitionEvent,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -336,6 +337,9 @@ export const RightPanel = ({
 			// Reopening mid-slide cancels the animation without an animationend.
 			setIsNarrowSlideOut(false);
 		}
+	} else if (isAnimatingOpen && isPointerResizing) {
+		// A drag removes the transition, so no transitionend will unpin.
+		setIsAnimatingOpen(false);
 	}
 	if (isSideBySide !== prevIsSideBySide) {
 		setPrevIsSideBySide(isSideBySide);
@@ -359,6 +363,19 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
+	// A sidebar collapsed to fit the panel comes back once the panel closes.
+	useEffect(() => {
+		if (!isOpen && isSidebarCollapsedByNarrowWidth) {
+			onSidebarCollapsedByNarrowWidthChange?.(false);
+		}
+	}, [
+		isOpen,
+		isSidebarCollapsedByNarrowWidth,
+		onSidebarCollapsedByNarrowWidthChange,
+	]);
+
+	const getPanelWidth = useEffectEvent(() => width);
+
 	useEffect(() => {
 		if (
 			!visualOpen ||
@@ -376,50 +393,51 @@ export const RightPanel = ({
 		}
 
 		let frame = 0;
-		let toggleRequested = false;
-		const maybeToggleSidebar = () => {
+		let narrowWidthChangeRequested = false;
+		const maybeUpdateNarrowWidthCollapse = () => {
 			cancelAnimationFrame(frame);
 			frame = requestAnimationFrame(() => {
-				if (toggleRequested) {
+				if (narrowWidthChangeRequested) {
 					return;
 				}
 
 				const chatMinWidth = getChatMinWidth(parent);
 				if (isSidebarCollapsed) {
+					const sidebarWidth = getExpandedSidebarWidth?.();
+					if (sidebarWidth === undefined) {
+						return;
+					}
 					// Leave room for the panel's current width, not just its minimum.
-					const widthAfterRestore =
-						parent.clientWidth - (getExpandedSidebarWidth?.() ?? 0);
 					const requiredWidth =
 						chatMinWidth +
-						Math.max(MIN_WIDTH, width) +
+						Math.max(MIN_WIDTH, getPanelWidth()) +
 						SIDEBAR_RESTORE_HYSTERESIS;
-					if (widthAfterRestore < requiredWidth) {
+					if (parent.clientWidth - sidebarWidth < requiredWidth) {
 						return;
 					}
 				} else if (parent.clientWidth >= chatMinWidth + MIN_WIDTH) {
 					return;
 				}
 
-				toggleRequested = true;
+				narrowWidthChangeRequested = true;
 				onSidebarCollapsedByNarrowWidthChange(!isSidebarCollapsed);
 			});
 		};
 
-		maybeToggleSidebar();
-		const resizeObserver = new ResizeObserver(maybeToggleSidebar);
+		maybeUpdateNarrowWidthCollapse();
+		const resizeObserver = new ResizeObserver(maybeUpdateNarrowWidthCollapse);
 		resizeObserver.observe(parent);
-		addEventListener("resize", maybeToggleSidebar);
+		addEventListener("resize", maybeUpdateNarrowWidthCollapse);
 
 		return () => {
 			cancelAnimationFrame(frame);
 			resizeObserver.disconnect();
-			removeEventListener("resize", maybeToggleSidebar);
+			removeEventListener("resize", maybeUpdateNarrowWidthCollapse);
 		};
 	}, [
 		visualOpen,
 		visualExpanded,
 		isBelowLg,
-		width,
 		isSidebarCollapsed,
 		isSidebarCollapsedByNarrowWidth,
 		onSidebarCollapsedByNarrowWidthChange,

@@ -751,7 +751,10 @@
 	on every container (even when content does not overflow). */
 	:root {
 		scrollbar-color: hsl(var(--surface-quaternary)) transparent;
-		/* Shared by the agents panel transitions and slide keyframes. */
+	}
+
+	/* Shared by the agents panel transitions and slide keyframes. */
+	:root {
 		--panel-slide-duration: 200ms;
 	}
 

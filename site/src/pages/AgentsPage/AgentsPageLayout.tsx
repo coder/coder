@@ -121,12 +121,26 @@ export type AgentsPageOutletContext = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
-	/** True when the sidebar was collapsed to make room, not by the user. */
+	/** True when RightPanel collapsed the sidebar to fit the panel, not the user. */
 	isSidebarCollapsedByNarrowWidth?: boolean;
+	/** Records or clears a narrow-width collapse. Never changes a user collapse. */
 	onSidebarCollapsedByNarrowWidthChange?: (collapsed: boolean) => void;
-	/** The sidebar's width when expanded, even while collapsed. */
-	getExpandedSidebarWidth?: () => number;
+	/** The sidebar frame's current width, even while collapsed. */
+	getExpandedSidebarWidth?: () => number | undefined;
 	onChatReady: () => void;
+};
+
+export type SidebarCollapsedBy = "user" | "narrowWidth" | null;
+
+/** Applies a narrow-width collapse change without overriding a user collapse. */
+export const applyNarrowWidthCollapse = (
+	prev: SidebarCollapsedBy,
+	collapsed: boolean,
+): SidebarCollapsedBy => {
+	if (collapsed) {
+		return prev ?? "narrowWidth";
+	}
+	return prev === "narrowWidth" ? null : prev;
 };
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -360,9 +374,8 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const [sidebarCollapsedBy, setSidebarCollapsedBy] = useState<
-		"user" | "narrowWidth" | null
-	>(null);
+	const [sidebarCollapsedBy, setSidebarCollapsedBy] =
+		useState<SidebarCollapsedBy>(null);
 	const isSidebarCollapsed = sidebarCollapsedBy !== null;
 	const sidebarFrameRef = useRef<HTMLDivElement>(null);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
@@ -705,8 +718,9 @@ const AgentsPageLayout: FC = () => {
 		sidebarViewportSlide !== null &&
 		(!isSidebarHiddenOnMobile || isSidebarCollapsed)
 	) {
-		// A route or collapse change mid-slide cancels the animation, so
-		// animationend never fires; drop the slide instead of replaying it later.
+		// Stop a slide that no longer applies. Left running, "out" hides the
+		// mobile chat list until it ends, and "in" grows a sidebar the user
+		// just collapsed.
 		setSidebarViewportSlide(null);
 	}
 
@@ -743,18 +757,17 @@ const AgentsPageLayout: FC = () => {
 		onExpandSidebar: () => setSidebarCollapsedBy(null),
 		isSidebarCollapsedByNarrowWidth: sidebarCollapsedBy === "narrowWidth",
 		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
-			setSidebarCollapsedBy((prev) => {
-				if (collapsed) {
-					return prev ?? "narrowWidth";
-				}
-				return prev === "narrowWidth" ? null : prev;
-			}),
-		getExpandedSidebarWidth: () =>
-			Number.parseFloat(
+			setSidebarCollapsedBy((prev) =>
+				applyNarrowWidthCollapse(prev, collapsed),
+			),
+		getExpandedSidebarWidth: () => {
+			const width = Number.parseFloat(
 				sidebarFrameRef.current?.style.getPropertyValue(
 					"--agents-left-sidebar-width",
 				) ?? "",
-			) || 0,
+			);
+			return width > 0 ? width : undefined;
+		},
 		onChatReady: () => {},
 	};
 

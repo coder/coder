@@ -13,7 +13,7 @@ import {
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	loadPersistedLeftSidebarWidth,
+	loadStoredLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
@@ -23,9 +23,9 @@ type ResizableChatsSidebarFrameProps = {
 	ref?: Ref<HTMLDivElement>;
 	isCollapsed?: boolean;
 	/**
-	 * Plays the sm-breakpoint slide. "out" ignores className so the frame
-	 * stays beside the main panel while it shrinks; "in" grows it from zero.
-	 * The caller resets it to null from onViewportSlideEnd.
+	 * Plays the sm-breakpoint slide. "out" ignores className and isCollapsed
+	 * and needs a flex-row parent to shrink beside the main panel; "in" grows
+	 * it from zero. The caller resets it to null from onViewportSlideEnd.
 	 */
 	viewportSlide?: "in" | "out" | null;
 	onViewportSlideEnd?: () => void;
@@ -39,9 +39,10 @@ export const ResizableChatsSidebarFrame = ({
 	viewportSlide = null,
 	onViewportSlideEnd,
 }: ResizableChatsSidebarFrameProps) => {
-	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
+	const [storedWidth] = useState(loadStoredLeftSidebarWidth);
+	const [width, setWidth] = useState(() => clampLeftSidebarWidth(storedWidth));
 	// The width the user chose, kept in memory because storage writes can fail.
-	const userWidth = useRef(width);
+	const userWidth = useRef(storedWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);

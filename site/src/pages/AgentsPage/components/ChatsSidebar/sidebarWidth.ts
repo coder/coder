@@ -33,16 +33,17 @@ export function clampLeftSidebarWidth(width: number): number {
 	);
 }
 
-export function loadPersistedLeftSidebarWidth(): number {
+/** The stored width before clamping to the current viewport. */
+export function loadStoredLeftSidebarWidth(): number {
 	let stored: string | null;
 	try {
 		stored = localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY);
 	} catch {
-		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		return LEFT_SIDEBAR_DEFAULT_WIDTH;
 	}
 
 	if (!stored) {
-		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		return LEFT_SIDEBAR_DEFAULT_WIDTH;
 	}
 
 	const parsed = Number.parseInt(stored, 10);
@@ -51,10 +52,14 @@ export function loadPersistedLeftSidebarWidth(): number {
 		parsed < LEFT_SIDEBAR_MIN_WIDTH ||
 		parsed > LEFT_SIDEBAR_MAX_WIDTH
 	) {
-		return clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		return LEFT_SIDEBAR_DEFAULT_WIDTH;
 	}
 
-	return clampLeftSidebarWidth(parsed);
+	return parsed;
+}
+
+export function loadPersistedLeftSidebarWidth(): number {
+	return clampLeftSidebarWidth(loadStoredLeftSidebarWidth());
 }
 
 export function persistLeftSidebarWidth(width: number): void {
