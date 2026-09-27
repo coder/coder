@@ -9,7 +9,6 @@ import {
 } from "#/api/errors";
 import {
 	archiveChat,
-	chat,
 	chatHasMessages,
 	createChat,
 	createChatMessageByChatId,
@@ -199,42 +198,41 @@ const AgentCreatePage: FC = () => {
 				() => queryClient.fetchQuery(chatHasMessages(chatId)),
 				cleanupRequestTimeoutMs,
 			);
-		const isArchived = async () => {
-			const { archived } = await withTimeout(
-				() => queryClient.fetchQuery({ ...chat(chatId), staleTime: 0 }),
-				cleanupRequestTimeoutMs,
-			);
-			return archived;
-		};
 		const restore = () =>
 			withTimeout(
 				() => unarchiveMutation.mutateAsync(chatId),
 				cleanupRequestTimeoutMs,
 			);
 		// The send can commit before the archive lands, and a failed archive
-		// response can hide an applied archive. Unless the check after the
-		// archive shows the chat empty, try to restore it, even after the
-		// timeout below has released the composer.
+		// may still have applied. Unless the check after the archive shows the
+		// chat empty, restore it, even once the timeout below releases the
+		// composer.
 		const archiveUnlessCommitted = async () => {
+			let archiveFailure: { error: unknown } | undefined;
 			try {
 				await archiveMutation.mutateAsync(chatId);
 			} catch (error) {
 				if (isConflictError(error)) {
 					return "committed" as const;
 				}
-				if (!(await isArchived().catch(() => false))) {
-					throw error;
-				}
+				archiveFailure = { error };
 			}
+			// Unarchiving a chat that is not archived fails.
+			const restoreChat = archiveFailure
+				? () => restore().catch(() => {})
+				: restore;
 			const committed = await hasMessages().catch(async (error: unknown) => {
-				await restore();
+				await restoreChat();
 				throw error;
 			});
-			if (!committed) {
-				return "archived" as const;
+			if (committed) {
+				await restoreChat();
+				return "committed" as const;
 			}
-			await restore();
-			return "committed" as const;
+			if (archiveFailure) {
+				throw archiveFailure.error;
+			}
+			return "archived" as const;
 		};
 		try {
 			if (await hasMessages()) {
