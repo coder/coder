@@ -1036,7 +1036,7 @@ When the `agent-lifecycle-hooks` experiment is enabled and a hook URL is configu
 
 The consumer can observe activity, add model-only or user-visible context, replace supported prompt or tool input, and deny prompts or tool calls. Only `user_prompt_submit` and `pre_tool_use` accept a `permission` decision or input override; a response carrying one on any other event is rejected as an invalid response. Prompt submission is evaluated once when the submission is accepted, including queued messages and subagent prompts. Returned context becomes part of the conversation for its intended audience, except that context returned before a compaction guides the compaction summary instead.
 
-TODO(human author): `pre_tool_use` now receives builtin `edit_files` input grouped by path (`{"files":[...]}`), with paths trimmed as the tool uses them, instead of the model's flat `edits` bytes, and a grouped `input_override` is flattened back before validation, persistence and execution (`presentHookToolInputs`/`restoreHookToolInputs` in `toolinput.go`).
+TODO(human author): `pre_tool_use` now receives builtin `edit_files` input grouped by path (`{"files":[...]}`, paths trimmed as the tool uses them) instead of the model's flat `edits` bytes. A grouped `input_override` is flattened back before validation, persistence and execution; see `presentHookToolInputs` and `restoreHookToolInputs` in `toolinput.go`.
 
 Lifecycle hooks fail closed. If the consumer cannot be reached or returns an invalid response, Coder stops the triggering operation rather than continuing without the consumer's decision. Affected chats can enter an error state until the consumer recovers or hooks are disabled.
 

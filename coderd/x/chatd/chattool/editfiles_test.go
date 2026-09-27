@@ -70,7 +70,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat edits list where every edit has its own path, for example " + example + "; the files key is not supported; no files in this batch were applied",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported; no files in this batch were applied",
 			},
 			{
 				// fantasy's own decode error names Go types and does

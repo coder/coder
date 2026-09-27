@@ -80,7 +80,7 @@ Coder rejects a built-in tool call whose input repeats a key or spells a schema 
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than `coderd`.
 A policy that gates them must validate their input itself.
 
-`edit_files` input is the exception.
+For `edit_files`, `tool_input` isn't the model's bytes.
 The model sends a flat `edits` list in which every edit names its own `path`, and Coder presents those edits to `pre_tool_use` grouped by path, keeping each file's edits in their original order:
 
 ```json
