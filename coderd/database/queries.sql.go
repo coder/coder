@@ -31515,6 +31515,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -31525,7 +31527,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE
