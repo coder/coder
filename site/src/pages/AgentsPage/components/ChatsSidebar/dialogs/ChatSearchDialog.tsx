@@ -3,6 +3,7 @@ import {
 	CircleDotIcon,
 	FileTextIcon,
 	LinkIcon,
+	MessagesSquareIcon,
 } from "lucide-react";
 import type { FC, RefObject } from "react";
 import { type KeyboardEventHandler, useId, useRef, useState } from "react";
@@ -20,6 +21,7 @@ import {
 	CHAT_SEARCH_FILTER_KEYS,
 	type ChatSearchFilterKey,
 	extractTypedFilters,
+	isCommaSeparatedChatSearchFilter,
 	isValidChatSearchFilterValue,
 	normalizeChatSearchFilterValue,
 } from "./searchQuery";
@@ -49,6 +51,12 @@ const FILTER_DEFINITIONS_BY_KEY: Readonly<
 		icon: ArchiveIcon,
 		defaultValue: "true",
 		validate: (value) => isValidChatSearchFilterValue("archived", value),
+	},
+	status: {
+		label: "Status",
+		icon: MessagesSquareIcon,
+		defaultValue: null,
+		validate: (value) => isValidChatSearchFilterValue("status", value),
 	},
 	pr_status: {
 		label: "PR status",
@@ -222,10 +230,11 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			(def) => def.key === incompleteFilterKey,
 		);
 		if (incompleteFilterKey && definition?.validate(value)) {
-			const committedValue =
-				incompleteFilterKey === "pr_status"
-					? normalizeChatSearchFilterValue(incompleteFilterKey, value)
-					: value;
+			const committedValue = isCommaSeparatedChatSearchFilter(
+				incompleteFilterKey,
+			)
+				? normalizeChatSearchFilterValue(incompleteFilterKey, value)
+				: value;
 			setFilters((previous) => [
 				...previous.filter((filter) => filter.key !== incompleteFilterKey),
 				{ key: incompleteFilterKey, value: committedValue },
@@ -289,7 +298,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 			freeText.trim() &&
 			!(
 				event.key === " " &&
-				incompleteFilterKey === "pr_status" &&
+				isCommaSeparatedChatSearchFilter(incompleteFilterKey) &&
 				freeText.trimEnd().endsWith(",")
 			)
 		) {

@@ -1108,6 +1108,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "ChatStatuses", query: "status:error,running"},
 		{name: "PRStatusNone", query: "pr_status:none"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},

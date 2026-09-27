@@ -43,6 +43,9 @@ describe("buildChatSearchQuery", () => {
 			buildChatSearchQuery([{ key: "pr_status", value: ",,  ," }], ""),
 		).toBe(undefined);
 		expect(
+			buildChatSearchQuery([{ key: "status", value: "error running" }], ""),
+		).toBe("status:error,running");
+		expect(
 			buildChatSearchQuery(
 				[
 					{
@@ -78,6 +81,7 @@ describe("buildChatSearchQuery", () => {
 	it("does not emit invalid structured filters", () => {
 		for (const filter of [
 			{ key: "pr_status", value: "banana" },
+			{ key: "status", value: "working" },
 			{ key: "has_unread", value: "maybe" },
 			{ key: "archived", value: "no" },
 			{ key: "diff_url", value: "ftp://example.com/x" },
@@ -87,7 +91,7 @@ describe("buildChatSearchQuery", () => {
 	});
 
 	it("skips filters whose sanitized value is empty", () => {
-		for (const key of ["pr_status", "diff_url"]) {
+		for (const key of ["pr_status", "status", "diff_url"]) {
 			for (const value of ['"', '""']) {
 				expect(buildChatSearchQuery([{ key, value }], "")).toBe(undefined);
 			}
@@ -148,6 +152,37 @@ describe("extractTypedFilters", () => {
 			filters: [{ key: "pr_status", value: "open,merged" }],
 			remainingText: "",
 			consumed: true,
+		});
+	});
+
+	it("extracts a chat status list", () => {
+		expect(extractTypedFilters("status:running", [])).toEqual({
+			filters: [{ key: "status", value: "running" }],
+			remainingText: "",
+			consumed: true,
+		});
+		expect(extractTypedFilters("status:error, running", [])).toEqual({
+			filters: [{ key: "status", value: "error,running" }],
+			remainingText: "",
+			consumed: true,
+		});
+		expect(extractTypedFilters("status:requires_action, error", [])).toEqual({
+			filters: [{ key: "status", value: "requires_action,error" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
+	it("leaves invalid chat status text unchanged", () => {
+		expect(extractTypedFilters("status:working", [])).toEqual({
+			filters: [],
+			remainingText: "status:working",
+			consumed: false,
+		});
+		expect(extractTypedFilters("status:error,", [])).toEqual({
+			filters: [],
+			remainingText: "status:error,",
+			consumed: false,
 		});
 	});
 
@@ -243,6 +278,7 @@ describe("extractTypedFilters", () => {
 			"has_unread:maybe",
 			"archived:no",
 			"pr_status:banana",
+			"status:working",
 			"pr_status:,,",
 			'diff_url:"ftp://example.com/x"',
 			'pr_status:""',
