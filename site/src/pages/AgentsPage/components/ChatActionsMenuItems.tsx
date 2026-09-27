@@ -2,6 +2,9 @@ import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
 	BotIcon,
+	CopyIcon,
+	GitBranchIcon,
+	HashIcon,
 	MailIcon,
 	MailOpenIcon,
 	PinIcon,
@@ -14,11 +17,18 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { useClipboard } from "#/hooks/useClipboard";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
@@ -46,6 +56,13 @@ type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
+type SubComponent = typeof DropdownMenuSub | typeof ContextMenuSub;
+type SubTriggerComponent =
+	| typeof DropdownMenuSubTrigger
+	| typeof ContextMenuSubTrigger;
+type SubContentComponent =
+	| typeof DropdownMenuSubContent
+	| typeof ContextMenuSubContent;
 
 /**
  * Pin, rename, and archive write to the chat record itself, so from a shared
@@ -105,6 +122,9 @@ type ChatActionsMenuItemsProps = {
 	readonly onOpenRenameDialog?: () => void;
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
+	readonly Sub: SubComponent;
+	readonly SubTrigger: SubTriggerComponent;
+	readonly SubContent: SubContentComponent;
 };
 
 export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
@@ -126,7 +146,11 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	onOpenRenameDialog,
 	Item,
 	Separator,
+	Sub,
+	SubTrigger,
+	SubContent,
 }) => {
+	const { copyToClipboard } = useClipboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -135,6 +159,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
+	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -164,6 +189,35 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 			)}
 		</Item>
 	) : null;
+
+	const copySubmenu = (
+		<Sub>
+			<SubTrigger>
+				<CopyIcon className="size-3.5" />
+				Copy
+			</SubTrigger>
+			<SubContent>
+				<Item
+					onSelect={() => {
+						void copyToClipboard(chat.id);
+					}}
+				>
+					<HashIcon className="size-3.5" />
+					Copy ID
+				</Item>
+				{branch && (
+					<Item
+						onSelect={() => {
+							void copyToClipboard(branch);
+						}}
+					>
+						<GitBranchIcon className="size-3.5" />
+						Copy branch
+					</Item>
+				)}
+			</SubContent>
+		</Sub>
+	);
 
 	if (!canManage) {
 		return subagentToggle;
@@ -195,6 +249,8 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 						{subagentToggle}
 						{readToggle}
+						<Separator />
+						{copySubmenu}
 					</>
 				)
 			) : (
@@ -207,12 +263,14 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 					)}
 					{subagentToggle}
 					{readToggle}
+					{(onOpenRenameDialog ||
+						showPinAction ||
+						showSubagentsToggle ||
+						showReadToggle) && <Separator />}
+					{copySubmenu}
 					{showArchiveActions && (
 						<>
-							{(onOpenRenameDialog ||
-								showPinAction ||
-								showSubagentsToggle ||
-								showReadToggle) && <Separator />}
+							<Separator />
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
 								aria-describedby={archiveBlockedDescribedBy}

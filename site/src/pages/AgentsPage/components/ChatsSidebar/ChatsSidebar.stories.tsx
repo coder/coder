@@ -2285,6 +2285,44 @@ export const ReadStateContextMenu: Story = {
 	},
 };
 
+export const CopySubmenuContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "copy-agent",
+				title: "Copy agent",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "copy-agent",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+					head_branch: "jakehwll/copy-branch",
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
 		chats: [

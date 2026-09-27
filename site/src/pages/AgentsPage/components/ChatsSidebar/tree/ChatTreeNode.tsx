@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,6 +24,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -394,6 +400,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 											{...sharedMenuItemProps}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
+											Sub={DropdownMenuSub}
+											SubTrigger={DropdownMenuSubTrigger}
+											SubContent={DropdownMenuSubContent}
 										/>
 									</DropdownMenuContent>
 								</DropdownMenu>
@@ -406,6 +415,9 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
+						Sub={ContextMenuSub}
+						SubTrigger={ContextMenuSubTrigger}
+						SubContent={ContextMenuSubContent}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>

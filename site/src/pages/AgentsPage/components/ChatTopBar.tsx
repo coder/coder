@@ -21,6 +21,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
@@ -305,6 +308,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								}
 								Item={DropdownMenuItem}
 								Separator={DropdownMenuSeparator}
+								Sub={DropdownMenuSub}
+								SubTrigger={DropdownMenuSubTrigger}
+								SubContent={DropdownMenuSubContent}
 							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
