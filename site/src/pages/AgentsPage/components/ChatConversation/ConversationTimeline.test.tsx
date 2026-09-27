@@ -77,6 +77,14 @@ beforeEach(() => pinFixtureClock());
 
 const idleLive = { phase: "idle", hasAccumulatedOutput: false } as const;
 
+const mockAssistantNote: ChatMessage = {
+	...MockChatMessage,
+	id: 2,
+	role: "assistant",
+	created_at: workingFixtureTime(1),
+	content: [{ type: "text", text: "Looking around first." }],
+};
+
 const focusCopyCommand = (messageId: number) => {
 	const button = within(
 		screen.getByTestId(`chat-message-message:${messageId}`),
@@ -181,13 +189,6 @@ describe("ConversationTimeline working blocks", () => {
 
 	it("keeps an open live-only block mounted when its prompt page arrives", async () => {
 		const user = userEvent.setup();
-		const mockAssistantNote: ChatMessage = {
-			...MockChatMessage,
-			id: 2,
-			role: "assistant",
-			created_at: workingFixtureTime(1),
-			content: [{ type: "text", text: "Looking around first." }],
-		};
 		const stream = buildStreamRenderState([
 			{
 				type: "reasoning",
@@ -210,6 +211,28 @@ describe("ConversationTimeline working blocks", () => {
 			hasMoreMessages: true,
 			chatStatus: "running",
 			...stream,
+		});
+		expect(summary).toHaveFocus();
+	});
+
+	it("keeps an open live-only block mounted when its prompt page and persisted step arrive together", async () => {
+		const user = userEvent.setup();
+		const mockStep: ChatMessage = { ...MockWorkingMessages[3], id: 3 };
+		const { rerenderStage } = renderTimeline({
+			messages: [mockAssistantNote],
+			hasMoreMessages: true,
+			chatStatus: "running",
+			...buildStreamRenderState(mockStep.content ?? []),
+		});
+		const summary = screen.getByRole("button", { name: /^Working/ });
+		await user.click(summary);
+
+		rerenderStage({
+			messages: [MockWorkingMessages[0], mockAssistantNote, mockStep],
+			pendingToolCallIDs: new Set(["second"]),
+			hasMoreMessages: true,
+			chatStatus: "running",
+			liveStatus: idleLive,
 		});
 		expect(summary).toHaveFocus();
 	});

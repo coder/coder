@@ -40,9 +40,9 @@ export type WorkingBlock = {
 
 export type GroupWorkingBlocksOptions = {
 	hasMoreMessages: boolean;
-	/** The turn is still producing output (any non-idle, non-failed phase). */
+	/** The agent still owns the turn, including while an interrupt drains it. */
 	isTurnActive: boolean;
-	/** The agent is producing output; false while an interrupt drains the turn. */
+	/** The agent is producing output, so the newest block's clock runs. */
 	isWorking: boolean;
 	/**
 	 * Whether the live row may be folded into the block: the turn is

@@ -17,7 +17,11 @@ const continuesLiveBlock = (
 		block.memberIds.includes(identity.firstMemberId)) ||
 		(block.isLive &&
 			identity.streamStartedAt !== undefined &&
-			identity.streamStartedAt === streamStartedAt));
+			(identity.streamStartedAt === streamStartedAt ||
+				// A live-only block's first persisted step keeps its streamed
+				// part timestamps, even when the stream clears in the same render.
+				(identity.firstMemberId === undefined &&
+					block.startedAt === Date.parse(identity.streamStartedAt)))));
 
 type LiveBlockKeys = {
 	itemKeys: ReadonlyMap<string, string>;
