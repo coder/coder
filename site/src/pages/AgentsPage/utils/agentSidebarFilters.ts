@@ -7,7 +7,7 @@ import {
 	canonicalizeChatListPRStatuses,
 } from "#/api/queries/chats";
 
-export const AGENT_ARCHIVE_STATUS_ORDER = ["active", "archived"] as const;
+const AGENT_ARCHIVE_STATUS_ORDER = ["active", "archived"] as const;
 export const AGENT_CHAT_STATUS_ORDER = [
 	"unread",
 	"read",
@@ -15,8 +15,7 @@ export const AGENT_CHAT_STATUS_ORDER = [
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
 export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
 
-export type AgentArchiveStatusFilter =
-	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
+type AgentArchiveStatusFilter = (typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
 export type AgentChatStatusFilter = ChatListStatusFilter;
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
