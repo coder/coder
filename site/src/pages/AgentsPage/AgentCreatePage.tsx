@@ -202,19 +202,20 @@ const AgentCreatePage: FC = () => {
 			if (await hasMessages()) {
 				return "committed";
 			}
-			await withTimeout(
-				() => archiveMutation.mutateAsync(chatId),
-				cleanupRequestTimeoutMs,
-			);
-			// The send can commit between the first check and the archive.
-			if (await hasMessages()) {
+			// The send can commit between the first check and the archive, so
+			// recheck once the archive lands, even after the timeout below has
+			// released the composer.
+			const archived = archiveMutation.mutateAsync(chatId).then(async () => {
+				if (!(await hasMessages())) {
+					return "archived" as const;
+				}
 				await withTimeout(
 					() => unarchiveMutation.mutateAsync(chatId),
 					cleanupRequestTimeoutMs,
 				);
-				return "committed";
-			}
-			return "archived";
+				return "committed" as const;
+			});
+			return await withTimeout(() => archived, cleanupRequestTimeoutMs);
 		} catch (error) {
 			if (isConflictError(error)) {
 				return "committed";

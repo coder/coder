@@ -817,6 +817,45 @@ describe("AgentCreatePage workspace uploads", () => {
 		await retrySend(user, sendButton);
 	});
 
+	it("restores the chat when a timed-out archive lands after the message", async () => {
+		const user = userEvent.setup({ delay: null });
+		await renderUploadPage();
+		vi.mocked(API.experimental.createChatMessage).mockImplementation(
+			(_chatId, _req, signal) => stallUntilAborted(signal),
+		);
+		let finishArchive: () => void = () => {};
+		vi.mocked(API.experimental.updateChat).mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					finishArchive = resolve;
+				}),
+		);
+		const sendButton = await fillComposer(user, { withWorkspaceFile: true });
+		vi.useFakeTimers();
+
+		await act(async () => {
+			await user.click(sendButton);
+			await vi.advanceTimersByTimeAsync(30_000);
+			await vi.advanceTimersByTimeAsync(10_000);
+		});
+		expect(await lastSubmission()).toEqual({ rejected: true });
+
+		vi.mocked(API.experimental.getChatMessages).mockResolvedValue({
+			messages: [MockChatMessage],
+			queued_messages: [],
+			has_more: false,
+		});
+		await act(async () => {
+			finishArchive();
+			await vi.advanceTimersByTimeAsync(0);
+		});
+
+		expect(vi.mocked(API.experimental.updateChat).mock.calls).toEqual([
+			[MockChat.id, { archived: true }],
+			[MockChat.id, { archived: false }],
+		]);
+	});
+
 	it("reports that a stalled create may have created the chat", async () => {
 		const user = userEvent.setup({ delay: null });
 		const router = await renderUploadPage();
