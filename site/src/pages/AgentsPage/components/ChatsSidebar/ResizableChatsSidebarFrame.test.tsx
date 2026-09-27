@@ -33,6 +33,7 @@ describe("ResizableChatsSidebarFrame", () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
 	});
 
 	it("persists the width while a primary drag is in progress", () => {
@@ -108,5 +109,36 @@ describe("ResizableChatsSidebarFrame", () => {
 		fireEvent(window, new Event("resize"));
 		expect(handle).toHaveAttribute("aria-valuenow", "400");
 		expect(persistedWidth()).toBe(400);
+	});
+
+	it("keeps the chosen width across resizes when storage writes fail", () => {
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new Error("quota exceeded");
+		});
+		const handle = renderHandle();
+
+		fireEvent.keyDown(handle, { key: "End" });
+		const chosenWidth = handle.getAttribute("aria-valuenow");
+		fireEvent(window, new Event("resize"));
+
+		expect(handle).toHaveAttribute("aria-valuenow", chosenWidth);
+	});
+
+	it("reports the end of its own slide but not of a child animation", () => {
+		const onViewportSlideEnd = vi.fn();
+		render(
+			<ResizableChatsSidebarFrame
+				viewportSlide="out"
+				onViewportSlideEnd={onViewportSlideEnd}
+			>
+				<div data-testid="child">sidebar</div>
+			</ResizableChatsSidebarFrame>,
+		);
+
+		fireEvent.animationEnd(screen.getByTestId("child"));
+		expect(onViewportSlideEnd).not.toHaveBeenCalled();
+
+		fireEvent.animationEnd(screen.getByTestId("agents-sidebar-panel"));
+		expect(onViewportSlideEnd).toHaveBeenCalledOnce();
 	});
 });

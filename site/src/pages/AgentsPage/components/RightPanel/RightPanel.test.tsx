@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MockResizeObserver } from "#/testHelpers/resizeObserver";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
@@ -47,24 +49,29 @@ const RightPanelHarness: FC<HarnessProps> = ({
 type SidebarHarnessProps = HarnessProps & {
 	initialSidebarCollapsed?: boolean;
 	onSidebarCollapsedChange?: (isCollapsed: boolean) => void;
+	/** Changing this remounts the panel, as switching chats does. */
+	panelKey?: string;
 };
 
 /**
- * Supplies the outlet context the panel uses to collapse and restore the
- * chats sidebar.
+ * Owns the sidebar collapse state the way AgentsPageLayout does and
+ * exposes a button that toggles it as the user would.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 	initialSidebarCollapsed = false,
 	onSidebarCollapsedChange,
+	panelKey,
 	...harnessProps
 }) => {
-	const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(
-		initialSidebarCollapsed,
-	);
-	const setIsSidebarCollapsed = (next: boolean) => {
-		setIsSidebarCollapsedState(next);
-		onSidebarCollapsedChange?.(next);
+	const [collapsedBy, setCollapsedByState] = useState<
+		"user" | "narrowWidth" | null
+	>(initialSidebarCollapsed ? "user" : null);
+	const isSidebarCollapsed = collapsedBy !== null;
+	const setCollapsedBy = (next: "user" | "narrowWidth" | null) => {
+		setCollapsedByState(next);
+		onSidebarCollapsedChange?.(next !== null);
 	};
+	const toggleByUser = () => setCollapsedBy(isSidebarCollapsed ? null : "user");
 	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons: {},
 		setChatErrorReason: () => {},
@@ -78,17 +85,29 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		archivingChatId: undefined,
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed: () => setIsSidebarCollapsed(!isSidebarCollapsed),
-		onExpandSidebar: () => setIsSidebarCollapsed(false),
+		onToggleSidebarCollapsed: toggleByUser,
+		onExpandSidebar: () => setCollapsedBy(null),
+		isSidebarCollapsedByNarrowWidth: collapsedBy === "narrowWidth",
+		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
+			setCollapsedBy(collapsed ? "narrowWidth" : null),
+		getExpandedSidebarWidth: () => 320,
 		onChatReady: () => {},
 	};
 
 	return (
-		<Routes>
-			<Route element={<Outlet context={outletContext} />}>
-				<Route path="*" element={<RightPanelHarness {...harnessProps} />} />
-			</Route>
-		</Routes>
+		<>
+			<button type="button" onClick={toggleByUser}>
+				Toggle sidebar
+			</button>
+			<Routes>
+				<Route element={<Outlet context={outletContext} />}>
+					<Route
+						path="*"
+						element={<RightPanelHarness key={panelKey} {...harnessProps} />}
+					/>
+				</Route>
+			</Routes>
+		</>
 	);
 };
 
@@ -322,15 +341,20 @@ describe("RightPanel resize drag", () => {
 });
 
 describe("RightPanel sidebar auto-collapse", () => {
-	// jsdom has no layout; clientWidth drives the parent width. Collapse is
-	// below 720px, restore needs 720 + 320 + hysteresis.
+	// jsdom has no layout, so every clientWidth returns parentWidth. Collapse
+	// below 720 (chat 360 + panel 360). The panel width clamps to 360 at 700,
+	// so restore needs 720 + 320 sidebar + 24 hysteresis = 1064.
 	let parentWidth = 0;
 	const resizeWindow = (width: number) => {
 		parentWidth = width;
 		fireEvent(window, new Event("resize"));
 	};
+	const nextFrame = () =>
+		new Promise((resolve) => requestAnimationFrame(resolve));
 
 	beforeEach(() => {
+		MockResizeObserver.reset();
+		vi.stubGlobal("ResizeObserver", MockResizeObserver);
 		vi.stubGlobal("innerWidth", 1440);
 		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
 			() => parentWidth,
@@ -357,7 +381,7 @@ describe("RightPanel sidebar auto-collapse", () => {
 		);
 
 		resizeWindow(1040);
-		await new Promise((resolve) => requestAnimationFrame(resolve));
+		await nextFrame();
 		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
 
 		resizeWindow(1100);
@@ -365,6 +389,36 @@ describe("RightPanel sidebar auto-collapse", () => {
 			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(false),
 		);
 		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(2);
+	});
+
+	it("restores a sidebar it collapsed after the panel remounts", async () => {
+		parentWidth = 700;
+		const onSidebarCollapsedChange = vi.fn();
+		const { rerender } = render(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					panelKey="chat-1"
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
+		);
+
+		rerender(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					panelKey="chat-2"
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+		resizeWindow(1100);
+
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(false),
+		);
 	});
 
 	it("leaves a sidebar the user collapsed alone", async () => {
@@ -380,7 +434,37 @@ describe("RightPanel sidebar auto-collapse", () => {
 		);
 
 		resizeWindow(1500);
-		await new Promise((resolve) => requestAnimationFrame(resolve));
+		await nextFrame();
 		expect(onSidebarCollapsedChange).not.toHaveBeenCalled();
+	});
+
+	it("leaves alone a sidebar the user collapsed after an auto-collapse", async () => {
+		parentWidth = 700;
+		const user = userEvent.setup();
+		const onSidebarCollapsedChange = vi.fn();
+		render(
+			<MemoryRouter>
+				<RightPanelWithSidebarHarness
+					onSidebarCollapsedChange={onSidebarCollapsedChange}
+				/>
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
+		);
+
+		parentWidth = 800;
+		const toggle = screen.getByRole("button", { name: "Toggle sidebar" });
+		await user.click(toggle);
+		await user.click(toggle);
+		expect(onSidebarCollapsedChange.mock.calls).toEqual([
+			[true],
+			[false],
+			[true],
+		]);
+
+		resizeWindow(1500);
+		await nextFrame();
+		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(3);
 	});
 });

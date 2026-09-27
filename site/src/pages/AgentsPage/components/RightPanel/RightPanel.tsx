@@ -1,7 +1,9 @@
 import { cn } from "cn";
 import {
+	type AnimationEvent as ReactAnimationEvent,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
+	type TransitionEvent as ReactTransitionEvent,
 	useEffect,
 	useRef,
 	useState,
@@ -10,10 +12,7 @@ import { useOutletContext } from "react-router";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
-import {
-	AGENTS_MAIN_PANEL_MIN_WIDTH,
-	loadPersistedLeftSidebarWidth,
-} from "../ChatsSidebar/sidebarWidth";
+import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
@@ -24,7 +23,8 @@ const DEFAULT_WIDTH = 480;
 
 const SNAP_THRESHOLD = 80;
 const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
-// Prevents sub-pixel differences from toggling the sidebar back and forth.
+// Dead band between the collapse and restore thresholds, so a window near
+// the threshold does not collapse and restore the sidebar on every resize.
 const SIDEBAR_RESTORE_HYSTERESIS = 24;
 
 function getMaxWidth(): number {
@@ -237,7 +237,7 @@ function useResizableDrag({
 	return {
 		visualExpanded,
 		visualOpen,
-		isResizing: dragSnap !== null,
+		isPointerResizing: dragSnap !== null,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -253,8 +253,13 @@ export const RightPanel = ({
 	onVisualExpandedChange,
 	children,
 }: RightPanelProps) => {
-	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
-		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const {
+		isSidebarCollapsed,
+		onToggleSidebarCollapsed,
+		isSidebarCollapsedByNarrowWidth,
+		onSidebarCollapsedByNarrowWidthChange,
+		getExpandedSidebarWidth,
+	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
@@ -296,7 +301,7 @@ export const RightPanel = ({
 	const {
 		visualExpanded,
 		visualOpen,
-		isResizing,
+		isPointerResizing,
 		handlePointerDown,
 		handlePointerMove,
 		handlePointerUp,
@@ -313,43 +318,42 @@ export const RightPanel = ({
 		getPanelMaxWidth: () => getSideBySideMaxWidth(panelRef.current),
 	});
 
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
+
 	// Pin content width while opening so terminals don't refit every frame.
+	// Below lg the panel opens as an overlay with no width transition.
 	const [prevVisualOpen, setPrevVisualOpen] = useState(visualOpen);
 	const [isAnimatingOpen, setIsAnimatingOpen] = useState(false);
+	// Dropping below lg removes the lg: styles immediately, so a keyframe
+	// animation slides the panel out from its last width.
+	const [isNarrowSlideOut, setIsNarrowSlideOut] = useState(false);
+	const isSideBySide = visualOpen && !visualExpanded && !isBelowLg;
+	const [prevIsSideBySide, setPrevIsSideBySide] = useState(isSideBySide);
 	if (visualOpen !== prevVisualOpen) {
 		setPrevVisualOpen(visualOpen);
-		setIsAnimatingOpen(visualOpen && !isResizing);
+		setIsAnimatingOpen(visualOpen && !isPointerResizing && !isBelowLg);
+		if (visualOpen) {
+			// Reopening mid-slide cancels the animation without an animationend.
+			setIsNarrowSlideOut(false);
+		}
 	}
-	const handleWidthTransitionEnd = (e: React.TransitionEvent) => {
+	if (isSideBySide !== prevIsSideBySide) {
+		setPrevIsSideBySide(isSideBySide);
+		setIsNarrowSlideOut(!isSideBySide && isBelowLg && !visualExpanded);
+	} else if (isNarrowSlideOut && !isBelowLg) {
+		setIsNarrowSlideOut(false);
+	}
+	const handleWidthTransitionEnd = (e: ReactTransitionEvent) => {
 		if (e.target === e.currentTarget && e.propertyName === "width") {
 			setIsAnimatingOpen(false);
 		}
 	};
-	const isContentPinned = !visualExpanded && (!visualOpen || isAnimatingOpen);
-
-	// Dropping below lg removes the lg: styles immediately, so use a keyframe slide-out.
-	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
-	const isSideBySide = visualOpen && !visualExpanded && !isBelowLg;
-	const [prevIsSideBySide, setPrevIsSideBySide] = useState(isSideBySide);
-	const [isSlidingOutOnNarrow, setIsSlidingOutOnNarrow] = useState(false);
-	if (isSideBySide !== prevIsSideBySide) {
-		setPrevIsSideBySide(isSideBySide);
-		setIsSlidingOutOnNarrow(!isSideBySide && isBelowLg && !visualExpanded);
-	}
-	const isNarrowSlideOut = isSlidingOutOnNarrow && !visualOpen && isBelowLg;
-	const handleSlideOutEnd = (e: React.AnimationEvent) => {
+	const handleSlideOutEnd = (e: ReactAnimationEvent) => {
 		if (e.target === e.currentTarget) {
-			setIsSlidingOutOnNarrow(false);
+			setIsNarrowSlideOut(false);
 		}
 	};
-
-	// Only a sidebar this panel collapsed is restored; user collapses stick.
-	const sidebarAutoCollapsed = useRef(false);
-	useEffect(() => {
-		if (!isSidebarCollapsed) {
-			sidebarAutoCollapsed.current = false;
-		}
-	}, [isSidebarCollapsed]);
+	const isContentPinned = !visualExpanded && (!visualOpen || isAnimatingOpen);
 
 	useEffect(() => {
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
@@ -359,8 +363,9 @@ export const RightPanel = ({
 		if (
 			!visualOpen ||
 			visualExpanded ||
-			!onToggleSidebarCollapsed ||
-			(isSidebarCollapsed && !sidebarAutoCollapsed.current)
+			isBelowLg ||
+			!onSidebarCollapsedByNarrowWidthChange ||
+			(isSidebarCollapsed && !isSidebarCollapsedByNarrowWidth)
 		) {
 			return;
 		}
@@ -375,34 +380,28 @@ export const RightPanel = ({
 		const maybeToggleSidebar = () => {
 			cancelAnimationFrame(frame);
 			frame = requestAnimationFrame(() => {
-				if (
-					toggleRequested ||
-					innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH
-				) {
+				if (toggleRequested) {
 					return;
 				}
 
-				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
-
+				const chatMinWidth = getChatMinWidth(parent);
 				if (isSidebarCollapsed) {
+					// Leave room for the panel's current width, not just its minimum.
 					const widthAfterRestore =
-						parent.clientWidth - loadPersistedLeftSidebarWidth();
-					if (
-						widthAfterRestore <
-						requiredMainWidth + SIDEBAR_RESTORE_HYSTERESIS
-					) {
+						parent.clientWidth - (getExpandedSidebarWidth?.() ?? 0);
+					const requiredWidth =
+						chatMinWidth +
+						Math.max(MIN_WIDTH, width) +
+						SIDEBAR_RESTORE_HYSTERESIS;
+					if (widthAfterRestore < requiredWidth) {
 						return;
 					}
-					sidebarAutoCollapsed.current = false;
-				} else {
-					if (parent.clientWidth >= requiredMainWidth) {
-						return;
-					}
-					sidebarAutoCollapsed.current = true;
+				} else if (parent.clientWidth >= chatMinWidth + MIN_WIDTH) {
+					return;
 				}
 
 				toggleRequested = true;
-				onToggleSidebarCollapsed();
+				onSidebarCollapsedByNarrowWidthChange(!isSidebarCollapsed);
 			});
 		};
 
@@ -419,8 +418,12 @@ export const RightPanel = ({
 	}, [
 		visualOpen,
 		visualExpanded,
+		isBelowLg,
+		width,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
+		isSidebarCollapsedByNarrowWidth,
+		onSidebarCollapsedByNarrowWidthChange,
+		getExpandedSidebarWidth,
 	]);
 
 	return (
@@ -429,12 +432,11 @@ export const RightPanel = ({
 			data-testid="agents-right-panel"
 			style={visualExpanded ? undefined : { "--panel-width": `${width}px` }}
 			onTransitionEnd={handleWidthTransitionEnd}
-			onTransitionCancel={handleWidthTransitionEnd}
 			onAnimationEnd={handleSlideOutEnd}
 			className={cn(
 				!visualExpanded &&
-					!isResizing &&
-					"lg:transition-[width,visibility] lg:duration-200 lg:ease-out",
+					!isPointerResizing &&
+					"lg:transition-[width,visibility] lg:duration-(--panel-slide-duration) lg:ease-out",
 				visualExpanded
 					? "absolute inset-0 z-30 flex flex-col"
 					: visualOpen

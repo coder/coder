@@ -121,6 +121,11 @@ export type AgentsPageOutletContext = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
+	/** True when the sidebar was collapsed to make room, not by the user. */
+	isSidebarCollapsedByNarrowWidth?: boolean;
+	onSidebarCollapsedByNarrowWidthChange?: (collapsed: boolean) => void;
+	/** The sidebar's width when expanded, even while collapsed. */
+	getExpandedSidebarWidth?: () => number;
 	onChatReady: () => void;
 };
 
@@ -355,7 +360,11 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+	const [sidebarCollapsedBy, setSidebarCollapsedBy] = useState<
+		"user" | "narrowWidth" | null
+	>(null);
+	const isSidebarCollapsed = sidebarCollapsedBy !== null;
+	const sidebarFrameRef = useRef<HTMLDivElement>(null);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -487,7 +496,7 @@ const AgentsPageLayout: FC = () => {
 		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
 	const handleToggleSidebarCollapsed = () =>
-		setIsSidebarCollapsed((prev) => !prev);
+		setSidebarCollapsedBy((prev) => (prev ? null : "user"));
 
 	const handleNewAgent = () => {
 		// Only clear the draft when the user is already on the empty
@@ -692,14 +701,14 @@ const AgentsPageLayout: FC = () => {
 					: "in"
 				: null,
 		);
+	} else if (
+		sidebarViewportSlide !== null &&
+		(!isSidebarHiddenOnMobile || isSidebarCollapsed)
+	) {
+		// A route or collapse change mid-slide cancels the animation, so
+		// animationend never fires; drop the slide instead of replaying it later.
+		setSidebarViewportSlide(null);
 	}
-	// Guards against a slide stuck without animationend hiding the mobile list.
-	const activeSidebarViewportSlide =
-		isSidebarHiddenOnMobile &&
-		!isSidebarCollapsed &&
-		sidebarViewportSlide === (isMobileViewport ? "out" : "in")
-			? sidebarViewportSlide
-			: null;
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -731,7 +740,21 @@ const AgentsPageLayout: FC = () => {
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
-		onExpandSidebar: () => setIsSidebarCollapsed(false),
+		onExpandSidebar: () => setSidebarCollapsedBy(null),
+		isSidebarCollapsedByNarrowWidth: sidebarCollapsedBy === "narrowWidth",
+		onSidebarCollapsedByNarrowWidthChange: (collapsed) =>
+			setSidebarCollapsedBy((prev) => {
+				if (collapsed) {
+					return prev ?? "narrowWidth";
+				}
+				return prev === "narrowWidth" ? null : prev;
+			}),
+		getExpandedSidebarWidth: () =>
+			Number.parseFloat(
+				sidebarFrameRef.current?.style.getPropertyValue(
+					"--agents-left-sidebar-width",
+				) ?? "",
+			) || 0,
 		onChatReady: () => {},
 	};
 
@@ -741,7 +764,7 @@ const AgentsPageLayout: FC = () => {
 				data-testid="agents-page-layout"
 				className={cn(
 					"flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row",
-					activeSidebarViewportSlide === "out" && "flex-row",
+					sidebarViewportSlide === "out" && "flex-row",
 				)}
 			>
 				<title>{pageTitle("Agents")}</title>
@@ -754,8 +777,9 @@ const AgentsPageLayout: FC = () => {
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 					)}
+					ref={sidebarFrameRef}
 					isCollapsed={isSidebarCollapsed}
-					viewportSlide={activeSidebarViewportSlide}
+					viewportSlide={sidebarViewportSlide}
 					onViewportSlideEnd={() => setSidebarViewportSlide(null)}
 				>
 					<ChatsSidebar
@@ -788,7 +812,7 @@ const AgentsPageLayout: FC = () => {
 						isFetchingNextPage={chatsQuery.isFetchingNextPage}
 						sidebarFilters={sidebarFilters}
 						onSidebarFiltersChange={setSidebarFilters}
-						onCollapse={() => setIsSidebarCollapsed(true)}
+						onCollapse={() => setSidebarCollapsedBy("user")}
 						isPersonalModelOverridesEnabled={
 							personalModelOverridesQuery.data?.enabled
 						}
