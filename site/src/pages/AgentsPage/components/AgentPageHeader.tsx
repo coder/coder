@@ -1,5 +1,4 @@
 import {
-	ArrowLeftIcon,
 	BellIcon,
 	BellOffIcon,
 	EllipsisIcon,
@@ -10,13 +9,7 @@ import {
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
-import {
-	Link,
-	NavLink,
-	type To,
-	useLocation,
-	useOutletContext,
-} from "react-router";
+import { NavLink, useOutletContext } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -31,12 +24,10 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { AgentSettingsLink } from "./AgentSettingsDialog/AgentSettingsLink";
 
 type AgentPageHeaderProps = {
 	children?: ReactNode;
-	/** When set, shows a back link on mobile instead of the logo
-	 *  and hides the mobile actions menu. */
-	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
 	webPush?: ReturnType<typeof useWebpushNotifications>;
@@ -45,7 +36,6 @@ type AgentPageHeaderProps = {
 
 export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	children,
-	mobileBack,
 	chimeEnabled: controlledChimeEnabled,
 	onToggleChime,
 	webPush: controlledWebPush,
@@ -53,7 +43,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsPageOutletContext>();
-	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
 		useState(getChimeEnabled);
@@ -114,25 +103,11 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 
 	return (
 		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-0 sm:px-4 sm:py-0.5">
-			{mobileBack ? (
-				<Button
-					asChild
-					variant="subtle"
-					size="icon"
-					aria-label={mobileBack.label}
-					className="size-7 shrink-0 sm:hidden"
-				>
-					<Link to={mobileBack.to}>
-						<ArrowLeftIcon />
-					</Link>
-				</Button>
-			) : (
-				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
-					<NavLink to="/workspaces" className="inline-flex">
-						<ProductLogo className="size-6" />
-					</NavLink>
-				</div>
-			)}
+			<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
+				<NavLink to="/workspaces" className="inline-flex">
+					<ProductLogo className="size-6" />
+				</NavLink>
+			</div>
 			{isSidebarCollapsed && (
 				<Button
 					variant="subtle"
@@ -149,7 +124,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 				<div className="hidden items-center gap-2 sm:flex">{children}</div>
 			)}
 			{/* Mobile: meatball menu with all actions */}
-			{!mobileBack && !isDesktop && (
+			{!isDesktop && (
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<Button
@@ -166,13 +141,10 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + location.search }}
-							>
+							<AgentSettingsLink>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
-							</Link>
+							</AgentSettingsLink>
 						</DropdownMenuItem>
 						<DropdownMenuItem
 							onSelect={(e) => {

@@ -39,7 +39,7 @@ describe("getModelSelectorHelp", () => {
 
 	it("returns settings help when configured models are user-fixable", () => {
 		render(
-			<MemoryRouter>
+			<MemoryRouter initialEntries={["/agents/chat-1?archived=archived"]}>
 				{getModelSelectorHelp({
 					isModelCatalogLoading: false,
 					hasModelOptions: false,
@@ -54,7 +54,7 @@ describe("getModelSelectorHelp", () => {
 		);
 		expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute(
 			"href",
-			"/agents/settings/api-keys",
+			"/agents/chat-1?archived=archived&settings=api-keys",
 		);
 	});
 

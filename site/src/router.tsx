@@ -370,14 +370,8 @@ const DesktopPopoutPage = lazy(
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
-const AgentSettingsLayout = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLayout"),
-);
-const AgentSettingsGeneralPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
-);
-const AgentSettingsCompactionPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+const AgentSettingsRedirect = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsRedirect"),
 );
 
 const AISettingsLifecyclePage = lazy(
@@ -385,15 +379,6 @@ const AISettingsLifecyclePage = lazy(
 );
 const CoderAgentsPage = lazy(
 	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
-);
-const AgentSettingsUserAgentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
-);
-const AgentSettingsPersonalSkillsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
-);
-const AgentSettingsAPIKeysPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
 
 import {
@@ -833,63 +818,8 @@ export const router = createBrowserRouter(
 					}
 				>
 					<Route index element={<AgentCreatePage />} />
-					<Route path="settings" element={<AgentSettingsLayout />}>
-						<Route index element={<AgentSettingsGeneralPage />} />
-						<Route path="general" element={<AgentSettingsGeneralPage />} />
-						<Route
-							path="compaction"
-							element={<AgentSettingsCompactionPage />}
-						/>
-						<Route
-							path="instructions"
-							element={<Navigate to="/ai/settings/instructions" replace />}
-						/>
-						<Route
-							path="lifecycle"
-							element={<Navigate to="/ai/settings/lifecycle" replace />}
-						/>
-						<Route
-							path="user-agents"
-							element={<AgentSettingsUserAgentsPage />}
-						/>
-						<Route
-							path="personal-skills"
-							element={<AgentSettingsPersonalSkillsPage />}
-						/>
-						<Route
-							path="admin"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
-						/>
-						<Route
-							path="agents"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
-						/>
-						<Route
-							path="coder-agents"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
-						/>
-						<Route
-							path="experiments"
-							element={<Navigate to="/ai/settings/coder-agents" replace />}
-						/>
-						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
-						<Route
-							path="providers"
-							element={<Navigate to="/ai/settings/providers" replace />}
-						/>
-						<Route
-							path="models"
-							element={<Navigate to="/ai/settings/models" replace />}
-						/>
-						<Route
-							path="mcp-servers"
-							element={<Navigate to="/ai/settings/mcp-servers" replace />}
-						/>
-						<Route
-							path="templates"
-							element={<Navigate to="/ai/settings/templates" replace />}
-						/>
-					</Route>
+					<Route path="settings" element={<AgentSettingsRedirect />} />
+					<Route path="settings/:section" element={<AgentSettingsRedirect />} />
 					<Route
 						path=":agentId"
 						element={

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Navigate } from "react-router";
 import {
 	expect,
 	fireEvent,
@@ -44,9 +43,6 @@ import {
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
-import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsLayout from "./AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
@@ -139,35 +135,6 @@ const agentsRouting = {
 	path: "/agents",
 	useStoryElement: true,
 	children: [
-		{
-			path: "settings",
-			element: <AgentSettingsLayout />,
-			children: [
-				{ index: true, element: <AgentSettingsGeneralPage /> },
-				{ path: "general", element: <AgentSettingsGeneralPage /> },
-				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
-				{
-					path: "instructions",
-					element: <Navigate to="/ai/settings/instructions" replace />,
-				},
-				{
-					path: "lifecycle",
-					element: <Navigate to="/ai/settings/lifecycle" replace />,
-				},
-				{
-					path: "admin",
-					element: <Navigate to="/ai/settings/coder-agents" replace />,
-				},
-				{
-					path: "agents",
-					element: <Navigate to="/ai/settings/coder-agents" replace />,
-				},
-				{
-					path: "coder-agents",
-					element: <Navigate to="/ai/settings/coder-agents" replace />,
-				},
-			],
-		},
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
@@ -1056,7 +1023,7 @@ export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings" },
+			location: { path: "/agents", searchParams: { settings: "general" } },
 			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},

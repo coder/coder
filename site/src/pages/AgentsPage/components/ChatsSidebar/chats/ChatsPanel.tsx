@@ -22,7 +22,7 @@ import {
 	SquarePenIcon,
 } from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
-import { Link, type Location, NavLink } from "react-router";
+import { type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -37,6 +37,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import { AgentSettingsLink } from "../../AgentSettingsDialog/AgentSettingsLink";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -94,7 +95,6 @@ type ChatsPanelProps = {
 	readonly onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	readonly onCollapse?: () => void;
 	readonly activeChatId: string | undefined;
-	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
@@ -127,7 +127,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onSidebarFiltersChange,
 	onCollapse,
 	activeChatId,
-	isSettingsPanel,
 	isChatsActive,
 	location,
 	currentUserId,
@@ -352,14 +351,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	};
 
 	return (
-		<div
-			className={cn(
-				"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
-				isSettingsPanel && "-translate-x-full",
-			)}
-			aria-hidden={isSettingsPanel}
-			inert={isSettingsPanel ? true : undefined}
-		>
+		<div className="absolute inset-0 flex flex-col">
 			<nav
 				aria-label="Sidebar"
 				className="hidden px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
@@ -377,17 +369,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							variant="subtle"
 							size="icon"
 							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
+							className="size-7 min-w-0 text-content-secondary hover:text-content-primary"
 						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
+							<AgentSettingsLink>
 								<SettingsIcon />
-							</Link>
+							</AgentSettingsLink>
 						</Button>
 						{onCollapse && (
 							<Button

@@ -158,6 +158,34 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar settings", () => {
+	const SearchProbe: FC = () => {
+		const location = useLocation();
+		return (
+			<div data-testid="location">{`${location.pathname}${location.search}`}</div>
+		);
+	};
+
+	it("opens settings over the current chat with the filters kept", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialPath="/agents/chat-1?archived=archived">
+				<ChatsSidebar {...defaultProps} />
+				<SearchProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("link", { name: "Settings" }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location").textContent).toBe(
+				"/agents/chat-1?archived=archived&settings=general",
+			);
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders unpinned shared chats in Shared with you before date sections", () => {
 		render(

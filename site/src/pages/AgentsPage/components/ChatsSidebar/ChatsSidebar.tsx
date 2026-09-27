@@ -1,16 +1,10 @@
 import { type FC, useState } from "react";
-import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
-import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
-import { SettingsPanel } from "./settings/SettingsPanel";
-import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
-
-export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 type ChatsSidebarProps = {
 	chats: readonly Chat[];
@@ -48,14 +42,6 @@ type ChatsSidebarProps = {
 	sidebarFilters: AgentSidebarFilters;
 	onSidebarFiltersChange: (filters: AgentSidebarFilters) => void;
 	onCollapse?: () => void;
-	isPersonalModelOverridesEnabled?: boolean;
-	isAdmin?: boolean;
-	/**
-	 * Whether the user can open the Coder Agents settings page. Broader
-	 * than isAdmin: organization model admins qualify without deployment
-	 * config access.
-	 */
-	canManageAgentSettings?: boolean;
 	currentUserId: string;
 };
 
@@ -90,9 +76,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		sidebarFilters,
 		onSidebarFiltersChange,
 		onCollapse,
-		isPersonalModelOverridesEnabled = false,
-		isAdmin = false,
-		canManageAgentSettings = false,
 		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -101,16 +84,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	}>();
 	const activeChatId = agentId ?? chatId;
 	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
-	const isSettingsPanel = isSettingsView(sidebarView);
-	const settingsSection = isSettingsPanel ? sidebarView.section : undefined;
-	const providerConfigsQuery = useQuery({
-		...userChatProviderConfigs(),
-		enabled: isSettingsPanel && !isAdmin,
-	});
-	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
-	const showApiKeysItem =
-		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const [internalChatPendingRename, setInternalChatPendingRename] =
 		useState<Chat | null>(null);
 	const isControlled = chatPendingRenameProp !== undefined;
@@ -154,19 +127,9 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onSidebarFiltersChange={onSidebarFiltersChange}
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
-				isSettingsPanel={isSettingsPanel}
-				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
+				isChatsActive={!activeChatId}
 				location={location}
 				currentUserId={currentUserId}
-			/>
-			<SettingsPanel
-				isSettingsPanel={isSettingsPanel}
-				settingsSection={settingsSection}
-				showApiKeysItem={showApiKeysItem}
-				isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
-				canManageAgentSettings={canManageAgentSettings}
-				location={location}
-				onCollapse={onCollapse}
 			/>
 			<ChatSearchDialog
 				open={isSearchDialogOpen}

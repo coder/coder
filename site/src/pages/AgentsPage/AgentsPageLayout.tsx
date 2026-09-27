@@ -64,21 +64,22 @@ import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
+import { AgentSettingsDialog } from "./components/AgentSettingsDialog/AgentSettingsDialog";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
 } from "./components/ChatConversation/chatError";
 import { getChatCostTreeID } from "./components/ChatConversation/chatHelpers";
 import { isActiveChatStatus } from "./components/ChatConversation/chatStore";
-import {
-	ChatsSidebar,
-	isSettingsView,
-	sidebarViewFromPath,
-} from "./components/ChatsSidebar/ChatsSidebar";
+import { ChatsSidebar } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import {
+	agentSettingsSectionFromSearch,
+	withoutAgentSettingsSection,
+} from "./utils/agentSettingsSection";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -666,12 +667,16 @@ const AgentsPageLayout: FC = () => {
 	const deleteDialogOpen =
 		pendingArchiveAndDelete !== null && Boolean(pendingWorkspaceName);
 
-	// Mobile can't fit the sidebar nav and content side by side,
-	// so we show one or the other depending on the route depth.
-	const sidebarView = sidebarViewFromPath(location.pathname);
-	const isSettingsPanel = isSettingsView(sidebarView);
-	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
-	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	const settingsSection = agentSettingsSectionFromSearch(searchParams);
+	const closeSettings = () => {
+		navigate(
+			{
+				pathname: location.pathname,
+				search: withoutAgentSettingsSection(location.search),
+			},
+			{ replace: true },
+		);
+	};
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -719,9 +724,7 @@ const AgentsPageLayout: FC = () => {
 						"sm:h-full sm:min-h-0 sm:border-b-0",
 						agentId
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
-							: isSettingsDetail
-								? "hidden sm:block shrink-0"
-								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
 					)}
 				>
@@ -756,27 +759,27 @@ const AgentsPageLayout: FC = () => {
 						sidebarFilters={sidebarFilters}
 						onSidebarFiltersChange={setSidebarFilters}
 						onCollapse={() => setIsSidebarCollapsed(true)}
-						isPersonalModelOverridesEnabled={
-							personalModelOverridesQuery.data?.enabled
-						}
-						isAdmin={isAgentsAdmin}
-						canManageAgentSettings={canManageAgentSettings}
 					/>
 				</ResizableChatsSidebarFrame>
 				<div
 					data-testid="agents-main-panel"
 					className={cn(
-						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-						isSettingsIndex ? "hidden sm:flex" : "flex",
-						!agentId &&
-							!isSettingsDetail &&
-							sidebarView.panel === "chats" &&
-							"contents sm:flex sm:flex-1 sm:flex-col",
+						"flex min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
+						!agentId && "contents sm:flex sm:flex-1 sm:flex-col",
 					)}
 				>
 					<Outlet context={outletContextValue} />
 				</div>
 			</div>
+			<AgentSettingsDialog
+				section={settingsSection}
+				onClose={closeSettings}
+				isAdmin={isAgentsAdmin}
+				isPersonalModelOverridesEnabled={Boolean(
+					personalModelOverridesQuery.data?.enabled,
+				)}
+				canManageAgentSettings={canManageAgentSettings}
+			/>
 			<DeleteDialog
 				key={pendingWorkspaceName}
 				isOpen={deleteDialogOpen}

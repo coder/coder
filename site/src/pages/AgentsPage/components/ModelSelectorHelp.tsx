@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router";
+import { AgentSettingsLink } from "./AgentSettingsDialog/AgentSettingsLink";
 
 type GetModelSelectorHelpOptions = {
 	isModelCatalogLoading: boolean;
@@ -26,12 +26,12 @@ export const getModelSelectorHelp = ({
 	return (
 		<>
 			Configure your API keys in{" "}
-			<Link
-				to="/agents/settings/api-keys"
+			<AgentSettingsLink
+				section="api-keys"
 				className="underline transition-colors hover:text-content-primary"
 			>
 				Settings
-			</Link>{" "}
+			</AgentSettingsLink>{" "}
 			to enable models.
 		</>
 	);

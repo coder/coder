@@ -11,7 +11,6 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -29,14 +28,6 @@ import { ChatsSidebar } from "./ChatsSidebar";
 const ChildSearchProbe = () => {
 	const location = useLocation();
 	return <div data-testid="child-search">{location.search}</div>;
-};
-
-// Probe element used by the settings-link preservation story to surface the
-// state.from value passed when navigating to settings.
-const SettingsStateProbe = () => {
-	const location = useLocation();
-	const from = (location.state as { from?: string })?.from ?? "";
-	return <div data-testid="settings-state-from">{from}</div>;
 };
 
 const defaultModelConfigs: TypesGen.ChatModel[] = [
@@ -74,16 +65,6 @@ const agentsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
-const settingsRouting = [
-	{ path: "/ai/settings/coder-agents", useStoryElement: true },
-	{ path: "/agents/settings/:section", useStoryElement: true },
-	{ path: "/agents/settings", useStoryElement: true },
-	...agentsRouting,
-] satisfies [
-	{ path: string; useStoryElement: boolean },
-	...{ path: string; useStoryElement: boolean }[],
-];
-
 const meta: Meta<typeof ChatsSidebar> = {
 	title: "pages/AgentsPage/ChatsSidebar",
 	component: ChatsSidebar,
@@ -103,7 +84,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isCreating: false,
 		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
-		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
 	},
 	parameters: {
@@ -2272,157 +2252,5 @@ export const FilterOnTimeGroupNoPins: Story = {
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
-	},
-};
-
-export const SettingsAPIKeysAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/api-keys" },
-			routing: settingsRouting,
-		}),
-	},
-};
-
-export const SettingsUserAgentsNonAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/user-agents" },
-			routing: settingsRouting,
-		}),
-	},
-};
-
-export const SettingsUserAgentsFeatureDisabled: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-		isPersonalModelOverridesEnabled: false,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/general" },
-			routing: settingsRouting,
-		}),
-	},
-};
-
-export const SettingsUserAgentsAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: true,
-		canManageAgentSettings: true,
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/user-agents" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const agentsLink = canvas.getByRole("link", { name: "Agents" });
-		await expect(agentsLink).toHaveAttribute("aria-current", "page");
-		const manageAgentsLink = canvas.getByRole("link", {
-			name: "Manage agents",
-		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
-	},
-};
-
-export const SettingsManageAgentsOrgModelAdmin: Story = {
-	args: {
-		chats: [],
-		isAdmin: false,
-		canManageAgentSettings: true,
-	},
-	parameters: {
-		queries: [
-			{
-				key: userChatProviderConfigsKey,
-				data: [],
-			},
-		],
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents/settings/general" },
-			routing: settingsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const manageAgentsLink = await canvas.findByRole("link", {
-			name: "Manage agents",
-		});
-		expect(manageAgentsLink).toHaveAttribute(
-			"href",
-			"/ai/settings/coder-agents",
-		);
-		// API-key visibility stays tied to isAdmin and configured providers.
-		expect(
-			canvas.queryByRole("link", { name: "Secrets (API keys)" }),
-		).not.toBeInTheDocument();
-	},
-};
-
-export const PreservesArchivedFilterOnSettingsNavigation: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "archived-settings-1",
-				title: "Archived settings target",
-				archived: true,
-				updated_at: recentTimestamp,
-			}),
-		],
-		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents",
-				searchParams: { archived: "archived" },
-			},
-			routing: [
-				{
-					path: "/agents/settings",
-					element: <SettingsStateProbe />,
-				},
-				...agentsRouting,
-			],
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const settingsLink = await canvas.findByRole("link", { name: "Settings" });
-		await userEvent.click(settingsLink);
-		await waitFor(() => {
-			const fromValue =
-				canvas.getByTestId("settings-state-from").textContent ?? "";
-			expect(fromValue).toContain("/agents");
-			expect(fromValue).toContain("archived=archived");
-		});
 	},
 };
