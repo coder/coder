@@ -83,7 +83,7 @@ This check doesn't cover dynamic and MCP tools, because the client and the works
 A policy that gates them must validate their input itself.
 The chat `edit_files` tool reads `old_text` and `new_text`; a policy that gates edit content must inspect those keys.
 
-`edit_files` input is the exception.
+For `edit_files`, `tool_input` isn't the model's bytes.
 The model sends a flat `edits` list in which every edit names its own `path`, and Coder presents those edits to `pre_tool_use` grouped by path, keeping each file's edits in their original order:
 
 ```json
