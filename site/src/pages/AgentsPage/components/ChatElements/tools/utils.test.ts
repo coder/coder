@@ -881,8 +881,7 @@ describe("parseEditFilesArgs", () => {
 			],
 		},
 		{
-			// Matches the files shape, which keeps a file entry whose
-			// edits are all incomplete.
+			// The files shape also keeps a file whose edits are all incomplete.
 			name: "flat edit with a path but incomplete text keeps its file",
 			args: {
 				edits: [
