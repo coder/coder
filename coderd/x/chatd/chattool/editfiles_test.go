@@ -929,8 +929,6 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				"- /repo/a.go (edits[0]): Change new_text or remove the edit: edits[0] has identical old_text and new_text, so it changes nothing",
 		},
 		{
-			// A file failing a path-tied check reports that reason,
-			// not the no-op.
 			name:        "PathCheckReasonBeforeNoOp",
 			input:       `{"edits":[{"path":"plan.md","old_text":"x","new_text":"x"}]}`,
 			wantIsError: true,
@@ -947,9 +945,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
-			// A no-op withholds the real edits to the same file too;
-			// the file lists all its edits and the error names the
-			// no-op.
+			// The file's result lists all its edits; its error names
+			// only the no-op.
 			name:  "NoOpWithholdsRealEditsToItsFile",
 			input: `{"edits":[` + editA + `,` + editB + `,{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 1"}]}`,
 			calls: []fileCall{{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, resp: applied("/repo/b.go", diffB)}},
@@ -974,9 +971,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				"- /repo/b.go (edits[1]): open /repo/b.go: file does not exist",
 		},
 		{
-			// The no-op check compares bytes: texts that differ only
-			// in whitespace or line endings, or where one side is
-			// empty, are sent to the agent.
+			// Texts that differ only in whitespace or line endings, or
+			// where one side is empty, are not no-ops.
 			name: "NearlyIdenticalTextsAreSent",
 			input: `{"edits":[` +
 				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1 "},` +

@@ -328,11 +328,11 @@ func executeEditFilesTool(
 				return resp.Content
 			}
 		}
-		// A no-op edit rejects its whole file like any other error in the
-		// file: calls with one are followed by rework on that file more
-		// often than other calls, so its other edits wait for the resend.
-		// The comparison is exact because texts that differ only in
-		// whitespace or line endings can still change the file.
+		// An edit whose old_text equals new_text (a no-op) rejects its file
+		// like any other error. In dogfood data, calls with one were followed
+		// by rework on that file more often than other calls. Texts that
+		// differ only in whitespace or line endings can still change the
+		// file, so the comparison is byte for byte.
 		var noOps []int
 		for _, i := range indexes {
 			if args.Edits[i].OldText == args.Edits[i].NewText {
@@ -354,7 +354,7 @@ func executeEditFilesTool(
 		indexes := editIndexes[file.Path]
 		// The interrupt handler can persist this result, so an unsent file
 		// is reported as not applied rather than sent and failed as
-		// unknown. This check runs before checkPath so the interrupt is
+		// unknown. This check runs before checkFile so the interrupt is
 		// the reason given.
 		if ctx.Err() != nil {
 			notApplied = append(notApplied, editFilesFileResult{
