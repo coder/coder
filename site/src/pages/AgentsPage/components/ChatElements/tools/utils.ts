@@ -537,12 +537,11 @@ export const COLLAPSED_REPORT_HEIGHT = 72;
 
 /**
  * Parses the args of an edit_files tool call into a typed array
- * of file entries. Accepts the grouped `files` shape stored in
- * existing chats and the flat `edits` shape, where each edit carries
- * its own `path`. Flat edits are grouped by path in order of first
- * appearance, keeping each file's edit order. Paths are trimmed, as
- * the backend trims them before grouping and running the edits, so
- * they match the paths in the tool result.
+ * of file entries. Reads the grouped `files` shape that existing chats
+ * store, or else the flat `edits` shape, grouping its edits by path in
+ * order of first appearance and keeping each file's edit order. Paths are
+ * trimmed, as the backend trims them before grouping and running the
+ * edits, so they match the paths in the tool result.
  */
 export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	const parsed = parseArgs(args);
