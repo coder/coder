@@ -1534,7 +1534,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/workspace-agent?workspace_id=4
 
 Reports the agent in the workspace's latest build that
 uploads and generation select for a chat without a bound
-agent. The agent ID is absent when no agent is eligible.
+agent. The agent ID is absent when no agent can be selected.
 The response does not reflect agent connection status.
 
 ### Parameters

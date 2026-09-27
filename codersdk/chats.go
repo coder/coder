@@ -820,7 +820,7 @@ type UploadChatWorkspaceFileResponse struct {
 // generation select for a chat without a bound agent.
 type ChatWorkspaceAgent struct {
 	// AgentID is the selected agent in the workspace's latest build.
-	// It is absent when no agent is eligible.
+	// It is absent when no agent can be selected.
 	AgentID *uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
 }
 

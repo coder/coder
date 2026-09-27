@@ -2570,7 +2570,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/workspace-agent": {
             "get": {
-                "description": "Reports the agent in the workspace's latest build that\nuploads and generation select for a chat without a bound\nagent. The agent ID is absent when no agent is eligible.\nThe response does not reflect agent connection status.",
+                "description": "Reports the agent in the workspace's latest build that\nuploads and generation select for a chat without a bound\nagent. The agent ID is absent when no agent can be selected.\nThe response does not reflect agent connection status.",
                 "produces": [
                     "application/json"
                 ],
@@ -21833,7 +21833,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "agent_id": {
-                    "description": "AgentID is the selected agent in the workspace's latest build.\nIt is absent when no agent is eligible.",
+                    "description": "AgentID is the selected agent in the workspace's latest build.\nIt is absent when no agent can be selected.",
                     "type": "string",
                     "format": "uuid"
                 }

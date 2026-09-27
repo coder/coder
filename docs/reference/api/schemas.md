@@ -5519,9 +5519,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description                                                                                             |
-|------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------|
-| `agent_id` | string | false    |              | Agent ID is the selected agent in the workspace's latest build. It is absent when no agent is eligible. |
+| Name       | Type   | Required | Restrictions | Description                                                                                                 |
+|------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------|
+| `agent_id` | string | false    |              | Agent ID is the selected agent in the workspace's latest build. It is absent when no agent can be selected. |
 
 ## codersdk.ChatWorkspaceTTLResponse
 

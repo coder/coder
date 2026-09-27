@@ -6999,7 +6999,7 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/v2/chats/workspace-agent [get]
 // @Description Reports the agent in the workspace's latest build that
 // @Description uploads and generation select for a chat without a bound
-// @Description agent. The agent ID is absent when no agent is eligible.
+// @Description agent. The agent ID is absent when no agent can be selected.
 // @Description The response does not reflect agent connection status.
 func (api *API) chatWorkspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

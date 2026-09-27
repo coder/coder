@@ -3687,7 +3687,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceAgent {
 	/**
 	 * AgentID is the selected agent in the workspace's latest build.
-	 * It is absent when no agent is eligible.
+	 * It is absent when no agent can be selected.
 	 */
 	readonly agent_id?: string;
 }
