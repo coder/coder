@@ -3523,6 +3523,41 @@ class ExperimentalApiMethods {
 		);
 	};
 
+	initiateUserAIBrowserGrant = async (
+		providerId: string,
+		user = "me",
+	): Promise<TypesGen.AIBrowserGrantInitiateResponse> => {
+		const response =
+			await this.axios.post<TypesGen.AIBrowserGrantInitiateResponse>(
+				`${userAIProviderKeysPath(user)}/${providerId}/browser-grants`,
+			);
+		return response.data;
+	};
+
+	exchangeUserAIBrowserGrant = async (
+		providerId: string,
+		grantId: string,
+		req: TypesGen.AIBrowserGrantExchangeRequest,
+		user = "me",
+	): Promise<TypesGen.AIBrowserGrantExchangeResponse> => {
+		const response =
+			await this.axios.post<TypesGen.AIBrowserGrantExchangeResponse>(
+				`${userAIProviderKeysPath(user)}/${providerId}/browser-grants/${grantId}/exchange`,
+				req,
+			);
+		return response.data;
+	};
+
+	cancelUserAIBrowserGrant = async (
+		providerId: string,
+		grantId: string,
+		user = "me",
+	): Promise<void> => {
+		await this.axios.delete(
+			`${userAIProviderKeysPath(user)}/${providerId}/browser-grants/${grantId}`,
+		);
+	};
+
 	getChatSystemPrompt =
 		async (): Promise<TypesGen.ChatSystemPromptResponse> => {
 			const response = await this.axios.get<TypesGen.ChatSystemPromptResponse>(

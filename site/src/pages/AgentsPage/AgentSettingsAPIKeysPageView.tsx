@@ -1,19 +1,24 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
+import type { FC, FormEvent, ReactNode } from "react";
 import { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
+	cancelUserBrowserGrant,
 	cancelUserDeviceGrant,
 	chatModelsKey,
 	deleteUserChatProviderKey,
+	exchangeUserBrowserGrant,
+	initiateUserBrowserGrant,
 	initiateUserDeviceGrant,
 	upsertUserChatProviderKey,
 	userAIDeviceGrant,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import type {
+	AIBrowserGrantExchangeResponse,
+	AIBrowserGrantInitiateResponse,
 	AIDeviceGrantInitiateResponse,
 	ChatModel,
 	UserChatProviderConfig,
@@ -24,6 +29,8 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { FormField } from "#/components/FormField/FormField";
+import { Input } from "#/components/Input/Input";
+import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -374,6 +381,242 @@ const DeviceCodeSignIn: FC<{ provider: UserChatProviderConfig }> = ({
 	);
 };
 
+/**
+ * Paved browser PKCE sign-in for one BYOK provider, next to the
+ * device-code door. The server builds the provider authorize URL; the
+ * user approves there, then pastes the localhost callback back here.
+ * The server state-checks the paste and persists the credential itself,
+ * so the exchange carries no key material back to the dashboard.
+ */
+const BrowserSignIn: FC<{ provider: UserChatProviderConfig }> = ({
+	provider,
+}) => {
+	const queryClient = useQueryClient();
+	const inputId = useId();
+	const [grant, setGrant] = useState<AIBrowserGrantInitiateResponse | null>(
+		null,
+	);
+	const [callbackInput, setCallbackInput] = useState("");
+	const [exchangeResult, setExchangeResult] =
+		useState<AIBrowserGrantExchangeResponse | null>(null);
+
+	const initiateMutation = useMutation(initiateUserBrowserGrant(queryClient));
+	const exchangeMutation = useMutation(exchangeUserBrowserGrant(queryClient));
+	const cancelMutation = useMutation(cancelUserBrowserGrant());
+
+	const providerName = provider.display_name || provider.provider;
+
+	const handleStart = async () => {
+		// Open the tab inside the click gesture so popup blockers let it
+		// through, then navigate it once the authorize URL lands.
+		const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+		try {
+			const next = await initiateMutation.mutateAsync({
+				providerConfigId: provider.provider_id,
+			});
+			setExchangeResult(null);
+			setCallbackInput("");
+			setGrant(next);
+			if (popup) {
+				popup.location.href = next.authorize_url;
+			}
+		} catch (error) {
+			popup?.close();
+			toast.error(getErrorMessage(error, "Error starting browser sign-in."), {
+				description: getErrorDetail(error),
+			});
+		}
+	};
+
+	const handleSubmit = async (event: FormEvent) => {
+		event.preventDefault();
+		if (
+			!grant ||
+			callbackInput.trim().length === 0 ||
+			exchangeMutation.isPending
+		) {
+			return;
+		}
+		try {
+			const result = await exchangeMutation.mutateAsync({
+				providerConfigId: provider.provider_id,
+				grantId: grant.grant_id,
+				req: { input: callbackInput.trim() },
+			});
+			if (result.status === "authorized") {
+				toast.success("Signed in. Personal key saved.");
+				setGrant(null);
+				setCallbackInput("");
+				setExchangeResult(null);
+				return;
+			}
+			setExchangeResult(result);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Error completing browser sign-in."), {
+				description: getErrorDetail(error),
+			});
+		}
+	};
+
+	const handleCancel = async () => {
+		if (grant) {
+			try {
+				await cancelMutation.mutateAsync({
+					providerConfigId: provider.provider_id,
+					grantId: grant.grant_id,
+				});
+			} catch {
+				// Already terminal server-side; still reset the panel.
+			}
+		}
+		setGrant(null);
+		setCallbackInput("");
+		setExchangeResult(null);
+	};
+
+	if (!grant) {
+		// The device-code banner carries the one re-auth prompt, so this
+		// door offers only its button here instead of a second prompt.
+		if (provider.reauth_required) {
+			return (
+				<div className="mt-6 flex flex-col gap-2 border-t border-solid border-border pt-6">
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={handleStart}
+							disabled={initiateMutation.isPending}
+						>
+							<Spinner loading={initiateMutation.isPending} />
+							Sign in again with {providerName} in your browser
+						</Button>
+					</div>
+				</div>
+			);
+		}
+		return (
+			<div className="mt-6 flex flex-col gap-2 border-t border-solid border-border pt-6">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleStart}
+						disabled={initiateMutation.isPending}
+					>
+						<Spinner loading={initiateMutation.isPending} />
+						Sign in with {providerName} in your browser
+					</Button>
+				</div>
+				<p className="m-0 text-sm text-content-secondary">
+					Approve the sign-in in your browser, then paste the callback back
+					here. Coder refreshes it automatically; if the sign-in expires, sign
+					in again.
+				</p>
+			</div>
+		);
+	}
+
+	const status = exchangeResult?.status;
+	const isTerminal = status === "expired" || status === "canceled";
+	let statusLine: ReactNode;
+	if (status === "expired") {
+		statusLine = (
+			<p className="m-0 text-sm text-content-secondary">
+				{exchangeResult?.reauth_message ??
+					"This sign-in expired. Start over for a fresh one."}
+			</p>
+		);
+	} else if (status === "canceled") {
+		statusLine = (
+			<p className="m-0 text-sm text-content-secondary">
+				Sign-in was canceled. Start over to try again.
+			</p>
+		);
+	} else {
+		statusLine = (
+			<p className="m-0 flex items-center gap-2 text-sm text-content-secondary">
+				<Spinner loading={exchangeMutation.isPending} size="sm" />
+				Waiting for the callback paste. The sign-in stays open until it expires.
+			</p>
+		);
+	}
+
+	return (
+		<div className="mt-6 flex flex-col gap-3 border-t border-solid border-border pt-6">
+			<p className="m-0 text-sm text-content-secondary">
+				Open{" "}
+				<a
+					href={grant.authorize_url}
+					target="_blank"
+					rel="noreferrer"
+					className="font-medium"
+				>
+					{providerName} sign-in
+				</a>{" "}
+				in your browser, approve it, then paste the localhost callback URL or
+				code below.
+			</p>
+			<form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+				<div className="flex flex-col gap-2">
+					<Label htmlFor={inputId}>Authorization callback</Label>
+					<Input
+						id={inputId}
+						type="text"
+						value={callbackInput}
+						onChange={(event) => setCallbackInput(event.target.value)}
+						placeholder="http://localhost:1455/auth/callback?code=..."
+						disabled={exchangeMutation.isPending}
+						className="h-8 font-mono"
+						spellCheck={false}
+						autoComplete="off"
+					/>
+				</div>
+				<div className="flex items-center gap-2">
+					{isTerminal ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={handleCancel}
+						>
+							Start over
+						</Button>
+					) : (
+						<>
+							<Button
+								type="submit"
+								size="sm"
+								disabled={
+									callbackInput.trim().length === 0 ||
+									exchangeMutation.isPending
+								}
+							>
+								<Spinner loading={exchangeMutation.isPending} />
+								Complete sign-in
+							</Button>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={handleCancel}
+								disabled={
+									cancelMutation.isPending || exchangeMutation.isPending
+								}
+							>
+								<Spinner loading={cancelMutation.isPending} />
+								Cancel sign-in
+							</Button>
+						</>
+					)}
+				</div>
+			</form>
+			{statusLine}
+		</div>
+	);
+};
+
 const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	provider,
 	models,
@@ -540,6 +783,10 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 
 			{provider.device_flow_supported && provider.byok_enabled && (
 				<DeviceCodeSignIn provider={provider} />
+			)}
+
+			{provider.browser_flow_supported && provider.byok_enabled && (
+				<BrowserSignIn provider={provider} />
 			)}
 
 			<div className="mt-6 flex flex-col gap-2">

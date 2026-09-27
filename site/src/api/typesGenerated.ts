@@ -291,6 +291,56 @@ export interface AIBridgeToolCall {
 	readonly created_at: string;
 }
 
+// From codersdk/chats.go
+/**
+ * AIBrowserGrantExchangeRequest carries the pasted provider callback:
+ * the full redirect URL, a query string, or the raw code. The server
+ * state-checks it before exchanging, so a stale paste cannot complete a
+ * newer grant.
+ */
+export interface AIBrowserGrantExchangeRequest {
+	readonly input: string;
+}
+
+// From codersdk/chats.go
+/**
+ * AIBrowserGrantExchangeResponse reports the grant after one exchange
+ * attempt. Failures leave the grant pending for a retry paste; only a
+ * persisted exchange authorizes it, carrying no key material.
+ */
+export interface AIBrowserGrantExchangeResponse {
+	readonly grant_id: string;
+	readonly provider_id: string;
+	readonly status: AIDeviceGrantStatus;
+	readonly expires_in: number;
+	readonly stores_access_token_only: boolean;
+	readonly refresh_supported: boolean;
+	readonly reauth_message: string;
+}
+
+// From codersdk/chats.go
+/**
+ * AIBrowserGrantInitiateResponse starts a browser PKCE grant. It carries
+ * only the provider authorize URL the dashboard opens; the PKCE verifier
+ * and grant state stay server-side, and key material never appears here.
+ */
+export interface AIBrowserGrantInitiateResponse {
+	readonly grant_id: string;
+	readonly provider_id: string;
+	readonly authorize_url: string;
+	readonly expires_in: number;
+	/**
+	 * StoresAccessTokenOnly and RefreshSupported document the refresh
+	 * honesty, identical to the device-code door: Coder persists the full
+	 * OAuth credential from this sign-in server-side and refreshes it
+	 * lazily per request. When refresh fails terminally, re-auth is a
+	 * fresh sign-in round through either door.
+	 */
+	readonly stores_access_token_only: boolean;
+	readonly refresh_supported: boolean;
+	readonly reauth_message: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBudgetLimit is an AI spend limit and the tier that produced it. Both
@@ -341,10 +391,10 @@ export interface AIDeviceGrantInitiateResponse {
 	readonly expires_in: number;
 	readonly poll_interval: number;
 	/**
-	 * StoresAccessTokenOnly and RefreshSupported document the no-refresh
-	 * honesty: Coder persists the access token from this sign-in as the
-	 * BYOK user key and never refreshes it server-side. When the token
-	 * expires, re-auth is a fresh device-code round.
+	 * StoresAccessTokenOnly and RefreshSupported document the refresh
+	 * honesty: Coder persists the full OAuth credential from this sign-in
+	 * server-side and refreshes it lazily per request. When refresh fails
+	 * terminally, re-auth is a fresh device-code round.
 	 */
 	readonly stores_access_token_only: boolean;
 	readonly refresh_supported: boolean;
@@ -354,9 +404,12 @@ export interface AIDeviceGrantInitiateResponse {
 // From codersdk/chats.go
 /**
  * AIDeviceGrantPollResponse reports grant status. APIKey is present only
- * on authorized polls, only for the owning user, and is saved into the
- * BYOK slot by the dashboard through the existing user-keys endpoint;
- * the grant runner itself never writes key material.
+ * on authorized polls for grants without server-side persistence, only
+ * for the owning user, and is saved into the BYOK slot by the dashboard
+ * through the existing user-keys endpoint. Server-persisted grants carry
+ * no key material here: the credential already reached the user key row
+ * and the dashboard must not PUT after them. The refresh token never
+ * appears in this response in either case.
  */
 export interface AIDeviceGrantPollResponse {
 	readonly grant_id: string;
@@ -6255,6 +6308,12 @@ export interface MatchedProvisioners {
  */
 export const MaxAIModelPricesBytes = 1048576; // 1 MiB
 
+// From codersdk/aiproviders.go
+/**
+ * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
+ */
+export const MaxAIProviderAPIKeys = 5;
+
 // From codersdk/aiproviders_upstream_headers.go
 /**
  * MaxAIProviderUpstreamHeaderValueLen bounds a single header value so a
@@ -6268,11 +6327,6 @@ export const MaxAIProviderUpstreamHeaderValueLen = 4096;
  * provider so a misconfigured row cannot bloat every upstream request.
  */
 export const MaxAIProviderUpstreamHeaders = 16;
-// From codersdk/aiproviders.go
-/**
- * MaxAIProviderAPIKeys is the maximum number of API keys per AI provider.
- */
-export const MaxAIProviderAPIKeys = 5;
 
 // From codersdk/aibridge.go
 /**
@@ -10800,6 +10854,11 @@ export interface UserAIProviderKeyConfig {
 	 */
 	readonly device_flow_supported: boolean;
 	/**
+	 * BrowserFlowSupported reports whether the provider offers the paved
+	 * in-dashboard browser PKCE sign-in alongside the device-code door.
+	 */
+	readonly browser_flow_supported: boolean;
+	/**
 	 * OAuthExpiry is when the saved access token expires, when the key
 	 * came from an OAuth sign-in. Absent for pasted static keys.
 	 */
@@ -10967,6 +11026,11 @@ export interface UserChatProviderConfig {
 	 * paved device-code sign-in is available for this provider.
 	 */
 	readonly device_flow_supported: boolean;
+	/**
+	 * BrowserFlowSupported mirrors UserAIProviderKeyConfig: whether the
+	 * paved browser PKCE sign-in is available for this provider.
+	 */
+	readonly browser_flow_supported: boolean;
 	/**
 	 * OAuthExpiry mirrors UserAIProviderKeyConfig: access-token expiry for
 	 * OAuth sign-ins, absent for static keys.

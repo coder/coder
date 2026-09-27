@@ -68,12 +68,17 @@ const (
 // provider's device-code endpoints. ChatGPT is the first entry; later
 // providers add their own without touching the runner.
 type aiDeviceGrantConfig struct {
-	clientID           string
-	deviceUserCodeURL  string
-	deviceTokenURL     string
-	tokenURL           string
-	verificationURI    string
-	deviceRedirectURI  string
+	clientID          string
+	deviceUserCodeURL string
+	deviceTokenURL    string
+	tokenURL          string
+	verificationURI   string
+	deviceRedirectURI string
+	// authorizeURL and browserRedirectURI pave the browser PKCE door
+	// for this provider. Empty authorizeURL means browser sign-in is
+	// unsupported; the device-code door is unaffected.
+	authorizeURL       string
+	browserRedirectURI string
 	scope              string
 	providerType       database.AIProviderType
 	providerName       string
@@ -90,6 +95,8 @@ func aiDeviceGrantConfigForProvider(providerType database.AIProviderType, name s
 			tokenURL:           aiDeviceChatGPTAuthBaseURL + "/oauth/token",
 			verificationURI:    aiDeviceChatGPTVerificationURI,
 			deviceRedirectURI:  aiDeviceChatGPTDeviceRedirect,
+			authorizeURL:       aiBrowserChatGPTAuthorizeURL,
+			browserRedirectURI: aiBrowserChatGPTRedirectURI,
 			scope:              aiDeviceChatGPTScope,
 			providerType:       aiDeviceChatGPTProviderType,
 			providerName:       aiDeviceChatGPTProviderName,
@@ -403,48 +410,11 @@ func (e *httpAIDeviceGrantExchanger) ExchangeAuthorizationCode(ctx context.Conte
 		"code_verifier": {verifier},
 		"redirect_uri":  {e.config.deviceRedirectURI},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.config.tokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return AIDeviceTokenGrant{}, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-	resp, err := e.httpClient.Do(req)
-	if err != nil {
-		return AIDeviceTokenGrant{}, err
-	}
-	defer resp.Body.Close()
-	var payload struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    any    `json:"expires_in"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return AIDeviceTokenGrant{}, xerrors.Errorf("decode token response: %w", err)
-	}
-	if !aiDeviceRespOK(resp.StatusCode) {
-		return AIDeviceTokenGrant{}, xerrors.Errorf("token exchange failed with status %d", resp.StatusCode)
-	}
-	if payload.AccessToken == "" {
-		return AIDeviceTokenGrant{}, xerrors.New("token exchange response missing access token")
-	}
-	if err := validateChatProviderAPIKeySize(payload.AccessToken); err != nil {
-		return AIDeviceTokenGrant{}, err
-	}
-	if payload.RefreshToken != "" {
-		if err := validateChatProviderAPIKeySize(payload.RefreshToken); err != nil {
-			return AIDeviceTokenGrant{}, err
-		}
-	}
 	// The full triple leaves this function for server-side persistence in
 	// complete(). Only the access token may reach the browser poll
 	// response, and only when the grant was not server-persisted. The
 	// refresh token never leaves the server.
-	return AIDeviceTokenGrant{
-		AccessToken:  payload.AccessToken,
-		RefreshToken: payload.RefreshToken,
-		ExpiresIn:    aiDeviceExpiresInSeconds(payload.ExpiresIn),
-	}, nil
+	return aiOAuthExchangeCodeForTokenGrant(ctx, e.httpClient, e.config.tokenURL, form)
 }
 
 // AIDeviceOAuthCredential is the server-persisted credential from one

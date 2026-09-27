@@ -18,6 +18,7 @@ const createProvider = (
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
 	byok_enabled: overrides.byok_enabled ?? true,
 	device_flow_supported: overrides.device_flow_supported ?? false,
+	browser_flow_supported: overrides.browser_flow_supported ?? false,
 	oauth_expiry: overrides.oauth_expiry,
 	refresh_supported: overrides.refresh_supported ?? false,
 	reauth_required: overrides.reauth_required ?? false,
@@ -114,6 +115,21 @@ export const WithReauthRequired: Story = {
 	},
 };
 
+export const WithBrowserSignIn: Story = {
+	args: {
+		providers: [
+			createProvider({
+				provider_id: "prov-1",
+				provider: "openai",
+				display_name: "ChatGPT",
+				device_flow_supported: true,
+				browser_flow_supported: true,
+			}),
+		],
+		models: baseModels,
+	},
+};
+
 export const UserKeysDisabled: Story = {
 	args: {
 		providers: [
@@ -123,6 +139,7 @@ export const UserKeysDisabled: Story = {
 				display_name: "OpenAI",
 				byok_enabled: false,
 				device_flow_supported: false,
+				browser_flow_supported: false,
 				refresh_supported: false,
 				reauth_required: false,
 				has_central_api_key_fallback: true,

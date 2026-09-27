@@ -12171,6 +12171,154 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/browser-grants": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Initiate an AI provider browser PKCE grant",
+                "operationId": "initiate-ai-provider-browser-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBrowserGrantInitiateResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/browser-grants/{grant}": {
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Cancel an AI provider browser PKCE grant",
+                "operationId": "cancel-ai-provider-browser-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Browser grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/browser-grants/{grant}/exchange": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Exchange an AI provider browser PKCE grant code",
+                "operationId": "exchange-ai-provider-browser-grant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "AI provider ID",
+                        "name": "aiProvider",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Browser grant ID",
+                        "name": "grant",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pasted callback URL or code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBrowserGrantExchangeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBrowserGrantExchangeResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/ai-provider-keys/{aiProvider}/device-grants": {
             "post": {
                 "produces": [
@@ -18257,6 +18405,71 @@ const docTemplate = `{
                 },
                 "tool": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBrowserGrantExchangeRequest": {
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBrowserGrantExchangeResponse": {
+            "type": "object",
+            "properties": {
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.AIDeviceGrantStatus"
+                },
+                "stores_access_token_only": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.AIBrowserGrantInitiateResponse": {
+            "type": "object",
+            "properties": {
+                "authorize_url": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "grant_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reauth_message": {
+                    "type": "string"
+                },
+                "refresh_supported": {
+                    "type": "boolean"
+                },
+                "stores_access_token_only": {
+                    "description": "StoresAccessTokenOnly and RefreshSupported document the refresh\nhonesty, identical to the device-code door: Coder persists the full\nOAuth credential from this sign-in server-side and refreshes it\nlazily per request. When refresh fails terminally, re-auth is a\nfresh sign-in round through either door.",
+                    "type": "boolean"
                 }
             }
         },
@@ -30903,6 +31116,10 @@ const docTemplate = `{
         "codersdk.UserAIProviderKeyConfig": {
             "type": "object",
             "properties": {
+                "browser_flow_supported": {
+                    "description": "BrowserFlowSupported reports whether the provider offers the paved\nin-dashboard browser PKCE sign-in alongside the device-code door.",
+                    "type": "boolean"
+                },
                 "byok_enabled": {
                     "type": "boolean"
                 },

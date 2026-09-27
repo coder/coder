@@ -140,6 +140,13 @@ func (api *API) registerUserAIProviderKeyRoutes(r chi.Router) {
 				r.Delete("/", api.deleteUserAIDeviceGrant)
 			})
 		})
+		r.Route("/browser-grants", func(r chi.Router) {
+			r.Post("/", api.postUserAIBrowserGrant)
+			r.Route("/{grant}", func(r chi.Router) {
+				r.Post("/exchange", api.postUserAIBrowserGrantExchange)
+				r.Delete("/", api.deleteUserAIBrowserGrant)
+			})
+		})
 	})
 }
 

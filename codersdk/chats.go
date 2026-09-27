@@ -1253,6 +1253,9 @@ type UserAIProviderKeyConfig struct {
 	// in-dashboard device-code sign-in (ChatGPT first, provider-generic
 	// shape for later providers).
 	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// BrowserFlowSupported reports whether the provider offers the paved
+	// in-dashboard browser PKCE sign-in alongside the device-code door.
+	BrowserFlowSupported bool `json:"browser_flow_supported"`
 	// OAuthExpiry is when the saved access token expires, when the key
 	// came from an OAuth sign-in. Absent for pasted static keys.
 	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
@@ -1327,6 +1330,45 @@ type AIDeviceGrantPollResponse struct {
 	ReauthMessage           string              `json:"reauth_message"`
 }
 
+// AIBrowserGrantInitiateResponse starts a browser PKCE grant. It carries
+// only the provider authorize URL the dashboard opens; the PKCE verifier
+// and grant state stay server-side, and key material never appears here.
+type AIBrowserGrantInitiateResponse struct {
+	GrantID      uuid.UUID `json:"grant_id" format:"uuid"`
+	ProviderID   uuid.UUID `json:"provider_id" format:"uuid"`
+	AuthorizeURL string    `json:"authorize_url"`
+	ExpiresIn    int       `json:"expires_in"`
+	// StoresAccessTokenOnly and RefreshSupported document the refresh
+	// honesty, identical to the device-code door: Coder persists the full
+	// OAuth credential from this sign-in server-side and refreshes it
+	// lazily per request. When refresh fails terminally, re-auth is a
+	// fresh sign-in round through either door.
+	StoresAccessTokenOnly bool   `json:"stores_access_token_only"`
+	RefreshSupported      bool   `json:"refresh_supported"`
+	ReauthMessage         string `json:"reauth_message"`
+}
+
+// AIBrowserGrantExchangeRequest carries the pasted provider callback:
+// the full redirect URL, a query string, or the raw code. The server
+// state-checks it before exchanging, so a stale paste cannot complete a
+// newer grant.
+type AIBrowserGrantExchangeRequest struct {
+	Input string `json:"input"`
+}
+
+// AIBrowserGrantExchangeResponse reports the grant after one exchange
+// attempt. Failures leave the grant pending for a retry paste; only a
+// persisted exchange authorizes it, carrying no key material.
+type AIBrowserGrantExchangeResponse struct {
+	GrantID               uuid.UUID           `json:"grant_id" format:"uuid"`
+	ProviderID            uuid.UUID           `json:"provider_id" format:"uuid"`
+	Status                AIDeviceGrantStatus `json:"status"`
+	ExpiresIn             int                 `json:"expires_in"`
+	StoresAccessTokenOnly bool                `json:"stores_access_token_only"`
+	RefreshSupported      bool                `json:"refresh_supported"`
+	ReauthMessage         string              `json:"reauth_message"`
+}
+
 // UserChatProviderConfig is a summary of a provider that allows
 // user-supplied keys, as seen from the current user's perspective.
 type UserChatProviderConfig struct {
@@ -1341,6 +1383,9 @@ type UserChatProviderConfig struct {
 	// DeviceFlowSupported mirrors UserAIProviderKeyConfig: whether the
 	// paved device-code sign-in is available for this provider.
 	DeviceFlowSupported bool `json:"device_flow_supported"`
+	// BrowserFlowSupported mirrors UserAIProviderKeyConfig: whether the
+	// paved browser PKCE sign-in is available for this provider.
+	BrowserFlowSupported bool `json:"browser_flow_supported"`
 	// OAuthExpiry mirrors UserAIProviderKeyConfig: access-token expiry for
 	// OAuth sign-ins, absent for static keys.
 	OAuthExpiry *time.Time `json:"oauth_expiry,omitempty"`
@@ -2179,6 +2224,55 @@ func (c *Client) CancelUserAIDeviceGrant(ctx context.Context, user string, provi
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIDeviceGrantsPath(user, providerID), grantID), nil)
 	if err != nil {
 		return xerrors.Errorf("cancel user AI device grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func userAIBrowserGrantsPath(user string, providerID uuid.UUID) string {
+	return fmt.Sprintf("%s/%s/browser-grants", userAIProviderKeysPath(user), providerID)
+}
+
+// InitiateUserAIBrowserGrant starts a browser PKCE grant for the caller's
+// own provider key slot. The response carries the provider authorize URL
+// for the dashboard to open; the PKCE verifier stays server-side.
+func (c *Client) InitiateUserAIBrowserGrant(ctx context.Context, user string, providerID uuid.UUID) (AIBrowserGrantInitiateResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, userAIBrowserGrantsPath(user, providerID), nil)
+	if err != nil {
+		return AIBrowserGrantInitiateResponse{}, xerrors.Errorf("initiate user AI browser grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return AIBrowserGrantInitiateResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIBrowserGrantInitiateResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// ExchangeUserAIBrowserGrant pastes the provider callback back for one
+// browser PKCE grant owned by the caller. On success the credential is
+// already persisted server-side and the response carries no key material.
+func (c *Client) ExchangeUserAIBrowserGrant(ctx context.Context, user string, providerID, grantID uuid.UUID, req AIBrowserGrantExchangeRequest) (AIBrowserGrantExchangeResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/%s/exchange", userAIBrowserGrantsPath(user, providerID), grantID), req)
+	if err != nil {
+		return AIBrowserGrantExchangeResponse{}, xerrors.Errorf("exchange user AI browser grant: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AIBrowserGrantExchangeResponse{}, ReadBodyAsError(res)
+	}
+	var grant AIBrowserGrantExchangeResponse
+	return grant, ReadBodyAsJSON(res, &grant)
+}
+
+// CancelUserAIBrowserGrant cancels a browser PKCE grant owned by the caller.
+func (c *Client) CancelUserAIBrowserGrant(ctx context.Context, user string, providerID, grantID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIBrowserGrantsPath(user, providerID), grantID), nil)
+	if err != nil {
+		return xerrors.Errorf("cancel user AI browser grant: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusNoContent {

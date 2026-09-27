@@ -6829,14 +6829,15 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 		userKey, hasUserKey := keysByProviderID[provider.ID]
 		_, hasProviderKey := providerKeysByProviderID[provider.ID]
 		configs = append(configs, codersdk.UserAIProviderKeyConfig{
-			Provider:            convertAIProviderSummary(provider),
-			HasUserAPIKey:       hasUserKey,
-			HasProviderAPIKey:   hasProviderKey,
-			BYOKEnabled:         byokEnabled,
-			DeviceFlowSupported: deviceFlowSupportedForProvider(provider),
-			OAuthExpiry:         userAIProviderKeyOAuthExpiry(userKey),
-			RefreshSupported:    userAIProviderKeyRefreshSupported(userKey),
-			ReauthRequired:      userAIProviderKeyReauthRequired(userKey),
+			Provider:             convertAIProviderSummary(provider),
+			HasUserAPIKey:        hasUserKey,
+			HasProviderAPIKey:    hasProviderKey,
+			BYOKEnabled:          byokEnabled,
+			DeviceFlowSupported:  deviceFlowSupportedForProvider(provider),
+			BrowserFlowSupported: browserFlowSupportedForProvider(provider),
+			OAuthExpiry:          userAIProviderKeyOAuthExpiry(userKey),
+			RefreshSupported:     userAIProviderKeyRefreshSupported(userKey),
+			ReauthRequired:       userAIProviderKeyReauthRequired(userKey),
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, configs)
@@ -6928,11 +6929,12 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
-		Provider:            convertAIProviderSummary(provider),
-		HasUserAPIKey:       true,
-		HasProviderAPIKey:   len(providerKeys) > 0,
-		BYOKEnabled:         true,
-		DeviceFlowSupported: deviceFlowSupportedForProvider(provider),
+		Provider:             convertAIProviderSummary(provider),
+		HasUserAPIKey:        true,
+		HasProviderAPIKey:    len(providerKeys) > 0,
+		BYOKEnabled:          true,
+		DeviceFlowSupported:  deviceFlowSupportedForProvider(provider),
+		BrowserFlowSupported: browserFlowSupportedForProvider(provider),
 		// A pasted/static replace carries no OAuth material by
 		// definition: no expiry, no refresh, no re-auth prompt.
 		OAuthExpiry:      nil,

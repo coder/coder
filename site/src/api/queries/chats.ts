@@ -2243,6 +2243,7 @@ export const userChatProviderConfigs = () => ({
 			byok_enabled: config.byok_enabled,
 			has_central_api_key_fallback: config.has_provider_api_key,
 			device_flow_supported: config.device_flow_supported,
+			browser_flow_supported: config.browser_flow_supported,
 			oauth_expiry: config.oauth_expiry,
 			refresh_supported: config.refresh_supported,
 			reauth_required: config.reauth_required,
@@ -2333,6 +2334,48 @@ export const cancelUserDeviceGrant = () => ({
 		providerConfigId: string;
 		grantId: string;
 	}) => API.experimental.cancelUserAIDeviceGrant(providerConfigId, grantId),
+});
+
+type InitiateUserBrowserGrantArgs = {
+	providerConfigId: string;
+};
+
+export const initiateUserBrowserGrant = (_queryClient: QueryClient) => ({
+	mutationFn: ({ providerConfigId }: InitiateUserBrowserGrantArgs) =>
+		API.experimental.initiateUserAIBrowserGrant(providerConfigId),
+});
+
+type ExchangeUserBrowserGrantArgs = {
+	providerConfigId: string;
+	grantId: string;
+	req: TypesGen.AIBrowserGrantExchangeRequest;
+};
+
+export const exchangeUserBrowserGrant = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		providerConfigId,
+		grantId,
+		req,
+	}: ExchangeUserBrowserGrantArgs) =>
+		API.experimental.exchangeUserAIBrowserGrant(providerConfigId, grantId, req),
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: userChatProviderConfigsKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: chatModelsKey }),
+		]);
+	},
+});
+
+export const cancelUserBrowserGrant = () => ({
+	mutationFn: ({
+		providerConfigId,
+		grantId,
+	}: {
+		providerConfigId: string;
+		grantId: string;
+	}) => API.experimental.cancelUserAIBrowserGrant(providerConfigId, grantId),
 });
 
 const invalidateChatConfigurationQueries = async (

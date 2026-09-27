@@ -978,6 +978,72 @@ title: Schemas
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
+## codersdk.AIBrowserGrantExchangeRequest
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
+
+## codersdk.AIBrowserGrantExchangeResponse
+
+```json
+{
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "status": "pending",
+  "stores_access_token_only": true
+}
+```
+
+### Properties
+
+| Name                       | Type                                                         | Required | Restrictions | Description |
+|----------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `expires_in`               | integer                                                      | false    |              |             |
+| `grant_id`                 | string                                                       | false    |              |             |
+| `provider_id`              | string                                                       | false    |              |             |
+| `reauth_message`           | string                                                       | false    |              |             |
+| `refresh_supported`        | boolean                                                      | false    |              |             |
+| `status`                   | [codersdk.AIDeviceGrantStatus](#codersdkaidevicegrantstatus) | false    |              |             |
+| `stores_access_token_only` | boolean                                                      | false    |              |             |
+
+## codersdk.AIBrowserGrantInitiateResponse
+
+```json
+{
+  "authorize_url": "string",
+  "expires_in": 0,
+  "grant_id": "a3c1da8e-13c6-4cab-955b-2120b58c2982",
+  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
+  "reauth_message": "string",
+  "refresh_supported": true,
+  "stores_access_token_only": true
+}
+```
+
+### Properties
+
+| Name                       | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                     |
+|----------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `authorize_url`            | string  | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `expires_in`               | integer | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `grant_id`                 | string  | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `provider_id`              | string  | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `reauth_message`           | string  | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `refresh_supported`        | boolean | false    |              |                                                                                                                                                                                                                                                                                                                 |
+| `stores_access_token_only` | boolean | false    |              | Stores access token only and RefreshSupported document the refresh honesty, identical to the device-code door: Coder persists the full OAuth credential from this sign-in server-side and refreshes it lazily per request. When refresh fails terminally, re-auth is a fresh sign-in round through either door. |
+
 ## codersdk.AIBudgetLimit
 
 ```json
@@ -16767,6 +16833,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "browser_flow_supported": true,
   "byok_enabled": true,
   "device_flow_supported": true,
   "has_provider_api_key": true,
@@ -16788,16 +16855,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
-|-------------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `byok_enabled`          | boolean                                                  | false    |              |                                                                                                                                                                                       |
-| `device_flow_supported` | boolean                                                  | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers).                     |
-| `has_provider_api_key`  | boolean                                                  | false    |              |                                                                                                                                                                                       |
-| `has_user_api_key`      | boolean                                                  | false    |              |                                                                                                                                                                                       |
-| `oauth_expiry`          | string                                                   | false    |              | Oauth expiry is when the saved access token expires, when the key came from an OAuth sign-in. Absent for pasted static keys.                                                          |
-| `provider`              | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                       |
-| `reauth_required`       | boolean                                                  | false    |              | Reauth required reports the saved OAuth credential died (terminal refresh failure): exactly one re-auth prompt renders, reusing the device-code initiate path. The saved key is kept. |
-| `refresh_supported`     | boolean                                                  | false    |              | Refresh supported reports the server refreshes this OAuth sign-in automatically. It flips only when the refresher ships; a saved static key never refreshes.                          |
+| Name                     | Type                                                     | Required | Restrictions | Description                                                                                                                                                                           |
+|--------------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `browser_flow_supported` | boolean                                                  | false    |              | Browser flow supported reports whether the provider offers the paved in-dashboard browser PKCE sign-in alongside the device-code door.                                                |
+| `byok_enabled`           | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `device_flow_supported`  | boolean                                                  | false    |              | Device flow supported reports whether the provider offers the paved in-dashboard device-code sign-in (ChatGPT first, provider-generic shape for later providers).                     |
+| `has_provider_api_key`   | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `has_user_api_key`       | boolean                                                  | false    |              |                                                                                                                                                                                       |
+| `oauth_expiry`           | string                                                   | false    |              | Oauth expiry is when the saved access token expires, when the key came from an OAuth sign-in. Absent for pasted static keys.                                                          |
+| `provider`               | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |                                                                                                                                                                                       |
+| `reauth_required`        | boolean                                                  | false    |              | Reauth required reports the saved OAuth credential died (terminal refresh failure): exactly one re-auth prompt renders, reusing the device-code initiate path. The saved key is kept. |
+| `refresh_supported`      | boolean                                                  | false    |              | Refresh supported reports the server refreshes this OAuth sign-in automatically. It flips only when the refresher ships; a saved static key never refreshes.                          |
 
 ## codersdk.UserAISpendStatus
 
