@@ -124,9 +124,7 @@ func (in EditFilesHookInput) Edits() []EditFilesEdit {
 const EditFilesName = "edit_files"
 
 // NormalizeEditPaths returns a copy of edits with each path in the form
-// the tool executes it: surrounding whitespace removed. The hook
-// presentation uses the same function so hooks see the paths the tool
-// edits.
+// the tool uses it: surrounding whitespace removed.
 func NormalizeEditPaths(edits []EditFilesEdit) []EditFilesEdit {
 	normalized := slices.Clone(edits)
 	for i := range normalized {
@@ -140,19 +138,18 @@ func NormalizeEditPaths(edits []EditFilesEdit) []EditFilesEdit {
 const editFilesExample = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
 
 // editFilesTool adds input handling that the typed fantasy wrapper
-// cannot express: decoding a string-encoded edits array where the call
-// arrives, and whole-call errors that show the accepted shape.
+// cannot express: a decoder chatloop applies to a string-encoded edits
+// array, and whole-call errors that show the accepted shape.
 type editFilesTool struct {
 	fantasy.AgentTool
 }
 
 // DecodeToolInput replaces a top-level edits value that is a JSON
 // string with the string's content when that content parses as-is into
-// a JSON array of objects. The content bytes are spliced in verbatim
-// and the rest of the input is kept byte for byte, so the ambiguity
-// check still sees the model's key spelling. Any other input, including
-// a repeated or differently capitalized edits key, returns false and is
-// left for the ambiguity check and the tool to reject.
+// a JSON array of objects. Nothing is re-encoded, so the ambiguity
+// check still sees the model's key spelling. Any other input returns
+// false; a repeated or differently capitalized edits key is left for the
+// ambiguity check to reject.
 func (editFilesTool) DecodeToolInput(input string) (string, bool) {
 	decoder := json.NewDecoder(strings.NewReader(input))
 	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
@@ -229,7 +226,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	var args EditFilesArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
-			"Send edits as a JSON array of objects with string path, old_text and new_text and optional boolean replace_all, for example %s; the input did not match (%s); no files in this batch were applied",
+			"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example %s; decoding failed (%s); no files in this batch were applied",
 			editFilesExample, err,
 		)), nil
 	}
@@ -262,7 +259,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			if len(missingPath) > 0 {
 				return fantasy.NewTextErrorResponse(
 					"Set path to the absolute path of the file to edit in " + strings.Join(missingPath, ", ") +
-						"; path is required in every edit; no files in this batch were applied",
+						"; no files in this batch were applied",
 				), nil
 			}
 			var planPath string
