@@ -119,6 +119,8 @@ type WorkspaceUploadsProps = {
 	// connected agent; its absence hides the whole affordance.
 	onAttach?: (files: File[]) => void;
 	onRemove: (id: string) => void;
+	// Set once the uploaded references belong to a pending send.
+	removeDisabled: boolean;
 	// Toast shown when a workspace-routed file arrives while onAttach
 	// is unavailable. Overridden on the new-chat page, where the fix
 	// is selecting a workspace rather than attaching one to the chat.
@@ -131,7 +133,7 @@ type WorkspaceUploadsProps = {
 
 const workspaceRequiredAttachmentMessage =
 	"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.";
-const workspaceUploadPendingSendMessage =
+export const attachDuringSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
@@ -830,27 +832,28 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	}, [composerElement]);
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
-	// disabled (read-only) composer must not route files to them. The
-	// same holds while a send is pending: the post-send reset would drop
-	// the chip after the bytes already landed in the workspace.
-	const workspaceAttachBlockedBySend =
-		isLoading && workspaceUploads?.onAttach !== undefined;
-	const onWorkspaceAttach =
-		isDisabled || isLoading ? undefined : workspaceUploads?.onAttach;
+	// disabled (read-only) composer must not route files to them.
+	const onWorkspaceAttach = isDisabled ? undefined : workspaceUploads?.onAttach;
 
 	// Splits files between the attachment pipeline and the workspace
 	// upload path by declared MIME type. Unknown or octet-stream files
 	// stay on the attachment path where the server classifies bytes.
 	// Returns whether any file was routed.
 	const routeFiles = (files: File[]): boolean => {
+		// The pending message was built from the attachments present at
+		// submit, and the post-send reset would drop anything added now,
+		// so the whole batch is refused with a single toast.
+		if (isLoading) {
+			toast.error(attachDuringSendMessage);
+			return false;
+		}
 		const attachable: File[] = [];
 		const forWorkspace: File[] = [];
 		const rejected: File[] = [];
 		// Workspace-routable files that arrived while the workspace
 		// upload feature is wired but currently unavailable (no
-		// connected agent, read-only composer, pending send). They need
-		// a workspace, not a different file type, so they get their own
-		// toast.
+		// connected agent, read-only composer). They need a workspace,
+		// not a different file type, so they get their own toast.
 		const workspaceRequired: File[] = [];
 		for (const file of files) {
 			if (onWorkspaceAttach && shouldRouteFileToWorkspace(file)) {
@@ -865,10 +868,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 		if (workspaceRequired.length > 0) {
 			toast.error(
-				workspaceAttachBlockedBySend
-					? workspaceUploadPendingSendMessage
-					: (workspaceUploads?.unavailableMessage ??
-							workspaceRequiredAttachmentMessage),
+				workspaceUploads?.unavailableMessage ??
+					workspaceRequiredAttachmentMessage,
 			);
 		}
 		if (rejected.length > 0) {
@@ -897,9 +898,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.target.value = "";
 	};
 
-	const handleFilePaste = (file: File) => routeFiles([file]);
-
 	const handleInlineText = (file: File, nextContent?: string) => {
+		// The content may have loaded asynchronously after the click, so
+		// check the latest committed lock rather than this render's.
+		if (committedIsLoadingRef.current) return;
 		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
 		const editor = internalRef.current;
@@ -979,10 +981,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	// Re-focus the editor after a send completes (isLoading goes
 	// from true → false) so the user can immediately type again.
-	const prevIsLoadingRef = useRef(isLoading);
+	const committedIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
-		const wasLoading = prevIsLoadingRef.current;
-		prevIsLoadingRef.current = isLoading;
+		const wasLoading = committedIsLoadingRef.current;
+		committedIsLoadingRef.current = isLoading;
 		if (wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}
@@ -1296,17 +1298,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						textContents={textContents}
 						onTextPreview={handleTextPreview}
 						onInlineText={handleInlineText}
+						actionsDisabled={isLoading}
 					/>
 				)}
 				{workspaceUploads && (
 					<WorkspaceUploadPreview
 						uploads={workspaceUploads.uploads}
 						onRemove={workspaceUploads.onRemove}
+						removeDisabled={workspaceUploads.removeDisabled}
 					/>
 				)}
 				<ChatMessageInput
 					ref={internalRef}
-					onFilePaste={onAttach ? handleFilePaste : undefined}
+					onFilePaste={onAttach ? routeFiles : undefined}
 					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"

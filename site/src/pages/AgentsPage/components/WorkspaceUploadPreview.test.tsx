@@ -24,7 +24,11 @@ describe("WorkspaceUploadPreview", () => {
 		const user = userEvent.setup();
 		const onRemove = vi.fn();
 		renderComponent(
-			<WorkspaceUploadPreview uploads={[uploadedEntry]} onRemove={onRemove} />,
+			<WorkspaceUploadPreview
+				uploads={[uploadedEntry]}
+				onRemove={onRemove}
+				removeDisabled={false}
+			/>,
 		);
 
 		await user.click(

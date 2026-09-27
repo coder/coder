@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
@@ -146,6 +146,52 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("freezes the composer's attachments while an edit is pending", async () => {
+		const uploadChatFile = vi.spyOn(API.experimental, "uploadChatFile");
+		const uploadChatWorkspaceFile = vi.spyOn(
+			API.experimental,
+			"uploadChatWorkspaceFile",
+		);
+		vi.spyOn(toast, "error");
+
+		renderChatPageInput(createChatStore(), {
+			chat: {
+				...MockChat,
+				organization_id: "",
+				workspace_id: MockWorkspace.id,
+				agent_id: MockWorkspaceAgent.id,
+			},
+			workspace: MockWorkspace,
+			isEditing: true,
+			isSendPending: true,
+			initialValue: "edited",
+			editingFileBlocks: [
+				workspaceFileReference("current.csv", MockWorkspace.id),
+			],
+		});
+
+		expect(
+			await screen.findByRole("button", { name: "Remove current.csv" }),
+		).toBeDisabled();
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: {
+				files: [
+					new File(["png"], "screenshot.png", { type: "image/png" }),
+					new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
+						type: "application/zip",
+					}),
+				],
+			},
+		});
+
+		expect(toast.error).toHaveBeenCalledTimes(1);
+		expect(toast.error).toHaveBeenCalledWith(
+			"Wait for the current message to finish sending, then add the file again.",
+		);
+		expect(uploadChatFile).not.toHaveBeenCalled();
+		expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
 	});
 
 	it.each([

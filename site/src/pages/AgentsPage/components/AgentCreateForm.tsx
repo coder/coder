@@ -16,6 +16,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
+	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
@@ -40,7 +41,7 @@ import {
 	pickReasoningEffort,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentChatInput } from "./AgentChatInput";
+import { AgentChatInput, attachDuringSendMessage } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -61,8 +62,6 @@ const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 // same-workspace status flap.
 const workspaceUploadUnavailableMessage =
 	"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.";
-const attachDuringSubmitMessage =
-	"Wait for the current message to finish sending, then add the file again.";
 
 export type CreateChatOptions = {
 	message: string;
@@ -607,6 +606,12 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [isSubmitSequencePending, setIsSubmitSequencePending] = useState(false);
 	const submitInFlightRef = useRef(false);
 	const isSubmitPending = isCreating || isSubmitSequencePending;
+	// Until every queued file settles, removing its chip skips or cancels
+	// that upload; afterwards its reference is in the first message.
+	const areWorkspaceUploadsSettled = !workspaceUploadEntries.some(
+		(upload) =>
+			upload.status === "deferred" || isWorkspaceUploadInProgress(upload),
+	);
 
 	// Workspace files can only upload into a workspace whose agent is
 	// connected. An explicit scope change that loses that (deselecting,
@@ -649,7 +654,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	const handleAttachWhenIdle = (files: File[]) => {
 		if (submitInFlightRef.current) {
-			toast.error(attachDuringSubmitMessage);
+			toast.error(attachDuringSendMessage);
 			return;
 		}
 		handleAttach(files);
@@ -850,6 +855,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								? workspaceUploads.attach
 								: undefined,
 							onRemove: workspaceUploads.remove,
+							removeDisabled: isSubmitPending && areWorkspaceUploadsSettled,
 							unavailableMessage: workspaceUploadUnavailableMessage,
 							deferred: true,
 						}}

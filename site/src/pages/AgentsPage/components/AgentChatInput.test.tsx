@@ -369,6 +369,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading={false}
@@ -404,6 +405,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled
 				isLoading={false}
@@ -429,7 +431,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("refuses workspace files while a send is pending", () => {
+	it("refuses a dropped batch with one toast while a send is pending", () => {
 		const onAttach = vi.fn();
 		const onWorkspaceAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
@@ -443,6 +445,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading
@@ -455,23 +458,24 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		// The post-send reset would discard the chip after the bytes
-		// already landed, so the drop is refused with a wait message
-		// rather than the "attach a workspace" one.
 		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
 			dataTransfer: {
-				files: [createMockFile("dataset.zip", "application/zip")],
+				files: [
+					createMockFile("screenshot.png", "image/png"),
+					createMockFile("dataset.zip", "application/zip"),
+				],
 			},
 		});
 
 		expect(onWorkspaceAttach).not.toHaveBeenCalled();
 		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledTimes(1);
 		expect(toastError).toHaveBeenCalledWith(
 			"Wait for the current message to finish sending, then add the file again.",
 		);
 	});
 
-	it("refuses pasted workspace files while a send is pending", () => {
+	it("refuses a multi-file paste with one toast while a send is pending", () => {
 		const onAttach = vi.fn();
 		const onWorkspaceAttach = vi.fn();
 		const toastError = vi.spyOn(toast, "error");
@@ -485,6 +489,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: onWorkspaceAttach,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading
@@ -499,7 +504,11 @@ describe("AgentChatInput", () => {
 
 		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
 			clipboardData: {
-				files: [createMockFile("dataset.zip", "application/zip")],
+				files: [
+					createMockFile("first.png", "image/png"),
+					createMockFile("second.png", "image/png"),
+					createMockFile("dataset.zip", "application/zip"),
+				],
 				types: ["Files"],
 				getData: () => "",
 			},
@@ -507,9 +516,133 @@ describe("AgentChatInput", () => {
 
 		expect(onWorkspaceAttach).not.toHaveBeenCalled();
 		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledTimes(1);
 		expect(toastError).toHaveBeenCalledWith(
 			"Wait for the current message to finish sending, then add the file again.",
 		);
+	});
+
+	it("routes a multi-file paste as one batch", () => {
+		const onAttach = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const first = createMockFile("first.png", "image/png");
+		const second = createMockFile("second.png", "image/png");
+		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
+			clipboardData: {
+				files: [first, second],
+				types: ["Files"],
+				getData: () => "",
+			},
+		});
+
+		expect(onAttach).toHaveBeenCalledTimes(1);
+		expect(onAttach).toHaveBeenCalledWith([first, second]);
+	});
+
+	it("ignores attachment remove and paste inline while a send is pending", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const notes = createMockFile("notes.txt", "text/plain");
+		const onRemoveAttachment = vi.fn();
+		const onTextPreview = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				inputRef={inputRef}
+				onSend={vi.fn()}
+				onAttach={vi.fn()}
+				attachments={[notes]}
+				onRemoveAttachment={onRemoveAttachment}
+				onTextPreview={onTextPreview}
+				textContents={new Map([[notes, "meeting notes"]])}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove notes.txt" }));
+		await user.click(screen.getByRole("button", { name: "Paste inline" }));
+		expect(onRemoveAttachment).not.toHaveBeenCalled();
+		expect(inputRef.current?.getValue()).toBe("");
+
+		await user.click(screen.getByRole("button", { name: "View notes.txt" }));
+		expect(onTextPreview).toHaveBeenCalledWith(
+			"meeting notes",
+			"notes.txt",
+			"text/plain",
+		);
+	});
+
+	it("drops an inline-text action whose content loads after a send starts", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const notes = createMockFile("notes.txt", "text/plain");
+		const onRemoveAttachment = vi.fn();
+		let resolveFetch: (response: Response) => void = () => {};
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				() =>
+					new Promise<Response>((resolve) => {
+						resolveFetch = resolve;
+					}),
+			),
+		);
+		const renderWithLoading = (isLoading: boolean) => (
+			<AppProviders>
+				<AgentChatInput
+					inputRef={inputRef}
+					onSend={vi.fn()}
+					onAttach={vi.fn()}
+					attachments={[notes]}
+					onRemoveAttachment={onRemoveAttachment}
+					uploadStates={
+						new Map([[notes, { status: "uploaded", fileId: "file-notes" }]])
+					}
+					isDisabled={false}
+					isLoading={isLoading}
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+				/>
+			</AppProviders>
+		);
+		const { rerender } = render(renderWithLoading(false));
+
+		await user.click(screen.getByRole("button", { name: "Paste inline" }));
+		await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+		rerender(renderWithLoading(true));
+		resolveFetch(new Response("meeting notes"));
+
+		// Let the resolved load reach the inline handler.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(onRemoveAttachment).not.toHaveBeenCalled();
+		expect(inputRef.current?.getValue()).toBe("");
 	});
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
@@ -525,6 +658,7 @@ describe("AgentChatInput", () => {
 					uploads: [],
 					onAttach: undefined,
 					onRemove: vi.fn(),
+					removeDisabled: false,
 				}}
 				isDisabled={false}
 				isLoading={false}

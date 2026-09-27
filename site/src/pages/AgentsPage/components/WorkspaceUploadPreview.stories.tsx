@@ -22,6 +22,7 @@ const meta: Meta<typeof WorkspaceUploadPreview> = {
 	component: WorkspaceUploadPreview,
 	args: {
 		onRemove: fn(),
+		removeDisabled: false,
 	},
 };
 
@@ -31,6 +32,13 @@ type Story = StoryObj<typeof WorkspaceUploadPreview>;
 export const Uploaded: Story = {
 	args: {
 		uploads: [uploadedEntry("design-handoff.zip")],
+	},
+};
+
+export const RemoveDisabled: Story = {
+	args: {
+		uploads: [uploadedEntry("design-handoff.zip")],
+		removeDisabled: true,
 	},
 };
 
