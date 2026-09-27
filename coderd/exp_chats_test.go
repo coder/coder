@@ -10206,7 +10206,7 @@ func TestStreamChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Created second so the foreign cursor ID exceeds chat's initial message.
+		// Created second so the other chat's message ID is higher than this chat's.
 		const otherMessage = "stream chat other chat cursor"
 		other, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -10229,21 +10229,21 @@ func TestStreamChat(t *testing.T) {
 			snapshot := readStreamChatSnapshot(ctx, t, events)
 			require.Empty(t, streamChatEventsOfType(snapshot, codersdk.ChatStreamEventTypeHistoryReset))
 			require.True(t, streamChatSnapshotHasText(snapshot, initialMessage), msg)
-			require.False(t, streamChatSnapshotHasText(snapshot, otherMessage), "foreign cursor must not leak another chat's messages")
+			require.False(t, streamChatSnapshotHasText(snapshot, otherMessage), "cursor from another chat must not leak that chat's messages")
 			for _, event := range snapshot {
 				require.Equal(t, chat.ID, event.ChatID)
 			}
 		}
-		requireFullHistory("foreign cursor must fall back to the full history")
+		requireFullHistory("cursor from another chat must fall back to the full history")
 
-		// The edit soft-deletes the cursor, which must still resolve as foreign.
+		// The edit soft-deletes the cursor, which must still resolve to the other chat.
 		_, err = client.EditChatMessage(ctx, other.ID, foreignID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "stream chat other chat edited"},
 			},
 		})
 		require.NoError(t, err)
-		requireFullHistory("deleted foreign cursor must fall back to the full history")
+		requireFullHistory("deleted cursor from another chat must fall back to the full history")
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {

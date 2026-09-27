@@ -409,7 +409,7 @@ func TestStreamLoopInitialSyncBoundsFetchToCursorRevision(t *testing.T) {
 		require.Equal(t, int64(10), events[0].Message.ID)
 	})
 
-	t.Run("TombstoneAfterCursor", func(t *testing.T) {
+	t.Run("DeletedRowAfterCursor", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)

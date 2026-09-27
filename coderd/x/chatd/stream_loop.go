@@ -158,6 +158,8 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				}
 				if ok {
 					cursor = &row
+					// Include the cursor's own revision: rows committed with it can
+					// have higher IDs that the client has not seen.
 					afterRevision = row.Revision - 1
 				}
 			}
@@ -169,7 +171,7 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 				return xerrors.Errorf("get changed chat messages: %w", err)
 			}
 			for _, msg := range snapshot.changedMessages {
-				if msg.Deleted && tombstoneRequiresReset(cursor, msg) {
+				if msg.Deleted && deletedRowRequiresReset(cursor, msg) {
 					snapshot.historyReset = true
 					break
 				}
@@ -217,9 +219,9 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 	return snapshot, nil
 }
 
-// initialSyncCursor resolves afterMessageID to bound the first fetch by
-// revision. Deleted and unknown cursors keep the unbounded scan so tombstones
-// can force a reset, and a cursor from another chat also drops the ID cutoff.
+// initialSyncCursor returns the afterMessageID row and true only when that row
+// belongs to this chat and is not deleted, so the first fetch can be bounded by
+// its revision. A cursor from another chat also clears afterMessageID.
 func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (database.ChatMessage, bool, error) {
 	cursor, err := tx.GetChatMessageByIDForStream(ctx, l.state.afterMessageID)
 	if err != nil {
@@ -234,16 +236,17 @@ func (l *streamLoop) initialSyncCursor(ctx context.Context, tx database.Store) (
 		return database.ChatMessage{}, false, nil
 	}
 	if cursor.Deleted {
-		// Deletion bumped its revision, so bounding by it would skip the reset.
+		// Deletion advanced its revision, so bounding the fetch by that revision
+		// would skip the reset.
 		return database.ChatMessage{}, false, nil
 	}
 	return cursor, true, nil
 }
 
-// tombstoneRequiresReset reports whether a deleted row may remain in the
-// client's history. Tombstones at or before the cursor's revision, or beyond
-// its ID, cannot be part of the history that holds the cursor.
-func tombstoneRequiresReset(cursor *database.ChatMessage, msg database.ChatMessage) bool {
+// deletedRowRequiresReset reports whether a deleted row may remain in the
+// client's history. Deleted rows with a revision at or below the cursor's, or
+// an ID above the cursor's, cannot be in the history that holds the cursor.
+func deletedRowRequiresReset(cursor *database.ChatMessage, msg database.ChatMessage) bool {
 	if cursor == nil {
 		return true
 	}
@@ -366,7 +369,7 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 
 	events := make([]codersdk.ChatStreamEvent, 0, len(snapshot.changedMessages))
 	for _, msg := range snapshot.changedMessages {
-		// Tombstones that did not force a reset are not in the client's history.
+		// Deleted rows that did not force a reset are not in the client's history.
 		if msg.Deleted {
 			continue
 		}
