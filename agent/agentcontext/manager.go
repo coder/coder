@@ -45,6 +45,10 @@ type ManagerOptions struct {
 	// MCP engine here so discovery and execution use one set of
 	// server connections.
 	MCPReport func() MCPReport
+	// AgentRunID identifies the agent process. It is stamped on every
+	// published Snapshot so coderd can tell a current snapshot from one
+	// left behind by a previous process.
+	AgentRunID string
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -69,6 +73,7 @@ type Manager struct {
 	resolver     *Resolver
 	debounce     time.Duration
 	mcpReport    func() MCPReport
+	agentRunID   string
 
 	mu      sync.Mutex
 	sources []Source
@@ -141,6 +146,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		resolver:     resolver,
 		debounce:     debounce,
 		mcpReport:    opts.MCPReport,
+		agentRunID:   opts.AgentRunID,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
 		subscribers:  make(map[chan struct{}]struct{}),
@@ -451,7 +457,9 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
-	snap := resolver.ResolveContextWithMCP(ctx, roots, m.sampleMCPReport())
+	// As in resolveAndBroadcast, the report is sampled before the walk.
+	mcp := m.sampleMCPReport()
+	snap := resolver.ResolveContextWithMCP(ctx, roots, mcp)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot whose SnapshotError is set to
@@ -488,6 +496,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	}
 	m.version++
 	snap.Version = m.version
+	snap.AgentRunID = m.agentRunID
 	m.snapshot = snap
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
@@ -514,7 +523,8 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 
 // sampleMCPReport reads the MCP engine's report once. Both resolve
 // paths call it before the filesystem walk so a single sample feeds
-// every MCP-derived field of the resulting Snapshot.
+// every MCP-derived field of the resulting Snapshot, including its
+// discovery phase.
 func (m *Manager) sampleMCPReport() MCPReport {
 	if m.mcpReport == nil {
 		return MCPReport{}
@@ -648,7 +658,12 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	snap := resolver.ResolveContextWithMCP(ctx, roots, m.sampleMCPReport())
+	// Sample the MCP report before the filesystem walk so a discovery
+	// phase that settles mid-resolve can never label this snapshot's
+	// catalog complete; the settlement notification triggers another
+	// resolve that publishes the complete report.
+	mcp := m.sampleMCPReport()
+	snap := resolver.ResolveContextWithMCP(ctx, roots, mcp)
 	if err := ctx.Err(); err != nil {
 		// Cancellation mid-walk yields a partial or empty
 		// Snapshot. Publishing it would replace the live
@@ -678,6 +693,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	}
 	m.version++
 	snap.Version = m.version
+	snap.AgentRunID = m.agentRunID
 	m.snapshot = snap
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {

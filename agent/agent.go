@@ -202,6 +202,10 @@ func New(options Options) Agent {
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
+		// One id per agent process: it names the process in Startup and
+		// in every context snapshot so coderd can tell a current snapshot
+		// from one left behind by a previous process.
+		agentRunID:              uuid.NewString(),
 		clock:                   options.Clock,
 		tailnetListenPort:       options.TailnetListenPort,
 		reconnectingPTYTimeout:  options.ReconnectingPTYTimeout,
@@ -260,6 +264,7 @@ func New(options Options) Agent {
 }
 
 type agent struct {
+	agentRunID            string
 	clock                 quartz.Clock
 	logger                slog.Logger
 	client                Client
@@ -498,6 +503,7 @@ func (a *agent) init() {
 		MCPReport: func() agentcontext.MCPReport {
 			return mcpReportToContext(a.mcpManager.Report())
 		},
+		AgentRunID: a.agentRunID,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	// Re-resolve and re-push MCP resources whenever the MCP engine's
@@ -1400,6 +1406,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 			Version:           buildinfo.Version(),
 			ExpandedDirectory: manifest.Directory,
 			Subsystems:        subsys,
+			AgentRunId:        a.agentRunID,
 		}})
 		if err != nil {
 			return xerrors.Errorf("update workspace agent startup: %w", err)

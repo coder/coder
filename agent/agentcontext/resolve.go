@@ -206,6 +206,7 @@ func (r *Resolver) ResolveContextWithMCP(ctx context.Context, roots []ScanRoot, 
 		Resources:     resources,
 		AggregateHash: hash,
 		PayloadBytes:  payloadBytes,
+		MCPDiscovery:  mcp.Phase,
 	}
 	if len(snapErrs) > 0 {
 		// Pick the most severe single error. Today every
@@ -1014,6 +1015,13 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
+	// MCPDiscovery is the MCP discovery phase sampled before this
+	// snapshot's resources were resolved, so it never overstates the
+	// completeness of the MCP rows it travels with.
+	MCPDiscovery MCPDiscoveryPhase
+	// AgentRunID identifies the agent process that produced the
+	// snapshot; stamped by the Manager at publish time.
+	AgentRunID string
 }
 
 // driftResources excludes MCP resources because agents discover them

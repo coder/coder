@@ -25,6 +25,8 @@ type PushRequest struct {
 	Resources     []Resource
 	Initial       bool
 	SnapshotError string
+	MCPDiscovery  MCPDiscoveryPhase
+	AgentRunID    string
 }
 
 // PushResponse is the wire-format-independent return value of
@@ -206,5 +208,7 @@ func snapshotToPushRequest(s Snapshot, initial bool) *PushRequest {
 		Resources:     s.Resources,
 		Initial:       initial,
 		SnapshotError: s.SnapshotError,
+		MCPDiscovery:  s.MCPDiscovery,
+		AgentRunID:    s.AgentRunID,
 	}
 }

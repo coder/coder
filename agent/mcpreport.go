@@ -11,6 +11,12 @@ import (
 // agentcontext does not import agent/x/agentmcp.
 func mcpReportToContext(report agentmcp.Report) agentcontext.MCPReport {
 	out := agentcontext.MCPReport{}
+	switch report.Phase {
+	case agentmcp.DiscoveryPending:
+		out.Phase = agentcontext.MCPDiscoveryPending
+	case agentmcp.DiscoveryComplete:
+		out.Phase = agentcontext.MCPDiscoveryComplete
+	}
 	if len(report.Servers) > 0 {
 		out.Servers = make([]agentcontext.MCPServerStatus, 0, len(report.Servers))
 		for _, s := range report.Servers {
