@@ -1709,8 +1709,13 @@ export const chatDebugRun = (chatId: string, runId: string) =>
 	});
 
 export const createChat = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatRequest) =>
-		API.experimental.createChat(req),
+	mutationFn: ({
+		req,
+		signal,
+	}: {
+		req: TypesGen.CreateChatRequest;
+		signal: AbortSignal;
+	}) => API.experimental.createChat(req, signal),
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatsByWorkspace(queryClient);
@@ -1734,17 +1739,18 @@ export const createChatMessage = (
 // Variant of createChatMessage for callers that only learn the chat ID
 // at mutate time, such as the new-chat page sending the first message
 // right after creating the chat.
+type CreateChatMessageByChatIdVariables = {
+	chatId: string;
+	req: TypesGen.CreateChatMessageRequest;
+	signal: AbortSignal;
+};
+
 export const createChatMessageByChatId = (queryClient: QueryClient) => ({
-	mutationFn: ({
-		chatId,
-		req,
-	}: {
-		chatId: string;
-		req: TypesGen.CreateChatMessageRequest;
-	}) => API.experimental.createChatMessage(chatId, req),
+	mutationFn: ({ chatId, req, signal }: CreateChatMessageByChatIdVariables) =>
+		API.experimental.createChatMessage(chatId, req, signal),
 	onSuccess: (
 		_: TypesGen.CreateChatMessageResponse,
-		{ chatId }: { chatId: string; req: TypesGen.CreateChatMessageRequest },
+		{ chatId }: CreateChatMessageByChatIdVariables,
 	) => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void invalidateChatEntity(queryClient, chatId);

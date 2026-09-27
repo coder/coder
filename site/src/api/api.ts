@@ -3346,8 +3346,13 @@ class ExperimentalApiMethods {
 
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
+		signal?: AbortSignal,
 	): Promise<TypesGen.Chat> => {
-		const response = await this.axios.post<TypesGen.Chat>("/api/v2/chats", req);
+		const response = await this.axios.post<TypesGen.Chat>(
+			"/api/v2/chats",
+			req,
+			{ signal },
+		);
 		return response.data;
 	};
 
@@ -3368,10 +3373,12 @@ class ExperimentalApiMethods {
 	createChatMessage = async (
 		chatId: string,
 		req: CreateChatMessageRequestWithClearablePlanMode,
+		signal?: AbortSignal,
 	): Promise<TypesGen.CreateChatMessageResponse> => {
 		const response = await this.axios.post<TypesGen.CreateChatMessageResponse>(
 			`/api/v2/chats/${chatId}/messages`,
 			req,
+			{ signal },
 		);
 		return response.data;
 	};

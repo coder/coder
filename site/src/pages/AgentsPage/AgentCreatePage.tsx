@@ -1,12 +1,18 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { API } from "#/api/api";
+import {
+	type ApiErrorResponse,
+	getErrorMessage,
+	isApiError,
+} from "#/api/errors";
 import {
 	archiveChat,
 	createChat,
 	createChatMessageByChatId,
+	invalidateChatListQueries,
 } from "#/api/queries/chats";
 import {
 	workspaceBuildById,
@@ -87,6 +93,56 @@ const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
 const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
+// Server-side hook dispatch is capped at 5 seconds, so a create or first
+// message still pending after this is stalled rather than slow.
+const chatRequestTimeoutMs = 30_000;
+const cleanupRequestTimeoutMs = 10_000;
+
+class RequestTimeoutError extends Error {
+	constructor() {
+		super("The request timed out.");
+		this.name = "RequestTimeoutError";
+	}
+}
+
+// Rejects with RequestTimeoutError once timeoutMs passes, even when the
+// request ignores the signal; the signal cancels requests that accept it.
+const withTimeout = async <T,>(
+	request: (signal: AbortSignal) => Promise<T>,
+	timeoutMs: number,
+): Promise<T> => {
+	const controller = new AbortController();
+	const timedOut = new Promise<never>((_, reject) => {
+		controller.signal.addEventListener("abort", () =>
+			reject(new RequestTimeoutError()),
+		);
+	});
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		return await Promise.race([request(controller.signal), timedOut]);
+	} finally {
+		clearTimeout(timer);
+	}
+};
+
+const createTimeoutError: ApiErrorResponse = {
+	message: "Creating the chat took too long.",
+	detail:
+		"The chat may still have been created. Check the chat list before sending again.",
+};
+
+const sendTimeoutError: ApiErrorResponse = {
+	message: "Sending the message took too long.",
+	detail: "The message was not sent. Try again.",
+};
+
+const pageLeftMessage = "The page was left before the first message was sent.";
+
+const cleanupFailureMessage = (error: unknown) =>
+	error instanceof RequestTimeoutError
+		? "Failed to clean up the unused chat."
+		: getErrorMessage(error, "Failed to clean up the unused chat.");
+
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
@@ -101,33 +157,62 @@ const AgentCreatePage: FC = () => {
 		createChatMessageByChatId(queryClient),
 	);
 	const archiveMutation = useMutation(archiveChat(queryClient));
-	// Cleanup for a shell chat whose deferred uploads or first message
-	// failed. The primary failure is already toasted by the caller, so
-	// this only adds the cleanup outcome.
+	const [submitError, setSubmitError] = useState<unknown>(null);
+	// A submit outlives the page when the user leaves mid-request. After
+	// that it must not navigate or report anything, but its requests keep
+	// running: a first message that commits is a real chat.
+	const isMountedRef = useRef(false);
+	useEffect(() => {
+		isMountedRef.current = true;
+		return () => {
+			isMountedRef.current = false;
+		};
+	}, []);
+	const reportSubmitError = (error: unknown) => {
+		if (isMountedRef.current) {
+			setSubmitError(error);
+		}
+	};
+	// Cleanup for a shell chat whose deferred uploads failed or whose
+	// page was left before the first message. The caller reports the
+	// primary failure, so this only adds the cleanup outcome.
 	const archiveUnusedChat = (chatId: string) => {
 		archiveMutation.mutate(chatId, {
 			onError: (error) => {
-				toast.error(
-					getErrorMessage(error, "Failed to clean up the unused chat."),
-				);
+				if (isMountedRef.current) {
+					toast.error(cleanupFailureMessage(error));
+				}
 			},
 		});
 	};
-	// Resolves true when the chat already holds the first message. A
-	// failed send can still commit server-side; the chat then left the
-	// idle state and archiving it returns 409.
-	const archiveChatAfterFailedSend = async (chatId: string) => {
+	// A failed send can still commit, and an answered chat is idle again,
+	// so archiving alone cannot tell. Only a successful archive proves the
+	// message is absent, because an archived chat refuses a late send.
+	const cleanUpAfterFailedSend = async (
+		chatId: string,
+	): Promise<"committed" | "archived" | "unknown"> => {
 		try {
-			await archiveMutation.mutateAsync(chatId);
+			const { messages } = await withTimeout(
+				() => API.experimental.getChatMessages(chatId, { limit: 1 }),
+				cleanupRequestTimeoutMs,
+			);
+			if (messages.length > 0) {
+				return "committed";
+			}
+			await withTimeout(
+				() => archiveMutation.mutateAsync(chatId),
+				cleanupRequestTimeoutMs,
+			);
+			return "archived";
 		} catch (error) {
 			if (isConflictError(error)) {
-				return true;
+				return "committed";
 			}
-			toast.error(
-				getErrorMessage(error, "Failed to clean up the unused chat."),
-			);
+			if (isMountedRef.current) {
+				toast.error(cleanupFailureMessage(error));
+			}
+			return "unknown";
 		}
-		return false;
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
@@ -225,9 +310,30 @@ const AgentCreatePage: FC = () => {
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};
-		const createdChat = await createMutation.mutateAsync(createRequest);
+		setSubmitError(null);
+		let createdChat: TypesGen.Chat;
+		try {
+			createdChat = await withTimeout(
+				(signal) => createMutation.mutateAsync({ req: createRequest, signal }),
+				chatRequestTimeoutMs,
+			);
+		} catch (error) {
+			if (error instanceof RequestTimeoutError) {
+				// The chat may exist without the page knowing its ID, so
+				// refresh the sidebar where it would show up.
+				void invalidateChatListQueries(queryClient);
+				reportSubmitError(createTimeoutError);
+			} else {
+				reportSubmitError(error);
+			}
+			throw error;
+		}
 
 		if (uploadWorkspaceFiles) {
+			if (!isMountedRef.current) {
+				archiveUnusedChat(createdChat.id);
+				throw new Error(pageLeftMessage);
+			}
 			let uploaded: Awaited<ReturnType<typeof uploadWorkspaceFiles>>;
 			try {
 				uploaded = await uploadWorkspaceFiles(createdChat.id);
@@ -235,12 +341,16 @@ const AgentCreatePage: FC = () => {
 				// The empty chat never started generating, so archiving it
 				// right away is the cleanup path; retry creates a fresh one.
 				archiveUnusedChat(createdChat.id);
-				if (!isAbortError(error)) {
+				if (isMountedRef.current && !isAbortError(error)) {
 					toast.error(
 						getErrorMessage(error, "Failed to upload files to the workspace."),
 					);
 				}
 				throw error;
+			}
+			if (!isMountedRef.current) {
+				archiveUnusedChat(createdChat.id);
+				throw new Error(pageLeftMessage);
 			}
 			const failedCount = uploaded.filter(
 				(upload) => upload.status !== "uploaded" || !upload.response,
@@ -279,14 +389,18 @@ const AgentCreatePage: FC = () => {
 					...(model ? { model_config_id: model } : {}),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				};
-				const firstMessage = {
-					chatId: createdChat.id,
-					req: firstMessageReq,
-				};
 				let sendFailed = false;
 				let sendError: unknown;
 				try {
-					await sendFirstMessageMutation.mutateAsync(firstMessage);
+					await withTimeout(
+						(signal) =>
+							sendFirstMessageMutation.mutateAsync({
+								chatId: createdChat.id,
+								req: firstMessageReq,
+								signal,
+							}),
+						chatRequestTimeoutMs,
+					);
 				} catch (error) {
 					sendFailed = true;
 					sendError = error;
@@ -294,15 +408,36 @@ const AgentCreatePage: FC = () => {
 				// Without the message the fresh chat is an empty shell, so
 				// archive it and stay on the composer with the draft intact;
 				// a retry re-creates the chat and re-uploads.
-				if (sendFailed && !(await archiveChatAfterFailedSend(createdChat.id))) {
-					toast.error(
-						getErrorMessage(sendError, "Failed to send the message."),
-					);
-					throw sendError;
+				if (sendFailed) {
+					const cleanup = await cleanUpAfterFailedSend(createdChat.id);
+					if (cleanup !== "committed") {
+						let reportedError = sendError;
+						// coderd refuses a message with a 4xx before storing it,
+						// while a timeout, network error, or 5xx can follow a commit.
+						const mayHaveCommitted =
+							!isApiError(sendError) || sendError.response.status >= 500;
+						if (cleanup === "unknown" && mayHaveCommitted) {
+							reportedError = {
+								message:
+									sendError instanceof RequestTimeoutError
+										? sendTimeoutError.message
+										: getErrorMessage(sendError, "Failed to send the message."),
+								detail:
+									"The message may still have been sent. Check the chat list before sending again.",
+							};
+						} else if (sendError instanceof RequestTimeoutError) {
+							reportedError = sendTimeoutError;
+						}
+						reportSubmitError(reportedError);
+						throw sendError;
+					}
 				}
 			}
 		}
 
+		if (!isMountedRef.current) {
+			return;
+		}
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
 			search: location.search,
@@ -347,7 +482,7 @@ const AgentCreatePage: FC = () => {
 					key={prefill ? debugBuildId : "draft"}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
-					createError={createMutation.error}
+					createError={submitError}
 					canCreateChat={permissions.createChat}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
 					aiGatewayDisabled={aiGatewayDisabled}
