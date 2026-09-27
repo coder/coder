@@ -1987,7 +1987,7 @@ export interface Chat {
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
-	 * connect and disconnect.
+	 * connect and disconnect and via UpdateChatRequest.Read.
 	 */
 	readonly has_unread: boolean;
 	/**
@@ -10205,6 +10205,17 @@ export interface UpdateChatRequest {
 	 */
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
+	/**
+	 * Read moves the owner's read cursor, which drives HasUnread.
+	 * - nil: no change.
+	 * - true: mark every existing message as read.
+	 * - false: clear the cursor so the chat reads as unread again.
+	 *
+	 * The cursor is owner-scoped, so only the chat owner may set this.
+	 * Opening a chat's stream marks it read, so marking the chat the
+	 * owner is currently viewing as unread does not persist.
+	 */
+	readonly read?: boolean;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.

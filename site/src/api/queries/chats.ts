@@ -1459,6 +1459,55 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
+/**
+ * Moves the owner's read cursor for a chat, which drives the sidebar's
+ * unread indicator. Opening a chat marks it read on its own, so this
+ * only exists for explicitly marking a chat read or unread.
+ */
+const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
+	onMutate: async (chatId: string) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId ? { ...chat, has_unread: !read } : chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				has_unread: !read,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context: { previousChat?: TypesGen.Chat } | undefined,
+	) => {
+		// Rollback: invalidate to re-fetch the correct state.
+		void invalidateChatListQueries(queryClient);
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+	},
+});
+
+export const markChatRead = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, true);
+
+export const markChatUnread = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, false);
+
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),

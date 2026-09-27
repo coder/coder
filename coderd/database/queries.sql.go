@@ -13180,12 +13180,13 @@ WHERE id = $2::uuid
 `
 
 type UpdateChatLastReadMessageIDParams struct {
-	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
-	ID                uuid.UUID `db:"id" json:"id"`
+	LastReadMessageID sql.NullInt64 `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
 }
 
 // Updates the last read message ID for a chat. This is used to track
-// which messages the owner has seen, enabling unread indicators.
+// which messages the owner has seen, enabling unread indicators. A NULL
+// value clears the cursor, marking every message unread again.
 func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
 	return err

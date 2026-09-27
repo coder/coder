@@ -32,6 +32,8 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
@@ -340,6 +342,22 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const markChatReadBase = markChatRead(queryClient);
+	const markChatReadMutation = useMutation({
+		...markChatReadBase,
+		onError: (error, chatId, context) => {
+			markChatReadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markChatUnreadBase = markChatUnread(queryClient);
+	const markChatUnreadMutation = useMutation({
+		...markChatUnreadBase,
+		onError: (error, chatId, context) => {
+			markChatUnreadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
 	const reorderPinnedChatMutation = useMutation({
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
@@ -473,6 +491,12 @@ const AgentsPageLayout: FC = () => {
 	};
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
+	};
+	const requestMarkChatRead = (chatId: string) => {
+		markChatReadMutation.mutate(chatId);
+	};
+	const requestMarkChatUnread = (chatId: string) => {
+		markChatUnreadMutation.mutate(chatId);
 	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
@@ -736,6 +760,8 @@ const AgentsPageLayout: FC = () => {
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 						onPinAgent={requestPinAgent}
 						onUnpinAgent={requestUnpinAgent}
+						onMarkChatRead={requestMarkChatRead}
+						onMarkChatUnread={requestMarkChatUnread}
 						onReorderPinnedAgent={requestReorderPinnedAgent}
 						onRenameTitle={requestRenameTitle}
 						onProposeTitle={requestProposeTitle}

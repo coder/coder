@@ -150,7 +150,7 @@ type Chat struct {
 	Files        []ChatFileMetadata `json:"files,omitempty"`
 	// HasUnread is true when assistant messages exist beyond
 	// the owner's read cursor, which updates on stream
-	// connect and disconnect.
+	// connect and disconnect and via UpdateChatRequest.Read.
 	HasUnread bool `json:"has_unread"`
 	// Context reports the chat's pinned workspace-context state and
 	// whether it has drifted from the agent's latest pushed snapshot.
@@ -702,6 +702,15 @@ type UpdateChatRequest struct {
 	//   value is clamped to [1, pinned_count].
 	PinOrder *int32             `json:"pin_order,omitempty"`
 	Labels   *map[string]string `json:"labels,omitempty"`
+	// Read moves the owner's read cursor, which drives HasUnread.
+	// - nil: no change.
+	// - true: mark every existing message as read.
+	// - false: clear the cursor so the chat reads as unread again.
+	//
+	// The cursor is owner-scoped, so only the chat owner may set this.
+	// Opening a chat's stream marks it read, so marking the chat the
+	// owner is currently viewing as unread does not persist.
+	Read *bool `json:"read,omitempty"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`

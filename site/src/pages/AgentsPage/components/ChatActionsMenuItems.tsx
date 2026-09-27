@@ -2,6 +2,8 @@ import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
 	BotIcon,
+	MailIcon,
+	MailOpenIcon,
 	PinIcon,
 	PinOffIcon,
 	SquarePenIcon,
@@ -93,6 +95,9 @@ type ChatActionsMenuItemsProps = {
 	readonly onToggleSubagents?: () => void;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
+	/** Omit either read handler to hide the read-state toggle. */
+	readonly onMarkRead?: () => void;
+	readonly onMarkUnread?: () => void;
 	readonly onArchiveAgent: () => void;
 	readonly onUnarchiveAgent: () => void;
 	readonly onArchiveAndDeleteWorkspace: () => void;
@@ -113,6 +118,8 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	onToggleSubagents,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkRead,
+	onMarkUnread,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -124,6 +131,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
 	const showSubagentsToggle = Boolean(onToggleSubagents) && subagentCount > 0;
+	const showReadToggle = Boolean(onMarkRead && onMarkUnread);
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
@@ -138,6 +146,22 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 			{isSubagentsExpanded
 				? "Hide subagents"
 				: `Show subagents (${subagentCount})`}
+		</Item>
+	) : null;
+
+	const readToggle = showReadToggle ? (
+		<Item onSelect={chat.has_unread ? onMarkRead : onMarkUnread}>
+			{chat.has_unread ? (
+				<>
+					<MailOpenIcon className="size-3.5" />
+					Mark as read
+				</>
+			) : (
+				<>
+					<MailIcon className="size-3.5" />
+					Mark as unread
+				</>
+			)}
 		</Item>
 	) : null;
 
@@ -170,6 +194,7 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							Unarchive agent
 						</Item>
 						{subagentToggle}
+						{readToggle}
 					</>
 				)
 			) : (
@@ -181,11 +206,13 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 					)}
 					{subagentToggle}
+					{readToggle}
 					{showArchiveActions && (
 						<>
-							{(onOpenRenameDialog || showPinAction || showSubagentsToggle) && (
-								<Separator />
-							)}
+							{(onOpenRenameDialog ||
+								showPinAction ||
+								showSubagentsToggle ||
+								showReadToggle) && <Separator />}
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
 								aria-describedby={archiveBlockedDescribedBy}

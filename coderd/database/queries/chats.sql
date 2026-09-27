@@ -2366,9 +2366,10 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: UpdateChatLastReadMessageID :exec
 -- Updates the last read message ID for a chat. This is used to track
--- which messages the owner has seen, enabling unread indicators.
+-- which messages the owner has seen, enabling unread indicators. A NULL
+-- value clears the cursor, marking every message unread again.
 UPDATE chats
-SET last_read_message_id = @last_read_message_id::bigint
+SET last_read_message_id = sqlc.narg('last_read_message_id')::bigint
 WHERE id = @id::uuid;
 
 -- name: DeleteOldChats :execrows

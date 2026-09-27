@@ -1,8 +1,8 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, useLocation } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -79,9 +79,18 @@ const dashboardValue = {
 type WrapperProps = {
 	children: ReactNode;
 	initialPath?: string;
+	/**
+	 * Route pattern to match children against. Required when a test needs
+	 * the sidebar to read the active chat from the URL params.
+	 */
+	routePath?: string;
 };
 
-const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
+const Wrapper: FC<WrapperProps> = ({
+	children,
+	initialPath = "/agents",
+	routePath,
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -89,7 +98,13 @@ const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
 				<TooltipProvider>
 					<MemoryRouter initialEntries={[initialPath]}>
 						<DashboardContext.Provider value={dashboardValue}>
-							{children}
+							{routePath ? (
+								<Routes>
+									<Route path={routePath} element={children} />
+								</Routes>
+							) : (
+								children
+							)}
 						</DashboardContext.Provider>
 					</MemoryRouter>
 				</TooltipProvider>
@@ -115,6 +130,8 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
+	onMarkChatRead: vi.fn(),
+	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -700,5 +717,91 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar read state actions", () => {
+	const openActionsMenu = async (title: string) => {
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		return user;
+	};
+
+	it("marks a read chat as unread", async () => {
+		const onMarkChatUnread = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+							has_unread: false,
+						}),
+					]}
+					onMarkChatUnread={onMarkChatUnread}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Read chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+		);
+
+		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
+	});
+
+	it("marks an unread chat as read", async () => {
+		const onMarkChatRead = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+					]}
+					onMarkChatRead={onMarkChatRead}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Unread chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as read" }),
+		);
+
+		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
+	});
+
+	it("omits the read toggle for the chat that is already open", async () => {
+		render(
+			<Wrapper initialPath="/agents/open-chat" routePath="/agents/:agentId">
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "open-chat",
+							title: "Open chat",
+							has_unread: true,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await openActionsMenu("Open chat");
+		const menu = await screen.findByRole("menu");
+
+		expect(
+			within(menu).queryByRole("menuitem", { name: /Mark as (un)?read/ }),
+		).not.toBeInTheDocument();
 	});
 });

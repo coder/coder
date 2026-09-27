@@ -96,6 +96,8 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
+		onMarkChatRead: fn(),
+		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -2254,6 +2256,32 @@ export const UnpinContextMenu: Story = {
 		});
 		await userEvent.click(body.getByText("Unpin agent"));
 		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+	},
+};
+
+export const ReadStateContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-agent",
+				title: "Unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByText("Mark as read");
 	},
 };
 

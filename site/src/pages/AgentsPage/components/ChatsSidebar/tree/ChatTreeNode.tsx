@@ -67,6 +67,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -166,6 +168,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
+		// Opening a chat marks it read, so the read toggle would be undone
+		// immediately for the chat the user is already viewing.
+		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
+		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
 		onArchiveAndDeleteWorkspace: () => {
