@@ -228,10 +228,9 @@ const PasteSanitizationPlugin: FC<{
 					// Native paste event (ClipboardEvent).
 
 					// Check for files in the clipboard, such as pasted
-					// screenshots or archives. Forward them to the parent
-					// as one batch, which routes each file to the
-					// attachment pipeline or a workspace upload by MIME
-					// type.
+					// screenshots or archives. Forward all files to the
+					// parent, which routes each one to the attachment
+					// pipeline or a workspace upload by MIME type.
 					if (onFilePaste && dataTransfer?.files.length) {
 						if (onFilePaste(Array.from(dataTransfer.files))) {
 							event.preventDefault();
