@@ -33,8 +33,7 @@ import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: FC<{
 	store: ReturnType<typeof createChatStore>;
-	recentStreamOutputMs?: number;
-}> = ({ store, recentStreamOutputMs }) => (
+}> = ({ store }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
 			organizationId="organization-id"
@@ -45,7 +44,6 @@ const StoryChatPageTimeline: FC<{
 			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
-			recentStreamOutputMs={recentStreamOutputMs}
 		/>
 	</MessageScroller.Provider>
 );
@@ -328,8 +326,7 @@ export const ErrorClearsStreamingTool: Story = {
 	},
 };
 
-// Module scope so the play function can stream into the rendered store. The
-// part arrives after mount, so the capture waits out the real quiet window.
+// The part arrives after mount, so the capture waits out the real quiet window.
 const quietStreamStore = createChatStore();
 export const QuietStreamShowsThinking: Story = {
 	render: () => {
@@ -359,37 +356,23 @@ export const QuietStreamShowsThinking: Story = {
 	},
 };
 
-// A stream already present at mount counts as quiet, so Thinking shows at once.
-// The next part hides it, and the long window keeps Thinking from returning
-// before the capture, which shows the space held where it was.
-const resumedStreamStore = createChatStore();
-export const ResumedStreamKeepsThinkingSpace: Story = {
+// A stream already present at mount counts as quiet, so Thinking shows under
+// its text.
+export const StreamAtMountShowsThinking: Story = {
 	render: () => {
-		resumedStreamStore.resetTransientState();
-		resumedStreamStore.replaceMessages([
+		const store = createChatStore();
+		store.replaceMessages([
 			buildMessage(1, "user", [
 				{ type: "text", text: "Send the agent a detailed prompt" },
 			]),
 		]);
-		resumedStreamStore.setChatStatus("running");
-		resumedStreamStore.applyMessagePart({
+		store.setChatStatus("running");
+		store.applyMessagePart({
 			type: "text",
 			text: "Sure, let me write it up.",
 		});
 
-		return (
-			<StoryChatPageTimeline
-				store={resumedStreamStore}
-				recentStreamOutputMs={60_000}
-			/>
-		);
-	},
-	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByTestId("live-activity-slot");
-		resumedStreamStore.applyMessagePart({
-			type: "text",
-			text: " Here is the plan.",
-		});
+		return <StoryChatPageTimeline store={store} />;
 	},
 };
 
