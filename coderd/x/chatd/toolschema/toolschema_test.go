@@ -84,7 +84,7 @@ func TestValidateUnambiguous(t *testing.T) {
 			input: `{"edits":[{"path":"a","old_text":"x","new_text":"y","replace_all":true}]}`,
 		},
 		{
-			// The retired edit_files shape must reach the tool, which
+			// The retired files shape must reach the tool, which
 			// rejects it with the current shape.
 			name:  "undeclared key holding objects",
 			tool:  editFiles,
