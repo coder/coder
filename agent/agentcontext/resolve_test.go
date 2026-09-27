@@ -2,6 +2,7 @@ package agentcontext_test
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -321,6 +322,119 @@ func TestResolver_InstructionFilesOnlyAtScanRoot(t *testing.T) {
 	require.Len(t, snap.Resources, 1)
 	require.Equal(t, filepath.Join(dir, "AGENTS.md"), snap.Resources[0].Source)
 	require.Equal(t, "root", string(snap.Resources[0].Payload))
+}
+
+func TestResolver_ChildProjectInstructionFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Discovery", func(t *testing.T) {
+		t.Parallel()
+		dir := testutil.TempDirResolved(t)
+		child := filepath.Join(dir, "repo")
+		for _, name := range []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"} {
+			mustWriteFile(t, filepath.Join(child, name), name+" rules")
+		}
+		mustWriteFile(t, filepath.Join(child, "grandchild", "AGENTS.md"), "grandchild")
+		mustWriteFile(t, filepath.Join(dir, ".hidden", "AGENTS.md"), "hidden")
+		mustWriteFile(t, filepath.Join(child, ".mcp.json"), "{}")
+		mustWriteSkill(t, filepath.Join(child, "skills"), "ignored", "ignored skill")
+		// A differently cased name is not an instruction file, even where the
+		// file system would answer a probe for the recognized spelling.
+		mustWriteFile(t, filepath.Join(dir, "wrongcase", "agents.md"), "wrong case")
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+		require.Len(t, snap.Resources, 3, "only the child's instruction files should be discovered")
+		for _, name := range []string{"AGENTS.md", "CLAUDE.md", ".cursorrules"} {
+			got := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(child, name))
+			require.Equal(t, agentcontext.StatusOK, got.Status)
+			require.Empty(t, got.SourcePath)
+			require.Equal(t, name+" rules", string(got.Payload))
+		}
+		require.Empty(t, r.Resolve([]agentcontext.ScanRoot{{Path: dir}}).Resources)
+	})
+
+	t.Run("ChildLimit", func(t *testing.T) {
+		t.Parallel()
+		dir := testutil.TempDirResolved(t)
+		for i := range 65 {
+			require.NoError(t, os.MkdirAll(filepath.Join(dir, fmt.Sprintf("empty-%02d", i)), 0o755))
+			for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
+				mustWriteFile(t, filepath.Join(dir, fmt.Sprintf("repo-%02d", i), name), "rules")
+			}
+		}
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+		require.Len(t, snap.Resources, 128, "limit counts qualifying children, not files or empty directories")
+		for i := range 64 {
+			for _, name := range []string{"AGENTS.md", "CLAUDE.md"} {
+				got := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(dir, fmt.Sprintf("repo-%02d", i), name))
+				require.Equal(t, agentcontext.StatusOK, got.Status)
+			}
+		}
+	})
+
+	t.Run("Symlinks", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks require admin privileges on Windows runners")
+		}
+		dir := testutil.TempDirResolved(t)
+		outside := testutil.TempDirResolved(t)
+		mustWriteFile(t, filepath.Join(outside, "AGENTS.md"), "outside")
+		require.NoError(t, os.Symlink(outside, filepath.Join(dir, "linked")))
+		child := filepath.Join(dir, "repo")
+		mustWriteFile(t, filepath.Join(child, "AGENTS.md"), "rules")
+		require.NoError(t, os.Symlink("AGENTS.md", filepath.Join(child, "CLAUDE.md")))
+		mustWriteFile(t, filepath.Join(dir, "secret"), "outside child")
+		require.NoError(t, os.Symlink(filepath.Join(dir, "secret"), filepath.Join(child, ".cursorrules")))
+
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+		require.Len(t, snap.Resources, 2)
+		got := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(child, "AGENTS.md"))
+		require.Equal(t, agentcontext.StatusOK, got.Status)
+		require.Equal(t, "rules", string(got.Payload))
+		got = findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(child, ".cursorrules"))
+		require.Equal(t, agentcontext.StatusInvalid, got.Status)
+		require.Empty(t, got.Payload, "escaping symlink target must not be shipped")
+		require.Contains(t, got.Error, "escapes scan root")
+	})
+
+	t.Run("OverlappingRoots", func(t *testing.T) {
+		t.Parallel()
+		dir := testutil.TempDirResolved(t)
+		child := filepath.Join(dir, "repo")
+		mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "root")
+		mustWriteFile(t, filepath.Join(child, "AGENTS.md"), "child")
+		r := &agentcontext.Resolver{}
+		snap := r.Resolve([]agentcontext.ScanRoot{
+			{Path: dir, UserSource: dir},
+			{Path: dir, ChildProjects: true},
+			{Path: child},
+		})
+		require.Len(t, snap.Resources, 2)
+		got := findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(dir, "AGENTS.md"))
+		require.Equal(t, dir, got.SourcePath)
+		got = findResource(t, snap.Resources, agentcontext.KindInstructionFile, filepath.Join(child, "AGENTS.md"))
+		require.Empty(t, got.SourcePath)
+		childSnapshot := r.Resolve([]agentcontext.ScanRoot{{Path: child}})
+		require.Equal(t, childSnapshot.Resources[0].ID, got.ID)
+
+		snap = r.Resolve([]agentcontext.ScanRoot{{Path: dir, UserSource: dir}, {Path: dir, ChildProjects: true}})
+		require.Len(t, snap.Resources, 2, "duplicate working-directory roots must retain child discovery")
+	})
+
+	t.Run("Oversize", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		mustWriteFile(t, filepath.Join(dir, "repo", "AGENTS.md"), "too large")
+		r := &agentcontext.Resolver{MaxResourceBytes: 3}
+		snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, ChildProjects: true}})
+		require.Len(t, snap.Resources, 1)
+		require.Equal(t, agentcontext.StatusOversize, snap.Resources[0].Status)
+		require.Empty(t, snap.Resources[0].Payload)
+	})
 }
 
 // TestResolver_SymlinkOutsideScanRootRejected guards the
