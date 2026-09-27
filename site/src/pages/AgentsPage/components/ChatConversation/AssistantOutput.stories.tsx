@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useState } from "react";
 import { expect, fn, screen, within } from "storybook/test";
 import { defaultUrlTransform } from "streamdown";
 import { AssistantOutput } from "./AssistantOutput";
@@ -189,6 +190,25 @@ export const StreamingThinkingHeading: Story = {
 			text: "**Checking the co",
 		},
 	]),
+};
+
+/** Text that resumes after Thinking showed keeps the Thinking row's space. */
+export const ResumedResponseKeepsActivitySpace: Story = {
+	args: responseStreamState,
+	render: function ResumedResponseKeepsActivitySpaceRender(args) {
+		// The first render is quiet so Thinking shows; the resumed state follows.
+		const [resumed, setResumed] = useState(false);
+		useEffect(() => setResumed(true), []);
+		return (
+			<LiveAssistantOutput
+				{...args}
+				liveStatus={buildLiveStatus({
+					streamState: args.streamState,
+					hasRecentStreamOutput: resumed,
+				})}
+			/>
+		);
+	},
 };
 
 /** Tool-only streams use running tool affordances instead of generic thinking. */
