@@ -188,9 +188,11 @@ const AgentCreatePage: FC = () => {
 	// failed send can still commit server-side; the chat then left the
 	// idle state and archiving it returns 409.
 	const archiveChatAfterFailedSend = async (chatId: string) => {
-		const archive = () => archiveMutation.mutateAsync(chatId);
 		try {
-			await withTimeout(archive, cleanupArchiveTimeoutMs);
+			await withTimeout(
+				() => archiveMutation.mutateAsync(chatId),
+				cleanupArchiveTimeoutMs,
+			);
 		} catch (error) {
 			if (isConflictError(error)) {
 				return true;
@@ -297,12 +299,13 @@ const AgentCreatePage: FC = () => {
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};
-		const sendCreate = (signal: AbortSignal) =>
-			createMutation.mutateAsync({ req: createRequest, signal });
 		setSubmitError(null);
 		let createdChat: TypesGen.Chat;
 		try {
-			createdChat = await withTimeout(sendCreate, chatRequestTimeoutMs);
+			createdChat = await withTimeout(
+				(signal) => createMutation.mutateAsync({ req: createRequest, signal }),
+				chatRequestTimeoutMs,
+			);
 		} catch (error) {
 			if (error instanceof RequestTimeoutError) {
 				// The chat may exist without the page knowing its ID, so
@@ -375,16 +378,18 @@ const AgentCreatePage: FC = () => {
 					...(model ? { model_config_id: model } : {}),
 					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 				};
-				const sendFirstMessage = (signal: AbortSignal) =>
-					sendFirstMessageMutation.mutateAsync({
-						chatId: createdChat.id,
-						req: firstMessageReq,
-						signal,
-					});
 				let sendFailed = false;
 				let sendError: unknown;
 				try {
-					await withTimeout(sendFirstMessage, chatRequestTimeoutMs);
+					await withTimeout(
+						(signal) =>
+							sendFirstMessageMutation.mutateAsync({
+								chatId: createdChat.id,
+								req: firstMessageReq,
+								signal,
+							}),
+						chatRequestTimeoutMs,
+					);
 				} catch (error) {
 					sendFailed = true;
 					sendError = error;

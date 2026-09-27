@@ -1714,7 +1714,7 @@ export const createChat = (queryClient: QueryClient) => ({
 		signal,
 	}: {
 		req: TypesGen.CreateChatRequest;
-		signal?: AbortSignal;
+		signal: AbortSignal;
 	}) => API.experimental.createChat(req, signal),
 	onSuccess: () => {
 		void invalidateChatListQueries(queryClient);
@@ -1742,7 +1742,7 @@ export const createChatMessage = (
 type CreateChatMessageByChatIdVariables = {
 	chatId: string;
 	req: TypesGen.CreateChatMessageRequest;
-	signal?: AbortSignal;
+	signal: AbortSignal;
 };
 
 export const createChatMessageByChatId = (queryClient: QueryClient) => ({
