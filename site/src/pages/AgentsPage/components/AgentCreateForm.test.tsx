@@ -133,14 +133,14 @@ const mockStoppedWorkspace: TypesGen.Workspace = {
 	},
 };
 
-const mainAgent: TypesGen.WorkspaceAgent = {
+const mockMainAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "agent-main",
 	name: "main",
 	status: "connected",
 };
 
-const chatAgent: TypesGen.WorkspaceAgent = {
+const mockChatAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "agent-chat",
 	name: "dev-coderd-chat",
@@ -157,7 +157,7 @@ const mockMultiAgentWorkspace: TypesGen.Workspace = {
 		resources: [
 			{
 				...mockWorkspace.latest_build.resources[0],
-				agents: [mainAgent, chatAgent],
+				agents: [mockMainAgent, mockChatAgent],
 			},
 		],
 	},
@@ -531,7 +531,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 	it("rejects workspace files when the server-selected agent is disconnected", async () => {
 		vi.mocked(API.experimental.getChatWorkspaceAgent).mockResolvedValue({
-			agent_id: chatAgent.id,
+			agent_id: mockChatAgent.id,
 		});
 		localStorage.setItem(
 			"agents.selected-workspace-id",
@@ -556,7 +556,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 
 	it("accepts workspace files when the server-selected agent is connected", async () => {
 		vi.mocked(API.experimental.getChatWorkspaceAgent).mockResolvedValue({
-			agent_id: mainAgent.id,
+			agent_id: mockMainAgent.id,
 		});
 		localStorage.setItem(
 			"agents.selected-workspace-id",
@@ -571,7 +571,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 						resources: [
 							{
 								...mockMultiAgentWorkspace.latest_build.resources[0],
-								agents: [mainAgent, { ...chatAgent, name: "sidecar" }],
+								agents: [mockMainAgent, { ...mockChatAgent, name: "sidecar" }],
 							},
 						],
 					},
@@ -629,7 +629,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(onCreateChat).not.toHaveBeenCalled();
 		expect(toast.warning).not.toHaveBeenCalledWith(removedQueuedFileMessage);
 
-		resolveSelection({ agent_id: mainAgent.id });
+		resolveSelection({ agent_id: mockMainAgent.id });
 		await clickSend();
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));

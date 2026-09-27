@@ -58,21 +58,21 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-const mainAgent: TypesGen.WorkspaceAgent = {
+const mockMainAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "agent-main",
 	name: "main",
 	status: "connected",
 };
 
-const chatAgent: TypesGen.WorkspaceAgent = {
+const mockChatAgent: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "agent-chat",
 	name: "dev-coderd-chat",
 	status: "disconnected",
 };
 
-const multiAgentWorkspace: TypesGen.Workspace = {
+const mockMultiAgentWorkspace: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "ws-multi",
 	latest_build: {
@@ -80,7 +80,7 @@ const multiAgentWorkspace: TypesGen.Workspace = {
 		resources: [
 			{
 				...MockWorkspace.latest_build.resources[0],
-				agents: [mainAgent, chatAgent],
+				agents: [mockMainAgent, mockChatAgent],
 			},
 		],
 	},
@@ -204,7 +204,7 @@ describe("ChatPageInput", () => {
 			vi.spyOn(toast, "error");
 			const getChatWorkspaceAgent = vi
 				.spyOn(API.experimental, "getChatWorkspaceAgent")
-				.mockResolvedValue({ agent_id: chatAgent.id });
+				.mockResolvedValue({ agent_id: mockChatAgent.id });
 			const uploadChatWorkspaceFile = vi.spyOn(
 				API.experimental,
 				"uploadChatWorkspaceFile",
@@ -214,15 +214,15 @@ describe("ChatPageInput", () => {
 				chat: {
 					...MockChat,
 					organization_id: "",
-					workspace_id: multiAgentWorkspace.id,
+					workspace_id: mockMultiAgentWorkspace.id,
 					agent_id: agentId,
 				},
-				workspace: multiAgentWorkspace,
+				workspace: mockMultiAgentWorkspace,
 			});
 
 			await waitFor(() =>
 				expect(getChatWorkspaceAgent).toHaveBeenCalledWith(
-					multiAgentWorkspace.id,
+					mockMultiAgentWorkspace.id,
 				),
 			);
 			await attachZipFile(user);
@@ -237,7 +237,7 @@ describe("ChatPageInput", () => {
 	it("uploads to the server-selected agent when it is connected", async () => {
 		const user = userEvent.setup({ applyAccept: true });
 		vi.spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({
-			agent_id: mainAgent.id,
+			agent_id: mockMainAgent.id,
 		});
 		const uploadChatWorkspaceFile = vi
 			.spyOn(API.experimental, "uploadChatWorkspaceFile")
@@ -246,24 +246,24 @@ describe("ChatPageInput", () => {
 				name: "bundle.zip",
 				size: 4,
 				media_type: "application/zip",
-				workspace_id: multiAgentWorkspace.id,
+				workspace_id: mockMultiAgentWorkspace.id,
 			});
 
 		renderChatPageInput(createChatStore(), {
 			chat: {
 				...MockChat,
 				organization_id: "",
-				workspace_id: multiAgentWorkspace.id,
+				workspace_id: mockMultiAgentWorkspace.id,
 				agent_id: undefined,
 			},
 			workspace: {
-				...multiAgentWorkspace,
+				...mockMultiAgentWorkspace,
 				latest_build: {
-					...multiAgentWorkspace.latest_build,
+					...mockMultiAgentWorkspace.latest_build,
 					resources: [
 						{
-							...multiAgentWorkspace.latest_build.resources[0],
-							agents: [mainAgent, { ...chatAgent, name: "sidecar" }],
+							...mockMultiAgentWorkspace.latest_build.resources[0],
+							agents: [mockMainAgent, { ...mockChatAgent, name: "sidecar" }],
 						},
 					],
 				},

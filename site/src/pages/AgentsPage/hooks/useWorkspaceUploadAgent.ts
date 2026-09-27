@@ -4,17 +4,16 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 /**
- * Resolves the agent that workspace uploads target, mirroring the
- * server's chatWorkspaceUploadAgent: the chat's bound agent when it is
- * in the workspace's latest build, otherwise the agent the server
- * selects for the workspace. `isResolved` stays false while that
- * selection is loading or failed to load, so callers can tell an
+ * Resolves the agent that workspace uploads target: the chat's bound
+ * agent when it is in the workspace's latest build, otherwise the agent
+ * the server selects for the workspace. `isResolved` stays false while
+ * that selection is loading or failed to load, so callers can tell an
  * unknown target apart from a workspace without an eligible agent.
  * `canUpload` requires a running latest build and a connected target.
  */
 export const useWorkspaceUploadAgent = (
 	workspace: TypesGen.Workspace | undefined,
-	boundAgentId: string | undefined,
+	boundAgentId?: string,
 ) => {
 	const boundAgent =
 		workspace && boundAgentId
@@ -32,14 +31,12 @@ export const useWorkspaceUploadAgent = (
 	});
 
 	const selectedAgentId = selectionQuery.data?.agent_id;
-	const agent = needsSelection
-		? workspace && selectedAgentId
-			? findWorkspaceAgent(workspace, selectedAgentId)
-			: undefined
-		: boundAgent;
+	let agent = boundAgent;
+	if (needsSelection && workspace && selectedAgentId) {
+		agent = findWorkspaceAgent(workspace, selectedAgentId);
+	}
 	const isResolved = !needsSelection || selectionQuery.data !== undefined;
 	return {
-		agent,
 		isResolved,
 		canUpload: isResolved && isRunning && agent?.status === "connected",
 	};

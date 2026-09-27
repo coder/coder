@@ -549,25 +549,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		saveReasoningEffortForModel(selectedModel, value);
 	};
 
-	// Deferred uploads eventually hit the same agent endpoint as the
-	// chat view, which rejects unless the agent is connected. The new
-	// chat has no bound agent, so the server uploads to the agent it
-	// selects for the workspace; gating on that agent makes a stopped
-	// or disconnected target fail at attach time instead of after
-	// creating a chat destined for an upload failure.
+	// Deferred uploads hit the same agent endpoint as the chat view,
+	// which rejects unless the agent is connected. The new chat has no
+	// bound agent, so gate on the agent the server selects for it.
 	const selectedWorkspace = filteredWorkspaces.find(
 		(ws) => ws.id === effectiveWorkspaceId,
 	);
-	const workspaceUploadAgent = useWorkspaceUploadAgent(
-		selectedWorkspace,
-		undefined,
-	);
-	const canUploadWorkspaceFiles = workspaceUploadAgent.canUpload;
+	const { canUpload: canUploadWorkspaceFiles, isResolved } =
+		useWorkspaceUploadAgent(selectedWorkspace);
 	// A selected workspace missing from a loading list is as unknown as
 	// a pending agent selection.
 	const isWorkspaceUploadTargetResolved =
 		effectiveWorkspaceId === null ||
-		(selectedWorkspace !== undefined && workspaceUploadAgent.isResolved);
+		(selectedWorkspace !== undefined && isResolved);
 
 	const handleSend = async (
 		message: string,
@@ -626,9 +620,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// whose uploads are guaranteed to fail. A status flap on the same
 	// workspace (a passive refetch reporting the agent disconnected)
 	// keeps the queue and only blocks submit until it reconnects: the
-	// queued File objects cannot be restored once dropped. For the same
-	// reason the decision waits until the new scope's upload target is
-	// known, keeping the scope change pending meanwhile.
+	// queued File objects cannot be restored once dropped, so nothing
+	// drops until the new scope's upload target is known.
 	const workspaceUploadCount = workspaceUploadEntries.length;
 	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
 	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);

@@ -681,10 +681,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	// The workspace upload affordance requires an existing chat bound
 	// to a workspace whose upload agent is connected; the agent writes
-	// the bytes into its home directory. A freshly attached or rebound
-	// workspace has no bound agent until the next generation, and the
-	// cached chat's agent_id can be stale or null after a rebind, so
-	// the hook falls back to the agent the server selects.
+	// the bytes into its home directory.
 	const workspaceUploadAgent = useWorkspaceUploadAgent(
 		workspace,
 		chat.agent_id,
