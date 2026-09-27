@@ -116,8 +116,8 @@ describe("Tool edit_files rows", () => {
 			{ path: "/repo/b.go", old_text: "foo()", new_text: "bar()" },
 		],
 	};
-	// The server diffs add lines that differ from new_text, so a diff
-	// built from the args instead would not show them.
+	// The server diffs add lines that differ from new_text, which a diff
+	// built from the args would not show.
 	const diffA =
 		"--- /repo/a.go\n+++ /repo/a.go\n@@ -1,1 +1,1 @@\n-x := 1\n+x := 2 // server a\n";
 	const diffB =
@@ -125,7 +125,7 @@ describe("Tool edit_files rows", () => {
 
 	it.each([
 		{
-			name: "stored ok result",
+			name: "result with ok: true",
 			result: {
 				ok: true,
 				files: [
@@ -135,7 +135,7 @@ describe("Tool edit_files rows", () => {
 			},
 		},
 		{
-			name: "applied status result",
+			name: "result with status: applied",
 			result: {
 				status: "applied",
 				message: "Applied edits to 2 files.",
