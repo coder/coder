@@ -901,15 +901,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	// Synced during commit rather than in a passive effect, so a Paste
 	// inline load that resolves right after a send commits sees the lock.
-	const committedIsLoadingRef = useRef(isLoading);
+	const committedComposerRef = useRef({ isLoading, attachments });
 	useLayoutEffect(() => {
-		committedIsLoadingRef.current = isLoading;
-	}, [isLoading]);
+		committedComposerRef.current = { isLoading, attachments };
+	}, [isLoading, attachments]);
 
 	const handleInlineText = (file: File, nextContent?: string) => {
 		// The content may have loaded asynchronously after the click, so
-		// check the latest committed lock rather than this render's.
-		if (committedIsLoadingRef.current) return;
+		// check the latest committed composer rather than this render's: a
+		// send may be pending, or may have finished and taken the file.
+		const committed = committedComposerRef.current;
+		if (committed.isLoading || !committed.attachments.includes(file)) return;
 		const content = nextContent ?? textContents?.get(file);
 		if (content === undefined) return;
 		const editor = internalRef.current;

@@ -595,55 +595,64 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("drops an inline-text action whose content loads after a send starts", async () => {
-		const user = userEvent.setup();
-		const inputRef = createRef<ChatMessageInputRef>();
-		const notes = createMockFile("notes.txt", "text/plain");
-		const onRemoveAttachment = vi.fn();
-		let resolveFetch: (response: Response) => void = () => {};
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(
-				() =>
-					new Promise<Response>((resolve) => {
-						resolveFetch = resolve;
-					}),
-			),
-		);
-		const renderWithLoading = (isLoading: boolean) => (
-			<AppProviders>
-				<AgentChatInput
-					inputRef={inputRef}
-					onSend={vi.fn()}
-					onAttach={vi.fn()}
-					attachments={[notes]}
-					onRemoveAttachment={onRemoveAttachment}
-					uploadStates={
-						new Map([[notes, { status: "uploaded", fileId: "file-notes" }]])
-					}
-					isDisabled={false}
-					isLoading={isLoading}
-					selectedModel={modelOptions[0].id}
-					onModelChange={vi.fn()}
-					modelOptions={modelOptions}
-					modelSelectorPlaceholder="Select model"
-					hasModelOptions
-					canConfigureAgentSetup={false}
-				/>
-			</AppProviders>
-		);
-		const { rerender } = render(renderWithLoading(false));
+	it.each([
+		{ phase: "starts", afterSend: { isLoading: true, attached: true } },
+		{ phase: "finishes", afterSend: { isLoading: false, attached: false } },
+	])(
+		"drops an inline-text action whose content loads after a send $phase",
+		async ({ afterSend }) => {
+			const user = userEvent.setup();
+			const inputRef = createRef<ChatMessageInputRef>();
+			const notes = createMockFile("notes.txt", "text/plain");
+			const onRemoveAttachment = vi.fn();
+			let resolveFetch: (response: Response) => void = () => {};
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(
+					() =>
+						new Promise<Response>((resolve) => {
+							resolveFetch = resolve;
+						}),
+				),
+			);
+			const renderComposer = (isLoading: boolean, attachments: File[]) => (
+				<AppProviders>
+					<AgentChatInput
+						inputRef={inputRef}
+						onSend={vi.fn()}
+						onAttach={vi.fn()}
+						attachments={attachments}
+						onRemoveAttachment={onRemoveAttachment}
+						uploadStates={
+							new Map([[notes, { status: "uploaded", fileId: "file-notes" }]])
+						}
+						isDisabled={false}
+						isLoading={isLoading}
+						selectedModel={modelOptions[0].id}
+						onModelChange={vi.fn()}
+						modelOptions={modelOptions}
+						modelSelectorPlaceholder="Select model"
+						hasModelOptions
+						canConfigureAgentSetup={false}
+					/>
+				</AppProviders>
+			);
+			const { rerender } = render(renderComposer(false, [notes]));
 
-		await user.click(screen.getByRole("button", { name: "Paste inline" }));
-		await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
-		rerender(renderWithLoading(true));
-		resolveFetch(new Response("meeting notes"));
+			await user.click(screen.getByRole("button", { name: "Paste inline" }));
+			await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+			rerender(renderComposer(true, [notes]));
+			rerender(
+				renderComposer(afterSend.isLoading, afterSend.attached ? [notes] : []),
+			);
+			resolveFetch(new Response("meeting notes"));
 
-		// Let the resolved load reach the inline handler.
-		await new Promise((resolve) => setTimeout(resolve, 0));
-		expect(onRemoveAttachment).not.toHaveBeenCalled();
-		expect(inputRef.current?.getValue()).toBe("");
-	});
+			// Let the resolved load reach the inline handler.
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(onRemoveAttachment).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("");
+		},
+	);
 
 	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
 		const onAttach = vi.fn();
