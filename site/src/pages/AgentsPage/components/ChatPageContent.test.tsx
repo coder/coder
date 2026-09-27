@@ -1,9 +1,12 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
@@ -55,6 +58,48 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
+const mainAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "agent-main",
+	name: "main",
+	status: "connected",
+};
+
+const chatAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "agent-chat",
+	name: "dev-coderd-chat",
+	status: "disconnected",
+};
+
+const multiAgentWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "ws-multi",
+	latest_build: {
+		...MockWorkspace.latest_build,
+		resources: [
+			{
+				...MockWorkspace.latest_build.resources[0],
+				agents: [mainAgent, chatAgent],
+			},
+		],
+	},
+};
+
+const attachZipFile = async (user: ReturnType<typeof userEvent.setup>) => {
+	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
+		type: "application/zip",
+	});
+	await user.upload(
+		await screen.findByTestId("chat-attachment-file-input"),
+		zip,
+	);
+};
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
+
 describe("ChatPageInput", () => {
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
@@ -101,5 +146,89 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it.each([
+		{ name: "a null", agentId: undefined },
+		{ name: "a stale", agentId: "agent-removed" },
+	])(
+		"uses the server-selected agent for uploads with $name agent_id",
+		async ({ agentId }) => {
+			const user = userEvent.setup({ applyAccept: true });
+			vi.spyOn(toast, "error");
+			const getChatWorkspaceAgent = vi
+				.spyOn(API.experimental, "getChatWorkspaceAgent")
+				.mockResolvedValue({ agent_id: chatAgent.id });
+			const uploadChatWorkspaceFile = vi.spyOn(
+				API.experimental,
+				"uploadChatWorkspaceFile",
+			);
+
+			renderChatPageInput(createChatStore(), {
+				chat: {
+					...MockChat,
+					organization_id: "",
+					workspace_id: multiAgentWorkspace.id,
+					agent_id: agentId,
+				},
+				workspace: multiAgentWorkspace,
+			});
+
+			await waitFor(() =>
+				expect(getChatWorkspaceAgent).toHaveBeenCalledWith(
+					multiAgentWorkspace.id,
+				),
+			);
+			await attachZipFile(user);
+
+			expect(toast.error).toHaveBeenCalledWith(
+				"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			);
+			expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
+		},
+	);
+
+	it("uploads to the server-selected agent when it is connected", async () => {
+		const user = userEvent.setup({ applyAccept: true });
+		vi.spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({
+			agent_id: mainAgent.id,
+		});
+		const uploadChatWorkspaceFile = vi
+			.spyOn(API.experimental, "uploadChatWorkspaceFile")
+			.mockResolvedValue({
+				path: "/home/coder/bundle.zip",
+				name: "bundle.zip",
+				size: 4,
+				media_type: "application/zip",
+				workspace_id: multiAgentWorkspace.id,
+			});
+
+		renderChatPageInput(createChatStore(), {
+			chat: {
+				...MockChat,
+				organization_id: "",
+				workspace_id: multiAgentWorkspace.id,
+				agent_id: undefined,
+			},
+			workspace: {
+				...multiAgentWorkspace,
+				latest_build: {
+					...multiAgentWorkspace.latest_build,
+					resources: [
+						{
+							...multiAgentWorkspace.latest_build.resources[0],
+							agents: [mainAgent, { ...chatAgent, name: "sidecar" }],
+						},
+					],
+				},
+			},
+		});
+
+		await waitFor(() =>
+			expect(API.experimental.getChatWorkspaceAgent).toHaveBeenCalled(),
+		);
+		await attachZipFile(user);
+
+		await waitFor(() => expect(uploadChatWorkspaceFile).toHaveBeenCalled());
 	});
 });

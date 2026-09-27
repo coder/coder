@@ -14,12 +14,12 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { getWorkspaceAgents } from "#/utils/workspace";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	useWorkspaceFileUploads,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import { useWorkspaceUploadAgent } from "../hooks/useWorkspaceUploadAgent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getDefaultMCPSelection,
@@ -551,20 +551,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	// Deferred uploads eventually hit the same agent endpoint as the
-	// chat view, which rejects unless the agent is connected. No chat
-	// exists yet to carry the server-selected agent ID, so gate the
-	// affordance on any connected root agent: a stopped workspace then
-	// fails at attach time instead of after creating a chat destined
-	// for an upload failure, and the rare mismatch with the server's
-	// pick still surfaces as an upload error on submit.
+	// chat view, which rejects unless the agent is connected. The new
+	// chat has no bound agent, so the server uploads to the agent it
+	// selects for the workspace; gating on that agent makes a stopped
+	// or disconnected target fail at attach time instead of after
+	// creating a chat destined for an upload failure.
 	const selectedWorkspace = filteredWorkspaces.find(
 		(ws) => ws.id === effectiveWorkspaceId,
 	);
-	const canUploadWorkspaceFiles =
-		selectedWorkspace !== undefined &&
-		getWorkspaceAgents(selectedWorkspace).some(
-			(agent) => !agent.parent_id && agent.status === "connected",
-		);
+	const workspaceUploadAgent = useWorkspaceUploadAgent(
+		selectedWorkspace,
+		undefined,
+	);
+	const canUploadWorkspaceFiles = workspaceUploadAgent.canUpload;
+	// A selected workspace missing from a loading list is as unknown as
+	// a pending agent selection.
+	const isWorkspaceUploadTargetResolved =
+		effectiveWorkspaceId === null ||
+		(selectedWorkspace !== undefined && workspaceUploadAgent.isResolved);
 
 	const handleSend = async (
 		message: string,
@@ -617,7 +621,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// whose uploads are guaranteed to fail. A status flap on the same
 	// workspace (a passive refetch reporting the agent disconnected)
 	// keeps the queue and only blocks submit until it reconnects: the
-	// queued File objects cannot be restored once dropped.
+	// queued File objects cannot be restored once dropped. For the same
+	// reason the decision waits until the new scope's upload target is
+	// known, keeping the scope change pending meanwhile.
 	const workspaceUploadCount = workspaceUploadEntries.length;
 	const workspaceUploadScopeKey = `${organizationId}/${effectiveWorkspaceId ?? ""}`;
 	const previousWorkspaceUploadScopeKeyRef = useRef(workspaceUploadScopeKey);
@@ -625,6 +631,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		if (
 			previousWorkspaceUploadScopeKeyRef.current === workspaceUploadScopeKey
 		) {
+			return;
+		}
+		if (!isWorkspaceUploadTargetResolved) {
 			return;
 		}
 		previousWorkspaceUploadScopeKeyRef.current = workspaceUploadScopeKey;
@@ -639,6 +648,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		);
 	}, [
 		workspaceUploadScopeKey,
+		isWorkspaceUploadTargetResolved,
 		canUploadWorkspaceFiles,
 		workspaceUploadCount,
 		resetWorkspaceUploads,

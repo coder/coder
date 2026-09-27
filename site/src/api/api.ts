@@ -3227,6 +3227,15 @@ class ExperimentalApiMethods {
 		return res.data;
 	};
 
+	getChatWorkspaceAgent = async (
+		workspaceId: string,
+	): Promise<TypesGen.ChatWorkspaceAgent> => {
+		const res = await this.axios.get("/api/v2/chats/workspace-agent", {
+			params: { workspace_id: workspaceId },
+		});
+		return res.data;
+	};
+
 	uploadChatWorkspaceFile = async (
 		chatId: string,
 		file: File,
