@@ -136,6 +136,12 @@ const sendTimeoutError: ApiErrorResponse = {
 	detail: "The message was not sent. Try again.",
 };
 
+const uncertainSendTimeoutError: ApiErrorResponse = {
+	message: "Sending the message took too long.",
+	detail:
+		"The message may still have been sent. Check the chat list before sending again.",
+};
+
 const pageLeftMessage = "The page was left before the first message was sent.";
 
 const cleanupFailureMessage = (error: unknown) =>
@@ -185,32 +191,36 @@ const AgentCreatePage: FC = () => {
 			},
 		});
 	};
-	// Resolves true when the chat already holds the first message. A
-	// failed send can still commit server-side. Archiving returns 409
+	// A failed send can still commit server-side. Archiving returns 409
 	// only while the reply is generating; once it finishes the chat is
-	// idle again and would archive, so check for messages first.
-	const archiveChatAfterFailedSend = async (chatId: string) => {
+	// idle again and would archive, so check for messages first. Only a
+	// successful archive proves the message is absent: an archived chat
+	// refuses a late send.
+	const archiveChatAfterFailedSend = async (
+		chatId: string,
+	): Promise<"committed" | "archived" | "unknown"> => {
 		try {
 			const { messages } = await withTimeout(
 				() => API.experimental.getChatMessages(chatId, { limit: 1 }),
 				cleanupArchiveTimeoutMs,
 			);
 			if (messages.length > 0) {
-				return true;
+				return "committed";
 			}
 			await withTimeout(
 				() => archiveMutation.mutateAsync(chatId),
 				cleanupArchiveTimeoutMs,
 			);
+			return "archived";
 		} catch (error) {
 			if (isConflictError(error)) {
-				return true;
+				return "committed";
 			}
 			if (isMountedRef.current) {
 				toast.error(cleanupFailureMessage(error));
 			}
+			return "unknown";
 		}
-		return false;
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
@@ -406,13 +416,19 @@ const AgentCreatePage: FC = () => {
 				// Without the message the fresh chat is an empty shell, so
 				// archive it and stay on the composer with the draft intact;
 				// a retry re-creates the chat and re-uploads.
-				if (sendFailed && !(await archiveChatAfterFailedSend(createdChat.id))) {
-					reportSubmitError(
-						sendError instanceof RequestTimeoutError
-							? sendTimeoutError
-							: sendError,
-					);
-					throw sendError;
+				if (sendFailed) {
+					const cleanup = await archiveChatAfterFailedSend(createdChat.id);
+					if (cleanup !== "committed") {
+						let reportedError = sendError;
+						if (sendError instanceof RequestTimeoutError) {
+							reportedError =
+								cleanup === "archived"
+									? sendTimeoutError
+									: uncertainSendTimeoutError;
+						}
+						reportSubmitError(reportedError);
+						throw sendError;
+					}
 				}
 			}
 		}

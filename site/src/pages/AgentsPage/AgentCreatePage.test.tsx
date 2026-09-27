@@ -606,6 +606,34 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
+	it("says a stalled first message may have been sent when the cleanup cannot tell", async () => {
+		const router = await renderUploadPage();
+		vi.useFakeTimers();
+		vi.mocked(API.experimental.createChatMessage).mockImplementation(
+			(_chatId, _req, signal) => stallUntilAborted(signal),
+		);
+		vi.mocked(API.experimental.getChatMessages).mockRejectedValue(
+			mockApiError({ message: "Loading messages failed." }),
+		);
+		const uploadWorkspaceFiles = vi.fn().mockResolvedValue([mockUploadedFile]);
+
+		let outcome: Promise<SubmitOutcome> | undefined;
+		await act(async () => {
+			outcome = startSubmit({ uploadWorkspaceFiles });
+			await vi.advanceTimersByTimeAsync(30_000);
+		});
+
+		expect(await outcome).toEqual({ rejected: true });
+		expect(API.experimental.updateChat).not.toHaveBeenCalled();
+		expect(toast.error).toHaveBeenCalledWith("Loading messages failed.");
+		expect(formProps.createError).toEqual({
+			message: "Sending the message took too long.",
+			detail:
+				"The message may still have been sent. Check the chat list before sending again.",
+		});
+		expect(router.state.location.pathname).toBe("/agents");
+	});
+
 	it("releases the composer when the cleanup archive stalls", async () => {
 		const router = await renderUploadPage();
 		vi.useFakeTimers();
