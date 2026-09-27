@@ -360,8 +360,8 @@ func executeEditFilesTool(
 	return marshalToolResponse(result), nil
 }
 
-// editFilesNoneApplied is the statement in every edit_files error
-// result that is known to have written nothing.
+// editFilesNoneApplied is the statement every edit_files error result
+// makes when the call is known to have written nothing.
 const editFilesNoneApplied = "No files were applied."
 
 const editFilesStatusApplied = "applied"
@@ -374,7 +374,6 @@ type editFilesResult struct {
 }
 
 // editFilesFileResult is the outcome for one file in editFilesResult.
-// Path and Diff come from the agent's workspacesdk.FileEditResult.
 type editFilesFileResult struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
@@ -389,20 +388,18 @@ func pluralFiles(n int) string {
 }
 
 // rejectEditFiles returns a whole-call rejection decided before any
-// edit request reached the agent, so no file was written. reason
-// leads with what to change when the model can change anything.
+// edit request reached the agent, so no file was written.
 func rejectEditFiles(reason string) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
 }
 
 // agentWroteNothing reports whether an EditFiles error proves that the
-// agent wrote no file. Only an agent response is proof: an error
-// without one, such as a dropped connection, may follow a completed
-// write. The agent validates every file before writing any and returns
-// 400 and 404 only from validation. Its write phase can fail with 403
-// or 500 after committing earlier files, but writes each file through
-// a temporary file and rename, so a request for one file leaves it
-// untouched on any error.
+// agent wrote no file. Only an agent response can prove it; a dropped
+// connection may follow a completed write. The agent commits each file
+// by renaming a temporary file, so a failed single-file request wrote
+// nothing unless the agent panicked after the rename. With several
+// files, 400 and 404 come only from validation, before any write, but
+// 403 and 500 can follow earlier commits.
 func agentWroteNothing(err error, requestFiles int) bool {
 	sdkErr, ok := codersdk.AsError(err)
 	if !ok {

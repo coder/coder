@@ -241,11 +241,8 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	// The result claims nothing was applied only when the agent's
-	// response proves it: the agent returns 400 and 404 only before it
-	// writes, and a single file is left untouched on any failure. Its
-	// write phase can fail with 403 or 500 after committing earlier
-	// files, and a transport error may follow a completed write.
+	// The result says nothing was applied only when the agent's response
+	// proves it; agentWroteNothing documents which responses do.
 	t.Run("AgentErrorResult", func(t *testing.T) {
 		t.Parallel()
 		const (
