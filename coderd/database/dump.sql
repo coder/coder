@@ -1913,7 +1913,8 @@ CREATE TABLE chat_context_resources (
     error text DEFAULT ''::text NOT NULL,
     source_path text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    discovered boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -1933,6 +1934,8 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
 COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+COMMENT ON COLUMN chat_context_resources.discovered IS 'True when chatd pinned the row from a directory a tool touched during the chat rather than copying it from the agent snapshot. Discovered rows are ignored by snapshot drift checks and are replaced by the snapshot copy once the agent starts publishing the same source.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
