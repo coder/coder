@@ -193,9 +193,9 @@ const renderForm = (props: Partial<FormProps> = {}) => {
 	};
 };
 
-// Without a workspace the input's accept attribute excludes zips; skip
-// it to exercise the routing logic like a drag-and-drop would.
-const user = () => userEvent.setup({ applyAccept: false });
+// applyAccept stays on so these tests fail if the picker's accept
+// attribute filters out workspace-routed types.
+const user = () => userEvent.setup({ applyAccept: true });
 
 const attachZipFile = async () => {
 	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {

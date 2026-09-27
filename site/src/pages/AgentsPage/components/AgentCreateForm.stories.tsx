@@ -2211,10 +2211,7 @@ const attachZipFile = async (canvasElement: HTMLElement) => {
 	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
 		type: "application/zip",
 	});
-	// Without a workspace the input's accept attribute excludes zips;
-	// bypass it to exercise the routing logic like a drag-and-drop
-	// would.
-	await userEvent.upload(fileInput, zip, { applyAccept: false });
+	await userEvent.upload(fileInput, zip);
 };
 
 export const WorkspaceFileQueuedForDeferredUpload: Story = {

@@ -1347,9 +1347,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					</div>
 				)}
 				{/* Hidden file input for attaching files. When workspace
-				uploads are available every file type is selectable:
-				non-allowlisted types stream into the workspace instead
-				of the attachment pipeline. */}
+				uploads are wired, every file type stays selectable even
+				while no workspace is ready: iOS silently greys out
+				filtered types, so routeFiles explains the refusal. */}
 				{onAttach && (
 					<input
 						ref={fileInputRef}
@@ -1357,7 +1357,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						data-testid="chat-attachment-file-input"
 						multiple
 						accept={
-							onWorkspaceAttach ? undefined : chatAttachmentAcceptAttribute
+							workspaceUploads ? undefined : chatAttachmentAcceptAttribute
 						}
 						onChange={handleFileSelect}
 						className="hidden"
