@@ -96,7 +96,7 @@ const isConflictError = (error: unknown) =>
 // Server-side hook dispatch is capped at 5 seconds, so a create or first
 // message still pending after this is stalled rather than slow.
 const chatRequestTimeoutMs = 30_000;
-const cleanupArchiveTimeoutMs = 10_000;
+const cleanupRequestTimeoutMs = 10_000;
 
 class RequestTimeoutError extends Error {
 	constructor() {
@@ -191,25 +191,23 @@ const AgentCreatePage: FC = () => {
 			},
 		});
 	};
-	// A failed send can still commit server-side. Archiving returns 409
-	// only while the reply is generating; once it finishes the chat is
-	// idle again and would archive, so check for messages first. Only a
-	// successful archive proves the message is absent: an archived chat
-	// refuses a late send.
-	const archiveChatAfterFailedSend = async (
+	// A failed send can still commit, and an answered chat is idle again,
+	// so archiving alone cannot tell. Only a successful archive proves the
+	// message is absent, because an archived chat refuses a late send.
+	const cleanUpAfterFailedSend = async (
 		chatId: string,
 	): Promise<"committed" | "archived" | "unknown"> => {
 		try {
 			const { messages } = await withTimeout(
 				() => API.experimental.getChatMessages(chatId, { limit: 1 }),
-				cleanupArchiveTimeoutMs,
+				cleanupRequestTimeoutMs,
 			);
 			if (messages.length > 0) {
 				return "committed";
 			}
 			await withTimeout(
 				() => archiveMutation.mutateAsync(chatId),
-				cleanupArchiveTimeoutMs,
+				cleanupRequestTimeoutMs,
 			);
 			return "archived";
 		} catch (error) {
@@ -417,7 +415,7 @@ const AgentCreatePage: FC = () => {
 				// archive it and stay on the composer with the draft intact;
 				// a retry re-creates the chat and re-uploads.
 				if (sendFailed) {
-					const cleanup = await archiveChatAfterFailedSend(createdChat.id);
+					const cleanup = await cleanUpAfterFailedSend(createdChat.id);
 					if (cleanup !== "committed") {
 						let reportedError = sendError;
 						if (sendError instanceof RequestTimeoutError) {
