@@ -115,8 +115,8 @@ describe("Tool edit_files rows", () => {
 	const threeFiles = {
 		edits: [edit("/repo/a.go"), edit("/repo/b.go"), edit("/repo/c.go")],
 	};
-	// Server diffs add a line that differs from new_text, so an args diff
-	// would not show it.
+	// Server diffs add a line that differs from new_text, which an args
+	// diff would not show.
 	const diff = (path: string) =>
 		`--- ${path}\n+++ ${path}\n@@ -1,1 +1,1 @@\n-old\n+new // server\n`;
 	const applied = (path: string) => ({
@@ -158,7 +158,7 @@ describe("Tool edit_files rows", () => {
 		hiddenText?: string;
 	}>([
 		{
-			name: "stored ok result",
+			name: "result with ok: true",
 			args: twoFiles,
 			result: {
 				ok: true,
@@ -181,7 +181,7 @@ describe("Tool edit_files rows", () => {
 			rows: [serverDiffRow("/repo/a.go"), argsDiffRow("/repo/b.go")],
 		},
 		{
-			name: "applied status result",
+			name: "result with status: applied",
 			args: twoFiles,
 			result: {
 				status: "applied",
