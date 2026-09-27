@@ -3,6 +3,8 @@ import type {
 	DeploymentValues,
 	ExternalAuthConfig,
 } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { TableSettingsEmpty } from "#/components/SettingsEmptyState/SettingsEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -17,7 +19,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import { docs } from "#/utils/docs";
 
@@ -81,7 +82,21 @@ export const ExternalAuthSettingsPageView: FC<
 				<TableBody>
 					{config.external_auth === null ||
 					config.external_auth?.length === 0 ? (
-						<TableEmpty message="No providers have been configured!" />
+						<TableSettingsEmpty
+							message="No providers configured"
+							description="Connect Git and OAuth providers so developers can authenticate with external services."
+							cta={
+								<Button variant="outline" size="sm" asChild>
+									<a
+										href={docs("/admin/external-auth")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										Set up external authentication
+									</a>
+								</Button>
+							}
+						/>
 					) : (
 						config.external_auth?.map((git: ExternalAuthConfig) => {
 							const name = git.id || git.type;

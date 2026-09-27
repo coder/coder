@@ -8,6 +8,7 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { TableSettingsEmpty } from "#/components/SettingsEmptyState/SettingsEmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -22,7 +23,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import {
 	Tabs,
@@ -116,8 +116,8 @@ const SettingsTabBody: FC<{ settings: SettingsTab }> = ({ settings }) => {
 	);
 };
 
-const AddApplicationButton: FC = () => (
-	<Button variant="outline" asChild>
+const AddApplicationButton: FC<{ size?: "sm" | "lg" }> = ({ size }) => (
+	<Button variant="outline" size={size} asChild>
 		<Link to="/deployment/oauth2-provider/apps/add">
 			<PlusIcon />
 			<span>Add application</span>
@@ -196,10 +196,14 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 							{isLoadingApps ? (
 								<TableLoader />
 							) : !appsError && (!apps || apps.length === 0) ? (
-								<TableEmpty
+								<TableSettingsEmpty
 									message="No OAuth2 applications configured"
-									description="Add an application to use Coder as an OAuth2 provider."
-									cta={canCreateApp ? <AddApplicationButton /> : undefined}
+									description="Register an application to use Coder as an OAuth2 provider."
+									cta={
+										canCreateApp ? (
+											<AddApplicationButton size="sm" />
+										) : undefined
+									}
 								/>
 							) : (
 								apps?.map((app) => <OAuth2AppRow key={app.id} app={app} />)
