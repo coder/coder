@@ -2401,6 +2401,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		planModeUpdate = &resolvedPlanMode
 	}
 
+	// The read cursor is owner-scoped, so an admin with update
+	// permission must not move another user's unread state. Checked
+	// before any write so a rejected request does not commit the
+	// other fields of a multi-field update.
+	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its read state.",
+		})
+		return
+	}
+
 	if req.Title != nil {
 		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
 		if handled {
@@ -2576,14 +2587,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Read != nil {
-		// The read cursor is owner-scoped, so an admin with update
-		// permission must not move another user's unread state.
-		if chat.OwnerID != httpmw.APIKey(r).UserID {
-			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-				Message: "Only the chat owner can change its read state.",
-			})
-			return
-		}
 		markRead := *req.Read
 		var err error
 		if markRead {

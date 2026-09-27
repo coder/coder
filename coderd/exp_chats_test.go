@@ -18399,12 +18399,18 @@ func TestChatReadState(t *testing.T) {
 		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
 
 		// The deployment owner may update the chat but must not move
-		// another user's read cursor.
+		// another user's read cursor, and the rejection must land before
+		// any other field of the same request is written.
 		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-			Read: ptr.Ref(true),
+			Title: ptr.Ref("renamed by admin"),
+			Read:  ptr.Ref(true),
 		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		persisted, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "other user chat", persisted.Title)
 	})
 }
