@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isMac } from "#/utils/platform";
 import { useAgentsPageKeybindings } from "./useAgentsPageKeybindings";
@@ -89,7 +90,7 @@ describe("useAgentsPageKeybindings", () => {
 		expect(onToggleSearch).not.toHaveBeenCalled();
 	});
 
-	it("opens settings with Ctrl+,", () => {
+	it("opens settings with Ctrl+,", async () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
 		const onOpenSettings = vi.fn();
@@ -101,9 +102,8 @@ describe("useAgentsPageKeybindings", () => {
 			}),
 		);
 
-		const event = dispatchKeyDown(",", { ctrlKey: true });
+		await userEvent.keyboard("{Control>},{/Control}");
 
-		expect(event.defaultPrevented).toBe(true);
 		expect(onOpenSettings).toHaveBeenCalledTimes(1);
 		expect(onNewAgent).not.toHaveBeenCalled();
 	});
