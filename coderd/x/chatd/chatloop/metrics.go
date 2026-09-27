@@ -150,7 +150,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "tool_input_decoded_total",
-			Help:      "Total tool calls whose input the tool decoded to match its schema, such as an array sent as a JSON string.",
+			Help:      "Total tool calls whose input the tool decoded to match its schema, for example from an array sent as a JSON string.",
 		}, []string{"provider", "model", "tool_name"}),
 		TTFTSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
