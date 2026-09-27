@@ -21,7 +21,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-// The diff web component cannot construct its stylesheet in jsdom. The
+// FileDiff's web component cannot construct its stylesheet in jsdom. The
 // stub renders the added lines so tests can tell which diff was shown.
 vi.mock("@pierre/diffs/react", async (importOriginal) => ({
 	...(await importOriginal<typeof diffsReact>()),
@@ -367,7 +367,8 @@ describe("Tool edit_files rows", () => {
 				});
 				screen.getByText(shownError ?? "");
 			} else {
-				// An exact name also proves there is no failed-status icon.
+				// Matching the exact button name also proves there is no
+				// failed-status icon.
 				screen.getByRole("button", { name: header });
 			}
 			const rendered = [
