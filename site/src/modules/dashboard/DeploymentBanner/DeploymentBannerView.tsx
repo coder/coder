@@ -317,6 +317,7 @@ const SESSION_FAMILIES = {
 	},
 	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
 	sftp: null,
+	workspace_app: null,
 } satisfies Record<AppFamilyName, { name: string; icon: ReactNode } | null>;
 
 const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(

@@ -213,11 +213,12 @@ const (
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
 	Type        TemplateAppsType `json:"type" example:"builtin"`
-	DisplayName string           `json:"display_name" example:"Visual Studio Code"`
+	DisplayName string           `json:"display_name" example:"VS Code"`
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
 	TimesUsed   int64            `json:"times_used" example:"2"`
+	Family      AppFamilyName    `json:"family" example:"vscode"`
 }
 
 // TemplateParameterUsage shows the usage of a parameter for one or more

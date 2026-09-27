@@ -8,33 +8,16 @@
     "active_users": 1,
     "apps_usage": [
       {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "Visual Studio Code",
-        "slug": "vscode",
-        "icon": "/icon/code.svg",
-        "seconds": 0,
-        "times_used": 0
-      },
-      {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "JetBrains",
-        "slug": "jetbrains",
-        "icon": "/icon/intellij.svg",
-        "seconds": 0,
-        "times_used": 0
-      },
-      {
         "template_ids": [
           "00000000-0000-0000-0000-000000000003"
         ],
         "type": "builtin",
         "display_name": "Web Terminal",
-        "slug": "reconnecting-pty",
+        "slug": "reconnecting_pty",
         "icon": "/icon/terminal.svg",
         "seconds": 3600,
-        "times_used": 0
+        "times_used": 0,
+        "family": "reconnecting_pty"
       },
       {
         "template_ids": [
@@ -45,16 +28,8 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 3600,
-        "times_used": 0
-      },
-      {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "SFTP",
-        "slug": "sftp",
-        "icon": "/icon/terminal.svg",
-        "seconds": 0,
-        "times_used": 0
+        "times_used": 0,
+        "family": "ssh"
       },
       {
         "template_ids": [
@@ -65,7 +40,8 @@
         "slug": "otherapp1",
         "icon": "/icon1.png",
         "seconds": 300,
-        "times_used": 1
+        "times_used": 1,
+        "family": "workspace_app"
       }
     ],
     "parameters_usage": []

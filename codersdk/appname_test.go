@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -255,25 +254,6 @@ func TestDecodeAppMap(t *testing.T) {
 			require.Zero(t, got["ssh"])
 		})
 	}
-}
-
-func TestUnionByFamily(t *testing.T) {
-	t.Parallel()
-
-	shared, cursorOnly, sshOnly := uuid.New(), uuid.New(), uuid.New()
-	got := codersdk.UnionByFamily(map[string][]uuid.UUID{
-		"vscode": {shared},
-		"cursor": {shared, cursorOnly},
-		"ssh":    {sshOnly},
-		// An app the registry does not know still lands somewhere.
-		"some_new_ide": {cursorOnly},
-	})
-
-	// A template both apps saw appears once for the family.
-	require.ElementsMatch(t, []uuid.UUID{shared, cursorOnly}, got[codersdk.AppFamilyVSCode])
-	require.Equal(t, []uuid.UUID{sshOnly}, got[codersdk.AppFamilySSH])
-	require.Equal(t, []uuid.UUID{cursorOnly}, got[codersdk.AppFamilyUnknown])
-	require.Empty(t, got[codersdk.AppFamilyJetBrains])
 }
 
 func TestSessionCountApps(t *testing.T) {

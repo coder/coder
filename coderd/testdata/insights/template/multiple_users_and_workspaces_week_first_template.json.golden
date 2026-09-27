@@ -12,31 +12,12 @@
           "00000000-0000-0000-0000-000000000001"
         ],
         "type": "builtin",
-        "display_name": "Visual Studio Code",
-        "slug": "vscode",
-        "icon": "/icon/code.svg",
-        "seconds": 3600,
-        "times_used": 0
-      },
-      {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000001"
-        ],
-        "type": "builtin",
         "display_name": "JetBrains",
         "slug": "jetbrains",
-        "icon": "/icon/intellij.svg",
+        "icon": "/icon/jetbrains.svg",
         "seconds": 120,
-        "times_used": 0
-      },
-      {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "Web Terminal",
-        "slug": "reconnecting-pty",
-        "icon": "/icon/terminal.svg",
-        "seconds": 0,
-        "times_used": 0
+        "times_used": 0,
+        "family": "jetbrains"
       },
       {
         "template_ids": [
@@ -47,16 +28,20 @@
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
         "seconds": 7920,
-        "times_used": 0
+        "times_used": 0,
+        "family": "ssh"
       },
       {
-        "template_ids": [],
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
         "type": "builtin",
-        "display_name": "SFTP",
-        "slug": "sftp",
-        "icon": "/icon/terminal.svg",
-        "seconds": 0,
-        "times_used": 0
+        "display_name": "VS Code",
+        "slug": "vscode",
+        "icon": "/icon/code.svg",
+        "seconds": 3600,
+        "times_used": 0,
+        "family": "vscode"
       },
       {
         "template_ids": [
@@ -67,7 +52,8 @@
         "slug": "app1",
         "icon": "/icon1.png",
         "seconds": 3780,
-        "times_used": 3
+        "times_used": 3,
+        "family": "workspace_app"
       },
       {
         "template_ids": [
@@ -78,7 +64,8 @@
         "slug": "app3",
         "icon": "/icon2.png",
         "seconds": 720,
-        "times_used": 1
+        "times_used": 1,
+        "family": "workspace_app"
       }
     ],
     "parameters_usage": []
