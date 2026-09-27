@@ -722,7 +722,7 @@ func titleInput(
 		return firstUserText, true
 	}
 
-	if currentTitle != chatprompt.FallbackTitle(firstUserText) {
+	if !chatprompt.IsFallbackTitle(currentTitle, firstUserText) {
 		return "", false
 	}
 

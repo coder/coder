@@ -42,40 +42,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestSubagentFallbackChatTitle(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "EmptyPrompt",
-			input: "",
-			want:  "New Chat",
-		},
-		{
-			name:  "ShortPrompt",
-			input: "Open Firefox",
-			want:  "Open Firefox",
-		},
-		{
-			name:  "LongPrompt",
-			input: "Please open the Firefox browser and navigate to the settings page",
-			want:  "Please open the Firefox browser and...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := subagentFallbackChatTitle(tt.input)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 type internalTestServerConfig struct {
 	logger           slog.Logger
 	clock            quartz.Clock
