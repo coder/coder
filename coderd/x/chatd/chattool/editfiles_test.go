@@ -121,8 +121,8 @@ func TestEditFiles(t *testing.T) {
 		}
 	})
 
-	// Failures before the edit request reaches the agent write nothing,
-	// so the result says so.
+	// Failures before the edit request reaches the agent report that no
+	// files were applied.
 	t.Run("WorkspaceUnavailableAppliesNothing", func(t *testing.T) {
 		t.Parallel()
 		const input = `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"}]}`

@@ -360,8 +360,8 @@ func executeEditFilesTool(
 	return marshalToolResponse(result), nil
 }
 
-// editFilesNoneApplied is the statement every edit_files error result
-// makes when the call is known to have written nothing.
+// editFilesNoneApplied appears in every edit_files error result for a
+// call that is known to have written nothing.
 const editFilesNoneApplied = "No files were applied."
 
 const editFilesStatusApplied = "applied"
@@ -395,11 +395,12 @@ func rejectEditFiles(reason string) fantasy.ToolResponse {
 
 // agentWroteNothing reports whether an EditFiles error proves that the
 // agent wrote no file. Only an agent response can prove it; a dropped
-// connection may follow a completed write. The agent commits each file
-// by renaming a temporary file, so a failed single-file request wrote
-// nothing unless the agent panicked after the rename. With several
-// files, 400 and 404 come only from validation, before any write, but
-// 403 and 500 can follow earlier commits.
+// connection may follow a completed write. The agent writes each file
+// to a temporary file and renames it into place, so a failed
+// single-file request wrote nothing unless the agent panicked after the
+// rename. With several files, 400 and 404 come only from validation,
+// before any write, but 403 and 500 can come after earlier files were
+// written.
 func agentWroteNothing(err error, requestFiles int) bool {
 	sdkErr, ok := codersdk.AsError(err)
 	if !ok {
