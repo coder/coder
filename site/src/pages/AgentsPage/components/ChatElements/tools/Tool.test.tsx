@@ -171,7 +171,7 @@ describe("Tool edit_files rows", () => {
 			rows: [serverDiffRow("/repo/a.go"), serverDiffRow("/repo/b.go")],
 		},
 		{
-			name: "stored ok result missing a file falls back to the args diff",
+			name: "result with ok: true and a missing file falls back to the args diff",
 			args: twoFiles,
 			result: {
 				ok: true,
@@ -194,7 +194,7 @@ describe("Tool edit_files rows", () => {
 		},
 		{
 			// Older agents return no per-file results; every file was written.
-			name: "applied result without per-file results falls back to args diffs",
+			name: "result with status: applied and no files falls back to args diffs",
 			args: twoFiles,
 			result: {
 				status: "applied",
@@ -209,7 +209,8 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "partial",
-				message: "Applied 1 file. /repo/b.go was not applied.",
+				message:
+					"Applied 1 file. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
 				files: [
 					{
 						path: "/repo/b.go",
@@ -266,11 +267,12 @@ describe("Tool edit_files rows", () => {
 			rows: [serverDiffRow("/repo/a.go")],
 		},
 		{
-			name: "partial result keeps args order",
+			name: "partial result rows follow args order",
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message: "Applied 2 files. /repo/b.go was not applied.",
+				message:
+					"Applied 2 files. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
 				files: [
 					{
 						path: "/repo/b.go",
@@ -288,14 +290,16 @@ describe("Tool edit_files rows", () => {
 				rejectedRow("/repo/b.go", ambiguous),
 				serverDiffRow("/repo/c.go"),
 			],
-			hiddenText: "Applied 2 files. /repo/b.go was not applied.",
+			hiddenText:
+				"Applied 2 files. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
 		},
 		{
 			name: "partial result missing a file shows it as unreported",
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message: "Applied 1 file. /repo/c.go was not applied.",
+				message:
+					"Applied 1 file. /repo/c.go was not applied (edits[2]): fix and resend only the edits for /repo/c.go.",
 				files: [
 					{
 						path: "/repo/c.go",
@@ -314,19 +318,25 @@ describe("Tool edit_files rows", () => {
 			],
 		},
 		{
-			name: "partial result with an unknown file outcome",
+			name: "partial result with an unknown file",
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message: "Applied 1 file.",
+				message:
+					"Applied 1 file. It is unknown whether /repo/b.go was applied (edits[1]): re-read /repo/b.go before resending its edits. /repo/c.go was not applied (edits[2]): fix and resend only the edits for /repo/c.go.",
 				files: [
+					{
+						path: "/repo/b.go",
+						status: "unknown",
+						edits: [1],
+						error: transportError,
+					},
 					{
 						path: "/repo/c.go",
 						status: "rejected",
 						edits: [2],
 						error: ambiguous,
 					},
-					{ path: "/repo/b.go", status: "unknown", error: transportError },
 					applied("/repo/a.go"),
 				],
 			},

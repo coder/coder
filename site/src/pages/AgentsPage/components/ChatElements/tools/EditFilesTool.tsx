@@ -24,11 +24,11 @@ const EDIT_FILES_AUTO_DISPLAY_STATE: AgentDisplayState = "preview";
 
 /**
  * One file of an edit_files call. An "applied" row shows `diff` when
- * it has one and counts toward the header; while the call runs, every
- * row is "applied" with an args diff, built from the edits in the call.
- * "rejected" and "unknown" rows show `error`. An "unreported" row is a
- * file the result did not mention. A "failed" row belongs to a call
- * that failed as a whole and shows nothing.
+ * it has one and counts toward the "Edited N of M files" header; while
+ * the call runs, every row is "applied" with an args diff, built from
+ * the edits in the call. "rejected" and "unknown" rows show `error`. An
+ * "unreported" row is a file the result did not mention. A "failed" row
+ * belongs to a call that failed as a whole and shows nothing.
  */
 export type EditFilesRow = {
 	path: string;
