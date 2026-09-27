@@ -198,9 +198,12 @@ export const TextAttachmentActionsDisabled: Story = {
 		};
 	})(),
 	play: async ({ canvasElement }) => {
-		// Focus within the chip reveals its hover-only action buttons.
+		// Focusing a locked action reveals the chip's buttons and the tooltip
+		// explaining the lock.
 		const canvas = within(canvasElement);
-		(await canvas.findByRole("button", { name: "View clipboard.txt" })).focus();
+		(
+			await canvas.findByRole("button", { name: "Remove clipboard.txt" })
+		).focus();
 	},
 };
 

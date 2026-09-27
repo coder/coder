@@ -13,6 +13,7 @@ import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
+import { attachmentActionsLockedMessage } from "./AttachmentPreview";
 
 const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 	switch (upload.status) {
@@ -86,20 +87,25 @@ export const WorkspaceUploadPreview: FC<{
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-5 shrink-0 text-content-secondary hover:text-content-primary"
+									className="size-5 shrink-0 text-content-secondary hover:text-content-primary aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled aria-disabled:hover:text-content-disabled"
 									aria-label={`Remove ${name}`}
-									onClick={() => onRemove(upload.id)}
-									disabled={removeDisabled}
+									aria-disabled={removeDisabled}
+									onClick={() => {
+										if (removeDisabled) return;
+										onRemove(upload.id);
+									}}
 								>
 									<XIcon className="size-3.5" />
 								</Button>
 							</TooltipTrigger>
 							<TooltipContent side="top">
-								{upload.status === "uploaded"
-									? "Removes the reference. Uploaded bytes stay in the workspace."
-									: isWorkspaceUploadInProgress(upload)
-										? "Cancel this upload"
-										: "Remove this file"}
+								{removeDisabled
+									? attachmentActionsLockedMessage
+									: upload.status === "uploaded"
+										? "Removes the reference. Uploaded bytes stay in the workspace."
+										: isWorkspaceUploadInProgress(upload)
+											? "Cancel this upload"
+											: "Remove this file"}
 							</TooltipContent>
 						</Tooltip>
 					</div>

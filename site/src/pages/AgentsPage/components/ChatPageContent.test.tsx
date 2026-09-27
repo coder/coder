@@ -174,10 +174,10 @@ describe("ChatPageInput", () => {
 			],
 		});
 
-		expect(
-			await screen.findByRole("button", { name: "Remove current.csv" }),
-		).toBeDisabled();
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+		const composer = await screen.findByRole("textbox", {
+			name: "Chat message",
+		});
+		fireEvent.drop(composer, {
 			dataTransfer: {
 				files: [
 					new File(["png"], "screenshot.png", { type: "image/png" }),

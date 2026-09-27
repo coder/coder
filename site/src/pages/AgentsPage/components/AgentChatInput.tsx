@@ -19,6 +19,7 @@ import {
 	type FC,
 	useEffect,
 	useImperativeHandle,
+	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
@@ -898,6 +899,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		e.target.value = "";
 	};
 
+	// Synced during commit rather than in a passive effect, so a Paste
+	// inline load that resolves right after a send commits sees the lock.
+	const committedIsLoadingRef = useRef(isLoading);
+	useLayoutEffect(() => {
+		committedIsLoadingRef.current = isLoading;
+	}, [isLoading]);
+
 	const handleInlineText = (file: File, nextContent?: string) => {
 		// The content may have loaded asynchronously after the click, so
 		// check the latest committed lock rather than this render's.
@@ -981,10 +989,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	// Re-focus the editor after a send completes (isLoading goes
 	// from true → false) so the user can immediately type again.
-	const committedIsLoadingRef = useRef(isLoading);
+	const prevIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
-		const wasLoading = committedIsLoadingRef.current;
-		committedIsLoadingRef.current = isLoading;
+		const wasLoading = prevIsLoadingRef.current;
+		prevIsLoadingRef.current = isLoading;
 		if (wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}
