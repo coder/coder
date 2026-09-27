@@ -9,7 +9,9 @@ import {
 } from "../utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "../utils/chatInputContent";
 import {
+	clearParkedWorkspaceUploadFailure,
 	getParkedWorkspaceUploads,
+	markParkedWorkspaceUploadFailed,
 	parkWorkspaceUploads,
 	unparkWorkspaceUploads,
 } from "../utils/parkedWorkspaceUploads";
@@ -41,29 +43,30 @@ export function useParkedWorkspaceUploads(
 	const { mutateAsync: sendMessage } = useMutation(
 		createChatMessageByChatId(queryClient),
 	);
+	const parkedUploads = getParkedWorkspaceUploads(chatId);
 	const { uploads, attach, remove, uploadQueued } = useWorkspaceFileUploads(
 		undefined,
 		undefined,
-		getParkedWorkspaceUploads(chatId),
+		parkedUploads.flatMap((upload) =>
+			upload.failedUpload ? [] : [upload.file],
+		),
 	);
-	const [failedUploads, setFailedUploads] = useState<
-		readonly WorkspaceFileUpload[]
-	>([]);
+	const [failedUploads, setFailedUploads] = useState(() =>
+		parkedUploads.flatMap((upload) =>
+			upload.failedUpload ? [upload.failedUpload] : [],
+		),
+	);
 
 	const { isPending: isBatchPending, mutate: uploadBatch } = useMutation({
 		mutationFn: async () => {
 			const results = await uploadQueued(chatId);
 			// Files parked while this batch ran stay for the next one.
-			for (const upload of results) {
+			const uploaded = results.filter((upload) => upload.response);
+			const failed = results.filter((upload) => !upload.response);
+			for (const upload of failed) {
 				remove(upload.id);
+				markParkedWorkspaceUploadFailed(chatId, upload);
 			}
-			unparkWorkspaceUploads(
-				chatId,
-				results.map((upload) => upload.file),
-			);
-			const failed = results.filter(
-				(upload) => upload.status !== "uploaded" || !upload.response,
-			);
 			if (failed.length > 0) {
 				setFailedUploads((current) => [...current, ...failed]);
 				toast.error(
@@ -83,12 +86,23 @@ export function useParkedWorkspaceUploads(
 						]
 					: [],
 			);
-			if (content.length > 0) {
-				await sendMessage({
-					chatId,
-					req: { content, busy_behavior: "queue" },
-				});
+			if (content.length === 0) {
+				return;
 			}
+			// Chips stay until the follow-up is sent, so they do not disappear
+			// before the message shows up in the chat.
+			await sendMessage({
+				chatId,
+				req: { content, busy_behavior: "queue" },
+			}).finally(() => {
+				for (const upload of uploaded) {
+					remove(upload.id);
+				}
+				unparkWorkspaceUploads(
+					chatId,
+					uploaded.map((upload) => upload.file),
+				);
+			});
 		},
 		onError: (error) => {
 			// Unmounting cancels the batch, and its files stay parked for
@@ -124,10 +138,12 @@ export function useParkedWorkspaceUploads(
 	};
 
 	const removeParked = (id: string) => {
-		if (failedUploads.some((upload) => upload.id === id)) {
+		const failedUpload = failedUploads.find((upload) => upload.id === id);
+		if (failedUpload) {
 			setFailedUploads((current) =>
 				current.filter((upload) => upload.id !== id),
 			);
+			unparkWorkspaceUploads(chatId, [failedUpload.file]);
 			return;
 		}
 		const upload = uploads.find((entry) => entry.id === id);
@@ -139,11 +155,13 @@ export function useParkedWorkspaceUploads(
 
 	const retry = (id: string) => {
 		const upload = failedUploads.find((entry) => entry.id === id);
-		if (!upload) {
+		// A second click can land before this render updates, so the store
+		// decides whether the file still needs a retry.
+		if (!upload || !clearParkedWorkspaceUploadFailure(chatId, upload.file)) {
 			return;
 		}
 		setFailedUploads((current) => current.filter((entry) => entry.id !== id));
-		attachParked([upload.file]);
+		attach([upload.file]);
 	};
 
 	return {

@@ -64,7 +64,10 @@ describe("useParkedWorkspaceUploads", () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		unparkWorkspaceUploads("chat-1", getParkedWorkspaceUploads("chat-1"));
+		unparkWorkspaceUploads(
+			"chat-1",
+			getParkedWorkspaceUploads("chat-1").map((upload) => upload.file),
+		);
 	});
 
 	it("uploads parked files once the workspace connects and sends them queued", async () => {
@@ -124,7 +127,7 @@ describe("useParkedWorkspaceUploads", () => {
 			"b.tar.gz",
 		]);
 		expect(
-			getParkedWorkspaceUploads("chat-1").map((file) => file.name),
+			getParkedWorkspaceUploads("chat-1").map((upload) => upload.file.name),
 		).toEqual(["b.tar.gz"]);
 	});
 
@@ -179,6 +182,81 @@ describe("useParkedWorkspaceUploads", () => {
 		await waitFor(() => expect(result.current.uploads).toEqual([]));
 	});
 
+	it("keeps a failed file and its error across a remount", async () => {
+		parkWorkspaceUploads("chat-1", [
+			createMockFile("bad.tar.gz", "application/gzip"),
+		]);
+		uploadMock.mockRejectedValueOnce(mockApiError({ message: "disk full" }));
+		const { unmount } = renderParked(true);
+		await waitFor(() => expect(toast.error).toHaveBeenCalled());
+		expect(unloadIsBlocked()).toBe(true);
+
+		unmount();
+		const { result } = renderParked(true);
+
+		expect(
+			result.current.uploads.map(({ file, status, error }) => ({
+				name: file.name,
+				status,
+				error,
+			})),
+		).toEqual([{ name: "bad.tar.gz", status: "error", error: "disk full" }]);
+		expect(uploadMock).toHaveBeenCalledTimes(1);
+
+		act(() => {
+			result.current.remove(result.current.uploads[0].id);
+		});
+
+		expect(getParkedWorkspaceUploads("chat-1")).toEqual([]);
+		expect(unloadIsBlocked()).toBe(false);
+	});
+
+	it("uploads a failed file once when retry is clicked twice", async () => {
+		parkWorkspaceUploads("chat-1", [
+			createMockFile("flaky.tar.gz", "application/gzip"),
+		]);
+		uploadMock
+			.mockRejectedValueOnce(mockApiError({ message: "agent restarted" }))
+			.mockResolvedValue({ ...mockUploadResponse, name: "flaky.tar.gz" });
+		const { result } = renderParked(true);
+		await waitFor(() => expect(toast.error).toHaveBeenCalled());
+		const { retry, uploads } = result.current;
+
+		act(() => {
+			retry(uploads[0].id);
+			retry(uploads[0].id);
+		});
+
+		await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
+		expect(uploadMock).toHaveBeenCalledTimes(2);
+		expect(sentFileNames(0)).toEqual(["flaky.tar.gz"]);
+	});
+
+	it("keeps uploaded files visible until the follow-up is sent", async () => {
+		parkWorkspaceUploads("chat-1", [
+			createMockFile("logs.tar.gz", "application/gzip"),
+		]);
+		uploadMock.mockResolvedValueOnce(mockUploadResponse);
+		const send =
+			createDeferred<
+				Awaited<ReturnType<typeof API.experimental.createChatMessage>>
+			>();
+		sendMock.mockReturnValueOnce(send.promise);
+		const { result } = renderParked(true);
+
+		await waitFor(() => expect(sendMock).toHaveBeenCalledTimes(1));
+		expect(result.current.uploads.map((upload) => upload.status)).toEqual([
+			"uploaded",
+		]);
+
+		act(() => {
+			send.resolve({ queued: true });
+		});
+
+		await waitFor(() => expect(result.current.uploads).toEqual([]));
+		expect(getParkedWorkspaceUploads("chat-1")).toEqual([]);
+	});
+
 	it("uploads files attached after an earlier batch was delivered", async () => {
 		parkWorkspaceUploads("chat-1", [
 			createMockFile("first.tar.gz", "application/gzip"),
@@ -197,7 +275,7 @@ describe("useParkedWorkspaceUploads", () => {
 			]);
 		});
 		expect(
-			getParkedWorkspaceUploads("chat-1").map((file) => file.name),
+			getParkedWorkspaceUploads("chat-1").map((upload) => upload.file.name),
 		).toEqual(["second.tar.gz"]);
 		rerender({ canUpload: true });
 

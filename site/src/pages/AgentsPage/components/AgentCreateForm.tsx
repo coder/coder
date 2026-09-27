@@ -610,8 +610,22 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const isSubmitPending = isCreating || isSubmitSequencePending;
 
 	const workspaceUploadCount = workspaceUploadEntries.length;
+	const hasWorkspaceUploads = workspaceUploadCount > 0;
 	const shouldParkWorkspaceFiles =
-		workspaceUploadCount > 0 && !canUploadWorkspaceFiles;
+		hasWorkspaceUploads && !canUploadWorkspaceFiles;
+	// Queued workspace files exist only in this page's memory until the chat
+	// is created, so warn before a reload or tab close drops them.
+	useEffect(() => {
+		if (!hasWorkspaceUploads) {
+			return;
+		}
+		const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+			event.preventDefault();
+			event.returnValue = true;
+		};
+		window.addEventListener("beforeunload", warnBeforeUnload);
+		return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+	}, [hasWorkspaceUploads]);
 
 	const handleAttachWhenIdle = (files: File[]) => {
 		if (submitInFlightRef.current) {

@@ -127,7 +127,9 @@ describe("ChatPageInput", () => {
 			await screen.findByTestId("chat-attachment-file-input"),
 			new File([new Uint8Array(4)], "bundle.zip", { type: "application/zip" }),
 		);
-		await screen.findByText("Uploads when the workspace starts");
+		await screen.findByText(
+			"Uploads when the workspace starts. Keep this chat open.",
+		);
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.paste("create a workspace and unpack the bundle");
 		await user.click(screen.getByRole("button", { name: "Send" }));
@@ -137,9 +139,10 @@ describe("ChatPageInput", () => {
 			message: "create a workspace and unpack the bundle",
 			workspaceUploads: undefined,
 		});
-		expect(getParkedWorkspaceUploads(chatId).map((file) => file.name)).toEqual([
-			"bundle.zip",
-		]);
-		unparkWorkspaceUploads(chatId, getParkedWorkspaceUploads(chatId));
+		const parkedFiles = getParkedWorkspaceUploads(chatId).map(
+			(upload) => upload.file,
+		);
+		expect(parkedFiles.map((file) => file.name)).toEqual(["bundle.zip"]);
+		unparkWorkspaceUploads(chatId, parkedFiles);
 	});
 });

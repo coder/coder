@@ -2,7 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { createMockFile } from "#/testHelpers/files";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
-import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
+import {
+	parkedWorkspaceUploadLabel,
+	WorkspaceUploadPreview,
+} from "./WorkspaceUploadPreview";
 
 const uploadedEntry = (name: string, size = 4096): WorkspaceFileUpload => ({
 	id: `uploaded-${name}`,
@@ -39,6 +42,19 @@ export const Deferred: Story = {
 		uploads: [
 			{
 				id: "deferred-1",
+				file: createMockFile("bundle.zip", "application/zip"),
+				status: "deferred",
+			},
+		],
+	},
+};
+
+export const Parked: Story = {
+	args: {
+		deferredLabel: parkedWorkspaceUploadLabel,
+		uploads: [
+			{
+				id: "parked-1",
 				file: createMockFile("bundle.zip", "application/zip"),
 				status: "deferred",
 			},

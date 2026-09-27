@@ -222,6 +222,12 @@ const clickSend = async () => {
 	await user().click(sendButton);
 };
 
+const unloadIsBlocked = () => {
+	const event = new Event("beforeunload", { cancelable: true });
+	window.dispatchEvent(event);
+	return event.defaultPrevented;
+};
+
 const submitMessage = async (message: string) => {
 	await typeMessage(message);
 	await clickSend();
@@ -285,7 +291,9 @@ describe("AgentCreateForm workspace file uploads", () => {
 		const { onCreateChat } = renderForm();
 
 		await attachZipFile();
-		await screen.findByText("Uploads when the workspace starts");
+		await screen.findByText(
+			"Uploads when the workspace starts. Keep this chat open.",
+		);
 		await submitMessage("inspect this archive");
 
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
@@ -314,6 +322,21 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(options.workspaceId).toBe(mockStoppedWorkspace.id);
 		expect(options.uploadWorkspaceFiles).toBeUndefined();
 		expect(options.parkedWorkspaceFiles).toHaveLength(1);
+	});
+
+	it("warns before unloading the page while workspace files are queued", async () => {
+		renderForm();
+
+		await attachZipFile();
+		await screen.findByText("bundle.zip");
+		expect(unloadIsBlocked()).toBe(true);
+
+		await user().click(
+			screen.getByRole("button", { name: "Remove bundle.zip" }),
+		);
+
+		await waitFor(() => expect(screen.queryByText("bundle.zip")).toBeNull());
+		expect(unloadIsBlocked()).toBe(false);
 	});
 
 	it("requires a message before parking workspace files", async () => {

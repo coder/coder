@@ -14,7 +14,8 @@ import {
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
 
-export const parkedWorkspaceUploadLabel = "Uploads when the workspace starts";
+export const parkedWorkspaceUploadLabel =
+	"Uploads when the workspace starts. Keep this chat open.";
 
 const uploadStatusLabel = (
 	upload: WorkspaceFileUpload,
@@ -86,7 +87,7 @@ export const WorkspaceUploadPreview: FC<WorkspaceUploadPreviewProps> = ({
 							</div>
 							<div
 								className={cn(
-									"truncate text-2xs",
+									"line-clamp-2 wrap-anywhere text-2xs",
 									upload.status === "error"
 										? "text-content-destructive"
 										: "text-content-secondary",
