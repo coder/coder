@@ -40,7 +40,8 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
 export const WorkspaceUploadPreview: FC<{
 	uploads: readonly WorkspaceFileUpload[];
 	onRemove: (id: string) => void;
-}> = ({ uploads, onRemove }) => {
+	removeDisabled?: boolean;
+}> = ({ uploads, onRemove, removeDisabled = false }) => {
 	if (uploads.length === 0) {
 		return null;
 	}
@@ -88,6 +89,7 @@ export const WorkspaceUploadPreview: FC<{
 									className="size-5 shrink-0 text-content-secondary hover:text-content-primary"
 									aria-label={`Remove ${name}`}
 									onClick={() => onRemove(upload.id)}
+									disabled={removeDisabled}
 								>
 									<XIcon className="size-3.5" />
 								</Button>

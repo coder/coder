@@ -181,6 +181,28 @@ export const TextAttachment: Story = {
 	},
 };
 
+export const TextAttachmentActionsDisabled: Story = {
+	args: (() => {
+		const file = createMockFile("clipboard.txt", "text/plain", 2048);
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "file-1" }],
+			]),
+			previewUrls: new Map<File, string>(),
+			textContents: new Map<File, string>([
+				[file, "This is the pasted text content."],
+			]),
+			actionsDisabled: true,
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		// Focus within the chip reveals its hover-only action buttons.
+		const canvas = within(canvasElement);
+		(await canvas.findByRole("button", { name: "View clipboard.txt" })).focus();
+	},
+};
+
 export const ThreeTextAttachments: Story = {
 	args: (() => {
 		const file1 = createMockFile("paste-1.txt", "text/plain", 2048);

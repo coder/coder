@@ -34,6 +34,13 @@ export const Uploaded: Story = {
 	},
 };
 
+export const RemoveDisabled: Story = {
+	args: {
+		uploads: [uploadedEntry("design-handoff.zip")],
+		removeDisabled: true,
+	},
+};
+
 export const Deferred: Story = {
 	args: {
 		uploads: [

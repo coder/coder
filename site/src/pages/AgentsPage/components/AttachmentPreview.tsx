@@ -63,6 +63,8 @@ export const AttachmentPreview: FC<{
 		mediaType?: string,
 	) => void;
 	onInlineText?: (file: File, content?: string) => void;
+	// Disables remove and paste inline; previews stay available.
+	actionsDisabled?: boolean;
 }> = ({
 	attachments,
 	onRemove,
@@ -72,6 +74,7 @@ export const AttachmentPreview: FC<{
 	textContents,
 	onTextPreview,
 	onInlineText,
+	actionsDisabled = false,
 }) => {
 	const textAttachmentRequest = useLatestAbortController();
 
@@ -189,7 +192,8 @@ export const AttachmentPreview: FC<{
 										);
 										onInlineText?.(file, nextContent);
 									}}
-									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+									disabled={actionsDisabled}
+									className="absolute -bottom-2 -right-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:text-content-disabled disabled:hover:bg-surface-primary disabled:hover:text-content-disabled"
 									aria-label="Paste inline"
 								>
 									<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
@@ -223,7 +227,8 @@ export const AttachmentPreview: FC<{
 							<button
 								type="button"
 								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+								disabled={actionsDisabled}
+								className="absolute -right-2 -top-2 flex size-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-xs opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:text-content-disabled disabled:hover:bg-surface-primary disabled:hover:text-content-disabled"
 								aria-label={`Remove ${file.name}`}
 							>
 								<XIcon aria-hidden="true" className="size-3.5" />

@@ -152,7 +152,7 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 // user intent to paste inline, so the large-paste-to-attachment
 // conversion is bypassed for that shortcut.
 const PasteSanitizationPlugin: FC<{
-	onFilePaste?: (file: File) => boolean;
+	onFilePaste?: (files: File[]) => boolean;
 	allowTextAttachmentPaste?: boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
@@ -218,7 +218,7 @@ const PasteSanitizationPlugin: FC<{
 							isLargePaste(text)
 						) {
 							event.preventDefault();
-							onFilePaste(createPasteFile(text));
+							onFilePaste([createPasteFile(text)]);
 							return true;
 						}
 						event.preventDefault();
@@ -228,17 +228,12 @@ const PasteSanitizationPlugin: FC<{
 					// Native paste event (ClipboardEvent).
 
 					// Check for files in the clipboard, such as pasted
-					// screenshots or archives. Forward all files to the
-					// parent, which routes each one to the attachment
-					// pipeline or a workspace upload by MIME type.
+					// screenshots or archives. Forward them to the parent
+					// as one batch, which routes each file to the
+					// attachment pipeline or a workspace upload by MIME
+					// type.
 					if (onFilePaste && dataTransfer?.files.length) {
-						let routed = false;
-						for (const file of Array.from(dataTransfer.files)) {
-							if (onFilePaste(file)) {
-								routed = true;
-							}
-						}
-						if (routed) {
+						if (onFilePaste(Array.from(dataTransfer.files))) {
 							event.preventDefault();
 							return true;
 						}
@@ -261,7 +256,7 @@ const PasteSanitizationPlugin: FC<{
 						isLargePaste(text)
 					) {
 						event.preventDefault();
-						onFilePaste(createPasteFile(text));
+						onFilePaste([createPasteFile(text)]);
 						return true;
 					}
 
@@ -291,7 +286,7 @@ const PasteSanitizationPlugin: FC<{
 // composer locked for a pending send would silently drop pasted files
 // that the picker and drop target still route through onFilePaste.
 const LockedFilePastePlugin: FC<{
-	onFilePaste: (file: File) => boolean;
+	onFilePaste: (files: File[]) => boolean;
 }> = function LockedFilePastePlugin({ onFilePaste }) {
 	const [editor] = useLexicalComposerContext();
 
@@ -302,9 +297,7 @@ const LockedFilePastePlugin: FC<{
 				return;
 			}
 			event.preventDefault();
-			for (const file of Array.from(files)) {
-				onFilePaste(file);
-			}
+			onFilePaste(Array.from(files));
 		};
 		return editor.registerRootListener((rootElement) => {
 			if (!rootElement) {
@@ -536,10 +529,10 @@ type ChatMessageInputProps = Omit<
 	rows?: number;
 	onEnter?: () => void;
 	sendShortcut?: TypesGen.AgentChatSendShortcut;
-	// Returns whether the file was routed anywhere (attachment or
-	// workspace upload). Refused files let the paste fall back to
-	// the clipboard's text payload.
-	onFilePaste?: (file: File) => boolean;
+	// Receives every file of one paste event. Returns whether any file
+	// was routed (attachment or workspace upload); refusing them all
+	// lets the paste fall back to the clipboard's text payload.
+	onFilePaste?: (files: File[]) => boolean;
 	allowTextAttachmentPaste?: boolean;
 	// Keeps routing pasted files through onFilePaste while disabled, so
 	// the parent can refuse them visibly instead of losing them.

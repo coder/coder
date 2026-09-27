@@ -805,6 +805,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					? modeWorkspaceUploads.attach
 					: undefined,
 				onRemove: handleRemoveWorkspaceUpload,
+				// Sending waits for uploads, so a pending send already
+				// references every chip.
+				removeDisabled: isSendPending,
 			}}
 			inputRef={inputRef}
 			initialValue={initialValue}
