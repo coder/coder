@@ -55,12 +55,14 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getDefaultOrganizationId,
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { canAccessCoderAgentsSettings } from "#/modules/permissions";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -673,6 +675,34 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
 
+	// On routes where mobile shows only the main panel, crossing the sm
+	// breakpoint hides or shows the sidebar. Slide it instead of snapping.
+	const isMobileViewport = useMediaQuery(mobileViewportMediaQuery);
+	const isSidebarHiddenOnMobile = Boolean(agentId) || isSettingsDetail;
+	const [prevIsMobileViewport, setPrevIsMobileViewport] =
+		useState(isMobileViewport);
+	const [sidebarViewportSlide, setSidebarViewportSlide] = useState<
+		"in" | "out" | null
+	>(null);
+	if (isMobileViewport !== prevIsMobileViewport) {
+		setPrevIsMobileViewport(isMobileViewport);
+		setSidebarViewportSlide(
+			isSidebarHiddenOnMobile && !isSidebarCollapsed
+				? isMobileViewport
+					? "out"
+					: "in"
+				: null,
+		);
+	}
+	// A slide only applies while its route and viewport still match, so a
+	// slide that never received animationend cannot hide the mobile list.
+	const activeSidebarViewportSlide =
+		isSidebarHiddenOnMobile &&
+		!isSidebarCollapsed &&
+		sidebarViewportSlide === (isMobileViewport ? "out" : "in")
+			? sidebarViewportSlide
+			: null;
+
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
 	const sidebarChatErrorReasons = Object.fromEntries(
@@ -711,7 +741,10 @@ const AgentsPageLayout: FC = () => {
 		<>
 			<div
 				data-testid="agents-page-layout"
-				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+				className={cn(
+					"flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row",
+					activeSidebarViewportSlide === "out" && "flex-row",
+				)}
 			>
 				<title>{pageTitle("Agents")}</title>
 				<ResizableChatsSidebarFrame
@@ -724,6 +757,8 @@ const AgentsPageLayout: FC = () => {
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 					)}
 					isCollapsed={isSidebarCollapsed}
+					viewportSlide={activeSidebarViewportSlide}
+					onViewportSlideEnd={() => setSidebarViewportSlide(null)}
 				>
 					<ChatsSidebar
 						chats={chatList}

@@ -95,4 +95,19 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		expect(persistedWidth()).toBe(LEFT_SIDEBAR_DEFAULT_WIDTH + 40);
 	});
+
+	it("restores the persisted width after a narrow window widens", () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
+		const handle = renderHandle();
+
+		// 700px leaves room for a 340px sidebar beside the 360px main panel.
+		vi.stubGlobal("innerWidth", 700);
+		fireEvent(window, new Event("resize"));
+		expect(handle).toHaveAttribute("aria-valuenow", "340");
+
+		vi.stubGlobal("innerWidth", 1440);
+		fireEvent(window, new Event("resize"));
+		expect(handle).toHaveAttribute("aria-valuenow", "400");
+		expect(persistedWidth()).toBe(400);
+	});
 });

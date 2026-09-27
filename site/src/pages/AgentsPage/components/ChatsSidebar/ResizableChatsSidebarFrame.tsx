@@ -22,12 +22,21 @@ type ResizableChatsSidebarFrameProps = {
 	className?: string;
 	/** Collapses the frame to zero width on sm+ viewports. */
 	isCollapsed?: boolean;
+	/**
+	 * Slides the frame in or out when a viewport breakpoint crossing shows
+	 * or hides it. "out" replaces the route layout classes so the frame stays
+	 * beside the main panel while it slides closed.
+	 */
+	viewportSlide?: "in" | "out" | null;
+	onViewportSlideEnd?: () => void;
 };
 
 export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
 	isCollapsed = false,
+	viewportSlide = null,
+	onViewportSlideEnd,
 }: ResizableChatsSidebarFrameProps) => {
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
@@ -50,9 +59,10 @@ export const ResizableChatsSidebarFrame = ({
 		persistLeftSidebarWidth(clampedWidth);
 	};
 
+	// Re-clamp from the persisted width so a sidebar squeezed by a narrow
+	// window grows back to the user's chosen width when it widens again.
 	const handleResize = useEffectEvent(() => {
-		const clampedWidth = clampLeftSidebarWidth(width);
-		setVisualWidth(clampedWidth);
+		setWidth(loadPersistedLeftSidebarWidth());
 	});
 
 	useEffect(() => {
@@ -129,20 +139,37 @@ export const ResizableChatsSidebarFrame = ({
 				"--agents-left-sidebar-width": `${width}px`,
 				"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
 				"--agents-left-sidebar-max-width": `${maxWidth}px`,
+				"--panel-width": `${width}px`,
 			}}
-			className={cn(
-				className,
-				"relative sm:overflow-hidden sm:max-w-(--agents-left-sidebar-max-width)",
-				!isPointerResizing &&
-					"sm:transition-[width,min-width,visibility] sm:duration-200 sm:ease-out",
-				isCollapsed
-					? "sm:invisible sm:w-0 sm:min-w-0"
-					: "sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width)",
-			)}
+			onAnimationEnd={(e) => {
+				if (e.target === e.currentTarget) {
+					onViewportSlideEnd?.();
+				}
+			}}
+			className={
+				viewportSlide === "out"
+					? "relative invisible h-full min-h-0 w-0 min-w-0 shrink-0 overflow-hidden animate-panel-slide-out"
+					: cn(
+							className,
+							"relative sm:overflow-hidden sm:max-w-(--agents-left-sidebar-max-width)",
+							!isPointerResizing &&
+								"sm:transition-[width,min-width,visibility] sm:duration-200 sm:ease-out",
+							isCollapsed
+								? "sm:invisible sm:w-0 sm:min-w-0"
+								: "sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width)",
+							viewportSlide === "in" && "sm:animate-panel-slide-in",
+						)
+			}
 		>
 			{/* Keeps the content at full width while the frame animates so it
 			    slides behind the edge instead of reflowing on every frame. */}
-			<div className="size-full sm:w-(--agents-left-sidebar-width)">
+			<div
+				className={
+					viewportSlide === "out"
+						? "h-full w-(--agents-left-sidebar-width)"
+						: "size-full sm:w-(--agents-left-sidebar-width)"
+				}
+			>
 				{children}
 			</div>
 			<div

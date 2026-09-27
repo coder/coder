@@ -160,18 +160,32 @@
 		}
 	}
 
-	/* Slides a side-by-side panel closed from its last width. A keyframe
-		animation is used instead of a transition because the viewport
-		breakpoint that triggers it changes the panel's styles before React
-		re-renders, so there is no reliable starting width to transition from. */
+	/* Slide a side-by-side panel closed from, or open to, its width. Keyframe
+		animations are used instead of transitions because the viewport
+		breakpoint that triggers them changes the panel's styles before React
+		re-renders, so there is no reliable starting width to transition from.
+		min-width is held at 0 so a panel minimum cannot cut the slide short. */
 	@keyframes panel-slide-out {
 		from {
 			width: var(--panel-width);
+			min-width: 0;
 			visibility: visible;
 		}
 		to {
 			width: 0;
+			min-width: 0;
 			visibility: hidden;
+		}
+	}
+
+	@keyframes panel-slide-in {
+		from {
+			width: 0;
+			min-width: 0;
+		}
+		to {
+			width: var(--panel-width);
+			min-width: 0;
 		}
 	}
 
@@ -184,6 +198,7 @@
 		calc(var(--spinner-leaf-index) * -0.1s) infinite;
 	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
 	--animate-panel-slide-out: panel-slide-out 200ms ease-out;
+	--animate-panel-slide-in: panel-slide-in 200ms ease-out;
 	--animate-bar-indeterminate: bar-indeterminate 2.1s
 		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
 	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
