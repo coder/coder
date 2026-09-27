@@ -231,11 +231,6 @@ const AgentEmbedPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},
-		// The embed renders no sidebar for right panels to collapse or restore.
-		isSidebarCollapsedByNarrowWidth: false,
-		onSidebarCollapsedByNarrowWidthChange: () => {},
-		getExpandedSidebarWidth: () => undefined,
-		registerOpenRightPanel: () => () => {},
 		onChatReady,
 	};
 

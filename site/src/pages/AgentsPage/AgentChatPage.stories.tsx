@@ -84,10 +84,6 @@ const AgentChatPageLayout: FC = () => {
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
-							isSidebarCollapsedByNarrowWidth: false,
-							onSidebarCollapsedByNarrowWidthChange: () => {},
-							getExpandedSidebarWidth: () => undefined,
-							registerOpenRightPanel: () => () => {},
 							onChatReady: () => {},
 						} satisfies AgentsPageOutletContext
 					}

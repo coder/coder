@@ -66,23 +66,6 @@ export function loadClampedLeftSidebarWidth(): number {
 	return clampLeftSidebarWidth(loadStoredLeftSidebarWidth());
 }
 
-/** CSS variable the sidebar frame sets to its expanded width. */
-export const LEFT_SIDEBAR_WIDTH_VAR = "--agents-left-sidebar-width";
-
-/**
- * Reads the width a sidebar frame expands to. The frame keeps its width
- * variable set while collapsed. Returns undefined when the frame is null or
- * the variable is unset.
- */
-export function readExpandedLeftSidebarWidth(
-	frame: HTMLElement | null,
-): number | undefined {
-	const width = Number.parseFloat(
-		frame?.style.getPropertyValue(LEFT_SIDEBAR_WIDTH_VAR) ?? "",
-	);
-	return width > 0 ? width : undefined;
-}
-
 export function persistLeftSidebarWidth(width: number): void {
 	try {
 		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, String(width));

@@ -1,13 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { type FC, useEffect, useRef, useState } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { type FC, useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MockResizeObserver } from "#/testHelpers/resizeObserver";
-import {
-	type AgentsPageOutletContext,
-	useSidebarCollapseState,
-} from "../../AgentsPageLayout";
+import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { RIGHT_PANEL_WIDTH_KEY, RightPanel } from "./RightPanel";
 
 type HarnessProps = {
@@ -37,55 +32,35 @@ const RightPanelHarness: FC<HarnessProps> = ({
 	};
 
 	return (
-		<>
-			<button type="button" onClick={() => setIsOpen(false)}>
-				Close panel
-			</button>
-			<RightPanel
-				isOpen={isOpen}
-				isExpanded={isOpen && isExpanded}
-				onToggleExpanded={() => setIsExpanded(!isExpanded)}
-				onClose={() => setIsOpen(false)}
-				onVisualExpandedChange={onVisualExpandedChange}
-			>
-				<div>Panel content</div>
-			</RightPanel>
-		</>
+		<RightPanel
+			isOpen={isOpen}
+			isExpanded={isOpen && isExpanded}
+			onToggleExpanded={() => setIsExpanded(!isExpanded)}
+			onClose={() => setIsOpen(false)}
+			onVisualExpandedChange={onVisualExpandedChange}
+		>
+			<div>Panel content</div>
+		</RightPanel>
 	);
 };
 
 type SidebarHarnessProps = HarnessProps & {
-	initialSidebarCollapsed?: boolean;
 	onSidebarCollapsedChange?: (isCollapsed: boolean) => void;
-	/** Changing this remounts the panel, as switching chats does. */
-	panelKey?: string;
 };
 
 /**
- * Owns the sidebar collapse state with the layout's hook and exposes a
- * button that toggles it as the user would.
+ * Supplies the outlet context the panel uses to collapse the chats
+ * sidebar while the pointer is at the left edge of the viewport.
  */
 const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
-	initialSidebarCollapsed = false,
 	onSidebarCollapsedChange,
-	panelKey,
 	...harnessProps
 }) => {
-	const {
-		isSidebarCollapsed,
-		toggleSidebarByUser,
-		expandSidebar,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		registerOpenRightPanel,
-	} = useSidebarCollapseState(initialSidebarCollapsed ? "user" : null);
-	const reportedCollapsed = useRef(isSidebarCollapsed);
-	useEffect(() => {
-		if (reportedCollapsed.current !== isSidebarCollapsed) {
-			reportedCollapsed.current = isSidebarCollapsed;
-			onSidebarCollapsedChange?.(isSidebarCollapsed);
-		}
-	}, [isSidebarCollapsed, onSidebarCollapsedChange]);
+	const [isSidebarCollapsed, setIsSidebarCollapsedState] = useState(false);
+	const setIsSidebarCollapsed = (next: boolean) => {
+		setIsSidebarCollapsedState(next);
+		onSidebarCollapsedChange?.(next);
+	};
 	const outletContext: AgentsPageOutletContext = {
 		chatErrorReasons: {},
 		setChatErrorReason: () => {},
@@ -99,29 +74,17 @@ const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
 		archivingChatId: undefined,
 		activeChatChildren: undefined,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed: toggleSidebarByUser,
-		onExpandSidebar: expandSidebar,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		getExpandedSidebarWidth: () => 320,
-		registerOpenRightPanel,
+		onToggleSidebarCollapsed: () => setIsSidebarCollapsed(!isSidebarCollapsed),
+		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
 	};
 
 	return (
-		<>
-			<button type="button" onClick={toggleSidebarByUser}>
-				Toggle sidebar
-			</button>
-			<Routes>
-				<Route element={<Outlet context={outletContext} />}>
-					<Route
-						path="*"
-						element={<RightPanelHarness key={panelKey} {...harnessProps} />}
-					/>
-				</Route>
-			</Routes>
-		</>
+		<Routes>
+			<Route element={<Outlet context={outletContext} />}>
+				<Route path="*" element={<RightPanelHarness {...harnessProps} />} />
+			</Route>
+		</Routes>
 	);
 };
 
@@ -351,160 +314,5 @@ describe("RightPanel resize drag", () => {
 			expect(onVisualExpandedChange).toHaveBeenLastCalledWith(null);
 			expect(persistedWidth()).toBe("600");
 		});
-	});
-});
-
-describe("RightPanel sidebar auto-collapse", () => {
-	// jsdom has no layout, so every clientWidth returns parentWidth. Collapse
-	// below 720 (chat 360 + panel 360). The panel width clamps to 360 at 700,
-	// so restore needs 720 + 320 sidebar + 24 hysteresis = 1064.
-	let parentWidth = 0;
-	const resizeWindow = (width: number) => {
-		parentWidth = width;
-		fireEvent(window, new Event("resize"));
-	};
-	const nextFrame = () =>
-		new Promise((resolve) => requestAnimationFrame(resolve));
-
-	beforeEach(() => {
-		MockResizeObserver.reset();
-		vi.stubGlobal("ResizeObserver", MockResizeObserver);
-		vi.stubGlobal("innerWidth", 1440);
-		vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(
-			() => parentWidth,
-		);
-	});
-
-	afterEach(() => {
-		vi.restoreAllMocks();
-	});
-
-	it("restores a sidebar it collapsed once the window widens", async () => {
-		parentWidth = 700;
-		const onSidebarCollapsedChange = vi.fn();
-		render(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
-		);
-
-		resizeWindow(1040);
-		await nextFrame();
-		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
-
-		resizeWindow(1100);
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(false),
-		);
-		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(2);
-	});
-
-	it("restores a sidebar it collapsed after the panel remounts", async () => {
-		parentWidth = 700;
-		const onSidebarCollapsedChange = vi.fn();
-		const { rerender } = render(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					panelKey="chat-1"
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
-		);
-
-		rerender(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					panelKey="chat-2"
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-		await nextFrame();
-		await nextFrame();
-		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(1);
-
-		resizeWindow(1100);
-
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(false),
-		);
-	});
-
-	it("leaves a sidebar the user collapsed alone", async () => {
-		parentWidth = 1400;
-		const onSidebarCollapsedChange = vi.fn();
-		render(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					initialSidebarCollapsed
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-
-		resizeWindow(1500);
-		await nextFrame();
-		expect(onSidebarCollapsedChange).not.toHaveBeenCalled();
-	});
-
-	it("leaves alone a sidebar the user collapsed after an auto-collapse", async () => {
-		parentWidth = 700;
-		const user = userEvent.setup();
-		const onSidebarCollapsedChange = vi.fn();
-		render(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
-		);
-
-		parentWidth = 800;
-		const toggle = screen.getByRole("button", { name: "Toggle sidebar" });
-		await user.click(toggle);
-		await user.click(toggle);
-		expect(onSidebarCollapsedChange.mock.calls).toEqual([
-			[true],
-			[false],
-			[true],
-		]);
-
-		resizeWindow(1500);
-		await nextFrame();
-		expect(onSidebarCollapsedChange).toHaveBeenCalledTimes(3);
-	});
-
-	it("restores a sidebar it collapsed when the panel closes", async () => {
-		parentWidth = 700;
-		const user = userEvent.setup();
-		const onSidebarCollapsedChange = vi.fn();
-		render(
-			<MemoryRouter>
-				<RightPanelWithSidebarHarness
-					onSidebarCollapsedChange={onSidebarCollapsedChange}
-				/>
-			</MemoryRouter>,
-		);
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange).toHaveBeenLastCalledWith(true),
-		);
-
-		await user.click(screen.getByRole("button", { name: "Close panel" }));
-
-		await waitFor(() =>
-			expect(onSidebarCollapsedChange.mock.calls).toEqual([[true], [false]]),
-		);
 	});
 });

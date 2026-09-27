@@ -2,12 +2,9 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	applyNarrowWidthCollapse,
 	chatCostIdToInvalidate,
-	createOpenPanelRegistry,
 	nextSidebarViewportSlide,
 	shouldInvalidateFilteredChatList,
-	useSidebarCollapseState,
 } from "./AgentsPageLayout";
 import {
 	emptyInputStorageKey,
@@ -1059,21 +1056,6 @@ describe(chatCostIdToInvalidate.name, () => {
 	});
 });
 
-describe("applyNarrowWidthCollapse", () => {
-	it.each([
-		{ prev: null, collapsed: true, expected: "narrowWidth" },
-		{ prev: "narrowWidth", collapsed: false, expected: null },
-		{ prev: "user", collapsed: true, expected: "user" },
-		{ prev: "user", collapsed: false, expected: "user" },
-		{ prev: null, collapsed: false, expected: null },
-	] as const)(
-		"$prev with collapsed=$collapsed gives $expected",
-		({ prev, collapsed, expected }) => {
-			expect(applyNarrowWidthCollapse(prev, collapsed)).toBe(expected);
-		},
-	);
-});
-
 describe("nextSidebarViewportSlide", () => {
 	const chatRoute = {
 		isSidebarHiddenOnMobile: true,
@@ -1145,70 +1127,5 @@ describe("nextSidebarViewportSlide", () => {
 		},
 	] as const)("$name", ({ input, expected }) => {
 		expect(nextSidebarViewportSlide(input)).toBe(expected);
-	});
-});
-
-describe("createOpenPanelRegistry", () => {
-	const nextFrame = () =>
-		new Promise((resolve) => requestAnimationFrame(resolve));
-
-	it("reports none open a frame after the last panel unregisters", async () => {
-		const onNoneOpen = vi.fn();
-		const register = createOpenPanelRegistry(onNoneOpen);
-
-		register()();
-		expect(onNoneOpen).not.toHaveBeenCalled();
-		await nextFrame();
-		expect(onNoneOpen).toHaveBeenCalledOnce();
-	});
-
-	it("ignores an unregister followed by a register in the same frame", async () => {
-		const onNoneOpen = vi.fn();
-		const register = createOpenPanelRegistry(onNoneOpen);
-
-		const unregisterFirst = register();
-		unregisterFirst();
-		register();
-		await nextFrame();
-		expect(onNoneOpen).not.toHaveBeenCalled();
-	});
-});
-
-describe("useSidebarCollapseState", () => {
-	const nextFrame = () =>
-		new Promise((resolve) => requestAnimationFrame(resolve));
-
-	it("restores a narrow-width collapse once no right panel is open", async () => {
-		const { result } = renderHook(() => useSidebarCollapseState());
-
-		let unregister = () => {};
-		act(() => {
-			unregister = result.current.registerOpenRightPanel();
-			result.current.onSidebarCollapsedByNarrowWidthChange(true);
-		});
-		expect(result.current.isSidebarCollapsedByNarrowWidth).toBe(true);
-
-		await act(async () => {
-			unregister();
-			await nextFrame();
-		});
-		expect(result.current.isSidebarCollapsed).toBe(false);
-	});
-
-	it("keeps a user collapse after the last right panel closes", async () => {
-		const { result } = renderHook(() => useSidebarCollapseState());
-
-		let unregister = () => {};
-		act(() => {
-			unregister = result.current.registerOpenRightPanel();
-			result.current.toggleSidebarByUser();
-		});
-
-		await act(async () => {
-			unregister();
-			await nextFrame();
-		});
-		expect(result.current.isSidebarCollapsed).toBe(true);
-		expect(result.current.isSidebarCollapsedByNarrowWidth).toBe(false);
 	});
 });

@@ -5,7 +5,6 @@ import {
 	type PointerEvent as ReactPointerEvent,
 	type TransitionEvent as ReactTransitionEvent,
 	useEffect,
-	useEffectEvent,
 	useRef,
 	useState,
 } from "react";
@@ -24,9 +23,6 @@ const DEFAULT_WIDTH = 480;
 
 const SNAP_THRESHOLD = 80;
 const RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH = 1024;
-// Dead band between the collapse and restore thresholds, so a window near
-// the threshold does not collapse and restore the sidebar on every resize.
-const SIDEBAR_RESTORE_HYSTERESIS = 24;
 
 function getMaxWidth(): number {
 	return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * MAX_WIDTH_RATIO));
@@ -254,14 +250,8 @@ export const RightPanel = ({
 	onVisualExpandedChange,
 	children,
 }: RightPanelProps) => {
-	const {
-		isSidebarCollapsed,
-		onToggleSidebarCollapsed,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		getExpandedSidebarWidth,
-		registerOpenRightPanel,
-	} = useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsPageOutletContext | undefined>() ?? {};
 	const [width, setWidth] = useState(loadPersistedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
@@ -364,24 +354,12 @@ export const RightPanel = ({
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
 	}, [width]);
 
-	// Registers this panel while open. The layout clears a narrow-width
-	// collapse a frame after no open panel remains.
-	useEffect(() => {
-		if (!isOpen) {
-			return;
-		}
-		return registerOpenRightPanel?.();
-	}, [isOpen, registerOpenRightPanel]);
-
-	const getPanelWidth = useEffectEvent(() => width);
-
 	useEffect(() => {
 		if (
 			!visualOpen ||
 			visualExpanded ||
-			isBelowLg ||
-			!onSidebarCollapsedByNarrowWidthChange ||
-			(isSidebarCollapsed && !isSidebarCollapsedByNarrowWidth)
+			isSidebarCollapsed ||
+			!onToggleSidebarCollapsed
 		) {
 			return;
 		}
@@ -392,55 +370,43 @@ export const RightPanel = ({
 		}
 
 		let frame = 0;
-		let narrowWidthChangeRequested = false;
-		const maybeUpdateNarrowWidthCollapse = () => {
+		let collapseRequested = false;
+		const maybeCollapseSidebar = () => {
 			cancelAnimationFrame(frame);
 			frame = requestAnimationFrame(() => {
-				if (narrowWidthChangeRequested) {
+				if (
+					collapseRequested ||
+					innerWidth < RIGHT_PANEL_SIDE_BY_SIDE_BREAKPOINT_WIDTH
+				) {
 					return;
 				}
 
-				const chatMinWidth = getChatMinWidth(parent);
-				if (isSidebarCollapsed) {
-					const sidebarWidth = getExpandedSidebarWidth?.();
-					if (sidebarWidth === undefined) {
-						return;
-					}
-					// Leave room for the panel's current width, not just its minimum.
-					const requiredWidth =
-						chatMinWidth +
-						Math.max(MIN_WIDTH, getPanelWidth()) +
-						SIDEBAR_RESTORE_HYSTERESIS;
-					if (parent.clientWidth - sidebarWidth < requiredWidth) {
-						return;
-					}
-				} else if (parent.clientWidth >= chatMinWidth + MIN_WIDTH) {
+				const requiredMainWidth = getChatMinWidth(parent) + MIN_WIDTH;
+
+				if (parent.clientWidth >= requiredMainWidth) {
 					return;
 				}
 
-				narrowWidthChangeRequested = true;
-				onSidebarCollapsedByNarrowWidthChange(!isSidebarCollapsed);
+				collapseRequested = true;
+				onToggleSidebarCollapsed();
 			});
 		};
 
-		maybeUpdateNarrowWidthCollapse();
-		const resizeObserver = new ResizeObserver(maybeUpdateNarrowWidthCollapse);
+		maybeCollapseSidebar();
+		const resizeObserver = new ResizeObserver(maybeCollapseSidebar);
 		resizeObserver.observe(parent);
-		addEventListener("resize", maybeUpdateNarrowWidthCollapse);
+		addEventListener("resize", maybeCollapseSidebar);
 
 		return () => {
 			cancelAnimationFrame(frame);
 			resizeObserver.disconnect();
-			removeEventListener("resize", maybeUpdateNarrowWidthCollapse);
+			removeEventListener("resize", maybeCollapseSidebar);
 		};
 	}, [
 		visualOpen,
 		visualExpanded,
-		isBelowLg,
 		isSidebarCollapsed,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		getExpandedSidebarWidth,
+		onToggleSidebarCollapsed,
 	]);
 
 	return (

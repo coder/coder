@@ -78,7 +78,6 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
-import { readExpandedLeftSidebarWidth } from "./components/ChatsSidebar/sidebarWidth";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -122,84 +121,7 @@ export type AgentsPageOutletContext = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
-	/** True when RightPanel collapsed the sidebar to fit the panel, not the user. */
-	isSidebarCollapsedByNarrowWidth: boolean;
-	/** Records or clears a narrow-width collapse. Never changes a user collapse. */
-	onSidebarCollapsedByNarrowWidthChange: (collapsed: boolean) => void;
-	/**
-	 * The width the sidebar frame expands to, readable while collapsed.
-	 * Undefined when the frame is not mounted; RightPanel then skips the
-	 * restore check.
-	 */
-	getExpandedSidebarWidth: () => number | undefined;
-	/**
-	 * Registers an open RightPanel and returns its unregister function. A
-	 * narrow-width collapse is cleared once no open panel remains.
-	 */
-	registerOpenRightPanel: () => () => void;
 	onChatReady: () => void;
-};
-
-export type SidebarCollapsedBy = "user" | "narrowWidth" | null;
-
-/** Applies a narrow-width collapse change without overriding a user collapse. */
-export const applyNarrowWidthCollapse = (
-	prev: SidebarCollapsedBy,
-	collapsed: boolean,
-): SidebarCollapsedBy => {
-	if (collapsed) {
-		return prev ?? "narrowWidth";
-	}
-	return prev === "narrowWidth" ? null : prev;
-};
-
-/**
- * Counts mounted open right panels and calls onNoneOpen once none remain
- * after a frame. Waiting a frame keeps a chat switch, which unmounts one
- * panel and mounts the next, from counting as all closed.
- */
-export const createOpenPanelRegistry = (onNoneOpen: () => void) => {
-	let openCount = 0;
-	return () => {
-		openCount += 1;
-		return () => {
-			openCount -= 1;
-			requestAnimationFrame(() => {
-				if (openCount === 0) {
-					onNoneOpen();
-				}
-			});
-		};
-	};
-};
-
-/**
- * Owns why the sidebar is collapsed, plus the outlet callbacks RightPanel
- * uses to collapse it for space and to restore it.
- */
-export const useSidebarCollapseState = (
-	initialCollapsedBy: SidebarCollapsedBy = null,
-) => {
-	const [sidebarCollapsedBy, setSidebarCollapsedBy] =
-		useState<SidebarCollapsedBy>(initialCollapsedBy);
-	const [registerOpenRightPanel] = useState(() =>
-		createOpenPanelRegistry(() =>
-			setSidebarCollapsedBy((prev) => applyNarrowWidthCollapse(prev, false)),
-		),
-	);
-	return {
-		isSidebarCollapsed: sidebarCollapsedBy !== null,
-		toggleSidebarByUser: () =>
-			setSidebarCollapsedBy((prev) => (prev ? null : "user")),
-		collapseSidebarByUser: () => setSidebarCollapsedBy("user"),
-		expandSidebar: () => setSidebarCollapsedBy(null),
-		isSidebarCollapsedByNarrowWidth: sidebarCollapsedBy === "narrowWidth",
-		onSidebarCollapsedByNarrowWidthChange: (collapsed: boolean) =>
-			setSidebarCollapsedBy((prev) =>
-				applyNarrowWidthCollapse(prev, collapsed),
-			),
-		registerOpenRightPanel,
-	};
 };
 
 export type SidebarViewportSlide = "in" | "out" | null;
@@ -463,16 +385,7 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to rename chat."));
 		},
 	});
-	const {
-		isSidebarCollapsed,
-		toggleSidebarByUser,
-		collapseSidebarByUser,
-		expandSidebar,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		registerOpenRightPanel,
-	} = useSidebarCollapseState();
-	const sidebarFrameRef = useRef<HTMLDivElement>(null);
+	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -603,6 +516,9 @@ const AgentsPageLayout: FC = () => {
 	const requestRenameTitle = async (chatId: string, title: string) => {
 		await renameTitleMutation.mutateAsync({ chatId, title });
 	};
+	const handleToggleSidebarCollapsed = () =>
+		setIsSidebarCollapsed((prev) => !prev);
+
 	const handleNewAgent = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
@@ -839,13 +755,8 @@ const AgentsPageLayout: FC = () => {
 		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
-		onToggleSidebarCollapsed: toggleSidebarByUser,
-		onExpandSidebar: expandSidebar,
-		isSidebarCollapsedByNarrowWidth,
-		onSidebarCollapsedByNarrowWidthChange,
-		getExpandedSidebarWidth: () =>
-			readExpandedLeftSidebarWidth(sidebarFrameRef.current),
-		registerOpenRightPanel,
+		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
+		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
 	};
 
@@ -868,7 +779,6 @@ const AgentsPageLayout: FC = () => {
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 					)}
-					ref={sidebarFrameRef}
 					isCollapsed={isSidebarCollapsed}
 					viewportSlide={sidebarViewportSlide}
 					onViewportSlideEnd={() => setSidebarViewportSlide(null)}
@@ -903,7 +813,7 @@ const AgentsPageLayout: FC = () => {
 						isFetchingNextPage={chatsQuery.isFetchingNextPage}
 						sidebarFilters={sidebarFilters}
 						onSidebarFiltersChange={setSidebarFilters}
-						onCollapse={collapseSidebarByUser}
+						onCollapse={() => setIsSidebarCollapsed(true)}
 						isPersonalModelOverridesEnabled={
 							personalModelOverridesQuery.data?.enabled
 						}

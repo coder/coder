@@ -3,7 +3,6 @@ import {
 	type KeyboardEvent as ReactKeyboardEvent,
 	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
-	type Ref,
 	useEffect,
 	useRef,
 	useState,
@@ -13,7 +12,6 @@ import {
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	LEFT_SIDEBAR_WIDTH_VAR,
 	loadStoredLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
@@ -21,7 +19,6 @@ import {
 type ResizableChatsSidebarFrameProps = {
 	children: ReactNode;
 	className?: string;
-	ref?: Ref<HTMLDivElement>;
 	isCollapsed?: boolean;
 	/**
 	 * Plays the sm-breakpoint slide. "out" ignores className and isCollapsed
@@ -35,7 +32,6 @@ type ResizableChatsSidebarFrameProps = {
 export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
-	ref,
 	isCollapsed = false,
 	viewportSlide = null,
 	onViewportSlideEnd,
@@ -130,10 +126,9 @@ export const ResizableChatsSidebarFrame = ({
 
 	return (
 		<div
-			ref={ref}
 			data-testid="agents-sidebar-panel"
 			style={{
-				[LEFT_SIDEBAR_WIDTH_VAR]: `${width}px`,
+				"--agents-left-sidebar-width": `${width}px`,
 				"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
 				"--agents-left-sidebar-max-width": `${maxWidth}px`,
 				"--panel-width": `${width}px`,
