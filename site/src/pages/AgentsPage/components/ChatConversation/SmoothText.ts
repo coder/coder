@@ -260,7 +260,7 @@ export class SmoothTextEngine {
 	 * Restart the reveal loop after a dispose that turned out not to be
 	 * final, such as StrictMode's simulated unmount.
 	 */
-	resume(): void {
+	resume() {
 		if (this.isStreaming && !this.bypassSmoothing && !this.isCaughtUp) {
 			this.startLoop();
 		}
