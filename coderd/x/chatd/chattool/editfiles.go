@@ -24,10 +24,8 @@ type EditFilesArgs struct {
 // EditFilesToolName is the registered name of the edit_files tool.
 const EditFilesToolName = "edit_files"
 
-// EditFilesEdit is one edit in the flat edit_files input: a single
-// old_text to new_text replacement that carries the path of the file
-// it applies to. It is distinct from workspacesdk.FileEdit, which has
-// no path and is grouped under workspacesdk.FileEdits for the agent.
+// EditFilesEdit is one edit in the edit_files tool input. Unlike
+// workspacesdk.FileEdit, it carries the path of the file it changes.
 type EditFilesEdit struct {
 	Path       string `json:"path" description:"Absolute path of the file to edit."`
 	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
@@ -35,12 +33,10 @@ type EditFilesEdit struct {
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
-// GroupEditsByPath groups edits into one entry per path for the
-// workspace agent request. Paths compare exactly as given. Files
-// appear in order of each path's first edit, and each file keeps its
-// edits in their original order, so interleaved paths (a, b, a) group
-// to a: [1st, 3rd], b: [2nd]. The result is empty, not nil, for empty
-// input.
+// GroupEditsByPath groups edits into one file per path for the
+// workspace agent request. Paths are compared exactly as given. Files
+// are ordered by each path's first edit, and each file keeps its edits
+// in their original order. Empty input returns an empty slice, not nil.
 func GroupEditsByPath(edits []EditFilesEdit) []workspacesdk.FileEdits {
 	files := make([]workspacesdk.FileEdits, 0, len(edits))
 	indexByPath := make(map[string]int, len(edits))
@@ -60,9 +56,8 @@ func GroupEditsByPath(edits []EditFilesEdit) []workspacesdk.FileEdits {
 	return files
 }
 
-// EditFilesHookInput is the grouped form of edit_files input that
-// pre_tool_use hooks receive as tool_input and return as
-// input_override: {"files":[{"path":...,"edits":[...]}]}.
+// EditFilesHookInput is edit_files input grouped by path, in the shape
+// pre_tool_use hooks read as tool_input and send as input_override.
 type EditFilesHookInput struct {
 	Files []EditFilesHookFile `json:"files"`
 }
@@ -99,9 +94,9 @@ func NewEditFilesHookInput(edits []EditFilesEdit) EditFilesHookInput {
 	return input
 }
 
-// Edits flattens the grouped input back to one edit per entry: files
-// in order, then each file's edits in order. The result is empty, not
-// nil, when there are no edits.
+// Edits flattens the grouped input: files in order, then each file's
+// edits in order. It returns an empty slice, not nil, when there are no
+// edits.
 func (in EditFilesHookInput) Edits() []EditFilesEdit {
 	edits := make([]EditFilesEdit, 0)
 	for _, file := range in.Files {
