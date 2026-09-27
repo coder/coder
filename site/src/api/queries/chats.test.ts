@@ -2087,6 +2087,7 @@ describe("chatListKey shape", () => {
 			archived: true,
 			prStatuses: [],
 			status: "all",
+			statuses: [],
 			sources: [],
 		});
 	});
@@ -2113,6 +2114,36 @@ describe("getChatListQueryString", () => {
 		expect(
 			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
 		).toBe("archived:false pr_status:none");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe("archived:false status:requires_action,running,interrupting");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					chatStatus: "unread",
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe(
+			"archived:false has_unread:true status:requires_action,running,interrupting",
+		);
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: [
+						"requires_action",
+						"error",
+						"running",
+						"interrupting",
+						"waiting",
+					],
+				}),
+			),
+		).toBe("archived:false");
 	});
 });
 

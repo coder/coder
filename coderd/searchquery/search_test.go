@@ -1113,6 +1113,8 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
 		{name: "SidebarDefault", query: "archived:false"},
 		{name: "SidebarUnread", query: "archived:false has_unread:true"},
+		{name: "SidebarStatus", query: "archived:false status:requires_action,running,interrupting"},
+		{name: "SidebarUnreadStatus", query: "archived:false has_unread:true status:requires_action,running,interrupting"},
 		{
 			name:  "SidebarFiltered",
 			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
@@ -1128,7 +1130,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		})
 	}
 
-	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe"}
+	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe", "status:working"}
 	for _, query := range rejectedQueries {
 		t.Run("Rejects"+query, func(t *testing.T) {
 			t.Parallel()
@@ -1207,6 +1209,29 @@ func TestSearchChats(t *testing.T) {
 			Name:                  "HasUnreadInvalid",
 			Query:                 "has_unread:bogus",
 			ExpectedErrorContains: "has_unread",
+		},
+		{
+			Name:  "ChatStatusRunning",
+			Query: "status:running",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"running"},
+			},
+		},
+		{
+			Name:  "ChatStatusMultiple",
+			Query: "status:waiting,error",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"waiting", "error"},
+			},
+		},
+		{
+			Name:                  "ChatStatusInvalid",
+			Query:                 "status:working",
+			ExpectedErrorContains: "status",
 		},
 		{
 			Name:  "PRStatusDraft",

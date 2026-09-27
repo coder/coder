@@ -32,6 +32,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { getOSKey } from "#/utils/platform";
 import {
+	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
@@ -51,6 +52,7 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getChatStatusDisplay } from "../tree/statusConfig";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
@@ -60,8 +62,6 @@ import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
-const UNREAD_SECTION_KEY = "Unread";
-const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 type ChatsPanelProps = {
@@ -165,6 +165,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.unread ||
 		sidebarFilters.sources.length !==
 			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
 		sidebarFilters.sources.some(
@@ -314,18 +315,14 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 
 	const chatSections = (
 		sidebarFilters.groupBy === "chat_status"
-			? [
-					{
-						key: UNREAD_SECTION_KEY,
-						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
-					},
-					{
-						key: READ_SECTION_KEY,
-						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
-					},
-				]
+			? AGENT_CHAT_STATUS_GROUP_ORDER.map((status) => {
+					const label = getChatStatusDisplay(status).label;
+					return {
+						key: label,
+						label,
+						chats: unpinnedOwnedChats.filter((chat) => chat.status === status),
+					};
+				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
@@ -347,6 +344,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			unread: false,
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};

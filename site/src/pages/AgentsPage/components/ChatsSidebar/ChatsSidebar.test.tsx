@@ -26,7 +26,10 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
-import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	type AgentSidebarFilters,
+} from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -108,7 +111,8 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
 	prStatuses: [],
-	chatStatuses: ["unread", "read"],
+	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	unread: false,
 	sources: ["created_by_me"],
 };
 
@@ -290,7 +294,7 @@ describe("ChatsSidebar filters", () => {
 			archiveStatus: "archived",
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
-			chatStatuses: ["unread"],
+			chatStatuses: ["running"],
 			sources: ["shared_with_me"],
 		};
 
@@ -317,7 +321,7 @@ describe("ChatsSidebar filters", () => {
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...sidebarFilters,
 			prStatuses: [],
-			chatStatuses: ["unread", "read"],
+			chatStatuses: defaultSidebarFilters.chatStatuses,
 			sources: ["created_by_me"],
 		});
 	});
@@ -375,7 +379,7 @@ describe("ChatsSidebar filters", () => {
 					{...defaultProps}
 					sidebarFilters={{
 						...defaultSidebarFilters,
-						chatStatuses: ["unread"],
+						chatStatuses: ["running"],
 						sources: ["shared_with_me"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
@@ -383,12 +387,37 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await openFilterSubmenu(user, /Chat status/);
-		await chooseFilterOption("menuitemcheckbox", "Unread");
+		await openFilterSubmenu(user, "Status");
+		await chooseFilterOption("menuitemcheckbox", "Working");
 		await openFilterSubmenu(user, /Source/);
 		await chooseFilterOption("menuitemcheckbox", "Shared with me");
 
 		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
+	});
+
+	it("applies the unread checkbox", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Unread" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			unread: true,
+		});
 	});
 
 	it("clears every sidebar filter from the menu", async () => {
@@ -426,13 +455,29 @@ describe("ChatsSidebar filters", () => {
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
+							id: "attention-chat",
+							title: "Needs action",
+							status: "requires_action",
 						}),
 						buildChat({
-							id: "read-chat",
-							title: "Read chat",
+							id: "error-chat",
+							title: "Failed chat",
+							status: "error",
+						}),
+						buildChat({
+							id: "working-chat",
+							title: "Working chat",
+							status: "running",
+						}),
+						buildChat({
+							id: "interrupting-chat",
+							title: "Interrupting chat",
+							status: "interrupting",
+						}),
+						buildChat({
+							id: "idle-chat",
+							title: "Idle chat",
+							status: "waiting",
 						}),
 					]}
 					sidebarFilters={{
@@ -443,26 +488,42 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		const unreadSection = screen.getByTestId("agents-section-toggle-Unread");
-		const readSection = screen.getByTestId("agents-section-toggle-Read");
-		const unreadNode = screen.getByTestId("agents-tree-node-unread-chat");
-		const readNode = screen.getByTestId("agents-tree-node-read-chat");
+		const attentionSection = screen.getByTestId(
+			"agents-section-toggle-Requires-action",
+		);
+		const errorSection = screen.getByTestId("agents-section-toggle-Error");
+		const workingSection = screen.getByTestId("agents-section-toggle-Working");
+		const interruptingSection = screen.getByTestId(
+			"agents-section-toggle-Interrupting",
+		);
+		const idleSection = screen.getByTestId("agents-section-toggle-Idle");
+		const attentionNode = screen.getByTestId("agents-tree-node-attention-chat");
+		const errorNode = screen.getByTestId("agents-tree-node-error-chat");
+		const workingNode = screen.getByTestId("agents-tree-node-working-chat");
+		const interruptingNode = screen.getByTestId(
+			"agents-tree-node-interrupting-chat",
+		);
+		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
 		).not.toBeInTheDocument();
-		expect(
-			unreadSection.compareDocumentPosition(unreadNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			unreadNode.compareDocumentPosition(readSection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			readSection.compareDocumentPosition(readNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+		for (const [before, after] of [
+			[attentionSection, attentionNode],
+			[attentionNode, errorSection],
+			[errorSection, errorNode],
+			[errorNode, workingSection],
+			[workingSection, workingNode],
+			[workingNode, interruptingSection],
+			[interruptingSection, interruptingNode],
+			[interruptingNode, idleSection],
+			[idleSection, idleNode],
+		] as const) {
+			expect(
+				before.compareDocumentPosition(after) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			).toBeTruthy();
+		}
 	});
 });
 
