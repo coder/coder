@@ -89,15 +89,26 @@ The remote MCP server is an HTTP endpoint exposed by your Coder deployment at
 `/api/experimental/mcp/http`. This enables MCP clients to connect to Coder
 without running the CLI locally.
 
-The endpoint implements the
-[Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
-in stateless mode: it supports MCP specification versions from `2024-11-05`
-through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
-`GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
-server-event stream or explicit session termination, both permitted by the
-specification). The server exposes tools only; MCP resources, prompts,
-structured tool output, elicitation, and the MCP Tasks extension are not
-implemented.
+The endpoint implements the [Streamable HTTP transport](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) in stateless mode.
+It supports MCP specification versions from `2024-11-05` through `2026-07-28` and doesn't issue `Mcp-Session-Id` headers.
+It answers `GET` and `DELETE` with `405 Method Not Allowed`, without a standalone server-event stream or explicit session termination.
+The default toolset exposes tools and prompts.
+Object tool results include `structuredContent` alongside the JSON text result.
+Other result shapes use text.
+MCP resources, elicitation, and the MCP Tasks extension aren't implemented.
+
+### Choose a toolset
+
+For workspace operations, add `?toolset=workspace` to the endpoint URL:
+
+```txt
+https://coder.example.com/api/experimental/mcp/http?toolset=workspace
+```
+
+This toolset includes workspace operations and the discovery tools for selecting an organization and template.
+It excludes template administration and Coder Agents chats and prompts.
+Without a `toolset` parameter, the endpoint exposes the standard toolset.
+The `?toolset=chatgpt` toolset exposes only `search` and `fetch`.
 
 ### Prerequisites
 
@@ -209,6 +220,34 @@ The full, authoritative set of tools, including their names, descriptions, and
 arguments, is defined in Coder's
 [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
 current list, since the available tools can change between releases.
+
+### Observe workspace readiness
+
+Call `coder_workspace_readiness` before execution to check the workspace build and workspace agent startup state.
+The tool doesn't start the workspace, connect to its workspace agent, or extend workspace activity.
+Tools that read workspace files, list directories or apps, or get port URLs can start a stopped workspace and advertise that side effect.
+
+Supply the workspace as `[owner/]workspace[.agent]`.
+If the workspace has multiple workspace agents, select one with the `.agent` suffix.
+For example, these arguments observe `alice/dev.main` for up to 30&nbsp;seconds:
+
+```json
+{
+  "workspace": "alice/dev.main",
+  "wait_ms": 30000
+}
+```
+
+Omit `wait_ms` or set it to `0` to request one snapshot.
+Positive values bound observation, including API requests, to at most 30&nbsp;seconds.
+Single-snapshot API requests also have a 30&nbsp;second limit.
+The tool returns immediately when ready or when the observed state requires action.
+If the wait expires after a snapshot, the response includes that snapshot with `wait_expired: true`.
+
+The response includes workspace and build IDs, build status, and the selected workspace agent's connection and startup states when available.
+Its `state` and `reason` distinguish pending startup, build failure, disconnection, startup errors, and startup timeouts.
+A `ready: true` result means the control plane reports a running build, a connected workspace agent, and successful startup.
+It doesn't probe connectivity or guarantee that a subsequent operation succeeds.
 
 ## Available Prompts
 

@@ -488,6 +488,30 @@ func TestTools(t *testing.T) {
 		}
 	})
 
+	t.Run("WorkspaceReadiness", func(t *testing.T) {
+		t.Parallel()
+		// Other tool tests rebuild their workspace, so observe a separate one.
+		// nolint:gocritic // Test fixture.
+		observation := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent().Do()
+		before, err := memberClient.Workspace(t.Context(), observation.Workspace.ID)
+		require.NoError(t, err)
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.WorkspaceReadiness, tb, toolsdk.WorkspaceReadinessArgs{
+			Workspace: observation.Workspace.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Equal(t, before.ID, result.WorkspaceID)
+		require.Equal(t, before.LatestBuild.ID, result.BuildID)
+		require.NotNil(t, result.AgentID)
+		require.Equal(t, before.LatestBuild.Resources[0].Agents[0].ID, *result.AgentID)
+		require.False(t, result.WaitExpired)
+		require.NotEmpty(t, result.Reason)
+	})
+
 	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {
 		t.Parallel()
 

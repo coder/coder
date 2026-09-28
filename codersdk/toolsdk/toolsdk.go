@@ -47,6 +47,7 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
+	ToolNameWorkspaceReadiness          = "coder_workspace_readiness"
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
@@ -416,6 +417,7 @@ var All = []GenericTool{
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
 	WorkspaceBash.Generic(),
+	WorkspaceReadiness.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
 	WorkspaceLS.Generic(),
