@@ -598,7 +598,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		}, nil
 	}
 
-	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
+	maxResultBytes := ToolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
 	toolExecutions := executeTools(
 		ctx,
@@ -1452,7 +1452,7 @@ func executeSingleTool(
 	// Bound text so one tool result cannot overflow the model's context window.
 	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
-	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
+	if truncated, didTruncate := TruncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
 		logger.Warn(ctx, "tool result truncated to fit model context",
 			slog.F("tool_name", tc.ToolName),

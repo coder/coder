@@ -787,13 +787,16 @@ func committedPendingLocalToolCancellationMessages(
 		if !ok {
 			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)
 		}
-		payload := json.RawMessage(resp.Content)
+		// Cap the result as chatloop caps tool results. The model's context
+		// window is not known here, so use the default budget.
+		text, _ := chatloop.TruncateToolResultText(resp.Content, chatloop.ToolResultByteBudget(0))
+		var output fantasy.ToolResultOutputContent = fantasy.ToolResultOutputContentText{Text: text}
 		if resp.IsError {
-			if payload, err = json.Marshal(map[string]string{"error": resp.Content}); err != nil {
-				return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
-			}
+			output = fantasy.ToolResultOutputContentError{Error: xerrors.New(text)}
 		}
-		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, resp.IsError, false)
+		// PartFromContent wraps text that is not valid JSON, such as a
+		// truncated JSON result.
+		part := chatprompt.PartFromContent(fantasy.ToolResultContent{ToolCallID: call.ToolCallID, ToolName: call.ToolName, Result: output})
 		if !interruptedAt.IsZero() {
 			part.CreatedAt = &interruptedAt
 		}
