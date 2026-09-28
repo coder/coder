@@ -26,6 +26,13 @@ const meta: Meta<typeof FilterPopover> = {
 			/>
 		);
 	},
+	decorators: [
+		(Story) => (
+			<div className="flex h-[540px] w-80 max-w-full justify-end">
+				<Story />
+			</div>
+		),
+	],
 };
 
 export default meta;
@@ -34,11 +41,10 @@ type Story = StoryObj<typeof FilterPopover>;
 export const Closed: Story = {};
 
 const openFilterMenu = async (canvasElement: HTMLElement) => {
-	const user = userEvent.setup();
-	await user.click(
+	await userEvent.click(
 		within(canvasElement).getByRole("button", { name: "Filter agents" }),
 	);
-	return user;
+	return within(canvasElement.ownerDocument.body);
 };
 
 export const MenuOpen: Story = {
@@ -47,45 +53,73 @@ export const MenuOpen: Story = {
 	},
 };
 
-const activeFilters = {
-	archiveStatus: "archived",
-	groupBy: "chat_status",
+const activeFilters: AgentSidebarFilters = {
+	...DEFAULT_AGENT_SIDEBAR_FILTERS,
 	prStatuses: ["draft", "open"],
-	chatStatuses: ["running"],
 	unread: true,
-	sources: ["shared_with_me"],
-} satisfies AgentSidebarFilters;
+	sources: ["created_by_me"],
+};
 
 export const ActiveFilters: Story = {
+	args: { filters: activeFilters },
+	play: MenuOpen.play,
+};
+
+export const Archived: Story = {
 	args: {
-		filters: activeFilters,
+		filters: { ...DEFAULT_AGENT_SIDEBAR_FILTERS, archiveStatus: "archived" },
 	},
+	play: MenuOpen.play,
+};
+
+export const OwnerSubmenu: Story = {
 	play: async ({ canvasElement }) => {
-		await openFilterMenu(canvasElement);
+		const body = await openFilterMenu(canvasElement);
+		await userEvent.click(body.getByRole("menuitem", { name: /^Owner/ }));
 	},
 };
 
-export const ChatStatusSubmenu: Story = {
+export const FilterBySubmenu: Story = {
+	args: { filters: activeFilters },
 	play: async ({ canvasElement }) => {
-		const user = await openFilterMenu(canvasElement);
-		await user.click(
-			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-				name: "Status",
-			}),
+		const body = await openFilterMenu(canvasElement);
+		await userEvent.click(body.getByRole("menuitem", { name: /^Filter by/ }));
+	},
+};
+
+export const ChatStatusFilters: Story = {
+	args: { filters: { ...activeFilters, chatStatuses: ["error", "running"] } },
+	play: MenuOpen.play,
+};
+
+export const GroupedBySubmenu: Story = {
+	play: async ({ canvasElement }) => {
+		const body = await openFilterMenu(canvasElement);
+		await userEvent.click(body.getByRole("menuitem", { name: /^Grouped by/ }));
+	},
+};
+
+export const KeyboardBadge: Story = {
+	args: { filters: activeFilters },
+	play: async ({ canvasElement }) => {
+		const trigger = within(canvasElement).getByRole("button", {
+			name: "Filter agents",
+		});
+		trigger.focus();
+		await userEvent.keyboard(
+			"{Enter}{ArrowDown}{ArrowDown}{ArrowDown}{ArrowDown}",
 		);
 	},
 };
 
-export const PrStatusSubmenu: Story = {
-	args: {
-		filters: activeFilters,
-	},
-	play: async ({ canvasElement }) => {
-		const user = await openFilterMenu(canvasElement);
-		await user.click(
-			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-				name: "PR",
-			}),
-		);
-	},
+export const Mobile: Story = {
+	globals: { viewport: { value: "iphone12", isRotated: false } },
+	args: ActiveFilters.args,
+	play: MenuOpen.play,
+};
+
+export const MobileFilterBy: Story = {
+	globals: Mobile.globals,
+	args: ActiveFilters.args,
+	play: FilterBySubmenu.play,
 };

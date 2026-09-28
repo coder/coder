@@ -4,6 +4,7 @@ import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 	getAgentSidebarFilters,
 } from "./agentSidebarFilters";
 
@@ -13,7 +14,7 @@ const defaultFilters: AgentSidebarFilters = {
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
 	unread: false,
-	sources: ["created_by_me"],
+	sources: ["created_by_me", "shared_with_me"],
 };
 
 const archivedFilters: AgentSidebarFilters = {
@@ -22,7 +23,7 @@ const archivedFilters: AgentSidebarFilters = {
 	prStatuses: ["draft", "merged"],
 	chatStatuses: ["running"],
 	unread: false,
-	sources: ["created_by_me", "shared_with_me"],
+	sources: ["shared_with_me"],
 };
 
 const renderFilters = (route = "/agents") => {
@@ -134,7 +135,21 @@ describe(getAgentSidebarFilters.name, () => {
 		expect(search.get("group_by")).toBe("chat_status");
 		expect(search.get("pr_status")).toBe("draft,merged");
 		expect(search.get("chat_status")).toBe("running");
-		expect(search.get("source")).toBe("created_by_me,shared_with_me");
+		expect(search.get("source")).toBe("shared_with_me");
+	});
+
+	it.each([
+		{ sources: ["created_by_me"] as const, source: "created_by_me" },
+		{ sources: ["shared_with_me"] as const, source: "shared_with_me" },
+		{ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources, source: null },
+	])("round trips owner sources $sources", async ({ sources, source }) => {
+		const { result, getLocationSnapshot } = await renderFilters();
+
+		act(() => {
+			result.current[1]({ ...defaultFilters, sources });
+		});
+		await waitFor(() => expect(result.current[0].sources).toEqual(sources));
+		expect(getLocationSnapshot().search.get("source")).toBe(source);
 	});
 
 	it("writes a partial status selection in canonical order", async () => {

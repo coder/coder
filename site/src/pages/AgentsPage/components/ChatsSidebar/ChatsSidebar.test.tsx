@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +23,7 @@ import themes, { DEFAULT_THEME } from "#/theme";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -109,7 +111,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
 	unread: false,
-	sources: ["created_by_me"],
+	sources: ["created_by_me", "shared_with_me"],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -264,17 +266,34 @@ const toggleSubmenuOption = async (
 	user: MenuUser,
 	submenu: string | RegExp,
 	name: string,
+	role: "menuitemcheckbox" | "menuitemradio" = "menuitemcheckbox",
 ) => {
 	await openFilterMenu(user);
 	await focusMenuItem(user, "menuitem", submenu);
 	await user.keyboard("{ArrowRight}");
-	await focusMenuItem(user, "menuitemcheckbox", name);
+	await focusMenuItem(user, role, name);
 	await user.keyboard("{Enter}");
 	await user.keyboard("{Escape}{Escape}");
 };
 
 describe("ChatsSidebar filters", () => {
-	it("applies the archived checkbox", async () => {
+	const ControlledSidebar: React.FC<{
+		initialFilters?: AgentSidebarFilters;
+		onChange: (filters: AgentSidebarFilters) => void;
+	}> = ({ initialFilters = defaultSidebarFilters, onChange }) => {
+		const [filters, setFilters] = useState(initialFilters);
+		return (
+			<ChatsSidebar
+				{...defaultProps}
+				sidebarFilters={filters}
+				onSidebarFiltersChange={(next) => {
+					setFilters(next);
+					onChange(next);
+				}}
+			/>
+		);
+	};
+	it("selects archived from the state radio group", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -290,7 +309,7 @@ describe("ChatsSidebar filters", () => {
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
 		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
+			await screen.findByRole("menuitemradio", { name: "Archived" }),
 		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
@@ -335,53 +354,45 @@ describe("ChatsSidebar filters", () => {
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: defaultSidebarFilters.chatStatuses,
-			sources: ["created_by_me"],
+			sources: defaultSidebarFilters.sources,
 		});
 	});
 
-	it("applies source filters", async () => {
+	it("selects Mine, Shared with me, and All owners", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
-		const { rerender } = render(
+		render(
 			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					sidebarFilters={defaultSidebarFilters}
-					onSidebarFiltersChange={onSidebarFiltersChange}
-				/>
+				<ControlledSidebar onChange={onSidebarFiltersChange} />
 			</Wrapper>,
 		);
 
-		await toggleSubmenuOption(user, "Source", "Shared with me");
+		await toggleSubmenuOption(user, /^Owner/, "Mine", "menuitemradio");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
-			sources: ["created_by_me", "shared_with_me"],
+			sources: ["created_by_me"],
 		});
 
-		rerender(
-			<Wrapper>
-				<ChatsSidebar
-					{...defaultProps}
-					sidebarFilters={{
-						...defaultSidebarFilters,
-						sources: ["created_by_me", "shared_with_me"],
-					}}
-					onSidebarFiltersChange={onSidebarFiltersChange}
-				/>
-			</Wrapper>,
+		await toggleSubmenuOption(
+			user,
+			/^Owner/,
+			"Shared with me",
+			"menuitemradio",
 		);
-
-		await toggleSubmenuOption(user, "Source", "Created by me");
-
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			sources: ["shared_with_me"],
 		});
+
+		await toggleSubmenuOption(user, /^Owner/, "All", "menuitemradio");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith(
+			defaultSidebarFilters,
+		);
 	});
 
-	it("resets a filter subset when its last option is cleared", async () => {
+	it("clearing the last status restores all statuses without changing owner", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 		const sidebarFilters: AgentSidebarFilters = {
@@ -400,16 +411,11 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await toggleSubmenuOption(user, "Status", "Working");
-		await toggleSubmenuOption(user, /Source/, "Shared with me");
+		await toggleSubmenuOption(user, /^Filter by/, "Status: Working");
 
-		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...sidebarFilters,
 			chatStatuses: defaultSidebarFilters.chatStatuses,
-		});
-		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(2, {
-			...sidebarFilters,
-			sources: defaultSidebarFilters.sources,
 		});
 	});
 
@@ -427,10 +433,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(
-			await screen.findByRole("menuitemcheckbox", { name: "Unread" }),
-		);
+		await toggleSubmenuOption(user, /^Filter by/, "Unread");
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -438,7 +441,138 @@ describe("ChatsSidebar filters", () => {
 		});
 	});
 
-	it("clears every sidebar filter from the menu", async () => {
+	it.each([
+		["PR: draft", "draft"],
+		["PR: open", "open"],
+		["PR: merged", "merged"],
+		["PR: closed", "closed"],
+		["No PR", "none"],
+	] as const)("filters by %s", async (label, status) => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		render(
+			<Wrapper>
+				<ControlledSidebar onChange={onSidebarFiltersChange} />
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, /^Filter by/, label);
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			prStatuses: [status],
+		});
+	});
+
+	it.each([
+		["Status: Requires action", "requires_action"],
+		["Status: Error", "error"],
+		["Status: Working", "running"],
+		["Status: Idle", "waiting"],
+	] as const)("narrows all statuses to %s", async (label, status) => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		render(
+			<Wrapper>
+				<ControlledSidebar onChange={onSidebarFiltersChange} />
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, /^Filter by/, label);
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			chatStatuses: [status],
+		});
+	});
+
+	it("adds successive statuses, then restores all when the last is cleared", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		render(
+			<Wrapper>
+				<ControlledSidebar onChange={onSidebarFiltersChange} />
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, /^Filter by/, "Status: Error");
+		await toggleSubmenuOption(user, /^Filter by/, "Status: Working");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			chatStatuses: ["error", "running"],
+		});
+		await toggleSubmenuOption(user, /^Filter by/, "Status: Error");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			chatStatuses: ["running"],
+		});
+		await toggleSubmenuOption(user, /^Filter by/, "Status: Working");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith(
+			defaultSidebarFilters,
+		);
+	});
+
+	it("removes selected badges with the keyboard", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		render(
+			<Wrapper>
+				<ControlledSidebar
+					initialFilters={{
+						...defaultSidebarFilters,
+						unread: true,
+						prStatuses: ["draft"],
+						chatStatuses: ["error"],
+					}}
+					onChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		for (const [label, expected] of [
+			["PR: draft", { unread: true, prStatuses: [], chatStatuses: ["error"] }],
+			[
+				"Status: Error",
+				{ unread: true, prStatuses: [], chatStatuses: AGENT_CHAT_STATUS_ORDER },
+			],
+			[
+				"Unread",
+				{
+					unread: false,
+					prStatuses: [],
+					chatStatuses: AGENT_CHAT_STATUS_ORDER,
+				},
+			],
+		] as const) {
+			await openFilterMenu(user);
+			await focusMenuItem(user, "menuitem", `Remove ${label} filter`);
+			await user.keyboard("{Enter}{Escape}");
+			expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+				...defaultSidebarFilters,
+				...expected,
+			});
+		}
+	});
+
+	it("changes grouping without changing filter selections", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		render(
+			<Wrapper>
+				<ControlledSidebar onChange={onSidebarFiltersChange} />
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, /^Grouped by/, "Status", "menuitemradio");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			groupBy: "chat_status",
+		});
+		await toggleSubmenuOption(user, /^Grouped by/, "Date", "menuitemradio");
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith(
+			defaultSidebarFilters,
+		);
+	});
+
+	it("resets every sidebar filter from the menu with the keyboard", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -451,19 +585,22 @@ describe("ChatsSidebar filters", () => {
 						archiveStatus: "archived",
 						groupBy: "chat_status",
 						prStatuses: ["draft"],
+						chatStatuses: ["error"],
+						unread: true,
+						sources: ["created_by_me"],
 					}}
 					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+		await openFilterMenu(user);
+		await focusMenuItem(user, "menuitem", "Reset to defaults");
+		await user.keyboard("{Enter}");
 
-		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
-			...defaultSidebarFilters,
-			groupBy: "chat_status",
-		});
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith(
+			DEFAULT_AGENT_SIDEBAR_FILTERS,
+		);
 	});
 
 	it("groups unpinned chats by chat status", () => {

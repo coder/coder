@@ -12,12 +12,12 @@ const AGENT_ARCHIVE_STATUS_ORDER = ["active", "archived"] as const;
 export const AGENT_CHAT_STATUS_ORDER = CHAT_STATUS_FILTER_ORDER;
 export const AGENT_CHAT_STATUS_GROUP_ORDER = CHAT_STATUS_GROUP_ORDER;
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
-export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
+const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
 
 type AgentArchiveStatusFilter = (typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
 export type AgentChatStatusFilter = (typeof AGENT_CHAT_STATUS_ORDER)[number];
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
-export type AgentSidebarGroupBy = "date" | "chat_status";
+type AgentSidebarGroupBy = "date" | "chat_status";
 export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];
 
 export type AgentSidebarFilters = Readonly<{
@@ -42,7 +42,7 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
 	unread: false,
-	sources: ["created_by_me"],
+	sources: AGENT_SOURCE_ORDER,
 };
 
 const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
