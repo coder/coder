@@ -6,12 +6,12 @@ import {
 import type { EditingTarget } from "../components/ChatConversation/types";
 
 /**
- * What the user chose for the composer in this chat session. undefined
- * means the composer is untouched, so it follows the row the server marks.
- * "draft" means the user is writing a new message. A target means the user
- * opened an edit on that row.
+ * What the user chose for the composer in this chat session. "follow" means
+ * the composer is untouched, so it edits the row the server marks. "draft"
+ * means the user is writing a new message. A target means the user opened
+ * an edit on that row.
  */
-export type ComposerMode = EditingTarget | "draft" | undefined;
+export type ComposerMode = EditingTarget | "draft" | "follow";
 
 /** The latest marker request's state, as reported by its useMutation. */
 export type MarkerRequest = {
@@ -62,7 +62,7 @@ export const deriveComposerTarget = (
 	marker: MarkerRequest,
 	isOwner: boolean,
 ): EditingTarget | null => {
-	if (composerMode === undefined) {
+	if (composerMode === "follow") {
 		return isOwner && serverMarkedID !== null
 			? { kind: "queued", id: serverMarkedID }
 			: null;

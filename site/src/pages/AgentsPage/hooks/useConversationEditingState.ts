@@ -144,7 +144,7 @@ export function useConversationEditingState(deps: {
 				setComposerMode("draft");
 			} else {
 				restoreDraftBeforeEdit();
-				setComposerMode(undefined);
+				setComposerMode("follow");
 			}
 			return;
 		}
@@ -265,7 +265,7 @@ export function useConversationEditingState(deps: {
 		const isUserInput = content !== inputValueRef.current;
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
-		if (isUserInput && composerMode === undefined) {
+		if (isUserInput && composerMode === "follow") {
 			setComposerMode(target ?? "draft");
 		}
 

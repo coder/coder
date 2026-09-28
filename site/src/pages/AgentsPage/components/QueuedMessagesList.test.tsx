@@ -172,6 +172,7 @@ describe("QueuedMessagesList", () => {
 		const onPromote = vi.fn();
 		const onEdit = vi.fn();
 		const onEndEdit = vi.fn();
+		const { queuedMessageUnderEditID = null, ...rest } = handlers;
 		render(
 			<TooltipProvider>
 				<QueuedMessagesList
@@ -181,7 +182,8 @@ describe("QueuedMessagesList", () => {
 					onPromote={onPromote}
 					onEdit={onEdit}
 					onEndEdit={onEndEdit}
-					{...handlers}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					{...rest}
 				/>
 			</TooltipProvider>,
 		);
@@ -238,10 +240,13 @@ describe("QueuedMessagesList", () => {
 
 	it("forwards Edit and Cancel edit with the row id", async () => {
 		const user = userEvent.setup();
-		const { onEdit, onEndEdit } = renderList([
-			{ ...MockChatQueuedMessageUnderEdit, id: 9 },
-			{ ...MockChatQueuedMessage, id: 10 },
-		]);
+		const { onEdit, onEndEdit } = renderList(
+			[
+				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
+				{ ...MockChatQueuedMessage, id: 10 },
+			],
+			{ queuedMessageUnderEditID: 9 },
+		);
 
 		await user.click(screen.getByRole("button", { name: "Cancel edit" }));
 		expect(onEndEdit).toHaveBeenCalledWith(9);
@@ -260,7 +265,7 @@ describe("QueuedMessagesList", () => {
 				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
 				{ ...MockChatQueuedMessage, id: 10 },
 			],
-			{ chatPaused: true },
+			{ chatPaused: true, queuedMessageUnderEditID: 9 },
 		);
 
 		const [editUnderEdit, editBehind] = screen.getAllByRole("button", {

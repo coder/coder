@@ -138,11 +138,7 @@ type ChatPageTimelineProps = {
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -352,7 +348,7 @@ type ChatPageInputProps = {
 		hasFileReferences: boolean,
 	) => void;
 	editingTarget: EditingTarget | null;
-	queuedMessageUnderEditID?: number | null;
+	queuedMessageUnderEditID: number | null;
 	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
