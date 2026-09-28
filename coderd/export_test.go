@@ -1,5 +1,11 @@
 package coderd
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
 // ChatStartWorkspace exposes chatStartWorkspace for external tests.
 //
 // chatStartWorkspace is intentionally unexported to keep symmetry with
@@ -14,3 +20,13 @@ var ChatStopWorkspace = (*API).chatStopWorkspace
 
 // NormalizeWorkspaceFileReference exposes normalizeWorkspaceFileReference for tests.
 var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
+
+func (s *ServerTailnet) AgentTicketCount(agentID uuid.UUID) int {
+	s.coordCtrl.mu.Lock()
+	defer s.coordCtrl.mu.Unlock()
+	return len(s.coordCtrl.tickets[agentID])
+}
+
+func (s *ServerTailnet) SetDialTimeout(d time.Duration) {
+	s.dialTimeout = d
+}

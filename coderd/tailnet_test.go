@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -50,6 +51,56 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	defer release()
 
 	assert.True(t, conn.AwaitReachable(ctx))
+}
+
+func TestServerTailnet_AgentConn_ReusesHTTPConnections(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	agentID := agents[0].id
+
+	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	_, err = conn.ListeningPorts(ctx)
+	require.NoError(t, err)
+	release()
+
+	// A request may dial before the previous connection returns to the idle
+	// pool; retry until one reuses.
+	conn, release, err = serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	defer release()
+	require.Eventually(t, func() bool {
+		var reused atomic.Bool
+		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) { reused.Store(info.Reused) },
+		})
+		_, err := conn.ListeningPorts(traceCtx)
+		return assert.NoError(t, err) && reused.Load()
+	}, testutil.WaitShort, testutil.IntervalFast, "a request should reuse a pooled connection")
+}
+
+func TestServerTailnet_AgentConn_DialTimesOut(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	agentID := agents[0].id
+	serverTailnet.SetDialTimeout(testutil.IntervalSlow)
+
+	conn, release, err := serverTailnet.AgentConn(ctx, agentID)
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, agents[0].Close())
+
+	_, err = conn.ListeningPorts(ctx)
+	require.Error(t, err)
+
+	// Only the AgentConn ticket remains.
+	require.Eventually(t, func() bool {
+		return serverTailnet.AgentTicketCount(agentID) == 1
+	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {

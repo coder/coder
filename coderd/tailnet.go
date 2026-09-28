@@ -50,6 +50,8 @@ func init() {
 
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
 
+const agentDialTimeout = 30 * time.Second // Matches http.DefaultTransport's dialer.
+
 // NewServerTailnet creates a new tailnet intended for use by coderd.
 func NewServerTailnet(
 	ctx context.Context,
@@ -113,6 +115,7 @@ func NewServerTailnet(
 		controller:  controller,
 		coordCtrl:   coordCtrl,
 		transport:   tailnetTransport.Clone(),
+		dialTimeout: agentDialTimeout,
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -134,7 +137,7 @@ func NewServerTailnet(
 	// conns.
 	tn.transport.MaxIdleConnsPerHost = 6
 	tn.transport.MaxIdleConns = 0
-	tn.transport.IdleConnTimeout = 10 * time.Minute
+	tn.transport.IdleConnTimeout = 10 * time.Minute // Must stay below workspacesdk.AgentHTTPAPIServerIdleTimeout.
 	// We intentionally don't verify the certificate chain here.
 	// The connection to the workspace is already established and most
 	// apps are already going to be accessed over plain HTTP, this config
@@ -181,7 +184,8 @@ type ServerTailnet struct {
 	controller *tailnet.Controller
 	coordCtrl  *MultiAgentController
 
-	transport *http.Transport
+	transport   *http.Transport
+	dialTimeout time.Duration
 
 	connsPerAgent *prometheus.GaugeVec
 	totalConns    *prometheus.CounterVec
@@ -269,6 +273,11 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 		return nil, xerrors.Errorf("no agent id attached")
 	}
 
+	// Transport dials outlive their request. Bound them so an unreachable
+	// agent cannot hold a tunnel ticket indefinitely.
+	ctx, cancel := context.WithTimeout(ctx, s.dialTimeout)
+	defer cancel()
+
 	nc, err := s.DialAgentNetConn(ctx, agentID, network, addr)
 	if err != nil {
 		return nil, err
@@ -284,54 +293,61 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 }
 
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	var (
-		conn workspacesdk.AgentConn
-		ret  func()
-	)
-
-	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
-	err := s.coordCtrl.ensureAgent(agentID)
+	conn, release, err := s.acquireAgentConn(agentID)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
+		return nil, nil, err
 	}
-	ret = s.coordCtrl.acquireTicket(agentID)
-
-	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
-		AgentID:   agentID,
-		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
-		Logger:    s.logger,
-	})
-
-	// Since we now have an open conn, be careful to close it if we error
-	// without returning it to the user.
-
-	reachable := conn.AwaitReachable(ctx)
-	if !reachable {
-		ret()
+	if !conn.AwaitReachable(ctx) {
+		release()
 		return nil, nil, xerrors.New("agent is unreachable")
 	}
-
-	return conn, ret, nil
+	return conn, release, nil
 }
 
 func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {
-	conn, release, err := s.AgentConn(ctx, agentID)
+	conn, release, err := s.acquireAgentConn(agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
-
-	// Since we now have an open conn, be careful to close it if we error
-	// without returning it to the user.
-
+	// DialContext awaits reachability.
 	nc, err := conn.DialContext(ctx, network, addr)
 	if err != nil {
 		release()
 		return nil, xerrors.Errorf("dial context: %w", err)
 	}
+	return &netConnCloser{Conn: nc, close: release}, nil
+}
 
-	return &netConnCloser{Conn: nc, close: func() {
-		release()
-	}}, err
+// acquireAgentConn does not await reachability.
+func (s *ServerTailnet) acquireAgentConn(agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
+	if err := s.coordCtrl.ensureAgent(agentID); err != nil {
+		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
+	}
+	release := s.coordCtrl.acquireTicket(agentID)
+	conn := workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
+		AgentID:   agentID,
+		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
+		Logger:    s.logger,
+		APITransport: agentRoundTripper{
+			agentID:   agentID,
+			transport: s.transport,
+		},
+	})
+	return conn, release, nil
+}
+
+// agentRoundTripper sets the agent ID that dialContext reads, like
+// ReverseProxy's director.
+type agentRoundTripper struct {
+	agentID   uuid.UUID
+	transport http.RoundTripper
+}
+
+func (rt agentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx := req.Context()
+	ctx = context.WithValue(ctx, agentIDKey{}, rt.agentID)
+	return rt.transport.RoundTrip(req.WithContext(ctx))
 }
 
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {

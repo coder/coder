@@ -159,9 +159,10 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 
 // @typescript-ignore AgentConnOptions
 type AgentConnOptions struct {
-	AgentID   uuid.UUID
-	CloseFunc func() error
-	Logger    slog.Logger
+	AgentID      uuid.UUID
+	CloseFunc    func() error
+	Logger       slog.Logger
+	APITransport http.RoundTripper // Optional. Must only connect to this agent.
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -1620,17 +1621,14 @@ func decodeAgentJSON(res *http.Response, v any) error {
 }
 
 // apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server. The client is
-// scoped to a single request: its transport cancels in-flight dials
-// once reqCtx ends.
+// requests to the workspace agent's HTTP API server. Without
+// opts.APITransport, the client is scoped to a single request: its
+// transport cancels in-flight dials once reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
-	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-	return &http.Client{
-		// Redirects are blocked to prevent misuse.
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Transport: &http.Transport{
+	transport := c.opts.APITransport
+	if transport == nil {
+		agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+		transport = &http.Transport{
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
 			DisableKeepAlives: true,
@@ -1679,7 +1677,14 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 
 				return conn, nil
 			},
+		}
+	}
+	return &http.Client{
+		// Redirects are blocked to prevent misuse.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
 		},
+		Transport: transport,
 	}
 }
 

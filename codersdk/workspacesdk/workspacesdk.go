@@ -35,7 +35,8 @@ const (
 	AgentSpeedtestPort       = tailnet.WorkspaceAgentSpeedtestPort
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
-	AgentHTTPAPIServerPort = 4
+	AgentHTTPAPIServerPort        = 4
+	AgentHTTPAPIServerIdleTimeout = 15 * time.Minute // Must exceed the idle timeout of pooling clients.
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
