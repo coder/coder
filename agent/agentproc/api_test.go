@@ -310,6 +310,27 @@ func TestStartProcess(t *testing.T) {
 		require.Contains(t, resp.Message, "cannot have an execute timeout")
 	})
 
+	// Through the real agent the tool call table answers a repeated
+	// start, so only this test reaches the process manager with one.
+	t.Run("RepeatedToolCallAttaches", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		id := uuid.NewString()
+		headers := http.Header{
+			workspacesdk.CoderChatIDHeader:     {uuid.NewString()},
+			workspacesdk.CoderToolCallIDHeader: {id},
+		}
+		req := workspacesdk.StartProcessRequest{Command: "sleep 300"}
+		require.Equal(t, http.StatusOK, postStart(t, handler, req, headers).Code)
+
+		w := postStart(t, handler, req, headers)
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp workspacesdk.StartProcessResponse
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.Equal(t, id, resp.ID)
+	})
+
 	t.Run("MalformedJSON", func(t *testing.T) {
 		t.Parallel()
 

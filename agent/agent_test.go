@@ -4581,7 +4581,9 @@ func TestAgent_ToolCall(t *testing.T) {
 
 	// Each acting SDK method runs once per tool call ID: a repeat gets
 	// the first result without acting, a cancel answers that result, and
-	// a request after the cancel is refused.
+	// a request after the cancel is refused. Every call gets the tool call
+	// context, as chatd sends it, so a method that must not send the tool
+	// call ID would get a saved response instead of its own.
 	tests := []struct {
 		name string
 		// fs is where the method acts: processes use the OS filesystem,
@@ -4603,8 +4605,14 @@ func TestAgent_ToolCall(t *testing.T) {
 				if err != nil {
 					return nil, err
 				}
-				_, err = conn.ProcessOutput(ctx, resp.ID, &workspacesdk.ProcessOutputOptions{Wait: true})
-				return resp, err
+				out, err := conn.ProcessOutput(ctx, resp.ID, &workspacesdk.ProcessOutputOptions{Wait: true})
+				if err != nil {
+					return nil, err
+				}
+				if out.ExitCode == nil {
+					return nil, xerrors.Errorf("process output reports no exit: %+v", out)
+				}
+				return resp, nil
 			},
 			saved: func(r workspacesdk.CancelToolCallResponse) (any, error) { return r.StartProcessResult() },
 		},
@@ -4653,7 +4661,7 @@ func TestAgent_ToolCall(t *testing.T) {
 			require.Equal(t, first, repeat)
 			requireContent("reset")
 
-			canceled, err := conn.CancelToolCall(ctx, id)
+			canceled, err := conn.CancelToolCall(toolCtx, id)
 			require.NoError(t, err)
 			require.True(t, canceled.Received)
 			saved, err := tc.saved(canceled)
@@ -4668,18 +4676,57 @@ func TestAgent_ToolCall(t *testing.T) {
 	}
 }
 
+// TestAgent_ToolCallOtherChat checks that a chat cannot take over or kill
+// another chat's process by reusing its tool call ID.
+func TestAgent_ToolCallOtherChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	agentID := uuid.New()
+	//nolint:dogsled
+	connA, _, _, _, _ := setupAgent(t, agentsdk.Manifest{AgentID: agentID}, 0)
+	connA.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+	// connB shares connA's tailnet connection, which setupAgent closes.
+	connB := workspacesdk.NewAgentConn(connA.TailnetConn(), workspacesdk.AgentConnOptions{AgentID: agentID})
+	connB.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+
+	id := uuid.New()
+	toolCtx := workspacesdk.WithToolCallID(ctx, id)
+	start := workspacesdk.StartProcessRequest{Command: "sleep 300"}
+	_, err := connA.StartProcess(toolCtx, start)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := connA.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+		assert.NoError(t, err)
+	})
+
+	_, err = connB.StartProcess(toolCtx, start)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+
+	_, err = connB.CancelToolCall(toolCtx, id)
+	require.NoError(t, err)
+	// A cancel marks a process it kills canceled before it answers, so
+	// this read would see a wrong kill.
+	out, err := connA.ProcessOutput(toolCtx, id.String(), nil)
+	require.NoError(t, err)
+	require.False(t, out.Canceled)
+}
+
 func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
 
-	// Each case starts "sleep 300" with a 1 ms execute timeout. It has
-	// passed by the time a wait could use it, so no case depends on how
-	// long a step takes.
+	// Each case starts "sleep 300" with an execute timeout that has
+	// either passed by the time a wait could use it (1 ms) or cannot pass
+	// during the test (one hour), so no case depends on how long a step
+	// takes. Every call gets the tool call context, as chatd sends it.
 	tests := []struct {
-		name string
-		opts workspacesdk.ProcessOutputOptions
+		name      string
+		timeoutMs int64
+		opts      workspacesdk.ProcessOutputOptions
 		// cancel cancels the tool call after the wait is sent.
 		cancel bool
 		want   workspacesdk.ProcessOutputResponse
@@ -4687,18 +4734,26 @@ func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 		{
 			// The execute tool's own wait ends at the execute timeout,
 			// and the process keeps running.
-			name: "ExecuteWait",
-			opts: workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromExecute: true},
-			want: workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
+			name:      "ExecuteWait",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromExecute: true},
+			want:      workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
 		},
 		{
 			// Other waits, such as process_output's, ignore the execute
 			// timeout and end when the process exits: here, killed by
 			// the cancel.
-			name:   "PlainWait",
-			opts:   workspacesdk.ProcessOutputOptions{Wait: true},
-			cancel: true,
-			want:   workspacesdk.ProcessOutputResponse{Canceled: true},
+			name:      "PlainWait",
+			timeoutMs: 1,
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true},
+			cancel:    true,
+			want:      workspacesdk.ProcessOutputResponse{Canceled: true},
+		},
+		{
+			// A process is not timed out before its execute timeout.
+			name:      "BeforeTimeout",
+			timeoutMs: time.Hour.Milliseconds(),
+			want:      workspacesdk.ProcessOutputResponse{Running: true},
 		},
 	}
 	for _, tc := range tests {
@@ -4706,8 +4761,14 @@ func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			id := uuid.New()
-			_, err := conn.StartProcess(workspacesdk.WithToolCallID(ctx, id), workspacesdk.StartProcessRequest{Command: "sleep 300", TimeoutMs: 1})
+			toolCtx := workspacesdk.WithToolCallID(ctx, id)
+			_, err := conn.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300", TimeoutMs: tc.timeoutMs})
 			require.NoError(t, err)
+			// Kill the process so the agent does not wait for it on close.
+			t.Cleanup(func() {
+				_, err := conn.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
+				assert.NoError(t, err)
+			})
 
 			type result struct {
 				resp workspacesdk.ProcessOutputResponse
@@ -4715,11 +4776,11 @@ func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 			}
 			waited := make(chan result, 1)
 			go func() {
-				resp, err := conn.ProcessOutput(ctx, id.String(), &tc.opts)
+				resp, err := conn.ProcessOutput(toolCtx, id.String(), &tc.opts)
 				waited <- result{resp, err}
 			}()
 			if tc.cancel {
-				_, err := conn.CancelToolCall(ctx, id)
+				_, err := conn.CancelToolCall(toolCtx, id)
 				require.NoError(t, err)
 			}
 

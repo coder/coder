@@ -46,7 +46,8 @@ type testServer struct {
 	killed   chan killed
 	// entered receives when a run starts.
 	entered chan struct{}
-	// cancelEntered receives when a cancel request reaches the table.
+	// cancelEntered receives when a cancel request reaches the cancel
+	// route, before the table handles it.
 	cancelEntered chan struct{}
 	// block, when set, holds each run until it is closed.
 	block chan struct{}
@@ -233,8 +234,9 @@ func TestCancel(t *testing.T) {
 			_ = json.NewDecoder(rw.Body).Decode(&resp)
 			cancelDone <- resp
 		}()
-		// Release the run once the cancel reaches the table. The
-		// assertions hold whichever of the two finishes first.
+		// Release the run once the cancel request reaches the cancel
+		// route. The table may mark the call canceled before or after
+		// the run finishes; the assertions hold in either order.
 		testutil.RequireReceive(ctx, t, s.cancelEntered)
 		close(s.block)
 

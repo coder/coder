@@ -69,12 +69,10 @@ func TestMiddlewareWithoutChatHeader(t *testing.T) {
 func TestMiddlewareContextFields(t *testing.T) {
 	t.Parallel()
 
-	chatID, toolCallID := uuid.New(), uuid.New()
+	chatID := uuid.New()
 	sink := testutil.NewFakeSink(t)
-	var chatCtx agentchat.Context
 	handler := tracing.StatusWriterMiddleware(loggermw.Logger(sink.Logger(), nil)(
 		agentchat.Middleware(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			chatCtx, _ = agentchat.FromContext(r.Context())
 			sink.Logger().With(agentchat.Fields(r.Context())...).Info(r.Context(), "handler log")
 			rw.WriteHeader(http.StatusNoContent)
 		})),
@@ -82,11 +80,9 @@ func TestMiddlewareContextFields(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
-	req.Header.Set(workspacesdk.CoderToolCallIDHeader, toolCallID.String())
 	rw := httptest.NewRecorder()
 	handler.ServeHTTP(rw, req)
 	require.Equal(t, http.StatusNoContent, rw.Code)
-	require.Equal(t, toolCallID, chatCtx.ToolCallID)
 
 	entries := sink.Entries()
 	require.Len(t, entries, 2)
@@ -96,7 +92,6 @@ func TestMiddlewareContextFields(t *testing.T) {
 		}
 		fields := fieldsByName(entry.Fields)
 		require.Equal(t, chatID.String(), fields["chat_id"])
-		require.Equal(t, toolCallID.String(), fields["tool_call_id"])
 		return
 	}
 	t.Fatal("handler log entry not found")
