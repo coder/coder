@@ -572,7 +572,7 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 		message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText(userPrompt))
 		message.ID = 1
 		generated := &generatedChatTitle{}
-		server := &Server{db: db, pubsub: ps, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
+		server := &Server{db: db, pubsub: ps, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), chatLimits: Limits{}.withDefaults()}
 		server.maybeGenerateChatTitle(
 			testutil.Context(t, testutil.WaitMedium),
 			chat,
@@ -635,11 +635,24 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 
 		const renamed = "My build investigation"
 		cases := []struct {
-			name     string
-			modelErr error
+			name             string
+			renameDuringCall bool
+			modelErr         error
+			wantTitle        string
+			wantSource       database.ChatTitleSource
 		}{
-			{name: "write refused by a rename during the call"},
-			{name: "model call failed", modelErr: xerrors.New("provider returned status 400: invalid request")},
+			{
+				name:             "write refused by a rename during the call",
+				renameDuringCall: true,
+				wantTitle:        renamed,
+				wantSource:       database.ChatTitleSourceUser,
+			},
+			{
+				name:       "model call failed",
+				modelErr:   xerrors.New("provider returned status 400: invalid request"),
+				wantTitle:  fallbackTitle,
+				wantSource: database.ChatTitleSourceFallback,
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -651,21 +664,25 @@ func TestMaybeGenerateChatTitle(t *testing.T) {
 				ps := dbpubsub.NewInMemory()
 				events := subscribeChatWatchEvents(t, ps, owner.ID)
 
-				model := newFakeModel(t, func() {
-					_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
-						ID:          chat.ID,
-						Title:       renamed,
-						TitleSource: database.ChatTitleSourceUser,
-					})
-					assert.NoError(t, err)
-				}, "Generated title", tc.modelErr)
+				var rename func()
+				if tc.renameDuringCall {
+					rename = func() {
+						_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+							ID:          chat.ID,
+							Title:       renamed,
+							TitleSource: database.ChatTitleSourceUser,
+						})
+						assert.NoError(t, err)
+					}
+				}
+				model := newFakeModel(t, rename, "Generated title", tc.modelErr)
 
 				generated := run(t, db, ps, chat, model)
 
 				fetched, err := db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, err)
-				require.Equal(t, renamed, fetched.Title)
-				require.Equal(t, database.ChatTitleSourceUser, fetched.TitleSource)
+				require.Equal(t, tc.wantTitle, fetched.Title)
+				require.Equal(t, tc.wantSource, fetched.TitleSource)
 
 				_, ok := generated.Load()
 				require.False(t, ok)
