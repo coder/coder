@@ -1111,7 +1111,6 @@ export const PromptLink: Story = {
 	},
 };
 
-// Any edit to the linked prompt clears the composer's caution.
 export const PromptLinkEdited: Story = {
 	parameters: PromptLink.parameters,
 	play: async ({ canvasElement }) => {

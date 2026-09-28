@@ -18,7 +18,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useImperativeHandle, useRef, useState } from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -558,6 +558,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -1372,7 +1373,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDrop={onAttach ? handleDrop : undefined}
 			>
 				{warning && (
-					<div className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning">
+					<div
+						id={warningId}
+						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
@@ -1421,6 +1425,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
+					aria-describedby={warning ? warningId : undefined}
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}

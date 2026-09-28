@@ -474,6 +474,10 @@ describe("AgentCreatePage prompt link", () => {
 		const sendButton = await findEnabledSendButton();
 		expect(createChat).not.toHaveBeenCalled();
 		expect(uploadChatFile).not.toHaveBeenCalled();
+		// Screen readers announce the caution when focus lands in the composer.
+		expect(
+			screen.getByRole("textbox", { name: "Chat message" }),
+		).toHaveAccessibleDescription(/^Use caution before running this prompt\./);
 
 		await user.click(sendButton);
 
