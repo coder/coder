@@ -58,9 +58,7 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 export const chatQueuedMessagesEqual = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean =>
-	left.length === right.length &&
-	left.every((message, index) => isEqual(message, right[index]));
+): boolean => isEqual(left, right);
 
 const retryStatesEqual = (
 	left: RetryState | null,

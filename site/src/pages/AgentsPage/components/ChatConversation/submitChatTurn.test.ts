@@ -230,6 +230,42 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ name: "restores the queue", queueUpdate: false },
+		{
+			name: "keeps a queue update received during the request",
+			queueUpdate: true,
+		},
+	])("$name when a history edit fails", async ({ queueUpdate }) => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		const queued = { ...MockChatQueuedMessage, id: 7 };
+		store.setQueuedMessages([queued]);
+		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
+		const editMessage = vi.fn(async () => {
+			if (queueUpdate) {
+				store.applyAuthoritativeQueuedMessages(updated);
+			}
+			throw new Error("edit failed");
+		});
+
+		await expect(
+			submitChatTurn(
+				buildParams({
+					message: "new text",
+					editingTarget: { kind: "history", id: 5 },
+					chatMessages: [{ ...MockChatMessage, id: 5 }],
+					store,
+					editMessage,
+				}),
+			),
+		).rejects.toThrow("edit failed");
+
+		expect(store.getSnapshot().queuedMessages).toEqual(
+			queueUpdate ? updated : [queued],
+		);
+	});
+
 	it("omits reasoning effort on edit until the picker is dirty", async () => {
 		const originalMessage = {
 			...MockChatMessage,
