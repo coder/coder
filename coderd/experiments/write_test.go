@@ -228,12 +228,26 @@ func TestWriteRule(t *testing.T) {
 			require.Equal(t, experiments.ModeOn, newRule.Mode, value)
 		}
 
-		// A value without a readable revision still fails, so a bad row
-		// can never be overwritten without its revision being checked.
-		require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{Experiment: string(scoped), Value: `{not json`}))
-		_, _, _, err := experiments.WriteRule(ctx, db, actor, scoped, ruleOff, 5)
-		require.Error(t, err)
-		require.Equal(t, `{not json`, storedValue(ctx, t, db))
+		// A value without a readable positive revision is at revision 0:
+		// only expected revision 0 replaces it, and it restarts at 1.
+		for _, value := range []string{
+			`{not json`,
+			`{"mode":"on"}`,
+			`{"revision":0,"mode":"on"}`,
+			`{"revision":-3,"mode":"on"}`,
+		} {
+			require.NoError(t, db.UpsertExperimentRule(ctx, database.UpsertExperimentRuleParams{Experiment: string(scoped), Value: value}))
+
+			_, _, _, err := experiments.WriteRule(ctx, db, actor, scoped, ruleOff, 5)
+			requireConflict(t, err, 5, 0)
+			require.Equal(t, value, storedValue(ctx, t, db))
+
+			oldRule, newRule, changed := writeRule(ctx, t, db, actor, ruleOff, 0)
+			require.True(t, changed, value)
+			require.Equal(t, experiments.Rule{}, oldRule, value)
+			require.Equal(t, int64(1), newRule.Revision, value)
+			require.Equal(t, experiments.ModeOff, newRule.Mode, value)
+		}
 	})
 
 	// The Evaluator reads what WriteRule stores, through NewDBStore.

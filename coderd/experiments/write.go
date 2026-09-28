@@ -48,6 +48,10 @@ func (e *RevisionConflictError) Error() string {
 // old one. Writing inherit to an experiment without a row stores revision 1
 // and counts as a change.
 //
+// A stored value without a readable positive revision, which only a write
+// outside this API can produce, counts as revision 0: expectedRevision 0
+// replaces it and the rule restarts at revision 1.
+//
 // A stale expectedRevision returns *RevisionConflictError. Validation errors
 // can contain CEL diagnostics; return them only to the rule author and never
 // log them.
@@ -132,9 +136,10 @@ func AuditRecord(ex codersdk.Experiment, rule Rule) database.ExperimentRule {
 }
 
 // readRule returns the stored rule for ex, or the zero Rule when none is
-// stored. Only the revision must be readable, so that a rule the Evaluator
-// treats as malformed can still be replaced: for such a value readRule
-// returns a Rule with only Revision set, which never equals a valid rule.
+// stored or the stored revision is unreadable or not positive, so that such
+// a row stays replaceable at revision 0. For a value the Evaluator treats as
+// malformed but whose revision is readable, readRule returns a Rule with
+// only Revision set, which never equals a valid rule.
 func readRule(ctx context.Context, tx database.Store, ex codersdk.Experiment) (Rule, error) {
 	value, err := tx.GetExperimentRule(ctx, string(ex))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -147,12 +152,9 @@ func readRule(ctx context.Context, tx database.Store, ex codersdk.Experiment) (R
 		Revision int64 `json:"revision"`
 	}
 	// Decode errors are dropped because they can quote stored content.
-	if err := json.Unmarshal([]byte(value), &revision); err != nil {
-		return Rule{}, xerrors.Errorf("stored rule for experiment %q has no readable revision", ex)
-	}
-	if revision.Revision < 1 {
-		// WriteRule always stores revision 1 or higher.
-		return Rule{}, xerrors.Errorf("stored rule for experiment %q has invalid revision %d", ex, revision.Revision)
+	// WriteRule always stores revision 1 or higher.
+	if err := json.Unmarshal([]byte(value), &revision); err != nil || revision.Revision < 1 {
+		return Rule{}, nil
 	}
 	var rule Rule
 	if err := json.Unmarshal([]byte(value), &rule); err != nil || checkShape(rule) != nil {
