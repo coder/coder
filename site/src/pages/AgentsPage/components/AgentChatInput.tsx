@@ -192,7 +192,6 @@ type AgentChatInputProps = {
 	warning?: string;
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
-	// A paused chat appends new sends to its queue.
 	isChatPaused?: boolean;
 	// Editing state, owned by the parent.
 	editingKind?: EditingTarget["kind"];
@@ -1342,11 +1341,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingMessage
-		? "Save Edit"
-		: isStreaming || isChatPaused
-			? "Queue"
-			: "Send";
+	let sendButtonLabel = "Send";
+	if (isEditingMessage) {
+		sendButtonLabel = "Save Edit";
+	} else if (isStreaming || isChatPaused || queuedMessages[0]?.editing_since) {
+		// The server queues a send while a turn runs or the queue head is
+		// under edit.
+		sendButtonLabel = "Queue";
+	}
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
 	// recording also takes precedence over history editing.
