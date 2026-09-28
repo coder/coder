@@ -154,7 +154,6 @@ type AgentChatPageViewProps = {
 
 	// Workspace action handlers.
 	sshCommand: string | undefined;
-	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -304,7 +303,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
-	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -684,7 +682,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							!gitWatcher.hasReceivedChanges
 						}
 						onRefresh={handleRefresh}
-						onCommit={handleCommit}
 						isExpanded={visualExpanded}
 						remoteDiffStats={chat.diff_status}
 						chatInputRef={editing.chatInputRef}

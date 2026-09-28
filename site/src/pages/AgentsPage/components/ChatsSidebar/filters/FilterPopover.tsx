@@ -8,8 +8,6 @@ import {
 	GitPullRequestDraftIcon,
 	GitPullRequestIcon,
 	type LucideIcon,
-	MailIcon,
-	MailOpenIcon,
 	MessagesSquareIcon,
 	UserIcon,
 	UsersIcon,
@@ -40,6 +38,7 @@ import {
 	type AgentSourceFilter,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
+import { getChatStatusDisplay } from "../tree/statusConfig";
 
 const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
 	draft: "PR Draft",
@@ -55,13 +54,8 @@ const GROUP_OPTIONS: readonly Readonly<{
 	icon: LucideIcon;
 }>[] = [
 	{ value: "date", label: "Date", icon: CalendarIcon },
-	{ value: "chat_status", label: "Chat status", icon: MessagesSquareIcon },
+	{ value: "chat_status", label: "Status", icon: MessagesSquareIcon },
 ];
-
-const CHAT_STATUS_LABELS: Record<AgentChatStatusFilter, string> = {
-	unread: "Unread",
-	read: "Read",
-};
 
 const SOURCE_LABELS: Record<AgentSourceFilter, string> = {
 	created_by_me: "Created by me",
@@ -76,11 +70,6 @@ const PR_STATUS_ICONS: Record<AgentPRStatusFilter, LucideIcon> = {
 	none: CircleOffIcon,
 };
 
-const CHAT_STATUS_ICONS: Record<AgentChatStatusFilter, LucideIcon> = {
-	unread: MailIcon,
-	read: MailOpenIcon,
-};
-
 const SOURCE_ICONS: Record<AgentSourceFilter, LucideIcon> = {
 	created_by_me: UserIcon,
 	shared_with_me: UsersIcon,
@@ -90,11 +79,14 @@ const CHAT_STATUS_OPTIONS: readonly Readonly<{
 	value: AgentChatStatusFilter;
 	label: string;
 	icon: LucideIcon;
-}>[] = AGENT_CHAT_STATUS_ORDER.map((status) => ({
-	value: status,
-	label: CHAT_STATUS_LABELS[status],
-	icon: CHAT_STATUS_ICONS[status],
-}));
+}>[] = AGENT_CHAT_STATUS_ORDER.map((status) => {
+	const display = getChatStatusDisplay(status);
+	return {
+		value: status,
+		label: display.label,
+		icon: display.icon,
+	};
+});
 
 const SOURCE_OPTIONS: readonly Readonly<{
 	value: AgentSourceFilter;
@@ -128,6 +120,7 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 			filters.chatStatuses,
 			DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
 		) ||
+		filters.unread ||
 		!haveSameSelections(filters.sources, DEFAULT_AGENT_SIDEBAR_FILTERS.sources)
 	);
 };
@@ -188,14 +181,12 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 		} else {
 			selected.delete(status);
 		}
-		if (selected.size === 0) {
-			return;
-		}
 		onFiltersChange({
 			...filters,
-			chatStatuses: AGENT_CHAT_STATUS_ORDER.filter((value) =>
-				selected.has(value),
-			),
+			chatStatuses:
+				selected.size === 0
+					? DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses
+					: AGENT_CHAT_STATUS_ORDER.filter((value) => selected.has(value)),
 		});
 	};
 
@@ -213,11 +204,13 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				)
 			: filters.sources.filter((value) => value !== source);
 
-		if (nextSources.length === 0) {
-			return;
-		}
-
-		onFiltersChange({ ...filters, sources: nextSources });
+		onFiltersChange({
+			...filters,
+			sources:
+				nextSources.length === 0
+					? DEFAULT_AGENT_SIDEBAR_FILTERS.sources
+					: nextSources,
+		});
 	};
 
 	const prSummary = !haveSameSelections(
@@ -305,7 +298,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					})}
 				</FilterSubmenu>
 
-				<FilterSubmenu label="Chat status" summary={chatSummary}>
+				<FilterSubmenu label="Status" summary={chatSummary}>
 					{CHAT_STATUS_OPTIONS.map((option) => {
 						const Icon = option.icon;
 						return (
@@ -343,6 +336,16 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					})}
 				</FilterSubmenu>
 
+				<DropdownMenuCheckboxItem
+					checked={filters.unread}
+					onCheckedChange={(checked) =>
+						onFiltersChange({ ...filters, unread: checked === true })
+					}
+					onSelect={keepMenuOpen}
+					className="[&>span]:right-3.5"
+				>
+					Unread
+				</DropdownMenuCheckboxItem>
 				<DropdownMenuCheckboxItem
 					checked={filters.archiveStatus === "archived"}
 					onCheckedChange={(checked) => setArchived(checked === true)}

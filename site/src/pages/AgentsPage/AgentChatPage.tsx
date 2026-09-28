@@ -101,8 +101,14 @@ import { pickReasoningEffort } from "./utils/reasoningEffort";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-const AgentChatPage: React.FC = () => {
-	const { agentId } = useParams() as { agentId: string };
+type AgentChatPageProps = {
+	/** Overrides the route param so several chat panes can render at once. */
+	readonly chatId?: string;
+};
+
+const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
+	chatId: agentId,
+}) => {
 	const {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -404,17 +410,6 @@ const AgentChatPage: React.FC = () => {
 		organizationName,
 		username: currentUser.username,
 	});
-
-	const handleCommit = (repoRoot: string) => {
-		const commitPrompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
-		const current = inputValueRef.current;
-		if (current.includes(commitPrompt)) {
-			return;
-		}
-		const prefix = current.trim() ? "\n\n" : "";
-		chatInputRef.current?.insertText(prefix + commitPrompt);
-		chatInputRef.current?.focus();
-	};
 
 	// Validate explicit and historical choices against organization options.
 	// Prefer the usable organization default before another organization model.
@@ -783,7 +778,6 @@ const AgentChatPage: React.FC = () => {
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
-					handleCommit={handleCommit}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -809,8 +803,9 @@ const AgentChatPage: React.FC = () => {
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
 // editing, queries, scroller) cleanly.
-const KeyedAgentChatPage: React.FC = () => {
-	const { agentId } = useParams<{ agentId: string }>();
+const KeyedAgentChatPage: React.FC<AgentChatPageProps> = ({ chatId }) => {
+	const params = useParams<{ agentId: string }>();
+	const agentId = chatId ?? params.agentId;
 	if (!agentId) {
 		return <AgentChatPageNotFoundView />;
 	}
@@ -820,7 +815,7 @@ const KeyedAgentChatPage: React.FC = () => {
 			autoScroll
 			defaultScrollPosition="end"
 		>
-			<AgentChatPage />
+			<AgentChatPage chatId={agentId} />
 		</MessageScroller.Provider>
 	);
 };

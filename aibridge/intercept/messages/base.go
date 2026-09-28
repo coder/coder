@@ -30,6 +30,8 @@ import (
 	"cdr.dev/slog/v3"
 	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -123,7 +125,7 @@ type interceptionBase struct {
 	reqPayload RequestPayload
 
 	cfg  intercept.Config
-	cred intercept.Credential
+	cred credential.Credential
 	// bedrock is nil for non-Bedrock providers.
 	bedrock *BedrockRuntime
 
@@ -150,7 +152,7 @@ func (i *interceptionBase) ID() uuid.UUID {
 }
 
 // Credential returns the credential resolved for this interception.
-func (i *interceptionBase) Credential() intercept.Credential {
+func (i *interceptionBase) Credential() credential.Credential {
 	return i.cred
 }
 
@@ -330,7 +332,7 @@ func isSmallFastModel(model string) bool {
 
 // newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
-	byok, isBYOK := intercept.AsBYOK(i.cred)
+	byok, isBYOK := credential.AsBYOK(i.cred)
 	bedrockBYOK := isBYOK && i.bedrock != nil
 
 	// Only BYOK sets its credential here. Centralized keys are injected
@@ -340,9 +342,9 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
 		switch byok.Header {
-		case intercept.AuthHeaderAuthorization:
+		case aibheaders.AuthHeaderAuthorization:
 			opts = append(opts, option.WithAuthToken(byok.Secret))
-		case intercept.AuthHeaderXAPIKey:
+		case aibheaders.AuthHeaderXAPIKey:
 			opts = append(opts, option.WithAPIKey(byok.Secret))
 		default:
 			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
@@ -355,7 +357,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -628,7 +630,7 @@ func bedrockInvokeModelBearerMiddleware(token string) func(*http.Request, option
 			req.ContentLength = int64(len(body))
 		}
 
-		req.Header.Set(intercept.AuthHeaderAuthorization, "Bearer "+token)
+		req.Header.Set(aibheaders.AuthHeaderAuthorization, "Bearer "+token)
 		return next(req)
 	}
 }
@@ -876,7 +878,7 @@ func accumulateUsage(dest, src any) {
 // its status code. Returns true if the status was a key-specific
 // failover trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	cp, ok := intercept.AsCentralizedPool(i.cred)
+	cp, ok := credential.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}

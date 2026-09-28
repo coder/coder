@@ -644,6 +644,13 @@ WHERE
         ) = sqlc.narg('has_unread')::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length(@chat_statuses::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY(@chat_statuses::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their

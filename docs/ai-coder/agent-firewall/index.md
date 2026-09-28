@@ -29,7 +29,9 @@ verbs to prevent exfiltration, and writes logs to the workspace.
 Agent Firewall also streams audit logs to Coder's control plane for centralized
 monitoring of HTTP requests.
 
-## Getting Started with Agent Firewall
+<a id="getting-started-with-agent-firewall"></a>
+
+## Get started with Agent Firewall
 
 The easiest way to use Agent Firewall is through the
 [agent-firewall module](https://registry.coder.com/modules/coder/agent-firewall). It
@@ -223,7 +225,9 @@ Each Agent Firewall audit log entry includes:
 | `event_time`          | Timestamp when boundary processed the request (RFC3339 format)                          |
 | `matched_rule`        | The allowlist rule that permitted the request (only present when `decision` is `allow`) |
 
-### Viewing Audit Logs
+<a id="viewing-audit-logs"></a>
+
+### View audit logs
 
 Agent Firewall audit logs are emitted as structured log entries from the Coder
 server. You can collect and analyze these logs using any log aggregation system

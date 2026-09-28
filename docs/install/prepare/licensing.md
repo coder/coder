@@ -18,7 +18,9 @@ validation. This means licenses work in
 [air-gapped and offline deployments](./airgap.md) without any
 additional configuration.
 
-## Adding your license key
+<a id="adding-your-license-key"></a>
+
+## Add your license key
 
 There are two ways to add a license to a Coder deployment:
 
@@ -79,6 +81,6 @@ clipboard** icon at the bottom:
 ### How we calculate license seat consumption
 
 Licenses are consumed based on the status of user accounts.
-Only users who have been active in the last 90 days consume license seats.
+Only users who have been active in the last 90&nbsp;days consume license seats.
 
 Consult the [user status documentation](../../admin/users/index.md#user-status) for more information about active, dormant, and suspended user statuses.
