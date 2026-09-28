@@ -5,6 +5,7 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -14,7 +15,6 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { IconButton } from "./IconButton";
 
 /** An item runs an action, or opens a sub menu holding `children`. */
 type MenuAction = Readonly<{ label: string; icon: LucideIcon }> &
@@ -43,16 +43,21 @@ export const ActionsMenu: React.FC<ActionsMenuProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<IconButton
+				<Button
+					variant="subtle"
+					size="icon"
 					aria-label={`Actions for ${label}`}
+					// Card and column headers are drag handles: the press must not start
+					// a drag, and z-[1] keeps it above a card's open-chat surface.
+					onPointerDown={(e) => e.stopPropagation()}
 					className={cn(
-						"focus-visible:opacity-100 data-[state=open]:text-content-primary",
+						"relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0 focus-visible:opacity-100 data-[state=open]:text-content-primary",
 						!permanent &&
 							"opacity-0 group-hover/column:opacity-100 data-[state=open]:opacity-100",
 					)}
 				>
 					<Icon className="size-3.5" />
-				</IconButton>
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="min-w-40 text-xs">
 				{items.map((item) =>

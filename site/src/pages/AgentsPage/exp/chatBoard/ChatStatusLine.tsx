@@ -13,12 +13,25 @@ type ChatStatusLineProps = {
 
 const AGE_REFRESH_MS = 60_000;
 
+type AgeProps = { readonly date: string | number };
+
 /**
- * The age of `date`, kept current while it stays on screen. useTime keeps
- * its first value when `date` changes, so render it with `key={date}`.
+ * The age of `date`, kept current while it stays on screen. A plain
+ * shortRelativeTime call would freeze: the React Compiler caches it by
+ * `date` and cannot see that it reads the clock.
  */
-export const RelativeAge: FC<{ readonly date: string | number }> = ({ date }) =>
-	useTime(() => shortRelativeTime(date), { interval: AGE_REFRESH_MS });
+export const RelativeAge: FC<AgeProps> = ({ date }) => (
+	// useTime keeps its first value when its input changes, so a new date
+	// gets a new instance.
+	<TickingAge key={date} date={date} />
+);
+
+const TickingAge: FC<AgeProps> = ({ date }) => {
+	const age = useTime(() => shortRelativeTime(date), {
+		interval: AGE_REFRESH_MS,
+	});
+	return age;
+};
 
 /**
  * One line under a chat's title: PR chip, last turn text, then the age at
@@ -73,7 +86,7 @@ export const ChatStatusLine: FC<ChatStatusLineProps> = ({
 					dateTime={chat.updated_at}
 					className="ml-auto shrink-0 pr-1.5 text-[11px] tabular-nums text-content-secondary/70"
 				>
-					<RelativeAge key={chat.updated_at} date={chat.updated_at} />
+					<RelativeAge date={chat.updated_at} />
 				</time>
 			)}
 		</div>

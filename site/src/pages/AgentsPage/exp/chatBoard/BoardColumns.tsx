@@ -2,6 +2,7 @@ import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { toast } from "sonner";
 import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {
@@ -128,15 +129,16 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 					onCancel={() => setAddingColumn(false)}
 				/>
 			) : (
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="icon"
 					aria-label="Add column"
 					// Sits on the column header line, matching header height.
-					className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
+					className="mt-0.5 size-7 min-w-0 border border-dashed border-content-secondary/40 p-0 hover:border-content-link hover:text-content-link [&>svg]:size-3.5! [&>svg]:p-0"
 					onClick={() => setAddingColumn(true)}
 				>
 					<PlusIcon className="size-3.5" />
-				</button>
+				</Button>
 			)}
 		</div>
 	);

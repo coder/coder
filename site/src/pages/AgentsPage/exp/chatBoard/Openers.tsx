@@ -2,8 +2,8 @@ import { cn } from "cn";
 import { BotIcon, MessageSquareIcon } from "lucide-react";
 import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
-import { IconButton } from "./IconButton";
 
 /** Inside a card or row the anchor is fixed, so its openers pass only the chat. */
 type ChatOpeners = {
@@ -27,9 +27,9 @@ const UnreadBadge: FC<{ readonly chat: Chat }> = ({ chat }) => {
 	);
 };
 
-type ChatOpenerProps = {
+type ChatOpenerProps = ChatOpeners & {
 	readonly chat: Chat;
-} & ChatOpeners;
+};
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
 export const ChatOpener: FC<ChatOpenerProps> = ({
@@ -38,21 +38,27 @@ export const ChatOpener: FC<ChatOpenerProps> = ({
 	onPreview,
 	onPreviewEnd,
 }) => (
-	<IconButton
+	<Button
+		variant="subtle"
+		size="icon"
 		aria-label={`Open ${chat.title}`}
 		title="Open chat"
+		className="relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0"
+		// The header is a drag handle and a card's open-chat surface lies
+		// under it: the press must not start a drag, and z-[1] keeps it on top.
+		onPointerDown={(e) => e.stopPropagation()}
 		onPointerEnter={() => onPreview(chat)}
 		onPointerLeave={onPreviewEnd}
 		onClick={() => onOpen(chat)}
 	>
 		<MessageSquareIcon className="size-3.5" />
 		<UnreadBadge chat={chat} />
-	</IconButton>
+	</Button>
 );
 
-type AssistantOpenerProps = {
+type AssistantOpenerProps = ChatOpeners & {
 	readonly assistant: Chat;
-} & ChatOpeners;
+};
 
 // Covers every status isActiveChatStatus treats as active: all of them
 // pulse, so only the label tells them apart.
@@ -71,9 +77,15 @@ export const AssistantOpener: FC<AssistantOpenerProps> = ({
 }) => {
 	const label = assistantLabel[assistant.status] ?? "Assistant";
 	return (
-		<IconButton
+		<Button
+			variant="subtle"
+			size="icon"
 			aria-label={label}
 			title={label}
+			className="relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0"
+			// The header is a drag handle and a card's open-chat surface lies
+			// under it: the press must not start a drag, and z-[1] keeps it on top.
+			onPointerDown={(e) => e.stopPropagation()}
 			onPointerEnter={() => onPreview(assistant)}
 			onPointerLeave={onPreviewEnd}
 			onClick={() => onOpen(assistant)}
@@ -85,6 +97,6 @@ export const AssistantOpener: FC<AssistantOpenerProps> = ({
 				)}
 			/>
 			<UnreadBadge chat={assistant} />
-		</IconButton>
+		</Button>
 	);
 };

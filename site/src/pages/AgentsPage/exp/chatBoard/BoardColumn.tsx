@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { type FC, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { ActionsMenu } from "./ActionsMenu";
 import {
 	BoardCard,
@@ -19,7 +20,6 @@ import type {
 } from "./boardLabels";
 import { columnHue, INBOX_COLUMN } from "./boardLabels";
 import { dragHandleListeners } from "./dragHandle";
-import { IconButton } from "./IconButton";
 import { InlineEdit } from "./InlineEdit";
 
 const columnShell = cva("relative flex min-h-0 w-[300px] shrink-0 flex-col", {
@@ -206,13 +206,18 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 							]}
 						/>
 					)}
-					<IconButton
+					<Button
+						variant="subtle"
+						size="icon"
 						aria-label={`New chat in ${column.name}`}
 						title="New chat"
+						className="relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0"
+						// The column header is a drag handle; the press must not start a drag.
+						onPointerDown={(e) => e.stopPropagation()}
 						onClick={onNewChat}
 					>
 						<PlusIcon className="size-3.5" />
-					</IconButton>
+					</Button>
 				</div>
 			</header>
 			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">

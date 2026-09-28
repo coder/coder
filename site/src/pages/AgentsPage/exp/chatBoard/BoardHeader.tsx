@@ -141,13 +141,14 @@ const EffortMenu: FC<EffortMenuProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className="flex items-center gap-1 border-0 bg-transparent p-0 text-[11px] text-content-secondary hover:text-content-primary data-[state=open]:text-content-primary"
+				<Button
+					variant="subtle"
+					size="xs"
+					className="h-auto min-w-0 p-0 text-[11px] font-normal data-[state=open]:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
 				>
 					{value ?? "Efforts"}
 					<ChevronDownIcon className="size-3.5" />
-				</button>
+				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="min-w-44 text-xs">
 				<DropdownMenuRadioGroup

@@ -14,21 +14,11 @@ type DraftChatProps = {
 	/** Labels that place the chat on the board, sent with the create request. */
 	readonly labels: Record<string, string>;
 	/**
-	 * Appended to the first message in a backtick fence one longer than the
-	 * longest backtick run inside it (at least four), so no title, summary or
-	 * note can close the block early.
+	 * Appended to the first message after a blank line. User messages show as
+	 * plain text, so the context needs no Markdown quoting.
 	 */
 	readonly context: string | undefined;
 	readonly onCreated: (chatId: string) => void;
-};
-
-const fenced = (text: string) => {
-	const longestRun = Math.max(
-		0,
-		...(text.match(/`+/g) ?? []).map((run) => run.length),
-	);
-	const fence = "`".repeat(Math.max(4, longestRun + 1));
-	return `${fence}\n${text}\n${fence}`;
 };
 
 /**
@@ -59,7 +49,7 @@ export const DraftChat: FC<DraftChatProps> = ({
 		organizationId,
 		planMode,
 	}: CreateChatOptions) => {
-		const text = [message.trim() ? message : "", context ? fenced(context) : ""]
+		const text = [message.trim() ? message : "", context ?? ""]
 			.filter(Boolean)
 			.join("\n\n");
 		const content: TypesGen.ChatInputPart[] = [];

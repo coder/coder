@@ -107,7 +107,11 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 			<FloatingChat
 				// Keyed by target so a new target gets a fresh form, not the pending
 				// request, text or error of the draft it replaced.
-				key={`${key}:${JSON.stringify(target)}`}
+				key={
+					"cardId" in target
+						? `${key}:card:${target.cardId}`
+						: `${key}:column:${target.column}`
+				}
 				{...frame}
 				title={`New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`}
 				color={card?.color}
