@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { FC, PropsWithChildren } from "react";
 import {
 	focusManager,
 	type QueryClient,
@@ -42,7 +41,7 @@ const renderExperiments = (
 	userId: string,
 	metadata: Pick<RuntimeHtmlMetadata, "user" | "experiments">,
 ) => {
-	const wrapper: FC<PropsWithChildren> = ({ children }) => (
+	const wrapper: React.FC<React.PropsWithChildren> = ({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	return renderHook(() => useQuery(experiments(userId, metadata)), {

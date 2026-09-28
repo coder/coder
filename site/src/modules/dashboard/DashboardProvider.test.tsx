@@ -1,6 +1,6 @@
 import { waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { experimentsKey } from "#/api/queries/experiments";
 import type { Experiment } from "#/api/typesGenerated";
@@ -13,7 +13,7 @@ describe("DashboardProvider", () => {
 	it("keeps the dashboard value when an experiments refetch fails", async () => {
 		const onRender = vi.fn<(experiments: Experiment[]) => void>();
 		const onUnmount = vi.fn();
-		const Consumer: FC = () => {
+		const Consumer: React.FC = () => {
 			const { experiments } = useDashboard();
 			onRender(experiments);
 			useEffect(() => onUnmount, []);
