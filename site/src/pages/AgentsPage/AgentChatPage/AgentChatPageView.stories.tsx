@@ -27,6 +27,7 @@ import {
 	MockChat,
 	MockChatDiffStatus,
 	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
@@ -969,10 +970,9 @@ export const PausedAtQueuedEdit: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages, "paused", [
 				{
-					...MockChatQueuedMessage,
+					...MockChatQueuedMessageUnderEdit,
 					id: 1,
 					content: [{ type: "text", text: "Run the migrations" }],
-					editing_since: "2024-01-01T00:00:00Z",
 				},
 				{
 					...MockChatQueuedMessage,
