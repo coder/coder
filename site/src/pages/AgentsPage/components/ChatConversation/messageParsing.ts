@@ -324,6 +324,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "workspace-file-reference": {
+				parsed.blocks.push(part);
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
@@ -338,8 +342,11 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart =>
-	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
+): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
+	// Workspace file bytes already live in the workspace; editing
+	// preserves the reference (or drops it when the chip is removed).
+	block.type === "workspace-file-reference";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,

@@ -1,5 +1,4 @@
 import { isAxiosError } from "axios";
-import type { FC } from "react";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -19,7 +18,7 @@ import LoginOAuthDevicePageView from "./LoginOAuthDevicePageView";
 // The page is hardcoded to only use GitHub,
 // as that's the only OAuth2 login provider in our backend
 // that currently supports the device flow.
-const LoginOAuthDevicePage: FC = () => {
+const LoginOAuthDevicePage: React.FC = () => {
 	const [searchParams] = useSearchParams();
 
 	const state = searchParams.get("state");
@@ -34,7 +33,9 @@ const LoginOAuthDevicePage: FC = () => {
 	return <LoginOauthDevicePageWithState state={state} />;
 };
 
-const LoginOauthDevicePageWithState: FC<{ state: string }> = ({ state }) => {
+const LoginOauthDevicePageWithState: React.FC<{ state: string }> = ({
+	state,
+}) => {
 	const externalAuthDeviceQuery = useQuery({
 		...getGitHubDevice(),
 		refetchOnMount: false,

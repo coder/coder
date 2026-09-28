@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Permission } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import {
@@ -16,7 +15,7 @@ type PermissionPillsListProps = {
 	permissions: readonly Permission[];
 };
 
-export const PermissionPillsList: FC<PermissionPillsListProps> = ({
+export const PermissionPillsList: React.FC<PermissionPillsListProps> = ({
 	permissions,
 }) => {
 	const resourceTypes = getUniqueResourceTypes(permissions);
@@ -47,7 +46,7 @@ type PermissionPillProps = {
 	permissions: readonly Permission[];
 };
 
-const PermissionsPill: FC<PermissionPillProps> = ({
+const PermissionsPill: React.FC<PermissionPillProps> = ({
 	resource,
 	permissions,
 }) => {
@@ -68,7 +67,7 @@ type OverflowPermissionPillProps = {
 	permissions: readonly Permission[];
 };
 
-const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
+const OverflowPermissionPill: React.FC<OverflowPermissionPillProps> = ({
 	resources,
 	permissions,
 }) => {

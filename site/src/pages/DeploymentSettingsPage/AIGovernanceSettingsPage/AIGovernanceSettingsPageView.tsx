@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -19,7 +18,7 @@ type AIGovernanceSettingsPageViewProps = {
 	featureAIBridgeEnabled: boolean;
 };
 
-export const AIGovernanceSettingsPageView: FC<
+export const AIGovernanceSettingsPageView: React.FC<
 	AIGovernanceSettingsPageViewProps
 > = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
@@ -22,7 +21,7 @@ import {
 	withDefaultTimeRange,
 } from "./timeRange";
 
-const AISessionListPage: FC = () => {
+const AISessionListPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const navigate = useNavigate();

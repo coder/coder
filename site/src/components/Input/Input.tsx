@@ -4,11 +4,10 @@
  */
 
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 
-type InputProps = ComponentProps<"input">;
+type InputProps = React.ComponentProps<"input">;
 
-export const Input: FC<InputProps> = ({ className, type, ...props }) => {
+export const Input: React.FC<InputProps> = ({ className, type, ...props }) => {
 	return (
 		<input
 			type={type}

@@ -1,5 +1,4 @@
 import { ExternalLinkIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -19,10 +18,9 @@ type StarterTemplatePageViewProps = {
 	error?: unknown;
 };
 
-export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
-	starterTemplate,
-	error,
-}) => {
+export const StarterTemplatePageView: React.FC<
+	StarterTemplatePageViewProps
+> = ({ starterTemplate, error }) => {
 	if (error) {
 		return (
 			<Margins>

@@ -6,7 +6,7 @@ import {
 	UserIcon,
 	UserKeyIcon,
 } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { useQueryClient } from "react-query";
 import {
 	getValidationErrorMessage,
@@ -33,7 +33,7 @@ type WorkspaceFilterProps = Readonly<{
 	error: unknown;
 }>;
 
-export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
+export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 	filter,
 	error,
 }) => {

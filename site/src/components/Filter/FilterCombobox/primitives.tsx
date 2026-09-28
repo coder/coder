@@ -2,12 +2,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
 import {
-	type ComponentProps,
 	createContext,
-	type FC,
-	type ReactNode,
-	type Ref,
-	type RefObject,
 	useContext,
 	useImperativeHandle,
 	useRef,
@@ -45,7 +40,7 @@ export const isListNavigationKey = (event: { key: string; ctrlKey: boolean }) =>
 	(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
 
 const FilterComboboxAnchorContext =
-	createContext<RefObject<HTMLDivElement | null> | null>(null);
+	createContext<React.RefObject<HTMLDivElement | null> | null>(null);
 
 type FilterComboboxStateValue = {
 	inputValue: string;
@@ -89,7 +84,7 @@ type FilterComboboxRootProps = {
 	 * The highlighted row lives here, so moving it re-renders only this root
 	 * and the rows whose highlight changes, not the caller's option lists.
 	 */
-	highlightRef?: Ref<FilterComboboxHighlight>;
+	highlightRef?: React.Ref<FilterComboboxHighlight>;
 	/**
 	 * Called when cmdk moves the highlight, with the new value and the one it
 	 * replaced ("" when none). Not called for `highlightRef.set` or for a
@@ -99,7 +94,7 @@ type FilterComboboxRootProps = {
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
 	className?: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
 /**
@@ -219,9 +214,9 @@ export function FilterComboboxRoot({
 	);
 }
 
-type FilterComboboxContentProps = ComponentProps<typeof PopoverContent>;
+type FilterComboboxContentProps = React.ComponentProps<typeof PopoverContent>;
 
-export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
+export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 	className,
 	align = "start",
 	sideOffset = 6,
@@ -252,9 +247,11 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 	);
 };
 
-type FilterComboboxListProps = ComponentProps<typeof CommandPrimitive.List>;
+type FilterComboboxListProps = React.ComponentProps<
+	typeof CommandPrimitive.List
+>;
 
-export const FilterComboboxList: FC<FilterComboboxListProps> = ({
+export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	className,
 	...props
 }) => {
@@ -270,13 +267,15 @@ export const FilterComboboxList: FC<FilterComboboxListProps> = ({
 	);
 };
 
-type FilterComboboxItemProps = ComponentProps<typeof CommandPrimitive.Item>;
+type FilterComboboxItemProps = React.ComponentProps<
+	typeof CommandPrimitive.Item
+>;
 
 /**
  * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
  * click and on Enter for the highlighted row.
  */
-export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
+export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
 	...props
 }) => {
@@ -292,9 +291,11 @@ export const FilterComboboxItem: FC<FilterComboboxItemProps> = ({
 	);
 };
 
-type FilterComboboxGroupProps = ComponentProps<typeof CommandPrimitive.Group>;
+type FilterComboboxGroupProps = React.ComponentProps<
+	typeof CommandPrimitive.Group
+>;
 
-export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
+export const FilterComboboxGroup: React.FC<FilterComboboxGroupProps> = ({
 	className,
 	...props
 }) => {
@@ -307,9 +308,9 @@ export const FilterComboboxGroup: FC<FilterComboboxGroupProps> = ({
 	);
 };
 
-type FilterComboboxLabelProps = ComponentProps<"div">;
+type FilterComboboxLabelProps = React.ComponentProps<"div">;
 
-export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
+export const FilterComboboxLabel: React.FC<FilterComboboxLabelProps> = ({
 	className,
 	...props
 }) => {
@@ -326,9 +327,9 @@ export const FilterComboboxLabel: FC<FilterComboboxLabelProps> = ({
 	);
 };
 
-type FilterComboboxStatusProps = ComponentProps<"div">;
+type FilterComboboxStatusProps = React.ComponentProps<"div">;
 
-export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
+export const FilterComboboxStatus: React.FC<FilterComboboxStatusProps> = ({
 	className,
 	...props
 }) => {
@@ -343,12 +344,11 @@ export const FilterComboboxStatus: FC<FilterComboboxStatusProps> = ({
 	);
 };
 
-type FilterComboboxInputGroupProps = ComponentProps<"div">;
+type FilterComboboxInputGroupProps = React.ComponentProps<"div">;
 
-export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
-	className,
-	...props
-}) => {
+export const FilterComboboxInputGroup: React.FC<
+	FilterComboboxInputGroupProps
+> = ({ className, ...props }) => {
 	const anchorRef = useContext(FilterComboboxAnchorContext);
 
 	return (
@@ -362,9 +362,9 @@ export const FilterComboboxInputGroup: FC<FilterComboboxInputGroupProps> = ({
 	);
 };
 
-type FilterComboboxChipsProps = ComponentProps<"div">;
+type FilterComboboxChipsProps = React.ComponentProps<"div">;
 
-export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
+export const FilterComboboxChips: React.FC<FilterComboboxChipsProps> = ({
 	className,
 	...props
 }) => {
@@ -380,7 +380,7 @@ export const FilterComboboxChips: FC<FilterComboboxChipsProps> = ({
 	);
 };
 
-type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
+type FilterComboboxChipProps = React.ComponentProps<typeof Badge> & {
 	/**
 	 * Token passed to `onRemoveValue` when the chip is removed. Decoupled from
 	 * `children` so the chip can render richer content than a bare string.
@@ -392,7 +392,7 @@ type FilterComboboxChipProps = ComponentProps<typeof Badge> & {
 	removeLabel?: string;
 };
 
-export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
+export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 	className,
 	children,
 	value,
@@ -443,15 +443,13 @@ export const FilterComboboxChip: FC<FilterComboboxChipProps> = ({
 	);
 };
 
-type FilterComboboxChipsInputProps = ComponentProps<
+type FilterComboboxChipsInputProps = React.ComponentProps<
 	typeof CommandPrimitive.Input
 >;
 
-export const FilterComboboxChipsInput: FC<FilterComboboxChipsInputProps> = ({
-	className,
-	ref,
-	...props
-}) => {
+export const FilterComboboxChipsInput: React.FC<
+	FilterComboboxChipsInputProps
+> = ({ className, ref, ...props }) => {
 	const { inputValue, onInputValueChange } = useFilterComboboxState();
 
 	return (

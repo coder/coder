@@ -10,7 +10,7 @@ reading or misusing them.
 ## How it works
 
 Coder allows administrators to specify
-[external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys).
+[external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys).
 If configured, Coder will use these keys to encrypt external user tokens before
 storing them in the database. The encryption algorithm used is AES-256-GCM with
 a 32-byte key length.
@@ -28,6 +28,7 @@ The following database fields are currently encrypted:
 - `crypto_keys.secret`
 - `user_secrets.value`
 - `gitsshkeys.private_key`
+- `chat_mcp_servers.headers`
 
 Additional database fields may be encrypted in the future.
 
@@ -48,15 +49,17 @@ have a null `revoked_key_id` column, and revoked keys have a non-null
 `revoked_key_id` column. You cannot revoke a key until you have rotated all
 values using that key to a new key.
 
-## Enabling encryption
+<a id="enabling-encryption"></a>
+
+## Turn on encryption
 
 > [!NOTE]
 > Enabling encryption does not encrypt all existing data. To encrypt
-> existing data, see [rotating keys](#rotating-keys) below.
+> existing data, see [rotating keys](#rotate-keys) below.
 
 - Ensure you have a valid backup of your database. **Do not skip this step.** If
   you are using the built-in PostgreSQL database, you can run
-  [`coder server postgres-builtin-url`](../../reference/cli/server_postgres-builtin-url.md)
+  [`coder server postgres-builtin-url`](../../reference/cli/server/postgres-builtin-url.md)
   to get the connection URL.
 
 - Generate a 32-byte random key and base64-encode it. For example:
@@ -89,7 +92,9 @@ coder:
 - Restart the control plane. It will now encrypt all new data with the provided
   key.
 
-## Rotating keys
+<a id="rotating-keys"></a>
+
+## Rotate keys
 
 We recommend only having one active encryption key at a time normally. However,
 if you need to rotate keys, you can perform the following procedure:
@@ -99,7 +104,7 @@ if you need to rotate keys, you can perform the following procedure:
 - Generate a new encryption key following the same procedure as above.
 
 - Add the above key to the list of
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys).
+  [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys).
   **The new key must appear first in the list**. For example, in the Kubernetes
   secret created above:
 
@@ -119,20 +124,22 @@ data:
   encrypted with the old key(s).
 
 - To re-encrypt all encrypted database fields with the new key, run
-  [`coder server dbcrypt rotate`](../../reference/cli/server_dbcrypt_rotate.md).
+  [`coder server dbcrypt rotate`](../../reference/cli/server/dbcrypt/rotate.md).
   This command will re-encrypt all tokens with the specified new encryption key.
   We recommend performing this action during a maintenance window.
 
   This command requires direct access to the database.
   If you are using the built-in PostgreSQL database, you can run
-  [`coder server postgres-builtin-url`](../../reference/cli/server_postgres-builtin-url.md)
+  [`coder server postgres-builtin-url`](../../reference/cli/server/postgres-builtin-url.md)
   to get the connection URL.
 
 - Once the above command completes successfully, remove the old encryption key
   from Coder's configuration and restart Coder once more. You can now safely
   delete the old key from your secret store.
 
-## Disabling encryption
+<a id="disabling-encryption"></a>
+
+## Turn off encryption
 
 To disable encryption, perform the following actions:
 
@@ -142,7 +149,7 @@ To disable encryption, perform the following actions:
   being written, which may cause the next step to fail.
 
 - Run
-  [`coder server dbcrypt decrypt`](../../reference/cli/server_dbcrypt_decrypt.md).
+  [`coder server dbcrypt decrypt`](../../reference/cli/server/dbcrypt/decrypt.md).
   This command will decrypt all encrypted user tokens and revoke all active
   encryption keys.
 
@@ -153,13 +160,15 @@ To disable encryption, perform the following actions:
   > to help prevent accidentally decrypting data.
 
 - Remove all
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys)
+  [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys)
   from Coder's configuration.
 
 - Start `coderd`. You can now safely delete the encryption keys from your secret
   store.
 
-## Deleting Encrypted Data
+<a id="deleting-encrypted-data"></a>
+
+## Delete encrypted data
 
 > [!CAUTION]
 > This is a destructive operation.
@@ -172,12 +181,12 @@ To delete all encrypted data from your database, perform the following actions:
   being written.
 
 - Run
-  [`coder server dbcrypt delete`](../../reference/cli/server_dbcrypt_delete.md).
+  [`coder server dbcrypt delete`](../../reference/cli/server/dbcrypt/delete.md).
   This command will delete all encrypted user tokens and revoke all active
   encryption keys.
 
 - Remove all
-  [external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys)
+  [external token encryption keys](../../reference/cli/server/index.md#--external-token-encryption-keys)
   from Coder's configuration.
 
 - Start `coderd`. You can now safely delete the encryption keys from your secret

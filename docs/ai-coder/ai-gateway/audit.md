@@ -1,5 +1,5 @@
 ---
-title: Auditing AI Sessions
+title: Audit AI sessions
 ---
 
 > [!NOTE]
@@ -44,14 +44,15 @@ Anthropic (extended thinking) and OpenAI (reasoning summaries) support this
 feature. Reasoning data gives auditors insight into **why** a tool was called,
 not just what was called.
 
-## Navigating the UI
+<a id="navigating-the-ui"></a>
+
+## Navigate the UI
 
 ### Sessions list
 
-The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions in
-reverse-chronological order. By default it shows sessions with activity in the
-last 24 hours. Use the time range filter in the filter bar to widen or narrow
-the window, for example to see older sessions.
+The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists sessions in reverse-chronological order.
+By default it shows sessions with activity in the last 24&nbsp;hours.
+Use the time range filter in the filter bar to widen or narrow the window, for example to see older sessions.
 
 Each row shows the last prompt, initiator, provider, client, token usage,
 network requests, thread count, and timestamp.
@@ -96,7 +97,9 @@ The **Session summary** card beside the timeline reports the session's
 
 ![Session detail](../../images/aibridge/session_detail.png)
 
-## Conducting a forensic audit
+<a id="conducting-a-forensic-audit"></a>
+
+## Conduct a forensic audit
 
 When investigating an incident (policy violation, destructive action, etc.):
 

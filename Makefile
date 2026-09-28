@@ -23,9 +23,14 @@ SHELL := bash
 # elapsed wall-clock time for each recipe. pre-commit and pre-push
 # set this on their sub-makes so every parallel job reports its
 # duration. Ad-hoc usage: make MAKE_TIMED=1 test
+# The target name is prefixed with "target:" because GNU make 4.4 with
+# .ONESHELL mangles the arguments when the first word of .SHELLFLAGS is
+# a shell builtin such as test, exec, or cd. SHELL then receives
+# "/bin/sh -c '<target> -ceu' <recipe>", which skips the recipe for the
+# test target or crashes make.
 ifdef MAKE_TIMED
 SHELL := $(CURDIR)/scripts/lib/timed-shell.sh
-.SHELLFLAGS = $@ -ceu
+.SHELLFLAGS = target:$@ -ceu
 export MAKE_TIMED
 export MAKE_LOGDIR
 endif
@@ -1350,9 +1355,10 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
 		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
-		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
-		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/**/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/**/*.md" && \
+		rm -rf docs/reference/cli && \
+		mv "$$tmpdir/docs/reference/cli" docs/reference/cli && \
 		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
@@ -1399,11 +1405,14 @@ coderd/apidoc/.gen: \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
-		cp _gen/manifest-staging.json "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+# The API doc rule stages the manifest with its section rebuilt; clidocgen then
+# rebuilds the "Command Line" section on top of it so both land in the tree.
+docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md _gen/bin/clidocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpdir=$$(realpath "$$tmpdir") && \
+		cp _gen/manifest-staging.json "$$tmpdir/manifest.json" && \
+		CI=true DOCS_DIR="$$tmpdir" _gen/bin/clidocgen -manifest-only && \
+		./scripts/biome_format.sh "$$tmpdir/manifest.json" && \
+		mv "$$tmpdir/manifest.json" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
