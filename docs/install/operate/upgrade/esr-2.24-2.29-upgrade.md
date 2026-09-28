@@ -1,5 +1,5 @@
 ---
-title: Upgrading from ESR 2.24 to 2.29
+title: Upgrade from ESR 2.24 to 2.29
 ---
 
 ## Guide Overview
@@ -111,7 +111,9 @@ require other manual effort to address:
 | Terraform execution uses clean directories per build               | Terraform workflows use persistent or cached directories when enabled                                  | Update templates that rely on clean execution directories or per-build isolation. See [External Provisioners](https://coder.com/docs/admin/provisioners) and [Template Dependencies](https://coder.com/docs/admin/templates/managing-templates/dependencies).                   |
 | Agent and task lifecycle behaviors more permissive                 | Agent and task lifecycle behaviors enforce stricter permission checks, readiness gating, and ordering  | Review workflows for compatibility with stricter readiness and permission requirements. See [Workspace Lifecycle](https://coder.com/docs/user-guides/workspace-lifecycle) and [Extending Templates](https://coder.com/docs/admin/templates/extending-templates).                |
 
-## Upgrading
+<a id="upgrading"></a>
+
+## Upgrade recommendations
 
 The following are recommendations by the Coder team when performing the upgrade:
 

@@ -133,7 +133,9 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+<a id="migrating-from-the-built-in-database-to-an-external-database"></a>
+
+### Migrate from the built-in database to an external database
 
 To migrate from the built-in database to an external database, follow these
 steps:
@@ -148,7 +150,9 @@ steps:
 1. Start your Coder deployment with
    `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
-## Configuring Coder behind a proxy
+<a id="configuring-coder-behind-a-proxy"></a>
+
+## Configure Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase

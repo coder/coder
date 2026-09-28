@@ -103,7 +103,9 @@ Custom roles can also be applied to
 - A `CI` role can update manage templates but cannot create workspaces or view
   users
 
-### Creating custom roles
+<a id="creating-custom-roles"></a>
+
+### Create custom roles
 
 Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 

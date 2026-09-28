@@ -72,7 +72,9 @@ You can filter connection logs by the following parameters:
      Some events are neither ongoing nor completed, such as the opening of a
      workspace app.
 
-## Capturing/Exporting Connection Logs
+<a id="capturingexporting-connection-logs"></a>
+
+## Capture and export connection logs
 
 In addition to the Coder dashboard, there are multiple ways to consume or query
 connection events.

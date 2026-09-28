@@ -18,7 +18,9 @@ validation. This means licenses work in
 [air-gapped and offline deployments](./airgap.md) without any
 additional configuration.
 
-## Adding your license key
+<a id="adding-your-license-key"></a>
+
+## Add your license key
 
 There are two ways to add a license to a Coder deployment:
 

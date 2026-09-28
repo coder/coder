@@ -123,7 +123,7 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
 
 ### Coder Validated Architecture
@@ -132,6 +132,12 @@ Coder's reference designs for sizing and deploying a control plane, abbreviated 
 Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
 A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
 Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
+
+### Coder Workspaces
+
+The self-hosted platform capability for running cloud development environments, defined with Terraform, on infrastructure you control.
+Not to be confused with a [workspace](#workspace), the individual on-demand development environment a developer creates from a template.
+Refer to [About Coder](../README.md#coder-workspaces).
 
 ### `coder server`
 
@@ -171,7 +177,12 @@ Refer to [Architecture](../install/plan/architecture.md).
 The Go SDK that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
+<!-- "Coding" is an adjective in this glossary term, not a task verb. -->
+<!-- vale Coder.GerundHeading = NO -->
+
 ### Coding agent
+
+<!-- vale Coder.GerundHeading = YES -->
 
 An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
@@ -579,6 +590,7 @@ Refer to [Web terminal](../user-guides/workspace-access/web-terminal.md).
 ### Workspace
 
 A developer's on-demand development environment, such as a virtual machine, container, or Kubernetes pod, provisioned from a template.
+Not to be confused with [Coder Workspaces](#coder-workspaces), the platform capability.
 Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ### Workspace agent

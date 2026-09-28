@@ -254,23 +254,23 @@
 							]
 						},
 						{
-							"title": "Upgrading",
+							"title": "Upgrade",
 							"description": "Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.",
 							"path": "./install/operate/upgrade.md",
 							"icon_path": "./images/icons/upgrade.svg",
 							"children": [
 								{
-									"title": "Upgrading Best Practices",
+									"title": "Upgrade best practices",
 									"description": "Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.",
 									"path": "./install/operate/upgrade/best-practices.md"
 								},
 								{
-									"title": "Upgrading from ESR 2.24 to 2.29",
+									"title": "Upgrade from ESR 2.24 to 2.29",
 									"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.24 to 2.29.",
 									"path": "./install/operate/upgrade/esr-2.24-2.29-upgrade.md"
 								},
 								{
-									"title": "Upgrading from ESR 2.29 to 2.34",
+									"title": "Upgrade from ESR 2.29 to 2.34",
 									"description": "A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.",
 									"path": "./install/operate/upgrade/esr-2.29-2.34-upgrade.md"
 								}
@@ -719,7 +719,7 @@
 									"path": "./admin/templates/extending-templates/devcontainers.md"
 								},
 								{
-									"title": "Improving Agent Resiliency",
+									"title": "Improve agent resiliency",
 									"description": "Improve workspace agent resiliency by tuning child process CPU and out-of-memory priority.",
 									"path": "./admin/templates/extending-templates/process-priority.md"
 								},
@@ -1351,7 +1351,7 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Auditing AI Sessions",
+									"title": "Audit AI sessions",
 									"description": "Audit AI coding sessions and threads captured by AI Gateway for governance and review.",
 									"path": "./ai-coder/ai-gateway/audit.md",
 									"state": ["premium"]
@@ -1409,7 +1409,7 @@
 					"path": "./tutorials/template-from-scratch.md"
 				},
 				{
-					"title": "Using an External Database",
+					"title": "Use an external database",
 					"description": "Configure Coder to use an external PostgreSQL database for production deployments.",
 					"path": "./tutorials/external-database.md"
 				},
