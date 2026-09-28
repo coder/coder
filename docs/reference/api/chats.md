@@ -3162,7 +3162,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
       "created_at": "2019-08-24T14:15:22Z",
       "editing_since": "2019-08-24T14:15:22Z",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "reasoning_effort": "string"
     }
   ],
   "turn_start_id": 0
@@ -3487,7 +3488,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "created_at": "2019-08-24T14:15:22Z",
     "editing_since": "2019-08-24T14:15:22Z",
     "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "reasoning_effort": "string"
   },
   "warnings": [
     "string"
@@ -4508,7 +4510,8 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "created_at": "2019-08-24T14:15:22Z",
         "editing_since": "2019-08-24T14:15:22Z",
         "id": 0,
-        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "reasoning_effort": "string"
       }
     ],
     "retry": {
@@ -4631,6 +4634,7 @@ Status Code **200**
 | `»» editing_since`                 | string(date-time)                                                                | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat.                                                                                                                                                                                                               |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» reasoning_effort`              | string                                                                           | false    |              | Reasoning effort is the message's reasoning effort override, when one is set.                                                                                                                                                                                                                                                                                                                              |
 | `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» attempt`                       | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |
 | `»» delay_ms`                      | integer                                                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.                                                                                                                                                                                                                                                                                                                                            |
