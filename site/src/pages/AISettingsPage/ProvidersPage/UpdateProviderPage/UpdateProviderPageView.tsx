@@ -115,9 +115,6 @@ const UpdateProviderPageView: React.FC = () => {
 	}
 
 	const hasSavedApiKey = providerUsesApiKeys && provider.api_keys.length > 0;
-	const savedApiKeyMask = hasSavedApiKey
-		? provider.api_keys[0]?.masked
-		: undefined;
 
 	return (
 		<>
@@ -198,7 +195,9 @@ const UpdateProviderPageView: React.FC = () => {
 						awsSavedAccessCredentials={hasBedrockStoredCredentials(provider)}
 						awsExternalId={bedrockExternalId(provider)}
 						hasSavedApiKey={hasSavedApiKey}
-						savedApiKeyMask={savedApiKeyMask}
+						// The single-key field shows only the first key; entering a replacement replaces the whole pool.
+						// TODO: Support per-key editing: https://linear.app/codercom/issue/AIGOV-419
+						savedApiKeyMask={provider.api_keys[0]?.masked}
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}

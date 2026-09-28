@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MockAIProviderClaudePlatformAWSAPIKey } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
-import { ProviderForm, type ProviderFormValues } from "./ProviderForm";
+import {
+	ProviderForm,
+	type ProviderFormValues,
+	SAVED_CREDENTIAL_MASK,
+} from "./ProviderForm";
 import {
 	aiProviderToFormValues,
 	providerFormValuesToUpdate,
@@ -43,38 +47,54 @@ describe("Claude Platform provider form", () => {
 		},
 	);
 
-	it("preserves a saved key after focus and blur during an unrelated edit", async () => {
-		const user = userEvent.setup();
-		const provider = MockAIProviderClaudePlatformAWSAPIKey;
-		const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
-		render(
-			<ProviderForm
-				editing
-				hasSavedApiKey
-				savedApiKeyMask={provider.api_keys[0]?.masked}
-				initialValues={aiProviderToFormValues(provider)}
-				onSubmit={onSubmit}
-			/>,
-		);
-		await user.click(screen.getByLabelText(/^workspace api key/i));
-		await user.click(screen.getByRole("textbox", { name: "Display name" }));
-		await user.click(screen.getByRole("combobox", { name: "Platform" }));
-		await user.keyboard("{ArrowUp}{Enter}");
-		await user.type(
-			screen.getByRole("textbox", { name: "Display name" }),
-			" updated",
-		);
-		await user.click(screen.getByRole("button", { name: "Update provider" }));
-		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
-		const request = providerFormValuesToUpdate(
-			onSubmit.mock.calls[0][0],
-			provider,
-		);
-		expect(request.settings).toEqual(provider.settings);
-		expect(request.api_keys).toEqual(
-			provider.api_keys.map(({ id }) => ({ id })),
-		);
-	});
+	it.each([
+		{
+			name: "an API-supplied mask",
+			savedApiKeyMask:
+				MockAIProviderClaudePlatformAWSAPIKey.api_keys[0]?.masked,
+			expectedApiKey: MockAIProviderClaudePlatformAWSAPIKey.api_keys[0]?.masked,
+		},
+		{
+			name: "the generic mask when no API mask is supplied",
+			savedApiKeyMask: undefined,
+			expectedApiKey: SAVED_CREDENTIAL_MASK,
+		},
+	])(
+		"preserves a saved key after focus and blur with $name during an unrelated edit",
+		async ({ savedApiKeyMask, expectedApiKey }) => {
+			const user = userEvent.setup();
+			const provider = MockAIProviderClaudePlatformAWSAPIKey;
+			const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
+			render(
+				<ProviderForm
+					editing
+					hasSavedApiKey
+					savedApiKeyMask={savedApiKeyMask}
+					initialValues={aiProviderToFormValues(provider)}
+					onSubmit={onSubmit}
+				/>,
+			);
+			await user.click(screen.getByLabelText(/^workspace api key/i));
+			await user.click(screen.getByRole("textbox", { name: "Display name" }));
+			await user.click(screen.getByRole("combobox", { name: "Platform" }));
+			await user.keyboard("{ArrowUp}{Enter}");
+			await user.type(
+				screen.getByRole("textbox", { name: "Display name" }),
+				" updated",
+			);
+			await user.click(screen.getByRole("button", { name: "Update provider" }));
+			await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+			expect(onSubmit.mock.calls[0][0].apiKey).toBe(expectedApiKey);
+			const request = providerFormValuesToUpdate(
+				onSubmit.mock.calls[0][0],
+				provider,
+			);
+			expect(request.settings).toEqual(provider.settings);
+			expect(request.api_keys).toEqual(
+				provider.api_keys.map(({ id }) => ({ id })),
+			);
+		},
+	);
 
 	it("updates regional endpoints but preserves a custom endpoint in the submitted values", async () => {
 		const user = userEvent.setup();
