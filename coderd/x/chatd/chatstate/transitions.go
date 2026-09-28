@@ -1023,7 +1023,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 // leave the corresponding column untouched.
 type EditQueuedMessageInput struct {
 	QueuedMessageID int64
-	// Content is already converted like [EditMessageInput.Content].
+	// Content is the chatprompt.MarshalParts encoding of the message parts.
 	Content json.RawMessage
 	// ModelConfigIDOverride and ReasoningEffortOverride apply only
 	// together with Content.
@@ -1171,7 +1171,6 @@ type promotedQueuedRow struct {
 // promoteQueuedRow pops target out of the queue into active history and
 // sets the chat running with last_error cleared. Every outstanding tool
 // call, dynamic or not, is closed first so the LLM history stays valid.
-// It returns the updated chat.
 func (tx *Tx) promoteQueuedRow(chat database.Chat, target database.ChatQueuedMessage) (database.Chat, promotedQueuedRow, error) {
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {

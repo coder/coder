@@ -5,7 +5,6 @@ ALTER TABLE chat_queued_messages ADD COLUMN editing_since timestamptz;
 
 COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
 
--- At most one row under edit per chat.
 CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat
 ON chat_queued_messages (chat_id)
 WHERE editing_since IS NOT NULL;
