@@ -59,7 +59,7 @@ func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 	triggerAt := time.Now().Add(-2 * time.Second)
 
-	turnCtx, _ := turn.Ensure(t.Context(), chat, triggerAt)
+	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, chat, triggerAt)
 	turn.End(nil)
 
 	ended := recorder.Ended()
@@ -90,7 +90,7 @@ func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
 
-	turnCtx, _ := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Second))
 	_, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	step.End(nil)
 	start := time.Now().Add(-500 * time.Millisecond)
@@ -115,8 +115,8 @@ func TestRunnerTurnSpanEnsureReusesTurnForSameTrigger(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 
 	trigger := time.Now().Add(-time.Minute)
-	_, first := turn.Ensure(t.Context(), chat, trigger)
-	_, again := turn.Ensure(t.Context(), chat, trigger)
+	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, trigger)
+	_, again := turn.Ensure(t.Context(), uuid.Nil, chat, trigger)
 	require.Equal(t, first, again)
 	require.Empty(t, turnSpansByStart(t, recorder))
 	turn.End(nil)
@@ -131,15 +131,15 @@ func TestRunnerTurnSpanRotatesOnNewerTrigger(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 
 	firstTrigger := time.Now().Add(-time.Minute)
-	_, first := turn.Ensure(t.Context(), chat, firstTrigger)
+	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
 	// A newer prompt lands while the first turn is still open, and its
 	// task reaches Ensure before the canceled task records anything.
 	secondTrigger := time.Now().Add(-10 * time.Second)
-	_, second := turn.Ensure(t.Context(), chat, secondTrigger)
+	_, second := turn.Ensure(t.Context(), uuid.Nil, chat, secondTrigger)
 	require.NotEqual(t, first, second)
 	turn.Invalidate(first, chatloop.TurnOutcomeInterrupted, xerrors.New("canceled"))
 	// An older trigger on the open turn does not rotate it.
-	_, again := turn.Ensure(t.Context(), chat, firstTrigger)
+	_, again := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
 	require.Equal(t, second, again)
 	turn.Complete(second)
 	turn.Settle(second)
@@ -171,7 +171,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	}
 
 	firstTrigger := clock.Now().Add(-time.Minute)
-	_, first := turn.Ensure(ctx, chat, firstTrigger)
+	_, first := turn.Ensure(ctx, uuid.Nil, chat, firstTrigger)
 	turn.Invalidate(first, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 	turn.Settle(first)
 	require.Zero(t, staleAnchors())
@@ -180,7 +180,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	// at now and records no second acquisition.
 	clock.Advance(time.Second).MustWait(ctx)
 	reopenedAt := clock.Now()
-	_, reopened := turn.Ensure(ctx, chat, firstTrigger)
+	_, reopened := turn.Ensure(ctx, uuid.Nil, chat, firstTrigger)
 	require.NotEqual(t, first, reopened)
 	require.Equal(t, float64(1), staleAnchors())
 	turn.Complete(reopened)
@@ -189,7 +189,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	// So does a trigger before the previous anchor.
 	clock.Advance(time.Second).MustWait(ctx)
 	olderAt := clock.Now()
-	_, older := turn.Ensure(ctx, chat, firstTrigger.Add(-30*time.Second))
+	_, older := turn.Ensure(ctx, uuid.Nil, chat, firstTrigger.Add(-30*time.Second))
 	require.NotEqual(t, reopened, older)
 	require.Equal(t, float64(2), staleAnchors())
 	turn.Complete(older)
@@ -198,7 +198,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	// A trigger after the previous anchor is kept.
 	thirdTrigger := olderAt.Add(time.Millisecond)
 	clock.Advance(time.Second).MustWait(ctx)
-	_, third := turn.Ensure(ctx, chat, thirdTrigger)
+	_, third := turn.Ensure(ctx, uuid.Nil, chat, thirdTrigger)
 	require.NotEqual(t, older, third)
 	require.Equal(t, float64(2), staleAnchors())
 	turn.End(nil)
@@ -223,13 +223,13 @@ func TestRunnerTurnSpanKeepsAnchorBeforePreviousClose(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 
 	firstTrigger := time.Now().Add(-time.Minute)
-	_, first := turn.Ensure(t.Context(), chat, firstTrigger)
+	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
 	// The next prompt lands while the first turn is still running.
 	secondTrigger := time.Now().Add(-10 * time.Second)
 	turn.Complete(first)
 	turn.Settle(first)
 
-	_, second := turn.Ensure(t.Context(), chat, secondTrigger)
+	_, second := turn.Ensure(t.Context(), uuid.Nil, chat, secondTrigger)
 	require.NotEqual(t, first, second)
 	turn.End(nil)
 
@@ -255,15 +255,15 @@ func TestRunnerTurnSpanTakenOverAnchorsAtNow(t *testing.T) {
 	// The previous owner already ran part of this turn.
 	staleTrigger := clock.Now().Add(-time.Minute)
 	takenOverAt := clock.Now()
-	_, first := turn.Ensure(ctx, chat, staleTrigger)
-	_, again := turn.Ensure(ctx, chat, staleTrigger)
+	_, first := turn.Ensure(ctx, uuid.Nil, chat, staleTrigger)
+	_, again := turn.Ensure(ctx, uuid.Nil, chat, staleTrigger)
 	require.Equal(t, first, again)
 	turn.Complete(first)
 	turn.Settle(first)
 
 	nextTrigger := takenOverAt.Add(time.Millisecond)
 	clock.Advance(time.Second).MustWait(ctx)
-	_, second := turn.Ensure(ctx, chat, nextTrigger)
+	_, second := turn.Ensure(ctx, uuid.Nil, chat, nextTrigger)
 	require.NotEqual(t, first, second)
 	turn.End(nil)
 
@@ -282,7 +282,7 @@ func TestRunnerTurnSpanZeroTriggerRecordsNoAcquisition(t *testing.T) {
 	tracer, recorder, registry := newStageMetricsTracer(t)
 	turn := newRunnerTurnSpan(tracer, nil, false)
 
-	_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Time{})
+	_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Time{})
 	turn.Complete(token)
 	turn.Settle(token)
 
@@ -327,9 +327,9 @@ func TestRunnerTurnSpanEnsureClosesUnsettledTurn(t *testing.T) {
 			chat := database.Chat{ID: uuid.New()}
 
 			trigger := time.Now().Add(-time.Minute)
-			_, first := turn.Ensure(t.Context(), chat, trigger)
+			_, first := turn.Ensure(t.Context(), uuid.Nil, chat, trigger)
 			tt.close(turn, first)
-			_, second := turn.Ensure(t.Context(), chat, trigger)
+			_, second := turn.Ensure(t.Context(), uuid.Nil, chat, trigger)
 			require.NotEqual(t, first, second)
 			turn.Complete(second)
 			turn.Settle(second)
@@ -436,7 +436,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Complete(token)
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("publish watch"))
 		turn.Settle(token)
@@ -450,7 +450,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		firstErr := xerrors.New("provider refused")
 		turn.Invalidate(token, chatloop.TurnOutcomeError, firstErr)
 		// The first invalidation wins over later ones.
@@ -467,7 +467,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 		turn.Settle(token)
 
@@ -483,7 +483,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Settle(token)
 		require.Empty(t, turnSpansByStart(t, recorder))
 		// End closes the unfinished turn as abandoned.
@@ -497,7 +497,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 		turn.Complete(token)
 		turn.Settle(token)
@@ -511,7 +511,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
-		_, token := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now())
+		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token+1, chatloop.TurnOutcomeError, xerrors.New("not this turn"))
 		turn.Complete(token)
 		turn.End(nil)
@@ -526,8 +526,8 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		tracer, recorder := newStageTestTracer(t)
 		turn := newRunnerTurnSpan(tracer, nil, false)
 		chat := database.Chat{ID: uuid.New()}
-		_, first := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
-		_, second := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+		_, first := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Minute))
+		_, second := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Second))
 		require.NotEqual(t, first, second)
 		turn.Complete(first)
 		turn.Settle(first)
@@ -552,18 +552,18 @@ func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 	firstTrigger := time.Now().Add(-time.Minute)
 	secondTrigger := time.Now().Add(-10 * time.Second)
 
-	_, first := turn.Ensure(t.Context(), chat, firstTrigger)
-	_, second := turn.Ensure(t.Context(), chat, secondTrigger)
+	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
+	_, second := turn.Ensure(t.Context(), uuid.Nil, chat, secondTrigger)
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
-	canceledCtx, stale := turn.Ensure(canceled, chat, firstTrigger)
+	canceledCtx, stale := turn.Ensure(canceled, uuid.Nil, chat, firstTrigger)
 	require.Zero(t, stale)
 	require.False(t, trace.SpanContextFromContext(canceledCtx).IsValid())
 	turn.Invalidate(stale, chatloop.TurnOutcomeError, xerrors.New("canceled"))
 	turn.Settle(stale)
 	require.Equal(t, second, turn.OpenToken(t.Context()))
 
-	_, again := turn.Ensure(t.Context(), chat, secondTrigger)
+	_, again := turn.Ensure(t.Context(), uuid.Nil, chat, secondTrigger)
 	require.Equal(t, second, again)
 	turn.Complete(again)
 	turn.Settle(again)
@@ -588,10 +588,10 @@ func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
 	turn := newRunnerTurnSpan(tracer, nil, false)
 	chat := database.Chat{ID: uuid.New()}
 
-	turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Minute))
 	interruptCtx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, edited := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	_, edited := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Second))
 	stopped := turn.OpenToken(interruptCtx)
 	require.Zero(t, stopped)
 	turn.Invalidate(stopped, chatloop.TurnOutcomeInterrupted, nil)
@@ -616,20 +616,172 @@ func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 	base := time.Now().Add(-time.Hour)
 
-	_, token := turn.Ensure(t.Context(), chat, base)
+	_, token := turn.Ensure(t.Context(), uuid.Nil, chat, base)
 	turn.Complete(token)
 	turn.Settle(token)
 	for i, outcome := range []chatloop.TurnOutcome{chatloop.TurnOutcomeInterrupted, chatloop.TurnOutcomeError} {
-		_, token = turn.Ensure(t.Context(), chat, base.Add(time.Duration(i+1)*time.Minute))
+		_, token = turn.Ensure(t.Context(), uuid.Nil, chat, base.Add(time.Duration(i+1)*time.Minute))
 		turn.Invalidate(token, outcome, xerrors.New(string(outcome)))
 		turn.Settle(token)
 	}
 	// Runner exit closes the last turn as abandoned.
-	turn.Ensure(t.Context(), chat, base.Add(10*time.Minute))
+	turn.Ensure(t.Context(), uuid.Nil, chat, base.Add(10*time.Minute))
 	turn.End(nil)
 
 	require.Len(t, turnSpansByStart(t, recorder), 4)
 	require.Equal(t, uint64(1), stageObservationCount(t, registry, chatloop.StageChatTurn))
+}
+
+// TestRunnerTurnSpanSupersededTurnWaitsForHolder replaces a turn with a
+// newer prompt's turn while the task that ran it still holds it. The
+// replaced turn ends at the replacement time, and the outcome its task
+// records before releasing it is the one emitted.
+func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
+	t.Parallel()
+
+	failure := xerrors.New("provider refused")
+	tests := []struct {
+		name        string
+		mark        func(*runnerTurnSpan, turnToken)
+		wantOutcome chatloop.TurnOutcome
+		wantStatus  codes.Code
+	}{
+		{
+			name:        "Completed",
+			mark:        func(turn *runnerTurnSpan, token turnToken) { turn.Complete(token) },
+			wantOutcome: chatloop.TurnOutcomeCompleted,
+			wantStatus:  codes.Unset,
+		},
+		{
+			name: "Error",
+			mark: func(turn *runnerTurnSpan, token turnToken) {
+				turn.Invalidate(token, chatloop.TurnOutcomeError, failure)
+			},
+			wantOutcome: chatloop.TurnOutcomeError,
+			wantStatus:  codes.Error,
+		},
+		{
+			name:        "Unmarked",
+			mark:        func(*runnerTurnSpan, turnToken) {},
+			wantOutcome: chatloop.TurnOutcomeAbandoned,
+			wantStatus:  codes.Unset,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
+			turn := newRunnerTurnSpan(tracer, nil, false)
+			chat := database.Chat{ID: uuid.New()}
+			finishing, promoted := uuid.New(), uuid.New()
+
+			_, first := turn.Ensure(ctx, finishing, chat, clock.Now().Add(-time.Minute))
+			clock.Advance(time.Second).MustWait(ctx)
+			supersededAt := clock.Now()
+			_, second := turn.Ensure(ctx, promoted, chat, clock.Now().Add(-time.Millisecond))
+			require.NotEqual(t, first, second)
+			require.Equal(t, second, turn.OpenToken(ctx))
+			require.Empty(t, turnSpansByStart(t, recorder))
+
+			tt.mark(turn, first)
+			clock.Advance(time.Second).MustWait(ctx)
+			turn.Release(finishing)
+
+			turns := turnSpansByStart(t, recorder)
+			require.Len(t, turns, 1)
+			require.Equal(t, supersededAt.UTC(), turns[0].EndTime().UTC())
+			require.Equal(t, tt.wantStatus, turns[0].Status().Code)
+			outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
+			require.Equal(t, tt.wantOutcome, chatloop.TurnOutcome(outcome.AsString()))
+
+			// Marks after emission are ignored.
+			turn.Invalidate(first, chatloop.TurnOutcomeError, failure)
+			turn.Settle(first)
+			require.Len(t, turnSpansByStart(t, recorder), 1)
+		})
+	}
+}
+
+// TestRunnerTurnSpanSettleWaitsForHolders settles a turn that two tasks
+// joined. The turn is no longer current once settled, ends at the
+// settle time, and is emitted when the last holder releases it.
+func TestRunnerTurnSpanSettleWaitsForHolders(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	chat := database.Chat{ID: uuid.New()}
+	firstStep, secondStep := uuid.New(), uuid.New()
+	trigger := clock.Now().Add(-time.Minute)
+
+	_, token := turn.Ensure(ctx, firstStep, chat, trigger)
+	_, joined := turn.Ensure(ctx, secondStep, chat, trigger)
+	require.Equal(t, token, joined)
+	turn.Invalidate(token, chatloop.TurnOutcomeInterrupted, nil)
+	clock.Advance(time.Second).MustWait(ctx)
+	settledAt := clock.Now()
+	turn.Settle(token)
+	require.Zero(t, turn.OpenToken(ctx))
+
+	clock.Advance(time.Second).MustWait(ctx)
+	turn.Release(secondStep)
+	require.Empty(t, turnSpansByStart(t, recorder))
+	turn.Release(firstStep)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 1)
+	require.Equal(t, settledAt.UTC(), turns[0].EndTime().UTC())
+	outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
+	require.Equal(t, chatloop.TurnOutcomeInterrupted, chatloop.TurnOutcome(outcome.AsString()))
+}
+
+// TestRunnerTurnSpanReleasedTurnEmitsOnClose releases the only holder
+// of the current turn before it closes; closing it emits it at once.
+func TestRunnerTurnSpanReleasedTurnEmitsOnClose(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	task := uuid.New()
+
+	_, token := turn.Ensure(t.Context(), task, database.Chat{ID: uuid.New()}, time.Now())
+	turn.Release(task)
+	turn.Release(uuid.New())
+	require.Empty(t, turnSpansByStart(t, recorder))
+	turn.Complete(token)
+	turn.Settle(token)
+	require.Len(t, turnSpansByStart(t, recorder), 1)
+}
+
+// TestRunnerTurnSpanEndEmitsHeldTurns ends the runner while a replaced
+// turn and the current turn are both still held. End emits both, and
+// no turn opens afterwards.
+func TestRunnerTurnSpanEndEmitsHeldTurns(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	chat := database.Chat{ID: uuid.New()}
+	stale, current := uuid.New(), uuid.New()
+
+	_, first := turn.Ensure(t.Context(), stale, chat, time.Now().Add(-time.Minute))
+	turn.Ensure(t.Context(), current, chat, time.Now().Add(-time.Second))
+	turn.Complete(first)
+	turn.End(nil)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	for i, want := range []chatloop.TurnOutcome{chatloop.TurnOutcomeCompleted, chatloop.TurnOutcomeAbandoned} {
+		outcome, _ := spanAttribute(t, turns[i], chatloop.AttrTurnOutcome)
+		require.Equal(t, want, chatloop.TurnOutcome(outcome.AsString()))
+	}
+
+	turn.Release(stale)
+	turn.Release(current)
+	_, token := turn.Ensure(t.Context(), uuid.New(), chat, time.Now())
+	require.Zero(t, token)
+	require.Len(t, turnSpansByStart(t, recorder), 2)
 }
 
 // stageObservationCount returns how many observations the stage
@@ -678,7 +830,7 @@ func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	}
 	f.pubsub.mu.Unlock()
 
-	_, token := turn.Ensure(taskCtx, acquired, acquired.CreatedAt)
+	_, token := turn.Ensure(taskCtx, uuid.Nil, acquired, acquired.CreatedAt)
 	input := chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
 		WorkerID:          workerID,
@@ -717,7 +869,7 @@ func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
 	turn := newRunnerTurnSpan(tracer, nil, false)
-	_, token := turn.Ensure(t.Context(), acquired, acquired.CreatedAt)
+	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 
 	interrupting := f.interruptChat(t, chat.ID)
@@ -753,7 +905,7 @@ func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
 	turn := newRunnerTurnSpan(tracer, nil, false)
-	_, token := turn.Ensure(t.Context(), acquired, acquired.CreatedAt)
+	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 
 	interrupting := f.interruptChat(t, chat.ID)
@@ -761,7 +913,7 @@ func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	f.pubsub.mu.Lock()
 	f.pubsub.onPublish = func(channel string) {
 		if channel == coderdpubsub.ChatStateUpdateChannel(chat.ID) && promoted == 0 {
-			_, promoted = turn.Ensure(t.Context(), acquired, acquired.CreatedAt.Add(time.Minute))
+			_, promoted = turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt.Add(time.Minute))
 		}
 	}
 	f.pubsub.mu.Unlock()

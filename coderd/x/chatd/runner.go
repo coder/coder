@@ -247,6 +247,9 @@ func (r *runner) runTask(
 	done chan<- struct{},
 ) {
 	defer close(done)
+	// Deferred after close(done) so it runs first, once every attempt
+	// has returned and every stage the task started has ended.
+	defer input.TurnSpan.Release(input.TaskID)
 	taskInfo := retryWrapperTaskInfo{
 		ChatID:   input.ChatID,
 		WorkerID: input.WorkerID,

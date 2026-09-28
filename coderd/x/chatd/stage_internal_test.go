@@ -219,7 +219,7 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 	// The turn is for a root chat, so the subagent kind and organization
 	// on the stage come from the chat passed to inflightChatContext.
 	turn := newRunnerTurnSpan(tracer, nil, false)
-	turnCtx, _ := turn.Ensure(t.Context(), database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
+	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
 	chat := database.Chat{
 		ID:             uuid.New(),
 		OrganizationID: uuid.New(),

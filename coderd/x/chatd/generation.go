@@ -441,7 +441,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return xerrors.Errorf("load generation state: %w", err)
 		}
 		var turnCtx context.Context
-		turnCtx, input.TurnToken = input.TurnSpan.Ensure(ctx, chat, turnTriggerTime(chat, messages))
+		turnCtx, input.TurnToken = input.TurnSpan.Ensure(ctx, input.TaskID, chat, turnTriggerTime(chat, messages))
 		var again bool
 		input, again, err = s.runGenerationStep(turnCtx, machine, input, chat, messages)
 		if again {
