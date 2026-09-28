@@ -67,6 +67,16 @@ describe("getArchiveBlockedReason", () => {
 		).toBe("paused");
 	});
 
+	it("returns undefined for an errored root with a waiting child", () => {
+		expect(
+			getArchiveBlockedReason("error", [childWithStatus("waiting")]),
+		).toBeUndefined();
+	});
+
+	it("returns paused for a paused chat with no children", () => {
+		expect(getArchiveBlockedReason("paused", undefined)).toBe("paused");
+	});
+
 	it("prefers active over paused", () => {
 		expect(
 			getArchiveBlockedReason("paused", [childWithStatus("running")]),

@@ -20,23 +20,36 @@ import type {
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
-import { isActiveChatStatus } from "./ChatConversation/chatStore";
 
 type ArchiveBlockedReason = "active" | "paused";
 
-// Archiving cascades to the embedded children (depth capped at 1), so the
-// backend refuses it while the chat or any child is active or paused.
-// Active takes precedence when both apply. Other statuses pass; the server
-// conflict response is the backstop.
+// Archive is allowed only from W, E0, E1, and E1P (the SetArchived edges in
+// coderd/x/chatd/ARCHITECTURE.md). It cascades to the embedded children
+// (depth capped at 1), so each child's status counts too.
+const archiveBlockedReasonByStatus = {
+	waiting: undefined,
+	error: undefined,
+	running: "active",
+	requires_action: "active",
+	interrupting: "active",
+	paused: "paused",
+} as const satisfies Record<
+	TypesGen.ChatStatus,
+	ArchiveBlockedReason | undefined
+>;
+
 export const getArchiveBlockedReason = (
 	status: TypesGen.ChatStatus,
 	children: readonly TypesGen.Chat[] | undefined,
 ): ArchiveBlockedReason | undefined => {
-	const statuses = [status, ...(children ?? []).map((child) => child.status)];
-	if (statuses.some(isActiveChatStatus)) {
+	const reasons = [
+		status,
+		...(children ?? []).map((child) => child.status),
+	].map((s) => archiveBlockedReasonByStatus[s]);
+	if (reasons.includes("active")) {
 		return "active";
 	}
-	if (statuses.some((s) => s === "paused")) {
+	if (reasons.includes("paused")) {
 		return "paused";
 	}
 	return undefined;
