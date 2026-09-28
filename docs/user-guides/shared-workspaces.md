@@ -18,7 +18,9 @@ This is helpful in a number of scenarios, including:
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
 - AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/ai-coder/agents).)
 
-## Getting Started
+<a id="getting-started"></a>
+
+## Get started
 
 Workspaces can be shared through either the Coder CLI or UI.
 
@@ -63,7 +65,9 @@ directly or through a group:
 
 ### UI
 
-#### Sharing your Workspace
+<a id="sharing-your-workspace"></a>
+
+#### Share your workspace
 
 1. Open a workspace that you own.
 
@@ -80,13 +84,17 @@ directly or through a group:
 - Neither role allows for the user to delete the workspace.
 - After removing a user/group, a workspace restart is required for the removal to take effect.
 
-#### Using a shared workspace
+<a id="using-a-shared-workspace"></a>
+
+#### Use a shared workspace
 
 Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
 
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)
 
-#### Accessing workspace apps in shared workspaces
+<a id="accessing-workspace-apps-in-shared-workspaces"></a>
+
+#### Access workspace apps in shared workspaces
 
 Sharing a workspace grants SSH and terminal access to other users. However,
 workspace apps like code-server may return a **404 page** for non-owners

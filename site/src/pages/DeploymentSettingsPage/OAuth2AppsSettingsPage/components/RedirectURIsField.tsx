@@ -1,5 +1,5 @@
 import { PlusIcon, XIcon } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { OAuth2RedirectURIsMaxCount } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
@@ -14,7 +14,7 @@ type RedirectURIsFieldProps = {
 	errors?: string[];
 };
 
-export const RedirectURIsField: FC<RedirectURIsFieldProps> = ({
+export const RedirectURIsField: React.FC<RedirectURIsFieldProps> = ({
 	values,
 	onChange,
 	onBlur,

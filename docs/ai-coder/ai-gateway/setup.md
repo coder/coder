@@ -100,8 +100,8 @@ Each [standalone gateway](./standalone.md) replica accepts the same API dump set
 
 ## Data Retention
 
-AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and
-monitoring purposes. By default, this data is retained for **60 days**.
+AI Gateway records prompts, token usage, tool invocations, and model reasoning for auditing and monitoring purposes.
+By default, this data is retained for **60&nbsp;days**.
 
 Configure retention using `--ai-gateway-retention` or `CODER_AI_GATEWAY_RETENTION`:
 
@@ -141,8 +141,8 @@ ai_gateway:
 
 These logs are written to the same output stream as all other `coderd` logs,
 using the format configured by
-[`--log-human`](../../reference/cli/server.md#--log-human) (default, writes to
-stderr) or [`--log-json`](../../reference/cli/server.md#--log-json). For machine
+[`--log-human`](../../reference/cli/server/index.md#--log-human) (default, writes to
+stderr) or [`--log-json`](../../reference/cli/server/index.md#--log-json). For machine
 ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
 

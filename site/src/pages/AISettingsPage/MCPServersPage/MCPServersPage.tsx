@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { mcpServerConfigs } from "#/api/queries/chats";
@@ -12,7 +11,7 @@ import { pageTitle } from "#/utils/page";
 import MCPServersPageView from "./MCPServersPageView";
 import { orgSearchParam, selectOrganization } from "./organizationParam";
 
-const MCPServersPage: FC = () => {
+const MCPServersPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const [searchParams, setSearchParams] = useSearchParams();

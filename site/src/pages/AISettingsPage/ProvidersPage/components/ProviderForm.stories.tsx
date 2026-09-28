@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import { ProviderForm, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
@@ -21,7 +21,7 @@ const SuccessfulSubmitProviderForm = ({
 	args,
 	deferred,
 }: {
-	args: ComponentProps<typeof ProviderForm>;
+	args: React.ComponentProps<typeof ProviderForm>;
 	deferred: Deferred<void>;
 }) => {
 	const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +44,7 @@ const FailedSubmitProviderForm = ({
 	args,
 	deferred,
 }: {
-	args: ComponentProps<typeof ProviderForm>;
+	args: React.ComponentProps<typeof ProviderForm>;
 	deferred: Deferred<void>;
 }) => {
 	const [isLoading, setIsLoading] = useState(false);
@@ -70,7 +70,7 @@ const ExternalLoadingProviderForm = ({
 	args,
 	deferred,
 }: {
-	args: ComponentProps<typeof ProviderForm>;
+	args: React.ComponentProps<typeof ProviderForm>;
 	deferred: Deferred<void>;
 }) => {
 	const [isLoading, setIsLoading] = useState(false);

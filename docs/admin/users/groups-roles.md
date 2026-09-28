@@ -48,7 +48,7 @@ Refer to [Default member roles](./organizations.md#default-member-roles) for how
 The preceding table describes a default deployment.
 A deployment that sets `CODER_DISABLE_OWNER_WORKSPACE_ACCESS` removes the Owner role's SSH, application, and terminal access to other users' workspaces.
 Owners keep that access to workspaces they own.
-Refer to [`--disable-owner-workspace-access`](../../reference/cli/server.md#--disable-owner-workspace-access) for the flag, environment variable, and YAML forms.
+Refer to [`--disable-owner-workspace-access`](../../reference/cli/server/index.md#--disable-owner-workspace-access) for the flag, environment variable, and YAML forms.
 
 ## Organization roles
 
@@ -64,6 +64,7 @@ Coder ships the following organization roles:
 - **Organization Auditor**: reads the organization's audit logs and connection logs, along with the resources those logs reference.
 - **Organization Workspace Access**: creates and operates the user's own workspaces in the organization.
 - **Organization Workspace Creation Ban**: blocks creating and deleting workspaces in the organization, and overrides any role that would otherwise allow it.
+- **Coder Agents User**: uses [Coder Agents](../../ai-coder/agents/index.md) in the organization. Members other than service accounts hold this role through the organization's [default member roles](./organizations.md#default-member-roles) unless an administrator removes it.
 
 Organization Admin doesn't include SSH, application, or terminal access to workspaces other members own.
 A user with that role can read, build, stop, and delete those workspaces.
@@ -102,7 +103,9 @@ Custom roles can also be applied to
 - A `CI` role can update manage templates but cannot create workspaces or view
   users
 
-### Creating custom roles
+<a id="creating-custom-roles"></a>
+
+### Create custom roles
 
 Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 

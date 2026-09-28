@@ -883,8 +883,6 @@ export const UserMessageWithExpiredImage: Story = {
 			name: "Image expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -1163,8 +1161,6 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 			name: "Attachment expired",
 		});
 
-		// The tooltip names the attachment cap and describes retention
-		// generically so the copy survives any operator-chosen window.
 		await hoverAttachmentTile(expiredTile);
 	},
 };
@@ -2388,6 +2384,31 @@ export const ThinkingBlockWithShellTools: Story = {
 						tool_call_id: "tool-2",
 						tool_name: "process_output",
 						result: { output: "Spacing looks stable." },
+					},
+				],
+			},
+		]),
+	},
+};
+
+export const UserMessageWithWorkspaceFileReference: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Unzip this in my workspace" },
+					{
+						type: "workspace-file-reference",
+						workspace_file_path:
+							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+						workspace_file_name: "dataset.zip",
+						workspace_file_size: 4096,
+						workspace_file_media_type: "application/zip",
+						workspace_file_workspace_id: "ws-1",
 					},
 				],
 			},

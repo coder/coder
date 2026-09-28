@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import type { AuthMethods } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -10,12 +9,12 @@ type SignInFormProps = {
 	isSigningIn: boolean;
 	redirectTo: string;
 	error?: unknown;
-	message?: ReactNode;
+	message?: React.ReactNode;
 	authMethods?: AuthMethods;
 	onSubmit: (credentials: { email: string; password: string }) => void;
 };
 
-export const SignInForm: FC<SignInFormProps> = ({
+export const SignInForm: React.FC<SignInFormProps> = ({
 	authMethods,
 	redirectTo,
 	isSigningIn,

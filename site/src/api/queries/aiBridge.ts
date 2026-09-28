@@ -57,7 +57,7 @@ export const paginatedOrganizationAISpend = (
 			pageNumber,
 		],
 		queryFn: ({ payload, limit, offset }) =>
-			API.getOrganizationAISpendUsers(organizationId, {
+			API.experimental.getOrganizationAISpendUsers(organizationId, {
 				...payload,
 				limit,
 				offset,

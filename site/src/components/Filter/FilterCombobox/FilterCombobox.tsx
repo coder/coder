@@ -5,14 +5,7 @@ import {
 	ListFilterIcon,
 	SearchIcon,
 } from "lucide-react";
-import {
-	type ReactNode,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -552,7 +545,11 @@ function LoadingOptions() {
 }
 
 // Fixed 24px slot so icons, avatars, and status dots of different sizes align.
-function OptionIcon({ children }: { children: ReactNode }): ReactNode {
+function OptionIcon({
+	children,
+}: {
+	children: React.ReactNode;
+}): React.ReactNode {
 	return (
 		<span
 			aria-hidden
@@ -564,8 +561,8 @@ function OptionIcon({ children }: { children: ReactNode }): ReactNode {
 }
 
 type OptionRowContentProps = Readonly<{
-	icon?: ReactNode;
-	label: ReactNode;
+	icon?: React.ReactNode;
+	label: React.ReactNode;
 	selected: boolean;
 }>;
 
@@ -587,7 +584,7 @@ function ChipLabel({
 }: {
 	prefix: string;
 	value: string;
-}): ReactNode {
+}): React.ReactNode {
 	if (prefix.length === 0) {
 		return value;
 	}
@@ -862,7 +859,7 @@ type OptionsPanelProps = Readonly<{
 	navigatesList?: boolean;
 	emptyMessage?: string;
 	onMouseEnter?: () => void;
-	children: ReactNode;
+	children: React.ReactNode;
 }>;
 
 function OptionsPanel({

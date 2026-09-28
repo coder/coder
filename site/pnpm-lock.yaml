@@ -62,8 +62,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0
       '@pierre/diffs':
-        specifier: 1.4.0
-        version: 1.4.0(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 1.5.1
+        version: 1.5.1(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.4.3)
@@ -1595,8 +1595,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pierre/diffs@1.4.0':
-    resolution: {integrity: sha512-eSYnNDjRdgx01O16t8yxVW5M96ppgUMKbMyRE7/cyeJa+dMQrS/s0ed3n0KK9a2Or7SXon6cYbBLhAiAggD6ZQ==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.4.0.tgz}
+  '@pierre/diffs@1.5.1':
+    resolution: {integrity: sha512-+EXNfz4ZXI6FHr7P6ToWEORwyYiPVfAmzhA70xF+0y/oNvj7gbNTLJJ6jNzkBjuMbRlu564TAmgYZLc5OyHURA==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.5.1.tgz}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
@@ -7731,7 +7731,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.80.0':
     optional: true
 
-  '@pierre/diffs@1.4.0(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@pierre/diffs@1.5.1(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@pierre/theme': 2.0.0
       '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.4.3)
