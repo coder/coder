@@ -1022,11 +1022,11 @@ func TestRenameChatTitle(t *testing.T) {
 		database.ChatTitleSourceGenerated,
 		database.ChatTitleSourceUser,
 	}
-	newTitles := map[string]string{"same text": stored, "new text": "renamed"}
+	titles := []struct{ name, title string }{{"same text", stored}, {"new text", "renamed"}}
 	for _, source := range sources {
-		for name, newTitle := range newTitles {
-			wantWrite := newTitle != stored || source != database.ChatTitleSourceUser
-			t.Run(string(source)+"_"+name, func(t *testing.T) {
+		for _, tc := range titles {
+			wantWrite := tc.title != stored || source != database.ChatTitleSourceUser
+			t.Run(string(source)+"_"+tc.name, func(t *testing.T) {
 				t.Parallel()
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1034,10 +1034,10 @@ func TestRenameChatTitle(t *testing.T) {
 				_, chat := seedTitleChat(t, db, stored, source)
 				server := &Server{db: db, logger: slogtest.Make(t, nil)}
 
-				got, wrote, err := server.RenameChatTitle(ctx, chat.ID, newTitle)
+				got, wrote, err := server.RenameChatTitle(ctx, chat.ID, tc.title)
 				require.NoError(t, err)
 				require.Equal(t, wantWrite, wrote)
-				require.Equal(t, newTitle, got.Title)
+				require.Equal(t, tc.title, got.Title)
 				require.Equal(t, database.ChatTitleSourceUser, got.TitleSource)
 
 				fetched, err := db.GetChatByID(ctx, chat.ID)
