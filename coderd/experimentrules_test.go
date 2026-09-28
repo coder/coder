@@ -211,7 +211,8 @@ func TestExperimentRules(t *testing.T) {
 	})
 
 	// Stored rules the API cannot write are listed but ignored, and a
-	// malformed rule of a user-scoped experiment stays replaceable.
+	// malformed rule of a user-scoped experiment stays replaceable, even
+	// when its revision is unreadable.
 	t.Run("StoredRulesOutsideTheAPI", func(t *testing.T) {
 		t.Parallel()
 		ownerClient, db := coderdtest.NewWithDatabase(t, nil)
@@ -222,6 +223,7 @@ func TestExperimentRules(t *testing.T) {
 			"not-an-experiment":                   `{"mode":"on","revision":1}`,
 			codersdk.ExperimentAutoFillParameters: `{"mode":"off","revision":4}`,
 			codersdk.ExperimentExample:            `{"mode":"percent","revision":2}`,
+			codersdk.ExperimentMCPToolSearch:      `{not json`,
 		} {
 			require.NoError(t, db.UpsertExperimentRule(sysCtx, database.UpsertExperimentRuleParams{Experiment: string(ex), Value: value}))
 		}
@@ -231,7 +233,7 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &codersdk.ExperimentRule{Revision: 2}},
-			{Experiment: string(codersdk.ExperimentMCPToolSearch)},
+			{Experiment: string(codersdk.ExperimentMCPToolSearch), Rule: &codersdk.ExperimentRule{}},
 			{Experiment: string(codersdk.ExperimentAutoFillParameters), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
 			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOn), Revision: 1}, Ignored: true},
 		}, entries)
@@ -239,6 +241,12 @@ func TestExperimentRules(t *testing.T) {
 		rule, err := client.PutExperimentRule(ctx, codersdk.ExperimentExample, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 2})
 		require.NoError(t, err)
 		require.Equal(t, int64(3), rule.Revision)
+
+		_, err = client.PutExperimentRule(ctx, codersdk.ExperimentMCPToolSearch, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 5})
+		requireStatus(t, err, http.StatusConflict)
+		rule, err = client.PutExperimentRule(ctx, codersdk.ExperimentMCPToolSearch, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 0})
+		require.NoError(t, err)
+		require.Equal(t, int64(1), rule.Revision)
 	})
 }
 
