@@ -38,7 +38,9 @@ type Rule struct {
 	// Condition is a CEL expression over `user`. It is set only when Mode
 	// is ModeCondition.
 	Condition string `json:"condition,omitempty"`
-	// Revision increases on every write. Zero means never configured.
+	// Revision increases on every write. Stored rules have revision 1 or
+	// higher; a stored rule below 1 is malformed. The zero Rule, with
+	// revision 0, stands for no stored rule.
 	Revision  int64     `json:"revision"`
 	UpdatedBy uuid.UUID `json:"updated_by"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -108,12 +110,16 @@ func checkShape(rule Rule) error {
 	return nil
 }
 
-// decodeRule decodes and shape-checks a stored rule. Errors must not be
-// logged because JSON errors can quote stored content.
+// decodeRule decodes and checks a stored rule: its shape, and a revision of
+// 1 or higher, which every write stores. Errors must not be logged because
+// JSON errors can quote stored content.
 func decodeRule(stored StoredRule) (Rule, error) {
 	var rule Rule
 	if err := json.Unmarshal(stored.Value, &rule); err != nil {
 		return Rule{}, xerrors.Errorf("decode rule: %w", err)
+	}
+	if rule.Revision < 1 {
+		return rule, xerrors.Errorf("stored rule has invalid revision %d", rule.Revision)
 	}
 	return rule, checkShape(rule)
 }

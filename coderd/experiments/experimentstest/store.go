@@ -50,9 +50,13 @@ func (s Store) UserAttributes(_ context.Context, userID uuid.UUID) (experiments.
 	return user, nil
 }
 
-// StoredRule encodes rule as it would be stored.
+// StoredRule encodes rule as it would be stored. A zero Revision is stored
+// as 1 because stored rules always have revision 1 or higher.
 func StoredRule(t testing.TB, rule experiments.Rule) experiments.StoredRule {
 	t.Helper()
+	if rule.Revision == 0 {
+		rule.Revision = 1
+	}
 	value, err := json.Marshal(rule)
 	require.NoError(t, err)
 	return experiments.StoredRule{Value: value}

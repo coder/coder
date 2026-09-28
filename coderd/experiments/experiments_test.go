@@ -355,6 +355,38 @@ func TestFailClosed(t *testing.T) {
 	}
 }
 
+// TestRuleWithoutPositiveRevisionIsMalformed covers values written outside
+// WriteRule: every stored rule has revision 1 or higher, so a value without
+// one decides off even when its mode is valid.
+func TestRuleWithoutPositiveRevisionIsMalformed(t *testing.T) {
+	t.Parallel()
+
+	src := fmt.Sprintf(`user.email != %q`, sentinel)
+	cases := map[string]string{
+		"on revision 0":          `{"mode":"on","revision":0}`,
+		"on negative revision":   `{"mode":"on","revision":-2}`,
+		"on missing revision":    `{"mode":"on"}`,
+		"inherit missing":        `{"mode":"inherit"}`,
+		"condition revision 0":   fmt.Sprintf(`{"mode":"condition","condition":%q,"revision":0}`, src),
+		"condition missing":      fmt.Sprintf(`{"mode":"condition","condition":%q}`, src),
+		"condition negative":     fmt.Sprintf(`{"mode":"condition","condition":%q,"revision":-1}`, src),
+		"undecodable revision 0": `{"mode":"on","revision":0,"updated_by":"` + sentinel + `"}`,
+	}
+	for name, raw := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			userID := uuid.New()
+			e, sink := newEvaluator(t, rawStore(userID, raw), codersdk.Experiments{scoped, unscoped})
+			require.False(t, e.Enabled(ctx, userID, scoped))
+			require.Equal(t, codersdk.Experiments{unscoped}, e.EnabledExperiments(ctx, userID))
+			requireLogField(t, sink, "category", "malformed")
+			requireLogField(t, sink, "experiment", scoped)
+			requireLogsExclude(t, sink, sentinel, raw)
+		})
+	}
+}
+
 func canceledContext(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
 	cancel()
