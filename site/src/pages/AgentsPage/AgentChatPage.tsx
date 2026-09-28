@@ -570,11 +570,16 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const handleDeleteQueuedMessage = (id: number) =>
 		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
 
+	const fetchQueueConvergence = (chatId: string) =>
+		queryClient.fetchQuery(chatQueueConvergence(chatId));
+
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
 			promoteQueuedMessage,
+			fetchQueueConvergence,
+			setCacheQueuedMessages,
 			agentId,
 			clearChatErrorReason,
 			onError: handleRequestError,
@@ -671,8 +676,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		upsertCacheMessages,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
+		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	};
 
