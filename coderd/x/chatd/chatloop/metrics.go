@@ -25,7 +25,7 @@ const (
 	CompactionResultTimeout = "timeout"
 )
 
-// StageAnomaly is the `reason` label value of StageAnomaliesTotal.
+// StageAnomaly is the `reason` label value of stageAnomaliesTotal.
 type StageAnomaly string
 
 // StageAnomaly values.
@@ -48,7 +48,7 @@ const (
 	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
 )
 
-// observedStages are the stages observed into StageDurationSeconds;
+// observedStages are the stages observed into stageDurationSeconds;
 // every other stage is span-only.
 var observedStages = map[Stage]struct{}{
 	StageChatTurn:         {},
@@ -64,7 +64,7 @@ var observedStages = map[Stage]struct{}{
 }
 
 // modelStages is the set of stages observed into
-// ModelStageDurationSeconds: the stages whose duration is the
+// modelStageDurationSeconds: the stages whose duration is the
 // provider's work on a model. Per-model time to first token is
 // TTFTSeconds.
 var modelStages = map[Stage]struct{}{
@@ -94,9 +94,9 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
-	StageDurationSeconds      *prometheus.HistogramVec
-	ModelStageDurationSeconds *prometheus.HistogramVec
-	StageAnomaliesTotal       *prometheus.CounterVec
+	stageDurationSeconds      *prometheus.HistogramVec
+	modelStageDurationSeconds *prometheus.HistogramVec
+	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -167,21 +167,21 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk. The time_to_first_token stage of stage_duration_seconds measures the same window without a model label and is registered only with the chat-stage-metrics experiment.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
-		StageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+		stageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
 			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "scope", "chat_kind"}),
-		ModelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
+		modelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "model_stage_duration_seconds",
 			Help:      "Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
-		StageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+		stageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
@@ -239,13 +239,13 @@ func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
 }
 
-// RecordStageDuration observes one chat lifecycle stage duration.
+// recordStageDuration observes one chat lifecycle stage duration.
 // Stages outside observedStages are dropped silently; negative
 // durations of observed stages are dropped and counted as an anomaly.
 // Turn-scoped stages in modelStages whose model is known are
-// additionally observed on ModelStageDurationSeconds. No-op when m is
+// additionally observed on modelStageDurationSeconds. No-op when m is
 // nil.
-func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
+func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
 	if m == nil {
 		return
 	}
@@ -253,26 +253,26 @@ func (m *Metrics) RecordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 		return
 	}
 	if elapsed < 0 {
-		m.RecordStageAnomaly(StageAnomalyNegativeElapsed)
+		m.recordStageAnomaly(StageAnomalyNegativeElapsed)
 		return
 	}
 	seconds := elapsed.Seconds()
-	m.StageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
+	m.stageDurationSeconds.WithLabelValues(string(stage), string(scope), string(chatKind)).Observe(seconds)
 	if scope != ScopeTurn || model.Model == "" {
 		return
 	}
 	if _, modelStage := modelStages[stage]; modelStage {
-		m.ModelStageDurationSeconds.WithLabelValues(string(stage), model.ProviderType, string(chatKind), model.Model).Observe(seconds)
+		m.modelStageDurationSeconds.WithLabelValues(string(stage), model.ProviderType, string(chatKind), model.Model).Observe(seconds)
 	}
 }
 
-// RecordStageAnomaly counts a stage observation that was dropped or
+// recordStageAnomaly counts a stage observation that was dropped or
 // adjusted, by reason. No-op when m is nil.
-func (m *Metrics) RecordStageAnomaly(reason StageAnomaly) {
+func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
 	}
-	m.StageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
+	m.stageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.

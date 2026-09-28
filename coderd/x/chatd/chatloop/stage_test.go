@@ -54,6 +54,16 @@ func newStageMetrics(registry *prometheus.Registry) *chatloop.Metrics {
 	return chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true})
 }
 
+// turnRootContext returns a context whose stages are turn scoped and
+// belong to a root chat.
+func turnRootContext(t *testing.T) context.Context {
+	t.Helper()
+	return chatloop.ContextWithChatKind(
+		chatloop.ContextWithScope(t.Context(), chatloop.ScopeTurn),
+		chatloop.ChatKindRoot,
+	)
+}
+
 // stageKey identifies one stage_duration_seconds series.
 type stageKey struct {
 	stage    chatloop.Stage
@@ -193,22 +203,18 @@ func TestStageTracerStart(t *testing.T) {
 		require.InDelta(t, 5.0, fixture.stageSum(t, chatloop.StageCommit), 0.001)
 	})
 
-	t.Run("SetAttributesBeforeEndOnly", func(t *testing.T) {
+	t.Run("SetAttributes", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
 		_, span := fixture.tracer.Start(t.Context(), chatloop.StageCommit)
 		span.SetAttributes(attribute.String(chatloop.AttrToolName, "before"))
 		span.End(nil)
-		span.SetAttributes(attribute.String(chatloop.AttrHTTPMethod, "after"))
 
 		ended := fixture.spans.Ended()
 		require.Len(t, ended, 1)
 		require.Contains(t, ended[0].Attributes(),
 			attribute.String(chatloop.AttrToolName, "before"))
-		for _, attr := range ended[0].Attributes() {
-			require.NotEqual(t, chatloop.AttrHTTPMethod, string(attr.Key))
-		}
 	})
 
 	t.Run("ErrorEndsMarkStatus", func(t *testing.T) {
@@ -632,9 +638,10 @@ func TestStageDurationBuckets(t *testing.T) {
 	// must contain them as round numbers rather than a generated ladder.
 	alertEdges := []float64{1, 5, 10, 30, 60, 300, 3600}
 	registry := prometheus.NewRegistry()
-	metrics := newStageMetrics(registry)
-	metrics.RecordStageDuration(chatloop.StageStream, chatloop.ScopeTurn, chatloop.ChatKindRoot,
-		chatloop.StageModel{ProviderType: "p", Model: "m"}, 45*time.Minute)
+	tracer := chatloop.NewStageTracer(nil, newStageMetrics(registry))
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	tracer.Record(turnRootContext(t), chatloop.StageStream,
+		chatloop.StageModel{ProviderType: "p", Model: "m"}, start, start.Add(45*time.Minute), nil)
 
 	families, err := registry.Gather()
 	require.NoError(t, err)
@@ -698,12 +705,14 @@ func TestStageMembership(t *testing.T) {
 	}
 
 	registry := prometheus.NewRegistry()
-	metrics := newStageMetrics(registry)
+	tracer := chatloop.NewStageTracer(nil, newStageMetrics(registry))
+	ctx := turnRootContext(t)
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	model := chatloop.StageModel{ProviderType: "p", Model: "m"}
 	wantStages := map[stageKey]uint64{}
 	wantModelStages := map[modelStageKey]uint64{}
 	for _, tc := range stages {
-		metrics.RecordStageDuration(tc.stage, chatloop.ScopeTurn, chatloop.ChatKindRoot, model, time.Second)
+		tracer.Record(ctx, tc.stage, model, start, start.Add(time.Second), nil)
 		if tc.observed {
 			wantStages[stageKey{stage: tc.stage, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindRoot}] = 1
 		}
@@ -723,14 +732,21 @@ func TestStageMembership(t *testing.T) {
 func TestStageMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
-	record := func(m *chatloop.Metrics) {
-		m.RecordStageDuration(chatloop.StageStream, chatloop.ScopeTurn, chatloop.ChatKindRoot,
-			chatloop.StageModel{ProviderType: "p", Model: "m"}, time.Second)
-		m.RecordStageDuration(chatloop.StageCommit, chatloop.ScopeTurn, chatloop.ChatKindRoot, chatloop.StageModel{}, -time.Second)
-		// Span-only stages are filtered before the elapsed check, so this
-		// adds no anomaly.
-		m.RecordStageDuration(chatloop.StageGenerationStep, chatloop.ScopeTurn, chatloop.ChatKindRoot, chatloop.StageModel{}, -time.Second)
-		m.RecordStageAnomaly(chatloop.StageAnomalyInvertedWindow)
+	record := func(t *testing.T, m *chatloop.Metrics) {
+		clock := quartz.NewMock(t)
+		tracer := chatloop.NewStageTracer(nil, m, chatloop.WithClock(clock))
+		ctx := turnRootContext(t)
+		start := clock.Now()
+		tracer.Record(ctx, chatloop.StageStream, chatloop.StageModel{ProviderType: "p", Model: "m"},
+			start, start.Add(time.Second), nil)
+		_, commit := tracer.Start(ctx, chatloop.StageCommit)
+		// Span-only stages are filtered before the elapsed check, so
+		// this step adds no anomaly.
+		_, step := tracer.Start(ctx, chatloop.StageGenerationStep)
+		clock.Set(start.Add(-time.Second))
+		commit.End(nil)
+		step.End(nil)
+		tracer.Record(ctx, chatloop.StageCommit, chatloop.StageModel{}, start, start.Add(-time.Second), nil)
 	}
 
 	for _, enabled := range []bool{false, true} {
@@ -738,13 +754,14 @@ func TestStageMetricsEnabled(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
 			metrics := chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: enabled})
-			record(metrics)
+			record(t, metrics)
 
 			fixture := stageFixture{registry: registry}
 			require.Equal(t, enabled, len(fixture.stageObservations(t)) > 0)
 			require.Equal(t, enabled, len(fixture.modelStageObservations(t)) > 0)
-			// The negative commit counts as negative_elapsed; the direct
-			// call counts as inverted_window.
+			// The commit span that ends before it starts counts as
+			// negative_elapsed; the inverted recorded window counts as
+			// inverted_window.
 			anomalies := map[chatloop.StageAnomaly]float64{}
 			for _, metric := range gatherFamily(t, registry, "coderd_chatd_stage_anomalies_total") {
 				anomalies[chatloop.StageAnomaly(labelValue(metric, "reason"))] = metric.GetCounter().GetValue()

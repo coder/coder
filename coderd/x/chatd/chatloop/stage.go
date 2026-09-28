@@ -81,8 +81,9 @@ const tracerName = "chatd"
 
 // StageTracer emits a span per chat lifecycle stage and, for stages in
 // observedStages, a duration observation computed from the same start
-// and end. Live spans take their timestamps and durations from the
-// tracer's clock; Record uses the caller's timestamps for both.
+// and end. Start reads its start from the tracer's clock and
+// StartRootAt takes it from the caller; End reads the end from the
+// clock. Record takes both from the caller.
 //
 // A nil *StageTracer is usable and discards everything.
 type StageTracer struct {
@@ -143,9 +144,8 @@ func (t *StageTracer) Now() time.Time {
 // (Model.Provider()). ProviderType is the configured type of the AI
 // provider the model config points at, such as "bedrock"; it differs
 // from Provider for Bedrock and the OpenAI-compatible provider types.
-// Effort is the Coder-scale reasoning effort resolved from the request
-// and the model config's default and max, before provider-specific
-// mapping; it is empty when none resolves.
+// Effort is the chatprovider.ResolveReasoningEffort result, before
+// provider-specific mapping; it is empty when that returns nil.
 type StageModel struct {
 	Provider     string
 	ProviderType string
@@ -256,9 +256,11 @@ func (t *StageTracer) Start(
 		[]trace.SpanStartOption{trace.WithAttributes(attrs...)})
 }
 
-// StartRootAt begins a stage span in its own trace, ignoring any span
-// in ctx, that started at an earlier, already known instant. The span
-// opens a turn, so it is turn scoped regardless of what ctx carries.
+// StartRootAt begins a chat turn's root span in its own trace, ignoring
+// any span in ctx, that started at an earlier, already known instant.
+// It is only for turn roots: the span and the stages started on the
+// returned context are turn scoped regardless of stage or what ctx
+// carries.
 // The span timestamp and the recorded duration both run from start,
 // so stages reconstructed inside the span still fall within it. A zero
 // start means the span begins now. A start after the tracer's current
@@ -430,7 +432,7 @@ func (t *StageTracer) RecordAnomaly(reason StageAnomaly) {
 	if t == nil || t.metrics == nil {
 		return
 	}
-	t.metrics.RecordStageAnomaly(reason)
+	t.metrics.recordStageAnomaly(reason)
 }
 
 // recordAnomalyIfObserved counts reason only when stage is observed,
@@ -446,5 +448,5 @@ func (t *StageTracer) observe(stage Stage, scope Scope, chatKind ChatKind, model
 	if t == nil || t.metrics == nil {
 		return
 	}
-	t.metrics.RecordStageDuration(stage, scope, chatKind, model, elapsed)
+	t.metrics.recordStageDuration(stage, scope, chatKind, model, elapsed)
 }

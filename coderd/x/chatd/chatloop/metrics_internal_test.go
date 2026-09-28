@@ -62,14 +62,14 @@ func TestStageSetsConsistent(t *testing.T) {
 
 	registry := prometheus.NewRegistry()
 	metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true})
-	metrics.RecordStageDuration(StageStream, ScopeTurn, ChatKindRoot, StageModel{ProviderType: "p", Model: "m"}, time.Second)
+	metrics.recordStageDuration(StageStream, ScopeTurn, ChatKindRoot, StageModel{ProviderType: "p", Model: "m"}, time.Second)
 
 	// The stage family help lists exactly the observed stages.
 	help := metricHelp(t, registry, "coderd_chatd_stage_duration_seconds")
 	match := regexp.MustCompile(`Observed: ([a-z_, ]+); other stages are span-only`).FindStringSubmatch(help)
 	require.Len(t, match, 2, "stage help has no observed list")
 	listed := map[Stage]struct{}{}
-	for _, name := range strings.Split(match[1], ", ") {
+	for name := range strings.SplitSeq(match[1], ", ") {
 		listed[Stage(name)] = struct{}{}
 	}
 	require.Equal(t, observedStages, listed)

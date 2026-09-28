@@ -3,7 +3,6 @@ package chatd
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
@@ -35,7 +34,8 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 				withInternalTestServerExperiments(experiments),
 				withInternalTestServerRegistry(registry),
 			)
-			server.metrics.RecordStageDuration(chatloop.StageCommit, chatloop.ScopeTurn, chatloop.ChatKindRoot, chatloop.StageModel{}, time.Second)
+			_, span := chatloop.NewStageTracer(nil, server.metrics).Start(t.Context(), chatloop.StageCommit)
+			span.End(nil)
 
 			count, err := promtestutil.GatherAndCount(registry, "coderd_chatd_stage_duration_seconds")
 			require.NoError(t, err)
