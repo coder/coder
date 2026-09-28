@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
@@ -174,11 +175,8 @@ func oidcAuthLinks(ctx context.Context, logger slog.Logger, cli *http.Client, va
 }
 
 func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
-	if vals.OIDC.ClientID == "" {
-		return nil, xerrors.Errorf("OIDC client ID must be set!")
-	}
-	if vals.OIDC.IssuerURL == "" {
-		return nil, xerrors.Errorf("OIDC issuer URL must be set!")
+	if err := validateOIDCConfig(vals); err != nil {
+		return nil, err
 	}
 
 	// Skipping issuer checks is not recommended.
@@ -217,9 +215,6 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 
 	// If the scopes contain 'groups', we enable group support.
 	// Do not override any custom value set by the user.
-	if slice.Contains(vals.OIDC.Scopes, "groups") && vals.OIDC.GroupField == "" {
-		vals.OIDC.GroupField = "groups"
-	}
 	oauthCfg := &oauth2.Config{
 		ClientID:     vals.OIDC.ClientID.String(),
 		ClientSecret: vals.OIDC.ClientSecret.String(),
@@ -234,18 +229,12 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 		// counter example is found, we can add a config option to
 		// change this.
 		oauthCfg.Endpoint.AuthStyle = oauth2.AuthStyleInParams
-		if vals.OIDC.ClientSecret != "" {
-			return nil, xerrors.Errorf("cannot specify both oidc client secret and oidc client key file")
-		}
 
 		pkiCfg, err := configureOIDCPKI(oauthCfg, vals.OIDC.ClientKeyFile.Value(), vals.OIDC.ClientCertFile.Value())
 		if err != nil {
 			return nil, xerrors.Errorf("configure oauth pki authentication: %w", err)
 		}
 		useCfg = pkiCfg
-	}
-	if len(vals.OIDC.GroupAllowList) > 0 && vals.OIDC.GroupField == "" {
-		return nil, xerrors.Errorf("'oidc-group-field' must be set if 'oidc-allowed-groups' is set. Either unset 'oidc-allowed-groups' or set 'oidc-group-field'")
 	}
 
 	groupAllowList := make(map[string]bool)
@@ -254,9 +243,6 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 	}
 
 	secondaryClaimsSrc := coderd.MergedClaimsSourceUserInfo
-	if !vals.OIDC.IgnoreUserInfo && vals.OIDC.UserInfoFromAccessToken {
-		return nil, xerrors.Errorf("to use 'oidc-access-token-claims', 'oidc-ignore-userinfo' must be set to 'false'")
-	}
 	if vals.OIDC.IgnoreUserInfo {
 		secondaryClaimsSrc = coderd.MergedClaimsSourceNone
 	}
@@ -405,16 +391,24 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	}
 
 	var (
-		vals = new(codersdk.DeploymentValues)
-		opts = vals.Options()
+		vals   = new(codersdk.DeploymentValues)
+		dryRun bool
+		opts   = append(vals.Options(), serpent.Option{
+			Name:          "Dry Run",
+			Description:   "Validate the effective server configuration and exit without starting services.",
+			Flag:          "dry-run",
+			FlagShorthand: "n",
+			Value:         serpent.BoolOf(&dryRun),
+		})
 	)
 	serverCmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a Coder server",
 		Options: opts,
 		Middleware: serpent.Chain(
-			WriteConfigMW(vals),
 			serpent.RequireNArgs(0),
+			serverModeMW(&dryRun, &vals.WriteConfig),
+			WriteConfigMW(vals),
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			// Main command context for managing cancellation of running
@@ -426,35 +420,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(inv.Stderr, "YAML support is experimental and offers no compatibility guarantees.")
 			}
 
-			go DumpHandler(ctx, "coderd")
-
-			// Validate bind addresses.
-			if vals.Address.String() != "" {
-				if vals.TLS.Enable {
-					vals.HTTPAddress = ""
-					vals.TLS.Address = vals.Address
-				} else {
-					_ = vals.HTTPAddress.Set(vals.Address.String())
-					vals.TLS.Address.Host = ""
-					vals.TLS.Address.Port = ""
-				}
-			}
-			if vals.TLS.Enable && vals.TLS.Address.String() == "" {
-				return xerrors.Errorf("TLS address must be set if TLS is enabled")
-			}
-			if !vals.TLS.Enable && vals.HTTPAddress.String() == "" {
-				return xerrors.Errorf("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
-			}
-
-			if vals.AccessURL.String() != "" &&
-				(vals.AccessURL.Scheme != "http" && vals.AccessURL.Scheme != "https") {
-				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
-			}
-
-			// Cross-field configuration validation after initial parsing.
-			if err := vals.Validate(); err != nil {
+			validation, err := validateServerConfig(ctx, inv.Environ.ToOS(), vals)
+			if err != nil {
 				return err
 			}
+			vals.ExternalAuthConfigs.Value = validation.externalAuthProviders
+			if dryRun {
+				cliui.Infof(inv.Stdout, "Server configuration is valid.")
+				return nil
+			}
+
+			go DumpHandler(ctx, "coderd")
 
 			// Disable rate limits if the `--dangerous-disable-rate-limits` flag
 			// was specified.
@@ -509,19 +485,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
-
-			configSSHOptions, err := vals.SSHConfig.ParseOptions()
-			if err != nil {
-				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
-			}
-			sshConfigResponse := codersdk.SSHConfigResponse{
-				HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
-				HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
-				SSHConfigOptions: configSSHOptions,
-			}
-			if err := sshConfigResponse.Validate(); err != nil {
-				return xerrors.Errorf("invalid ssh config: %w", err)
-			}
 
 			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
@@ -671,10 +634,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(vals.SSHKeygenAlgorithm.String())
-			if err != nil {
-				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", vals.SSHKeygenAlgorithm, err)
-			}
+			sshKeygenAlgorithm := validation.sshKeygenAlgorithm
 
 			defaultRegion := &tailcfg.DERPRegion{
 				EmbeddedRelay: true,
@@ -728,19 +688,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			promRegistry := prometheus.NewRegistry()
 			oauthInstrument := promoauth.NewFactory(promRegistry)
 
-			realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
-			if err != nil {
-				return xerrors.Errorf("parse real ip config: %w", err)
-			}
+			realIPConfig := validation.realIPConfig
 
-			mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
-			for _, cidr := range vals.MCPAllowedPrivateCIDRs {
-				prefix, err := safedial.ParseAllowedPrefix(cidr)
-				if err != nil {
-					return xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
-				}
-				mcpAllowedPrivateCIDRs = append(mcpAllowedPrivateCIDRs, prefix)
-			}
+			mcpAllowedPrivateCIDRs := validation.mcpAllowedPrivateCIDRs
 
 			// Resolve this replica's cluster host: the explicit Cluster.Host,
 			// else the DERP relay host for older HA deployments that predate the
@@ -782,7 +732,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MCPAllowedPrivateCIDRs:      mcpAllowedPrivateCIDRs,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
-				SSHConfig:                   sshConfigResponse,
+				SSHConfig:                   validation.sshConfig,
 				AllowWorkspaceRenames:       vals.AllowWorkspaceRenames.Value(),
 				Entitlements:                entitlements.New(),
 				NotificationsEnqueuer:       notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
@@ -791,14 +741,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
 			}
 
-			if vals.StrictTransportSecurity > 0 {
-				options.StrictTransportSecurityCfg, err = httpmw.HSTSConfigOptions(
-					int(vals.StrictTransportSecurity.Value()), vals.StrictTransportSecurityOptions,
-				)
-				if err != nil {
-					return xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", vals.StrictTransportSecurityOptions, err)
-				}
-			}
+			options.StrictTransportSecurityCfg = validation.hstsConfig
 
 			if vals.UpdateCheck {
 				options.UpdateCheckOptions = &updatecheck.Options{
@@ -976,20 +919,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
-			if err != nil {
-				return xerrors.Errorf("read external auth providers from env: %w", err)
-			}
-			mergedExternalAuthProviders := append([]codersdk.ExternalAuthConfig{}, vals.ExternalAuthConfigs.Value...)
-			mergedExternalAuthProviders = append(mergedExternalAuthProviders, extAuthEnv...)
-			vals.ExternalAuthConfigs.Value = mergedExternalAuthProviders
-
-			mergedExternalAuthProviders, err = maybeAppendDefaultGithubExternalAuthProvider(
+			mergedExternalAuthProviders, err := maybeAppendDefaultGithubExternalAuthProvider(
 				ctx,
 				options.Logger,
 				options.Database,
 				vals,
-				mergedExternalAuthProviders,
+				vals.ExternalAuthConfigs.Value,
 			)
 			if err != nil {
 				return xerrors.Errorf("maybe append default github external auth provider: %w", err)
@@ -1588,9 +1523,278 @@ func templateHelpers(options *coderd.Options) map[string]any {
 	}
 }
 
-// writeConfigMW will prevent the main command from running if the write-config
-// flag is set. Instead, it will marshal the command options to YAML and write
-// them to stdout.
+// serverModeMW rejects server modes that cannot be combined.
+func serverModeMW(dryRun *bool, writeConfig *serpent.Bool) serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if *dryRun && bool(*writeConfig) {
+				return xerrors.New("--dry-run and --write-config cannot be used together")
+			}
+			return next(inv)
+		}
+	}
+}
+
+type serverConfigValidation struct {
+	externalAuthProviders  []codersdk.ExternalAuthConfig
+	sshConfig              codersdk.SSHConfigResponse
+	sshKeygenAlgorithm     gitsshkey.Algorithm
+	realIPConfig           *httpmw.RealIPConfig
+	mcpAllowedPrivateCIDRs []netip.Prefix
+	hstsConfig             httpmw.HSTSConfig
+}
+
+func validateServerConfig(ctx context.Context, environ []string, vals *codersdk.DeploymentValues) (serverConfigValidation, error) {
+	// Validate bind addresses.
+	if vals.Address.String() != "" {
+		if vals.TLS.Enable {
+			vals.HTTPAddress = ""
+			vals.TLS.Address = vals.Address
+		} else {
+			_ = vals.HTTPAddress.Set(vals.Address.String())
+			vals.TLS.Address.Host = ""
+			vals.TLS.Address.Port = ""
+		}
+	}
+	if vals.TLS.Enable && vals.TLS.Address.String() == "" {
+		return serverConfigValidation{}, xerrors.New("TLS address must be set if TLS is enabled")
+	}
+	if !vals.TLS.Enable && vals.HTTPAddress.String() == "" {
+		return serverConfigValidation{}, xerrors.New("TLS is disabled. Enable with --tls-enable or specify a HTTP address")
+	}
+
+	if vals.AccessURL.String() != "" &&
+		(vals.AccessURL.Scheme != "http" && vals.AccessURL.Scheme != "https") {
+		return serverConfigValidation{}, xerrors.New("access-url must include a scheme (e.g. 'http://' or 'https://)")
+	}
+
+	// Cross-field configuration validation after initial parsing.
+	if err := vals.Validate(); err != nil {
+		return serverConfigValidation{}, err
+	}
+
+	configSSHOptions, err := vals.SSHConfig.ParseOptions()
+	if err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+	}
+	sshConfigResponse := codersdk.SSHConfigResponse{
+		HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
+		HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
+		SSHConfigOptions: configSSHOptions,
+	}
+	if err := sshConfigResponse.Validate(); err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("invalid ssh config: %w", err)
+	}
+
+	sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(vals.SSHKeygenAlgorithm.String())
+	if err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("parse ssh keygen algorithm %s: %w", vals.SSHKeygenAlgorithm, err)
+	}
+
+	appHostname := vals.WildcardAccessURL.String()
+	if appHostname != "" {
+		if _, err := appurl.CompileHostnamePattern(appHostname); err != nil {
+			return serverConfigValidation{}, xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
+		}
+	}
+
+	realIPConfig, err := httpmw.ParseRealIPConfig(vals.ProxyTrustedHeaders, vals.ProxyTrustedOrigins)
+	if err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("parse real ip config: %w", err)
+	}
+
+	mcpAllowedPrivateCIDRs := make([]netip.Prefix, 0, len(vals.MCPAllowedPrivateCIDRs))
+	for _, cidr := range vals.MCPAllowedPrivateCIDRs {
+		prefix, err := safedial.ParseAllowedPrefix(cidr)
+		if err != nil {
+			return serverConfigValidation{}, xerrors.Errorf("parse MCP allowed private CIDR %q: %w", cidr, err)
+		}
+		mcpAllowedPrivateCIDRs = append(mcpAllowedPrivateCIDRs, prefix)
+	}
+
+	hstsConfig, err := httpmw.HSTSConfigOptions(
+		int(vals.StrictTransportSecurity.Value()), vals.StrictTransportSecurityOptions,
+	)
+	if err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("coderd: setting hsts header failed (options: %v): %w", vals.StrictTransportSecurityOptions, err)
+	}
+
+	if err := clilog.ValidateFilters(vals.Logging.Filter.Value()); err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("compile log filters: %w", err)
+	}
+	if vals.Logging.Human.String() == "" &&
+		vals.Logging.JSON.String() == "" &&
+		vals.Logging.Stackdriver.String() == "" &&
+		!vals.Trace.Enable.Value() {
+		return serverConfigValidation{}, xerrors.New("no loggers provided, use /dev/null to disable logging")
+	}
+
+	maxOpenConns := int(vals.PostgresConnMaxOpen.Value())
+	if _, err := codersdk.ComputeMaxIdleConns(maxOpenConns, vals.PostgresConnMaxIdle.Value()); err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("compute max idle connections: %w", err)
+	}
+
+	if err := validateDERPConfig(ctx, vals); err != nil {
+		return serverConfigValidation{}, err
+	}
+
+	if vals.OIDC.ClientID != "" {
+		if err := validateOIDCConfig(vals); err != nil {
+			return serverConfigValidation{}, xerrors.Errorf("validate oidc config: %w", err)
+		}
+	}
+
+	if vals.PostgresURL.String() != "" {
+		if _, err := escapePostgresURLUserInfo(vals.PostgresURL.String()); err != nil {
+			return serverConfigValidation{}, xerrors.Errorf("escaping postgres URL: %w", err)
+		}
+	}
+
+	if _, _, err := ConfigureHTTPClient(
+		ctx,
+		vals.TLS.ClientCertFile.String(),
+		vals.TLS.ClientKeyFile.String(),
+		vals.TLS.ClientCAFile.String(),
+	); err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("configure http client: %w", err)
+	}
+
+	if vals.TLS.Enable {
+		_, err = configureServerTLS(
+			ctx,
+			slog.Make(sloghuman.Sink(io.Discard)),
+			vals.TLS.MinVersion.String(),
+			vals.TLS.ClientAuth.String(),
+			vals.TLS.CertFiles,
+			vals.TLS.KeyFiles,
+			vals.TLS.ClientCAFile.String(),
+			vals.TLS.SupportedCiphers.Value(),
+			vals.TLS.AllowInsecureCiphers.Value(),
+		)
+		if err != nil {
+			return serverConfigValidation{}, xerrors.Errorf("configure tls: %w", err)
+		}
+	}
+
+	extAuthEnv, err := ReadExternalAuthProvidersFromEnv(environ)
+	if err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("read external auth providers from env: %w", err)
+	}
+	explicitProviders := append([]codersdk.ExternalAuthConfig{}, vals.ExternalAuthConfigs.Value...)
+	explicitProviders = append(explicitProviders, extAuthEnv...)
+
+	logger := slog.Make(sloghuman.Sink(io.Discard))
+	instrument := promoauth.NewFactory(prometheus.NewRegistry())
+	if _, err := externalauth.ConvertConfig(ctx, logger, instrument, explicitProviders, vals.AccessURL.Value(), nil); err != nil {
+		return serverConfigValidation{}, xerrors.Errorf("convert external auth config: %w", err)
+	}
+
+	return serverConfigValidation{
+		externalAuthProviders:  explicitProviders,
+		sshConfig:              sshConfigResponse,
+		sshKeygenAlgorithm:     sshKeygenAlgorithm,
+		realIPConfig:           realIPConfig,
+		mcpAllowedPrivateCIDRs: mcpAllowedPrivateCIDRs,
+		hstsConfig:             hstsConfig,
+	}, nil
+}
+
+func validateOIDCConfig(vals *codersdk.DeploymentValues) error {
+	if vals.OIDC.ClientID == "" {
+		return xerrors.New("OIDC client ID must be set!")
+	}
+	if vals.OIDC.IssuerURL == "" {
+		return xerrors.New("OIDC issuer URL must be set!")
+	}
+	if _, err := vals.AccessURL.Value().Parse("/api/v2/users/oidc/callback"); err != nil {
+		return xerrors.Errorf("parse oidc oauth callback url: %w", err)
+	}
+	if vals.OIDC.RedirectURL.String() != "" {
+		if _, err := vals.OIDC.RedirectURL.Value().Parse("/api/v2/users/oidc/callback"); err != nil {
+			return xerrors.Errorf("parse oidc redirect url: %w", err)
+		}
+	}
+	if slice.Contains(vals.OIDC.Scopes, "groups") && vals.OIDC.GroupField == "" {
+		vals.OIDC.GroupField = "groups"
+	}
+	if vals.OIDC.ClientKeyFile != "" {
+		if vals.OIDC.ClientSecret != "" {
+			return xerrors.New("cannot specify both oidc client secret and oidc client key file")
+		}
+		keyData, err := os.ReadFile(vals.OIDC.ClientKeyFile.Value())
+		if err != nil {
+			return xerrors.Errorf("read oidc client key file: %w", err)
+		}
+		keyBlock, _ := pem.Decode(keyData)
+		if keyBlock == nil {
+			return xerrors.New("failed to parse oidc client key file: no PEM data found")
+		}
+		if _, err := x509.ParsePKCS1PrivateKey(keyBlock.Bytes); err != nil {
+			return xerrors.Errorf("failed to parse oidc client key file: %w", err)
+		}
+		if vals.OIDC.ClientCertFile != "" {
+			certData, err := os.ReadFile(vals.OIDC.ClientCertFile.Value())
+			if err != nil {
+				return xerrors.Errorf("read oidc client cert file: %w", err)
+			}
+			if block, _ := pem.Decode(certData); block == nil {
+				return xerrors.New("failed to parse oidc client cert file: no PEM data found")
+			}
+		}
+	}
+	if len(vals.OIDC.GroupAllowList) > 0 && vals.OIDC.GroupField == "" {
+		return xerrors.New("'oidc-group-field' must be set if 'oidc-allowed-groups' is set. Either unset 'oidc-allowed-groups' or set 'oidc-group-field'")
+	}
+	if !vals.OIDC.IgnoreUserInfo && vals.OIDC.UserInfoFromAccessToken {
+		return xerrors.New("to use 'oidc-access-token-claims', 'oidc-ignore-userinfo' must be set to 'false'")
+	}
+	return nil
+}
+
+func validateDERPConfig(ctx context.Context, vals *codersdk.DeploymentValues) error {
+	remoteURL := vals.DERP.Config.URL.String()
+	localPath := vals.DERP.Config.Path.String()
+	if remoteURL != "" && localPath != "" {
+		return xerrors.New("create derp map: a remote URL or local path must be specified, not both")
+	}
+	if remoteURL != "" {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
+		if err != nil {
+			return xerrors.Errorf("create derp map: create request: %w", err)
+		}
+		if !request.URL.IsAbs() || request.URL.Host == "" ||
+			(request.URL.Scheme != "http" && request.URL.Scheme != "https") {
+			return xerrors.Errorf("create derp map: remote URL must be an absolute http or https URL: %q", remoteURL)
+		}
+	}
+
+	var defaultRegion *tailcfg.DERPRegion
+	if vals.DERP.Server.Enable.Value() {
+		defaultRegion = &tailcfg.DERPRegion{RegionID: int(vals.DERP.Server.RegionID.Value())}
+		if !vals.DERP.Config.BlockDirect.Value() {
+			if _, err := tailnet.STUNRegions(defaultRegion.RegionID, vals.DERP.Server.STUNAddresses); err != nil {
+				return xerrors.Errorf("create derp map: create stun regions: %w", err)
+			}
+		}
+	}
+	if localPath != "" {
+		if _, err := tailnet.NewDERPMap(
+			ctx,
+			defaultRegion,
+			vals.DERP.Server.STUNAddresses,
+			"",
+			localPath,
+			vals.DERP.Config.BlockDirect.Value(),
+		); err != nil {
+			return xerrors.Errorf("create derp map: %w", err)
+		}
+	}
+	return nil
+}
+
+// WriteConfigMW prevents the main command from running when write-config is
+// set. Instead, it marshals the command options to YAML and writes them to
+// stdout.
 func WriteConfigMW(cfg *codersdk.DeploymentValues) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {

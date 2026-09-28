@@ -143,11 +143,13 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 		return slog.Logger{}, noopClose, xerrors.New("no loggers provided, use /dev/null to disable logging")
 	}
 
-	filter := &debugFilterSink{next: sinks}
-
-	err = filter.compile(b.Filter)
+	err = ValidateFilters(b.Filter)
 	if err != nil {
 		return slog.Logger{}, noopClose, xerrors.Errorf("compile filters: %w", err)
+	}
+	filter := &debugFilterSink{next: sinks}
+	if len(b.Filter) > 0 {
+		filter.re = regexp.MustCompile(combineFilters(b.Filter))
 	}
 
 	level := slog.LevelInfo
@@ -170,11 +172,7 @@ type debugFilterSink struct {
 	re   *regexp.Regexp
 }
 
-func (f *debugFilterSink) compile(res []string) error {
-	if len(res) == 0 {
-		return nil
-	}
-
+func combineFilters(res []string) string {
 	var reb strings.Builder
 	for i, re := range res {
 		_, _ = fmt.Fprintf(&reb, "(%s)", re)
@@ -182,12 +180,18 @@ func (f *debugFilterSink) compile(res []string) error {
 			_, _ = reb.WriteRune('|')
 		}
 	}
+	return reb.String()
+}
 
-	re, err := regexp.Compile(reb.String())
+// ValidateFilters checks whether log filter regular expressions are valid.
+func ValidateFilters(filters []string) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	_, err := regexp.Compile(combineFilters(filters))
 	if err != nil {
 		return xerrors.Errorf("compile regex: %w", err)
 	}
-	f.re = re
 	return nil
 }
 

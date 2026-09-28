@@ -1884,6 +1884,226 @@ func TestServer(t *testing.T) {
 	})
 }
 
+func TestServer_DryRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidWithoutSideEffects", func(t *testing.T) {
+		t.Parallel()
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = listener.Close() })
+
+		cacheDir := filepath.Join(t.TempDir(), "not-created")
+		inv, _ := clitest.New(t,
+			"server",
+			"--dry-run",
+			"--access-url=http://example.com",
+			"--http-address="+listener.Addr().String(),
+			"--postgres-url=postgres://127.0.0.1:1/coder",
+			"--cache-dir="+cacheDir,
+		)
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+
+		err = inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, stdout.String(), "Server configuration is valid.")
+		_, err = os.Stat(cacheDir)
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("ValidExternalAuth", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--dry-run",
+			"--access-url=http://example.com",
+			"--postgres-url=postgres://127.0.0.1:1/coder",
+		)
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_ID", "github-okta-test")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_TYPE", "github")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_CLIENT_ID", "client-id")
+
+		require.NoError(t, inv.Run())
+	})
+
+	t.Run("InvalidExternalAuthID", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--dry-run",
+			"--access-url=http://example.com",
+			"--postgres-url=postgres://127.0.0.1:1/coder",
+		)
+		for i := range 3 {
+			inv.Environ.Set(fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_TYPE", i), "github")
+			inv.Environ.Set(fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_CLIENT_ID", i), "client-id")
+		}
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_ID", "github")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_1_ID", "github-secondary")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_2_ID", "github_okta_test")
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, `external auth provider "github_okta_test" doesn't have a valid id`)
+		require.ErrorContains(t, err, "must be alphanumeric with hyphens")
+	})
+
+	t.Run("InvalidExternalAuthRegex", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t, "server", "--dry-run", "--access-url=http://example.com")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_TYPE", "github")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_CLIENT_ID", "client-id")
+		inv.Environ.Set("CODER_EXTERNAL_AUTH_0_REGEX", "[")
+
+		err := inv.Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "compile regex for external auth provider")
+	})
+
+	t.Run("InvalidStaticConfiguration", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name    string
+			args    []string
+			wantErr string
+		}{
+			{
+				name:    "SSHKeygenAlgorithm",
+				args:    []string{"--ssh-keygen-algorithm=invalid"},
+				wantErr: "parse ssh keygen algorithm",
+			},
+			{
+				name:    "MCPAllowedPrivateCIDR",
+				args:    []string{"--mcp-allowed-private-cidrs=invalid"},
+				wantErr: "parse MCP allowed private CIDR",
+			},
+			{
+				name:    "HSTSOption",
+				args:    []string{"--strict-transport-security=3600", "--strict-transport-security-options=invalid"},
+				wantErr: "hsts: invalid option",
+			},
+			{
+				name:    "TLSCertificate",
+				args:    []string{"--tls-enable", "--tls-cert-file=/does/not/exist", "--tls-key-file=/does/not/exist"},
+				wantErr: "configure tls",
+			},
+			{
+				name:    "OutboundTLSCertificate",
+				args:    []string{"--tls-client-cert-file=/does/not/exist", "--tls-client-key-file=/does/not/exist"},
+				wantErr: "configure http client",
+			},
+			{
+				name:    "LogFilter",
+				args:    []string{"--log-filter=["},
+				wantErr: "compile log filters",
+			},
+			{
+				name:    "PostgresURL",
+				args:    []string{"--postgres-url=postgres://local host:5432/coder"},
+				wantErr: "escaping postgres URL",
+			},
+			{
+				name:    "PostgresPool",
+				args:    []string{"--postgres-conn-max-open=1", "--postgres-conn-max-idle=2"},
+				wantErr: "compute max idle connections",
+			},
+			{
+				name:    "NoLoggers",
+				args:    []string{"--log-human=", "--log-json=", "--log-stackdriver="},
+				wantErr: "no loggers provided",
+			},
+			{
+				name:    "DERPSTUNAddress",
+				args:    []string{"--derp-server-stun-addresses=invalid"},
+				wantErr: "create stun regions",
+			},
+			{
+				name:    "DERPRemoteURL",
+				args:    []string{"--derp-config-url=ftp://example.com/derpmap"},
+				wantErr: "remote URL must be an absolute http or https URL",
+			},
+			{
+				name:    "OIDCGroupField",
+				args:    []string{"--oidc-client-id=client-id", "--oidc-issuer-url=https://example.com", "--oidc-allowed-groups=group"},
+				wantErr: "oidc-group-field",
+			},
+			{
+				name: "OIDCClientCredentials",
+				args: []string{
+					"--oidc-client-id=client-id",
+					"--oidc-issuer-url=https://example.com",
+					"--oidc-client-secret=secret",
+					"--oidc-client-key-file=/does/not/exist",
+				},
+				wantErr: "cannot specify both oidc client secret and oidc client key file",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				args := []string{"server", "--dry-run", "--access-url=http://example.com"}
+				args = append(args, tc.args...)
+				inv, _ := clitest.New(t, args...)
+
+				err := inv.Run()
+				require.ErrorContains(t, err, tc.wantErr)
+			})
+		}
+	})
+
+	t.Run("BlockDirectIgnoresSTUN", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--dry-run",
+			"--access-url=http://example.com",
+			"--block-direct-connections",
+			"--derp-server-stun-addresses=invalid",
+		)
+		require.NoError(t, inv.Run())
+	})
+
+	t.Run("InvalidOIDCPKI", func(t *testing.T) {
+		t.Parallel()
+
+		keyFile := filepath.Join(t.TempDir(), "key.pem")
+		require.NoError(t, os.WriteFile(keyFile, []byte("not a private key"), 0o600))
+		inv, _ := clitest.New(t,
+			"server",
+			"--dry-run",
+			"--access-url=http://example.com",
+			"--oidc-client-id=client-id",
+			"--oidc-issuer-url=https://example.com",
+			"--oidc-client-key-file="+keyFile,
+		)
+
+		err := inv.Run()
+		require.ErrorContains(t, err, "failed to parse oidc client key file")
+	})
+
+	t.Run("WriteConfigConflict", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t, "server", "--dry-run", "--write-config")
+		err := inv.Run()
+		require.ErrorContains(t, err, "--dry-run and --write-config cannot be used together")
+	})
+
+	t.Run("RejectsArguments", func(t *testing.T) {
+		t.Parallel()
+
+		inv, _ := clitest.New(t, "server", "--dry-run", "extra")
+		require.Error(t, inv.Run())
+	})
+}
+
 // TestServer_InvalidSSHDeploymentConfig checks that unsafe SSH config flags are
 // rejected at startup, before any database connection, so these invocations
 // fail fast.
@@ -1999,7 +2219,7 @@ func TestServer_ExternalAuthGitHubDefaultProvider(t *testing.T) {
 
 		inv, cfg := clitest.New(t, args...)
 		for envKey, value := range tc.env {
-			t.Setenv(envKey, value)
+			inv.Environ.Set(envKey, value)
 		}
 		clitest.Start(t, inv)
 
