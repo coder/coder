@@ -2337,15 +2337,9 @@ func (api *API) applyChatTitleUpdate(
 	ctx context.Context,
 	rw http.ResponseWriter,
 	chat database.Chat,
-	rawTitle string,
+	title string,
 ) (database.Chat, bool) {
-	trimmedTitle, titleError := normalizeChatTitle(rawTitle)
-	if titleError != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, *titleError)
-		return chat, true
-	}
-
-	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat.ID, trimmedTitle)
+	updatedChat, wrote, err := api.chatDaemon.RenameChatTitle(ctx, chat.ID, title)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.ResourceNotFound(rw)
@@ -2459,6 +2453,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every field is validated before the first write, so a rejected
+	// request changes nothing.
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2472,9 +2468,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// The read cursor is owner-scoped, so an admin with update
-	// permission must not move another user's unread state. Checked
-	// before any write so a rejected request does not commit the
-	// other fields of a multi-field update.
+	// permission must not move another user's unread state.
 	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only the chat owner can change its read state.",
@@ -2482,13 +2476,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var title string
 	if req.Title != nil {
-		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, *req.Title)
-		if handled {
+		normalized, resp := normalizeChatTitle(*req.Title)
+		if resp != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
 			return
 		}
-		chat = updatedChat
+		title = normalized
 	}
+
+	var labelsJSON []byte
 	if req.Labels != nil {
 		if errs := httpapi.ValidateChatLabels(*req.Labels); len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -2497,7 +2495,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		labelsJSON, err := json.Marshal(*req.Labels)
+		var err error
+		labelsJSON, err = json.Marshal(*req.Labels)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to marshal labels.",
@@ -2505,6 +2504,86 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	archived := chat.Archived
+	if req.Archived != nil {
+		// Archive invariant is one-way: parent archived implies
+		// child archived. Archive state changes target the root
+		// chat and cascade atomically across the family; child
+		// chats cannot be archived or unarchived independently.
+		// This check precedes the no-op check so any child attempt
+		// surfaces the root-only error regardless of the chat's
+		// current archived value.
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat archive state can only be changed on the root chat.",
+			})
+			return
+		}
+
+		if *req.Archived == chat.Archived {
+			state := "archived"
+			if !chat.Archived {
+				state = "not archived"
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Chat is already %s.", state),
+			})
+			return
+		}
+		archived = *req.Archived
+	}
+
+	if req.PinOrder != nil {
+		if *req.PinOrder < 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Pin order must be non-negative.",
+			})
+			return
+		}
+
+		if *req.PinOrder > 0 && archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin an archived chat.",
+			})
+			return
+		}
+
+		if *req.PinOrder > 0 && chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot pin a child chat.",
+			})
+			return
+		}
+	}
+
+	workspaceID := uuid.NullUUID{}
+	if req.WorkspaceID != nil && *req.WorkspaceID != uuid.Nil {
+		var workspace database.Workspace
+		var status int
+		var resp *codersdk.Response
+		workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
+		if resp != nil {
+			httpapi.Write(ctx, rw, status, *resp)
+			return
+		}
+		if workspace.OrganizationID != chat.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Workspace does not belong to this chat's organization.",
+			})
+			return
+		}
+	}
+
+	if req.Title != nil {
+		updatedChat, handled := api.applyChatTitleUpdate(ctx, rw, chat, title)
+		if handled {
+			return
+		}
+		chat = updatedChat
+	}
+	if req.Labels != nil {
 		updatedChat, err := api.Database.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{
 			ID:     chat.ID,
 			Labels: labelsJSON,
@@ -2524,35 +2603,8 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Archived != nil {
-		archived := *req.Archived
-
-		// Archive invariant is one-way: parent archived implies
-		// child archived. Archive state changes target the root
-		// chat and cascade atomically across the family; child
-		// chats cannot be archived or unarchived independently.
-		// This check precedes the no-op check so any child attempt
-		// surfaces the root-only error regardless of the chat's
-		// current archived value.
-		if chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Chat archive state can only be changed on the root chat.",
-			})
-			return
-		}
-
-		if archived == chat.Archived {
-			state := "archived"
-			if !archived {
-				state = "not archived"
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Chat is already %s.", state),
-			})
-			return
-		}
-
 		var err error
-		if archived {
+		if *req.Archived {
 			err = api.chatDaemon.ArchiveChat(ctx, chat)
 		} else {
 			err = api.chatDaemon.UnarchiveChat(ctx, chat)
@@ -2579,7 +2631,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			action := "archive"
-			if !archived {
+			if !*req.Archived {
 				action = "unarchive"
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2592,26 +2644,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 
 	if req.PinOrder != nil {
 		pinOrder := *req.PinOrder
-		if pinOrder < 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Pin order must be non-negative.",
-			})
-			return
-		}
-
-		if pinOrder > 0 && chat.Archived {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot pin an archived chat.",
-			})
-			return
-		}
-
-		if pinOrder > 0 && chat.ParentChatID.Valid {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot pin a child chat.",
-			})
-			return
-		}
 
 		// The behavior depends on current pin state:
 		// - pinOrder == 0: unpin.
@@ -2682,24 +2714,6 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.WorkspaceID != nil {
-		workspaceID := uuid.NullUUID{}
-		workspace := database.Workspace{}
-		if *req.WorkspaceID != uuid.Nil {
-			var status int
-			var resp *codersdk.Response
-			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
-			if resp != nil {
-				httpapi.Write(ctx, rw, status, *resp)
-				return
-			}
-			if workspace.OrganizationID != chat.OrganizationID {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Workspace does not belong to this chat's organization.",
-				})
-				return
-			}
-		}
-
 		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
 			ID:          chat.ID,
 			WorkspaceID: workspaceID,
