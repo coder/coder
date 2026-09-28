@@ -1,20 +1,13 @@
 import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
-import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
-import { users } from "#/api/queries/users";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
+import type { OptionsQueryClient } from "#/components/Filter/userFilterOptions";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
-
-// User suggestions are capped; the picker is a prefix search, not a full list.
-const USER_SUGGESTIONS_LIMIT = 25;
-
-/** The slice of `QueryClient` the option loaders depend on. */
-export type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
 
 const STATUS_OPTIONS: WorkspaceStatus[] = [
 	"running",
@@ -81,59 +74,6 @@ export const getTemplateFilterOptions = async (
 			/>
 		),
 	}));
-};
-
-type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
-
-// The current user's own option. Commits the backend's per-session `me`
-// sentinel (`user:me` / `owner:me`), matching the page's fallback filter,
-// rather than a static `<username>`.
-const selfUserOption = (me: UserIdentity): FilterOption => ({
-	label: `${me.username} (you)`,
-	appliedLabel: "me",
-	value: "me",
-	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
-});
-
-// Users who cannot list other users still filter by themselves, so the User
-// and Owner categories stay available (and their keys stay recognized chip
-// keys) with just the "you" option.
-export const getSelfUserFilterOptions = async (
-	query: string,
-	me: UserIdentity,
-): Promise<FilterOption[]> => {
-	const option = selfUserOption(me);
-	const normalized = query.trim().toLowerCase();
-	if (
-		normalized.length === 0 ||
-		option.label.toLowerCase().includes(normalized) ||
-		option.value.includes(normalized)
-	) {
-		return [option];
-	}
-	return [];
-};
-
-// Shared by the User and Owner categories: both take a username value.
-export const getUserFilterOptions = async (
-	query: string,
-	me: UserIdentity,
-	queryClient: OptionsQueryClient,
-): Promise<FilterOption[]> => {
-	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
-	);
-	const options = usersRes.users
-		.filter((user) => user.username !== me.username)
-		.map<FilterOption>((user) => ({
-			label: user.username,
-			value: user.username,
-			startIcon: (
-				<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
-			),
-		}));
-
-	return [selfUserOption(me), ...options];
 };
 
 type AttributeDefinition = {

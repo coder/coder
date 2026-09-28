@@ -21,16 +21,18 @@ import type {
 	FilterCategory,
 	SearchResult,
 } from "#/components/Filter/FilterCombobox/types";
+import {
+	getSelfUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userFilterOptions";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	ATTRIBUTE_CHIP_KEYS,
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
-	getSelfUserFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
-	getUserFilterOptions,
 } from "./categoryOptions";
 
 const WORKSPACE_PREVIEW_LIMIT = 5;

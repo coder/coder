@@ -28,7 +28,7 @@ import type { FilterCategory, FilterOption, SearchResult } from "./types";
 import { useFilterCombobox } from "./useFilterCombobox";
 
 /**
- * Unified workspace filter input: renders committed chips plus a cmdk-driven
+ * Unified filter input: renders committed chips plus a cmdk-driven
  * popup that browses categories, surfaces cross-category value suggestions, and
  * (optionally) previews matching resources. State lives in `useFilterCombobox`.
  */
@@ -47,6 +47,7 @@ type FilterComboboxProps = Readonly<{
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
 	searchResultsLabel?: string;
+	searchResultsErrorMessage?: string;
 }>;
 
 export function FilterCombobox({
@@ -59,6 +60,7 @@ export function FilterCombobox({
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel = "Results",
+	searchResultsErrorMessage = "Couldn't load workspace previews.",
 }: FilterComboboxProps) {
 	const {
 		open,
@@ -83,6 +85,7 @@ export function FilterCombobox({
 		categories,
 		getSearchResults,
 		onSearchResultSelect,
+		searchResultsErrorMessage,
 	});
 	const { setInputRef } = actions;
 

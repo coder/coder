@@ -103,16 +103,24 @@ export const ServerSideFilter: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const user = userEvent.setup();
-		expect(await canvas.findByText("Test Template")).toBeVisible();
-		expect(canvas.getByText("Second Template")).toBeVisible();
+		const table = within(
+			await canvas.findByRole("table", {
+				name: "Templates Coder Agents can use to create workspaces",
+			}),
+		);
+		expect(await table.findByText("Test Template")).toBeVisible();
+		expect(table.getByText("Second Template")).toBeVisible();
 
-		await user.type(canvas.getByRole("textbox", { name: "Filter" }), "Second");
+		await user.type(
+			canvas.getByRole("combobox", { name: "Search and filter templates…" }),
+			"Second",
+		);
 
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
 		);
-		expect(await canvas.findByText("Second Template")).toBeVisible();
-		expect(canvas.queryByText("Test Template")).not.toBeInTheDocument();
+		expect(await table.findByText("Second Template")).toBeVisible();
+		expect(table.queryByText("Test Template")).not.toBeInTheDocument();
 	},
 };
 
@@ -174,6 +182,11 @@ export const ConcurrentToggles: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 		const user = userEvent.setup();
+		const table = within(
+			await canvas.findByRole("table", {
+				name: "Templates Coder Agents can use to create workspaces",
+			}),
+		);
 		const firstSwitch = await canvas.findByRole("switch", {
 			name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
 		});
@@ -211,12 +224,14 @@ export const ConcurrentToggles: Story = {
 		expect(firstSwitch).toBeChecked();
 		expect(secondSwitch).not.toBeChecked();
 
-		const filter = canvas.getByRole("textbox", { name: "Filter" });
+		const filter = canvas.getByRole("combobox", {
+			name: "Search and filter templates…",
+		});
 		await user.type(filter, "Second");
 		await waitFor(() =>
 			expect(API.getTemplates).toHaveBeenCalledWith({ q: "Second" }),
 		);
-		expect(await canvas.findByText("Second Template")).toBeVisible();
+		expect(await table.findByText("Second Template")).toBeVisible();
 		expect(
 			canvas.queryByRole("switch", {
 				name: "Allow Coder Agents to create workspaces using Test Template in My Organization",
@@ -297,7 +312,6 @@ export const OrganizationTemplateAdmin: Story = {
 			MockTemplate,
 			mockUnauthorizedTemplate,
 		]);
-		spyOn(API, "getUsers").mockResolvedValue({ users: [], count: 0 });
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -359,16 +373,11 @@ export const FetchesWhenAllowed: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getUsers").mockResolvedValue({
-			users: [MockUserOwner],
-			count: 1,
-		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Test Template")).toBeVisible();
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
-		await waitFor(() => expect(API.getUsers).toHaveBeenCalled());
 	},
 };
 

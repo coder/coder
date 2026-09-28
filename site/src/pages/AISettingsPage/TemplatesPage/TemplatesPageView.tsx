@@ -9,6 +9,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -26,16 +27,13 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import {
-	type TemplateFilterState,
-	TemplatesFilter,
-} from "#/pages/TemplatesPage/TemplatesFilter";
+import { TemplatesFilter } from "#/pages/TemplatesPage/filter/TemplatesFilter";
 import { createDayString } from "#/utils/createDayString";
 import { docs } from "#/utils/docs";
 import { formatTemplateActiveDevelopersLabel } from "#/utils/templates";
 
 type TemplatesPageViewProps = {
-	filterState: TemplateFilterState;
+	filter: UseFilterResult;
 	templates: TypesGen.Template[] | undefined;
 	isLoading: boolean;
 	error: unknown;
@@ -106,7 +104,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 };
 
 export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
-	filterState,
+	filter,
 	templates,
 	isLoading,
 	error,
@@ -131,11 +129,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<TemplatesFilter
-				filter={filterState.filter}
-				error={error}
-				userMenu={filterState.menus.user}
-			/>
+			<TemplatesFilter filter={filter} error={error} />
 			{hasLoadError && (
 				<div className="mb-4 flex flex-col gap-4">
 					<ErrorAlert
@@ -172,12 +166,12 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 						) : templates.length === 0 ? (
 							<TableEmpty
 								message={
-									filterState.filter.used
+									filter.used
 										? "No results matched your search."
 										: "No templates found."
 								}
 								description={
-									filterState.filter.used
+									filter.used
 										? undefined
 										: "Create a template before configuring whether Coder Agents can create workspaces."
 								}
