@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	type LucideProps,
 	PlayIcon,
@@ -9,7 +10,6 @@ import type {
 	WorkspaceTransition,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { cn } from "#/utils/cn";
 
 type BuildIconProps = LucideProps & {
 	transition: WorkspaceTransition;

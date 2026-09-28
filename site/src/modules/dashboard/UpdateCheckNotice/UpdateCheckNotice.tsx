@@ -1,7 +1,6 @@
+import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 type UpdateCheckNoticeProps = {
@@ -11,7 +10,7 @@ type UpdateCheckNoticeProps = {
 	aboveDeploymentBanner?: boolean;
 };
 
-export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
+export const UpdateCheckNotice: React.FC<UpdateCheckNoticeProps> = ({
 	version,
 	releaseNotesUrl,
 	onDismiss,

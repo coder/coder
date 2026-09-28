@@ -1,4 +1,6 @@
-# nsjail on Docker
+---
+title: nsjail on Docker
+---
 
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../../ai-governance.md), which is

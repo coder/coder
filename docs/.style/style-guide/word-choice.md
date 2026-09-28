@@ -16,21 +16,21 @@ The bare lowercase `coder` (no backticks) is wrong.
 It reads as a misspelling of the product name.
 
 | Do                              | Don't                                                                                |
-|----------------------------------|----------------------------------------------------------------------------------------|
-| Coder                            | coder (referring to the product, no backticks)                                         |
-| `coder` (the CLI, in backticks)  | coder (the CLI, no backticks)                                                           |
-| AI Gateway                       | AI gateway, AIGateway, AI Bridge                                                        |
-| Coder Agents                     | Coder agents, coder agents (referring to the product)                                  |
-| Coder Workspaces                 | Coder workspaces, coder workspaces (referring to the product)                          |
-| Workspace Proxy                  | workspace proxy (referring to the feature)                                             |
-| workspace                        | Workspace (referring to the object a developer creates, configures, and connects to)   |
-| template                         | Template (referring to the generic concept)                                            |
-| agent                            | Agent (referring to the generic concept)                                               |
-| provisioner                      | Provisioner (referring to the generic concept)                                         |
+|---------------------------------|--------------------------------------------------------------------------------------|
+| Coder                           | coder (referring to the product, no backticks)                                       |
+| `coder` (the CLI, in backticks) | coder (the CLI, no backticks)                                                        |
+| AI Gateway                      | AI gateway, AIGateway, AI Bridge                                                     |
+| Coder Agents                    | Coder agents, coder agents (referring to the product)                                |
+| Coder Workspaces                | Coder workspaces, coder workspaces (referring to the product)                        |
+| Workspace Proxy                 | workspace proxy (referring to the feature)                                           |
+| workspace                       | Workspace (referring to the object a developer creates, configures, and connects to) |
+| template                        | Template (referring to the generic concept)                                          |
+| agent                           | Agent (referring to the generic concept)                                             |
+| provisioner                     | Provisioner (referring to the generic concept)                                       |
 
 **Do**:
 
-> Run `coder login` to authenticate against the Coder server.
+> Run `coder login` to authenticate against your Coder deployment.
 >
 > Open the AI Gateway integration page to configure model providers.
 >
@@ -46,15 +46,15 @@ It reads as a misspelling of the product name.
 > Coder workspaces are cloud development environments defined with Terraform.
 > (Lowercase "workspaces" here reads as the generic object, not the named product.)
 
+*Enforced by `Coder.ProductTerms` (planned).
+The planned rule's term list must include `Coder Workspaces` and `Coder Agents` alongside the other named products.*
+
 > [!NOTE]
 > `Coder Workspaces` and `Coder Agents` name the products: the platform capability that Coder markets and ships as a whole.
 > A bare `workspace` or `agent` names the object a developer or a template creates: the on-demand environment the developer connects to, or the process that runs inside it.
 > Capitalize the product name whenever the prose introduces or markets the capability (a page heading like "Coder Workspaces," a comparison of product tiers, a `docs/README.md`-style overview).
 > Keep the generic object lowercase everywhere else, including in step-by-step instructions ("create a workspace," "the agent starts").
 > This mirrors coder.com's marketing usage, where `Coder Workspaces` sits alongside `Coder Agents`, `AI Gateway`, and `Agent Firewall` as one of four named products.
-
-*Enforced by `Coder.ProductTerms` (planned).
-The planned rule's term list must include `Coder Workspaces` and `Coder Agents` alongside the other named products.*
 
 The [glossary](../../reference/glossary.md) is the fuller registry of these names and disambiguates collisions like the several senses of "agent".
 When you add, rename, or deprecate a product or feature name, update the glossary in the same change.
@@ -82,7 +82,8 @@ The CLI tool (`terraform`) lives in backticks.
 
 Lowercase forms remain correct in code blocks, URLs, package names, and Terraform provider sources, where the canonical form is lowercase by convention.
 
-*Enforced by `Coder.BrandNames`.*
+*Enforced by `Coder.BrandNames` for `HashiCorp` casing only.
+The other brands in this section aren't checked yet; a separate change widens the rule's swap table.*
 
 ## Dev container terminology
 
@@ -125,6 +126,49 @@ It isn't itself the concept, so it stays in backticks as a tool name.
 > The category is lowercase.)
 
 *Enforced by `Coder.DevContainer` (planned).*
+
+## Naming Coder's components
+
+Three terms name the thing that serves the Coder API and dashboard, and each has one job.
+
+Use *control plane* for the component that serves the Coder API and dashboard, brokers connections to workspaces, and coordinates provisioners.
+It is the default in prose, diagrams, and any planning, sizing, architecture, or security discussion.
+
+Use `coderd` only for the process itself, such as in metric names, log output, configuration flags, or troubleshooting steps.
+Introduce it on first use in a page as "`coderd`, the process that runs the control plane".
+
+Use `coder server` only for the command a reader runs.
+
+Don't use "the Coder server" as a name for the control plane, and don't describe the control plane generically as "a service".
+"Server" is ambiguous in a Coder deployment: it can read as the machine, the process, or the whole installation.
+Control plane is also the only one of the three that scales to a list of components, as in "the control plane, the workspaces, and the workspace proxies".
+
+| Do                                                 | Don't                                       |
+|----------------------------------------------------|---------------------------------------------|
+| the control plane serves the dashboard             | the Coder server serves the dashboard       |
+| `coderd` writes the build log                      | the server writes the build log             |
+| run `coder server` to start the control plane      | run the Coder server                        |
+| the control plane, the workspaces, and the proxies | the server, the workspaces, and the proxies |
+
+Use *workspace agent*, or `coder agent` for the process, for the agent that runs inside a workspace.
+Don't shorten it to "the agent" on a page that also discusses AI agents or Coder Agents.
+
+**Do**:
+
+> The control plane brokers the connection, and the workspace agent dials out to it.
+> Workspaces need no inbound ports.
+>
+> Set `CODER_ACCESS_URL` before you run `coder server`.
+> `coderd` logs the resolved access URL at startup.
+
+**Don't**:
+
+> The Coder server brokers the connection, and the agent dials out to it.
+>
+> The service logs the resolved access URL at startup.
+
+*Documentation-only.
+No Vale rule.*
 
 ## One term per concept
 
@@ -287,6 +331,9 @@ The heading choice rests on 2 rationales:
 - [Set workspace autostart](./autostart.md)
 ```
 
+*Enforced by `Coder.LearnMore` (planned).
+The planned rule flags **Next steps** only.*
+
 ### The What's next? section in sequenced tutorials
 
 A tutorial in an ordered series may add a **What's next?** section that points to the single next tutorial in that series.
@@ -307,8 +354,8 @@ Now that you added a language, [install your own command-line tools](./install-c
 - [Parameters](../../admin/templates/extending-templates/parameters.md) in the Coder documentation
 ```
 
-*Enforced by `Coder.LearnMore` (planned).
-The planned rule flags **Next steps** only.*
+*Documentation-only.
+No Vale rule.*
 
 ## Tutorial, not walkthrough
 
@@ -477,6 +524,9 @@ Keep these out of published pages:
 Track the work in the surfaces built for it.
 A pull request description, a commit message, or a code-review comment is the right place to cite an internal issue ID or a private link, because every contributor on that change can read it there.
 The published page stays the same for everyone.
+
+Implementation identifiers, such as enum values, database column names, and internal symbols, follow a related but conditional rule.
+Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim) in the content guidelines.
 
 **Do**:
 

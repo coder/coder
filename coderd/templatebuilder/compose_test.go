@@ -28,6 +28,10 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
 		require.Empty(t, result.ModulesTF)
 		require.NotEmpty(t, result.Readme, "compose should include base README")
+		require.NotContains(t, string(result.Readme), "prerequisites:start",
+			"delivered README should not contain prerequisites markers")
+		require.NotContains(t, string(result.Readme), "prerequisites:end",
+			"delivered README should not contain prerequisites markers")
 	})
 
 	t.Run("BaseWithModuleAndVariableOverride", func(t *testing.T) {

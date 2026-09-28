@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	ChevronDownIcon,
 	CopyIcon,
@@ -6,7 +7,6 @@ import {
 	SquareTerminalIcon,
 	UnlinkIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
@@ -26,8 +26,6 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import {
 	Tooltip,
 	TooltipContent,
@@ -46,12 +44,11 @@ import {
 	canShowPortForwarding,
 	usePortsData,
 } from "#/modules/resources/usePortsData";
-import { cn } from "#/utils/cn";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
-interface WorkspacePillProps {
+type WorkspacePillProps = {
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	chatId: string;
@@ -62,9 +59,9 @@ interface WorkspacePillProps {
 	// tooltip and makes the menu non-modal so one outside click
 	// dismisses both layers.
 	inOverflowPopover?: boolean;
-}
+};
 
-export const WorkspacePill: FC<WorkspacePillProps> = ({
+export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	workspace,
 	agent,
 	chatId,
@@ -285,7 +282,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	);
 };
 
-const VSCodeMenuItem: FC<{
+const VSCodeMenuItem: React.FC<{
 	variant: "vscode" | "vscode-insiders";
 	label: string;
 	workspace: Workspace;
@@ -335,17 +332,19 @@ const VSCodeMenuItem: FC<{
 			onSelect={handleClick}
 			disabled={isGeneratingKey || !isRunning}
 		>
-			{variant === "vscode" ? (
-				<VSCodeIcon className="size-3.5" />
-			) : (
-				<VSCodeInsidersIcon className="size-3.5" />
-			)}
+			<ExternalImage
+				src={
+					variant === "vscode" ? "/icon/code.svg" : "/icon/code-insiders.svg"
+				}
+				alt=""
+				className="size-3.5"
+			/>
 			{label}
 		</DropdownMenuItem>
 	);
 };
 
-const AppMenuItem: FC<{
+const AppMenuItem: React.FC<{
 	app: WorkspaceApp;
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -376,7 +375,7 @@ const AppMenuItem: FC<{
 	);
 };
 
-const TerminalMenuItem: FC<{
+const TerminalMenuItem: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	isRunning: boolean;
@@ -400,7 +399,7 @@ const TerminalMenuItem: FC<{
 	);
 };
 
-const CopySSHMenuItem: FC<{
+const CopySSHMenuItem: React.FC<{
 	sshCommand: string;
 }> = ({ sshCommand }) => {
 	const { copyToClipboard } = useClipboard();

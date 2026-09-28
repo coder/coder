@@ -2,12 +2,13 @@
  * Copied from shadc/ui on 04/04/2025
  * @see {@link https://ui.shadcn.com/docs/components/radio-group}
  */
+
+import { cn } from "cn";
 import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 export const RadioGroup: React.FC<
-	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Root>
+	React.ComponentProps<typeof RadioGroupPrimitive.Root>
 > = ({ className, ...props }) => {
 	return (
 		<RadioGroupPrimitive.Root
@@ -18,7 +19,7 @@ export const RadioGroup: React.FC<
 };
 
 export const RadioGroupItem: React.FC<
-	React.ComponentPropsWithRef<typeof RadioGroupPrimitive.Item>
+	React.ComponentProps<typeof RadioGroupPrimitive.Item>
 > = ({ className, ...props }) => {
 	return (
 		<RadioGroupPrimitive.Item

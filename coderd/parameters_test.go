@@ -388,6 +388,85 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 	})
 }
 
+// TestDynamicParametersModuleCachePurged asserts that a stop build does not
+// discard stored parameter values when the template version's module cache is
+// gone. Without the cache the render omits every module declared parameter, and
+// narrowing the stored set there would carry the loss into the next start
+// build. See https://github.com/coder/coder/issues/29099.
+func TestDynamicParametersModuleCachePurged(t *testing.T) {
+	t.Parallel()
+
+	mainTF, err := os.ReadFile("testdata/parameters/modules/main.tf")
+	require.NoError(t, err)
+
+	modulesArchive, skipped, err := terraform.GetModulesArchive(os.DirFS("testdata/parameters/modules"))
+	require.NoError(t, err)
+	require.Len(t, skipped, 0)
+
+	store, ps := dbtestutil.NewDB(t)
+	db := newPurgeModuleFilesDB(store)
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   ps,
+		IncludeProvisionerDaemon: true,
+		ProvisionerDaemonVersion: provProto.CurrentVersion.String(),
+	})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	_, version := coderdtest.DynamicParameterTemplate(t, templateAdmin, owner.OrganizationID, coderdtest.DynamicParameterTemplateParams{
+		MainTF:         string(mainTF),
+		ModulesArchive: modulesArchive,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// "jetbrains_ide" is declared by the module, "region" by main.tf.
+	expected := []codersdk.WorkspaceBuildParameter{
+		{Name: "jetbrains_ide", Value: "GO"},
+		{Name: "region", Value: "eu"},
+	}
+	workspace, err := templateAdmin.CreateUserWorkspace(ctx, templateAdminUser.ID.String(), codersdk.CreateWorkspaceRequest{
+		TemplateVersionID:   version.ID,
+		Name:                "module-cache",
+		RichParameterValues: expected,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, workspace.LatestBuild.ID)
+
+	startParams, err := templateAdmin.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, startParams)
+
+	// The module cache is now gone, so the module and its parameter cannot be
+	// resolved by the renderer.
+	db.SetPurged(true)
+
+	stop, err := templateAdmin.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, stop.ID)
+
+	stopParams, err := templateAdmin.WorkspaceBuildParameters(ctx, stop.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, stopParams, "stop build must not drop the module parameter")
+
+	// Starting again on the same purged version renders an incomplete parameter
+	// set. The stored value is what the provisioner needs to keep the resource
+	// it sizes, so the build must not fall back to the module default.
+	start, err := templateAdmin.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, start.ID)
+
+	restartParams, err := templateAdmin.WorkspaceBuildParameters(ctx, start.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, restartParams, "start build must not drop the module parameter")
+}
+
 type setupDynamicParamsTestParams struct {
 	db                       database.Store
 	ps                       pubsub.Pubsub
@@ -451,6 +530,52 @@ func setupDynamicParamsTest(t *testing.T, args setupDynamicParamsTestParams) dyn
 		stream:   stream,
 		template: tpl,
 	}
+}
+
+// dbPurgeModuleFiles simulates a template version whose cached module files
+// have been removed, as the GHSA-vx42-ghc9-gw65 remediation does.
+type dbPurgeModuleFiles struct {
+	database.Store
+	state *purgeState
+}
+
+type purgeState struct {
+	mu     sync.RWMutex
+	purged bool
+}
+
+func newPurgeModuleFilesDB(store database.Store) *dbPurgeModuleFiles {
+	return &dbPurgeModuleFiles{Store: store, state: &purgeState{}}
+}
+
+// SetPurged toggles whether the cached module files are reported as absent.
+func (d *dbPurgeModuleFiles) SetPurged(purged bool) {
+	d.state.mu.Lock()
+	defer d.state.mu.Unlock()
+	d.state.purged = purged
+}
+
+// InTx keeps the override in place inside transactions, which is where
+// workspace builds resolve their parameters.
+func (d *dbPurgeModuleFiles) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return d.Store.InTx(func(tx database.Store) error {
+		return fn(&dbPurgeModuleFiles{Store: tx, state: d.state})
+	}, opts)
+}
+
+func (d *dbPurgeModuleFiles) GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionTerraformValue, error) {
+	values, err := d.Store.GetTemplateVersionTerraformValues(ctx, templateVersionID)
+	if err != nil {
+		return values, err
+	}
+
+	d.state.mu.RLock()
+	defer d.state.mu.RUnlock()
+	if d.state.purged {
+		values.CachedModuleFiles = uuid.NullUUID{}
+	}
+
+	return values, nil
 }
 
 // dbRejectGitSSHKey is a cheeky way to force an error to occur in a place

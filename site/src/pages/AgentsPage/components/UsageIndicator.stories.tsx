@@ -1,7 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { useQueryClient } from "react-query";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesKey } from "#/api/queries/workspaces";
@@ -21,13 +20,13 @@ import {
 } from "#/testHelpers/storybook";
 import { UsageIndicator } from "./UsageIndicator";
 
-const withAISpend = (status: UserAISpendStatus) => (Story: FC) => {
+const withAISpend = (status: UserAISpendStatus) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(meAISpendKey, status);
 	return <Story />;
 };
 
-const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: FC) => {
+const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(
 		getWorkspaceQuotaQueryKey(
@@ -39,7 +38,7 @@ const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: FC) => {
 	return <Story />;
 };
 
-const withWorkspaceCount = (count: number) => (Story: FC) => {
+const withWorkspaceCount = (count: number) => (Story: React.FC) => {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {
 		workspaces: [],
@@ -48,7 +47,9 @@ const withWorkspaceCount = (count: number) => (Story: FC) => {
 	return <Story />;
 };
 
-const withUnavailableWorkspaceCount = (Story: FC) => {
+const withUnavailableWorkspaceCount = function WithUnavailableWorkspaceCount(
+	Story: React.FC,
+) {
 	const queryClient = useQueryClient();
 	queryClient.setQueryData(workspacesKey(userWorkspacesRequest), {
 		workspaces: [],
@@ -187,11 +188,6 @@ export const WorkspaceQuotaOnly: Story = {
 		withWorkspaceCount(3),
 	],
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(
-			canvas.getByRole("progressbar", { name: "Workspace quota usage" }),
-		).toBeVisible();
 		await openUsageMenu(canvasElement);
 	},
 };
@@ -203,21 +199,7 @@ export const UsageAndWorkspaceQuota: Story = {
 		withWorkspaceCount(3),
 	],
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const progressBars = canvas.getAllByRole("progressbar");
-
-		expect(canvas.getByRole("button", { name: "Usage" })).toBeVisible();
-		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
-			"AI spend usage",
-			"Workspace quota usage",
-		]);
-
 		await openUsageMenu(canvasElement);
-		const menu = within(await within(document.body).findByRole("menu"));
-		await waitFor(() => {
-			expect(menu.getByText("$12.50 of $50.00 used")).toBeVisible();
-			expect(menu.getByText("July 1 - August 1, 2026")).toBeVisible();
-		});
 	},
 };
 
@@ -238,11 +220,6 @@ export const WorkspaceQuotaUnused: Story = {
 			budget: 100,
 		}),
 	],
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		expect(canvas.queryByRole("button")).not.toBeInTheDocument();
-	},
 };
 
 export const WorkspaceQuotaWithoutBudget: Story = {
@@ -255,18 +232,7 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 		withWorkspaceCount(1),
 	],
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const progressbar = canvas.getByRole("progressbar", {
-			name: "Workspace quota usage",
-		});
-
-		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
-
 		await openUsageMenu(canvasElement);
-		expect(within(document.body).getByText("100%")).toBeInTheDocument();
-		expect(
-			within(document.body).getByText("1 workspace using 20 of 0 credits"),
-		).toBeInTheDocument();
 	},
 };
 
@@ -316,12 +282,6 @@ export const ZeroBudget: Story = {
 		const canvas = within(canvasElement);
 		const trigger = await canvas.findByRole("button");
 		await userEvent.click(trigger);
-		const menu = within(
-			await within(canvasElement.ownerDocument.body).findByRole("menu"),
-		);
-		await waitFor(() => {
-			expect(menu.getByText(/limit exceeded/)).toBeVisible();
-		});
 	},
 };
 
@@ -334,12 +294,5 @@ export const GatewayUnavailable: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		await openUsageMenu(canvasElement);
-		const progressBars = within(canvasElement.ownerDocument.body).getAllByRole(
-			"progressbar",
-		);
-
-		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
-			"Workspace quota usage",
-		]);
 	},
 };

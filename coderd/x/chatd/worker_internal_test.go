@@ -46,9 +46,9 @@ func TestWorker_UsesConfiguredWorkerID(t *testing.T) {
 	workerID := opts.WorkerID
 	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
 	require.NoError(t, err)
-	require.Equal(t, workerID, worker.chatWorkerID())
+	require.Equal(t, workerID, worker.opts.WorkerID)
 	require.NoError(t, worker.Start(context.Background()))
-	require.Equal(t, workerID, worker.chatWorkerID())
+	require.Equal(t, workerID, worker.opts.WorkerID)
 	require.NoError(t, worker.Close())
 }
 
@@ -60,13 +60,13 @@ func TestWorker_AcquiresRunnableChatFromOwnershipHint(t *testing.T) {
 	worker := startWorker(t, testOptions(t, f, starter))
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
-	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
+	require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
 	require.Equal(t, database.ChatStatusRunning, call.input.Status)
 	require.NotEqual(t, uuid.Nil, call.input.RunnerID)
 
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, worker.chatWorkerID(), latest.WorkerID.UUID)
+	require.Equal(t, worker.opts.WorkerID, latest.WorkerID.UUID)
 	require.Equal(t, call.input.RunnerID, latest.RunnerID.UUID)
 	_, err = f.db.GetChatHeartbeat(testutil.Context(t, testutil.WaitShort), database.GetChatHeartbeatParams{
 		ChatID:   chat.ID,
@@ -117,13 +117,13 @@ func TestWorker_ReacquiresStaleOwnedChat(t *testing.T) {
 	worker := startWorker(t, testOptions(t, f, starter))
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
-	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
+	require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
 	require.Equal(t, database.ChatStatusRunning, call.input.Status)
 	require.NotEqual(t, deadRunner, call.input.RunnerID)
 
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, worker.chatWorkerID(), latest.WorkerID.UUID)
+	require.Equal(t, worker.opts.WorkerID, latest.WorkerID.UUID)
 	require.Equal(t, call.input.RunnerID, latest.RunnerID.UUID)
 	require.NotEqual(t, deadWorker, latest.WorkerID.UUID)
 	require.NotEqual(t, deadRunner, latest.RunnerID.UUID)
@@ -144,7 +144,7 @@ func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	second := startWorker(t, testOptions(t, f, secondStarter))
 
 	call := waitAnyTaskCall(t, firstStarter, secondStarter, taskKindGeneration, chat.ID)
-	require.Contains(t, []uuid.UUID{first.chatWorkerID(), second.chatWorkerID()}, call.input.WorkerID)
+	require.Contains(t, []uuid.UUID{first.opts.WorkerID, second.opts.WorkerID}, call.input.WorkerID)
 	firstStarter.assertNoCall(t)
 	secondStarter.assertNoCall(t)
 

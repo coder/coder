@@ -1,15 +1,9 @@
-import {
-	cloneElement,
-	type FC,
-	type HTMLAttributes,
-	type ReactElement,
-	type Ref,
-} from "react";
+import { cn } from "cn";
+import { cloneElement } from "react";
 import { Avatar, type AvatarProps } from "#/components/Avatar/Avatar";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
-export const Topbar: FC<HTMLAttributes<HTMLElement>> = ({
+export const Topbar: React.FC<React.ComponentProps<"header">> = ({
 	className,
 	...props
 }) => {
@@ -44,7 +38,7 @@ export const TopbarButton: React.FC<ButtonProps> = ({ ...props }) => {
 	return <Button variant="outline" size="sm" {...props} />;
 };
 
-export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const TopbarData: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -56,8 +50,8 @@ export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-export const TopbarDivider: FC<
-	Omit<HTMLAttributes<HTMLSpanElement>, "children">
+export const TopbarDivider: React.FC<
+	Omit<React.ComponentProps<"span">, "children">
 > = ({ className, ...props }) => {
 	return (
 		<span {...props} className={cn("text-border", className)}>
@@ -66,12 +60,13 @@ export const TopbarDivider: FC<
 	);
 };
 
-export const TopbarAvatar: FC<AvatarProps> = (props) => {
+export const TopbarAvatar: React.FC<AvatarProps> = (props) => {
 	return <Avatar {...props} variant="icon" size="sm" />;
 };
 
-type TopbarIconProps = HTMLAttributes<HTMLOrSVGElement> & {
-	ref?: Ref<HTMLOrSVGElement>;
+// oxlint-disable-next-line no-restricted-types
+type TopbarIconProps = React.HTMLAttributes<HTMLOrSVGElement> & {
+	ref?: React.Ref<HTMLOrSVGElement>;
 };
 
 export const TopbarIcon: React.FC<TopbarIconProps> = ({
@@ -80,7 +75,7 @@ export const TopbarIcon: React.FC<TopbarIconProps> = ({
 	className,
 	...restProps
 }) => {
-	return cloneElement(children as ReactElement<TopbarIconProps>, {
+	return cloneElement(children as React.ReactElement<TopbarIconProps>, {
 		...restProps,
 		ref,
 		className: "text-base text-content-disabled size-icon-sm",

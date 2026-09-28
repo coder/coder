@@ -1,16 +1,18 @@
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
+import { organizationModelsPath } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { docs } from "#/utils/docs";
 
-interface AgentSetupNoticeProps {
+type AgentSetupNoticeProps = {
 	isAdmin: boolean;
 	providerCount: number;
 	modelCount: number;
+	organization?: Organization;
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-}
+};
 
 const formatProviderList = (names: readonly string[]): string => {
 	if (names.length === 1) {
@@ -22,16 +24,20 @@ const formatProviderList = (names: readonly string[]): string => {
 	return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 };
 
-export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
+export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 	isAdmin,
 	providerCount,
 	modelCount,
+	organization,
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
 	const hasModel = modelCount > 0;
 	const hasUnsupportedProviderNames = unsupportedProviderNames.length > 0;
+	const modelsPath = organization
+		? organizationModelsPath(organization)
+		: "/ai/settings/models";
 
 	// AI Gateway can be disabled even when providers/models exist in the DB
 	// catalog, so check it before the provider/model counts below. Unlike
@@ -115,7 +121,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 						{" "}
 						then add a{" "}
 						<Link
-							to="/ai/settings/models"
+							to={modelsPath}
 							className="text-content-link transition-colors hover:text-content-link/80"
 						>
 							model
@@ -132,7 +138,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 		<NoticeContainer>
 			To chat with Coder Agents, set up a{" "}
 			<Link
-				to="/ai/settings/models"
+				to={modelsPath}
 				className="text-content-link transition-colors hover:text-content-link/80"
 			>
 				model
@@ -142,7 +148,9 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 	);
 };
 
-const NoticeContainer: FC<{ children: ReactNode }> = ({ children }) => {
+const NoticeContainer: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
 	return (
 		<div className="rounded-2xl bg-surface-tertiary px-4 pb-14 pt-2.5 text-[13px] text-content-primary">
 			{children}

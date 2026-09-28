@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -7,11 +6,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { isUUID } from "#/utils/uuid";
 
-interface OrganizationPillsProps {
+type OrganizationPillsProps = {
 	organizations: readonly string[];
-}
+};
 
-export const OrganizationPills: FC<OrganizationPillsProps> = ({
+export const OrganizationPills: React.FC<OrganizationPillsProps> = ({
 	organizations,
 }) => {
 	const orgs = organizations.map((org) => ({
@@ -37,11 +36,11 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	);
 };
 
-interface OverflowPillProps {
+type OverflowPillProps = {
 	organizations: { name: string; isUUID: boolean }[];
-}
+};
 
-const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
+const OverflowPillList: React.FC<OverflowPillProps> = ({ organizations }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>

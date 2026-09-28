@@ -10,14 +10,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 )
 
-func TestComputerUseTool(t *testing.T) {
-	t.Parallel()
-
-	tool := computeruse.Tool()
-	require.True(t, computeruse.IsTool(tool))
-	require.Equal(t, "computer", tool.GetName())
-}
-
 func TestComputerUseResultProviderMetadata(t *testing.T) {
 	t.Parallel()
 

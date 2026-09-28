@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type {
@@ -19,7 +19,6 @@ import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
-import { cn } from "#/utils/cn";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -45,7 +44,7 @@ type OrganizationInfoFormProps = {
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
 };
 
-export const OrganizationInfoForm: FC<OrganizationInfoFormProps> = ({
+export const OrganizationInfoForm: React.FC<OrganizationInfoFormProps> = ({
 	organization,
 	error,
 	onSubmit,

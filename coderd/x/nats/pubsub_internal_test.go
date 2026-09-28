@@ -13,13 +13,14 @@ import (
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
-	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/util/xnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -148,7 +149,15 @@ func Test_SubscribeWithErr(t *testing.T) {
 
 		ps.mu.Lock()
 		defer ps.mu.Unlock()
-		require.Len(t, ps.subscriptions, 1)
+		// Assert on the coalesce_evt group directly rather than the whole
+		// subscriptions map: the always-on latency probe keeps its own
+		// transient latency-measure subscription, which would otherwise race
+		// the count. Two subscribes to the same subject share one groupSub.
+		gSub, ok := ps.subscriptions["coalesce_evt"]
+		require.True(t, ok, "expected a shared subscription for coalesce_evt")
+		gSub.mu.Lock()
+		defer gSub.mu.Unlock()
+		require.Len(t, gSub.localSubs, 2)
 	})
 }
 
@@ -274,31 +283,32 @@ func Test_Pubsub_connectedMetric(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	ps := newPubsub(ctx, logger, defaultTestOptions())
+	reg := prometheus.NewRegistry()
+	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
 	handlers := ps.buildConnHandlers()
 
 	// Two owned connections, all up.
-	ps.metrics.markConnected(2)
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	ps.conns.markConnected(2)
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 
 	// First disconnect drops the gauge to 0 and counts a disconnection.
 	handlers.disconnectErr(nil, xerrors.New("boom"))
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 
 	// Second disconnect: still down, counts again.
 	handlers.disconnectErr(nil, xerrors.New("boom"))
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
-	require.Equal(t, 2.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
+	require.Equal(t, 2.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 
 	// One reconnect with the other still down keeps the gauge at 0.
 	handlers.reconnect(nil)
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
 	// Once every owned connection is back the gauge returns to 1.
 	handlers.reconnect(nil)
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 }
 
 func Test_Pubsub_failureMetrics(t *testing.T) {
@@ -306,7 +316,8 @@ func Test_Pubsub_failureMetrics(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	ps := newPubsub(ctx, logger, defaultTestOptions())
+	reg := prometheus.NewRegistry()
+	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
 	// Closing makes Publish and Subscribe fail fast so we can exercise the
 	// success="false" label without needing the embedded server to error.
 	require.NoError(t, ps.Close())
@@ -315,23 +326,24 @@ func Test_Pubsub_failureMetrics(t *testing.T) {
 	_, err := ps.Subscribe("evt", func(context.Context, []byte) {})
 	require.Error(t, err)
 
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.publishesTotal.WithLabelValues("false")))
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.subscribesTotal.WithLabelValues("false")))
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_publishes_total", "nats", "false"))
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_subscribes_total", "nats", "false"))
 }
 
 func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 	t.Parallel()
 
-	ps := newTestPubsub(t, defaultTestOptions())
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
-	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
+	reg := prometheus.NewRegistry()
+	ps := newTestPubsub(t, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
+	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
 	handlers := ps.buildConnHandlers()
 	require.NoError(t, ps.Close())
 
 	// Close reports disconnected even though the disconnect handler is
 	// suppressed for our own connection closes.
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
 	// Late reconnect callbacks during the shutdown window must not flip
 	// the gauge back to 1: markClosed zeroes totalConns so the connected
@@ -340,14 +352,14 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 	for range len(ps.publishPool) + len(ps.subscribePool) {
 		handlers.reconnect(nil)
 	}
-	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
 	// Closing our own connections must not invoke the disconnect handler,
 	// so disconnections_total stays 0. The async callback would fire
 	// within milliseconds if it were going to, so a short window catches a
 	// regression without making the test slow.
 	require.Never(t, func() bool {
-		return promtestutil.ToFloat64(ps.metrics.disconnectionsTotal) > 0
+		return metricValue(t, reg, "coder_pubsub_disconnections_total", "nats") > 0
 	}, 2*time.Second, testutil.IntervalFast)
 }
 
@@ -499,11 +511,10 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
 
-	// InvalidAuthRejected asserts the cluster route listener rejects
+	// ClusterAuthRequired asserts the cluster route listener rejects
 	// connections that do not present the configured ClusterAuthToken.
-	// We dial the route listener directly with the nats.go client, which
-	// surfaces a typed nats.ErrAuthorization for protocol-level -ERR
-	// 'Authorization Violation' responses.
+	// We dial the route listener directly with the nats.go client and
+	// require the rejection via requireAuthRejected.
 	t.Run("ClusterAuthRequired", func(t *testing.T) {
 		t.Parallel()
 
@@ -516,7 +527,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"route dial with wrong token must be rejected")
 
 		_, err = natsgo.Connect(routeURL,
@@ -524,7 +535,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"unauthenticated route dial must be rejected")
 	})
 
@@ -542,7 +553,7 @@ func TestPubsubCluster(t *testing.T) {
 			natsgo.RetryOnFailedConnect(false),
 			natsgo.Timeout(testutil.WaitShort),
 		)
-		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+		requireAuthRejected(t, err,
 			"unauthenticated client connect must be rejected")
 
 		nc, err := natsgo.Connect(clientURL,
@@ -614,7 +625,41 @@ func goroutineBlockedInChanReceive(funcName string) bool {
 }
 
 func defaultTestOptions() Options {
+	// Leave Metrics nil so metrics record into no-op instruments and are not
+	// exported. The background latency loop still runs, so tests that inspect
+	// internal subscription state must tolerate its transient probe
+	// subscription (see Test_SubscribeWithErr).
 	return Options{disableCluster: true}
+}
+
+// metricValue gathers reg and returns the gauge or counter value for the
+// series with name and exactly the given label values (in sorted-by-name
+// order), or -1 if no matching series is found.
+func metricValue(t *testing.T, reg *prometheus.Registry, name string, labels ...string) float64 {
+	t.Helper()
+	fams, err := reg.Gather()
+	require.NoError(t, err)
+	for _, f := range fams {
+		if f.GetName() != name {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			vals := make([]string, 0, len(m.GetLabel()))
+			for _, l := range m.GetLabel() {
+				vals = append(vals, l.GetValue())
+			}
+			if !slices.Equal(vals, labels) {
+				continue
+			}
+			switch {
+			case m.Gauge != nil:
+				return m.GetGauge().GetValue()
+			case m.Counter != nil:
+				return m.GetCounter().GetValue()
+			}
+		}
+	}
+	return -1
 }
 
 // testClusterTLSTimeout relaxes the cluster route TLS handshake timeout in
@@ -643,6 +688,25 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 		_ = ps.Close()
 	})
 	return ps
+}
+
+// requireAuthRejected asserts that a connection attempt failed the server's
+// token authentication. The server writes -ERR 'Authorization Violation' and
+// closes the socket; when nats.go reads the protocol error in time it returns
+// natsgo.ErrAuthorization. The close can race the client's read, notably on
+// Windows, where the rejection surfaces as a connection reset (wsarecv)
+// instead of the parsed protocol error. Timeouts still fail because they mean
+// the server did not reject the connection.
+func requireAuthRejected(t *testing.T, err error, msg string) {
+	t.Helper()
+	require.Error(t, err, msg)
+	if xerrors.Is(err, natsgo.ErrAuthorization) {
+		return
+	}
+	require.False(t, xnet.IsTimeoutError(err),
+		"%s: connection attempt timed out instead of being rejected: %v", msg, err)
+	require.True(t, xnet.IsConnectionError(err),
+		"%s: expected an authorization or connection error, got: %v", msg, err)
 }
 
 func clusterRouteAddress(t *testing.T, ps *Pubsub) string {

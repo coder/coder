@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import {
 	Alert,
 	type AlertColor,
@@ -6,7 +6,6 @@ import {
 	AlertTitle,
 } from "#/components/Alert/Alert";
 import { ProvisionerTag } from "#/modules/provisioners/ProvisionerTag";
-import { cn } from "#/utils/cn";
 
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
@@ -18,13 +17,13 @@ export enum AlertVariant {
 	Inline = "Inline",
 }
 
-interface ProvisionerAlertProps {
+type ProvisionerAlertProps = {
 	title: string;
 	detail: string;
 	severity: AlertColor;
 	tags: Record<string, string>;
 	variant?: AlertVariant;
-}
+};
 
 const severityBorderColors: Record<AlertColor, string> = {
 	info: "border-l-highlight-sky",
@@ -43,7 +42,7 @@ const getAlertClassName = (variant: AlertVariant, severity: AlertColor) => {
 	return undefined;
 };
 
-export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
+export const ProvisionerAlert: React.FC<ProvisionerAlertProps> = ({
 	title,
 	detail,
 	severity,

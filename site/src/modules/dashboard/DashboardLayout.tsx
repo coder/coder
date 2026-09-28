@@ -1,16 +1,16 @@
-import { type FC, type HTMLAttributes, Suspense } from "react";
+import { cn } from "cn";
+import { Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
-import { cn } from "#/utils/cn";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
 import { useUpdateCheck } from "./useUpdateCheck";
 
-export const DashboardLayout: FC = () => {
+export const DashboardLayout: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const updateCheck = useUpdateCheck(permissions.viewDeploymentConfig);
 	const canViewDeployment = Boolean(permissions.viewDeploymentConfig);
@@ -63,7 +63,7 @@ export const DashboardLayout: FC = () => {
 	);
 };
 
-export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const DashboardFullPage: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	...attrs
 }) => {

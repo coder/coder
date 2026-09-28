@@ -1,6 +1,5 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import { clampPercentage, type UsageSeverity } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 
 const severityProgressClasses = {
 	normal: "bg-content-secondary",
@@ -8,16 +7,16 @@ const severityProgressClasses = {
 	exceeded: "bg-content-destructive",
 } as const satisfies Record<UsageSeverity, string>;
 
-interface UsageBarProps {
+type UsageBarProps = {
 	/** Fraction used, 0-100. Clamped for safety. */
 	percent: number;
 	severity?: UsageSeverity;
 	ariaLabel: string;
 	/** Track overrides, e.g. height. */
 	className?: string;
-}
+};
 
-export const UsageBar: FC<UsageBarProps> = ({
+export const UsageBar: React.FC<UsageBarProps> = ({
 	percent,
 	severity = "normal",
 	ariaLabel,

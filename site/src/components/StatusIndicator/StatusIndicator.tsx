@@ -1,11 +1,11 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import { createContext, type FC, useContext } from "react";
+import { cn } from "cn";
+import { createContext, useContext } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 const statusIndicatorVariants = cva(
 	"font-medium inline-flex items-center gap-2",
@@ -34,7 +34,7 @@ type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
 
 const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
 
-export type StatusIndicatorProps = React.ComponentPropsWithRef<"div"> &
+export type StatusIndicatorProps = React.ComponentProps<"div"> &
 	StatusIndicatorContextValue;
 
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({
@@ -73,11 +73,10 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 	},
 });
 
-export interface StatusIndicatorDotProps
-	extends React.HTMLAttributes<HTMLDivElement>,
-		VariantProps<typeof dotVariants> {}
+type StatusIndicatorDotProps = React.ComponentProps<"div"> &
+	VariantProps<typeof dotVariants>;
 
-export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
+export const StatusIndicatorDot: React.FC<StatusIndicatorDotProps> = ({
 	className,
 	// We allow the size and variant to be overridden directly by the component.
 	// This allows StatusIndicatorDot to be used alone.
@@ -100,11 +99,11 @@ export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 	);
 };
 
-interface StatusHealthyIndicatorProps {
+type StatusHealthyIndicatorProps = {
 	derpOnly?: boolean;
-}
+};
 
-export const StatusHealthyIndicator: FC<StatusHealthyIndicatorProps> = ({
+export const StatusHealthyIndicator: React.FC<StatusHealthyIndicatorProps> = ({
 	derpOnly,
 }: StatusHealthyIndicatorProps) => {
 	return (
@@ -115,7 +114,7 @@ export const StatusHealthyIndicator: FC<StatusHealthyIndicatorProps> = ({
 	);
 };
 
-export const StatusNotHealthyIndicator: FC = () => {
+export const StatusNotHealthyIndicator: React.FC = () => {
 	return (
 		<StatusIndicator variant="failed">
 			<StatusIndicatorDot />
@@ -124,7 +123,7 @@ export const StatusNotHealthyIndicator: FC = () => {
 	);
 };
 
-export const StatusNotRegisteredIndicator: FC = () => {
+export const StatusNotRegisteredIndicator: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -140,7 +139,7 @@ export const StatusNotRegisteredIndicator: FC = () => {
 	);
 };
 
-export const StatusNotReachableIndicator: FC = () => {
+export const StatusNotReachableIndicator: React.FC = () => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>

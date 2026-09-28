@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
@@ -7,21 +6,23 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
-interface TemplateSettingsPageViewProps {
+type TemplateSettingsPageViewProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
 	isSubmitting: boolean;
 	submitError?: unknown;
-	initialTouched?: ComponentProps<
+	initialTouched?: React.ComponentProps<
 		typeof TemplateSettingsForm
 	>["initialTouched"];
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	sharedPortControlsEnabled: boolean;
-}
+};
 
-export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
+export const TemplateSettingsPageView: React.FC<
+	TemplateSettingsPageViewProps
+> = ({
 	template,
 	onCancel,
 	onSubmit,

@@ -22,6 +22,65 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+type modelClientRequest struct {
+	Chat         database.Chat
+	ModelName    string
+	UserAgent    string
+	ExtraHeaders map[string]string
+	CallConfig   codersdk.ChatModelCallConfig
+}
+
+type modelBuildOptions struct {
+	ActiveAPIKeyID string
+	RecordHTTP     bool
+}
+
+func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
+	provider, err := p.db.GetAIProviderByID(ctx, providerID)
+	if err != nil {
+		return database.AIProvider{}, xerrors.Errorf("get AI provider: %w", err)
+	}
+	if !provider.Enabled {
+		return database.AIProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
+	}
+	return provider, nil
+}
+
+func newLanguageModel(
+	providerHint string,
+	modelName string,
+	providerKeys chatprovider.ProviderAPIKeys,
+	userAgent string,
+	extraHeaders map[string]string,
+	httpClient *http.Client,
+	callConfig *codersdk.ChatModelCallConfig,
+) (chatprovider.Model, error) {
+	model, err := chatprovider.ModelFromConfig(
+		providerHint,
+		modelName,
+		providerKeys,
+		userAgent,
+		extraHeaders,
+		httpClient,
+		callConfig,
+	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	if !model.Valid() {
+		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
+		if resolveErr != nil {
+			return chatprovider.Model{}, resolveErr
+		}
+		return chatprovider.Model{}, xerrors.Errorf(
+			"create model for %s/%s returned nil",
+			provider,
+			resolvedModel,
+		)
+	}
+	return model, nil
+}
+
 const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
@@ -70,11 +129,12 @@ const (
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
 	apiKeyID     string
+	attribution  aibridge.Attribution
 	providerAuth aiGatewayProviderAuth
 }
 
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
+	ctx := aibridge.WithDelegatedAttribution(aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID), t.attribution)
 	cloned := req.Clone(ctx)
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)
@@ -144,6 +204,12 @@ func (p *Server) newModel(
 		)
 	}
 
+	// Use the trusted workspace binding already persisted on the chat.
+	attr := aibridge.Attribution{}
+	if req.Chat.WorkspaceID.Valid {
+		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
+	}
+
 	factoryPtr := p.aibridgeTransportFactory
 	if factoryPtr == nil {
 		return chatprovider.Model{}, xerrors.New("AI Gateway transport factory is not configured")
@@ -159,14 +225,28 @@ func (p *Server) newModel(
 	baseRT := http.RoundTripper(&aiGatewayRoundTripper{
 		base:         rt,
 		apiKeyID:     opts.ActiveAPIKeyID,
+		attribution:  attr,
 		providerAuth: route.ProviderAuth,
 	})
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
 
-	config := fantasyConfigForAIBridge(route.Provider.Type)
+	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
+	openAIConfig := req.CallConfig.OpenAIConfig
+	// Force the use of the Responses API for Bedrock models inferred to the OpenAI client.
+	if route.Provider.Type == database.AIProviderTypeBedrock &&
+		config.ProviderHint == fantasyopenai.Name &&
+		(openAIConfig == nil || openAIConfig.UseResponsesAPI == nil) {
+		if openAIConfig == nil {
+			openAIConfig = &codersdk.ChatModelOpenAIConfig{}
+		}
+		force := true
+		openAIConfig.UseResponsesAPI = &force
+	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
+	callConfig := req.CallConfig
+	callConfig.OpenAIConfig = openAIConfig
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -174,8 +254,27 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		req.CallConfig.OpenAIConfig,
+		&callConfig,
 	)
+}
+
+func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
+	if providerType != database.AIProviderTypeBedrock || bedrockIsAnthropicModel(model) ||
+		callConfig.ProviderOptions == nil || callConfig.ProviderOptions.OpenAI == nil ||
+		callConfig.ProviderOptions.OpenAI.ReasoningSummary == nil ||
+		*callConfig.ProviderOptions.OpenAI.ReasoningSummary == "auto" {
+		return callConfig
+	}
+
+	// Mantle rejects concise/detailed with HTTP 400 and only accepts auto.
+	// Coercing rather than dropping keeps configs portable to direct OpenAI
+	// and allows summaries if AWS adds support later.
+	providerOptions := *callConfig.ProviderOptions
+	openAI := *providerOptions.OpenAI
+	openAI.ReasoningSummary = new("auto")
+	providerOptions.OpenAI = &openAI
+	callConfig.ProviderOptions = &providerOptions
+	return callConfig
 }
 
 func parseModelConfigOptions(configOptions json.RawMessage) (codersdk.ChatModelCallConfig, error) {
@@ -215,13 +314,31 @@ type aibridgeFantasyConfig struct {
 	Keys         chatprovider.ProviderAPIKeys
 }
 
-func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFantasyConfig {
+// bedrockIsAnthropicModel reports whether a model ID on a bedrock provider
+// uses the Anthropic Messages wire shape. InvokeModel configurations can use a
+// client-facing Claude alias while remapping it to an AWS model ID upstream.
+func bedrockIsAnthropicModel(model string) bool {
+	return strings.HasPrefix(model, "claude-") ||
+		strings.HasPrefix(model, "anthropic.") ||
+		strings.Contains(model, ".anthropic.")
+}
+
+func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
 	var fantasyProvider string
 	baseURL := aibridgeLocalBaseURL + "/v1"
 	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic:
 		fantasyProvider = fantasyanthropic.Name
 		baseURL = aibridgeLocalBaseURL
+	case database.AIProviderTypeBedrock:
+		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
+		// shapes; the model ID vendor prefix picks the wire format.
+		if bedrockIsAnthropicModel(model) {
+			fantasyProvider = fantasyanthropic.Name
+			baseURL = aibridgeLocalBaseURL
+		} else {
+			fantasyProvider = fantasyopenai.Name
+		}
 	case database.AIProviderTypeOpenai:
 		fantasyProvider = fantasyopenai.Name
 	default:
@@ -240,10 +357,16 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	}
 }
 
-func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
+func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType, model string) aiGatewayRequestFormat {
 	switch providerType {
-	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic:
 		return aiGatewayRequestFormatAnthropic
+	case database.AIProviderTypeBedrock:
+		// The BYOK header shape must agree with the inferred wire format.
+		if bedrockIsAnthropicModel(model) {
+			return aiGatewayRequestFormatAnthropic
+		}
+		return aiGatewayRequestFormatOpenAI
 	default:
 		return aiGatewayRequestFormatOpenAI
 	}
@@ -288,12 +411,13 @@ func (p *Server) resolveAIGatewayRoute(
 	ownerID uuid.UUID,
 	provider database.AIProvider,
 	modelProviderHint string,
+	model string,
 ) (aiGatewayModelRoute, error) {
 	auth, err := p.aiGatewayProviderAuthForUser(
 		ctx,
 		ownerID,
 		provider,
-		aiGatewayRequestFormatForProviderType(provider.Type),
+		aiGatewayRequestFormatForProviderType(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)
@@ -310,7 +434,7 @@ func (p *Server) resolveModelRouteForConfig(
 	if err != nil {
 		return aiGatewayModelRoute{}, err
 	}
-	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type))
+	return p.resolveAIGatewayRoute(ctx, ownerID, provider, string(provider.Type), modelConfig.Model)
 }
 
 func (p *Server) resolveModelRouteForProviderType(
@@ -322,11 +446,16 @@ func (p *Server) resolveModelRouteForProviderType(
 	if err != nil {
 		return aiGatewayModelRoute{}, err
 	}
+	// This path serves hardcoded computer-use defaults (openai or
+	// anthropic), never bedrock, so the model name is not needed for
+	// format inference. An empty model makes bedrock infer OpenAI format,
+	// which is harmless because bedrock cannot reach this path.
 	return p.resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
 		chatprovider.NormalizeProvider(providerType),
+		"",
 	)
 }
 

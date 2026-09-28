@@ -3,12 +3,9 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
-	type ComponentPropsWithoutRef,
-	type KeyboardEvent,
-	type ReactNode,
-	type Ref,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
@@ -31,9 +28,8 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 
-export interface Option {
+export type Option = {
 	value: string;
 	label: string;
 	icon?: string;
@@ -43,21 +39,21 @@ export interface Option {
 	fixed?: boolean;
 	/** Group the options by providing key. */
 	[key: string]: string | boolean | undefined;
-}
-interface GroupOption {
+};
+type GroupOption = {
 	[key: string]: Option[];
-}
+};
 
-interface MultiSelectComboboxProps {
+type MultiSelectComboboxProps = {
 	value?: Option[];
 	defaultOptions?: Option[];
 	/** manually controlled options */
 	options?: Option[];
 	placeholder?: string;
 	/** Loading component. */
-	loadingIndicator?: ReactNode;
+	loadingIndicator?: React.ReactNode;
 	/** Empty component. */
-	emptyIndicator?: ReactNode;
+	emptyIndicator?: React.ReactNode;
 	/** Debounce time for async search. Only work with `onSearch`. */
 	delay?: number;
 	/**
@@ -95,25 +91,25 @@ interface MultiSelectComboboxProps {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: ComponentPropsWithoutRef<typeof Command>;
+	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
-		ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
-		"value" | "placeholder" | "disabled"
+		React.ComponentProps<typeof CommandPrimitive.Input>,
+		"ref" | "value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
 	/** Test ID for testing purposes */
 	"data-testid"?: string;
-	ref?: Ref<MultiSelectComboboxRef>;
-}
+	ref?: React.Ref<MultiSelectComboboxRef>;
+};
 
-interface MultiSelectComboboxRef {
+type MultiSelectComboboxRef = {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
 	reset: () => void;
-}
+};
 
 function transitionToGroupOption(options: Option[], groupBy?: string) {
 	if (options.length === 0) {
@@ -160,7 +156,7 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
  * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
  **/
 const CommandEmpty: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Empty>
+	React.ComponentProps<typeof CommandPrimitive.Empty>
 > = ({ className, ...props }) => {
 	const render = useCommandState((state) => state.filtered.count === 0);
 
@@ -243,7 +239,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		[onChange, selected],
 	);
 
-	const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
 		const input = inputRef.current;
 		if (input) {
 			if (e.key === "Delete" || e.key === "Backspace") {
@@ -355,7 +351,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			return;
 		}
 
-		listRef.current.scrollIntoView({ behavior: "smooth" });
+		listRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
 	}, [open]);
 
 	const CreatableItem = () => {
@@ -439,10 +435,6 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		// Using default filter in `cmdk`. We don't have to provide it.
 		return undefined;
 	};
-
-	if (inputRef.current && inputProps?.id) {
-		inputRef.current.id = inputProps?.id;
-	}
 
 	const fixedOptions = selected.filter((s) => s.fixed);
 	const showIcons = arrayOptions?.some((it) => it.icon);
@@ -602,13 +594,14 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					</div>
 				</div>
 			</div>
-			<div className="relative" ref={listRef}>
+			<div className="relative">
 				{open && (
 					<CommandList
+						ref={listRef}
 						className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
 								bg-surface-primary text-content-primary shadow-md outline-hidden
-								animate-in`}
+								animate-in origin-top scroll-mt-44 scroll-mb-10`}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
 						}}

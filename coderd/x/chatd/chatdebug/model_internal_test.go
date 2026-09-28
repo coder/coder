@@ -171,8 +171,6 @@ func TestDebugModel_Disabled(t *testing.T) {
 	respWant := &fantasy.Response{FinishReason: fantasy.FinishReasonStop}
 	inner := &chattest.FakeModel{
 		GenerateFn: func(ctx context.Context, call fantasy.Call) (*fantasy.Response, error) {
-			_, ok := StepFromContext(ctx)
-			require.False(t, ok)
 			require.Nil(t, attemptSinkFromContext(ctx))
 			return respWant, nil
 		},
@@ -244,13 +242,6 @@ func TestDebugModel_Generate(t *testing.T) {
 	inner := &chattest.FakeModel{
 		GenerateFn: func(ctx context.Context, got fantasy.Call) (*fantasy.Response, error) {
 			require.Equal(t, call, got)
-			stepCtx, ok := StepFromContext(ctx)
-			require.True(t, ok)
-			require.Equal(t, runID, stepCtx.RunID)
-			require.Equal(t, chatID, stepCtx.ChatID)
-			require.Equal(t, int32(1), stepCtx.StepNumber)
-			require.Equal(t, OperationGenerate, stepCtx.Operation)
-			require.NotEqual(t, uuid.Nil, stepCtx.StepID)
 			require.NotNil(t, attemptSinkFromContext(ctx))
 			return respWant, nil
 		},
@@ -537,13 +528,6 @@ func TestDebugModel_Stream(t *testing.T) {
 	model := &debugModel{
 		inner: &chattest.FakeModel{
 			StreamFn: func(ctx context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-				stepCtx, ok := StepFromContext(ctx)
-				require.True(t, ok)
-				require.Equal(t, runID, stepCtx.RunID)
-				require.Equal(t, chatID, stepCtx.ChatID)
-				require.Equal(t, int32(1), stepCtx.StepNumber)
-				require.Equal(t, OperationStream, stepCtx.Operation)
-				require.NotEqual(t, uuid.Nil, stepCtx.StepID)
 				require.NotNil(t, attemptSinkFromContext(ctx))
 				return partsToSeq(parts), nil
 			},
@@ -620,13 +604,6 @@ func TestDebugModel_StreamObject(t *testing.T) {
 	model := &debugModel{
 		inner: &chattest.FakeModel{
 			StreamObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-				stepCtx, ok := StepFromContext(ctx)
-				require.True(t, ok)
-				require.Equal(t, runID, stepCtx.RunID)
-				require.Equal(t, chatID, stepCtx.ChatID)
-				require.Equal(t, int32(1), stepCtx.StepNumber)
-				require.Equal(t, OperationStream, stepCtx.Operation)
-				require.NotEqual(t, uuid.Nil, stepCtx.StepID)
 				require.NotNil(t, attemptSinkFromContext(ctx))
 				return objectPartsToSeq(parts), nil
 			},
@@ -1001,12 +978,6 @@ func TestDebugModel_GenerateObject(t *testing.T) {
 	inner := &chattest.FakeModel{
 		GenerateObjectFn: func(ctx context.Context, got fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Equal(t, call, got)
-			stepCtx, ok := StepFromContext(ctx)
-			require.True(t, ok)
-			require.Equal(t, runID, stepCtx.RunID)
-			require.Equal(t, chatID, stepCtx.ChatID)
-			require.Equal(t, OperationGenerate, stepCtx.Operation)
-			require.NotEqual(t, uuid.Nil, stepCtx.StepID)
 			require.NotNil(t, attemptSinkFromContext(ctx))
 			return respWant, nil
 		},
@@ -1225,8 +1196,8 @@ func TestLaunchHeartbeat(t *testing.T) {
 		// short enough to test easily (threshold/2 = 5s, clamped ≥1s).
 		svc := NewService(db, testutil.Logger(t), nil,
 			WithClock(mClock),
-			WithStaleThreshold(10*time.Second),
 		)
+		svc.SetStaleAfter(10 * time.Second)
 
 		stepID := uuid.New()
 		runID := uuid.New()
@@ -1291,8 +1262,8 @@ func TestLaunchHeartbeat(t *testing.T) {
 
 		svc := NewService(db, testutil.Logger(t), nil,
 			WithClock(mClock),
-			WithStaleThreshold(10*time.Second),
 		)
+		svc.SetStaleAfter(10 * time.Second)
 
 		stepID := uuid.New()
 		runID := uuid.New()
@@ -1338,8 +1309,8 @@ func TestLaunchHeartbeat(t *testing.T) {
 
 		svc := NewService(db, testutil.Logger(t), nil,
 			WithClock(mClock),
-			WithStaleThreshold(60*time.Second),
 		)
+		svc.SetStaleAfter(60 * time.Second)
 
 		stepID := uuid.New()
 		runID := uuid.New()

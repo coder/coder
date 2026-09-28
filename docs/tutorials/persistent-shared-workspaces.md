@@ -1,4 +1,6 @@
-# Persistent Shared Workspaces with Service Accounts
+---
+title: Persistent shared workspaces with service accounts
+---
 
 > [!NOTE]
 > This guide requires a
@@ -242,7 +244,7 @@ Access removal requires a workspace restart. Run
 
 Group membership changes in your IdP are not reflected until the user logs out
 and back in. Group sync runs at login time, not on a polling schedule. Check the
-Coder server logs with
+logs from `coderd`, the process that runs the control plane, with
 `CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"` for details. See
 [Troubleshooting group sync](../admin/users/idp-sync.md#troubleshooting-grouproleorganization-sync)
 for more information.

@@ -1,4 +1,6 @@
-# Conversation Auto-Archive
+---
+title: Conversation auto-archive
+---
 
 Coder Agents automatically archives long-inactive conversations so they
 drop out of active chat lists without any user intervention. Archived
@@ -42,10 +44,10 @@ Auto-Archived" notification entirely from your notification preferences.
 
 Auto-archive and deletion are two independent controls:
 
-| Control             | What it does                                                              | Default           |
-|---------------------|---------------------------------------------------------------------------|-------------------|
-| Auto-archive window | Moves inactive chats to the archived state                                | 0 days (disabled) |
-| Retention window    | Deletes chats that have been archived long enough and orphaned chat files | 30 days           |
+| Control             | What it does                                                              | Default                |
+|---------------------|---------------------------------------------------------------------------|------------------------|
+| Auto-archive window | Moves inactive chats to the archived state                                | 0&nbsp;days (disabled) |
+| Retention window    | Deletes chats that have been archived long enough and orphaned chat files | 30&nbsp;days           |
 
 A conversation needs to be inactive for `auto_archive_days`, then
 archived for `retention_days`, before it is deleted. The two windows

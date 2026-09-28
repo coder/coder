@@ -1,4 +1,6 @@
-# Envbuilder releases and known issues
+---
+title: Envbuilder releases and known issues
+---
 
 ## Release channels
 

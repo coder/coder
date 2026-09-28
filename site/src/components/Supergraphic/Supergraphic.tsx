@@ -1,10 +1,9 @@
-import type { FC } from "react";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 
 /**
  * A decorative layer that paints the Coder brand supergraphic.
  */
-export const Supergraphic: FC<React.ComponentProps<"div">> = ({
+export const Supergraphic: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {

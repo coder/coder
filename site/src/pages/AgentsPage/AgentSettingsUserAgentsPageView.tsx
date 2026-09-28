@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -7,14 +6,14 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,
 } from "./components/PersonalModelOverrideRow";
 import { SectionHeader } from "./components/SectionHeader";
 
-export interface AgentSettingsUserAgentsPageViewProps {
+export type AgentSettingsUserAgentsPageViewProps = {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;
 	overridesError: unknown;
 	onRetryOverrides?: () => void;
@@ -38,9 +37,9 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	onSaveExploreModelOverride: SavePersonalOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
-}
+};
 
-export const AgentSettingsUserAgentsPageView: FC<
+export const AgentSettingsUserAgentsPageView: React.FC<
 	AgentSettingsUserAgentsPageViewProps
 > = ({
 	overridesData,

@@ -1,18 +1,21 @@
+import { cn } from "cn";
 import { OctagonXIcon } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
+import { useTime } from "#/hooks/useTime";
+import { humanDurationShort } from "#/utils/time";
 import {
 	type AgentDisplayState,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { TerminalOutput } from "./TerminalOutput";
 import { ToolCall } from "./ToolCall";
 import type { ExecuteTranscriptBlock } from "./toolVisibility";
 import {
@@ -34,6 +37,7 @@ type ExecuteToolProps = {
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
 	parsedCommands?: readonly string[][];
+	startedAt?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -48,6 +52,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	killedBySignal,
 	modelIntent,
 	parsedCommands,
+	startedAt,
 	shellToolDisplayMode,
 }) => {
 	const hasTranscriptBlocks = transcriptBlocks.length > 0;
@@ -124,6 +129,12 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					command={command}
 					transcriptBlocks={transcriptBlocks}
 					isError={isError}
+					isRunning={isRunning}
+					headerTrailing={
+						isRunning && !isBackgrounded ? (
+							<ElapsedTime startedAt={startedAt} />
+						) : undefined
+					}
 				/>
 			</ToolCall.Content>
 		</ToolCall.Root>
@@ -177,36 +188,57 @@ const ShellTranscriptBody: React.FC<{
 	command: string;
 	transcriptBlocks: readonly ExecuteTranscriptBlock[];
 	isError: boolean;
-}> = ({ command, transcriptBlocks, isError }) => {
+	isRunning: boolean;
+	headerTrailing?: React.ReactNode;
+}> = ({ command, transcriptBlocks, isError, isRunning, headerTrailing }) => {
 	return (
-		<ScrollArea
-			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
-			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Command output"
-			scrollBarClassName="w-1.5"
+		<TerminalOutput
+			ariaLabel="Command output"
+			command={command}
+			className="col-start-1 col-span-2 mt-2"
+			streaming={isRunning}
+			headerTrailing={headerTrailing}
 		>
-			<div className="px-3 py-2.5">
-				<pre className="m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
-					<span aria-hidden className="select-none">
-						$
-					</span>{" "}
-					{command}
+			{transcriptBlocks.map((block) => (
+				<pre
+					key={block.kind}
+					className={cn(
+						"m-0 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+						block.kind === "error" || isError
+							? "text-content-destructive"
+							: "text-content-secondary",
+					)}
+				>
+					{block.text}
 				</pre>
-				{transcriptBlocks.map((block) => (
-					<pre
-						key={block.kind}
-						className={cn(
-							"m-0 mt-4 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
-							block.kind === "error" || isError
-								? "text-content-destructive"
-								: "text-content-secondary",
-						)}
-					>
-						{block.text}
-					</pre>
-				))}
-			</div>
-		</ScrollArea>
+			))}
+		</TerminalOutput>
+	);
+};
+
+/**
+ * Live elapsed-time readout for a running command, anchored to the tool
+ * call's server-side created_at so it survives reloads and reconnects.
+ * Falls back to mount time until a valid timestamp arrives. Kept as a
+ * leaf so the tick re-renders only this span.
+ */
+const ElapsedTime: React.FC<{ startedAt?: string }> = ({ startedAt }) => {
+	const [mountedAt] = useState(() => Date.now());
+	// Date.parse yields NaN for missing or malformed input, which falls through.
+	const startMs = Date.parse(startedAt ?? "") || mountedAt;
+	const label = useTime(
+		() => humanDurationShort(Math.max(0, Date.now() - startMs)),
+		{
+			interval: 250,
+		},
+	);
+
+	return (
+		<span
+			title="Elapsed time"
+			className="shrink-0 font-mono text-xs tabular-nums leading-5 text-content-secondary"
+		>
+			{label}
+		</span>
 	);
 };

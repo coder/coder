@@ -1,5 +1,4 @@
 import { Share2Icon } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
@@ -8,22 +7,20 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { isGroup } from "#/modules/groups";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { AddWorkspaceUserOrGroup } from "#/modules/workspaces/WorkspaceSharingForm/AddWorkspaceUserOrGroup";
 import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
 import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
-interface ShareButtonProps {
+type ShareButtonProps = {
 	workspace: Workspace;
 	canUpdatePermissions: boolean;
-}
+};
 
-export const ShareButton: FC<ShareButtonProps> = ({
+export const ShareButton: React.FC<ShareButtonProps> = ({
 	workspace,
 	canUpdatePermissions,
 }) => {
 	const sharing = useWorkspaceSharing(workspace);
-	const aiTasksEnabled = useAITasksEnabled();
 
 	return (
 		<Popover>
@@ -35,9 +32,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="end" className="w-[580px] p-4">
 				<div className="flex items-center gap-2 mb-4">
-					<h3 className="text-lg font-semibold m-0">
-						{aiTasksEnabled && workspace.task_id ? "Task" : "Workspace"} Sharing
-					</h3>
+					<h3 className="text-lg font-semibold m-0">Workspace Sharing</h3>
 				</div>
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}

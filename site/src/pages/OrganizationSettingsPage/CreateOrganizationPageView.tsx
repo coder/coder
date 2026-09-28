@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -23,7 +23,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -44,12 +43,12 @@ const validationSchema = Yup.object({
 	),
 });
 
-interface CreateOrganizationPageViewProps {
+type CreateOrganizationPageViewProps = {
 	isEntitled: boolean;
 	permissions: Permissions;
-}
+};
 
-export const CreateOrganizationPageView: FC<
+export const CreateOrganizationPageView: React.FC<
 	CreateOrganizationPageViewProps
 > = ({ isEntitled, permissions }) => {
 	const navigate = useNavigate();
@@ -67,13 +66,10 @@ export const CreateOrganizationPageView: FC<
 			icon: "",
 		},
 		validationSchema,
-		onSubmit: (values) => {
-			createOrganizationMutation.mutate(values, {
-				onSuccess: () => {
-					toast.success(`Organization "${values.name}" created successfully.`);
-					void navigate(`/organizations/${values.name}`);
-				},
-			});
+		onSubmit: async (values) => {
+			await createOrganizationMutation.mutateAsync(values);
+			toast.success(`Organization "${values.name}" created successfully.`);
+			void navigate(`/organizations/${values.name}`);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);

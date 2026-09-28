@@ -136,6 +136,10 @@ func TypeMappings(gen *guts.GoParser) error {
 		"github.com/coder/serpent.URL":            "string",
 		"github.com/coder/serpent.HostPort":       "string",
 		"encoding/json.RawMessage":                "map[string]string",
+		// wsrelated.Config is a client-side selection tree that the Go client
+		// marshals to the include_related query string via Config.QueryParam.
+		// Its wire representation is that comma-separated string.
+		"github.com/coder/coder/v2/codersdk/wsrelated.Config": "string",
 		// decimal.Decimal preserves exact pricing precision (e.g. $3.50 per
 		// million tokens) and serializes as a JSON string to avoid
 		// floating-point loss in transit.
@@ -207,6 +211,10 @@ func DiscriminatedChatMessagePart(ts *guts.Typescript) {
 	// we can copy type information from the original interface.
 	fieldMap := make(map[string]*bindings.PropertySignature, len(iface.Fields))
 	for _, f := range iface.Fields {
+		if f.Name == "result" {
+			unknown := bindings.KeywordUnknown
+			f.Type = &unknown
+		}
 		fieldMap[f.Name] = f
 	}
 

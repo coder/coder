@@ -34,6 +34,10 @@ type ProviderResolver func(ctx context.Context, origin string) gitprovider.Provi
 
 var ErrNoTokenAvailable error = errors.New("no token available")
 
+// ErrStalePullRequest indicates the row's stored PR belongs to a
+// previous branch and the current branch has none.
+var ErrStalePullRequest error = errors.New("stale pull request")
+
 // ErrRateLimitSkipped indicates that a row was skipped because
 // a prior request in the same group hit a rate limit.
 var ErrRateLimitSkipped error = errors.New("skipped due to rate limit")
@@ -262,20 +266,7 @@ func (r *Refresher) refreshOne(
 	token string,
 	row database.ChatDiffStatus,
 ) (*database.UpsertChatDiffStatusParams, error) {
-	var ref gitprovider.PRRef
-	var prURL string
-
-	if row.Url.Valid && row.Url.String != "" {
-		// Row already has a PR URL — parse it directly.
-		parsed, ok := provider.ParsePullRequestURL(row.Url.String)
-		if !ok {
-			return nil, xerrors.Errorf("parse pull request URL %q", row.Url.String)
-		}
-		ref = parsed
-		prURL = row.Url.String
-	} else {
-		// No PR URL — resolve owner/repo from the remote origin,
-		// then look up the open PR for this branch.
+	resolveByBranch := func() (*gitprovider.PRRef, error) {
 		owner, repo, _, ok := provider.ParseRepositoryOrigin(row.GitRemoteOrigin)
 		if !ok {
 			return nil, xerrors.Errorf("parse repository origin %q", row.GitRemoteOrigin)
@@ -289,6 +280,26 @@ func (r *Refresher) refreshOne(
 		if err != nil {
 			return nil, xerrors.Errorf("resolve branch pull request: %w", err)
 		}
+
+		return resolved, nil
+	}
+
+	var ref gitprovider.PRRef
+	var prURL string
+
+	if row.Url.Valid && row.Url.String != "" {
+		// Row already has a PR URL — parse it directly.
+		parsed, ok := provider.ParsePullRequestURL(row.Url.String)
+		if !ok {
+			return nil, xerrors.Errorf("parse pull request URL %q", row.Url.String)
+		}
+		ref = parsed
+		prURL = row.Url.String
+	} else {
+		resolved, err := resolveByBranch()
+		if err != nil {
+			return nil, err
+		}
 		if resolved == nil {
 			// No PR exists yet for this branch.
 			return nil, nil
@@ -300,6 +311,26 @@ func (r *Refresher) refreshOne(
 	status, err := provider.FetchPullRequestStatus(ctx, token, ref)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch pull request status: %w", err)
+	}
+
+	// The stored URL can outlive its branch (MarkStale keeps it
+	// across switches). If the PR's head branch isn't the chat's
+	// branch, resolve by branch instead.
+	if row.GitBranch != "" && status.HeadBranch != "" && status.HeadBranch != row.GitBranch {
+		resolved, err := resolveByBranch()
+		if err != nil {
+			return nil, err
+		}
+		if resolved == nil {
+			return nil, ErrStalePullRequest
+		}
+		ref = *resolved
+		prURL = provider.BuildPullRequestURL(ref)
+
+		status, err = provider.FetchPullRequestStatus(ctx, token, ref)
+		if err != nil {
+			return nil, xerrors.Errorf("fetch pull request status: %w", err)
+		}
 	}
 
 	now := r.clock.Now().UTC()

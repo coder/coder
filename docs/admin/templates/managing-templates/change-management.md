@@ -1,11 +1,13 @@
-# Template Change Management
+---
+title: Template change management
+---
 
 We recommend source-controlling your templates as you would other any code, and
 automating the creation of new versions in CI/CD pipelines.
 
 These pipelines will require tokens for your deployment. To cap token lifetime
 on creation,
-[configure Coder server to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
+[configure the control plane to set a shorter max token lifetime](../../../reference/cli/server.md#--max-token-lifetime).
 
 ## coderd Terraform Provider
 
@@ -57,7 +59,7 @@ resource "coderd_template" "kubernetes" {
 }
 ```
 
-For an example, see how we push our development image and template
+For an example, see how we push our development image
 [with GitHub actions](../../../../.github/workflows/dogfood.yaml).
 
 ## Coder CLI
@@ -68,8 +70,8 @@ template versions in CI/CD pipelines. For GitHub Actions, see our
 
 ```console
 # Install the Coder CLI
-curl -L https://coder.com/install.sh | sh
-# curl -L https://coder.com/install.sh | sh -s -- --version=0.x
+curl -fsSL https://coder.com/install.sh | sh
+# curl -fsSL https://coder.com/install.sh | sh -s -- --version=0.x
 
 # To create API tokens, use `coder tokens create`.
 # If no `--lifetime` flag is passed during creation, the default token lifetime

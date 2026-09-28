@@ -8,8 +8,9 @@ captured via Splunk, Datadog, Grafana Loki, or other ingestion tools.
 
 ## `coderd` Logs
 
-By default, the Coder server exports human-readable logs to standard output. You
-can access these logs via `kubectl logs deployment/coder -n <coder-namespace>`
+By default, `coderd`, the process that runs the control plane, exports
+human-readable logs to standard output. You can access these logs via
+`kubectl logs deployment/coder -n <coder-namespace>`
 on Kubernetes or `journalctl -u coder` if you deployed Coder on a host
 machine/VM.
 
@@ -31,14 +32,14 @@ Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs
 
-Logs for [external provisioners](../provisioners/index.md) are structured
+Logs for [external provisioners](../../install/operate/provisioners/index.md) are structured
 [and configured](../../reference/cli/provisioner_start.md#--log-human) similarly
 to `coderd` logs. Use these logs to troubleshoot and monitor the Terraform
 operations behind workspaces and templates.
 
 ## Workspace Logs
 
-The [Coder agent](../infrastructure/architecture.md#agents) inside workspaces
+The [Coder agent](../../install/plan/architecture.md#agents) inside workspaces
 provides useful logs around workspace-to-server and client-to-workspace
 connections. For Kubernetes workspaces, these are typically the pod logs as the
 agent runs via the container entrypoint.
@@ -51,7 +52,7 @@ Agent logs are also stored in the workspace filesystem by default:
   to see where logs are stored.
 
 > [!NOTE]
-> Logs are truncated once they reach 5MB in size.
+> Logs are truncated once they reach 5&nbsp;MB in size.
 
 Startup script logs are also stored in the temporary directory of macOS and
 Linux workspaces.

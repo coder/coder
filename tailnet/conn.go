@@ -93,6 +93,8 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPGetHeaders overrides DERPHeader on each connection attempt.
+	DERPGetHeaders func() http.Header
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// DERPForceWebSockets determines whether websockets is always used for DERP
@@ -114,6 +116,11 @@ type Options struct {
 	ForceNetworkUp bool
 	// Network Telemetry Client Type: CLI | Agent | coderd
 	ClientType proto.TelemetryEvent_ClientType
+	// ClientSessionID, when set, is attached to network telemetry events as
+	// client_session_id so a session can be correlated across the client's
+	// logs, requests, and telemetry. It is a 32-character lowercase hex
+	// string.
+	ClientSessionID string
 	// TelemetrySink is optional.
 	TelemetrySink TelemetrySink
 	// DNSConfigurator is optional, and is passed to the underlying wireguard
@@ -242,6 +249,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
+	magicConn.SetDERPGetHeaders(options.DERPGetHeaders)
 	if options.DERPTLSConfig != nil {
 		magicConn.SetDERPTLSConfig(options.DERPTLSConfig)
 	}
@@ -338,6 +346,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		telemetrySink:   options.TelemetrySink,
 		dnsConfigurator: options.DNSConfigurator,
 		telemetryStore:  telemetryStore,
+		clientSessionID: options.ClientSessionID,
 		createdAt:       time.Now(),
 		watchCtx:        ctx,
 		watchCancel:     ctxCancel,
@@ -457,6 +466,7 @@ type Conn struct {
 	dnsConfigurator  dns.OSConfigurator
 	listeners        map[listenKey]*listener
 	clientType       proto.TelemetryEvent_ClientType
+	clientSessionID  string
 	createdAt        time.Time
 
 	telemetrySink TelemetrySink
@@ -895,6 +905,7 @@ func (c *Conn) sendPingTelemetry(pr *ipnstate.PingResult) {
 func (c *Conn) newTelemetryEvent() *proto.TelemetryEvent {
 	event := c.telemetryStore.newEvent()
 	event.ClientType = c.clientType
+	event.ClientSessionId = c.clientSessionID
 	event.Id = c.id[:]
 	event.ConnectionAge = durationpb.New(time.Since(c.createdAt))
 	return event

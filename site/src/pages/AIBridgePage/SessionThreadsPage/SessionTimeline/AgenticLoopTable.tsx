@@ -1,14 +1,13 @@
-import type { FC } from "react";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 import { roundDurationDisplay } from "../../utils";
 
-interface AgenticLoopTableProps {
+type AgenticLoopTableProps = {
 	duration: number; // in seconds
 	toolCalls: number;
 	className?: string;
-}
+};
 
-export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
+export const AgenticLoopTable: React.FC<AgenticLoopTableProps> = ({
 	duration,
 	toolCalls,
 	className,
@@ -22,7 +21,7 @@ export const AgenticLoopTable: FC<AgenticLoopTableProps> = ({
 		>
 			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Tool calls</span>
-				<span>{toolCalls}</span>
+				<span data-testid="tool-calls-count">{toolCalls}</span>
 			</div>
 			<div className="flex items-center justify-between h-6">
 				<span className="pr-4">Duration</span>

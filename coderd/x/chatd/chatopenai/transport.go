@@ -2,6 +2,7 @@ package chatopenai
 
 import (
 	"fmt"
+	"strings"
 
 	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
@@ -45,10 +46,7 @@ func TransportFor(provider, modelID string, override *bool) Transport {
 	var useResponses bool
 	switch provider {
 	case fantasyopenai.Name:
-		useResponses = fantasyopenai.IsResponsesModel(modelID)
-		if override != nil {
-			useResponses = *override
-		}
+		useResponses = UsesResponsesAPI(modelID, override)
 	case fantasyazure.Name:
 		useResponses = fantasyopenai.IsResponsesModel(modelID)
 	case fantasyopenaicompat.Name:
@@ -61,4 +59,18 @@ func TransportFor(provider, modelID string, override *bool) Transport {
 		return TransportResponses
 	}
 	return TransportChatCompletions
+}
+
+// UsesResponsesAPI decides the wire format for an OpenAI model. override, when
+// non-nil, wins. Otherwise the provider SDK's known-model list decides.
+func UsesResponsesAPI(modelID string, override *bool) bool {
+	if override != nil {
+		return *override
+	}
+	return fantasyopenai.IsResponsesModel(modelID)
+}
+
+// IsGPT6Astra matches gpt-6-astra and its dated snapshots.
+func IsGPT6Astra(modelID string) bool {
+	return strings.HasPrefix(strings.ToLower(modelID), "gpt-6-astra")
 }

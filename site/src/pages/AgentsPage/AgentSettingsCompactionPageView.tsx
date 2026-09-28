@@ -1,12 +1,12 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
 
-export interface AgentSettingsCompactionPageViewProps {
+export type AgentSettingsCompactionPageViewProps = {
 	models: readonly TypesGen.ChatModel[] | undefined;
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizations: readonly TypesGen.Organization[];
+	compactionModelIDByOrganization?: ReadonlyMap<string, string>;
 	modelsError: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -17,14 +17,15 @@ export interface AgentSettingsCompactionPageViewProps {
 		thresholdPercent: number,
 	) => Promise<unknown>;
 	onResetThreshold: (modelId: string) => Promise<unknown>;
-}
+};
 
-export const AgentSettingsCompactionPageView: FC<
+export const AgentSettingsCompactionPageView: React.FC<
 	AgentSettingsCompactionPageViewProps
 > = ({
 	models,
 	providerTypeByID,
 	organizations,
+	compactionModelIDByOrganization,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -43,6 +44,7 @@ export const AgentSettingsCompactionPageView: FC<
 				models={models ?? []}
 				providerTypeByID={providerTypeByID}
 				organizations={organizations}
+				compactionModelIDByOrganization={compactionModelIDByOrganization}
 				modelsError={modelsError}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}

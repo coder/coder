@@ -586,3 +586,141 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		})
 	}
 }
+
+func TestRedirectURL(t *testing.T) {
+	t.Parallel()
+
+	base, err := url.Parse("https://app.example.com/callback")
+	require.NoError(t, err)
+
+	t.Run("Omitted", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		got := parser.RedirectURL(url.Values{}, base, nil, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
+	})
+
+	t.Run("ExactMatch", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{base.String()}}
+		got := parser.RedirectURL(vals, base, nil, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
+	})
+
+	t.Run("Mismatch", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
+		parser.RedirectURL(vals, base, nil, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must match")
+	})
+
+	// url.Parse returns a nil URL alongside its error for these, so a caller
+	// that reads the result must still get something dereferenceable.
+	t.Run("Unparsable", func(t *testing.T) {
+		t.Parallel()
+		for _, raw := range []string{"\x00", "\x7f", "://"} {
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{raw}}
+			require.NotPanics(t, func() {
+				got := parser.RedirectURL(vals, base, nil, "redirect_uri")
+				require.NotNil(t, got, "a nil URL would panic in the caller")
+				require.Equal(t, base.String(), got.String())
+			}, "redirect_uri=%q must not panic", raw)
+			require.Len(t, parser.Errors, 1, "redirect_uri=%q must report one error", raw)
+			require.Equal(t, "redirect_uri", parser.Errors[0].Field)
+			require.Contains(t, parser.Errors[0].Detail, "must be a valid url")
+		}
+	})
+
+	// RFC 8252 §7.3: a loopback redirect URI may present any port. The returned
+	// URL is the presented one, since that is where the response must go.
+	t.Run("LoopbackPortDiffers", func(t *testing.T) {
+		t.Parallel()
+		for _, host := range []string{"127.0.0.1", "[::1]", "localhost"} {
+			registered, err := url.Parse("http://" + host + "/callback")
+			require.NoError(t, err)
+			presented := "http://" + host + ":53219/callback"
+
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{presented}}
+			got := parser.RedirectURL(vals, registered, nil, "redirect_uri")
+			require.Empty(t, parser.Errors, "host %s", host)
+			require.Equal(t, presented, got.String(), "host %s", host)
+		}
+	})
+
+	t.Run("LoopbackRegisteredWithPort", func(t *testing.T) {
+		t.Parallel()
+		registered, err := url.Parse("http://localhost:9876/callback")
+		require.NoError(t, err)
+		presented := "http://localhost:53219/callback"
+
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{presented}}
+		got := parser.RedirectURL(vals, registered, nil, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, presented, got.String())
+	})
+
+	// Only the port is excepted. codersdk.TestRedirectURIMatches covers each
+	// other component; this checks the wrapper reports the mismatch.
+	t.Run("LoopbackOtherComponentDiffers", func(t *testing.T) {
+		t.Parallel()
+		registered, err := url.Parse("http://127.0.0.1/callback")
+		require.NoError(t, err)
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"http://127.0.0.1:53219/other"}}
+		parser.RedirectURL(vals, registered, nil, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Equal(t, "redirect_uri", parser.Errors[0].Field)
+		require.Contains(t, parser.Errors[0].Detail, "must match one of")
+	})
+
+	// A non-loopback registration keeps the exact match, port included.
+	t.Run("NonLoopbackPortDiffers", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://app.example.com:8443/callback"}}
+		parser.RedirectURL(vals, base, nil, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must match")
+	})
+
+	// RFC 6749 §3.1.2.3: the presented URI must match one of the registered URIs,
+	// not only the first.
+	t.Run("MatchesAnyRegisteredEntry", func(t *testing.T) {
+		t.Parallel()
+		second, err := url.Parse("https://www.cursor.com/agents/mcp/oauth/callback")
+		require.NoError(t, err)
+		alternates := []*url.URL{second}
+
+		for _, want := range []*url.URL{base, second} {
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{want.String()}}
+			got := parser.RedirectURL(vals, base, alternates, "redirect_uri")
+			require.Empty(t, parser.Errors, want.String())
+			require.Equal(t, want.String(), got.String())
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
+		parser.RedirectURL(vals, base, alternates, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must match one of")
+	})
+
+	t.Run("OmittedWithSeveralRegisteredDefaultsToPrimary", func(t *testing.T) {
+		t.Parallel()
+		second, err := url.Parse("https://www.cursor.com/agents/mcp/oauth/callback")
+		require.NoError(t, err)
+		parser := httpapi.NewQueryParamParser()
+		got := parser.RedirectURL(url.Values{}, base, []*url.URL{second}, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
+	})
+}

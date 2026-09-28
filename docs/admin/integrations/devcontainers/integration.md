@@ -1,4 +1,6 @@
-# Configure a template for Dev Containers
+---
+title: Configure a template for Dev Containers
+---
 
 This guide covers the Dev Containers Integration, which uses Docker. For
 environments without Docker, see [Envbuilder](./envbuilder/index.md) as an

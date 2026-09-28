@@ -5,7 +5,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-var defaultQuery = "owner:me"
+var defaultQuery = "user:me"
 
 // WorkspaceFilter wraps codersdk.WorkspaceFilter
 // and allows easy integration to a CLI command.

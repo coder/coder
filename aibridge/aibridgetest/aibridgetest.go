@@ -17,3 +17,12 @@ func NewAnthropicProvider(t testing.TB, cfg aibridge.AnthropicConfig, bedrockCfg
 	require.NoError(t, err)
 	return p
 }
+
+// NewBedrockProvider builds a Bedrock provider for tests, failing the test if
+// credential resolution fails.
+func NewBedrockProvider(t testing.TB, cfg aibridge.AnthropicConfig, bedrockCfg aibridge.AWSBedrockConfig) aibridge.Provider {
+	t.Helper()
+	p, err := aibridge.NewBedrockProvider(context.Background(), cfg, bedrockCfg)
+	require.NoError(t, err)
+	return p
+}

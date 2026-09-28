@@ -5,8 +5,8 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
+import { cn } from "cn";
 import {
-	type Ref,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -29,7 +29,6 @@ import {
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import { useClipboard } from "#/hooks/useClipboard";
-import { cn } from "#/utils/cn";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
@@ -39,7 +38,7 @@ export type WorkspaceTerminalHandle = {
 };
 
 type WorkspaceTerminalProps = {
-	ref?: Ref<WorkspaceTerminalHandle>;
+	ref?: React.Ref<WorkspaceTerminalHandle>;
 	agentId: string | undefined;
 	operatingSystem?: string;
 	className?: string;
@@ -149,7 +148,7 @@ export const WorkspaceTerminal = ({
 		onError?.(error);
 	});
 
-	const getTerminalDimensions = useCallback(
+	const getTerminalDimensions = useEffectEvent(
 		(terminal: Terminal): { height: number; width: number } | null => {
 			if (terminal.rows <= 0 || terminal.cols <= 0) {
 				reportTerminalError(
@@ -165,7 +164,6 @@ export const WorkspaceTerminal = ({
 				width: terminal.cols,
 			};
 		},
-		[],
 	);
 
 	const refit = useCallback(() => {
@@ -586,7 +584,6 @@ export const WorkspaceTerminal = ({
 		containerName,
 		containerUser,
 		errorMessage,
-		getTerminalDimensions,
 		initialCommand,
 		loading,
 		operatingSystem,

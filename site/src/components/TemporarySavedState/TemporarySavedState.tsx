@@ -1,5 +1,4 @@
 import { CheckIcon } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useRef, useState } from "react";
 
 export const useTemporarySavedState = (
@@ -33,7 +32,7 @@ export const useTemporarySavedState = (
 	return { isSavedVisible, showSavedState };
 };
 
-export const TemporarySavedState: FC = () => (
+export const TemporarySavedState: React.FC = () => (
 	<div
 		aria-live="polite"
 		className="inline-flex min-w-8 min-h-6 shrink-0 items-center justify-center gap-1 rounded-md border border-border-success bg-surface-success px-2 font-sans text-2xs font-medium whitespace-nowrap text-content-success"

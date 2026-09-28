@@ -1,13 +1,13 @@
 import { cva } from "class-variance-authority";
+import { cn } from "cn";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { createContext, useContext } from "react";
-import { cn } from "#/utils/cn";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
 
 const DrawerDirectionContext = createContext<DrawerDirection>("right");
 
-type DrawerProps = React.ComponentPropsWithRef<typeof DialogPrimitive.Root> & {
+type DrawerProps = React.ComponentProps<typeof DialogPrimitive.Root> & {
 	/** The edge of the screen the drawer slides in from. Defaults to "right". */
 	direction?: DrawerDirection;
 };
@@ -30,12 +30,12 @@ export const DrawerClose = DialogPrimitive.Close;
 const DrawerPortal = DialogPrimitive.Portal;
 
 const DrawerOverlay: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Overlay>
+	React.ComponentProps<typeof DialogPrimitive.Overlay>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Overlay
 			className={cn(
-				"fixed inset-0 z-50 bg-overlay",
+				"fixed inset-0 z-50 bg-overlay ease-out-strong",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out",
 				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 				"data-[state=open]:duration-300 data-[state=closed]:duration-100",
@@ -48,7 +48,7 @@ const DrawerOverlay: React.FC<
 
 const drawerContentVariants = cva(
 	cn(
-		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform",
+		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform ease-out-strong",
 		"data-[state=open]:animate-in data-[state=closed]:animate-out",
 		"data-[state=open]:duration-500 data-[state=closed]:duration-300",
 	),
@@ -80,7 +80,7 @@ const drawerContentVariants = cva(
 );
 
 export const DrawerContent: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Content>
+	React.ComponentProps<typeof DialogPrimitive.Content>
 > = ({ className, children, ...props }) => {
 	const direction = useContext(DrawerDirectionContext);
 
@@ -97,7 +97,7 @@ export const DrawerContent: React.FC<
 	);
 };
 
-export const DrawerHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DrawerHeader: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -109,7 +109,7 @@ export const DrawerHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	);
 };
 
-export const DrawerFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
+export const DrawerFooter: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -122,7 +122,7 @@ export const DrawerFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 };
 
 export const DrawerTitle: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Title>
+	React.ComponentProps<typeof DialogPrimitive.Title>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Title
@@ -136,7 +136,7 @@ export const DrawerTitle: React.FC<
 };
 
 export const DrawerDescription: React.FC<
-	React.ComponentPropsWithRef<typeof DialogPrimitive.Description>
+	React.ComponentProps<typeof DialogPrimitive.Description>
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Description

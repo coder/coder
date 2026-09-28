@@ -29,6 +29,10 @@ GLOBAL OPTIONS:
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
+      --allow-redirects bool, $CODER_ALLOW_REDIRECTS
+          Follow HTTP redirects from the server instead of returning an error.
+          Following redirects may alter the request method and/or drop its body.
+
       --client-tls-ca-file string, $CODER_CLIENT_TLS_CA_FILE
           Path to a CA certificate file to trust for API and DERP connections.
 
@@ -66,7 +70,8 @@ variables or flags.
       --header-command string, $CODER_HEADER_COMMAND
           An external command that outputs additional HTTP headers added to all
           requests. The command must output each header as `key=value` on its
-          own line.
+          own line. If a header value is a JWT, it will be refreshed based on
+          the value in its `exp` field.
 
       --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.

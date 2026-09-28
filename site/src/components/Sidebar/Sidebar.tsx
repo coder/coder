@@ -1,25 +1,24 @@
-import type { FC, ReactNode } from "react";
-import { NavLink } from "react-router";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
+import { NavLink, type To } from "react-router";
 
-interface SidebarProps {
-	children?: ReactNode;
+type SidebarProps = {
+	children?: React.ReactNode;
 	className?: string;
-}
+};
 
-export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ className, children }) => {
 	return (
 		<nav className={cn("w-full lg:w-60 shrink-0", className)}>{children}</nav>
 	);
 };
 
-interface SettingsSidebarNavItemProps {
-	children?: ReactNode;
-	href: string;
+type SettingsSidebarNavItemProps = {
+	children?: React.ReactNode;
+	href: To;
 	end?: boolean;
-}
+};
 
-export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
+export const SettingsSidebarNavItem: React.FC<SettingsSidebarNavItemProps> = ({
 	children,
 	href,
 	end,

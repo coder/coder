@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { Outlet, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 
-const AgentSettingsLayout: FC = () => {
+const AgentSettingsLayout: React.FC = () => {
 	const location = useLocation();
 	const match = location.pathname.match(/\/agents\/settings\/(.+)/);
 	const section = match?.[1];

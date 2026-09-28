@@ -53,6 +53,7 @@ export function createMockWebSocket(
 		: (protocol ?? "");
 
 	let isOpen = true;
+	let readyStateValue: 0 | 1 | 2 | 3 = 0; // CONNECTING
 	const store: CallbackStore = {
 		message: new Set(),
 		error: new Set(),
@@ -70,7 +71,9 @@ export function createMockWebSocket(
 
 		url,
 		protocol: activeProtocol,
-		readyState: 1,
+		get readyState() {
+			return readyStateValue;
+		},
 		binaryType: "blob",
 		bufferedAmount: 0,
 		extensions: "",
@@ -127,6 +130,7 @@ export function createMockWebSocket(
 			if (!isOpen) {
 				return;
 			}
+			readyStateValue = 1; // OPEN
 			for (const sub of store.open) {
 				sub(event);
 			}
@@ -163,9 +167,10 @@ export function createMockWebSocket(
 	return [mockSocket, publisher] as const;
 }
 
-export function mockDynamicParameterWebSocket(
-	onOpen?: (server: MockWebSocketServer) => void,
-): readonly [MockWebSocket, MockWebSocketServer] {
+export function mockDynamicParameterWebSocket(): readonly [
+	MockWebSocket,
+	MockWebSocketServer,
+] {
 	const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 	vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
 		(_versionId, _ownerId, callbacks) => {
@@ -183,7 +188,6 @@ export function mockDynamicParameterWebSocket(
 			mockWebSocket.addEventListener("close", () => {
 				callbacks.onClose();
 			});
-			onOpen?.(mockPublisher);
 			return mockWebSocket;
 		},
 	);

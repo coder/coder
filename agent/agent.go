@@ -127,23 +127,10 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC29(ctx context.Context) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC29WithRole is like ConnectRPC29 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC29WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
-	)
-	ConnectRPC210(ctx context.Context) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
-	)
-	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
-	// role query parameter to the server. The workspace agent should
-	// use role "agent" to enable connection monitoring.
-	ConnectRPC210WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	// ConnectRPC211WithRole connects to the Agent API v2.11. The workspace
+	// agent should use role "agent" to enable connection monitoring.
+	ConnectRPC211WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -424,11 +411,11 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, report agentssh.ConnectionReport) func(code int, reason string) {
 			var connectionType proto.Connection_Type
 			// Connection_Type is a fixed enum, stored as a database enum in
 			// the connection log, so it can only hold a family.
-			switch codersdk.AppNameFamily(appName) {
+			switch codersdk.AppNameFamily(report.AppName) {
 			case codersdk.AppFamilySSH:
 				connectionType = proto.Connection_SSH
 			case codersdk.AppFamilyVSCode:
@@ -439,7 +426,11 @@ func (a *agent) init() {
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
-			return a.reportConnection(id, connectionType, ip)
+			return a.reportConnection(id, connectionReport{
+				connectionType:  connectionType,
+				ip:              report.IP,
+				clientSessionID: report.ClientSessionID,
+			})
 		},
 
 		ExperimentalContainers: a.devcontainers,
@@ -475,25 +466,22 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
+	// workingDirFn reports the workspace directory ("" before the first manifest).
+	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
 		return ""
-	})
+	}
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
 		a.logger.Named("desktop"), a.execer, a.scriptRunner.ScriptBinDir(), nil,
 	)
 	a.desktopAPI = agentdesktop.NewAPI(a.logger.Named("desktop"), desktop, a.clock)
-	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.updateCommandEnv)
-	a.contextConfigAPI = agentcontextconfig.NewAPI(func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}, a.contextConfig)
+	a.mcpManager = agentmcp.NewManager(a.gracefulCtx, a.logger.Named("mcp"), a.execer, a.filesystem, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.contextConfigAPI = agentcontextconfig.NewAPI(workingDirFn, a.contextConfig)
 	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
@@ -501,12 +489,6 @@ func (a *agent) init() {
 	// and the MCP manager during rollout. Initial sources are
 	// seeded from the existing CODER_AGENT_EXP_* env vars and
 	// from the agent's working directory at scan time.
-	workingDirFn := func() string {
-		if m := a.manifest.Load(); m != nil {
-			return m.Directory
-		}
-		return ""
-	}
 	a.contextManager = agentcontext.NewManager(agentcontext.ManagerOptions{
 		Logger:         a.logger.Named("agentcontext"),
 		Clock:          a.clock,
@@ -529,7 +511,10 @@ func (a *agent) init() {
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
 		func(id uuid.UUID, ip string) func(code int, reason string) {
-			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
+			return a.reportConnection(id, connectionReport{
+				connectionType: proto.Connection_RECONNECTING_PTY,
+				ip:             ip,
+			})
 		},
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
@@ -1056,9 +1041,16 @@ const (
 	reportConnectionBufferLimit = 2048
 )
 
-func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+type connectionReport struct {
+	connectionType  proto.Connection_Type
+	ip              string
+	clientSessionID string
+}
+
+func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconnected func(code int, reason string)) {
 	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
 	// still report it, and the recipient can handle a blank IP.
+	ip := report.ip
 	if ip != "" {
 		// Remove the port from the IP because ports are not supported in coderd.
 		if host, _, err := net.SplitHostPort(ip); err != nil {
@@ -1083,19 +1075,21 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
 			slog.F("limit", reportConnectionBufferLimit),
 			slog.F("connection_id", id),
-			slog.F("connection_type", connectionType),
+			slog.F("connection_type", report.connectionType),
 			slog.F("ip", ip),
+			slog.F("client_session_id", report.clientSessionID),
 		)
 	} else {
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_CONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: 0,
-				Reason:     nil,
+				Id:              id[:],
+				Action:          proto.Connection_CONNECT,
+				Type:            report.connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      0,
+				Reason:          nil,
+				ClientSessionId: report.clientSessionID,
 			},
 		})
 		select {
@@ -1111,21 +1105,23 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
 				slog.F("limit", reportConnectionBufferLimit),
 				slog.F("connection_id", id),
-				slog.F("connection_type", connectionType),
+				slog.F("connection_type", report.connectionType),
 				slog.F("ip", ip),
+				slog.F("client_session_id", report.clientSessionID),
 			)
 			return
 		}
 
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_DISCONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: int32(code), //nolint:gosec
-				Reason:     &reason,
+				Id:              id[:],
+				Action:          proto.Connection_DISCONNECT,
+				Type:            report.connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      int32(code), //nolint:gosec
+				Reason:          &reason,
+				ClientSessionId: report.clientSessionID,
 			},
 		})
 		select {
@@ -1175,7 +1171,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC211WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1869,10 +1865,19 @@ func (a *agent) createTailnet(
 	keySeed int64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
-	var header http.Header
+	var getHeaders func() http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
-		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-			header = headerTransport.Header
+		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+			getHeaders = func() http.Header {
+				refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				defer cancel()
+				headers, err := headerTransport.Provider.Headers(refreshCtx)
+				if err != nil {
+					a.logger.Error(ctx, "get connection headers", slog.Error(err))
+					return nil
+				}
+				return headers
+			}
 		}
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
@@ -1880,7 +1885,7 @@ func (a *agent) createTailnet(
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
 		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
@@ -2161,13 +2166,13 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 		stats.TxPackets += int64(counts.TxPackets)
 	}
 
-	// The count of active sessions; types without a protocol field are dropped.
-	sessionCounts := a.sshServer.SessionCounts()
-	stats.SessionCountSsh = sessionCounts[string(codersdk.AppFamilySSH)]
-	stats.SessionCountVscode = sessionCounts[string(codersdk.AppFamilyVSCode)]
-	stats.SessionCountJetbrains = sessionCounts[string(codersdk.AppFamilyJetBrains)]
-
-	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
+	// A client picks its own app name and can pick reconnecting_pty, so add
+	// rather than overwrite. A non-empty map suppresses the deprecated
+	// session_count_* fields on ingest, so leave them zero.
+	stats.SessionCounts = a.sshServer.SessionCounts()
+	if count := a.reconnectingPTYServer.ConnCount(); count > 0 {
+		stats.SessionCounts[string(codersdk.AppFamilyReconnectingPTY)] += count
+	}
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")

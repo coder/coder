@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -17,28 +17,21 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { ExportPolicyButton } from "#/modules/idpSync/ExportPolicyButton";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
-import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpOrgSyncPageView } from "./IdpOrgSyncPageView";
 
-const IdpOrgSyncPage: FC = () => {
+const IdpOrgSyncPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useDashboard();
 	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
-
-	const [field, setField] = useState("");
-	useEffect(() => {
-		if (!settingsQuery.data) {
-			return;
-		}
-
-		setField(settingsQuery.data.field);
-	}, [settingsQuery.data]);
+	const [fieldOverride, setFieldOverride] = useState<string>();
+	const field = fieldOverride ?? settingsQuery.data?.field ?? "";
 
 	const fieldValuesQuery = useQuery({
 		...deploymentIdpSyncFieldValues(field),
@@ -48,17 +41,6 @@ const IdpOrgSyncPage: FC = () => {
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
 	);
-
-	useEffect(() => {
-		if (patchOrganizationSyncSettingsMutation.error) {
-			toast.error(
-				getErrorMessage(
-					patchOrganizationSyncSettingsMutation.error,
-					"Error updating organization IdP sync settings.",
-				),
-			);
-		}
-	}, [patchOrganizationSyncSettingsMutation.error]);
 
 	if (settingsQuery.isLoading) {
 		return <Loader />;
@@ -70,7 +52,12 @@ const IdpOrgSyncPage: FC = () => {
 
 			<div>
 				<SettingsHeader
-					actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
+					actions={
+						<ExportPolicyButton
+							syncSettings={settingsQuery.data}
+							filename="organizations_policy.json"
+						/>
+					}
 				>
 					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -98,22 +85,23 @@ const IdpOrgSyncPage: FC = () => {
 						organizationSyncSettings={settingsQuery.data}
 						claimFieldValues={fieldValuesQuery.data}
 						organizations={organizations}
-						onSyncFieldChange={setField}
+						onSyncFieldChange={setFieldOverride}
 						onSubmit={async (data) => {
-							try {
-								await patchOrganizationSyncSettingsMutation.mutateAsync(data);
-								toast.success("Organization sync settings updated.");
-							} catch (error) {
-								toast.error(
-									getErrorMessage(
-										error,
-										"Failed to update organization IdP sync settings.",
-									),
-									{
+							const mutation =
+								patchOrganizationSyncSettingsMutation.mutateAsync(data);
+							await toast
+								.promise(mutation, {
+									loading: "Updating organization IdP sync settings...",
+									success: "Organization IdP sync settings updated.",
+									error: (error) => ({
+										message: getErrorMessage(
+											error,
+											"Failed to update organization IdP sync settings.",
+										),
 										description: getErrorDetail(error),
-									},
-								);
-							}
+									}),
+								})
+								.unwrap();
 						}}
 						error={settingsQuery.error || fieldValuesQuery.error}
 					/>

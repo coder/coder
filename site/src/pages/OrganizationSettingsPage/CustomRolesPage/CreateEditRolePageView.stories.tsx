@@ -1,50 +1,101 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	assignableRole,
 	MockRole2WithOrgPermissions,
 	MockRoleWithOrgPermissions,
 	mockApiError,
 } from "#/testHelpers/entities";
-import CreateEditRolePageView from "./CreateEditRolePageView";
+import { CreateEditRolePageView } from "./CreateEditRolePageView";
+
+const organizationName = "my-org";
 
 const meta: Meta<typeof CreateEditRolePageView> = {
 	title: "pages/OrganizationCreateEditRolePage",
 	component: CreateEditRolePageView,
+	args: {
+		onSubmit: fn(),
+		error: undefined,
+		isLoading: false,
+		organizationName,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: `/organizations/${organizationName}/roles/create` },
+			routing: [
+				{ path: "/organizations/:organization/roles", useStoryElement: true },
+				{
+					path: "/organizations/:organization/roles/create",
+					useStoryElement: true,
+				},
+				{
+					path: "/organizations/:organization/roles/:roleName",
+					useStoryElement: true,
+				},
+			],
+		}),
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof CreateEditRolePageView>;
 
-export const Default: Story = {
+export const Create: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "New Custom Role" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: /back to roles/i }),
+		).toHaveAttribute("href", `/organizations/${organizationName}/roles`);
+		await expect(canvas.getByRole("link", { name: "Cancel" })).toHaveAttribute(
+			"href",
+			`/organizations/${organizationName}/roles`,
+		);
+		await expect(
+			canvas.getByRole("button", { name: "Create custom role" }),
+		).toBeEnabled();
+	},
+};
+
+export const Edit: Story = {
 	args: {
 		role: assignableRole(MockRoleWithOrgPermissions, true),
-		onSubmit: () => null,
-		error: undefined,
-		isLoading: false,
-		organizationName: "my-org",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("heading", { name: "Edit Custom Role" }),
+		).toBeVisible();
+		await expect(canvas.getByLabelText(/^Name/)).toBeDisabled();
+		await expect(canvas.getByRole("button", { name: "Save" })).toBeEnabled();
 	},
 };
 
 export const CheckboxIndeterminate: Story = {
 	args: {
-		...Default.args,
 		role: assignableRole(MockRole2WithOrgPermissions, true),
 	},
 };
 
 export const WithError: Story = {
 	args: {
-		...Default.args,
-		role: undefined,
-		error: "this is an error",
+		error: mockApiError({
+			message: "Failed to create custom role.",
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("alert")).toHaveTextContent(
+			"Failed to create custom role.",
+		);
 	},
 };
 
 export const WithValidationError: Story = {
 	args: {
-		...Default.args,
-		role: undefined,
 		error: mockApiError({
 			message: "A role named new-role already exists.",
 			validations: [{ field: "name", detail: "Role names must be unique" }],
@@ -54,7 +105,7 @@ export const WithValidationError: Story = {
 		const canvas = within(canvasElement);
 
 		await step("Enter name", async () => {
-			const input = canvas.getByLabelText("Name");
+			const input = canvas.getByLabelText(/^Name/);
 			await userEvent.type(input, "new-role");
 			input.blur();
 		});
@@ -62,46 +113,36 @@ export const WithValidationError: Story = {
 };
 
 export const InvalidCharsError: Story = {
-	args: {
-		...Default.args,
-		role: undefined,
-	},
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
 
 		await step("Enter name", async () => {
-			const input = canvas.getByLabelText("Name");
+			const input = canvas.getByLabelText(/^Name/);
 			await userEvent.type(input, "!~@#@!");
 			input.blur();
 		});
 	},
 };
 
-export const CannotEditRoleName: Story = {
-	args: {
-		...Default.args,
-	},
-};
-
 export const ShowAllResources: Story = {
 	args: {
-		...Default.args,
+		role: assignableRole(MockRoleWithOrgPermissions, true),
 		allResources: true,
 	},
 };
 
 export const Loading: Story = {
 	args: {
-		...Default.args,
+		role: assignableRole(MockRoleWithOrgPermissions, true),
 		isLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("button", { name: /save/i })).toBeDisabled();
 	},
 };
 
 export const ToggleParentCheckbox: Story = {
-	args: {
-		...Default.args,
-		role: undefined,
-	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
@@ -114,42 +155,54 @@ export const ToggleParentCheckbox: Story = {
 };
 
 export const ToggleAdvancedPermissions: Story = {
-	args: {
-		...Default.args,
-		role: undefined,
-	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 
-		// Advanced-only resources are hidden until the switch is enabled.
 		expect(
 			canvas.queryByRole("checkbox", { name: "api_key" }),
 		).not.toBeInTheDocument();
 
-		const [toggle] = canvas.getAllByRole("switch", {
+		const toggle = canvas.getByRole("switch", {
 			name: "Show advanced permissions",
 		});
 		await user.click(toggle);
 
-		// Enabling the switch reveals advanced resources and flips the label.
 		await expect(
 			canvas.getByRole("checkbox", { name: "api_key" }),
 		).toBeInTheDocument();
-		const [enabledToggle] = canvas.getAllByRole("switch", {
+		const enabledToggle = canvas.getByRole("switch", {
 			name: "Hide advanced permissions",
 		});
 		await expect(enabledToggle).toBeChecked();
 
 		await user.click(enabledToggle);
 
-		// Disabling the switch hides advanced resources again.
 		await expect(
 			canvas.queryByRole("checkbox", { name: "api_key" }),
 		).not.toBeInTheDocument();
-		const [disabledToggle] = canvas.getAllByRole("switch", {
+		const disabledToggle = canvas.getByRole("switch", {
 			name: "Show advanced permissions",
 		});
 		await expect(disabledToggle).not.toBeChecked();
+	},
+};
+
+export const SubmitsNewRole: Story = {
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		await user.type(canvas.getByLabelText(/^Name/), "auditor");
+		const memberCheckbox = canvas.getByRole("checkbox", {
+			name: "organization_member",
+		});
+		await user.click(memberCheckbox);
+		await expect(memberCheckbox).toBeChecked();
+		await user.click(
+			canvas.getByRole("button", { name: "Create custom role" }),
+		);
+
+		await expect(args.onSubmit).toHaveBeenCalled();
 	},
 };

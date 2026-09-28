@@ -1,7 +1,6 @@
-import type { FC, HTMLAttributes } from "react";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 
-export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
+export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
 	children,
 	...attrs
 }) => {
@@ -18,11 +17,11 @@ export const Sidebar: FC<HTMLAttributes<HTMLElement>> = ({
 	);
 };
 
-interface SidebarItemProps extends HTMLAttributes<HTMLElement> {
+type SidebarItemProps = React.ComponentProps<"button"> & {
 	active?: boolean;
-}
+};
 
-export const SidebarItem: FC<SidebarItemProps> = ({
+export const SidebarItem: React.FC<SidebarItemProps> = ({
 	children,
 	active,
 	...attrs
@@ -43,7 +42,7 @@ export const SidebarItem: FC<SidebarItemProps> = ({
 	);
 };
 
-export const SidebarCaption: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const SidebarCaption: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs

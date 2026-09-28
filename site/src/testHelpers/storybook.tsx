@@ -1,5 +1,4 @@
 import type { StoryContext } from "@storybook/react-vite";
-import type { FC } from "react";
 import { useQueryClient } from "react-query";
 import { withDefaultFeatures } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
@@ -27,7 +26,7 @@ import {
 } from "./entities";
 
 export const withDashboardProvider = (
-	Story: FC,
+	Story: React.FC,
 	{ parameters }: StoryContext,
 ) => {
 	const {
@@ -36,6 +35,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		buildInfo = {},
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -63,6 +63,7 @@ export const withDashboardProvider = (
 				buildInfo: {
 					...MockBuildInfo,
 					version: "v0.0.0-test",
+					...buildInfo,
 				},
 				organizations,
 				showOrganizations,
@@ -88,7 +89,10 @@ type CallbackFn = (ev?: MessageEvent) => void;
 //       "/api/v2/chats/": [{ event: "message", data: "..." }],
 //       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
 //     }
-export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
+export const withWebSocket = (
+	Story: React.FC,
+	{ parameters }: StoryContext,
+) => {
 	const param = parameters.webSocket;
 
 	if (!param) {
@@ -154,13 +158,16 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	return <Story />;
 };
 
-export const withDesktopViewport = (Story: FC) => (
+export const withDesktopViewport = (Story: React.FC) => (
 	<div style={{ width: 1200, height: 800 }}>
 		<Story />
 	</div>
 );
 
-export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
+export const withAuthProvider = function WithAuthProvider(
+	Story: React.FC,
+	{ parameters }: StoryContext,
+) {
 	if (!parameters.user) {
 		throw new Error("You forgot to add `parameters.user` to your story");
 	}
@@ -179,14 +186,14 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 	);
 };
 
-export const withToaster = (Story: FC) => (
+export const withToaster = (Story: React.FC) => (
 	<>
 		<Story />
 		<Toaster />
 	</>
 );
 
-export const withOrganizationSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: React.FC) => {
 	return (
 		<OrganizationSettingsContext.Provider
 			value={{
@@ -208,7 +215,7 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 };
 
 export const withProxyProvider =
-	(value?: Partial<ProxyContextValue>) => (Story: FC) => {
+	(value?: Partial<ProxyContextValue>) => (Story: React.FC) => {
 		return (
 			<ProxyContext.Provider
 				value={{

@@ -44,11 +44,22 @@ func mcpGeneratePKCE() (verifier, challenge string) {
 	return verifier, challenge
 }
 
+// mcpDeploymentValues turns on the mcp-server-http experiment. The MCP HTTP
+// endpoint has no development-build bypass, so every test that reaches it
+// must opt in.
+func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	return coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
+		dv.Experiments = []string{string(codersdk.ExperimentMCPServerHTTP)}
+	})
+}
+
 func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server with authentication
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
@@ -162,7 +173,9 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	_, closer, api := coderdtest.NewWithAPI(t, nil)
+	_, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -193,7 +206,9 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	t.Parallel()
 
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	user := coderdtest.CreateFirstUser(t, coderClient)
@@ -254,6 +269,7 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 
 	// Setup Coder server
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -291,6 +307,7 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 
 	// Setup Coder server
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -345,7 +362,9 @@ func TestMCPHTTP_E2E_RFC6750_UnauthenticatedRequest(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server
-	_, closer, api := coderdtest.NewWithAPI(t, nil)
+	_, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	// Make a request without any authentication headers
@@ -376,7 +395,9 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	// Setup Coder server with OAuth2 provider enabled
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	t.Cleanup(func() { closer.Close() })
 
 	_ = coderdtest.CreateFirstUser(t, coderClient)
@@ -1080,6 +1101,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 
 	// Setup Coder server with authentication
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         mcpDeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
 	defer closer.Close()
@@ -1208,7 +1230,9 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	t.Parallel()
 
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	defer closer.Close()
 
 	admin := coderdtest.CreateFirstUser(t, coderClient)
@@ -1260,17 +1284,12 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 			"path":      "/tmp/secret.txt",
 		},
 	})
-	// The MCP library may return the error in the tool result itself
-	// (isError=true) rather than as a Go error. Check both.
-	if err != nil {
-		require.ErrorContains(t, err, "unauthorized")
-		return
-	}
-	// If no Go error, the tool result must report failure.
+	require.NoError(t, err)
 	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+	require.Len(t, toolResult.Content, 1)
 	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
-	assert.Contains(t, textContent.Text, "unauthorized")
+	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
@@ -1328,7 +1347,9 @@ func TestMCPHTTP_E2E_TransportIsolation(t *testing.T) {
 	// Construct the API before swapping DefaultTransport: coderd's guarded
 	// MCP client clones http.DefaultTransport at construction, and safedial
 	// panics on a non-*http.Transport rather than guessing.
-	coderClient, closer, api := coderdtest.NewWithAPI(t, nil)
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
 	t.Cleanup(func() { closer.Close() })
 	_ = coderdtest.CreateFirstUser(t, coderClient)
 

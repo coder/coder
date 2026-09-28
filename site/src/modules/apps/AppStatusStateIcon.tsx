@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import {
 	BanIcon,
 	CircleAlertIcon,
@@ -6,10 +7,8 @@ import {
 	PauseIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceAppStatusState } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 type AppStatusStateIconProps = {
 	state: WorkspaceAppStatusState;
@@ -18,7 +17,7 @@ type AppStatusStateIconProps = {
 	className?: string;
 };
 
-export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
+export const AppStatusStateIcon: React.FC<AppStatusStateIconProps> = ({
 	state,
 	disabled,
 	latest,

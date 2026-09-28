@@ -14,13 +14,14 @@ import {
 	sortableKeyboardCoordinates,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { cn } from "cn";
 import {
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,9 +30,21 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
+	BoardColumnTag,
+	BoardGroupEntry,
+} from "../../../exp/chatBoard/BoardGroupEntry";
+import { boardSidebarChats } from "../../../exp/chatBoard/boardGroups";
+import { ChatBoardNavItem } from "../../../exp/chatBoard/ChatBoardNavItem";
+import { useChatBoardEnabled } from "../../../exp/chatBoard/chatBoardFlag";
+import {
+	AGENT_CHAT_STATUS_GROUP_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
@@ -51,19 +64,19 @@ import {
 	collectVisibleChatIDs,
 } from "../tree/chatTree";
 import { SortableChatTreeNode } from "../tree/SortableChatTreeNode";
+import { getChatStatusDisplay } from "../tree/statusConfig";
 import {
 	ChatSectionHeader,
 	getSectionToggleTestId,
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
-const UNREAD_SECTION_KEY = "Unread";
-const READ_SECTION_KEY = "Read";
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
-interface ChatsPanelProps {
+type ChatsPanelProps = {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -76,6 +89,8 @@ interface ChatsPanelProps {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
@@ -97,9 +112,9 @@ interface ChatsPanelProps {
 	readonly isChatsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
-}
+};
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -109,6 +124,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkChatRead,
+	onMarkChatUnread,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
@@ -158,12 +175,20 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const sharedWithYouChats = unpinnedChats.filter(
 		(chat) => chat.shared && chat.owner_id !== currentUserId,
 	);
-	const unpinnedOwnedChats = unpinnedChats.filter(
-		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	// The board experiment may regroup this list; off, it passes through.
+	const boardEnabled = useChatBoardEnabled();
+	const board = boardSidebarChats(
+		unpinnedChats.filter(
+			(chat) => !chat.shared || chat.owner_id === currentUserId,
+		),
+		boardEnabled,
 	);
+	const boardGroups = board.groups;
+	const unpinnedOwnedChats = board.chats;
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.unread ||
 		sidebarFilters.sources.length !==
 			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
 		sidebarFilters.sources.some(
@@ -299,6 +324,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -307,23 +333,24 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
+		renderTrailing: boardGroups
+			? (chat) => <BoardColumnTag chat={chat} groups={boardGroups} />
+			: undefined,
 	};
 
 	const chatSections = (
 		sidebarFilters.groupBy === "chat_status"
-			? [
-					{
-						key: UNREAD_SECTION_KEY,
-						label: UNREAD_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
-					},
-					{
-						key: READ_SECTION_KEY,
-						label: READ_SECTION_KEY,
-						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
-					},
-				]
+			? AGENT_CHAT_STATUS_GROUP_ORDER.map((status) => {
+					const label = getChatStatusDisplay(status).label;
+					return {
+						key: label,
+						label,
+						chats: unpinnedOwnedChats.filter((chat) => chat.status === status),
+					};
+				})
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
@@ -345,6 +372,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			unread: false,
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
@@ -367,25 +395,37 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
-						<Button
-							asChild
-							variant="subtle"
-							size="icon"
-							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
-						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
-								<SettingsIcon />
-							</Link>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									asChild
+									variant="subtle"
+									size="icon"
+									aria-label="Settings"
+									className={cn(
+										"size-7 min-w-0 text-content-secondary hover:text-content-primary",
+										isSettingsPanel && "text-content-primary",
+									)}
+								>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname + locationSearch }}
+									>
+										<SettingsIcon />
+									</Link>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="flex items-center gap-2">
+								Settings
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>,</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 						{onCollapse && (
 							<Button
 								variant="subtle"
@@ -423,10 +463,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						}
 					/>
 				)}
+				<ChatBoardNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+					<div className="ml-2.5 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
 							{chatsHeadingLabel}
 						</h2>
@@ -524,11 +565,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														(disablePinnedReordering ? (
 															<div className="flex flex-col gap-0.5">
 																{sortedPinnedChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
+																	<ChatTreeNode key={chat.id} chat={chat} />
 																))}
 															</div>
 														) : (
@@ -582,11 +619,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
 														<div className="flex flex-col gap-0.5">
 															{sharedWithYouChats.map((chat) => (
-																<ChatTreeNode
-																	key={chat.id}
-																	chat={chat}
-																	isChildNode={false}
-																/>
+																<ChatTreeNode key={chat.id} chat={chat} />
 															))}
 														</div>
 													)}
@@ -606,13 +639,17 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 														/>
 														{isSectionExpanded && (
 															<div className="flex flex-col gap-0.5">
-																{section.chats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
+																{section.chats.map((chat) =>
+																	boardGroups ? (
+																		<BoardGroupEntry
+																			key={chat.id}
+																			chat={chat}
+																			groups={boardGroups}
+																		/>
+																	) : (
+																		<ChatTreeNode key={chat.id} chat={chat} />
+																	),
+																)}
 															</div>
 														)}
 													</div>

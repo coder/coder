@@ -99,6 +99,14 @@ func TestConvertMessagesWithFiles_InlinesTextFilePartWhenProviderRejects(t *test
 			wantText:  true,
 		},
 		{
+			name:      "svg rejected becomes text despite image prefix",
+			fileName:  "diagram.svg",
+			mediaType: "image/svg+xml",
+			data:      []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`),
+			accepts:   acceptNone,
+			wantText:  true,
+		},
+		{
 			name:      "image never decoded even when rejected",
 			fileName:  "pic.png",
 			mediaType: "image/png",
@@ -126,6 +134,7 @@ func TestConvertMessagesWithFiles_InlinesTextFilePartWhenProviderRejects(t *test
 				resolver,
 				slogtest.Make(t, nil),
 				tc.accepts,
+				uuid.NullUUID{},
 			)
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
@@ -157,6 +166,7 @@ func TestConvertMessagesWithFiles_NilPredicateKeepsFilePart(t *testing.T) {
 		resolver,
 		slogtest.Make(t, nil),
 		nil,
+		uuid.NullUUID{},
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -181,6 +191,7 @@ func TestConvertMessagesWithFiles_InlinedTextNotTruncated(t *testing.T) {
 		resolver,
 		slogtest.Make(t, nil),
 		acceptNone,
+		uuid.NullUUID{},
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)

@@ -144,20 +144,16 @@ func TestAllExecutionStates_Enumeration(t *testing.T) {
 	}
 }
 
-// TestExecutionState_Predicates covers IsRunnable and QueueNonEmpty
-// for every declared execution state.
-func TestExecutionState_Predicates(t *testing.T) {
+// TestExecutionState_IsRunnable covers IsRunnable for every declared
+// execution state.
+func TestExecutionState_IsRunnable(t *testing.T) {
 	t.Parallel()
 
 	runnable := map[ExecutionState]bool{
 		StateR0: true, StateR1: true, StateI0: true, StateI1: true,
 		StateA0: true, StateA1: true,
 	}
-	nonEmpty := map[ExecutionState]bool{
-		StateE1: true, StateR1: true, StateI1: true, StateA1: true, StateXE1: true,
-	}
 	for _, s := range AllExecutionStates {
 		require.Equal(t, runnable[s], s.IsRunnable(), "IsRunnable(%s)", s)
-		require.Equal(t, nonEmpty[s], s.QueueNonEmpty(), "QueueNonEmpty(%s)", s)
 	}
 }

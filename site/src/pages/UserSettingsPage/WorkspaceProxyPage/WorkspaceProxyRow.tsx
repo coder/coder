@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -10,15 +10,14 @@ import {
 } from "#/components/StatusIndicator/StatusIndicator";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 
-interface ProxyRowProps {
+type ProxyRowProps = {
 	latency?: ProxyLatencyReport;
 	proxy: Region;
-}
+};
 
-export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
+export const ProxyRow: React.FC<ProxyRowProps> = ({ proxy, latency }) => {
 	// If we have a more specific proxy status, use that.
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
@@ -99,12 +98,12 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	);
 };
 
-interface ProxyMessagesRowProps {
+type ProxyMessagesRowProps = {
 	proxy: WorkspaceProxy;
 	extraWarnings: string[];
-}
+};
 
-const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
+const ProxyMessagesRow: React.FC<ProxyMessagesRowProps> = ({
 	proxy,
 	extraWarnings,
 }) => {
@@ -124,13 +123,13 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 	);
 };
 
-interface ProxyMessagesListProps {
+type ProxyMessagesListProps = {
 	title: string;
 	titleClassName: string;
 	messages?: readonly string[];
-}
+};
 
-const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
+const ProxyMessagesList: React.FC<ProxyMessagesListProps> = ({
 	title,
 	titleClassName,
 	messages,
@@ -153,12 +152,12 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({
 	);
 };
 
-interface DetailedProxyStatusProps {
+type DetailedProxyStatusProps = {
 	proxy: WorkspaceProxy;
-}
+};
 
 // DetailedProxyStatus allows a more precise status to be displayed.
-const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
+const DetailedProxyStatus: React.FC<DetailedProxyStatusProps> = ({ proxy }) => {
 	if (!proxy.status) {
 		// If the status is null/undefined/not provided, just go with the boolean "healthy" value.
 		return <ProxyStatus proxy={proxy} />;
@@ -183,12 +182,12 @@ const DetailedProxyStatus: FC<DetailedProxyStatusProps> = ({ proxy }) => {
 	}
 };
 
-interface ProxyStatusProps {
+type ProxyStatusProps = {
 	proxy: Region;
-}
+};
 
 // ProxyStatus will only show "healthy" or "not healthy" status.
-const ProxyStatus: FC<ProxyStatusProps> = ({ proxy }) => {
+const ProxyStatus: React.FC<ProxyStatusProps> = ({ proxy }) => {
 	return proxy.healthy ? (
 		<StatusHealthyIndicator />
 	) : (

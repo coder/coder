@@ -1,4 +1,6 @@
-# API & Session Tokens
+---
+title: API & session tokens
+---
 
 Users can generate tokens to make API requests on behalf of themselves.
 
@@ -26,12 +28,8 @@ export CODER_SESSION_TOKEN=$(coder login token)
 
 ### Session Durations
 
-By default, sessions last 24 hours and are automatically refreshed. You can
-configure
-[`CODER_SESSION_DURATION`](../../reference/cli/server.md#--session-duration) to
-change the duration and
-[`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server.md#--disable-session-expiry-refresh)
-to configure this behavior.
+By default, sessions last 24&nbsp;hours and are automatically refreshed.
+You can configure [`CODER_SESSION_DURATION`](../../reference/cli/server.md#--session-duration) to change the duration and [`CODER_DISABLE_SESSION_EXPIRY_REFRESH`](../../reference/cli/server.md#--disable-session-expiry-refresh) to configure this behavior.
 
 ## Long-Lived Tokens (API Tokens)
 

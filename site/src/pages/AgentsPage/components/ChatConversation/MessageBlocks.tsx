@@ -1,19 +1,20 @@
-import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
+import { cn } from "cn";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
-import { Response, Tool } from "../ChatElements";
-import { WebSearchSources } from "../ChatElements/tools";
+import { Response } from "../ChatElements/Response";
 import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
 import {
 	getReadFileToolData,
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { Tool } from "../ChatElements/tools/Tool";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
+import WebSearchSources from "../ChatElements/tools/WebSearchSources";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -212,7 +213,7 @@ export type BlockListProps = {
 // Encapsulates the response / thinking / tool / file / sources switch so both
 // consumers stay in sync. PascalCase so the React Compiler auto-memoizes every
 // element inside.
-export const BlockList: FC<BlockListProps> = ({
+export const BlockList: React.FC<BlockListProps> = ({
 	organizationId,
 	blocks,
 	tools,
@@ -357,8 +358,10 @@ export const BlockList: FC<BlockListProps> = ({
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
+								reasoning={tool.reasoning}
 								status={tool.status}
 								isError={tool.isError}
+								isMedia={tool.isMedia}
 								killedBySignal={tool.killedBySignal}
 								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
@@ -384,6 +387,7 @@ export const BlockList: FC<BlockListProps> = ({
 								}
 								modelIntent={tool.modelIntent}
 								parsedCommands={tool.parsedCommands}
+								startedAt={tool.startedAt}
 								hookRewritten={tool.hookRewritten}
 							/>
 						);
@@ -406,6 +410,10 @@ export const BlockList: FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
+					// Workspace file references render through the user
+					// message display state, not as timeline blocks.
+					case "workspace-file-reference":
+						return null;
 					default: {
 						const _exhaustive: never = block;
 						return _exhaustive;
@@ -419,8 +427,10 @@ export const BlockList: FC<BlockListProps> = ({
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
+					reasoning={tool.reasoning}
 					status={tool.status}
 					isError={tool.isError}
+					isMedia={tool.isMedia}
 					killedBySignal={tool.killedBySignal}
 					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
@@ -446,6 +456,7 @@ export const BlockList: FC<BlockListProps> = ({
 					}
 					modelIntent={tool.modelIntent}
 					parsedCommands={tool.parsedCommands}
+					startedAt={tool.startedAt}
 					hookRewritten={tool.hookRewritten}
 				/>
 			))}

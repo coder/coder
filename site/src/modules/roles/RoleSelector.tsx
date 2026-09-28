@@ -1,12 +1,12 @@
+import { cn } from "cn";
 import { UserIcon } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { cn } from "#/utils/cn";
 import { roleDescriptions } from "./index";
 
 const advancedRoleNames = ["organization-workspace-creation-ban"];
@@ -24,7 +24,7 @@ type RoleSelectorProps = {
 	disabledReason?: (role: AssignableRoles) => string | undefined;
 };
 
-export const RoleSelector: FC<RoleSelectorProps> = ({
+export const RoleSelector: React.FC<RoleSelectorProps> = ({
 	hideLabel,
 	loading,
 	error,

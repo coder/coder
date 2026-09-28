@@ -30,8 +30,9 @@ type UserSecret struct {
 // secret. Name and Value are required. An enabled secret must have at
 // least one of EnvName or FilePath non-empty so it has an injection
 // target; to keep a secret without injecting it, set Enabled to false.
-// All other fields are optional and default to empty string. Enabled
-// defaults to true when omitted.
+// A deployment may disable file path delivery, which rejects a
+// non-empty FilePath. All other fields are optional and default to
+// empty string. Enabled defaults to true when omitted.
 type CreateUserSecretRequest struct {
 	Name        string `json:"name"`
 	Value       string `json:"value"`
@@ -47,12 +48,39 @@ type CreateUserSecretRequest struct {
 // to empty string). If the post-update row is enabled it must still
 // have at least one of EnvName or FilePath non-empty; clearing both
 // targets is only allowed when the secret is (or becomes) disabled.
+// When a deployment disables file path delivery, an enabled row also
+// requires EnvName.
 type UpdateUserSecretRequest struct {
 	Value       *string `json:"value,omitempty"`
 	Description *string `json:"description,omitempty"`
 	EnvName     *string `json:"env_name,omitempty"`
 	FilePath    *string `json:"file_path,omitempty"`
 	Enabled     *bool   `json:"enabled,omitempty"`
+}
+
+// UserSecretsCapabilities reports which user secret delivery targets the
+// deployment allows. Any authenticated user can read it, unlike the full
+// deployment configuration.
+type UserSecretsCapabilities struct {
+	// FilePathDeliveryEnabled reports whether Coder writes stored file paths
+	// into workspaces. Stored paths are preserved either way.
+	FilePathDeliveryEnabled bool `json:"file_path_delivery_enabled"`
+}
+
+// UserSecretsCapabilities reads the deployment's user secret delivery policy.
+// Deployments that predate this endpoint return a 404 error, which callers can
+// treat as "policy unknown" rather than a failure.
+func (c *Client) UserSecretsCapabilities(ctx context.Context) (UserSecretsCapabilities, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/user-secrets/capabilities", nil)
+	if err != nil {
+		return UserSecretsCapabilities{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserSecretsCapabilities{}, ReadBodyAsError(res)
+	}
+	var capabilities UserSecretsCapabilities
+	return capabilities, ReadBodyAsJSON(res, &capabilities)
 }
 
 func (c *Client) CreateUserSecret(ctx context.Context, user string, req CreateUserSecretRequest) (UserSecret, error) {

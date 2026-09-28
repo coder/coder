@@ -1,6 +1,6 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { BanIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Feature } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
@@ -9,13 +9,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 
 type TotalAgentHoursCardProps = {
 	feature?: Feature;
 };
 
-export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
+export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 	feature,
 }) => {
 	// A zero-hour allocation arrives with enabled=false, which hides the

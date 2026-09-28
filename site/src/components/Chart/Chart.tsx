@@ -2,9 +2,10 @@
  * Copied from shadc/ui on 01/13/2025
  * @see {@link https://ui.shadcn.com/docs/components/chart}
  */
-import { createContext, type Ref, useContext, useId, useMemo } from "react";
+
+import { cn } from "cn";
+import { createContext, useContext, useId, useMemo } from "react";
 import * as RechartsPrimitive from "recharts";
-import { cn } from "#/utils/cn";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -35,10 +36,7 @@ function useChart() {
 	return context;
 }
 
-type ChartContainerProps = Omit<
-	React.ComponentPropsWithRef<"div">,
-	"children"
-> &
+type ChartContainerProps = Omit<React.ComponentProps<"div">, "children"> &
 	Pick<
 		React.ComponentProps<typeof RechartsPrimitive.ResponsiveContainer>,
 		"children"
@@ -133,7 +131,7 @@ type ChartTooltipContentProps = React.ComponentProps<
 	indicator?: "line" | "dot" | "dashed";
 	nameKey?: string;
 	labelKey?: string;
-	ref?: Ref<HTMLDivElement>;
+	ref?: React.Ref<HTMLDivElement>;
 };
 
 export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({

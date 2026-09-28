@@ -7,15 +7,14 @@
  * in the component library.
  */
 
+import { cn } from "cn";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import type { ComponentProps } from "react";
 import {
 	type DayButton,
 	DayPicker,
 	getDefaultClassNames,
 } from "react-day-picker";
 import { Button, type ButtonProps } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
 
 function Calendar({
 	className,
@@ -26,7 +25,7 @@ function Calendar({
 	formatters,
 	components,
 	...props
-}: ComponentProps<typeof DayPicker> & {
+}: React.ComponentProps<typeof DayPicker> & {
 	buttonVariant?: ButtonProps["variant"];
 }) {
 	const defaultClassNames = getDefaultClassNames();
@@ -169,7 +168,7 @@ function CalendarDayButton({
 	day,
 	modifiers,
 	...props
-}: ComponentProps<typeof DayButton>) {
+}: React.ComponentProps<typeof DayButton>) {
 	const defaultClassNames = getDefaultClassNames();
 
 	return (

@@ -820,3 +820,121 @@ func TestRefresher_ConcurrentProcessing(t *testing.T) {
 	// concurrently.
 	assert.Equal(t, int32(numRows), entered.Load())
 }
+
+func TestRefresher_PRURLBranchMismatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		headBranch  string
+		resolveTo   *gitprovider.PRRef
+		wantURL     string
+		wantCleared bool
+		wantResolve bool
+	}{
+		{
+			name:        "branch mismatch resolves current branch",
+			headBranch:  "feature-a",
+			resolveTo:   &gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 43},
+			wantURL:     "https://github.com/org/repo/pull/43",
+			wantResolve: true,
+		},
+		{
+			name:        "branch mismatch without PR clears stale URL",
+			headBranch:  "feature-a",
+			resolveTo:   nil,
+			wantURL:     "",
+			wantCleared: true,
+			wantResolve: true,
+		},
+		{
+			name:        "matching branch keeps stored URL",
+			headBranch:  "feature-b",
+			wantURL:     "https://github.com/org/repo/pull/42",
+			wantResolve: false,
+		},
+		{
+			name:        "empty head branch keeps stored URL",
+			headBranch:  "",
+			wantURL:     "https://github.com/org/repo/pull/42",
+			wantResolve: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			resolved := false
+			mp := &mockProvider{
+				parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
+					return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
+				},
+				parseRepositoryOrigin: func(_ string) (string, string, string, bool) {
+					return "org", "repo", "https://github.com/org/repo", true
+				},
+				resolveBranchPR: func(_ context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+					resolved = true
+					assert.Equal(t, "feature-b", ref.Branch)
+					return tt.resolveTo, nil
+				},
+				fetchPullRequestStatus: func(_ context.Context, _ string, ref gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+					switch ref.Number {
+					case 42:
+						return &gitprovider.PRStatus{
+							State:      gitprovider.PRStateOpen,
+							HeadBranch: tt.headBranch,
+							Title:      "Old PR",
+						}, nil
+					case 43:
+						return &gitprovider.PRStatus{
+							State:      gitprovider.PRStateOpen,
+							HeadBranch: "feature-b",
+							Title:      "New PR",
+						}, nil
+					default:
+						panic("unexpected PR number")
+					}
+				},
+				buildPullRequestURL: func(ref gitprovider.PRRef) string {
+					return "https://github.com/org/repo/pull/43"
+				},
+			}
+
+			providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
+			tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+				return new("test-token"), nil
+			}
+
+			clock := quartz.NewMock(t)
+			r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), clock)
+
+			row := database.ChatDiffStatus{
+				ChatID:          uuid.New(),
+				Url:             sql.NullString{String: "https://github.com/org/repo/pull/42", Valid: true},
+				GitRemoteOrigin: "https://github.com/org/repo",
+				GitBranch:       "feature-b",
+			}
+
+			results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
+				{Row: row, OwnerID: uuid.New()},
+			})
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			res := results[0]
+
+			assert.Equal(t, tt.wantResolve, resolved)
+
+			if tt.wantCleared {
+				assert.Nil(t, res.Params)
+				assert.ErrorIs(t, res.Error, gitsync.ErrStalePullRequest)
+				return
+			}
+
+			require.NoError(t, res.Error)
+			require.NotNil(t, res.Params)
+			require.True(t, res.Params.Url.Valid)
+			assert.Equal(t, tt.wantURL, res.Params.Url.String)
+		})
+	}
+}

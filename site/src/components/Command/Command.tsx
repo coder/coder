@@ -1,9 +1,9 @@
 import { Command as CommandPrimitive } from "cmdk";
+import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
-import { cn } from "#/utils/cn";
 
 export const Command: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive>
+	React.ComponentProps<typeof CommandPrimitive>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive
@@ -17,7 +17,7 @@ export const Command: React.FC<
 };
 
 export const CommandInput: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Input>
+	React.ComponentProps<typeof CommandPrimitive.Input>
 > = ({ className, ...props }) => {
 	return (
 		<div className="flex items-center border-b px-3" cmdk-input-wrapper="">
@@ -36,7 +36,7 @@ export const CommandInput: React.FC<
 };
 
 export const CommandList: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.List>
+	React.ComponentProps<typeof CommandPrimitive.List>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.List
@@ -47,7 +47,7 @@ export const CommandList: React.FC<
 };
 
 export const CommandEmpty: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Empty>
+	React.ComponentProps<typeof CommandPrimitive.Empty>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.Empty
@@ -58,7 +58,7 @@ export const CommandEmpty: React.FC<
 };
 
 export const CommandGroup: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Group>
+	React.ComponentProps<typeof CommandPrimitive.Group>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.Group
@@ -74,7 +74,7 @@ export const CommandGroup: React.FC<
 };
 
 export const CommandSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Separator>
+	React.ComponentProps<typeof CommandPrimitive.Separator>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.Separator
@@ -85,7 +85,7 @@ export const CommandSeparator: React.FC<
 };
 
 export const CommandItem: React.FC<
-	React.ComponentPropsWithRef<typeof CommandPrimitive.Item>
+	React.ComponentProps<typeof CommandPrimitive.Item>
 > = ({ className, ...props }) => {
 	return (
 		<CommandPrimitive.Item

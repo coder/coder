@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import {
-	formatReasoningEffort,
 	getReasoningEffortForModel,
 	pickReasoningEffort,
 	saveReasoningEffortForModel,

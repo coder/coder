@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -12,7 +12,7 @@ import {
 } from "#/testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 
-type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
+type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 	query: "owner:me",
@@ -29,6 +29,7 @@ const meta: Meta<typeof UsersPageView> = {
 	component: UsersPageView,
 	args: {
 		canEditUsers: true,
+		me: MockUserOwner.id,
 		filterProps: defaultFilterProps,
 		usersQuery: {
 			...mockSuccessResult,
@@ -44,7 +45,15 @@ const meta: Meta<typeof UsersPageView> = {
 export default meta;
 type Story = StoryObj<typeof UsersPageView>;
 
-export const Admin: Story = {};
+export const Admin: Story = {
+	args: {
+		canCreateUser: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "New user" })).toBeVisible();
+	},
+};
 
 export const SmallViewport: Story = {
 	parameters: {

@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -9,7 +9,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
 // Allocation sentinel for unlimited agent runtime hours
@@ -42,7 +41,7 @@ type CoderAgentsProductCardProps = {
 	isHardLimitExceeded: boolean;
 };
 
-const MetricLabel: FC<{ label: string; tooltip: string }> = ({
+const MetricLabel: React.FC<{ label: string; tooltip: string }> = ({
 	label,
 	tooltip,
 }) => (
@@ -65,10 +64,10 @@ const MetricLabel: FC<{ label: string; tooltip: string }> = ({
 	</div>
 );
 
-const CardContainer: FC<{
+const CardContainer: React.FC<{
 	className?: string;
-	headerEnd?: ReactNode;
-	children: ReactNode;
+	headerEnd?: React.ReactNode;
+	children: React.ReactNode;
 }> = ({ className, headerEnd, children }) => (
 	<div
 		className={cn(
@@ -100,7 +99,7 @@ const formatHoursUsed = (hours: number) =>
 		maximumFractionDigits: 1,
 	});
 
-export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
+export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 	allocation,
 	actual,
 	isSoftLimitReached,

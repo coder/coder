@@ -1,4 +1,6 @@
-# Terraform template-wide variables
+---
+title: Terraform template-wide variables
+---
 
 In Coder, Terraform templates offer extensive flexibility through template-wide
 variables. These variables, managed by template authors, facilitate the

@@ -1,8 +1,7 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
-import { cn } from "#/utils/cn";
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
@@ -46,12 +45,12 @@ const sortVisibleTemplates = (templates: TemplateExample[]) => {
 	return [...featuredTemplates, ...nonFeaturedTemplates];
 };
 
-interface StarterTemplatesProps {
+type StarterTemplatesProps = {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	templateBuilderEnabled: boolean;
-}
+};
 
-export const StarterTemplates: FC<StarterTemplatesProps> = ({
+export const StarterTemplates: React.FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
 	templateBuilderEnabled,
 }) => {

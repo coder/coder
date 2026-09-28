@@ -1,4 +1,6 @@
-# Organizations (Premium)
+---
+title: Organizations (Premium)
+---
 
 > [!NOTE]
 > Organizations requires a
@@ -37,7 +39,7 @@ From there, you can manage the name, icon, description, users, and groups:
 
 Any additional organizations have unique admins, users, templates, provisioners,
 groups, and workspaces. Each organization must have at least one dedicated
-[provisioner](../provisioners/index.md) since the built-in provisioners only apply to
+[provisioner](../../install/operate/provisioners/index.md) since the built-in provisioners only apply to
 the default organization.
 
 You can configure [organization/role/group sync](./idp-sync.md) from your
@@ -71,7 +73,7 @@ Next deploy a provisioner and template for this organization.
 
 ### 2. Deploy a provisioner
 
-[Provisioners](../provisioners/index.md) are organization-scoped and are responsible
+[Provisioners](../../install/operate/provisioners/index.md) are organization-scoped and are responsible
 for executing Terraform/OpenTofu to provision the infrastructure for workspaces
 and testing templates. Before creating templates, we must deploy at least one
 provisioner as the built-in provisioners are scoped to the default organization.
@@ -90,7 +92,7 @@ provisioner as the built-in provisioners are scoped to the default organization.
 
    In this example, start the provisioner using the Coder CLI on a host with
    Docker. For instructions on using other platforms like Kubernetes, see our
-   [provisioner documentation](../provisioners/index.md).
+   [provisioner documentation](../../install/operate/provisioners/index.md).
 
    ```sh
    export CODER_URL=https://<your-coder-url>
@@ -131,12 +133,18 @@ names. Coder unions this list into every member's effective roles at request
 time, so changes propagate to all current and future members on their next
 request without re-issuing tokens or editing per-user role assignments.
 
-The default value is `["organization-workspace-access"]`. With that default,
-every organization member can read, build, ssh into, and execute commands in
-workspaces they own. Removing `organization-workspace-access` from the list
-creates organization members that cannot create or use workspaces unless the
-role is assigned to them directly, which is useful for restricted accounts
-that should only hold the minimal member permissions.
+The default value is `["organization-workspace-access", "agents-access"]`.
+With that default, every organization member can read, build, ssh into, and
+execute commands in workspaces they own, and can use Coder Agents. Removing
+`organization-workspace-access` from the list creates organization members
+that cannot create or use workspaces unless the role is assigned to them
+directly, which is useful for restricted accounts that should only hold the
+minimal member permissions. Removing `agents-access` limits Coder Agents to
+members who hold the role directly. Refer to
+[Control who can use Coder Agents](../../ai-coder/agents/getting-started.md#control-who-can-use-coder-agents).
+
+Service accounts don't inherit `agents-access` from this list. Assign the
+role to a service account directly to let it use Coder Agents.
 
 To edit the default roles in the dashboard, go to
 **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
@@ -145,7 +153,7 @@ From the CLI, use `coder organizations edit`:
 
 ```shell
 coder organizations edit --org <organization> \
-  --default-org-member-roles organization-workspace-access,organization-template-admin
+  --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin
 ```
 
 The flag replaces the current list rather than adding to it, and accepts a

@@ -1,4 +1,6 @@
-# Add a programming language to your template
+---
+title: Add a programming language to your template
+---
 
 Now that you've finished [Launch your first workspace](../index.md), you can add another language toolchain to every workspace you create.
 

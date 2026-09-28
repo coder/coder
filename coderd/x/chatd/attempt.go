@@ -7,15 +7,9 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type runnerActionKind string
-
-type runnerActionMessage struct {
-	ID   int64
-	Role codersdk.ChatMessageRole
-}
 
 const (
 	runnerActionKindEnterRequiresAction runnerActionKind = "enter_requires_action"
@@ -26,10 +20,11 @@ const (
 
 // stepData is the durable content produced by one provider attempt.
 type stepData struct {
-	Content      []fantasy.Content
-	Usage        fantasy.Usage
-	ContextLimit sql.NullInt64
-	Runtime      time.Duration
+	Content            []fantasy.Content
+	Usage              fantasy.Usage
+	ContextLimit       sql.NullInt64
+	Runtime            time.Duration
+	ProviderResponseID string
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
 	BatchRuntime time.Duration
@@ -54,14 +49,16 @@ type pendingDynamicToolCall struct {
 // field-compatible with chatloop.CompactionResult; generateCompaction
 // converts between the two directly.
 type compactionOutcome struct {
-	SystemSummary    string
-	SummaryReport    string
-	Source           chatloop.CompactionSource
-	ThresholdPercent int32
-	UsagePercent     float64
-	ContextTokens    int64
-	ContextLimit     int64
-	Runtime          time.Duration
+	SystemSummary          string
+	SummaryReport          string
+	Source                 chatloop.CompactionSource
+	ThresholdPercent       int32
+	UsagePercent           float64
+	ContextTokens          int64
+	ContextLimit           int64
+	EstimatedContextTokens int64
+	Runtime                time.Duration
+	ProviderResponseID     string
 }
 
 type compactionStatus int

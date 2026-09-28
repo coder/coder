@@ -17,12 +17,6 @@ func Tool() fantasy.Tool {
 	return fantasyopenai.NewComputerUseTool(nil).Definition()
 }
 
-// IsComputerUseTool reports whether tool is the OpenAI provider-defined
-// computer-use tool.
-func IsTool(tool fantasy.Tool) bool {
-	return fantasyopenai.IsComputerUseTool(tool)
-}
-
 // ParseInput parses an OpenAI computer-use tool call input.
 func ParseInput(input string) (*fantasyopenai.ComputerUseInput, error) {
 	return fantasyopenai.ParseComputerUseInput(input)

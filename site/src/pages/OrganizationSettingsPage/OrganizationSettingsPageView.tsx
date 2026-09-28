@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	Organization,
 	ShareableWorkspaceOwners,
@@ -12,7 +11,7 @@ import { DeleteOrganizationSection } from "./DeleteOrganizationSection";
 import { OrganizationInfoForm } from "./OrganizationInfoForm";
 import { WorkspaceSharingSection } from "./WorkspaceSharingSection";
 
-interface OrganizationSettingsPageViewProps {
+type OrganizationSettingsPageViewProps = {
 	organization: Organization;
 	error: unknown;
 	onSubmit: (values: UpdateOrganizationRequest) => Promise<void>;
@@ -21,9 +20,9 @@ interface OrganizationSettingsPageViewProps {
 	shareableWorkspaceOwners?: ShareableWorkspaceOwners;
 	onChangeShareableOwners?: (value: ShareableWorkspaceOwners) => void;
 	isTogglingWorkspaceSharing?: boolean;
-}
+};
 
-export const OrganizationSettingsPageView: FC<
+export const OrganizationSettingsPageView: React.FC<
 	OrganizationSettingsPageViewProps
 > = ({
 	organization,

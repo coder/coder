@@ -43,11 +43,6 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	return &chatWorker{server: server, opts: withDefaults}, nil
 }
 
-// chatWorkerID returns this worker's configured worker ID.
-func (w *chatWorker) chatWorkerID() uuid.UUID {
-	return w.opts.WorkerID
-}
-
 // Start starts the acquisition and runner manager loops.
 func (w *chatWorker) Start(ctx context.Context) error {
 	w.mu.Lock()

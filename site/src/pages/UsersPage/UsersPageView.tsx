@@ -1,5 +1,5 @@
 import { UserPlusIcon } from "lucide-react";
-import type { ComponentProps, FC } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -13,20 +13,26 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import {
+	UserActionDialogs,
+	type UserAdminAction,
+} from "#/modules/users/UserActionDialogs";
 import { UsersTable, type UsersTableProps } from "./UsersTable";
 
-type UsersPageViewProps = Omit<UsersTableProps, "users"> & {
-	filterProps: ComponentProps<typeof UsersFilter>;
+type UsersPageViewProps = Omit<UsersTableProps, "users" | "onAction"> & {
+	filterProps: React.ComponentProps<typeof UsersFilter>;
 	usersQuery: PaginationResult<TypesGen.GetUsersResponse>;
 	canCreateUser?: boolean;
 };
 
-export const UsersPageView: FC<UsersPageViewProps> = ({
+export const UsersPageView: React.FC<UsersPageViewProps> = ({
 	filterProps,
 	usersQuery,
 	canCreateUser,
 	...props
 }) => {
+	const [action, setAction] = useState<UserAdminAction | undefined>();
+
 	return (
 		<>
 			<SettingsHeader
@@ -35,7 +41,7 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 						<Button asChild>
 							<Link to="create">
 								<UserPlusIcon />
-								Create user
+								New user
 							</Link>
 						</Button>
 					)
@@ -50,8 +56,14 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 			<UsersFilter {...filterProps} />
 
 			<PaginationContainer query={usersQuery} paginationUnitLabel="users">
-				<UsersTable users={usersQuery.data?.users} {...props} />
+				<UsersTable
+					{...props}
+					users={usersQuery.data?.users}
+					onAction={setAction}
+				/>
 			</PaginationContainer>
+
+			<UserActionDialogs action={action} onClose={() => setAction(undefined)} />
 		</>
 	);
 };

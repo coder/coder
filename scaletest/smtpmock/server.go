@@ -45,6 +45,7 @@ type Config struct {
 type EmailSummary struct {
 	Subject                string    `json:"subject"`
 	Date                   time.Time `json:"date"`
+	MessageID              string    `json:"message_id,omitempty"`
 	NotificationTemplateID uuid.UUID `json:"notification_template_id,omitempty"`
 }
 
@@ -217,8 +218,8 @@ func parseEmailSummary(message string) (EmailSummary, error) {
 	contentStr := string(content)
 	scanner := bufio.NewScanner(strings.NewReader(contentStr))
 
-	// Extract Subject and Date from headers.
-	// Date is used to measure latency.
+	// Extract Subject, Message-Id, and Date from headers. Date is used to measure
+	// latency and Message-Id uniquely identifies an email for deduplication.
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
@@ -226,6 +227,8 @@ func parseEmailSummary(message string) (EmailSummary, error) {
 		}
 		if prefix, found := strings.CutPrefix(line, "Subject: "); found {
 			summary.Subject = prefix
+		} else if prefix, found := strings.CutPrefix(line, "Message-Id: "); found {
+			summary.MessageID = prefix
 		} else if prefix, found := strings.CutPrefix(line, "Date: "); found {
 			if parsedDate, err := time.Parse(time.RFC1123Z, prefix); err == nil {
 				summary.Date = parsedDate

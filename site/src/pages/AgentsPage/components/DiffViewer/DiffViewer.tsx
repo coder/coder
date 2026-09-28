@@ -9,26 +9,17 @@ import type {
 import { CodeView } from "@pierre/diffs/react";
 import type { FileTreeSortComparator, GitStatusEntry } from "@pierre/trees";
 import { FileTree, useFileTree } from "@pierre/trees/react";
-import {
-	type ComponentProps,
-	type CSSProperties,
-	type FC,
-	Fragment,
-	type ReactNode,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { cn } from "cn";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
-import { cn } from "#/utils/cn";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
-interface DiffViewerProps {
+type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
 	isExpanded?: boolean;
 	isLoading?: boolean;
@@ -48,10 +39,12 @@ interface DiffViewerProps {
 	) => void;
 	getLineAnnotations?: (fileName: string) => DiffLineAnnotation<string>[];
 	getSelectedLines?: (fileName: string) => SelectedLineRange | null;
-	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
+	renderAnnotation?: (
+		annotation: DiffLineAnnotation<string>,
+	) => React.ReactNode;
 	scrollToFile?: string | null;
 	onScrollToFileComplete?: () => void;
-}
+};
 
 export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
@@ -70,7 +63,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
-} satisfies CSSProperties;
+} satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
 	diffHeaderHeight: DIFF_HEADER_HEIGHT,
@@ -94,7 +87,7 @@ const fileTreeStyle = {
 	"--trees-git-deleted-color-override": "hsl(var(--git-deleted))",
 	"--trees-git-modified-color-override": "hsl(var(--git-modified))",
 	"--trees-git-renamed-color-override": "hsl(var(--git-modified))",
-} satisfies CSSProperties;
+} satisfies React.CSSProperties;
 
 // Single full-path ordering rule shared by the sidebar tree and the flat diff
 // list so the two cannot drift apart. useFileTree applies the sort comparator
@@ -403,7 +396,7 @@ function DiffViewerSkeleton() {
 	);
 }
 
-export const DiffViewer: FC<DiffViewerProps> = ({
+export const DiffViewer: React.FC<DiffViewerProps> = ({
 	parsedFiles,
 	isExpanded,
 	isLoading,
@@ -420,7 +413,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	onScrollToFileComplete,
 }) => {
 	const theme = useTheme();
-	const codeViewRef = useRef<CodeViewHandle<string>>(null);
+	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
 	const isDark = theme.palette.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
@@ -445,7 +438,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 			setActiveFile((current) => (current === path ? current : path)),
 	});
 
-	const options: ComponentProps<typeof CodeView<string>>["options"] = {
+	const options: React.ComponentProps<typeof CodeView<string>>["options"] = {
 		diffStyle,
 		diffIndicators: "bars",
 		overflow: "scroll",

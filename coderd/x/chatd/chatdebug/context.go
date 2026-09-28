@@ -9,10 +9,9 @@ import (
 )
 
 type (
-	runContextKey  struct{}
-	stepContextKey struct{}
-	reuseStepKey   struct{}
-	reuseHolder    struct {
+	runContextKey struct{}
+	reuseStepKey  struct{}
+	reuseHolder   struct {
 		mu     sync.Mutex
 		handle *stepHandle
 	}
@@ -48,23 +47,6 @@ func RunFromContext(ctx context.Context) (*RunContext, bool) {
 		return nil, false
 	}
 	return rc, true
-}
-
-// ContextWithStep stores sc in ctx.
-func ContextWithStep(ctx context.Context, sc *StepContext) context.Context {
-	if sc == nil {
-		panic("chatdebug: nil StepContext")
-	}
-	return context.WithValue(ctx, stepContextKey{}, sc)
-}
-
-// StepFromContext returns the debug step context stored in ctx.
-func StepFromContext(ctx context.Context) (*StepContext, bool) {
-	sc, ok := ctx.Value(stepContextKey{}).(*StepContext)
-	if !ok {
-		return nil, false
-	}
-	return sc, true
 }
 
 // ReuseStep marks ctx so wrapped model calls under it share one debug step.

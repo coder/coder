@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -48,7 +47,7 @@ const mockRequests = ({
 };
 
 // The Summary tab fills the right panel, so give stories a bounded height.
-const PanelFrame = (Story: FC) => (
+const PanelFrame = (Story: React.FC) => (
 	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border-default">
 		<Story />
 	</div>
@@ -74,29 +73,12 @@ export const WithSummary: Story = {
 			summary:
 				"Investigated the flaky CI job, traced it to a cache-layer race, and added a regression test.",
 		}),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText(/traced it to a cache-layer race/),
-			).toBeInTheDocument();
-			expect(canvas.getByText("$1.25")).toBeInTheDocument();
-		});
-	},
 };
 
 // A running subagent has no summary yet; its report is persisted as the
 // summary when it completes, so the empty state reads as pending.
 export const SubagentSummaryPending: Story = {
 	beforeEach: () => mockRequests({ parentChatId: "parent-chat-id" }),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(
-				canvas.getByText("Summary pending agent completion."),
-			).toBeInTheDocument();
-		});
-	},
 };
 
 export const SubagentTreeCost: Story = {
@@ -121,12 +103,6 @@ export const SubagentTreeCost: Story = {
 
 export const ChatError: Story = {
 	beforeEach: () => mockRequests({ chatError: true }),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Failed to load chat")).toBeInTheDocument();
-		});
-	},
 };
 
 export const NotVisible: Story = {

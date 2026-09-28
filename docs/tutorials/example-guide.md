@@ -16,7 +16,7 @@ repository.
 
 ## Content
 
-Defer to our [Contributing/Documentation](../about/contributing/documentation.md) page
+Defer to our [documentation style guide](https://github.com/coder/coder/blob/main/contributing/documentation.md) page
 for rules on technical writing.
 
 ### Adding Photos

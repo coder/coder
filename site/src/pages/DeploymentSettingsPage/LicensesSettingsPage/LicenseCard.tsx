@@ -1,6 +1,7 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -16,7 +17,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { cn } from "#/utils/cn";
 import { AIGovernanceAddOnCard } from "./AIGovernanceAddOnCard";
 import { licenseShowsAiGovernanceAddOn } from "./AIGovernanceLicensing";
 import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
@@ -33,7 +33,7 @@ type LicenseCardProps = {
 	isRemoving: boolean;
 };
 
-export const LicenseCard: FC<LicenseCardProps> = ({
+export const LicenseCard: React.FC<LicenseCardProps> = ({
 	license,
 	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,

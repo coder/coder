@@ -22,8 +22,29 @@ import {
 	renderWithWorkspaceSettingsLayout,
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
-import { mockDynamicParameterWebSocket } from "#/testHelpers/websockets";
+import {
+	type MockWebSocketServer,
+	mockDynamicParameterWebSocket,
+} from "#/testHelpers/websockets";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
+
+async function connectWithInitialParameters(
+	mockPublisher: MockWebSocketServer,
+	parameters: readonly TypesGen.PreviewParameter[],
+): Promise<void> {
+	await waitFor(() => {
+		expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
+	});
+	await act(async () => {
+		mockPublisher.publishOpen(new Event("open"));
+		// The initial message always has the default values.
+		mockPublisher.publishMessage(
+			new MessageEvent("message", {
+				data: JSON.stringify({ id: -1, parameters, diagnostics: [] }),
+			}),
+		);
+	});
+}
 
 describe("WorkspaceParametersPage", () => {
 	const renderWorkspaceParametersPage = (
@@ -62,35 +83,19 @@ describe("WorkspaceParametersPage", () => {
 			createDeferred<TypesGen.WorkspaceBuildParameter[]>();
 		vi.spyOn(API, "getWorkspaceBuildParameters").mockReturnValueOnce(promise);
 
-		const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			// The initial message always has the default values.
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: -1,
-						parameters: [
-							MockPreviewParameter1,
-							MockPreviewParameter4,
-							MockPreviewParameter7,
-						],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [_, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage();
 
-		// Wait for both requests to have been made.  Client should not have sent
-		// any message yet since build parameters have not resolved.
-		await waitFor(() => {
-			expect(API.getWorkspaceBuildParameters).toHaveBeenCalled();
-			expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
-			expect(mockPublisher.clientSentData).toHaveLength(0);
-		});
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		]);
 
-		// Build parameters now resolve.
+		expect(API.getWorkspaceBuildParameters).toHaveBeenCalled();
+		expect(mockPublisher.clientSentData).toHaveLength(0);
+
 		const buildParameters = [
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter4,
@@ -161,35 +166,19 @@ describe("WorkspaceParametersPage", () => {
 			createDeferred<TypesGen.WorkspaceBuildParameter[]>();
 		vi.spyOn(API, "getWorkspaceBuildParameters").mockReturnValueOnce(promise);
 
-		const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			// The initial message always has the default values.
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: -1,
-						parameters: [
-							MockPreviewParameter1,
-							MockPreviewParameter4,
-							MockPreviewParameter7,
-						],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [_, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage();
 
-		// Wait for both requests to have been made.  Client should not have sent
-		// any message yet since build parameters have not resolved.
-		await waitFor(() => {
-			expect(API.getWorkspaceBuildParameters).toHaveBeenCalled();
-			expect(API.templateVersionDynamicParameters).toHaveBeenCalled();
-			expect(mockPublisher.clientSentData).toHaveLength(0);
-		});
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		]);
 
-		// Build parameters now resolve.
+		expect(API.getWorkspaceBuildParameters).toHaveBeenCalled();
+		expect(mockPublisher.clientSentData).toHaveLength(0);
+
 		await act(async () => {
 			resolve([]);
 		});
@@ -223,25 +212,15 @@ describe("WorkspaceParametersPage", () => {
 			buildParameters,
 		);
 
-		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			// The initial message always has the default values.
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: -1,
-						parameters: [
-							MockPreviewParameter1,
-							MockPreviewParameter4,
-							MockPreviewParameter7,
-						],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage();
+
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		]);
 
 		// Wait for the client's init message then respond with different values.
 		await waitFor(() => {
@@ -293,25 +272,15 @@ describe("WorkspaceParametersPage", () => {
 	it("does not clobber edited parameters", async () => {
 		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
 
-		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
-			publisher.publishOpen(new Event("open"));
-			// The initial message always has the default values.
-			publisher.publishMessage(
-				new MessageEvent("message", {
-					data: JSON.stringify({
-						id: -1,
-						parameters: [
-							MockPreviewParameter1,
-							MockPreviewParameter4,
-							MockPreviewParameter7,
-						],
-						diagnostics: [],
-					}),
-				}),
-			);
-		});
+		const [, mockPublisher] = mockDynamicParameterWebSocket();
 
 		renderWorkspaceParametersPage();
+
+		await connectWithInitialParameters(mockPublisher, [
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		]);
 
 		// Page should render with the default values.
 		await waitForLoaderToBeRemoved();

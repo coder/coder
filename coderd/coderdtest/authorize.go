@@ -97,17 +97,6 @@ func (a RBACAsserter) AssertChecked(t *testing.T, action policy.Action, objects 
 	a.Recorder.AssertOutOfOrder(t, a.Subject, pairs...)
 }
 
-// AssertInOrder must be called in the correct order of authz checks. If the objects
-// or actions are not in the correct order, the test will fail.
-func (a RBACAsserter) AssertInOrder(t *testing.T, action policy.Action, objects ...interface{}) {
-	converted := a.convertObjects(t, objects...)
-	pairs := make([]ActionObjectPair, 0, len(converted))
-	for _, obj := range converted {
-		pairs = append(pairs, a.Recorder.Pair(action, obj))
-	}
-	a.Recorder.AssertActor(t, a.Subject, pairs...)
-}
-
 // convertObjects converts the codersdk types to rbac.Object. Unfortunately
 // does not have type safety, and instead uses a t.Fatal to enforce types.
 func (RBACAsserter) convertObjects(t *testing.T, objs ...interface{}) []rbac.Object {

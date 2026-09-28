@@ -692,7 +692,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	// values for any pointer field that is nil in the request, so that
 	// omitted fields are preserved instead of being overwritten with
 	// Go zero values.
-	resolved, validErrs := resolveTemplateMetaUpdate(template, scheduleOpts, req)
+	resolved, validErrs := resolveTemplateMetaUpdate(template, scheduleOpts, req, api.DeploymentValues)
 
 	if resolved.defaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -1053,16 +1053,17 @@ func (api *API) convertTemplate(
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
-		Deprecated:              templateAccessControl.IsDeprecated(),
-		DeprecationMessage:      templateAccessControl.Deprecated,
-		Deleted:                 template.Deleted,
-		MaxPortShareLevel:       maxPortShareLevel,
-		UseClassicParameterFlow: template.UseClassicParameterFlow,
-		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
-		DisableModuleCache:      template.DisableModuleCache,
-		AgentsAllowed:           template.AgentsAllowed,
-		AllowWorkspaceRenames:   template.AllowWorkspaceRenames,
+		RequireActiveVersion:            templateAccessControl.RequireActiveVersion,
+		Deprecated:                      templateAccessControl.IsDeprecated(),
+		DeprecationMessage:              templateAccessControl.Deprecated,
+		Deleted:                         template.Deleted,
+		MaxPortShareLevel:               maxPortShareLevel,
+		UseClassicParameterFlow:         template.UseClassicParameterFlow,
+		CORSBehavior:                    codersdk.CORSBehavior(template.CorsBehavior),
+		DisableModuleCache:              template.DisableModuleCache,
+		ModuleCacheDisabledByDeployment: codersdk.ModuleCacheDisabledByDeployment(api.DeploymentValues),
+		AgentsAllowed:                   template.AgentsAllowed,
+		AllowWorkspaceRenames:           template.AllowWorkspaceRenames,
 	}
 }
 

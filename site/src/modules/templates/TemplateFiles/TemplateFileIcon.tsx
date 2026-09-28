@@ -1,8 +1,7 @@
 import { BracesIcon, FileCodeIcon, FileIcon, TerminalIcon } from "lucide-react";
-import type { ComponentProps, ElementType, FC } from "react";
-import { DockerIcon } from "#/components/Icons/DockerIcon";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
-const FileTypeTerraform: FC<ComponentProps<"svg">> = (props) => (
+const FileTypeTerraform: React.FC<React.ComponentProps<"svg">> = (props) => (
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
 		viewBox="0 0 32 32"
@@ -17,7 +16,7 @@ const FileTypeTerraform: FC<ComponentProps<"svg">> = (props) => (
 	</svg>
 );
 
-const FileTypeMarkdown: FC<ComponentProps<"svg">> = (props) => (
+const FileTypeMarkdown: React.FC<React.ComponentProps<"svg">> = (props) => (
 	<svg
 		xmlns="http://www.w3.org/2000/svg"
 		viewBox="0 0 32 32"
@@ -41,7 +40,11 @@ const FileTypeMarkdown: FC<ComponentProps<"svg">> = (props) => (
 	</svg>
 );
 
-export const getTemplateFileIcon = (filename: string): ElementType => {
+const DockerFileIcon: React.FC<{ className?: string }> = ({ className }) => (
+	<ExternalImage src="/icon/docker.svg" alt="" className={className} />
+);
+
+export const getTemplateFileIcon = (filename: string): React.ElementType => {
 	if (filename.endsWith(".tf")) {
 		return FileTypeTerraform;
 	}
@@ -49,7 +52,7 @@ export const getTemplateFileIcon = (filename: string): ElementType => {
 		return FileTypeMarkdown;
 	}
 	if (filename.endsWith("Dockerfile")) {
-		return DockerIcon;
+		return DockerFileIcon;
 	}
 	if (filename.endsWith(".sh")) {
 		return TerminalIcon;

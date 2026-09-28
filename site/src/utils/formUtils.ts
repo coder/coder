@@ -1,15 +1,9 @@
 import { type FormikContextType, type FormikErrors, getIn } from "formik";
-import type {
-	ChangeEvent,
-	ChangeEventHandler,
-	FocusEventHandler,
-	ReactNode,
-} from "react";
 import * as Yup from "yup";
 import { isApiValidationError, mapApiErrorToFieldErrors } from "#/api/errors";
 
-interface GetFormHelperOptions {
-	helperText?: ReactNode;
+type GetFormHelperOptions = {
+	helperText?: React.ReactNode;
 	/**
 	 * backendFieldName remaps the name in the form, for when it doesn't match the
 	 * name used by the backend
@@ -21,17 +15,17 @@ interface GetFormHelperOptions {
 	 * over the limit. Zero and negative values will be ignored.
 	 */
 	maxLength?: number;
-}
+};
 
-export interface FormHelpers {
+export type FormHelpers = {
 	name: string;
-	onBlur: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-	onChange: ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	onBlur: React.FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+	onChange: React.ChangeEventHandler<HTMLInputElement | HTMLTextAreaElement>;
 	id: string;
 	value?: string | number;
 	error: boolean;
-	helperText?: ReactNode;
-}
+	helperText?: React.ReactNode;
+};
 
 export const getFormHelpers =
 	<TFormValues>(form: FormikContextType<TFormValues>, error?: unknown) =>
@@ -58,7 +52,7 @@ export const getFormHelpers =
 		const fieldProps = form.getFieldProps(fieldName);
 		const value = fieldProps.value;
 
-		let lengthError: ReactNode = null;
+		let lengthError: React.ReactNode = null;
 		// Show a message if the input is approaching or over the maximum length.
 		if (
 			maxLength &&
@@ -88,7 +82,7 @@ export const getFormHelpers =
 
 export const onChangeTrimmed =
 	<T>(form: FormikContextType<T>, callback?: (value: string) => void) =>
-	(event: ChangeEvent<HTMLInputElement>): void => {
+	(event: React.ChangeEvent<HTMLInputElement>): void => {
 		event.target.value = event.target.value.trim();
 		form.handleChange(event);
 		callback?.(event.target.value);
@@ -120,3 +114,11 @@ export const displayNameValidator = (displayName: string): Yup.StringSchema =>
 		.optional();
 
 export const iconValidator = Yup.string().label("Icon").max(256);
+
+export const passwordManagerIgnoreProps = {
+	autoComplete: "off",
+	"data-1p-ignore": true,
+	"data-lpignore": "true",
+	"data-form-type": "other",
+	"data-bwignore": true,
+} as const;

@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Group } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
@@ -8,13 +8,12 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { TableCell } from "#/components/Table/Table";
-import { cn } from "#/utils/cn";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
 };
 
-export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
+export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 	return (
 		<TableCell>
 			{userGroups === undefined ? (

@@ -29,7 +29,7 @@ type Story = StoryObj<typeof Slider>;
 export const Default: Story = {};
 
 export const Controlled: Story = {
-	render: (args) => {
+	render: function ControlledRender(args) {
 		const [value, setValue] = React.useState(50);
 		return (
 			<Slider {...args} value={[value]} onValueChange={([v]) => setValue(v)} />

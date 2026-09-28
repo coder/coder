@@ -16,6 +16,33 @@ import (
 
 const templateNotAvailableMessage = "template not available for chat workspaces; use list_templates to find allowed templates"
 
+// WorkspaceUnavailableHint follows errors that keep a tool from loading the
+// chat's workspace so the model recovers instead of concluding it is blocked.
+const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
+
+func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(
+		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),
+	)
+}
+
+// externalAuthRequiredMessage tells the model how to unblock a request that
+// failed because the workspace owner has not authenticated with a required
+// external auth provider. The login links are in the response detail.
+const externalAuthRequiredMessage = "the workspace owner must authenticate with the listed external auth providers before this template can be used. " +
+	"Show the user the authentication link(s) from detail so they can open them, then retry create_workspace once they confirm they have authenticated"
+
+// hasExternalAuthValidation reports whether any validation error identifies a
+// missing external auth provider.
+func hasExternalAuthValidation(validations []codersdk.ValidationError) bool {
+	for _, validation := range validations {
+		if validation.Field == "external_auth" {
+			return true
+		}
+	}
+	return false
+}
+
 func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -56,6 +83,9 @@ func responseErrorResult(resp codersdk.Response) map[string]any {
 	}
 	if len(resp.Validations) > 0 {
 		result["validations"] = resp.Validations
+	}
+	if hasExternalAuthValidation(resp.Validations) {
+		result["action_required"] = externalAuthRequiredMessage
 	}
 	return result
 }

@@ -1,16 +1,10 @@
+import { cn } from "cn";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import {
-	type FC,
-	Fragment,
-	type HTMLAttributes,
-	type PropsWithChildren,
-	type ReactNode,
-	useId,
-} from "react";
+import { Fragment, useId } from "react";
 import { useQuery } from "react-query";
 import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -34,25 +28,19 @@ import {
 	type DateRangeValue,
 } from "#/components/DateRangePicker/DateRangePicker";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
-
-import { cn } from "#/utils/cn";
 import { getLatencyColor } from "#/utils/latency";
 import {
 	addTime,
@@ -133,16 +121,18 @@ export default function TemplateInsightsPage() {
 	);
 }
 
-interface TemplateInsightsControlsProps {
+type TemplateInsightsControlsProps = {
 	interval: "day" | "week";
 	dateRange: DateRangeValue;
 	setDateRange: (value: DateRangeValue) => void;
 	searchParams: URLSearchParams;
 	setSearchParams: SetURLSearchParams;
 	now?: Date;
-}
+};
 
-export const TemplateInsightsControls: FC<TemplateInsightsControlsProps> = ({
+export const TemplateInsightsControls: React.FC<
+	TemplateInsightsControlsProps
+> = ({
 	interval,
 	dateRange,
 	setDateRange,
@@ -213,7 +203,7 @@ const getDateRange = (
 	return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
-interface TemplateInsightsPageViewProps {
+type TemplateInsightsPageViewProps = {
 	templateInsights: {
 		data: TemplateInsightsResponse | undefined;
 		error: unknown;
@@ -226,17 +216,13 @@ interface TemplateInsightsPageViewProps {
 		data: UserActivityInsightsResponse | undefined;
 		error: unknown;
 	};
-	controls: ReactNode;
+	controls: React.ReactNode;
 	interval: InsightsInterval;
-}
+};
 
-export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
-	templateInsights,
-	userLatency,
-	userActivity,
-	controls,
-	interval,
-}) => {
+export const TemplateInsightsPageView: React.FC<
+	TemplateInsightsPageViewProps
+> = ({ templateInsights, userLatency, userActivity, controls, interval }) => {
 	return (
 		<>
 			<div className="flex items-center gap-2 mb-8">{controls}</div>
@@ -267,13 +253,13 @@ export const TemplateInsightsPageView: FC<TemplateInsightsPageViewProps> = ({
 	);
 };
 
-interface ActiveUsersPanelProps extends PanelProps {
+type ActiveUsersPanelProps = {
 	data: TemplateInsightsResponse["interval_reports"] | undefined;
 	error: unknown;
 	interval: InsightsInterval;
-}
+} & PanelProps;
 
-const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
+const ActiveUsersPanel: React.FC<ActiveUsersPanelProps> = ({
 	data,
 	error,
 	interval,
@@ -284,20 +270,15 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					{interval === "day" ? "Daily" : "Weekly"} Active Users
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>
-								How do we calculate active users?
-							</HelpPopoverTitle>
-							<HelpPopoverText>
-								When a connection is initiated to a user&apos;s workspace they
-								are considered an active user. e.g. apps, web terminal, SSH.
-								This is for measuring user activity and has no connection to
-								license consumption.
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How do we calculate active users?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH. This is
+							for measuring user activity and has no connection to license
+							consumption.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data}>
@@ -312,12 +293,12 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 	);
 };
 
-interface UsersLatencyPanelProps extends PanelProps {
+type UsersLatencyPanelProps = {
 	data: UserLatencyInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
+const UsersLatencyPanel: React.FC<UsersLatencyPanelProps> = ({
 	data,
 	error,
 	className,
@@ -328,15 +309,12 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Latency by user
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>How is latency calculated?</HelpPopoverTitle>
-							<HelpPopoverText>
-								The median round trip time of user connections to workspaces.
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is latency calculated?</TooltipTitle>
+						<TooltipMessage>
+							The median round trip time of user connections to workspaces.
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -367,12 +345,12 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 	);
 };
 
-interface UsersActivityPanelProps extends PanelProps {
+type UsersActivityPanelProps = {
 	data: UserActivityInsightsResponse | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
+const UsersActivityPanel: React.FC<UsersActivityPanelProps> = ({
 	data,
 	error,
 	className,
@@ -383,16 +361,13 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 			<PanelHeader>
 				<PanelTitle className="flex items-center gap-2">
 					Activity by user
-					<HelpPopover>
-						<HelpPopoverIconTrigger size="small" />
-						<HelpPopoverContent>
-							<HelpPopoverTitle>How is activity calculated?</HelpPopoverTitle>
-							<HelpPopoverText>
-								When a connection is initiated to a user&apos;s workspace they
-								are considered an active user. e.g. apps, web terminal, SSH
-							</HelpPopoverText>
-						</HelpPopoverContent>
-					</HelpPopover>
+					<InfoTooltip size="small">
+						<TooltipTitle>How is activity calculated?</TooltipTitle>
+						<TooltipMessage>
+							When a connection is initiated to a user's workspace they are
+							considered an active user. e.g. apps, web terminal, SSH
+						</TooltipMessage>
+					</InfoTooltip>
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={data?.report.users}>
@@ -418,12 +393,12 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 	);
 };
 
-interface TemplateUsagePanelProps extends PanelProps {
+type TemplateUsagePanelProps = {
 	data: readonly TemplateAppUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
+const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 	data,
 	error,
 	className,
@@ -443,72 +418,68 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={validUsage}>
-				{
-					<div className="flex flex-col gap-6">
-						{(validUsage || []).map((usage, i) => {
-							const percentage = (usage.seconds / totalInSeconds) * 100;
-							const colorStop =
-								usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
-							return (
-								<div key={usage.slug} className="flex items-center gap-6">
-									<div className="flex items-center gap-2">
-										<div className="flex justify-center items-center size-5">
-											<ExternalImage
-												src={usage.icon}
-												alt=""
-												className="h-full w-full object-contain"
-											/>
-										</div>
-										<div className="text-sm font-medium w-[200px]">
-											{usage.display_name}
-										</div>
+				<div className="flex flex-col gap-6">
+					{(validUsage || []).map((usage, i) => {
+						const percentage = (usage.seconds / totalInSeconds) * 100;
+						const colorStop =
+							usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
+						return (
+							<div key={usage.slug} className="flex items-center gap-6">
+								<div className="flex items-center gap-2">
+									<div className="flex justify-center items-center size-5">
+										<ExternalImage
+											src={usage.icon}
+											alt=""
+											className="h-full w-full object-contain"
+										/>
 									</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
-												<div
-													className="absolute inset-y-0 left-0 rounded-full"
-													style={{
-														width: `${percentage}%`,
-														backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
-													}}
-												/>
-											</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											{Math.floor(percentage)}%
-											<TooltipArrow className="fill-border" />
-										</TooltipContent>
-									</Tooltip>
-									<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
-										{formatTime(usage.seconds)}
-										{usage.times_used > 0 && (
-											<span className="text-[12px] text-content-disabled">
-												Opened {usage.times_used.toLocaleString()}{" "}
-												{usage.times_used === 1 ? "time" : "times"}
-											</span>
-										)}
+									<div className="text-sm font-medium w-[200px]">
+										{usage.display_name}
 									</div>
 								</div>
-							);
-						})}
-					</div>
-				}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+											<div
+												className="absolute inset-y-0 left-0 rounded-full"
+												style={{
+													width: `${percentage}%`,
+													backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
+												}}
+											/>
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										{Math.floor(percentage)}%
+										<TooltipArrow className="fill-border" />
+									</TooltipContent>
+								</Tooltip>
+								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
+									{formatTime(usage.seconds)}
+									{usage.times_used > 0 && (
+										<span className="text-[12px] text-content-disabled">
+											Opened {usage.times_used.toLocaleString()}{" "}
+											{usage.times_used === 1 ? "time" : "times"}
+										</span>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
 			</PanelContent>
 		</Panel>
 	);
 };
 
-interface TemplateParametersUsagePanelProps extends PanelProps {
+type TemplateParametersUsagePanelProps = {
 	data: readonly TemplateParameterUsage[] | undefined;
 	error: unknown;
-}
+} & PanelProps;
 
-const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
-	data,
-	error,
-	...panelProps
-}) => {
+const TemplateParametersUsagePanel: React.FC<
+	TemplateParametersUsagePanelProps
+> = ({ data, error, ...panelProps }) => {
 	return (
 		<Panel {...panelProps}>
 			<PanelHeader>
@@ -580,12 +551,12 @@ const filterOrphanValues = (
 	return true;
 };
 
-interface ParameterUsageLabelProps {
+type ParameterUsageLabelProps = {
 	usage: TemplateParameterValue;
 	parameter: TemplateParameterUsage;
-}
+};
 
-const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
+const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 	usage,
 	parameter,
 }) => {
@@ -672,9 +643,9 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-type PanelProps = HTMLAttributes<HTMLDivElement>;
+type PanelProps = React.ComponentProps<"div">;
 
-const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
+const Panel: React.FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (
 		<div
 			{...attrs}
@@ -688,7 +659,7 @@ const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	);
 };
 
-const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelHeader: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -700,7 +671,7 @@ const PanelHeader: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
+const PanelTitle: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...attrs
@@ -712,12 +683,16 @@ const PanelTitle: FC<HTMLAttributes<HTMLDivElement>> = ({
 	);
 };
 
-interface PanelContentProps extends HTMLAttributes<HTMLDivElement> {
+type PanelContentProps = React.ComponentProps<"div"> & {
 	error: unknown | undefined;
 	data: readonly unknown[] | undefined;
-}
+};
 
-const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
+const PanelContent: React.FC<PanelContentProps> = ({
+	error,
+	data,
+	children,
+}) => {
 	return (
 		<div className="flex-1 px-6 pb-6">
 			{!error && !data ? (
@@ -731,11 +706,14 @@ const PanelContent: FC<PanelContentProps> = ({ error, data, children }) => {
 	);
 };
 
-interface NoDataAvailableProps extends HTMLAttributes<HTMLDivElement> {
+type NoDataAvailableProps = React.ComponentProps<"div"> & {
 	error: unknown;
-}
+};
 
-const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
+const NoDataAvailable: React.FC<NoDataAvailableProps> = ({
+	error,
+	...props
+}) => {
 	return (
 		<div
 			{...props}
@@ -749,7 +727,7 @@ const NoDataAvailable: FC<NoDataAvailableProps> = ({ error, ...props }) => {
 	);
 };
 
-const TextValue: FC<PropsWithChildren> = ({ children }) => {
+const TextValue: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<span className="break-all">
 			<span className="mr-0.5 text-content-secondary">&quot;</span>

@@ -1,5 +1,6 @@
+import { cn } from "cn";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -30,7 +31,6 @@ import {
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
-import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -39,17 +39,17 @@ type UsageSectionData = {
 	title: string;
 	progressLabel: string;
 	percent: number;
-	detail: ReactNode;
-	icon: ReactNode;
+	detail: React.ReactNode;
+	icon: React.ReactNode;
 	hoverLabel: string;
-	secondaryDetail?: ReactNode;
-	tooltip?: ReactNode;
+	secondaryDetail?: React.ReactNode;
+	tooltip?: React.ReactNode;
 	severity: UsageSeverity;
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
-export const UsageIndicator: FC = () => {
+export const UsageIndicator: React.FC = () => {
 	const { user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const aiSpendAvailable = Boolean(useFeatureVisibility().aibridge);
@@ -151,7 +151,7 @@ export const UsageIndicator: FC = () => {
 	return <UsageMenu sections={sections} />;
 };
 
-const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
+const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	const triggerAriaLabel =
@@ -196,9 +196,9 @@ const severityRingClasses = {
 	exceeded: "stroke-content-destructive",
 } as const satisfies Record<UsageSeverity, string>;
 
-const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
-	sections,
-}) => {
+const UsageTriggerProgress: React.FC<{
+	sections: readonly UsageSectionData[];
+}> = ({ sections }) => {
 	return (
 		<TooltipProvider delayDuration={150}>
 			<div className="flex shrink-0 items-center gap-2">
@@ -224,11 +224,11 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	);
 };
 
-const UsageRingProgress: FC<{
+const UsageRingProgress: React.FC<{
 	ariaLabel: string;
 	percent: number;
 	severity?: UsageSeverity;
-	icon: ReactNode;
+	icon: React.ReactNode;
 }> = ({ ariaLabel, percent, severity = "normal", icon }) => {
 	const clampedPercent = clampPercentage(percent);
 
@@ -261,7 +261,7 @@ const UsageRingProgress: FC<{
 	);
 };
 
-const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
+const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 	const roundedPercent = Math.round(section.percent);
 
 	return (
@@ -302,7 +302,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										className="mt-0.5 inline-flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
+										className="mt-0.5 inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
 										aria-label={`${section.title} help`}
 									>
 										<InfoIcon className="size-3.5" />

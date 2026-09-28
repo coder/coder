@@ -1,13 +1,5 @@
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	type ReactNode,
-	type PointerEvent as ReactPointerEvent,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from "react";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -17,10 +9,10 @@ import {
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
-interface ResizableChatsSidebarFrameProps {
-	children: ReactNode;
+type ResizableChatsSidebarFrameProps = {
+	children: React.ReactNode;
 	className?: string;
-}
+};
 
 export const ResizableChatsSidebarFrame = ({
 	children,
@@ -29,6 +21,7 @@ export const ResizableChatsSidebarFrame = ({
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const isDragging = useRef(false);
+	const activePointerId = useRef<number | null>(null);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 
@@ -53,16 +46,22 @@ export const ResizableChatsSidebarFrame = ({
 		return () => globalThis.removeEventListener("resize", handleResize);
 	}, []);
 
-	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+		// Only a primary left-button pointer starts a drag; a second pointer
+		// cannot take over one that is already in progress.
+		if (isDragging.current || e.button !== 0 || !e.isPrimary) {
+			return;
+		}
 		e.preventDefault();
 		isDragging.current = true;
+		activePointerId.current = e.pointerId;
 		startX.current = e.clientX;
 		startWidth.current = width;
 		e.currentTarget.setPointerCapture?.(e.pointerId);
 	};
 
-	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
 
@@ -70,18 +69,23 @@ export const ResizableChatsSidebarFrame = ({
 		setUserWidth(rawWidth);
 	};
 
-	const handlePointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!isDragging.current) {
+	// Ends the drag on pointerup, pointercancel, and lostpointercapture. The
+	// last two fire without pointerup when the browser claims the gesture or
+	// capture is lost (window deactivation, context menu), so all three must
+	// reset the drag state.
+	const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
 
 		isDragging.current = false;
+		activePointerId.current = null;
 		if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
 			e.currentTarget.releasePointerCapture?.(e.pointerId);
 		}
 	};
 
-	const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
 		switch (e.key) {
 			case "ArrowLeft":
 				e.preventDefault();
@@ -129,6 +133,7 @@ export const ResizableChatsSidebarFrame = ({
 				onPointerMove={handlePointerMove}
 				onPointerUp={handlePointerEnd}
 				onPointerCancel={handlePointerEnd}
+				onLostPointerCapture={handlePointerEnd}
 				onKeyDown={handleKeyDown}
 				className="absolute top-0 right-0 z-20 hidden h-full w-1 touch-none cursor-col-resize select-none transition-colors hover:bg-content-link focus-visible:bg-content-link focus-visible:outline-hidden sm:block"
 			/>

@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/skeleton}
  */
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "#/utils/cn";
+import { cn } from "cn";
 
 const skeletonVariants = cva("bg-surface-tertiary animate-pulse", {
 	variants: {

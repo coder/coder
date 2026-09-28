@@ -1,7 +1,18 @@
 package mcpclient
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
+	"mime"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/safedial"
 )
@@ -41,32 +52,193 @@ func NewHTTPClient(base *http.Client, opts ...safedial.Option) *http.Client {
 	return client
 }
 
-func httpClientWithHeaders(base *http.Client, headers map[string]string) *http.Client {
+const (
+	// HeaderCoderSignatureTimestamp contains the Unix timestamp used to sign
+	// the request.
+	HeaderCoderSignatureTimestamp = "X-Coder-Signature-Timestamp"
+	// HeaderCoderSignature contains the versioned HMAC-SHA256 request
+	// signature.
+	HeaderCoderSignature = "X-Coder-Signature"
+
+	headerCoderOwnerID     = "X-Coder-Owner-Id"
+	headerCoderChatID      = "X-Coder-Chat-Id"
+	headerCoderSubchatID   = "X-Coder-Subchat-Id"
+	headerCoderWorkspaceID = "X-Coder-Workspace-Id"
+)
+
+// maxInlineHTTPResponseBytes caps one HTTP response body, or one
+// server-sent event, from an inline MCP server. Chat owners, not
+// org admins, choose these servers, so a hostile server must not be
+// able to exhaust memory with an unbounded tool list or tool result.
+const maxInlineHTTPResponseBytes = 1 << 20
+
+var errInlineResponseTooLarge = xerrors.New("inline MCP response body exceeds maximum size")
+
+// inlineHTTPClient wraps base so every response body is capped at
+// maxInlineHTTPResponseBytes. A nil or transport-less base falls
+// back to the default guarded client, matching httpClientWithHeaders.
+func inlineHTTPClient(base *http.Client) *http.Client {
+	if base == nil || base.Transport == nil {
+		base = NewHTTPClient(base)
+	}
+	client := *base
+	client.Transport = &maxResponseBodyRoundTripper{
+		base:     base.Transport,
+		maxBytes: maxInlineHTTPResponseBytes,
+	}
+	return &client
+}
+
+type maxResponseBodyRoundTripper struct {
+	base     http.RoundTripper
+	maxBytes int64
+}
+
+func (t *maxResponseBodyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	// An SSE stream lives for the whole session; the transport caps it
+	// per event through MaxEventSize instead.
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if resp.Body == nil || mediaType == "text/event-stream" {
+		return resp, nil
+	}
+	if resp.ContentLength > t.maxBytes {
+		_ = resp.Body.Close()
+		return nil, errInlineResponseTooLarge
+	}
+	resp.Body = &maxResponseReadCloser{
+		body:      resp.Body,
+		remaining: t.maxBytes,
+	}
+	return resp, nil
+}
+
+type maxResponseReadCloser struct {
+	body      io.ReadCloser
+	remaining int64
+}
+
+func (r *maxResponseReadCloser) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return r.body.Read(p)
+	}
+	// Read one byte past the cap so an exactly-at-cap body is not
+	// rejected while an over-cap body is detected on this read.
+	maxRead := r.remaining + 1
+	if int64(len(p)) > maxRead {
+		p = p[:maxRead]
+	}
+	n, err := r.body.Read(p)
+	if int64(n) > r.remaining {
+		n = int(r.remaining)
+		r.remaining = 0
+		return n, errInlineResponseTooLarge
+	}
+	r.remaining -= int64(n)
+	return n, err
+}
+
+func (r *maxResponseReadCloser) Close() error {
+	return r.body.Close()
+}
+
+func httpClientWithHeaders(base *http.Client, headers map[string]string, signingSecret string) *http.Client {
 	if base == nil || base.Transport == nil {
 		base = NewHTTPClient(base)
 	}
 	client := *base
 	client.CheckRedirect = safedial.CheckSameOriginRedirect
-	if len(headers) == 0 {
+	if len(headers) == 0 && signingSecret == "" {
 		return &client
 	}
-	transport := base.Transport
-	client.Transport = &headerRoundTripper{
-		base:    transport,
-		headers: headers,
+	client.Transport = &signingRoundTripper{
+		base:          base.Transport,
+		headers:       headers,
+		signingSecret: signingSecret,
 	}
 	return &client
 }
 
-type headerRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
+type signingRoundTripper struct {
+	base          http.RoundTripper
+	headers       map[string]string
+	signingSecret string
 }
 
-func (h *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (s *signingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
-	for k, v := range h.headers {
+	for k, v := range s.headers {
 		clone.Header.Set(k, v)
 	}
-	return h.base.RoundTrip(clone)
+	if s.signingSecret != "" {
+		body, err := bufferRequestBody(req, clone)
+		if err != nil {
+			return nil, xerrors.Errorf("buffer MCP request body: %w", err)
+		}
+		timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+		clone.Header.Set(HeaderCoderSignatureTimestamp, timestamp)
+		clone.Header.Set(HeaderCoderSignature, signMCPRequest(
+			s.signingSecret,
+			mcpSignatureCanonical(clone, timestamp, body),
+		))
+	}
+	return s.base.RoundTrip(clone)
+}
+
+func bufferRequestBody(req, clone *http.Request) ([]byte, error) {
+	if req.Body == nil || req.Body == http.NoBody {
+		return nil, nil
+	}
+
+	reader := req.Body
+	if req.GetBody != nil {
+		var err error
+		reader, err = req.GetBody()
+		if err != nil {
+			return nil, err
+		}
+	}
+	body, err := io.ReadAll(reader)
+	_ = reader.Close()
+	if err != nil {
+		return nil, err
+	}
+	getBody := func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+	if req.GetBody == nil {
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.GetBody = getBody
+	}
+	clone.Body = io.NopCloser(bytes.NewReader(body))
+	clone.GetBody = getBody
+	return body, nil
+}
+
+func mcpSignatureCanonical(req *http.Request, timestamp string, body []byte) string {
+	bodyHash := sha256.Sum256(body)
+	method := req.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	return strings.Join([]string{
+		"v1",
+		timestamp,
+		strings.ToUpper(method),
+		req.URL.RequestURI(),
+		hex.EncodeToString(bodyHash[:]),
+		"owner=" + req.Header.Get(headerCoderOwnerID),
+		"chat=" + req.Header.Get(headerCoderChatID),
+		"subchat=" + req.Header.Get(headerCoderSubchatID),
+		"workspace=" + req.Header.Get(headerCoderWorkspaceID),
+	}, "\n")
+}
+
+func signMCPRequest(signingSecret, canonical string) string {
+	mac := hmac.New(sha256.New, []byte(signingSecret))
+	_, _ = mac.Write([]byte(canonical))
+	return "v1=" + hex.EncodeToString(mac.Sum(nil))
 }

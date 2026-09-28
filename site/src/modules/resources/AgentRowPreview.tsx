@@ -1,22 +1,21 @@
-import type { FC } from "react";
+import { cn } from "cn";
+import { SquareTerminalIcon } from "lucide-react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
-import { TerminalIcon } from "#/components/Icons/TerminalIcon";
-import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
-import { cn } from "#/utils/cn";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
 
-interface AgentRowPreviewStyles {
+type AgentRowPreviewStyles = {
 	// Helpful when there are more than one row so the values are aligned
 	// When it is only one row, it is better to have than "flex" and not hard aligned
 	alignValues?: boolean;
-}
-interface AgentRowPreviewProps extends AgentRowPreviewStyles {
+};
+type AgentRowPreviewProps = AgentRowPreviewStyles & {
 	agent: WorkspaceAgent;
-}
+};
 
-export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
+export const AgentRowPreview: React.FC<AgentRowPreviewProps> = ({
 	agent,
 	alignValues,
 }) => {
@@ -66,7 +65,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               apps that are included in agent.display_apps */}
 							{agent.display_apps.includes("web_terminal") && (
 								<AppPreview>
-									<TerminalIcon className="size-3" />
+									<SquareTerminalIcon className="size-3" />
 									{DisplayAppNameMap.web_terminal}
 								</AppPreview>
 							)}
@@ -81,13 +80,21 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{/* VSCode display apps (vscode, vscode_insiders) get special presentation */}
 							{agent.display_apps.includes("vscode") ? (
 								<AppPreview>
-									<VSCodeIcon className="size-3" />
+									<ExternalImage
+										src="/icon/code.svg"
+										alt=""
+										className="size-3"
+									/>
 									{DisplayAppNameMap.vscode}
 								</AppPreview>
 							) : (
 								agent.display_apps.includes("vscode_insiders") && (
 									<AppPreview>
-										<VSCodeIcon className="size-3" />
+										<ExternalImage
+											src="/icon/code-insiders.svg"
+											alt=""
+											className="size-3"
+										/>
 										{DisplayAppNameMap.vscode_insiders}
 									</AppPreview>
 								)

@@ -126,6 +126,15 @@ Suppress warning when client and server versions do not match.
 
 Suppress warnings about unlicensed features.
 
+### --allow-redirects
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_ALLOW_REDIRECTS</code> |
+
+Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.
+
 ### --header
 
 |             |                            |
@@ -142,7 +151,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
-An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.
+An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line. If a header value is a JWT, it will be refreshed based on the value in its `exp` field.
 
 ### --force-tty
 

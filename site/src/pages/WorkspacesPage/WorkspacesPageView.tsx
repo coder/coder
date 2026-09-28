@@ -1,5 +1,4 @@
 import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, Workspace } from "#/api/typesGenerated";
@@ -14,6 +13,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -25,20 +25,17 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
-import {
-	type WorkspaceFilterState,
-	WorkspacesFilter,
-} from "./filter/WorkspacesFilter";
+import { WorkspacesFilter } from "./filter/WorkspacesFilter";
 import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
 type TemplateQuery = UseQueryResult<Template[]>;
-interface WorkspacesPageViewProps {
+type WorkspacesPageViewProps = {
 	error: unknown;
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	count?: number;
-	filterState: WorkspaceFilterState;
+	filter: UseFilterResult;
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
@@ -56,14 +53,14 @@ interface WorkspacesPageViewProps {
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
-}
+};
 
-export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
+export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 	workspaces,
 	error,
 	limit,
 	count,
-	filterState,
+	filter,
 	onPageChange,
 	page,
 	checkedWorkspaces,
@@ -109,18 +106,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				</PageHeaderTitle>
 			</PageHeader>
 
-			<div className="flex flex-col gap-4">
+			<div className="mb-4 flex flex-col gap-4">
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
-				<WorkspacesFilter
-					filter={filterState.filter}
-					error={error}
-					statusMenu={filterState.menus.status}
-					templateMenu={filterState.menus.template}
-					userMenu={filterState.menus.user}
-					organizationsMenu={filterState.menus.organizations}
-				/>
+				<WorkspacesFilter filter={filter} error={error} />
 			</div>
 
 			<TableToolbar>
@@ -193,6 +183,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}
+							isFiltered={filter.query.trim() !== ""}
 						/>
 					)
 				)}
@@ -218,7 +209,8 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
-					isUsingFilter={filterState.filter.used}
+					isUsingFilter={filter.used}
+					onClearFilter={() => filter.update("")}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					templates={templates}

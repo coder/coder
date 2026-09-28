@@ -1,7 +1,8 @@
+import { cn } from "cn";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import * as Yup from "yup";
@@ -36,7 +37,6 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
-import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
@@ -54,7 +54,7 @@ import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
-export interface CreateTemplateFormData {
+export type CreateTemplateFormData = {
 	name: string;
 	display_name: string;
 	description: string;
@@ -72,7 +72,7 @@ export interface CreateTemplateFormData {
 	provisioner_type: ProvisionerType;
 	organization: string;
 	tags: CreateTemplateVersionRequest["tags"];
-}
+};
 
 const validationSchema = Yup.object({
 	name: nameValidator("Name"),
@@ -200,7 +200,9 @@ type CreateTemplateFormProps = (
 // in the render-time state adjustment pattern.
 const emptyOrgs: Organization[] = [];
 
-export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = (
+	props,
+) => {
 	const [searchParams] = useSearchParams();
 	const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
 	const {
@@ -480,7 +482,7 @@ const fillNameAndDisplayWithFilename = async (
 	]);
 };
 
-const ProvisionerWarning: FC = () => {
+const ProvisionerWarning: React.FC = () => {
 	return (
 		<Alert severity="warning" className="mb-4" prominent>
 			This organization does not have any provisioners. Before you create a

@@ -2,6 +2,7 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
@@ -103,6 +104,7 @@ export const MockMCPServerConfig: MCPServerConfig = {
 	has_oauth2_secret: false,
 	has_api_key: false,
 	has_custom_headers: false,
+	has_signing_secret: false,
 	tool_allow_list: [],
 	tool_deny_list: [],
 	availability: "default_on",
@@ -121,6 +123,36 @@ export const MockChatMessage: ChatMessage = {
 	created_at: MOCK_TIMESTAMP,
 	role: "user",
 	content: [{ type: "text", text: "Hello" }],
+};
+
+export const MockChatFileMetadata: ChatFileMetadata = {
+	id: "chat-file-1",
+	owner_id: MockUserOwner.id,
+	organization_id: "test-org-id",
+	name: "notes.txt",
+	mime_type: "text/plain",
+	size_bytes: 128,
+	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatCompactionMessage: ChatMessage = {
+	...MockChatMessage,
+	id: 3,
+	role: "tool",
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "summary-1",
+			tool_name: "chat_summarized",
+			result: {
+				summary: "Compacted conversation",
+				source: "manual",
+				context_tokens: 90000,
+				context_limit_tokens: 100000,
+				estimated_context_tokens: 12000,
+			},
+		},
+	],
 };
 
 export const MockChatQueuedMessage: ChatQueuedMessage = {

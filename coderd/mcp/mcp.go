@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	stdslog "log/slog"
 	"net/http"
 
@@ -139,8 +141,9 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 	}
 
 	inputSchema := map[string]any{
-		"type":       "object",
-		"properties": sdkTool.Schema.Properties,
+		"type":                 "object",
+		"properties":           sdkTool.Schema.Properties,
+		"additionalProperties": false,
 	}
 	if len(sdkTool.Schema.Required) > 0 {
 		inputSchema["required"] = sdkTool.Schema.Required
@@ -161,7 +164,21 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		result, err := sdkTool.Handler(ctx, tb, req.Params.Arguments)
 		if err != nil {
-			return nil, err
+			var validationErr *toolsdk.ArgumentValidationError
+			if !errors.As(err, &validationErr) {
+				return toolErrorResult(err.Error()), nil
+			}
+			content, marshalErr := json.Marshal(struct {
+				Error          string         `json:"error"`
+				ExpectedSchema map[string]any `json:"expectedSchema"`
+			}{
+				Error:          validationErr.Error(),
+				ExpectedSchema: inputSchema,
+			})
+			if marshalErr != nil {
+				return toolErrorResult(xerrors.Errorf("marshal MCP tool argument validation response: %w", marshalErr).Error()), nil
+			}
+			return toolErrorResult(string(content)), nil
 		}
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -169,6 +186,13 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			},
 		}, nil
 	})
+}
+
+func toolErrorResult(message string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: message}},
+		IsError: true,
+	}
 }
 
 // RegisterSDKPrompt registers a [toolsdk.Prompt] with an MCP server.

@@ -3,6 +3,7 @@ import { action } from "storybook/actions";
 import { expect, userEvent, within } from "storybook/test";
 import type { AssignableRoles } from "#/api/typesGenerated";
 import {
+	MockAgentsAccessRole,
 	MockOrganization,
 	MockOrganizationAuditorRole,
 	MockPermissions,
@@ -22,6 +23,7 @@ const mockOrgRoles: AssignableRoles[] = [
 		assignable: true,
 		built_in: true,
 	},
+	MockAgentsAccessRole,
 	{
 		name: "organization-admin",
 		display_name: "Organization Admin",
@@ -177,7 +179,7 @@ export const DefaultRolesReadOnlyWithoutEditPermission: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		// The section is visible read-only; only the edit button is hidden.
-		await body.findByText("Default Roles");
+		await body.findByRole("heading", { name: "Default Roles" });
 		expect(
 			body.queryByRole("button", { name: /edit default roles/i }),
 		).toBeNull();

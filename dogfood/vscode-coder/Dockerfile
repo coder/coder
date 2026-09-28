@@ -6,7 +6,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # `playwright install-deps chromium` so they track the project's
 # Electron version automatically.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates curl dbus git jq sudo openssh-server screen \
+    ca-certificates curl dbus git jq python3 sudo openssh-server screen \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # gh CLI from releases (apt repo is unreliable, see cli/cli#6175).

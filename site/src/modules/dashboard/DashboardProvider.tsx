@@ -1,4 +1,4 @@
-import { createContext, type FC, type PropsWithChildren } from "react";
+import { createContext } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "#/api/queries/appearance";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -19,7 +19,7 @@ import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { canViewAnyOrganization } from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";
 
-export interface DashboardValue {
+export type DashboardValue = {
 	entitlements: Entitlements;
 	experiments: Experiment[];
 	appearance: AppearanceConfig;
@@ -27,13 +27,15 @@ export interface DashboardValue {
 	organizations: readonly Organization[];
 	showOrganizations: boolean;
 	canViewOrganizationSettings: boolean;
-}
+};
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
 	undefined,
 );
 
-export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
+export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));

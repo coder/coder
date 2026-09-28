@@ -1,4 +1,6 @@
-# Monitoring Coder
+---
+title: Monitor Coder
+---
 
 Learn about our the tools, techniques, and best practices to monitor your Coder
 deployment.
@@ -16,7 +18,7 @@ Learn how to install & read the docs on the
 
 ## Table of Contents
 
-- [Logs](./logs.md): Learn how to access to Coder server logs, agent logs, and
+- [Logs](./logs.md): Learn how to access `coderd` logs, agent logs, and
   even how to expose Kubernetes pod scheduling logs.
 - [Metrics](./metrics.md): Learn about the valuable metrics to measure on a
   Coder deployment, regardless of your monitoring stack.

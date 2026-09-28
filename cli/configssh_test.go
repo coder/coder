@@ -67,7 +67,6 @@ func TestConfigSSH(t *testing.T) {
 	}
 
 	logger := testutil.Logger(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	const removeKey = "ConnectTimeout"
@@ -138,7 +137,10 @@ func TestConfigSSH(t *testing.T) {
 	stdout := expecter.NewAttachedToInvocation(t, inv)
 	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
-	waiter := clitest.StartWithWaiter(t, inv)
+	// Created here so setup does not drain it. WaitLong because config-ssh
+	// fsyncs the SSH config and fsync ignores the context.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 	matches := []struct {
 		match, write string
@@ -980,7 +982,6 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -1007,6 +1008,7 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	sshConfigPath := sshConfigFileName(t)
 
 	runConfigSSH := func() {
+		t.Helper()
 		inv, root := clitest.New(t,
 			"config-ssh",
 			"--ssh-config-file", sshConfigPath,
@@ -1016,6 +1018,8 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		)
 		//nolint:gocritic // This has always ran with the admin user.
 		clitest.SetupConfig(t, client, root)
+		// A fresh budget per run, so setup and the first run do not drain it.
+		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	}

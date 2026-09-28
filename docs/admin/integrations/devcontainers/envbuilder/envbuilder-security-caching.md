@@ -1,4 +1,6 @@
-# Envbuilder security and caching
+---
+title: Envbuilder security and caching
+---
 
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
 it with your existing HTTP proxies, firewalls, and artifact managers.

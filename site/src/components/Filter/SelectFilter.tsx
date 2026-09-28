@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from "react";
+import { cn } from "cn";
 import {
 	Combobox,
 	ComboboxButton,
@@ -9,12 +9,11 @@ import {
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 
 const BASE_WIDTH = 200;
 
 export type SelectFilterOption = {
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	label: string;
 	value: string;
 };
@@ -31,10 +30,10 @@ type SelectFilterProps = {
 	onSelect: (option: SelectFilterOption | undefined) => void;
 	width?: number;
 	// SelectFilterSearch element
-	selectFilterSearch?: ReactNode;
+	selectFilterSearch?: React.ReactNode;
 };
 
-export const SelectFilter: FC<SelectFilterProps> = ({
+export const SelectFilter: React.FC<SelectFilterProps> = ({
 	label,
 	options,
 	selectedOption,

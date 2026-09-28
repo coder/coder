@@ -1,15 +1,15 @@
+import { cn } from "cn";
+import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
+import { useEffect } from "react";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	MessageScroller,
 	useMessageScrollerScrollable,
-} from "@shadcn/react/message-scroller";
-import { ArrowDownIcon, RotateCcwIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect } from "react";
-import { Button } from "#/components/Button/Button";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+} from "#/vendor/message-scroller";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 
-interface EarlierMessagesProps {
+type EarlierMessagesProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	// True while fetched pages have not reached the store yet. Blocks paging
@@ -18,14 +18,14 @@ interface EarlierMessagesProps {
 	hasFetchMoreError: boolean;
 	hasTranscriptRows: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-}
+};
 
 /**
  * Owns history paging for the transcript. It reads the scroller's own state
  * instead of measuring the viewport, and it never moves the scroll position:
  * MessageScroller keeps the reading position across a prepend on its own.
  */
-const EarlierMessages: FC<EarlierMessagesProps> = ({
+const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -102,12 +102,12 @@ const EarlierMessages: FC<EarlierMessagesProps> = ({
 	);
 };
 
-interface ChatMessageScrollerProps extends EarlierMessagesProps {
+type ChatMessageScrollerProps = EarlierMessagesProps & {
 	/** One `MessageScroller.Item` per transcript row, and nothing else. */
-	children: ReactNode;
-}
+	children: React.ReactNode;
+};
 
-export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
+export const ChatMessageScroller: React.FC<ChatMessageScrollerProps> = ({
 	children,
 	...earlierMessages
 }) => {

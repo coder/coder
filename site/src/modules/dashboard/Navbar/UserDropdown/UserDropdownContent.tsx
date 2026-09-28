@@ -6,7 +6,6 @@ import {
 	SquareArrowOutUpRightIcon,
 	TerminalIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
@@ -45,23 +44,25 @@ const CodernautsSVG = () => (
 	</svg>
 );
 
-interface UserDropdownContentProps {
+type UserDropdownContentProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	/** Extra content for the profile area, rendered below the profile link
 	 * (e.g. AI spend). The consumer supplies its own separator if needed. */
-	profileExtra?: ReactNode;
+	profileExtra?: React.ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
+	codernautsEnabled?: boolean;
 	onSignOut: () => void;
 	/** Premium trial entry, rendered above the build info. */
-	trialCta?: ReactNode;
-}
+	trialCta?: React.ReactNode;
+};
 
-export const UserDropdownContent: FC<UserDropdownContentProps> = ({
+export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 	user,
 	buildInfo,
 	profileExtra,
 	supportLinks,
+	codernautsEnabled = true,
 	onSignOut,
 	trialCta,
 }) => {
@@ -116,12 +117,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					))}
 				</>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/coder-cup">
-					<CodernautsSVG />
-					<span>Codernauts</span>
-				</Link>
-			</DropdownMenuItem>
+			{codernautsEnabled && (
+				<DropdownMenuItem asChild>
+					<Link to="/coder-cup">
+						<CodernautsSVG />
+						<span>Codernauts</span>
+					</Link>
+				</DropdownMenuItem>
+			)}
 			{trialCta}
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>

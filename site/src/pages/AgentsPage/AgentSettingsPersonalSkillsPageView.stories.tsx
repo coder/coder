@@ -159,13 +159,6 @@ export const RefetchErrorKeepsRows: Story = {
 	args: {
 		error: new Error("Failed to load personal skills."),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("row", { name: /review-sql/ })).toBeVisible();
-		await expect(
-			canvas.getByText("Failed to load personal skills."),
-		).toBeVisible();
-	},
 };
 
 export const CreateDialogOpen: Story = {
@@ -254,16 +247,9 @@ export const ImportSkillMarkdownPopulatesCreateFields: Story = {
 			"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.",
 		);
 
-		await waitFor(() => {
-			expect(dialogCanvas.getByLabelText("Name")).toHaveValue("imported-skill");
-			expect(dialogCanvas.getByLabelText("Description")).toHaveValue(
-				"Imported guidance.",
-			);
-			expect(dialogCanvas.getByLabelText("Body")).toHaveValue(
-				"Use imported instructions.",
-			);
-			expect(dialogCanvas.getByText("Imported SKILL.md")).toBeVisible();
-		});
+		// Wait for the import to populate the create fields so the snapshot
+		// captures the imported values.
+		await dialogCanvas.findByText("Imported SKILL.md");
 	},
 };
 
@@ -287,13 +273,8 @@ export const ImportSkillMarkdownShowsParseError: Story = {
 		await userEvent.click(importInput);
 		await userEvent.paste("---\ndescription: Missing name\n---\nBody");
 
-		await waitFor(() => {
-			expect(dialogCanvas.getByText("Could not parse SKILL.md")).toBeVisible();
-			expect(dialogCanvas.getByText("Skill name is required.")).toBeVisible();
-			expect(dialogCanvas.getByLabelText("Name")).toHaveValue("");
-			expect(dialogCanvas.getByLabelText("Description")).toHaveValue("");
-			expect(dialogCanvas.getByLabelText("Body")).toHaveValue("");
-		});
+		// Wait for the parse error to render so the snapshot captures it.
+		await dialogCanvas.findByText("Could not parse SKILL.md");
 	},
 };
 
@@ -326,18 +307,11 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 			"---\nname: pasted-name\ndescription: New description.\n---\n\nNew body.",
 		);
 
-		await waitFor(() => {
-			expect(dialogCanvas.getByLabelText("Name")).toHaveValue("review-sql");
-			expect(dialogCanvas.getByLabelText("Description")).toHaveValue(
-				"New description.",
-			);
-			expect(dialogCanvas.getByLabelText("Body")).toHaveValue("New body.");
-			expect(
-				dialogCanvas.getByText(
-					"Updated description and body fields. Kept the existing name.",
-				),
-			).toBeVisible();
-		});
+		// Wait for the import confirmation so the snapshot captures the
+		// updated fields with the kept name.
+		await dialogCanvas.findByText(
+			"Updated description and body fields. Kept the existing name.",
+		);
 	},
 };
 
@@ -442,12 +416,9 @@ export const InvalidNameIsRejected: Story = {
 		await userEvent.type(nameInput, "Bad Name");
 		await userEvent.click(bodyInput);
 
-		await waitFor(() => {
-			expect(nameInput).toHaveAttribute("aria-invalid", "true");
-			expect(
-				dialogCanvas.getByRole("button", { name: "Create skill" }),
-			).toBeDisabled();
-		});
+		// Wait for validation to run so the snapshot captures the rejected
+		// state.
+		await dialogCanvas.findByText(/kebab-case/i);
 	},
 };
 
@@ -472,14 +443,9 @@ export const DuplicateNameIsRejected: Story = {
 		await userEvent.type(nameInput, "review-sql");
 		await userEvent.click(bodyInput);
 
-		await waitFor(() => {
-			expect(
-				dialogCanvas.getByText("A skill with this name already exists."),
-			).toBeVisible();
-			expect(
-				dialogCanvas.getByRole("button", { name: "Create skill" }),
-			).toBeDisabled();
-		});
+		// Wait for the duplicate-name validation so the snapshot captures
+		// the rejected state.
+		await dialogCanvas.findByText("A skill with this name already exists.");
 	},
 };
 

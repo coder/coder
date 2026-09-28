@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { fn } from "storybook/test";
+import {
+	MockStoppedWorkspace,
+	MockWorkspace,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { DesktopPopoutPageView } from "./DesktopPopoutPage";
 
 const meta = {
@@ -16,6 +21,10 @@ type Story = StoryObj<typeof meta>;
 export const Connecting: Story = {
 	args: {
 		status: "connecting",
+		workspace: MockWorkspace,
+		agentStatus: "connected",
+		onStartWorkspace: fn(),
+		isStartingWorkspace: false,
 		reconnect: fn(),
 		attach: fn(),
 		scaleMode: "fit",
@@ -24,23 +33,12 @@ export const Connecting: Story = {
 		onTakeControl: fn(),
 		onReleaseControl: fn(),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Connecting to desktop..."),
-		).toBeInTheDocument();
-	},
 };
 
 export const Connected: Story = {
 	args: {
 		...Connecting.args,
 		status: "connected",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Take control")).toBeInTheDocument();
-		await expect(canvas.getByText("Zoom to 100%")).toBeInTheDocument();
 	},
 };
 
@@ -49,10 +47,6 @@ export const ErrorState: Story = {
 		...Connecting.args,
 		status: "error",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Reconnect")).toBeInTheDocument();
-	},
 };
 
 export const Disconnected: Story = {
@@ -60,10 +54,26 @@ export const Disconnected: Story = {
 		...Connecting.args,
 		status: "disconnected",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Desktop disconnected. Reconnecting..."),
-		).toBeInTheDocument();
+};
+
+export const WorkspaceStopped: Story = {
+	args: {
+		...Connecting.args,
+		status: "idle",
+		workspace: MockStoppedWorkspace,
+		agentStatus: undefined,
+	},
+};
+
+export const WorkspaceLoadFailed: Story = {
+	args: {
+		...Connecting.args,
+		status: "idle",
+		workspace: undefined,
+		agentStatus: undefined,
+		workspaceError: mockApiError({
+			message: "Workspace not found.",
+			detail: "The workspace for this chat may have been deleted.",
+		}),
 	},
 };

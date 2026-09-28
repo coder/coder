@@ -2,11 +2,11 @@
  * Copied from shadc/ui on 03/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
-import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { cn } from "#/utils/cn";
 
-interface ScrollAreaProps
-	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
+import { cn } from "cn";
+import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
+
+type ScrollAreaProps = React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
 	scrollBarClassName?: string;
 	horizontalScrollBarClassName?: string;
 	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */
@@ -16,7 +16,7 @@ interface ScrollAreaProps
 	viewportAriaLabel?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */
 	orientation?: "vertical" | "horizontal" | "both";
-}
+};
 
 export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	className,
@@ -67,10 +67,8 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	);
 };
 
-export const ScrollBar: React.FC<
-	React.ComponentPropsWithRef<
-		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
-	> & {
+const ScrollBar: React.FC<
+	React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar> & {
 		thumbClassName?: string;
 	}
 > = ({ className, orientation = "vertical", thumbClassName, ...props }) => {

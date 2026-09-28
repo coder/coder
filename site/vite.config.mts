@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -18,11 +19,17 @@ compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
 		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
-		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+		include: [
+			/src\/modules\/aiModels\//,
+			/src\/pages\/AgentsPage\//,
+			/src\/pages\/AIBridgePage\//,
+			/src\/pages\/TemplateBuilder\//,
+		],
 	},
 };
 
 const plugins: PluginOption[] = [
+	tailwindcss(),
 	react(),
 	babel({ presets: [compilerPreset] }),
 	checker({
@@ -156,7 +163,7 @@ export default defineConfig({
 						secure: process.env.NODE_ENV === "production",
 					},
 				},
-		allowedHosts: [".coder", ".dev.coder.com"],
+		allowedHosts: [".coder", ".dogfood.cdr.dev"],
 	},
 	// Pre-bundle deps that Vite tends to discover late. Without this, Vite
 	// re-optimizes mid-session which returns 504 "Outdated Optimize Dep" for

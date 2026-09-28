@@ -2,9 +2,8 @@
 title: Template Optimization
 ---
 
-Not every chat with Coder Agents requires a workspace. A workspace is only provisioned when the
-agent decides it needs compute — to read files, write code, run commands, or
-execute builds.
+Not every chat with Coder Agents requires a workspace.
+The agent provisions one when missing tools, skills, MCP integrations, or context block progress, or when it needs to work with files or run commands.
 
 When a workspace is needed, the agent reads the available templates, selects the appropriate one based on its name and description, and provisions a workspace automatically.
 Administrators can [restrict which templates the agent can use](#restrict-available-templates).

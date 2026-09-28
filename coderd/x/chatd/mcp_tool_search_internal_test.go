@@ -315,7 +315,7 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	require.Equal(t, []string{"github__create_issue", "linear__create_issue"}, names(collectDeferredMCPCandidates(noWorkspace)))
 
 	longServer := strings.Repeat("s", 70)
-	truncated := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: longServer + "__echo"}, nil, nil)
+	truncated := chattool.NewWorkspaceMCPTools([]workspacesdk.MCPToolInfo{{Name: longServer + "__echo"}}, nil)[0]
 	require.NotContains(t, truncated.Info().Name, "__",
 		"sanitization must drop the separator for this scenario to be meaningful")
 	truncatedInput := deferredMCPCandidateInput{
@@ -325,7 +325,7 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	require.Equal(t, longServer, collectDeferredMCPCandidates(truncatedInput)[0].server,
 		"the server comes from the unsanitized routing name, not the capped model name")
 
-	padded := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: " everything __echo"}, nil, nil)
+	padded := chattool.NewWorkspaceMCPTools([]workspacesdk.MCPToolInfo{{Name: " everything __echo"}}, nil)[0]
 	paddedInput := deferredMCPCandidateInput{
 		workspaceMCPTools:     []fantasy.AgentTool{padded},
 		includeWorkspaceTools: true,
@@ -333,7 +333,7 @@ func TestCollectDeferredMCPCandidates(t *testing.T) {
 	require.Equal(t, "everything", collectDeferredMCPCandidates(paddedInput)[0].server,
 		"surrounding whitespace is trimmed so scope matching and catalog display see the canonical name")
 
-	unpadded := chattool.NewWorkspaceMCPTool(workspacesdk.MCPToolInfo{Name: "everything__ping"}, nil, nil)
+	unpadded := chattool.NewWorkspaceMCPTools([]workspacesdk.MCPToolInfo{{Name: "everything__ping"}}, nil)[0]
 	collidingInput := deferredMCPCandidateInput{
 		workspaceMCPTools:     []fantasy.AgentTool{padded, unpadded},
 		includeWorkspaceTools: true,

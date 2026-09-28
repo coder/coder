@@ -1,16 +1,15 @@
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { FileUpload } from "#/components/FileUpload/FileUpload";
 import { Link } from "#/components/Link/Link";
 
-export interface TemplateUploadProps {
+export type TemplateUploadProps = {
 	isUploading: boolean;
 	onUpload: (file: File) => void;
 	onRemove: () => void;
 	file?: File;
-}
+};
 
-export const TemplateUpload: FC<TemplateUploadProps> = ({
+export const TemplateUpload: React.FC<TemplateUploadProps> = ({
 	isUploading,
 	onUpload,
 	onRemove,

@@ -1,4 +1,5 @@
-import { type FC, useId, useState } from "react";
+import { cn } from "cn";
+import { useId, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { workspaceAvailableUsers } from "#/api/queries/users";
@@ -19,7 +20,6 @@ import {
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
-import { cn } from "#/utils/cn";
 import { prepareQuery } from "#/utils/filters";
 
 // The common properties between users and org members that we need.
@@ -41,10 +41,9 @@ type WorkspaceUserAutocompleteProps = CommonAutocompleteProps<MinimalUser> & {
 	organizationId: string;
 };
 
-export const WorkspaceUserAutocomplete: FC<WorkspaceUserAutocompleteProps> = ({
-	organizationId,
-	...props
-}) => {
+export const WorkspaceUserAutocomplete: React.FC<
+	WorkspaceUserAutocompleteProps
+> = ({ organizationId, ...props }) => {
 	const [filter, setFilter] = useState<string>();
 
 	const availableUsersQuery = useQuery({

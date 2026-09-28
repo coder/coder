@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Slot } from "radix-ui";
-import { cn } from "#/utils/cn";
 
 const linkVariants = cva(
 	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
@@ -22,11 +22,10 @@ const linkVariants = cva(
 	},
 );
 
-export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
+export type LinkProps = React.ComponentProps<"a"> &
 	VariantProps<typeof linkVariants> & {
 		asChild?: boolean;
 		showExternalIcon?: boolean;
-		ref?: React.Ref<HTMLAnchorElement>;
 	};
 
 export const Link: React.FC<LinkProps> = ({

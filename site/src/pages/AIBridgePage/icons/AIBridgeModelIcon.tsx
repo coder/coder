@@ -1,6 +1,5 @@
-import { CircleQuestionMarkIcon } from "lucide-react";
+import { cn } from "cn";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { cn } from "#/utils/cn";
 
 // Infers the model family from a model name string.
 // See official model naming docs:
@@ -39,11 +38,12 @@ function inferModelFamily(model: string): string {
 export const AIBridgeModelIcon = ({
 	model,
 	className,
-	...props
 }: {
 	model: string;
-} & React.ComponentProps<"svg">) => {
+	className?: string;
+}) => {
 	const iconClassName = "shrink-0";
+	const fallbackIconClassName = "shrink-0 rounded-full bg-surface-tertiary";
 	const family = inferModelFamily(model);
 	switch (family) {
 		case "claude":
@@ -69,10 +69,7 @@ export const AIBridgeModelIcon = ({
 			);
 		default:
 			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, className)}
-					{...props}
-				/>
+				<span aria-hidden className={cn(fallbackIconClassName, className)} />
 			);
 	}
 };

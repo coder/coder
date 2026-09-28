@@ -101,7 +101,6 @@ func (p *streamSyncPoller) unregister(subscriber *streamSyncPollerSubscriber) {
 	if len(chatSubscribers) == 0 {
 		delete(p.subscribers, subscriber.chatID)
 	}
-	close(subscriber.hints)
 }
 
 func (p *streamSyncPoller) loop() {

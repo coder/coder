@@ -1,10 +1,6 @@
-import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import {
-	Badges,
-	DisabledBadge,
-	EnabledBadge,
-} from "#/components/Badges/Badges";
+import { BadgeGroup } from "#/components/Badge/Badge";
+import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -27,11 +23,9 @@ type SecuritySettingsPageViewProps = {
 	featureBrowserOnlyEnabled: boolean;
 };
 
-export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
-	options,
-	isBrowserOnlyEntitled,
-	featureBrowserOnlyEnabled,
-}) => {
+export const SecuritySettingsPageView: React.FC<
+	SecuritySettingsPageViewProps
+> = ({ options, isBrowserOnlyEntitled, featureBrowserOnlyEnabled }) => {
 	const tlsOptions = options.filter((o) =>
 		deploymentGroupHasParent(o.group, "TLS"),
 	);
@@ -68,9 +62,9 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 						className="items-center"
 					>
 						Browser-Only Connections{" "}
-						<Badges>
+						<BadgeGroup>
 							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-						</Badges>
+						</BadgeGroup>
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other

@@ -1,13 +1,12 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import type { DERPRegion, WorkspaceAgent } from "#/api/typesGenerated";
 import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverText,
-	HelpPopoverTitle,
-	HelpPopoverTrigger,
-} from "#/components/HelpPopover/HelpPopover";
-import { cn } from "#/utils/cn";
+	Tooltip,
+	TooltipContent,
+	TooltipMessage,
+	TooltipTitle,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getLatencyColor } from "#/utils/latency";
 
 const getDisplayLatency = (agent: WorkspaceAgent) => {
@@ -29,11 +28,11 @@ const getDisplayLatency = (agent: WorkspaceAgent) => {
 	};
 };
 
-interface AgentLatencyProps {
+type AgentLatencyProps = {
 	agent: WorkspaceAgent;
-}
+};
 
-export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
+export const AgentLatency: React.FC<AgentLatencyProps> = ({ agent }) => {
 	const latency = getDisplayLatency(agent);
 
 	if (!latency || !agent.latency) {
@@ -41,22 +40,18 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 	}
 
 	return (
-		<HelpPopover>
-			<HelpPopoverTrigger asChild>
-				<span
-					role="presentation"
-					aria-label="latency"
-					className={cn("cursor-pointer", latency.color)}
-				>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button type="button" aria-label="latency" className={latency.color}>
 					{Math.round(latency.latency_ms)}ms
-				</span>
-			</HelpPopoverTrigger>
-			<HelpPopoverContent>
-				<HelpPopoverTitle>Latency</HelpPopoverTitle>
-				<HelpPopoverText>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				<TooltipTitle>Latency</TooltipTitle>
+				<TooltipMessage>
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
-				</HelpPopoverText>
+				</TooltipMessage>
 				<div className="flex-col gap-1 mt-4">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
@@ -73,7 +68,7 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 							</div>
 						))}
 				</div>
-			</HelpPopoverContent>
-		</HelpPopover>
+			</TooltipContent>
+		</Tooltip>
 	);
 };

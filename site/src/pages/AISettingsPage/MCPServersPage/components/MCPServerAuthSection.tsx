@@ -1,6 +1,5 @@
 import type { FormikContextType } from "formik";
 import { PlusIcon, XIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
@@ -10,6 +9,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { passwordManagerIgnoreProps } from "#/utils/formUtils";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AUTH_TYPE_OPTIONS,
@@ -17,17 +17,17 @@ import {
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
-interface MCPServerAuthFieldsProps {
+type MCPServerAuthFieldsProps = {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
-}
+};
 
-interface MCPServerAuthSectionProps extends MCPServerAuthFieldsProps {
+type MCPServerAuthSectionProps = MCPServerAuthFieldsProps & {
 	canSelectUserOIDC: boolean;
-}
+};
 
-export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
+export const MCPServerAuthSection: React.FC<MCPServerAuthSectionProps> = ({
 	form,
 	formId,
 	disabled,
@@ -82,7 +82,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	);
 };
 
-const OAuth2Fields: FC<MCPServerAuthFieldsProps> = ({
+const OAuth2Fields: React.FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -156,7 +156,7 @@ const OAuth2Fields: FC<MCPServerAuthFieldsProps> = ({
 	</div>
 );
 
-const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
+const APIKeyFields: React.FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -185,7 +185,7 @@ const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	</div>
 );
 
-const SecretInput: FC<{
+export const SecretInput: React.FC<{
 	id: string;
 	value: string;
 	touched: boolean;
@@ -198,11 +198,7 @@ const SecretInput: FC<{
 		id={id}
 		className="font-mono shadow-none [-webkit-text-security:disc]"
 		type="text"
-		autoComplete="off"
-		data-1p-ignore
-		data-lpignore="true"
-		data-form-type="other"
-		data-bwignore
+		{...passwordManagerIgnoreProps}
 		value={value}
 		onChange={(event) => {
 			onTouch();
@@ -224,7 +220,7 @@ const SecretInput: FC<{
 	/>
 );
 
-const CustomHeadersFields: FC<MCPServerAuthFieldsProps> = ({
+const CustomHeadersFields: React.FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -272,7 +268,7 @@ const CustomHeadersFields: FC<MCPServerAuthFieldsProps> = ({
 	);
 };
 
-const CustomHeaderInput: FC<{
+const CustomHeaderInput: React.FC<{
 	formId: string;
 	header: { key: string; value: string };
 	index: number;

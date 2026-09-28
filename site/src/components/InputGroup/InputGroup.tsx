@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
-import { cn } from "#/utils/cn";
 
 export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 	className,
@@ -62,9 +62,10 @@ export const InputGroupAddon: React.FC<
 	);
 };
 
-export const InputGroupInput: React.FC<
-	React.ComponentPropsWithRef<typeof Input>
-> = ({ className, ...props }) => {
+export const InputGroupInput: React.FC<React.ComponentProps<typeof Input>> = ({
+	className,
+	...props
+}) => {
 	return (
 		<Input
 			className={cn(

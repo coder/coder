@@ -1,12 +1,5 @@
-import {
-	type ComponentPropsWithRef,
-	type FC,
-	lazy,
-	type ReactNode,
-	Suspense,
-	useId,
-	useState,
-} from "react";
+import { cn } from "cn";
+import { lazy, Suspense, useId, useState } from "react";
 import { ChevronDownIcon as AnimatedChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -22,20 +15,19 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import { cn } from "#/utils/cn";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
-type IconFieldProps = Omit<ComponentPropsWithRef<"input">, "type"> & {
-	label?: ReactNode;
+type IconFieldProps = Omit<React.ComponentProps<"input">, "type"> & {
+	label?: React.ReactNode;
 	error?: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	onPickEmoji: (value: string) => void;
 	/** Accepted for call-site compatibility with former MUI TextField usage. */
 	fullWidth?: boolean;
 };
 
-export const IconField: FC<IconFieldProps> = ({
+export const IconField: React.FC<IconFieldProps> = ({
 	id: idProp,
 	value,
 	label = "Icon",

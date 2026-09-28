@@ -1,5 +1,5 @@
+import { cn } from "cn";
 import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
@@ -29,7 +29,6 @@ import {
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
-import { cn } from "#/utils/cn";
 import { displayDormantDeletion } from "#/utils/dormant";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
@@ -43,7 +42,7 @@ const BREADCRUMB_SEGMENT_CLASS = cn(
 );
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
 
-interface WorkspaceTopbarProps {
+type WorkspaceTopbarProps = {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
@@ -59,9 +58,9 @@ interface WorkspaceTopbarProps {
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleToggleFavorite: () => void;
-}
+};
 
-export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
+export const WorkspaceTopbar: React.FC<WorkspaceTopbarProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -260,7 +259,7 @@ type OwnerBreadcrumbProps = Readonly<{
 	ownerAvatarUrl: string;
 }>;
 
-const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
+const OwnerBreadcrumb: React.FC<OwnerBreadcrumbProps> = ({
 	ownerName,
 	ownerAvatarUrl,
 }) => {
@@ -286,7 +285,7 @@ type OrganizationBreadcrumbProps = Readonly<{
 	orgIconUrl?: string;
 }>;
 
-const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
+const OrganizationBreadcrumb: React.FC<OrganizationBreadcrumbProps> = ({
 	orgName,
 	orgPageUrl,
 	orgIconUrl,
@@ -343,7 +342,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	templateDisplayName: string;
 }>;
 
-const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
+const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 	workspaceName,
 	templateIconUrl,
 	rootTemplateUrl,

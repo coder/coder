@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { FormSection, VerticalForm } from "#/components/Form/Form";
@@ -12,12 +11,12 @@ import {
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
 import { docs } from "#/utils/docs";
 
-interface ProvisionerTagsPopoverProps {
+type ProvisionerTagsPopoverProps = {
 	tags: ProvisionerDaemon["tags"];
 	onTagsChange: (values: ProvisionerDaemon["tags"]) => void;
-}
+};
 
-export const ProvisionerTagsPopover: FC<ProvisionerTagsPopoverProps> = ({
+export const ProvisionerTagsPopover: React.FC<ProvisionerTagsPopoverProps> = ({
 	tags,
 	onTagsChange,
 }) => {

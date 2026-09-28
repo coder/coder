@@ -1,6 +1,7 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
@@ -39,7 +40,6 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
 import { SpendEstimateDocsLink } from "./AICostControl";
 import {
@@ -54,7 +54,7 @@ type MemberWithSpend = ReducedUser & {
 	readonly spend: GroupMemberAISpend | undefined;
 };
 
-const GroupMembersPage: FC = () => {
+const GroupMembersPage: React.FC = () => {
 	const {
 		group: groupData,
 		members,
@@ -221,16 +221,16 @@ const GroupMembersPage: FC = () => {
 	);
 };
 
-interface GroupMemberRowProps {
+type GroupMemberRowProps = {
 	member: MemberWithSpend;
 	group: Group;
 	canUpdate: boolean;
 	showAIBudget: boolean;
 	onManageAIBudget: () => void;
 	onRemove: () => void;
-}
+};
 
-const GroupMemberRow: FC<GroupMemberRowProps> = ({
+const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,

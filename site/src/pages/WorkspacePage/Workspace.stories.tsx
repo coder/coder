@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
 import * as Mocks from "#/testHelpers/entities";
 import {
@@ -112,9 +113,9 @@ export const RunningWithChildAgent: Story = {
 export const RunningWithAppStatuses: Story = {
 	args: {
 		workspace: {
-			...Mocks.MockTaskWorkspace,
+			...Mocks.MockWorkspace,
 			latest_build: {
-				...Mocks.MockTaskWorkspace.latest_build,
+				...Mocks.MockWorkspace.latest_build,
 				resources: [
 					{
 						...Mocks.MockWorkspaceResource,
@@ -260,6 +261,51 @@ export const AppIcons: Story = {
 	},
 };
 
+const openResourcesSidebar = async (canvasElement: HTMLElement) => {
+	await userEvent.click(
+		within(canvasElement).getByRole("button", { name: "Resources" }),
+	);
+};
+
+export const HiddenResources: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				resources: [
+					{
+						...Mocks.MockWorkspaceResource,
+						agents: [
+							{
+								...Mocks.MockWorkspaceAgent,
+								lifecycle_state: "ready",
+							},
+						],
+					},
+					Mocks.MockWorkspaceResourceHidden,
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openResourcesSidebar(canvasElement);
+	},
+};
+
+export const HiddenResourcesRevealed: Story = {
+	args: HiddenResources.args,
+	play: async ({ canvasElement }) => {
+		await openResourcesSidebar(canvasElement);
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: /show hidden resources/i,
+			}),
+		);
+	},
+};
+
 export const Favorite: Story = {
 	args: {
 		...Running.args,
@@ -368,6 +414,10 @@ export const UnhealthyWithoutUpdatePermission: Story = {
 };
 
 export const FailedWithLogs: Story = {
+	parameters: {
+		permissions: Mocks.MockPermissions,
+		experiments: ["enable-ai-workspace-debug"],
+	},
 	args: {
 		...Running.args,
 		workspace: {
@@ -383,6 +433,14 @@ export const FailedWithLogs: Story = {
 		},
 		buildLogs: makeFailedBuildLogs(),
 	},
+};
+
+export const FailedWithoutChatPermission: Story = {
+	parameters: {
+		permissions: Mocks.MockNoPermissions,
+		experiments: ["enable-ai-workspace-debug"],
+	},
+	args: FailedWithLogs.args,
 };
 
 export const FailedWithRetry: Story = {

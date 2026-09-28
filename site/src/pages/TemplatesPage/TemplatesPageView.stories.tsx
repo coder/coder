@@ -32,6 +32,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	args: {
 		filterState: defaultFilterProps,
 		templateBuilderEnabled: false,
+		templateUpdatePermissions: {},
 	},
 };
 
@@ -212,6 +213,82 @@ export const WithValidationError: Story = {
 		}),
 		templates: undefined,
 		examples: undefined,
+		canCreateTemplates: false,
+	},
+};
+
+const classicParameterFlowTemplates = [
+	{
+		...MockTemplate,
+		id: "template-classic-1",
+		name: "classic-one",
+		display_name: "Classic One",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-2",
+		name: "classic-two",
+		display_name: "Classic Two",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-without-permission",
+		organization_id: "other-organization",
+		name: "classic-without-permission",
+		display_name: "Classic Without Permission",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-dynamic",
+		name: "dynamic-one",
+		display_name: "Dynamic One",
+		use_classic_parameter_flow: false,
+	},
+];
+
+export const ClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: classicParameterFlowTemplates,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+			"other-organization": false,
+		},
+	},
+};
+
+export const SingleClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [
+			classicParameterFlowTemplates[0],
+			// The dynamic-flow template ensures only the classic template is counted.
+			classicParameterFlowTemplates[3],
+		],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: true,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: false,
+		},
+	},
+};
+
+export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
 		canCreateTemplates: false,
 	},
 };

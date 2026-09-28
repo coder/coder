@@ -1,13 +1,14 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import { getApplicationName, getLogoURL } from "#/utils/appearance";
-import { cn } from "#/utils/cn";
 import { ExternalImage } from "../ExternalImage/ExternalImage";
 
 /**
  * Enterprise customers can set a custom logo for their Coder application. Use
  * the custom logo wherever the Coder logo is used, if a custom one is provided.
  */
-export const ProductLogo: FC<{ className?: string }> = ({ className }) => {
+export const ProductLogo: React.FC<{ className?: string }> = ({
+	className,
+}) => {
 	const applicationName = getApplicationName();
 	const logoURL = getLogoURL();
 
@@ -30,7 +31,7 @@ export const ProductLogo: FC<{ className?: string }> = ({ className }) => {
 	);
 };
 
-const CoderLogo: FC<React.ComponentProps<"svg">> = ({
+const CoderLogo: React.FC<React.ComponentProps<"svg">> = ({
 	className,
 	...props
 }) => (

@@ -1,14 +1,15 @@
-import type { FC } from "react";
+import { cn } from "cn";
 import { Link as RouterLink } from "react-router";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Welcome } from "#/components/Welcome/Welcome";
-import { cn } from "#/utils/cn";
 
 type CliInstallPageViewProps = {
 	origin: string;
 };
 
-export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
+export const CliInstallPageView: React.FC<CliInstallPageViewProps> = ({
+	origin,
+}) => {
 	return (
 		<div
 			className={cn(

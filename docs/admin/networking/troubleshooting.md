@@ -37,7 +37,7 @@ Possible agent-side issues with direct connection:
 
 Direct connections can be disabled at the deployment level by setting the
 `CODER_BLOCK_DIRECT` environment variable or the `--block-direct-connections`
-flag on the server. When set, this will be reflected in the output of
+flag on the control plane. When set, this will be reflected in the output of
 `coder ping`.
 
 ### UDP Blocked
@@ -116,7 +116,7 @@ will not be affected by the low MTU.
 
 To disable direct connections, set the
 [`--block-direct-connections`](../../reference/cli/server.md#--block-direct-connections)
-flag or `CODER_BLOCK_DIRECT` environment variable on the Coder server.
+flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
 
 ## Throughput
 

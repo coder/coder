@@ -149,7 +149,7 @@ export const templateExamples = () => {
 	};
 };
 
-export const templateVersionRoot: string = "templateVersion";
+export const templateVersionRoot = "templateVersion";
 
 export const templateVersion = (versionId: string) => {
 	return {
@@ -375,7 +375,7 @@ export const previousTemplateVersion = (
 	};
 };
 
-export const templateVersionPresetsKey = (versionId: string) => [
+const templateVersionPresetsKey = (versionId: string) => [
 	templateVersionRoot,
 	versionId,
 	"presets",

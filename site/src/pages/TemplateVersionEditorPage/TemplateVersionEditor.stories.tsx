@@ -181,7 +181,7 @@ export const PublishDialogActiveVersionHelp: Story = {
 		// The dialog and popover are portaled, so query against the document body.
 		const body = within(canvasElement.ownerDocument.body);
 		const trigger = await body.findByRole("button", { name: "More info" });
-		await userEvent.click(trigger);
+		await userEvent.hover(trigger);
 		await expect(await body.findByText("Active versions")).toBeInTheDocument();
 		await expect(
 			body.getByRole("link", { name: "Review the documentation" }),

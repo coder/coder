@@ -25,12 +25,13 @@ import (
 )
 
 type ManifestAPI struct {
-	AccessURL                *url.URL
-	AppHostname              string
-	ExternalAuthConfigs      []*externalauth.Config
-	DisableDirectConnections bool
-	DerpForceWebSockets      bool
-	WorkspaceID              uuid.UUID
+	AccessURL                 *url.URL
+	AppHostname               string
+	ExternalAuthConfigs       []*externalauth.Config
+	DisableDirectConnections  bool
+	DerpForceWebSockets       bool
+	DisableUserSecretFilePath bool
+	WorkspaceID               uuid.UUID
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -129,6 +130,11 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		parentID = workspaceAgent.ParentID.UUID[:]
 	}
 
+	secretFilePathPolicy := userSecretFilePathAllowed
+	if a.DisableUserSecretFilePath {
+		secretFilePathPolicy = userSecretFilePathBlocked
+	}
+
 	return &agentproto.Manifest{
 		AgentId:                  workspaceAgent.ID[:],
 		AgentName:                workspaceAgent.Name,
@@ -149,7 +155,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Apps:          apps,
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
-		Secrets:       dbUserSecretsToProto(userSecrets),
+		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
 	}, nil
 }
 
@@ -275,7 +281,16 @@ func dbAgentDevcontainersToProto(devcontainers []database.WorkspaceAgentDevconta
 	return ret
 }
 
-func dbUserSecretsToProto(secrets []database.UserSecret) []*agentproto.WorkspaceSecret {
+// userSecretFilePathPolicy is a named type rather than a bool parameter to
+// satisfy revive's flag-parameter rule.
+type userSecretFilePathPolicy int
+
+const (
+	userSecretFilePathAllowed userSecretFilePathPolicy = iota
+	userSecretFilePathBlocked
+)
+
+func dbUserSecretsToProto(secrets []database.UserSecret, policy userSecretFilePathPolicy) []*agentproto.WorkspaceSecret {
 	ret := make([]*agentproto.WorkspaceSecret, 0, len(secrets))
 	for _, s := range secrets {
 		// Skip disabled secrets so they are not injected as env vars or
@@ -285,9 +300,16 @@ func dbUserSecretsToProto(secrets []database.UserSecret) []*agentproto.Workspace
 		if !s.Enabled {
 			continue
 		}
+		filePath := s.FilePath
+		if policy == userSecretFilePathBlocked {
+			if s.EnvName == "" {
+				continue
+			}
+			filePath = ""
+		}
 		ret = append(ret, &agentproto.WorkspaceSecret{
 			EnvName:  s.EnvName,
-			FilePath: s.FilePath,
+			FilePath: filePath,
 			Value:    []byte(s.Value),
 		})
 	}

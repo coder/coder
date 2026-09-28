@@ -1,5 +1,6 @@
+import { cn } from "cn";
 import { RefreshCwIcon, SettingsIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { InboxNotification } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -10,7 +11,6 @@ import {
 } from "#/components/Popover/Popover";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { InboxButton } from "./InboxButton";
 import { InboxItem } from "./InboxItem";
 import { UnreadBadge } from "./UnreadBadge";
@@ -28,7 +28,7 @@ type InboxPopoverProps = {
 	defaultOpen?: boolean;
 };
 
-export const InboxPopover: FC<InboxPopoverProps> = ({
+export const InboxPopover: React.FC<InboxPopoverProps> = ({
 	defaultOpen,
 	unreadCount,
 	notifications,

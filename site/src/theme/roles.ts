@@ -1,6 +1,6 @@
 export type ThemeRole = keyof Roles;
 
-export interface Roles {
+export type Roles = {
 	/** Something is wrong; either unexpectedly, or in a meaningful way. */
 	error: Role;
 
@@ -33,13 +33,13 @@ export interface Roles {
 	 * Preview features, experiments, unstable, etc.
 	 */
 	preview: Role;
-}
+};
 
 /**
  * A set of colors which work together to fill a desirable "communication role"
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
-export interface Role {
+export type Role = {
 	/** A background color that works best with the corresponding `outline` and `text` colors */
 	background: string;
 
@@ -60,13 +60,13 @@ export interface Role {
 		/** A color for text when using the `solid` background color */
 		text: string;
 	};
-}
+};
 
 /** Provides additional colors which can indicate different states for interactive elements */
-export interface InteractiveRole extends Role {
+export type InteractiveRole = Role & {
 	/** A set of colors which can indicate a disabled state */
 	disabled: Role;
 
 	/** A set of colors which can indicate mouse hover (or keyboard focus)  */
 	hover: Role;
-}
+};

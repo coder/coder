@@ -1,5 +1,4 @@
 import { PlusIcon, RotateCwIcon } from "lucide-react";
-import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
@@ -24,7 +23,6 @@ import { useTheme } from "#/theme/context";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
-import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
 import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
 
@@ -40,12 +38,11 @@ type Props = {
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
 	activeUsers: UserStatusChangeCount[] | undefined;
-	managedAgentFeature?: Feature;
 	aiGovernanceUserFeature?: Feature;
 	agentRuntimeHoursFeature?: Feature;
 };
 
-const LicensesSettingsPageView: FC<Props> = ({
+const LicensesSettingsPageView: React.FC<Props> = ({
 	showConfetti,
 	isLoading,
 	hasUserLimitEntitlementData,
@@ -57,7 +54,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 	removeLicense,
 	refreshEntitlements,
 	activeUsers,
-	managedAgentFeature,
 	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,
 }) => {
@@ -194,10 +190,6 @@ const LicensesSettingsPageView: FC<Props> = ({
 						</div>
 
 						<TotalAgentHoursCard feature={agentRuntimeHoursFeature} />
-
-						<ManagedAgentsConsumption
-							managedAgentFeature={managedAgentFeature}
-						/>
 					</>
 				)}
 			</div>

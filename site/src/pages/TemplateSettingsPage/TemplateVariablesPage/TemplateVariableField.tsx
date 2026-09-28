@@ -1,17 +1,11 @@
-import {
-	type FC,
-	type FocusEventHandler,
-	type ReactNode,
-	useId,
-	useState,
-} from "react";
+import { cn } from "cn";
+import { useId, useState } from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { cn } from "#/utils/cn";
 
-export const SensitiveVariableHelperText: FC = () => {
+export const SensitiveVariableHelperText: React.FC = () => {
 	return (
 		<span>
 			This variable is sensitive. The previous value will be used if empty.
@@ -19,18 +13,18 @@ export const SensitiveVariableHelperText: FC = () => {
 	);
 };
 
-interface TemplateVariableFieldProps {
+type TemplateVariableFieldProps = {
 	templateVersionVariable: TemplateVersionVariable;
 	initialValue: string;
 	disabled: boolean;
 	onChange: (value: string) => void;
 	error?: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	name?: string;
-	onBlur?: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-}
+	onBlur?: React.FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
+};
 
-export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
+export const TemplateVariableField: React.FC<TemplateVariableFieldProps> = ({
 	templateVersionVariable,
 	initialValue,
 	disabled,

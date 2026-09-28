@@ -3,11 +3,12 @@ import {
 	DownloadIcon,
 	EllipsisVerticalIcon,
 	HistoryIcon,
+	RotateCcwIcon,
 	SettingsIcon,
 	SquareIcon,
 	TrashIcon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
@@ -44,14 +45,18 @@ type WorkspaceMoreActionsProps = {
 	disabled: boolean;
 	onStop?: () => void;
 	isStopping?: boolean;
+	onRestart?: () => void;
+	isRestarting?: boolean;
 	onActionSuccess?: () => Promise<void> | void;
 };
 
-export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
+export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	workspace,
 	disabled,
 	onStop,
 	isStopping,
+	onRestart,
+	isRestarting,
 	onActionSuccess,
 }) => {
 	const queryClient = useQueryClient();
@@ -139,6 +144,13 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 						<DropdownMenuItem onClick={onStop} disabled={isStopping}>
 							<SquareIcon />
 							Stop&hellip;
+						</DropdownMenuItem>
+					)}
+
+					{onRestart && (
+						<DropdownMenuItem onClick={onRestart} disabled={isRestarting}>
+							<RotateCcwIcon />
+							Restart&hellip;
 						</DropdownMenuItem>
 					)}
 
