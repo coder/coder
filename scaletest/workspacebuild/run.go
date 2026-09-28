@@ -14,6 +14,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -132,7 +133,12 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
-	ws, err := r.client.Workspace(ctx, r.workspaceID)
+	ws, err := r.client.Workspace(ctx, r.workspaceID, codersdk.WorkspaceOptions{
+		// Only the latest build's job status is read below.
+		IncludeRelated: &wsrelated.Config{
+			LatestBuild: &wsrelated.LatestBuild{Job: &wsrelated.Job{}},
+		},
+	})
 	if err != nil {
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -142,8 +148,8 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 		return err
 	}
 
-	build, err := r.client.WorkspaceBuild(ctx, ws.LatestBuild.ID)
-	if err == nil && build.Job.Status.Active() {
+	build := ws.LatestBuild
+	if build.Job.Status.Active() {
 		// mark the build as canceled
 		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
 		if err = r.client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}); err != nil {
@@ -152,8 +158,6 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 		// Wait for either the build or the cancellation to finish
 		// either is necessary or we'll fail at the delete step.
 		_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
-	} else {
-		logger.Warn(ctx, "unable to lookup latest workspace build, attempting to delete anyway", slog.Error(err))
 	}
 
 	build, err = r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
@@ -262,7 +266,14 @@ func waitForAgents(ctx context.Context, w io.Writer, client *codersdk.Client, wo
 		default:
 		}
 
-		workspace, err := client.Workspace(ctx, workspaceID)
+		workspace, err := client.Workspace(ctx, workspaceID, codersdk.WorkspaceOptions{
+			// Only the build's agents are read below.
+			IncludeRelated: &wsrelated.Config{
+				LatestBuild: &wsrelated.LatestBuild{
+					Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{}},
+				},
+			},
+		})
 		if err != nil {
 			return xerrors.Errorf("fetch workspace: %w", err)
 		}
