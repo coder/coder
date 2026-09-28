@@ -8274,6 +8274,22 @@ func (q *sqlQuerier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds
 	return result.RowsAffected()
 }
 
+const drawChatMessageIDForAgentManifest = `-- name: DrawChatMessageIDForAgentManifest :one
+SELECT nextval('chat_messages_id_seq')::bigint AS last_chat_message_id
+`
+
+// Draws a fresh value from the chat message ID sequence for the agent
+// manifest's last_chat_message_id. nextval is not transactional and the
+// sequence only rises, so the value exceeds every chat message ID
+// allocated before this call, committed or not. Each call consumes one
+// ID that no message uses.
+func (q *sqlQuerier) DrawChatMessageIDForAgentManifest(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, drawChatMessageIDForAgentManifest)
+	var last_chat_message_id int64
+	err := row.Scan(&last_chat_message_id)
+	return last_chat_message_id, err
+}
+
 const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
 FROM chats_expanded

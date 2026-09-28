@@ -105,3 +105,9 @@ type DRPCAgentClient210 interface {
 type DRPCAgentClient211 interface {
 	DRPCAgentClient210
 }
+
+// DRPCAgentClient213 is the Agent API at v2.13. It adds
+// last_chat_message_id to Manifest. v2.12 and v2.13 add no new RPCs.
+type DRPCAgentClient213 interface {
+	DRPCAgentClient211
+}

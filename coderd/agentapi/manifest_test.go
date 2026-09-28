@@ -13,6 +13,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"tailscale.com/tailcfg"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -335,6 +337,7 @@ func TestGetManifest(t *testing.T) {
 			Keys:             nil, // all
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
+		mDB.EXPECT().DrawChatMessageIDForAgentManifest(gomock.Any()).Return(int64(1234), nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
@@ -364,6 +367,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			LastChatMessageId: ptr.Ref[int64](1234),
 		}
 
 		// Log got and expected with spew.
@@ -402,6 +407,7 @@ func TestGetManifest(t *testing.T) {
 			Keys:             nil, // all
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().DrawChatMessageIDForAgentManifest(gomock.Any()).Return(int64(1234), nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
@@ -431,6 +437,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      []*agentproto.WorkspaceAgentMetadata_Description{},
 			Devcontainers: []*agentproto.WorkspaceAgentDevcontainer{},
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			LastChatMessageId: ptr.Ref[int64](1234),
 		}
 
 		require.Equal(t, expected, got)
@@ -465,6 +473,7 @@ func TestGetManifest(t *testing.T) {
 			Keys:             nil,
 		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().DrawChatMessageIDForAgentManifest(gomock.Any()).Return(int64(1234), nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 
 		// Return a mix of secrets: env-only, file-only, both, and
@@ -585,6 +594,7 @@ func TestGetManifest(t *testing.T) {
 			Keys:             nil, // all
 		}).Return(metadata, nil)
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
+		mDB.EXPECT().DrawChatMessageIDForAgentManifest(gomock.Any()).Return(int64(1234), nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
 
@@ -613,6 +623,8 @@ func TestGetManifest(t *testing.T) {
 			Metadata:      protoMetadata,
 			Devcontainers: protoDevcontainers,
 			Secrets:       []*agentproto.WorkspaceSecret{},
+
+			LastChatMessageId: ptr.Ref[int64](1234),
 		}
 
 		// Log got and expected with spew.
@@ -620,5 +632,33 @@ func TestGetManifest(t *testing.T) {
 		// t.Log("expected:\n" + spew.Sdump(expected))
 
 		require.Equal(t, expected, got)
+	})
+
+	// The agent's cutoff message ID depends on a value drawn for this
+	// request, so a failed draw must fail the manifest request rather
+	// than serve a manifest without it.
+	t.Run("DrawLastChatMessageIDError", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		drawErr := xerrors.New("sequence unavailable")
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil).AnyTimes()
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{agent.ID}).Return(scripts, nil).AnyTimes()
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), gomock.Any()).Return(metadata, nil).AnyTimes()
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil).AnyTimes()
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil).AnyTimes()
+		mDB.EXPECT().DrawChatMessageIDForAgentManifest(gomock.Any()).Return(int64(0), drawErr)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.ErrorIs(t, err, drawErr)
+		require.Nil(t, got)
 	})
 }

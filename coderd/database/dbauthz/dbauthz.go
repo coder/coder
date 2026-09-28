@@ -2754,6 +2754,13 @@ func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	return q.db.DisableForeignKeysAndTriggers(ctx)
 }
 
+func (q *querier) DrawChatMessageIDForAgentManifest(ctx context.Context) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.DrawChatMessageIDForAgentManifest(ctx)
+}
+
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceNotificationMessage); err != nil {
 		return err

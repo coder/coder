@@ -178,9 +178,10 @@ func (c *Client) ConnectRPC210(ctx context.Context) (
 	return client, tAPI, nil
 }
 
-// v2.11 adds no RPCs, so the v2.10 client satisfies it as-is.
-func (c *Client) ConnectRPC211WithRole(ctx context.Context, _ string) (
-	agentproto.DRPCAgentClient211, proto.DRPCTailnetClient28, error,
+// v2.11 through v2.13 add no RPCs, so the v2.10 client satisfies them
+// as-is.
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, _ string) (
+	agentproto.DRPCAgentClient213, proto.DRPCTailnetClient28, error,
 ) {
 	return c.ConnectRPC210(ctx)
 }

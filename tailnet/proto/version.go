@@ -90,9 +90,14 @@ import (
 //   - Added the client_session_id to TelemetryEvent.
 //   - Added client_session_id to Connection on the agent API, for logging the
 //     client's session ID in the connections table.
+//
+// API v2.13:
+//   - Added last_chat_message_id to Manifest on the Agent API. Agents
+//     at v2.13 use it as the cutoff for chat tool call records and
+//     accept chat tool call headers on their HTTP API.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 12
+	CurrentMinor = 13
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

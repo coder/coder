@@ -12510,6 +12510,41 @@ func TestChatMessagesSequenceCacheIsOne(t *testing.T) {
 	require.Equal(t, int64(1), cacheSize, "chat_messages_id_seq must use cache 1")
 }
 
+// TestDrawChatMessageIDForAgentManifest verifies that the drawn value
+// exceeds every chat message ID allocated before the draw, including one
+// allocated by a transaction that has not committed, and that later
+// messages get higher IDs. The agent relies on this to treat a tool call
+// in a message above the value as one no earlier agent received.
+func TestDrawChatMessageIDForAgentManifest(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, insertedIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		slices.Repeat([]database.ChatMessageRole{database.ChatMessageRoleUser}, 3))
+
+	// An insert allocates its ID with nextval before it commits.
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	var uncommittedID int64
+	require.NoError(t, tx.QueryRowContext(ctx, "SELECT nextval('chat_messages_id_seq')").Scan(&uncommittedID))
+
+	drawn, err := db.DrawChatMessageIDForAgentManifest(ctx)
+	require.NoError(t, err)
+	require.Greater(t, drawn, slices.Max(insertedIDs))
+	require.Greater(t, drawn, uncommittedID)
+
+	next, err := db.DrawChatMessageIDForAgentManifest(ctx)
+	require.NoError(t, err)
+	require.Greater(t, next, drawn)
+
+	_, laterIDs := insertChatMessagesInvertedTimestamps(t, db, sqlDB,
+		[]database.ChatMessageRole{database.ChatMessageRoleUser})
+	require.Greater(t, laterIDs[0], next)
+}
+
 func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	t.Parallel()
 

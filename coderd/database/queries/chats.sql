@@ -3054,3 +3054,11 @@ SELECT (
 FROM chats c
 CROSS JOIN active
 WHERE c.id = @chat_id::uuid;
+
+-- name: DrawChatMessageIDForAgentManifest :one
+-- Draws a fresh value from the chat message ID sequence for the agent
+-- manifest's last_chat_message_id. nextval is not transactional and the
+-- sequence only rises, so the value exceeds every chat message ID
+-- allocated before this call, committed or not. Each call consumes one
+-- ID that no message uses.
+SELECT nextval('chat_messages_id_seq')::bigint AS last_chat_message_id;

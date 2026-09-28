@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -139,6 +140,7 @@ func TestManifest(t *testing.T) {
 				SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
 			},
 		},
+		LastChatMessageID: ptr.Ref[int64](9001),
 	}
 	p, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
@@ -163,6 +165,23 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+	require.Equal(t, manifest.LastChatMessageID, back.LastChatMessageID)
+}
+
+// TestManifestLastChatMessageID verifies that an absent
+// last_chat_message_id stays nil and a zero value stays distinct from
+// absent, since the agent treats a missing value as having no cutoff.
+func TestManifestLastChatMessageID(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []*int64{nil, ptr.Ref[int64](0), ptr.Ref[int64](42)} {
+		p, err := agentsdk.ProtoFromManifest(agentsdk.Manifest{LastChatMessageID: want})
+		require.NoError(t, err)
+		require.Equal(t, want, p.LastChatMessageId)
+		back, err := agentsdk.ManifestFromProto(p)
+		require.NoError(t, err)
+		require.Equal(t, want, back.LastChatMessageID)
+	}
 }
 
 func TestSubsystems(t *testing.T) {

@@ -1741,6 +1741,21 @@ func (mr *MockStoreMockRecorder) DisableForeignKeysAndTriggers(ctx any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableForeignKeysAndTriggers", reflect.TypeOf((*MockStore)(nil).DisableForeignKeysAndTriggers), ctx)
 }
 
+// DrawChatMessageIDForAgentManifest mocks base method.
+func (m *MockStore) DrawChatMessageIDForAgentManifest(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DrawChatMessageIDForAgentManifest", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DrawChatMessageIDForAgentManifest indicates an expected call of DrawChatMessageIDForAgentManifest.
+func (mr *MockStoreMockRecorder) DrawChatMessageIDForAgentManifest(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DrawChatMessageIDForAgentManifest", reflect.TypeOf((*MockStore)(nil).DrawChatMessageIDForAgentManifest), ctx)
+}
+
 // EnqueueNotificationMessage mocks base method.
 func (m *MockStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	m.ctrl.T.Helper()

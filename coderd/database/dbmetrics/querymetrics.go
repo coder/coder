@@ -1008,6 +1008,14 @@ func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) er
 	return r0
 }
 
+func (m queryMetricsStore) DrawChatMessageIDForAgentManifest(ctx context.Context) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DrawChatMessageIDForAgentManifest(ctx)
+	m.queryLatencies.WithLabelValues("DrawChatMessageIDForAgentManifest").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DrawChatMessageIDForAgentManifest").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	start := time.Now()
 	r0 := m.s.EnqueueNotificationMessage(ctx, arg)

@@ -45,6 +45,12 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		metadata      []database.WorkspaceAgentMetadatum
 		workspace     database.Workspace
 		devcontainers []database.WorkspaceAgentDevcontainer
+		// lastChatMessageID becomes the agent's cutoff message ID for
+		// chat tool call records. The agent can only prove that it never
+		// received a tool call if this value is drawn after the agent
+		// asked for the manifest, so a failed draw fails the request and
+		// the agent retries.
+		lastChatMessageID int64
 	)
 
 	workspaceAgent, err := a.AgentFn(ctx)
@@ -83,6 +89,14 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		devcontainers, err = a.Database.GetWorkspaceAgentDevcontainersByAgentID(ctx, workspaceAgent.ID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		//nolint:gocritic // Drawing from the chat message ID sequence is a system operation.
+		lastChatMessageID, err = a.Database.DrawChatMessageIDForAgentManifest(dbauthz.AsSystemRestricted(ctx))
+		if err != nil {
+			return xerrors.Errorf("draw last chat message id: %w", err)
 		}
 		return nil
 	})
@@ -156,6 +170,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Metadata:      dbAgentMetadataToProtoDescription(metadata),
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbUserSecretsToProto(userSecrets, secretFilePathPolicy),
+
+		LastChatMessageId: &lastChatMessageID,
 	}, nil
 }
 

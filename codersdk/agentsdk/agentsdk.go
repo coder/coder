@@ -135,6 +135,10 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// LastChatMessageID is a chat message ID coderd drew when it served
+	// the manifest, at least every chat message ID allocated before. nil
+	// when coderd did not send one.
+	LastChatMessageID *int64 `json:"last_chat_message_id,omitempty"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.
@@ -356,6 +360,20 @@ func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC213WithRole returns a dRPC client to the Agent API v2.13, whose
+// Manifest carries last_chat_message_id. A coderd older than v2.13 rejects
+// the connection. Pass role "agent" for workspace agents to enable
+// connection monitoring.
+func (c *Client) ConnectRPC213WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient213, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 13), role)
 	if err != nil {
 		return nil, nil, err
 	}

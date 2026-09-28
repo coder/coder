@@ -267,6 +267,12 @@ type sqlcQuerier interface {
 	// Deprecated: disable foreign keys was created to aid in migrating off
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
+	// Draws a fresh value from the chat message ID sequence for the agent
+	// manifest's last_chat_message_id. nextval is not transactional and the
+	// sequence only rises, so the value exceeds every chat message ID
+	// allocated before this call, committed or not. Each call consumes one
+	// ID that no message uses.
+	DrawChatMessageIDForAgentManifest(ctx context.Context) (int64, error)
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.

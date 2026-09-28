@@ -100,6 +100,12 @@ message Manifest {
 	repeated WorkspaceAgentMetadata.Description metadata = 12;
 	repeated WorkspaceAgentDevcontainer devcontainers = 17;
 	repeated WorkspaceSecret secrets = 19;
+	// last_chat_message_id is a chat message ID drawn from the chat
+	// message ID sequence when coderd served this manifest, so it is
+	// at least every chat message ID allocated before. The agent
+	// latches the value from its first manifest as the cutoff message
+	// ID for tool call records.
+	optional int64 last_chat_message_id = 20;
 }
 
 // WorkspaceSecret is a secret included in the agent manifest
