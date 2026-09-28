@@ -99,9 +99,5 @@ OPTIONS:
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
 
-      --verbose bool, $CODER_AGENT_VERBOSE (default: false)
-          Write debug logs to the configured sinks instead of buffering them in
-          memory.
-
 ———
 Run `coder --help` for a list of global options.

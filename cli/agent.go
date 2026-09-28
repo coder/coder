@@ -45,11 +45,10 @@ import (
 // coderd.
 const defaultAgentLogBufferSize = 1000
 
-func workspaceAgent() *serpent.Command {
+func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
 		logBufferSize                   int64
-		verbose                         bool
 		scriptDataDir                   string
 		pprofAddress                    string
 		noReap                          bool
@@ -181,7 +180,7 @@ func workspaceAgent() *serpent.Command {
 			// detail leading up to the failure is emitted without logging debug all
 			// the time.
 			logger := inv.Logger.AppendSinks(sinks...)
-			if verbose {
+			if r.verbose {
 				logger = logger.Leveled(slog.LevelDebug)
 			} else {
 				logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(logBufferSize))
@@ -522,13 +521,6 @@ func workspaceAgent() *serpent.Command {
 				"on a connection failure to coderd. Set to 0 to disable buffering. " +
 				"Ignored when --verbose is set.",
 			Value: serpent.Int64Of(&logBufferSize),
-		},
-		{
-			Flag:        "verbose",
-			Env:         "CODER_AGENT_VERBOSE",
-			Default:     "false",
-			Description: "Write debug logs to the configured sinks instead of buffering them in memory.",
-			Value:       serpent.BoolOf(&verbose),
 		},
 		{
 			Flag:        "block-file-transfer",
