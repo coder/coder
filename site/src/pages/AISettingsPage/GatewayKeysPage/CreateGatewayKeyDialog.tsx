@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type { CreateAIGatewayKeyResponse } from "#/api/typesGenerated";
@@ -42,7 +41,7 @@ type CreateGatewayKeyDialogProps = {
 	isSubmitting?: boolean;
 };
 
-export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
+export const CreateGatewayKeyDialog: React.FC<CreateGatewayKeyDialogProps> = ({
 	open,
 	onClose,
 	onCreate,

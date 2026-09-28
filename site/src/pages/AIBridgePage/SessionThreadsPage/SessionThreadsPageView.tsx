@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ArrowLeftIcon, InfoIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useState } from "react";
+import { useState } from "react";
 import type {
 	AIBridgeSessionThreadsResponse,
 	AIBridgeThread,
@@ -22,7 +22,9 @@ import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
 import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 
-const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
+const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => (
 	<TooltipProvider>
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -54,7 +56,7 @@ type SessionThreadsPageViewProps = {
 	onBackClicked: () => void;
 };
 
-export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
+export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 	session,
 	threads,
 	loading,

@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -58,7 +58,7 @@ type DebugWorkspaceBuildAlertProps = {
 	build: TypesGen.WorkspaceBuild | undefined;
 };
 
-const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
+const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	error,
 	build,
 }) => {
@@ -87,7 +87,7 @@ const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
 const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
-const AgentCreatePage: FC = () => {
+const AgentCreatePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();

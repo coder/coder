@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
-import { type FC, type ReactNode, useId } from "react";
+import { useId } from "react";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -32,7 +32,7 @@ type MCPServerFormFieldsProps = {
 	canSubmit: boolean;
 	isEditing: boolean;
 	canSelectUserOIDC: boolean;
-	organizationPicker?: ReactNode;
+	organizationPicker?: React.ReactNode;
 	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
@@ -42,7 +42,7 @@ type MCPServerFormFieldsProps = {
 	setShowBehavior: (open: boolean) => void;
 };
 
-export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
+export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 	form,
 	isSaving,
 	isDisabled,

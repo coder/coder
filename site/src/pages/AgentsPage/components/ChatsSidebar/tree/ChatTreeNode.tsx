@@ -5,7 +5,7 @@ import {
 	EllipsisVerticalIcon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -45,7 +45,10 @@ type ChatTreeNodeProps = {
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
+export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
+	chat,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {

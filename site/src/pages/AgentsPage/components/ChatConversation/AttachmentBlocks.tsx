@@ -5,7 +5,7 @@ import {
 	FileIcon,
 	FileTextIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { MaxChatFileIDs } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -162,7 +162,7 @@ const getAttachmentBadgeLabel = (
 	return extension === "file" ? "" : extension.toUpperCase();
 };
 
-const DownloadOverlay: FC<{
+const DownloadOverlay: React.FC<{
 	href: string;
 	displayName: string;
 	downloadName: string;
@@ -188,12 +188,12 @@ const DownloadOverlay: FC<{
 	);
 };
 
-const AttachmentPreviewFrame: FC<{
+const AttachmentPreviewFrame: React.FC<{
 	href: string | null;
 	displayName: string;
 	downloadName: string;
 	mediaType: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({ href, displayName, downloadName, mediaType, children }) => {
 	return (
 		<div className="group/attachment relative inline-flex flex-col items-start">
@@ -229,7 +229,7 @@ const fileAttachmentFailureLabels: AttachmentFailureLabels = {
 
 const expiredAttachmentExplanation = `A chat keeps its ${MaxChatFileIDs} most recent attachments, and older attachments are removed. Attachments that no chat references are deleted after this deployment's retention window.`;
 
-const AttachmentFallbackTile: FC<{
+const AttachmentFallbackTile: React.FC<{
 	state: AttachmentFailure;
 	labels: AttachmentFailureLabels;
 	className?: string;
@@ -274,12 +274,12 @@ const AttachmentFallbackTile: FC<{
 	);
 };
 
-const InlineTextAttachmentButton: FC<{
+const InlineTextAttachmentButton: React.FC<{
 	content: string;
 	fileName?: string;
 	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
 	isPlaceholder?: boolean;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 }> = ({ content, fileName, onPreview, isPlaceholder, icon }) => {
 	return (
 		<button
@@ -313,7 +313,7 @@ const InlineTextAttachmentButton: FC<{
 	);
 };
 
-const RemoteTextAttachmentButton: FC<{
+const RemoteTextAttachmentButton: React.FC<{
 	fileId: string;
 	fileName?: string;
 	mediaType?: string;
@@ -446,7 +446,7 @@ const RemoteTextAttachmentButton: FC<{
 	);
 };
 
-const RemoteImageBlock: FC<{
+const RemoteImageBlock: React.FC<{
 	fileId?: string;
 	href: string;
 	displayName: string;
@@ -556,7 +556,7 @@ const RemoteImageBlock: FC<{
 	);
 };
 
-const FileCard: FC<{
+const FileCard: React.FC<{
 	block: FileAttachmentBlock;
 	href: string;
 }> = ({ block, href }) => {
@@ -616,7 +616,7 @@ const FileCard: FC<{
 	);
 };
 
-export const AttachmentBlock: FC<{
+export const AttachmentBlock: React.FC<{
 	block: FileAttachmentBlock;
 	onImageClick?: (src: string) => void;
 	onTextFileClick?: (attachment: PreviewTextAttachment) => void;

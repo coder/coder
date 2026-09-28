@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 
 type LightboxProps = {
@@ -9,7 +8,7 @@ type LightboxProps = {
 	 * the previously focused element by default, which is unreliable
 	 * when the trigger lives inside a re-rendering message tree. */
 	onCloseAutoFocus?: () => void;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 /**
@@ -18,7 +17,7 @@ type LightboxProps = {
  * capped at 90vw by 85vh. Children are responsible for their own
  * surface and for fitting within those bounds.
  */
-export const Lightbox: FC<LightboxProps> = ({
+export const Lightbox: React.FC<LightboxProps> = ({
 	title,
 	onClose,
 	onCloseAutoFocus,

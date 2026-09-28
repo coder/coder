@@ -1,5 +1,4 @@
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useState } from "react";
 
 import { Button } from "#/components/Button/Button";
@@ -17,7 +16,10 @@ type DesktopPanelProps = {
 	isVisible?: boolean;
 };
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
+export const DesktopPanel: React.FC<DesktopPanelProps> = ({
+	chatId,
+	isVisible,
+}) => {
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
 	// switched away.
@@ -119,7 +121,7 @@ export type DesktopPanelViewProps = {
 	onPopOut?: () => void;
 };
 
-export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
+export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({
 	status,
 	reconnect,
 	attach,

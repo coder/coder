@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -69,7 +68,7 @@ export type LifecyclePageViewProps = {
 	isSaveDebugLoggingError: boolean;
 };
 
-export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
+export const LifecyclePageView: React.FC<LifecyclePageViewProps> = ({
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,

@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { type FormikErrors, useFormik } from "formik";
-import {
-	type ChangeEvent,
-	type ClipboardEvent,
-	type FC,
-	useId,
-	useState,
-} from "react";
+import { useId, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import * as Yup from "yup";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -61,7 +55,7 @@ const beginsWithFrontmatterDelimiter = (content: string): boolean =>
 		.split(/\r?\n/, 1)[0]
 		?.trim() === "---";
 
-export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
+export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 	open,
 	mode,
 	initialValues,
@@ -183,14 +177,14 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 	};
 
 	const handleImportContentChange = (
-		event: ChangeEvent<HTMLTextAreaElement>,
+		event: React.ChangeEvent<HTMLTextAreaElement>,
 	) => {
 		setImportContent(event.target.value);
 		setImportStatus(null);
 	};
 
 	const handleImportContentPaste = (
-		event: ClipboardEvent<HTMLTextAreaElement>,
+		event: React.ClipboardEvent<HTMLTextAreaElement>,
 	) => {
 		const pastedContent = event.clipboardData.getData("text");
 		if (!beginsWithFrontmatterDelimiter(pastedContent)) {

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
@@ -15,7 +14,7 @@ type AdminChatDebugLoggingSettingsProps = {
 	isSaveAdminSettingError: boolean;
 };
 
-export const AdminChatDebugLoggingSettings: FC<
+export const AdminChatDebugLoggingSettings: React.FC<
 	AdminChatDebugLoggingSettingsProps
 > = ({
 	adminSettings,

@@ -1,7 +1,6 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import type { ComponentProps } from "react";
 import { toast } from "sonner";
 import {
 	afterEach,
@@ -54,7 +53,9 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 	const actual = await importOriginal<typeof AgentCreateFormModule>();
 	return {
 		...actual,
-		AgentCreateForm: (props: ComponentProps<typeof actual.AgentCreateForm>) => {
+		AgentCreateForm: (
+			props: React.ComponentProps<typeof actual.AgentCreateForm>,
+		) => {
 			formProps.onCreateChat = props.onCreateChat;
 			return <actual.AgentCreateForm {...props} />;
 		},
