@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
@@ -13,7 +12,7 @@ type AIGovernanceUsersConsumptionProps = {
 	licenses?: GetLicensesResponse[];
 };
 
-export const AIGovernanceUsersConsumption: FC<
+export const AIGovernanceUsersConsumption: React.FC<
 	AIGovernanceUsersConsumptionProps
 > = ({ aiGovernanceUserFeature, licenses }) => {
 	const hasAddOnLicense = hasAiGovernanceAddOnLicense(

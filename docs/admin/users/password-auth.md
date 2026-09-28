@@ -8,13 +8,13 @@ setup is a username/password account.
 ## Disable password authentication
 
 To disable password authentication, use the
-[`CODER_DISABLE_PASSWORD_AUTH`](../../reference/cli/server.md#--disable-password-auth)
+[`CODER_DISABLE_PASSWORD_AUTH`](../../reference/cli/server/index.md#--disable-password-auth)
 flag on the control plane.
 
 ## Restore the `Owner` user
 
 If you remove the admin user account (or forget the password), you can run the
-[`coder server create-admin-user`](../../reference/cli/server_create-admin-user.md)command
+[`coder server create-admin-user`](../../reference/cli/server/create-admin-user.md)command
 on your server.
 
 > [!IMPORTANT]

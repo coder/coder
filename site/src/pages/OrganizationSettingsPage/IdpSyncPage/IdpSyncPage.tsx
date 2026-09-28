@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
 
-const IdpSyncPage: FC = () => {
+const IdpSyncPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac

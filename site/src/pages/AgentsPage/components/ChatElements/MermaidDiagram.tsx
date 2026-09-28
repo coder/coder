@@ -1,6 +1,6 @@
 import DOMPurify from "dompurify";
 import { Maximize2Icon, TriangleAlertIcon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsCodeFenceIncomplete } from "streamdown";
 import { getErrorMessage } from "#/api/errors";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -17,7 +17,7 @@ type MermaidDiagramProps = {
 	source: string;
 	/** Rendered below the error message so the viewer can still read
 	 * the diagram source when Mermaid rejects it. */
-	fallback: ReactNode;
+	fallback: React.ReactNode;
 };
 
 // Elements that can trigger a network request or navigation when the

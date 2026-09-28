@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { ChevronDownIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { GetLicensesResponse } from "#/api/api";
 import type { Feature } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -33,7 +33,7 @@ type LicenseCardProps = {
 	isRemoving: boolean;
 };
 
-export const LicenseCard: FC<LicenseCardProps> = ({
+export const LicenseCard: React.FC<LicenseCardProps> = ({
 	license,
 	aiGovernanceUserFeature,
 	agentRuntimeHoursFeature,

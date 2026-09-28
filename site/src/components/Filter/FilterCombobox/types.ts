@@ -1,11 +1,9 @@
-import type { ReactNode } from "react";
-
 export type FilterOption = {
 	label: string;
 	/** Label used once the option is applied; defaults to `label`. */
 	appliedLabel?: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/**
 	 * Explicit chip token committed when this option is selected, overriding the
@@ -20,7 +18,7 @@ export type FilterCategory = {
 	key: string;
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 	/** Extra names for this category, matched as typed text or a `name:` prefix. */
 	aliases?: readonly string[];
 	/**

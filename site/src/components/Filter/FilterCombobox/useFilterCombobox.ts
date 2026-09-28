@@ -1,5 +1,4 @@
 import {
-	type KeyboardEvent as ReactKeyboardEvent,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
@@ -1432,7 +1431,7 @@ export const useFilterCombobox = ({
 	// the first match stays highlighted.
 	const typingFreeText = hasTypeaheadQuery && typedInlinePrefix === null;
 
-	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+	const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
 		const isBackspaceOrDelete =
 			event.key === "Backspace" || event.key === "Delete";
 

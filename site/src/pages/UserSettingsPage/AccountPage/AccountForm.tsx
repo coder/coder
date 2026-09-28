@@ -1,5 +1,4 @@
 import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type { UpdateUserProfileRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,7 +28,7 @@ type AccountFormProps = {
 	initialTouched?: FormikTouched<UpdateUserProfileRequest>;
 };
 
-export const AccountForm: FC<AccountFormProps> = ({
+export const AccountForm: React.FC<AccountFormProps> = ({
 	editable,
 	email,
 	isLoading,

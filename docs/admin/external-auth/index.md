@@ -88,7 +88,7 @@ Reference the documentation for your chosen provider for more information on how
 
 ### Workspace CLI
 
-Use [`external-auth`](../../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
+Use [`external-auth`](../../reference/cli/external-auth/index.md) in the Coder CLI to access a token within the workspace:
 
 ```sh
 coder external-auth access-token <USER_DEFINED_ID>

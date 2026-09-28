@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -14,7 +14,7 @@ import { TokensPageView } from "./TokensPageView";
 
 const cliCreateCommand = "coder tokens create";
 
-const TokensPage: FC = () => {
+const TokensPage: React.FC = () => {
 	const [tokenToDelete, setTokenToDelete] = useState<
 		APIKeyWithOwner | undefined
 	>(undefined);
