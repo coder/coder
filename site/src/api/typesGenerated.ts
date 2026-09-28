@@ -5321,7 +5321,8 @@ export interface ExperimentRule {
 	 */
 	readonly condition?: string;
 	/**
-	 * Revision increases on every change. Zero means never configured.
+	 * Revision increases on every change and starts at 1. Zero means the
+	 * stored rule has no readable positive revision, so it is malformed.
 	 */
 	readonly revision: number;
 	readonly updated_by: string;
@@ -8459,8 +8460,8 @@ export interface PutExperimentRuleRequest {
 	readonly condition?: string;
 	/**
 	 * ExpectedRevision must equal the current revision of the stored rule,
-	 * or zero when no rule is stored. A different revision fails with 409
-	 * Conflict.
+	 * or zero when no rule is stored or the stored rule has no readable
+	 * positive revision. A different revision fails with 409 Conflict.
 	 */
 	readonly expected_revision: number;
 }

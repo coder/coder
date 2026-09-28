@@ -21932,7 +21932,7 @@
 					"type": "string"
 				},
 				"revision": {
-					"description": "Revision increases on every change. Zero means never configured.",
+					"description": "Revision increases on every change and starts at 1. Zero means the\nstored rule has no readable positive revision, so it is malformed.",
 					"type": "integer"
 				},
 				"updated_at": {
@@ -25688,7 +25688,7 @@
 					"type": "string"
 				},
 				"expected_revision": {
-					"description": "ExpectedRevision must equal the current revision of the stored rule,\nor zero when no rule is stored. A different revision fails with 409\nConflict.",
+					"description": "ExpectedRevision must equal the current revision of the stored rule,\nor zero when no rule is stored or the stored rule has no readable\npositive revision. A different revision fails with 409 Conflict.",
 					"type": "integer"
 				},
 				"mode": {

@@ -9259,7 +9259,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 |--------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `condition`  | string  | false    |              | Condition is the CEL expression of a condition rule.                                                                                                                                                                 |
 | `mode`       | string  | false    |              | Mode is one of the ExperimentRuleMode values, or empty when the stored rule is malformed. A malformed rule decides off until it is replaced. It is a plain string so that clients can represent the malformed state. |
-| `revision`   | integer | false    |              | Revision increases on every change. Zero means never configured.                                                                                                                                                     |
+| `revision`   | integer | false    |              | Revision increases on every change and starts at 1. Zero means the stored rule has no readable positive revision, so it is malformed.                                                                                |
 | `updated_at` | string  | false    |              |                                                                                                                                                                                                                      |
 | `updated_by` | string  | false    |              |                                                                                                                                                                                                                      |
 
@@ -13514,11 +13514,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                         |
-|---------------------|------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                           |
-| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored. A different revision fails with 409 Conflict. |
-| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                     |
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                              |
+|---------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                                                                                |
+| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
+| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
 
 #### Enumerated Values
 

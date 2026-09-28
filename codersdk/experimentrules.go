@@ -36,7 +36,8 @@ type ExperimentRule struct {
 	Mode string `json:"mode"`
 	// Condition is the CEL expression of a condition rule.
 	Condition string `json:"condition,omitempty"`
-	// Revision increases on every change. Zero means never configured.
+	// Revision increases on every change and starts at 1. Zero means the
+	// stored rule has no readable positive revision, so it is malformed.
 	Revision  int64     `json:"revision"`
 	UpdatedBy uuid.UUID `json:"updated_by" format:"uuid"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
@@ -64,8 +65,8 @@ type PutExperimentRuleRequest struct {
 	// otherwise.
 	Condition string `json:"condition,omitempty"`
 	// ExpectedRevision must equal the current revision of the stored rule,
-	// or zero when no rule is stored. A different revision fails with 409
-	// Conflict.
+	// or zero when no rule is stored or the stored rule has no readable
+	// positive revision. A different revision fails with 409 Conflict.
 	ExpectedRevision int64 `json:"expected_revision"`
 }
 
