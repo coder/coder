@@ -194,7 +194,7 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
-	onEditQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => void;
 	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
@@ -205,6 +205,8 @@ type AgentChatInputProps = {
 	editingKind?: EditingTarget["kind"];
 	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID?: number | null;
+	// The queued row this composer edits, or null.
+	composerQueuedMessageID?: number | null;
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
@@ -549,6 +551,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	isChatPaused = false,
 	editingKind,
 	queuedMessageUnderEditID = null,
+	composerQueuedMessageID = null,
 	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
@@ -1378,6 +1381,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
 					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>

@@ -39,6 +39,10 @@ export function useConversationEditingState(deps: {
 	// The row the composer edits and its content as the editor loads it.
 	target: EditingTarget | null;
 	targetContent: readonly ChatMessagePart[] | undefined;
+	// Called when the editor loads a target, which every opened edit does,
+	// or leaves one because the target went away. Cancel, a send, the
+	// post-save restore and a failed send's rollback do not call it.
+	onLoadedTargetChange?: () => void;
 }) {
 	const {
 		chatID,
@@ -49,6 +53,7 @@ export function useConversationEditingState(deps: {
 		setComposerMode,
 		target,
 		targetContent,
+		onLoadedTargetChange,
 	} = deps;
 	const draftStorageKey = `${draftInputStorageKeyPrefix}${chatID}`;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
@@ -148,6 +153,7 @@ export function useConversationEditingState(deps: {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
+		onLoadedTargetChange?.();
 		const editModified = loadedTarget !== null && editModifiedRef.current;
 		if (target === null) {
 			if (editModified) {
