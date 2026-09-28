@@ -33,7 +33,7 @@ export const ResizableChatsSidebarFrame = ({
 	const [width, setWidth] = useState(() => clampLeftSidebarWidth(storedWidth));
 	// The width the user chose, kept in memory because storage writes can fail.
 	const userWidth = useRef(storedWidth);
-	const maxWidth = getLeftSidebarMaxWidth();
+	const [maxWidth, setMaxWidth] = useState(getLeftSidebarMaxWidth);
 	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);
 	const activePointerId = useRef<number | null>(null);
@@ -49,8 +49,10 @@ export const ResizableChatsSidebarFrame = ({
 
 	useEffect(() => {
 		// Clamp from the user's width so a squeezed sidebar grows back.
-		const handleResize = () =>
+		const handleResize = () => {
+			setMaxWidth(getLeftSidebarMaxWidth());
 			setWidth(clampLeftSidebarWidth(userWidth.current));
+		};
 		globalThis.addEventListener("resize", handleResize);
 		return () => globalThis.removeEventListener("resize", handleResize);
 	}, []);

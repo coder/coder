@@ -315,13 +315,15 @@ export const RightPanel = ({
 	const [prevIsSideBySide, setPrevIsSideBySide] = useState(isSideBySide);
 	if (visualOpen !== prevVisualOpen) {
 		setPrevVisualOpen(visualOpen);
-		setIsAnimatingOpen(visualOpen && !isPointerResizing && !isBelowLg);
+		setIsAnimatingOpen(
+			visualOpen && !visualExpanded && !isPointerResizing && !isBelowLg,
+		);
 		if (visualOpen) {
 			// Reopening mid-slide cancels the animation without an animationend.
 			setIsNarrowSlideOut(false);
 		}
-	} else if (isAnimatingOpen && isPointerResizing) {
-		// A drag removes the transition, so no transitionend will unpin.
+	} else if (isAnimatingOpen && (isPointerResizing || visualExpanded)) {
+		// Dragging or expanding removes the transition, so no transitionend will unpin.
 		setIsAnimatingOpen(false);
 	}
 	if (isSideBySide !== prevIsSideBySide) {

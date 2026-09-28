@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
+	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
@@ -102,12 +103,32 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		vi.stubGlobal("innerWidth", 700);
 		fireEvent(window, new Event("resize"));
-		expect(handle).toHaveAttribute("aria-valuenow", "340");
+		expect(handle).toHaveAttribute(
+			"aria-valuenow",
+			String(700 - AGENTS_MAIN_PANEL_MIN_WIDTH),
+		);
 
 		vi.stubGlobal("innerWidth", 1440);
 		fireEvent(window, new Event("resize"));
 		expect(handle).toHaveAttribute("aria-valuenow", "400");
 		expect(persistedWidth()).toBe(400);
+	});
+
+	it("lifts the max width when a sidebar squeezed at mount grows back", () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "600");
+		vi.stubGlobal("innerWidth", 800);
+		const handle = renderHandle();
+		expect(handle).toHaveAttribute(
+			"aria-valuemax",
+			String(800 - AGENTS_MAIN_PANEL_MIN_WIDTH),
+		);
+
+		vi.stubGlobal("innerWidth", 1440);
+		fireEvent(window, new Event("resize"));
+		expect(handle).toHaveAttribute("aria-valuenow", "600");
+		expect(Number(handle.getAttribute("aria-valuemax"))).toBeGreaterThanOrEqual(
+			600,
+		);
 	});
 
 	it("reports the end of its own slide but not of a child animation", () => {
