@@ -830,7 +830,7 @@ Live stages wrap a section of code and end when it returns:
 - `provider_attempt`: one HTTP round trip to the model provider, emitted by the transport, so a retried request produces one stage per attempt. It ends when response headers arrive and is marked errored for HTTP status 400 and above.
 - `stream`: the provider stream, from opening the request to consuming the last part.
 - `time_to_first_token`: nested in `stream`, from opening the request to the first streamed output part, including block start markers such as `text_start`; warnings and finish parts do not close it. The span is emitted for every attempt, but only a window closed by an output part is observed on the histograms. A failed attempt, including one whose first part is an error part, ends the span with the error and records no observation, as does a stream released before any output part arrives. A silence timeout before the first part is recorded as the span's error.
-- `retry_backoff`: the wait before retrying a failed LLM API call.
+- `retry_backoff`: the wait before retrying a failed LLM API call, and the generation phase backoff between failed prepare and decide attempts. Both waits are observed on the histogram under the same stage.
 - `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error only when the tool fails to execute (a `Run` error or panic), not when it returns an error result to the model. The `advisor` tool's nested model call runs inside its `tool_call` and is not instrumented as `stream` or `time_to_first_token`; the tool call is its only stage.
 - `commit`: the `CommitStep` transaction.
 - `compaction`: a compaction pass.
@@ -842,7 +842,7 @@ Reconstructed stages are recorded after the fact from timestamps captured elsewh
 
 #### Turn accounting
 
-When a turn closes, whatever its outcome, its stages are rolled up and emitted once, labelled with the turn's `chat_kind` and `outcome`. `runnerTurnSpan` decides the outcome once when it closes the span and passes it to `StageSpan.EndTurn`, which sets the span's `turn_outcome` attribute, counts the outcome, and emits the partition. The turn families carry no `model` label: a turn is not a model-scoped unit (subagents, compaction summaries, and model switches can run inside one), and per-model time is available from `coderd_chatd_model_stage_duration_seconds`. The first model resolved in the turn is stamped on the `chat_turn` span as an attribute.
+When a turn closes, whatever its outcome, its stages are rolled up and emitted once, labelled with the turn's `chat_kind` and `outcome`. `runnerTurnSpan` decides the outcome once when it closes the span and passes it to `StageSpan.EndTurn`, which sets the span's `turn_outcome` and `overattributed` attributes, emits the partition, and then counts the outcome, so a counted outcome implies its partition is recorded. The turn families carry no `model` label: a turn is not a model-scoped unit (subagents, compaction summaries, and model switches can run inside one), and per-model time is available from `coderd_chatd_model_stage_duration_seconds`. The first model resolved in the turn is stamped on the `chat_turn` span as an attribute.
 
 Every closed turn is counted exactly once in `coderd_chatd_turn_outcomes_total{outcome, chat_kind}`, with the same value as the span's `turn_outcome` attribute.
 
@@ -851,24 +851,28 @@ The turn's wall time is partitioned into disjoint categories that sum to the tur
 | Category | Source |
 |----------|--------|
 | `scheduling` | `acquisition` |
-| `time_to_first_token` | `time_to_first_token`, when an output part closed the window, even if the stream later failed |
-| `streaming` | `stream` minus its `time_to_first_token`, when the stream ended without an error, including one whose `time_to_first_token` window ended without an output part |
-| `provider_error` | the rest of a `stream` that ended with an error, and a `time_to_first_token` window that ended without an output part |
+| `time_to_first_token` | `time_to_first_token`, when an output part or a context cancellation closed the window, even if the stream later failed |
+| `streaming` | `stream` minus its `time_to_first_token`, when the stream ended without an error or by a context cancellation, including one whose `time_to_first_token` window ended without an output part |
+| `provider_error` | the rest of a `stream` that ended with an error other than a context cancellation, and a `time_to_first_token` window that ended that way, including one closed without an output part |
 | `retry_backoff` | `retry_backoff`, including the generation phase backoff between prepare and decide attempts |
 | `tool_execution` | `generation_step` own time when the step ran local tools |
-| `compaction` | `compaction` |
+| `compaction` | `compaction`, including the summary stream's first-token wait, which runs without a tracer and reports no stage |
 | `preparation` | `prepare` own time and `mcp_connect` |
 | `persistence` | `commit` |
-| `chatd_overhead` | `generation_step` own time for every other action: decision logic, transitions other than `CommitStep`, hook dispatch, and buffer bookkeeping |
+| `chatd_overhead` | `generation_step` own time for every other action: decision logic, transitions other than `CommitStep`, hook dispatch, buffer bookkeeping, and the end-of-turn prompt-history read (`deriveFinalTurnRunResult`) |
 | `unattributed` | the remainder of the turn not covered by any stage above, including the task-level retry sleep in `runTaskWithRetry` and, from the second step on, the history load (`loadGenerationState`) that precedes each step's stage |
 
-The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context and only sums category time. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. A stage recorded from timestamps (`acquisition`) adds its full duration to its category and, when it is recorded under an attributing stage, to that stage's child time. `queue_wait` is turn scoped but precedes its prompt's turn, so it is in no category. Only turn-scoped stages report to the accumulator, so background work never lands in a turn. Stages of one turn end on different goroutines (parallel `mcp_connect` stages, and `provider_attempt` stages setting the turn's model from the HTTP transport), so the accumulator is safe for concurrent use.
+The partition is computed from the stage tree. A `TurnAccumulator` rides on the turn context and only sums category time. Each attributing stage reports its full duration to its parent when it ends, and the parent's category receives only the parent's own time, which keeps the categories disjoint. `provider_attempt`, `thinking`, and `tool_call` contribute to no category, because they overlap stages that are already categorized. A stage recorded from timestamps (`acquisition`) adds its full duration to its category and, when it is recorded under an attributing stage, to that stage's child time. `queue_wait` is turn scoped but precedes its prompt's turn, so it is in no category. Only turn-scoped stages report to the accumulator, so background work never lands in a turn. A context cancellation, as when a chat is stopped or coderd shuts down, is not a provider error: a `stream` or `time_to_first_token` stage it ends keeps its own category. The accumulator is safe for concurrent use because one turn has concurrent writers: parallel tool calls set the turn's model from their own goroutines, and a canceled task's `generation_step` can end while the interrupt task or a newer prompt's `Ensure` closes the turn.
 
 A parent chat's `tool_execution` includes the time it waited on subagent turns, which are also accounted under `chat_kind="subagent"`, so a sum of `coderd_chatd_turn_time_seconds_total` across chat kinds counts that time twice. Query one chat kind at a time.
 
-A stage that ends after its turn has closed is not in the partition. When a stale task's `generation_step` outlives its turn (see [Turn span lifecycle](#turn-span-lifecycle)), that step's own time is not categorized and its share of the turn lands in `unattributed`. The same applies to a step still unwinding when the interrupt task closes an interrupted turn. The time between a shutting-down runner closing a turn and the next owner's pickup is in no turn at all.
+Known limitations of turn accounting:
 
-A turn whose categories sum to more than its duration is emitted as measured and counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`. A turn with a non-positive duration still counts its outcome, but its partition is not emitted and it is counted as `nonpositive_turn`.
+- A stage adds its own time when it ends, so a stage still open when its turn closes contributes nothing. When a stale task's `generation_step` outlives its turn (see [Turn span lifecycle](#turn-span-lifecycle)), or a step is still unwinding when the interrupt task closes an interrupted turn, the step's whole own time lands in `unattributed`, not only the part after the close.
+- A turn whose `FinishTurn` committed is counted as `abandoned` when the promoted prompt's task calls `Ensure` before the finishing task calls `Complete`. The commit publishes the state change before `Complete` runs, and the runner spawns the promoted task without waiting, so that `Ensure` can close the still unfinished turn.
+- The time between a shutting-down runner closing a turn and the next owner's pickup is in no turn at all.
+
+A turn whose categories sum to more than its duration is emitted as measured, counted in `coderd_chatd_stage_anomalies_total{reason="overattributed"}`, and its `chat_turn` span carries `overattributed=true`. A turn with a non-positive duration still counts its outcome, but its partition is not emitted and it is counted as `nonpositive_turn`.
 
 ### Event shape
 
