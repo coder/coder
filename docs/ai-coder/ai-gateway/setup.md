@@ -151,11 +151,11 @@ emitted as JSON.
 By default `coderd` emits these records as they arrive from the gateway.
 Set `--ai-gateway-structured-logging-source` to change that:
 
-| Value     | Emitted by             | Use it when                                                                                   |
-|-----------|------------------------|-----------------------------------------------------------------------------------------------|
-| `coderd`  | `coderd` (default)     | You want today's behavior.                                                                    |
+| Value     | Emitted by             | Use it when                                                                                             |
+|-----------|------------------------|---------------------------------------------------------------------------------------------------------|
+| `coderd`  | `coderd` (default)     | You want today's behavior.                                                                              |
 | `gateway` | The AI Gateway process | You need records that the gateway never persists, such as records your deployment chooses not to store. |
-| `both`    | Both processes         | You are moving from one to the other and want to compare the two streams.                     |
+| `both`    | Both processes         | You are moving from one to the other and want to compare the two streams.                               |
 
 ```sh
 coder server --ai-gateway-structured-logging=true \
