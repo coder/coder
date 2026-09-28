@@ -38,6 +38,8 @@ product.
 
 ### Generate a long-lived API token on behalf of yourself
 
+Use a unique name for each token.
+
 <div class="tabs">
 
 #### UI
