@@ -1133,7 +1133,6 @@ func (s *Server) handleConn(l net.Listener, c net.Conn) {
 	}
 	defer s.trackConn(l, c, false)
 	logger.Info(context.Background(), "started serving ssh connection")
-	// note: srv.ConnectionCompleteCallback logs completion of the connection
 	s.srv.HandleConn(c)
 }
 
