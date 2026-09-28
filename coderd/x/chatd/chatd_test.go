@@ -3579,6 +3579,139 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		require.False(t, result.CreatedAt.Before(*call.CreatedAt))
 	})
 
+	t.Run("interrupt run cancels a foreground execute and commits its result", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var requestCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if requestCount.Add(1) == 1 {
+				chunk := chattest.OpenAIToolCallChunk("execute", `{"command":"make test","timeout":"10m"}`)
+				chunk.Choices[0].ToolCalls[0].ID = "tc-exec"
+				return chattest.OpenAIStreamingResponse(chunk)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("after interrupt")...)
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+		require.NoError(t, db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
+			ID:                dbAgent.ID,
+			Version:           "v2.99.0",
+			ExpandedDirectory: "/home/coder/project",
+			APIVersion:        "2.13",
+		}))
+
+		mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+		// Registered first so it matches before the helper's catch-all.
+		var chatIDHeader atomic.Value
+		mockConn.EXPECT().SetExtraHeaders(gomock.Any()).
+			Do(func(h http.Header) { chatIDHeader.Store(h.Get(workspacesdk.CoderChatIDHeader)) }).AnyTimes()
+		setupToolExecutionAgentConn(t, mockConn)
+		// requests records the agent requests for the tool call in order.
+		var mu sync.Mutex
+		var requests []string
+		record := func(ctx context.Context, request string) {
+			tc, ok := workspacesdk.ToolCallFromContext(ctx)
+			if !ok || tc.ID != "tc-exec" || tc.Name != "execute" {
+				t.Errorf("%s request tool call = %+v (set %v), want execute tool call tc-exec", request, tc, ok)
+			}
+			mu.Lock()
+			requests = append(requests, request)
+			mu.Unlock()
+		}
+		var processID atomic.Value
+		canceled := make(chan struct{})
+		toolWaiting := make(chan struct{})
+		var waitOnce sync.Once
+		mockConn.EXPECT().StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				record(ctx, "start")
+				if req.TimeoutMs != (10 * time.Minute).Milliseconds() {
+					t.Errorf("start timeout_ms = %d, want 10m", req.TimeoutMs)
+				}
+				tc, _ := workspacesdk.ToolCallFromContext(ctx)
+				chatID, err := uuid.Parse(fmt.Sprint(chatIDHeader.Load()))
+				if err != nil {
+					return workspacesdk.StartProcessResponse{}, xerrors.Errorf("start request without chat ID: %w", err)
+				}
+				id := workspacesdk.ToolCallUUID(chatID, tc.MessageID, tc.Name, tc.ID).String()
+				processID.Store(id)
+				return workspacesdk.StartProcessResponse{ID: id, Started: true}, nil
+			}).Times(2)
+		mockConn.EXPECT().ProcessOutput(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, id string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				if id != processID.Load() {
+					t.Errorf("output requested for process %q, want %v", id, processID.Load())
+				}
+				select {
+				case <-canceled:
+					exitCode := -1
+					return workspacesdk.ProcessOutputResponse{Canceled: true, Output: "partial output", ExitCode: &exitCode, DurationMs: 1500}, nil
+				default:
+				}
+				waitOnce.Do(func() { close(toolWaiting) })
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			}).AnyTimes()
+		mockConn.EXPECT().CancelToolCall(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, id string) error {
+				record(ctx, "cancel")
+				if id != processID.Load() {
+					t.Errorf("cancel for %q, want %v", id, processID.Load())
+				}
+				close(canceled)
+				return nil
+			}).Times(1)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				require.Equal(t, dbAgent.ID, agentID)
+				return mockConn, func() {}, nil
+			}
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			Title:          "interrupt-run-execute",
+			ModelConfigID:  model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("run the tests"),
+			},
+		})
+		require.NoError(t, err)
+
+		testutil.TryReceive(ctx, t, toolWaiting)
+		queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("stop")},
+			BusyBehavior:  chatd.SendMessageBusyBehaviorInterrupt,
+		})
+		require.NoError(t, err)
+		require.True(t, queued.Queued)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		mu.Lock()
+		require.Equal(t, []string{"start", "cancel", "start"}, requests)
+		mu.Unlock()
+		result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "execute")
+		require.Equal(t, "tc-exec", result.ToolCallID)
+		require.False(t, result.IsError)
+		var executeResult chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal(result.Result, &executeResult), string(result.Result))
+		require.Equal(t, "partial output", executeResult.Output)
+		require.Equal(t, -1, executeResult.ExitCode)
+		require.Contains(t, executeResult.Error, "canceled by the user after 1.5s")
+	})
+
 	t.Run("anthropic provider-only interruption commits no synthetic result", func(t *testing.T) {
 		t.Parallel()
 

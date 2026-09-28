@@ -6,13 +6,18 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -25,8 +30,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -842,6 +850,403 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.False(t, execRow.RuntimeMs.Valid)
 	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
+}
+
+// interruptRun is an interrupted batch whose chat is bound to a
+// workspace agent with an API version, served by a fake agent on conn.
+type interruptRun struct {
+	interruptedBatch
+	messageID int64
+	agent     *fakeInterruptAgent
+	dials     *atomic.Int32
+}
+
+func newInterruptRun(t *testing.T, f *taskTestFixture, calls []codersdk.ChatMessagePart, apiVersion string, dialErr error) interruptRun {
+	t.Helper()
+	batch := interruptedBatchFixture(t, f, calls)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+	require.NoError(t, err)
+	assistant := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+
+	workspace, build, agent := seedWorkspaceBinding(t, f.db, f.user.ID)
+	_, err = f.sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET api_version = $1 WHERE id = $2`, apiVersion, agent.ID)
+	require.NoError(t, err)
+	_, err = f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: agent.ID, Valid: true},
+	})
+	require.NoError(t, err)
+
+	fake := newFakeInterruptAgent(t, batch.chat.ID, assistant.ID)
+	var dials atomic.Int32
+	batch.starter.server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dials.Add(1)
+		assert.Equal(t, agent.ID, agentID)
+		if dialErr != nil {
+			return nil, nil, dialErr
+		}
+		return fake.conn, func() {}, nil
+	}
+	return interruptRun{interruptedBatch: batch, messageID: assistant.ID, agent: fake, dials: &dials}
+}
+
+func (r interruptRun) processID(callID string) string {
+	return workspacesdk.ToolCallUUID(r.chat.ID, r.messageID, chattool.ExecuteToolName, callID).String()
+}
+
+// fakeInterruptAgent answers cancel, start, and output requests for
+// tool calls by provider tool call ID, and records the requests.
+type fakeInterruptAgent struct {
+	conn *agentconnmock.MockAgentConn
+
+	mu        sync.Mutex
+	cancelErr map[string]error
+	startErr  map[string]error
+	output    map[string]workspacesdk.ProcessOutputResponse
+	// requests lists the requests per provider tool call ID in order.
+	requests map[string][]string
+}
+
+func newFakeInterruptAgent(t *testing.T, chatID uuid.UUID, messageID int64) *fakeInterruptAgent {
+	t.Helper()
+	fake := &fakeInterruptAgent{
+		conn:      agentconnmock.NewMockAgentConn(gomock.NewController(t)),
+		cancelErr: map[string]error{},
+		startErr:  map[string]error{},
+		output:    map[string]workspacesdk.ProcessOutputResponse{},
+		requests:  map[string][]string{},
+	}
+	// toolCall returns the provider tool call ID of the request, which
+	// must carry the tool call of the interrupted message.
+	toolCall := func(ctx context.Context, processID string) string {
+		tc, ok := workspacesdk.ToolCallFromContext(ctx)
+		if !assert.True(t, ok, "request must carry the tool call") {
+			return ""
+		}
+		assert.Equal(t, messageID, tc.MessageID)
+		if processID != "" {
+			assert.Equal(t, workspacesdk.ToolCallUUID(chatID, tc.MessageID, tc.Name, tc.ID).String(), processID)
+		}
+		return tc.ID
+	}
+	fake.conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	fake.conn.EXPECT().CancelToolCall(gomock.Any(), gomock.Any()).AnyTimes().
+		DoAndReturn(func(ctx context.Context, id string) error {
+			return fake.record(toolCall(ctx, id), "cancel", fake.cancelErr)
+		})
+	fake.conn.EXPECT().StartProcess(gomock.Any(), gomock.Any()).AnyTimes().
+		DoAndReturn(func(ctx context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			tc, _ := workspacesdk.ToolCallFromContext(ctx)
+			if err := fake.record(toolCall(ctx, ""), "start", fake.startErr); err != nil {
+				return workspacesdk.StartProcessResponse{}, err
+			}
+			return workspacesdk.StartProcessResponse{ID: workspacesdk.ToolCallUUID(chatID, tc.MessageID, tc.Name, tc.ID).String(), Started: true}, nil
+		})
+	fake.conn.EXPECT().ProcessOutput(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().
+		DoAndReturn(func(_ context.Context, processID string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			for callID, resp := range fake.output {
+				if workspacesdk.ToolCallUUID(chatID, messageID, chattool.ExecuteToolName, callID).String() == processID {
+					fake.requests[callID] = append(fake.requests[callID], "output")
+					return resp, nil
+				}
+			}
+			return workspacesdk.ProcessOutputResponse{}, codersdk.NewTestError(http.StatusNotFound, http.MethodGet, "/api/v0/processes/"+processID+"/output")
+		})
+	return fake
+}
+
+func (a *fakeInterruptAgent) record(callID, request string, errs map[string]error) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.requests[callID] = append(a.requests[callID], request)
+	return errs[callID]
+}
+
+func (a *fakeInterruptAgent) requestsFor(callID string) []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.requests[callID]
+}
+
+func executeToolCall(callID, args string) codersdk.ChatMessagePart {
+	return codersdk.ChatMessagePart{
+		Type:       codersdk.ChatMessagePartTypeToolCall,
+		ToolCallID: callID,
+		ToolName:   chattool.ExecuteToolName,
+		Args:       json.RawMessage(args),
+	}
+}
+
+func toolResults(t *testing.T, messages []database.ChatMessage, callID string) []codersdk.ChatMessagePart {
+	t.Helper()
+	var results []codersdk.ChatMessagePart
+	for _, msg := range messages {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID == callID {
+				results = append(results, part)
+			}
+		}
+	}
+	return results
+}
+
+func requireGenericInterruptResult(t *testing.T, part codersdk.ChatMessagePart) {
+	t.Helper()
+	require.True(t, part.IsError)
+	require.JSONEq(t, fmt.Sprintf(`{"error":%q}`, interruptedToolResultErrorMessage), string(part.Result))
+}
+
+func requireExecuteResult(t *testing.T, part codersdk.ChatMessagePart) chattool.ExecuteResult {
+	t.Helper()
+	require.False(t, part.IsError, string(part.Result))
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal(part.Result, &result), string(part.Result))
+	return result
+}
+
+// TestInterruptTask_InterruptRun covers the interrupt run end to end
+// through the interrupt task: which unresolved calls it dispatches, the
+// requests each sends to the agent in order, and the one committed
+// result per call.
+func TestInterruptTask_InterruptRun(t *testing.T) {
+	t.Parallel()
+
+	const (
+		foreground = `{"command":"make test","timeout":"2h"}`
+		background = `{"command":"make dev","run_in_background":true}`
+		fgID       = "call-fg"
+		bgID       = "call-bg"
+		waitID     = "call-wait"
+	)
+	intPtr := func(v int) *int { return &v }
+	waitCall := codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: waitID, ToolName: "wait_agent", Args: json.RawMessage(`{}`)}
+	tests := []struct {
+		name       string
+		calls      []codersdk.ChatMessagePart
+		apiVersion string
+		dialErr    error
+		cancelErr  map[string]error
+		startErr   map[string]error
+		output     map[string]workspacesdk.ProcessOutputResponse
+		// wantRequests lists the agent requests per call ID; a call
+		// without an entry gets none.
+		wantRequests map[string][]string
+		wantDials    int32
+		check        func(t *testing.T, r interruptRun, messages []database.ChatMessage)
+	}{
+		{
+			// US2: both processes are killed and the results say so.
+			name:       "ForegroundAndBackgroundCanceled",
+			calls:      []codersdk.ChatMessagePart{executeToolCall(fgID, foreground), executeToolCall(bgID, background), waitCall},
+			apiVersion: "2.13",
+			output: map[string]workspacesdk.ProcessOutputResponse{
+				fgID: {Canceled: true, Output: "fg partial", ExitCode: intPtr(-1), DurationMs: 2000},
+				bgID: {Canceled: true, Output: "bg partial", ExitCode: intPtr(-1), DurationMs: 5000},
+			},
+			wantRequests: map[string][]string{fgID: {"cancel", "start", "output"}, bgID: {"cancel", "start", "output"}},
+			wantDials:    1,
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				fg := requireExecuteResult(t, singleToolResult(t, messages, fgID))
+				assert.Equal(t, "fg partial", fg.Output)
+				assert.Contains(t, fg.Error, "canceled by the user after 2s")
+				bg := requireExecuteResult(t, singleToolResult(t, messages, bgID))
+				assert.Equal(t, "bg partial", bg.Output)
+				assert.Contains(t, bg.Error, "canceled by the user after 5s")
+				requireGenericInterruptResult(t, singleToolResult(t, messages, waitID))
+			},
+		},
+		{
+			// US10: the agent never received the start.
+			name:         "NotReceived",
+			calls:        []codersdk.ChatMessagePart{executeToolCall(fgID, foreground)},
+			apiVersion:   "2.13",
+			startErr:     map[string]error{fgID: &workspacesdk.ToolCallError{Code: workspacesdk.ToolCallErrorCanceled}},
+			wantRequests: map[string][]string{fgID: {"cancel", "start"}},
+			wantDials:    1,
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				result := requireExecuteResult(t, singleToolResult(t, messages, fgID))
+				assert.Contains(t, result.Error, "not run")
+				assert.Contains(t, result.Error, "canceled before the workspace agent received it")
+			},
+		},
+		{
+			name:         "CancelRouteMissingKeepsGenericResult",
+			calls:        []codersdk.ChatMessagePart{executeToolCall(fgID, foreground)},
+			apiVersion:   "2.13",
+			cancelErr:    map[string]error{fgID: codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "/api/v0/tool-calls/x/cancel")},
+			wantRequests: map[string][]string{fgID: {"cancel"}},
+			wantDials:    1,
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				requireGenericInterruptResult(t, singleToolResult(t, messages, fgID))
+			},
+		},
+		{
+			name:         "CancelFailureNeverStarts",
+			calls:        []codersdk.ChatMessagePart{executeToolCall(fgID, foreground)},
+			apiVersion:   "2.13",
+			cancelErr:    map[string]error{fgID: codersdk.NewTestError(http.StatusBadRequest, http.MethodPost, "/api/v0/tool-calls/x/cancel")},
+			wantRequests: map[string][]string{fgID: {"cancel"}},
+			wantDials:    1,
+			check: func(t *testing.T, r interruptRun, messages []database.ChatMessage) {
+				result := requireExecuteResult(t, singleToolResult(t, messages, fgID))
+				assert.Contains(t, result.Error, "outcome unknown")
+				assert.Contains(t, result.Error, r.processID(fgID))
+			},
+		},
+		{
+			// US8: an agent that is not capable gets no request.
+			name:       "AgentNotCapable",
+			calls:      []codersdk.ChatMessagePart{executeToolCall(fgID, foreground)},
+			apiVersion: "2.12",
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				requireGenericInterruptResult(t, singleToolResult(t, messages, fgID))
+			},
+		},
+		{
+			name:       "NoToolWithIdentity",
+			calls:      []codersdk.ChatMessagePart{waitCall},
+			apiVersion: "2.13",
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				requireGenericInterruptResult(t, singleToolResult(t, messages, waitID))
+			},
+		},
+		{
+			// Calls sharing a provider tool call ID and input share one
+			// tool call UUID: one run, its result for each.
+			name:         "DuplicateIDSameInputRunsOnce",
+			calls:        []codersdk.ChatMessagePart{executeToolCall(fgID, foreground), executeToolCall(fgID, foreground)},
+			apiVersion:   "2.13",
+			output:       map[string]workspacesdk.ProcessOutputResponse{fgID: {Canceled: true, Output: "partial", DurationMs: 1000}},
+			wantRequests: map[string][]string{fgID: {"cancel", "start", "output"}},
+			wantDials:    1,
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				results := toolResults(t, messages, fgID)
+				require.Len(t, results, 2)
+				for _, part := range results {
+					assert.Contains(t, requireExecuteResult(t, part).Error, "canceled by the user after 1s")
+				}
+			},
+		},
+		{
+			name:       "DuplicateIDDifferentInputKeepsGenericResult",
+			calls:      []codersdk.ChatMessagePart{executeToolCall(fgID, foreground), executeToolCall(fgID, background)},
+			apiVersion: "2.13",
+			check: func(t *testing.T, _ interruptRun, messages []database.ChatMessage) {
+				results := toolResults(t, messages, fgID)
+				require.Len(t, results, 2)
+				for _, part := range results {
+					requireGenericInterruptResult(t, part)
+				}
+			},
+		},
+		{
+			// US7: an unreachable agent still gives a result, without
+			// claiming the command did not run.
+			name:       "DialFailsReportsUnknown",
+			calls:      []codersdk.ChatMessagePart{executeToolCall(fgID, foreground), executeToolCall(bgID, background)},
+			apiVersion: "2.13",
+			dialErr:    xerrors.New("dial failed"),
+			check: func(t *testing.T, r interruptRun, messages []database.ChatMessage) {
+				for _, callID := range []string{fgID, bgID} {
+					result := requireExecuteResult(t, singleToolResult(t, messages, callID))
+					assert.Contains(t, result.Error, "outcome unknown")
+					assert.Contains(t, result.Error, r.processID(callID))
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			r := newInterruptRun(t, f, tc.calls, tc.apiVersion, tc.dialErr)
+			for id, err := range tc.cancelErr {
+				r.agent.cancelErr[id] = err
+			}
+			for id, err := range tc.startErr {
+				r.agent.startErr[id] = err
+			}
+			for id, resp := range tc.output {
+				r.agent.output[id] = resp
+			}
+
+			messages := r.interrupt(t, f)
+			for _, callID := range []string{fgID, bgID, waitID} {
+				assert.Equal(t, tc.wantRequests[callID], r.agent.requestsFor(callID), "requests for %s", callID)
+			}
+			if tc.dialErr == nil {
+				assert.Equal(t, tc.wantDials, r.dials.Load())
+			} else {
+				// A failed dial is retried once after validating the agent.
+				assert.Positive(t, r.dials.Load())
+			}
+			tc.check(t, r, messages)
+		})
+	}
+}
+
+// singleToolResult returns the only committed result for callID.
+func singleToolResult(t *testing.T, messages []database.ChatMessage, callID string) codersdk.ChatMessagePart {
+	t.Helper()
+	results := toolResults(t, messages, callID)
+	require.Len(t, results, 1, "tool call %s must have exactly one result", callID)
+	return results[0]
+}
+
+// TestInterruptTask_InterruptRunParentCanceledCommitsNothing ends the
+// interrupt task while its cancel request is in flight.
+func TestInterruptTask_InterruptRunParentCanceledCommitsNothing(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	callID := "call-fg"
+	r := newInterruptRun(t, f, []codersdk.ChatMessagePart{executeToolCall(callID, `{"command":"make test"}`)}, "2.13", nil)
+	interrupting := f.interruptChat(t, r.chat.ID)
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	defer cancel()
+	// Replaces the fake agent's cancel answer: the task ends while the
+	// cancel is in flight.
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().CancelToolCall(gomock.Any(), r.processID(callID)).
+		DoAndReturn(func(reqCtx context.Context, _ string) error {
+			cancel()
+			<-reqCtx.Done()
+			return &url.Error{Op: http.MethodPost, URL: "http://agent/api/v0/tool-calls", Err: reqCtx.Err()}
+		})
+	r.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return conn, func() {}, nil
+	}
+
+	err := r.starter.StartInterrupt(ctx, chatWorkerTaskStartInput{
+		ChatID:            r.chat.ID,
+		WorkerID:          r.workerID,
+		RunnerID:          r.runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.ErrorIs(t, err, errTaskExpectedExit)
+
+	checkCtx := testutil.Context(t, testutil.WaitShort)
+	messages, err := f.db.GetChatMessagesByChatID(checkCtx, database.GetChatMessagesByChatIDParams{ChatID: r.chat.ID})
+	require.NoError(t, err)
+	assert.Empty(t, toolResults(t, messages, callID))
+	chat, err := f.db.GetChatByID(checkCtx, r.chat.ID)
+	require.NoError(t, err)
+	assert.Equal(t, database.ChatStatusInterrupting, chat.Status)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {

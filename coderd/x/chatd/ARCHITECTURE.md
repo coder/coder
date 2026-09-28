@@ -892,6 +892,8 @@ When receiving streaming message parts from the LLM API, the generation goroutin
 
 Since the runner doesn't wait for goroutines to finish when it cancels them, and spawns new goroutines to perform new work immediately, the runner does not guarantee that any interrupted tool calls are fully stopped before continuing. Tool call interrupts are best-effort.
 
+TODO (CODAGT-757): for a capable workspace agent, the interrupt goroutine now runs the interrupt run before `FinishInterruption`: it dispatches every unresolved `execute` call through `chatloop.ExecuteLocalTools` with the interrupt cause, so the tool cancels the tool call on the agent, which kills any process it started, then sends its start again and commits the real result (canceled with partial output, completed, not run, or unknown). A cancel that fails is never followed by the start. For any other agent, unresolved calls keep the generic interrupted result. Rewrite this paragraph and the interrupt goroutine steps.
+
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
 
 TODO (CODAGT-757): for a workspace agent with API version 2.13 or later, checked once per turn, `execute` sends tool call headers with its start request, so the agent starts at most one process per tool call and a task retry or ownership change gets the same process and result instead of starting another. The agent owns the execute deadline, and a request the agent does not answer is sent again for up to one minute before the result says the outcome is unknown. Rewrite this paragraph.

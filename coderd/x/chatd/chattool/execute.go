@@ -3,7 +3,9 @@ package chattool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -193,6 +196,14 @@ func executeTool(
 	}
 
 	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		if id.Cause == ToolCallCauseInterrupt {
+			// After the cancel the agent never starts the command, so
+			// the start below replays the recorded response or gets
+			// tool_call_canceled.
+			if err := cancelToolCall(ctx, conn, options.Clock, id); err != nil {
+				return cancelErrorResult(id, err)
+			}
+		}
 		if background {
 			return executeBackgroundToolCall(ctx, conn, options.Clock, id, args.Command, workDir, env)
 		}
@@ -229,6 +240,33 @@ func executeWords(id ToolCallIdentity) ToolCallWords {
 		Check:        fmt.Sprintf("Check it with process_output using process ID %s.", id.UUID()),
 		UnknownCheck: "Check the workspace state before running it again.",
 	}
+}
+
+// cancelToolCall cancels the tool call id on the agent until the agent
+// answers or AgentAnswerTimeout ends. A nil error means the tool call's
+// outcome is final: any process it started has stopped.
+func cancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, clock quartz.Clock, id ToolCallIdentity) error {
+	ctx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
+	return RequestUntilAnswered(ctx, clock, func(ctx context.Context) error {
+		return conn.CancelToolCall(ctx, id.UUID())
+	})
+}
+
+// cancelErrorResult converts the error of a failed cancel into a
+// result. The start is never sent after a failed cancel, because it
+// could start the command the user interrupted.
+func cancelErrorResult(id ToolCallIdentity, err error) fantasy.ToolResponse {
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		// The agent has no cancel route, so it is older than its
+		// api_version said and the call keeps the generic result.
+		return fantasy.NewTextErrorResponse(InterruptedToolResultMessage)
+	}
+	words := executeWords(id)
+	if text, ok := ToolCallErrorText(err, words); ok {
+		return errorResult(text)
+	}
+	return errorResult(UnknownOutcome(fmt.Sprintf("the workspace agent refused to cancel it (%v)", err), words.Effect, words.Check))
 }
 
 // startToolCallProcess sends req with the tool call headers of id until
@@ -277,6 +315,9 @@ func executeBackgroundToolCall(
 	if err != nil {
 		return toolCallStartErrorResult(id, "start background process", err)
 	}
+	if id.Cause == ToolCallCauseInterrupt {
+		return marshalResult(readCanceledBackgroundProcess(ctx, conn, clock, resp.ID))
+	}
 	return marshalResult(ExecuteResult{
 		Success:             true,
 		BackgroundProcessID: resp.ID,
@@ -316,7 +357,13 @@ func executeForegroundToolCall(
 		return toolCallStartErrorResult(id, "start process", err)
 	}
 
-	result := waitForToolCallProcess(ctx, conn, clock, resp.ID, timeout)
+	// After an interrupt's cancel the process has stopped, so the
+	// agent answers without waiting.
+	waitBound := agentOutputWaitCap + AgentAnswerTimeout
+	if id.Cause == ToolCallCauseInterrupt {
+		waitBound = AgentAnswerTimeout
+	}
+	result := waitForToolCallProcess(ctx, conn, clock, resp.ID, timeout, waitBound)
 	if note := detectFileDump(args.Command); note != "" {
 		result.Note = note
 	}
@@ -325,33 +372,25 @@ func executeForegroundToolCall(
 
 // waitForToolCallProcess waits on the output of a process started with
 // an execute deadline until the agent reports that it exited or timed
-// out. A read the agent does not answer is sent again until the agent's
-// wait cap plus AgentAnswerTimeout ends.
+// out. A read the agent does not answer is sent again until waitBound
+// ends: the agent's wait cap plus AgentAnswerTimeout in generation.
 func waitForToolCallProcess(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	clock quartz.Clock,
 	processID string,
 	timeout time.Duration,
+	waitBound time.Duration,
 ) ExecuteResult {
 	for {
 		var resp workspacesdk.ProcessOutputResponse
-		err := requestUntilAnsweredWithin(ctx, clock, agentOutputWaitCap+AgentAnswerTimeout, func(ctx context.Context) error {
+		err := requestUntilAnsweredWithin(ctx, clock, waitBound, func(ctx context.Context) error {
 			var err error
 			resp, err = conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{Wait: true})
 			return err
 		})
 		if err != nil {
-			// The command may have exited or passed its deadline, so
-			// neither is claimed.
-			return ExecuteResult{
-				Success:  false,
-				ExitCode: -1,
-				Error: UnknownOutcome(fmt.Sprintf("the command's result could not be read (%v)", err),
-					"the command may still be running or may have finished",
-					fmt.Sprintf("Check it with process_output using process ID %s.", processID)),
-				BackgroundProcessID: processID,
-			}
+			return unreadOutputResult(processID, err)
 		}
 		var result ExecuteResult
 		switch {
@@ -368,6 +407,57 @@ func waitForToolCallProcess(
 		result.WallDurationMs = resp.DurationMs
 		return result
 	}
+}
+
+// unreadOutputResult is the result when the output of processID could
+// not be read. The command may have exited or passed its deadline, so
+// neither is claimed.
+func unreadOutputResult(processID string, err error) ExecuteResult {
+	return ExecuteResult{
+		Success:  false,
+		ExitCode: -1,
+		Error: UnknownOutcome(fmt.Sprintf("the command's result could not be read (%v)", err),
+			"the command may still be running or may have finished",
+			fmt.Sprintf("Check it with process_output using process ID %s.", processID)),
+		BackgroundProcessID: processID,
+	}
+}
+
+// readCanceledBackgroundProcess reads the output of the background
+// process processID once after an interrupt canceled its tool call,
+// until the agent answers or AgentAnswerTimeout ends. A process that is
+// still running, because it was not stopped, keeps the background start
+// result.
+func readCanceledBackgroundProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
+	processID string,
+) ExecuteResult {
+	var resp workspacesdk.ProcessOutputResponse
+	err := RequestUntilAnswered(ctx, clock, func(ctx context.Context) error {
+		var err error
+		resp, err = conn.ProcessOutput(ctx, processID, nil)
+		return err
+	})
+	if err != nil {
+		return unreadOutputResult(processID, err)
+	}
+	var result ExecuteResult
+	switch {
+	case resp.Running:
+		return ExecuteResult{
+			Success:             true,
+			BackgroundProcessID: processID,
+			Backgrounded:        true,
+		}
+	case resp.Canceled:
+		result = canceledResult(resp)
+	default:
+		result = completedResult(resp)
+	}
+	result.WallDurationMs = resp.DurationMs
+	return result
 }
 
 // completedResult builds the result for an exited process, treating a

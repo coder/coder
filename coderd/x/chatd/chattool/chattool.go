@@ -20,6 +20,10 @@ const templateNotAvailableMessage = "template not available for chat workspaces;
 // chat's workspace so the model recovers instead of concluding it is blocked.
 const WorkspaceUnavailableHint = "The workspace is probably gone; use the create_workspace tool to make a new one"
 
+// InterruptedToolResultMessage is the error result committed for an
+// unresolved tool call when an interrupt cannot report its outcome.
+const InterruptedToolResultMessage = "tool call was interrupted before it produced a result"
+
 func workspaceLoadErrorResponse(err error) fantasy.ToolResponse {
 	return fantasy.NewTextErrorResponse(
 		xerrors.Errorf("load workspace: %w. %s", err, WorkspaceUnavailableHint).Error(),

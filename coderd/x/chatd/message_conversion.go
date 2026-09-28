@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+const interruptedToolResultErrorMessage = chattool.InterruptedToolResultMessage
 
 type buildCommitStepMessagesInput struct {
 	modelConfigID          uuid.UUID
