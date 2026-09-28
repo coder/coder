@@ -65,7 +65,7 @@ describe("the row the composer edits", () => {
 	> = [
 		[
 			"an untouched composer follows the marked row",
-			undefined,
+			"follow",
 			5,
 			idle,
 			owner,
@@ -73,7 +73,7 @@ describe("the row the composer edits", () => {
 		],
 		[
 			"an untouched composer with no marked row edits nothing",
-			undefined,
+			"follow",
 			null,
 			idle,
 			owner,
@@ -81,7 +81,7 @@ describe("the row the composer edits", () => {
 		],
 		[
 			"a viewer's untouched composer never follows the marked row",
-			undefined,
+			"follow",
 			5,
 			idle,
 			viewer,
@@ -144,7 +144,7 @@ const setup = (options?: {
 	const hook = renderHook(
 		() => {
 			const [composerMode, setComposerMode] = useState<ComposerMode>(
-				options?.composerMode,
+				options?.composerMode ?? "follow",
 			);
 			const marker = useMutation({
 				mutationFn: ({
@@ -205,7 +205,7 @@ describe("useQueuedMessageEdit", () => {
 
 		act(() => t.store.setQueuedMessages([row5Marked]));
 		expect(t.result().composerTarget).toEqual(queued(5));
-		expect(t.result().composerMode).toBeUndefined();
+		expect(t.result().composerMode).toBe("follow");
 	});
 
 	it("Edit opens the composer and shows the row as under edit before the begin request settles", async () => {

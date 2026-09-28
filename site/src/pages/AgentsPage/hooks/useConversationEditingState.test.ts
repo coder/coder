@@ -106,7 +106,8 @@ describe("useConversationEditingState", () => {
 
 		const hook = renderHook(
 			(props: ServerProps) => {
-				const [composerMode, setComposerMode] = useState<ComposerMode>();
+				const [composerMode, setComposerMode] =
+					useState<ComposerMode>("follow");
 				const target = deriveComposerTarget(
 					composerMode,
 					props.serverMarkedID,
@@ -789,7 +790,7 @@ describe("useConversationEditingState", () => {
 				"unmodified text gives way to the draft from before the edit and the composer counts as untouched",
 				"queued text",
 				"draft",
-				undefined,
+				"follow",
 			],
 		])(
 			"when the server ends the edit and marks no other row, %s",
@@ -866,7 +867,7 @@ describe("useConversationEditingState", () => {
 
 			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
 			expect(result.current.editorInitialValue).toBe("run the migrations");
-			expect(result.current.composerMode).toBeUndefined();
+			expect(result.current.composerMode).toBe("follow");
 
 			// The seed echo does not count as input; the composer stays untouched.
 			act(() => {
@@ -876,7 +877,7 @@ describe("useConversationEditingState", () => {
 					false,
 				);
 			});
-			expect(result.current.composerMode).toBeUndefined();
+			expect(result.current.composerMode).toBe("follow");
 
 			markOnServer(null);
 			expect(result.current.editingTarget).toBeNull();

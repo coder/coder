@@ -1677,13 +1677,9 @@ export const UserMessageCopyButton: Story = {
 		expect(editButton).toBeInTheDocument();
 
 		// Behavioral: clicking edit fires onEditUserMessage with the
-		// correct message ID and text.
+		// message ID.
 		await userEvent.click(editButton);
-		expect(args.onEditUserMessage).toHaveBeenCalledWith(
-			1,
-			"Can you fix this bug?",
-			undefined,
-		);
+		expect(args.onEditUserMessage).toHaveBeenCalledWith(1);
 
 		// Behavioral: clicking copy writes the raw markdown to the
 		// clipboard.

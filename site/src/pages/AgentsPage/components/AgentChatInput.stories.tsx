@@ -143,6 +143,7 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 
 export const EditingQueuedMessage: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		editingKind: "queued",
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
@@ -157,6 +158,7 @@ export const EditingQueuedMessage: Story = {
 // reads Queue.
 export const ChatPaused: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		isChatPaused: true,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
@@ -179,6 +181,7 @@ export const ChatPaused: Story = {
 // one in error; the send button reads Queue.
 export const QueueHeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
 		queuedMessages: [
 			MockChatQueuedMessageUnderEdit,
 			{ ...MockChatQueuedMessage, id: 2 },

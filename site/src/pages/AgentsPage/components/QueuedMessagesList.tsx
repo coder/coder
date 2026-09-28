@@ -33,8 +33,8 @@ type QueuedMessagesListProps = {
 	// While paused, Edit is disabled on rows other than the one under edit and
 	// the Cancel edit tooltip says the row is sent.
 	chatPaused?: boolean;
-	// The queued row under edit; undefined leaves it to the rows' own marker.
-	queuedMessageUnderEditID?: number | null;
+	// The queued row shown as under edit, or null for none.
+	queuedMessageUnderEditID: number | null;
 	showEnterToSendHint?: boolean;
 	className?: string;
 };
@@ -71,11 +71,8 @@ export const getQueuedMessageInfo = (
 
 export const isQueuedMessageUnderEdit = (
 	message: ChatQueuedMessage,
-	queuedMessageUnderEditID: number | null | undefined,
-): boolean =>
-	queuedMessageUnderEditID === undefined
-		? Boolean(message.editing_since)
-		: message.id === queuedMessageUnderEditID;
+	queuedMessageUnderEditID: number | null,
+): boolean => message.id === queuedMessageUnderEditID;
 
 type QueuedMessageAction = "delete" | "promote" | "edit" | "end_edit";
 

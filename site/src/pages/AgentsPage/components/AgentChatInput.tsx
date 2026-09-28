@@ -204,7 +204,7 @@ type AgentChatInputProps = {
 	isChatPaused?: boolean;
 	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
-	// The queued row under edit; undefined leaves it to the rows' own marker.
+	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID?: number | null;
 	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
@@ -600,7 +600,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	warning,
 	isChatPaused = false,
 	editingKind,
-	queuedMessageUnderEditID,
+	queuedMessageUnderEditID = null,
 	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
