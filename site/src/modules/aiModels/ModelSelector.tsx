@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon, InfoIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -93,7 +93,7 @@ const getSearchText = (option: ModelSelectorOption, providerLabel: string) =>
 		.join(" ")
 		.toLowerCase();
 
-export const ModelSelector: FC<ModelSelectorProps> = ({
+export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
@@ -327,7 +327,7 @@ type ReasoningEffortRowProps = {
 // Effort row pinned below the model list. Lives outside the Command
 // so it stays visible while the list scrolls and cmdk's arrow-key
 // navigation does not capture the slider's keyboard interaction.
-const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
+const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	option,
 	value,
 	onChange,
@@ -387,7 +387,7 @@ type ModelOptionItemProps = {
 	onSelect: () => void;
 };
 
-const ModelOptionItem: FC<ModelOptionItemProps> = ({
+const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 	option,
 	isSelected,
 	onSelect,

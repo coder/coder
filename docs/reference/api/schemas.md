@@ -6423,22 +6423,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                               |
-| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                     |
-| `labels`               | object                                                                      | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages. |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                             |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                         |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                            |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -16536,6 +16536,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -16547,6 +16548,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -17406,6 +17408,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -17417,6 +17420,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 

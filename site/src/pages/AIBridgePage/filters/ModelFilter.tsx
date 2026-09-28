@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
@@ -58,7 +57,7 @@ type ModelFilterProps = {
 	width?: number;
 };
 
-export const ModelFilter: FC<ModelFilterProps> = ({ menu, width }) => {
+export const ModelFilter: React.FC<ModelFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select model"

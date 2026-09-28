@@ -1,11 +1,10 @@
 import { cn } from "cn";
-import type { FC, HTMLProps } from "react";
 
 type UnreadBadgeProps = {
 	count: number;
-} & HTMLProps<HTMLSpanElement>;
+} & React.HTMLProps<HTMLSpanElement>;
 
-export const UnreadBadge: FC<UnreadBadgeProps> = ({
+export const UnreadBadge: React.FC<UnreadBadgeProps> = ({
 	count,
 	className,
 	...props

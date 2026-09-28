@@ -1,4 +1,4 @@
-import { createContext, type FC, useContext } from "react";
+import { createContext, useContext } from "react";
 import { Navigate, Outlet, useParams } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -23,7 +23,7 @@ export const useGroupsSettings = (): OrganizationSettingsValue => {
 	return context;
 };
 
-const GroupsPageProvider: FC = () => {
+const GroupsPageProvider: React.FC = () => {
 	const { organizations, showOrganizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;

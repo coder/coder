@@ -788,8 +788,9 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 			ChatMode: database.ChatModeExplore,
 			Valid:    true,
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
-		ClientType:   database.ChatClientTypeApi,
+		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		ClientType:    database.ChatClientTypeApi,
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -1996,6 +1997,122 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 	})
 }
 
+// TestCreateChatWithoutInitialUserContent verifies that chats created
+// without initial user content start idle in `waiting` with system
+// messages only, so no worker picks them up before the first message.
+// APIKeyID is not required because no user message is inserted.
+func TestCreateChatWithoutInitialUserContent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "empty-create",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages, "system messages are still inserted")
+	for _, msg := range messages {
+		require.Equal(t, database.ChatMessageRoleSystem, msg.Role, "no user message on an empty create")
+	}
+}
+
+// TestSendMessageFirstUserTurnFallbackTitle verifies that the first
+// message on a chat created without initial content persists the
+// fallback title in the send itself, independent of title generation.
+func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	const text = "investigate the flaky workspace upload tests today"
+
+	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          title,
+			ModelConfigID:  model.ID,
+		})
+		require.NoError(t, err)
+		return ctx, db, server, chat
+	}
+	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
+		t.Helper()
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:  chatID,
+			Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		})
+		require.NoError(t, err)
+		require.False(t, result.Queued)
+		return result
+	}
+
+	t.Run("PlaceholderTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		result := send(ctx, t, server, chat.ID)
+		require.True(t, result.FirstUserTurn)
+		require.Equal(t, chatprompt.FallbackTitle(text), result.Chat.Title)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+	})
+
+	t.Run("ExistingTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, "custom title")
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "custom title", stored.Title)
+	})
+
+	t.Run("PriorVisibleMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		send(ctx, t, server, chat.ID)
+		// Reset to an idle chat that still carries the placeholder
+		// title but already has a user-visible message.
+		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: chatprompt.DefaultChatTitle,
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
+	})
+}
+
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
 
@@ -2561,6 +2678,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		Title:             "stale-requires-action",
 		DynamicTools:      nullRawMessage(dynamicToolsJSON),
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -2652,6 +2770,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Title:             "orphaned-chat",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -6973,6 +7092,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Title:             "provider-runner-replay-active",
 			MCPServerIDs:      []uuid.UUID{},
 			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				userMessageForTest(t, "use provider runner", model.ID, user.ID, apiKey.ID),
 				assistantMessageForTest(t, []codersdk.ChatMessagePart{computerCall}, model.ID),

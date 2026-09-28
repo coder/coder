@@ -13,7 +13,7 @@ import {
 	RefreshCwIcon,
 	RowsIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type {
 	ChatDiffStatus,
@@ -74,7 +74,7 @@ type GitPanelProps = {
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
 	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
 	 * Used to keep a repo's entry visible after its diff goes empty, so
@@ -107,7 +107,7 @@ type ViewItem =
 	| (ViewItemBase & { kind: "remote" })
 	| (ViewItemBase & { kind: "local"; repoRoot: string });
 
-export const GitPanel: FC<GitPanelProps> = ({
+export const GitPanel: React.FC<GitPanelProps> = ({
 	prTab,
 	repositories,
 	onRefresh,
@@ -466,7 +466,7 @@ type GitViewSwitcherProps = {
 	onSelect: (item: ViewItem) => void;
 };
 
-const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
+const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 	items,
 	activeItem,
 	hasRemoteItem,
@@ -575,12 +575,12 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 // Remote view (branch/PR diff)
 // ---------------------------------------------------------------
 
-const RemoteContent: FC<{
+const RemoteContent: React.FC<{
 	prTab?: { prNumber: number; chatId: string };
 	hasGitContext: boolean;
 	isGitStatusLoading: boolean;
 	isExpanded?: boolean;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: ChatDiffStatus;
 }> = ({
@@ -635,14 +635,14 @@ const RemoteContent: FC<{
 // Local view (single repo)
 // ---------------------------------------------------------------
 
-const LocalRepoContent: FC<{
+const LocalRepoContent: React.FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges | undefined;
 	diffStats: DiffStats;
 	onCommit: (repoRoot: string) => void;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
-	chatInputRef?: RefObject<ChatMessageInputRef | null>;
+	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 }> = ({
 	repoRoot,
 	repo,
@@ -678,7 +678,7 @@ const LocalRepoContent: FC<{
 // Repo header for local view
 // ---------------------------------------------------------------
 
-const RepoHeader: FC<{
+const RepoHeader: React.FC<{
 	repoRoot: string;
 	repo: WorkspaceAgentRepoChanges;
 	diffStats: DiffStats;
@@ -742,7 +742,7 @@ function prStateClasses(state: string | undefined, draft: boolean | undefined) {
 // PR state icon (compact, for the view switcher)
 // ---------------------------------------------------------------
 
-export const PrStateIcon: FC<{
+export const PrStateIcon: React.FC<{
 	state?: string;
 	draft?: boolean;
 	className?: string;

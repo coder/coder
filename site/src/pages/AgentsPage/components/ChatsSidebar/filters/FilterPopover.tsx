@@ -13,7 +13,6 @@ import {
 	UserIcon,
 	UsersIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -135,10 +134,10 @@ const keepMenuOpen = (event: Event) => {
 	event.preventDefault();
 };
 
-const FilterSubmenu: FC<{
+const FilterSubmenu: React.FC<{
 	readonly label: string;
 	readonly summary?: boolean;
-	readonly children: ReactNode;
+	readonly children: React.ReactNode;
 }> = ({ label, summary, children }) => (
 	<DropdownMenuSub>
 		<DropdownMenuSubTrigger>
@@ -155,7 +154,7 @@ const FilterSubmenu: FC<{
 	</DropdownMenuSub>
 );
 
-export const FilterPopover: FC<FilterPopoverProps> = ({
+export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
 }) => {

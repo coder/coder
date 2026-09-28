@@ -26,7 +26,6 @@ import {
 	PASTE_COMMAND,
 } from "lexical";
 import {
-	type FC,
 	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
@@ -40,7 +39,6 @@ import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../../utils/agentChatSendShortcut";
-import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
@@ -72,7 +70,7 @@ import {
 
 // Blocks Cmd+B/I/U and element formatting shortcuts so the editor
 // stays plain-text only.
-const DisableFormattingPlugin: FC = function DisableFormattingPlugin() {
+const DisableFormattingPlugin: React.FC = function DisableFormattingPlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
@@ -152,8 +150,8 @@ function replacePlainTextInEditor(editor: LexicalEditor, text: string) {
 // Cmd/Ctrl+Shift+V ("paste and match style") is treated as an explicit
 // user intent to paste inline, so the large-paste-to-attachment
 // conversion is bypassed for that shortcut.
-const PasteSanitizationPlugin: FC<{
-	onFilePaste?: (file: File) => void;
+const PasteSanitizationPlugin: React.FC<{
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
 }> = function PasteSanitizationPlugin({
 	onFilePaste,
@@ -228,20 +226,25 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for attachable files in the clipboard (e.g.
-					// pasted screenshots). Forward them to the parent
-					// via callback instead of inserting text.
+					// Check for files in the clipboard, such as pasted
+					// screenshots or archives. Forward all files to the
+					// parent, which routes each one to the attachment
+					// pipeline or a workspace upload by MIME type.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const attachable = Array.from(dataTransfer.files).filter(
-							isChatAttachmentFile,
-						);
-						if (attachable.length > 0) {
-							event.preventDefault();
-							for (const file of attachable) {
-								onFilePaste(file);
+						let routed = false;
+						for (const file of Array.from(dataTransfer.files)) {
+							if (onFilePaste(file)) {
+								routed = true;
 							}
+						}
+						if (routed) {
+							event.preventDefault();
 							return true;
 						}
+						// Every file was refused (for example an archive
+						// pasted while workspace uploads are unavailable).
+						// Fall through so accompanying clipboard text still
+						// pastes.
 					}
 
 					const text = getPastedPlainText(event, dataTransfer);
@@ -283,10 +286,41 @@ const PasteSanitizationPlugin: FC<{
 	return null;
 };
 
+// Lexical ignores paste events while the editor is not editable, so a
+// composer locked for a pending send would silently drop pasted files
+// that the picker and drop target still route through onFilePaste.
+const LockedFilePastePlugin: React.FC<{
+	onFilePaste: (file: File) => boolean;
+}> = function LockedFilePastePlugin({ onFilePaste }) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		const handlePaste = (event: ClipboardEvent) => {
+			const files = event.clipboardData?.files;
+			if (editor.isEditable() || !files?.length) {
+				return;
+			}
+			event.preventDefault();
+			for (const file of Array.from(files)) {
+				onFilePaste(file);
+			}
+		};
+		return editor.registerRootListener((rootElement) => {
+			if (!rootElement) {
+				return;
+			}
+			rootElement.addEventListener("paste", handlePaste);
+			return () => rootElement.removeEventListener("paste", handlePaste);
+		});
+	}, [editor, onFilePaste]);
+
+	return null;
+};
+
 // Touch keyboards need plain Enter for newlines (CODAGT-210). Pointer
 // capability, not viewport width, keeps narrow desktop windows usable.
 // Cmd/Ctrl+Enter submits on either input type; Shift+Enter stays a newline.
-const EnterKeyPlugin: FC<{
+const EnterKeyPlugin: React.FC<{
 	onEnter?: () => void;
 	sendShortcut: TypesGen.AgentChatSendShortcut;
 }> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
@@ -330,7 +364,7 @@ const EnterKeyPlugin: FC<{
 
 // Fires the onChange callback with the editor's plain-text content
 // on every update.
-const ContentChangePlugin: FC<{
+const ContentChangePlugin: React.FC<{
 	onChange?: (
 		content: string,
 		serializedEditorState: string,
@@ -373,7 +407,7 @@ const ContentChangePlugin: FC<{
 // initialEditorState is provided (a serialized Lexical JSON string),
 // it restores the full editor state including file-reference chips.
 // Falls back to plain-text seeding via initialValue.
-const ValueSyncPlugin: FC<{
+const ValueSyncPlugin: React.FC<{
 	initialValue?: string;
 	initialEditorState?: string;
 }> = function ValueSyncPlugin({ initialValue, initialEditorState }) {
@@ -417,7 +451,7 @@ const ValueSyncPlugin: FC<{
 
 // Exposes the LexicalEditor instance to the parent via a callback
 // so it can be stored in a ref for imperative access.
-const InsertTextPlugin: FC<{
+const InsertTextPlugin: React.FC<{
 	onEditorReady: (editor: LexicalEditor) => void;
 }> = function InsertTextPlugin({ onEditorReady }) {
 	const [editor] = useLexicalComposerContext();
@@ -501,8 +535,14 @@ type ChatMessageInputProps = Omit<
 	rows?: number;
 	onEnter?: () => void;
 	sendShortcut?: TypesGen.AgentChatSendShortcut;
-	onFilePaste?: (file: File) => void;
+	// Returns whether the file was routed anywhere (attachment or
+	// workspace upload). Refused files let the paste fall back to
+	// the clipboard's text payload.
+	onFilePaste?: (file: File) => boolean;
 	allowTextAttachmentPaste?: boolean;
+	// Keeps routing pasted files through onFilePaste while disabled, so
+	// the parent can refuse them visibly instead of losing them.
+	acceptFilePasteWhileDisabled?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
 	/**
@@ -537,7 +577,7 @@ type ChatMessageInputProps = Omit<
 // Keeps the Lexical editor's editable state in sync with the
 // disabled prop so that the underlying contentEditable element
 // becomes truly non-interactive when the input is disabled.
-const EditableStatePlugin: FC<{ disabled: boolean }> =
+const EditableStatePlugin: React.FC<{ disabled: boolean }> =
 	function EditableStatePlugin({ disabled }) {
 		const [editor] = useLexicalComposerContext();
 
@@ -591,6 +631,7 @@ const ChatMessageInput = ({
 	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	onFilePaste,
 	allowTextAttachmentPaste,
+	acceptFilePasteWhileDisabled,
 	disabled,
 	autoFocus,
 	hasWorkspace,
@@ -996,6 +1037,9 @@ const ChatMessageInput = ({
 					onSkillSelect={replaceActiveSkillsTrigger}
 				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
+				{onFilePaste && acceptFilePasteWhileDisabled && (
+					<LockedFilePastePlugin onFilePaste={onFilePaste} />
+				)}
 				{autoFocus && <AutoFocusPlugin />}
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}

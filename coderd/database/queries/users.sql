@@ -376,6 +376,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_agent_chat_send_shortcut'
 RETURNING value AS agent_chat_send_shortcut;
 
+-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_collapse_assistant_steps';
+
+-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_collapse_assistant_steps', (@collapse_assistant_steps::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @collapse_assistant_steps
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users
@@ -597,6 +620,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -607,7 +632,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE

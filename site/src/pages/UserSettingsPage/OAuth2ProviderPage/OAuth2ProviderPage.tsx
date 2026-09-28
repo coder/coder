@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -11,7 +11,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import OAuth2ProviderPageView from "./OAuth2ProviderPageView";
 
-const OAuth2ProviderPage: FC = () => {
+const OAuth2ProviderPage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const userOAuth2AppsQuery = useQuery(getApps(me.id));

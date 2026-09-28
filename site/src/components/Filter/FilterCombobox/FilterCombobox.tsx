@@ -1,5 +1,5 @@
 import { CheckIcon, ListFilterIcon, SearchIcon } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -236,7 +236,11 @@ export function FilterCombobox({
 const OPTION_ITEM_CLASS = "min-h-8.5 gap-2 px-2 py-1.25";
 
 // Fixed 24px slot so icons, avatars, and status dots of different sizes align.
-function OptionIcon({ children }: { children: ReactNode }): ReactNode {
+function OptionIcon({
+	children,
+}: {
+	children: React.ReactNode;
+}): React.ReactNode {
 	return (
 		<span
 			aria-hidden
@@ -253,7 +257,7 @@ function ChipLabel({
 }: {
 	prefix: string;
 	value: string;
-}): ReactNode {
+}): React.ReactNode {
 	if (prefix.length === 0) {
 		return value;
 	}
@@ -273,7 +277,7 @@ function CategoryPreviewText({
 	preview,
 }: {
 	preview: CategoryPreview | undefined;
-}): ReactNode {
+}): React.ReactNode {
 	if (!preview) {
 		return null;
 	}
@@ -295,7 +299,7 @@ function CategoryPreviewText({
 	);
 }
 
-function ResultIcon({ result }: { result: SearchResult }): ReactNode {
+function ResultIcon({ result }: { result: SearchResult }): React.ReactNode {
 	if (result.startIcon) {
 		return <OptionIcon>{result.startIcon}</OptionIcon>;
 	}

@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
@@ -31,7 +24,7 @@ import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { getMatchingAgentOrFirst } from "#/utils/workspace";
 import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 
-const TerminalPage: FC = () => {
+const TerminalPage: React.FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about
 	// your background color.

@@ -3989,6 +3989,12 @@ export interface CreateChatRequest {
 	 * requires site-wide authority over that user.
 	 */
 	readonly owner_id?: string;
+	/**
+	 * Content is the initial user message. It is optional: when
+	 * empty, the chat is created idle with no initial user message
+	 * and generation starts with the first message POSTed to
+	 * /chats/{chat}/messages.
+	 */
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -8713,9 +8719,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
- * @deprecated the agents-access role was removed. Coder Agents chat
- * access is part of the organization-member permission floor, and
- * servers without this built-in role reject assigning it.
+ * RoleAgentsAccess is the organization role that grants Coder Agents
+ * chat access. Organizations include it in their default member roles
+ * unless an administrator removes it.
  */
 export const RoleAgentsAccess = "agents-access";
 
@@ -10550,6 +10556,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
@@ -11072,6 +11079,7 @@ export interface UserPreferenceSettings {
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 
