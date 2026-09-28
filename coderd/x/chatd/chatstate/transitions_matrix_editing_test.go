@@ -51,7 +51,7 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 		var ids []int64
 		var bodies []string
-		for i := 0; i < rows; i++ {
+		for i := range rows {
 			body := fmt.Sprintf("queued-editing-%s-%d", from, i)
 			var sm chatstate.SendMessageResult
 			if from == chatstate.StateI1 && i == rows-1 {
@@ -105,11 +105,10 @@ func applyEditQueuedMessage(t *testing.T, _ *testFixture, tx *chatstate.Tx, seed
 	if len(seeded.queuedMessageIDs) > 0 {
 		targetQueueID = seeded.queuedMessageIDs[0]
 	}
-	editing := true
 	var err error
 	result.editQueuedMessage, err = tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
 		QueuedMessageID: targetQueueID,
-		Editing:         &editing,
+		Editing:         new(true),
 	})
 	return err
 }

@@ -27,7 +27,7 @@ var (
 	ErrPausedQueuedHeadUnderEdit = xerrors.New("chat is paused at a queued message under edit; finish editing, send, or remove it first")
 
 	// ErrQueuedMessageNotFound is returned by queue-targeting
-	// transitions (delete, promote) when the supplied queued message
+	// transitions (delete, promote, edit) when the supplied queued message
 	// ID does not match a row on the chat.
 	ErrQueuedMessageNotFound = xerrors.New("queued message not found")
 
