@@ -14,6 +14,9 @@ export const RBACResourceActions: Partial<
 		read: "read AI Gateway keys",
 		update: "update an AI Gateway key",
 	},
+	ai_gateway_unrestricted: {
+		use: "use any AI Gateway model",
+	},
 	ai_model_price: {
 		read: "read AI model prices",
 		update: "update AI model prices",
@@ -79,6 +82,7 @@ export const RBACResourceActions: Partial<
 		read: "read chat model configs",
 		share: "share a chat model config with other users or groups",
 		update: "update a chat model config",
+		use: "use a chat model config",
 	},
 	connection_log: {
 		read: "read connection logs",

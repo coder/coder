@@ -205,7 +205,9 @@ func TestRoleSyncTable(t *testing.T) {
 			)
 
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
-			user := dbgen.User(t, db, database.User{})
+			user := dbgen.User(t, db, database.User{
+				RBACRoles: []string{rbac.RoleAuditor().Name, rbac.RoleAIGatewayUnrestricted().Name},
+			})
 			orgID := uuid.New()
 			SetupOrganization(t, s, db, user, orgID, tc)
 
@@ -218,6 +220,12 @@ func TestRoleSyncTable(t *testing.T) {
 			require.NoError(t, err)
 
 			tc.Assert(t, orgID, db, user)
+
+			storedUser, err := db.GetUserByID(ctx, user.ID)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{
+				rbac.RoleAuditor().Name, rbac.RoleAIGatewayUnrestricted().Name,
+			}, storedUser.RBACRoles, "organization-only sync must preserve stored site roles")
 		})
 	}
 
@@ -244,7 +252,10 @@ func TestRoleSyncTable(t *testing.T) {
 		)
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
-		user := dbgen.User(t, db, database.User{})
+		// Model an upgraded user with the backfilled site grant and an auditor role.
+		user := dbgen.User(t, db, database.User{
+			RBACRoles: []string{rbac.RoleAuditor().Name, rbac.RoleAIGatewayUnrestricted().Name},
+		})
 
 		var asserts []func(t *testing.T)
 
@@ -259,7 +270,27 @@ func TestRoleSyncTable(t *testing.T) {
 			})
 		}
 
+		// A site grant included in the parsed roles must survive replacement.
 		err := s.SyncRoles(ctx, db, user, idpsync.RoleParams{
+			SyncEntitled: true,
+			SyncSiteWide: true,
+			SiteWideRoles: []string{
+				rbac.RoleTemplateAdmin().Name, rbac.RoleAuditor().Name,
+				rbac.RoleAIGatewayUnrestricted().Name,
+			},
+			MergedClaims: userClaims,
+		})
+		require.NoError(t, err)
+
+		user, err = db.GetUserByID(ctx, user.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{
+			rbac.RoleTemplateAdmin().Name, rbac.RoleAuditor().Name,
+			rbac.RoleAIGatewayUnrestricted().Name,
+		}, user.RBACRoles)
+
+		// Omitting the backfilled grant must remove it while retaining auditor.
+		err = s.SyncRoles(ctx, db, user, idpsync.RoleParams{
 			SyncEntitled: true,
 			SyncSiteWide: true,
 			SiteWideRoles: []string{
@@ -269,6 +300,12 @@ func TestRoleSyncTable(t *testing.T) {
 			MergedClaims: userClaims,
 		})
 		require.NoError(t, err)
+
+		storedUser, err := db.GetUserByID(ctx, user.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{
+			rbac.RoleTemplateAdmin().Name, rbac.RoleAuditor().Name,
+		}, storedUser.RBACRoles)
 
 		for _, assert := range asserts {
 			assert(t)

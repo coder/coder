@@ -11,6 +11,7 @@ const (
 	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
 	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
 	ScopeAiGatewayKeyUpdate                  ScopeName = "ai_gateway_key:update"
+	ScopeAiGatewayUnrestrictedUse            ScopeName = "ai_gateway_unrestricted:use"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -53,6 +54,7 @@ const (
 	ScopeChatModelConfigRead                 ScopeName = "chat_model_config:read"
 	ScopeChatModelConfigShare                ScopeName = "chat_model_config:share"
 	ScopeChatModelConfigUpdate               ScopeName = "chat_model_config:update"
+	ScopeChatModelConfigUse                  ScopeName = "chat_model_config:use"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
 	ScopeCryptoKeyCreate                     ScopeName = "crypto_key:create"
@@ -205,6 +207,7 @@ func (e ScopeName) Valid() bool {
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
 		ScopeAiGatewayKeyUpdate,
+		ScopeAiGatewayUnrestrictedUse,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -247,6 +250,7 @@ func (e ScopeName) Valid() bool {
 		ScopeChatModelConfigRead,
 		ScopeChatModelConfigShare,
 		ScopeChatModelConfigUpdate,
+		ScopeChatModelConfigUse,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,
@@ -400,6 +404,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
 		ScopeAiGatewayKeyUpdate,
+		ScopeAiGatewayUnrestrictedUse,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -442,6 +447,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatModelConfigRead,
 		ScopeChatModelConfigShare,
 		ScopeChatModelConfigUpdate,
+		ScopeChatModelConfigUse,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
 		ScopeCryptoKeyCreate,

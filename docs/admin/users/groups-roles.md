@@ -50,6 +50,17 @@ A deployment that sets `CODER_DISABLE_OWNER_WORKSPACE_ACCESS` removes the Owner 
 Owners keep that access to workspaces they own.
 Refer to [`--disable-owner-workspace-access`](../../reference/cli/server.md#--disable-owner-workspace-access) for the flag, environment variable, and YAML forms.
 
+**AI Gateway Unrestricted** also appears in the deployment role list.
+You must have the **Owner** role to manually assign or remove it.
+This role doesn't currently change which requests AI Gateway allows.
+
+When you upgrade from a version without this role, Coder assigns it to existing users and service accounts, excluding deleted users and system users.
+Dormant and suspended users also receive it.
+Users and service accounts created after the upgrade don't receive it by default.
+
+If you already have a custom role named `ai-gateway-unrestricted`, rename it and update its assignments before upgrading.
+Coder blocks the upgrade while a custom role uses that name.
+
 ## Organization roles
 
 Organization roles apply inside a single [organization](./organizations.md) rather than across the deployment.

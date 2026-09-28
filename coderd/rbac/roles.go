@@ -36,6 +36,7 @@ const (
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 	orgWorkspaceAccess      string = "organization-workspace-access"
+	aiGatewayUnrestricted   string = "ai-gateway-unrestricted"
 )
 
 func init() {
@@ -142,6 +143,9 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+
+// RoleAIGatewayUnrestricted grants unrestricted model use through AI Gateway.
+func RoleAIGatewayUnrestricted() RoleIdentifier { return RoleIdentifier{Name: aiGatewayUnrestricted} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -528,7 +532,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
+			ResourceAIGatewayUnrestricted.Type: {policy.ActionUse},
+			ResourceAssignRole.Type:            {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
 			// Need organization assign as well to create users. At present, creating a user
 			// will always assign them to some organization.
 			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
@@ -729,6 +734,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		aiGatewayUnrestricted: func(_ uuid.UUID) Role {
+			return Role{
+				Identifier: RoleAIGatewayUnrestricted(), DisplayName: "AI Gateway Unrestricted",
+				Site: Permissions(map[string][]policy.Action{ResourceAIGatewayUnrestricted.Type: {policy.ActionUse}}),
+				User: []Permission{}, ByOrgID: map[string]OrgPermissions{},
+			}
+		},
 		orgWorkspaceAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgWorkspaceAccess, OrganizationID: organizationID},
@@ -765,6 +777,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		aiGatewayUnrestricted:   true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -781,6 +794,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		aiGatewayUnrestricted:   true,
 		templateAdmin:           true,
 		userAdmin:               true,
 		customSiteRole:          true,
@@ -1151,6 +1165,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1234,6 +1249,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
+		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// When workspace sharing is enabled, service accounts need to see
