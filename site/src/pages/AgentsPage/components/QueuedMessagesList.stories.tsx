@@ -227,7 +227,8 @@ export const ActionsExcludeEdit: Story = {
 	},
 };
 
-// A row under edit behind the head: the head stays sendable; rows behind the edit wait.
+// A row under edit behind the head: the head stays sendable; rows behind the
+// edit wait. The Editing badge shows its tooltip.
 export const RowUnderEditWithWaitingTail: Story = {
 	args: {
 		messages: [
@@ -243,11 +244,12 @@ export const RowUnderEditWithWaitingTail: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByText("Run database migrations"));
+		await userEvent.hover(canvas.getByRole("button", { name: "Editing" }));
 	},
 };
 
-// The queue head is under edit, so the Enter-to-send hint is hidden.
+// The queue head is under edit, so the Enter-to-send hint is hidden. The
+// Waiting badge on the row behind it shows its tooltip.
 export const HeadUnderEdit: Story = {
 	args: {
 		messages: [
@@ -261,7 +263,7 @@ export const HeadUnderEdit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByText("Run the test suite"));
+		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
 	},
 };
 

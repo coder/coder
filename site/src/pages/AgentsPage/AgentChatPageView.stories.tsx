@@ -23,7 +23,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
+} from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -952,10 +956,9 @@ export const PausedAtQueuedEdit: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages, "paused", [
 				{
-					...MockChatQueuedMessage,
+					...MockChatQueuedMessageUnderEdit,
 					id: 1,
 					content: [{ type: "text", text: "Run the migrations" }],
-					editing_since: "2024-01-01T00:00:00Z",
 				},
 				{
 					...MockChatQueuedMessage,
