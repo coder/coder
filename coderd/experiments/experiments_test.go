@@ -263,9 +263,10 @@ func TestFailClosed(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		store      func(t *testing.T, userID uuid.UUID) experiments.Store
-		ctx        func(ctx context.Context) context.Context
-		nilSubject bool
+		store        func(t *testing.T, userID uuid.UUID) experiments.Store
+		ctx          func(ctx context.Context) context.Context
+		nilSubject   bool
+		wantCategory string
 	}{
 		"rules read error": {store: func(_ *testing.T, _ uuid.UUID) experiments.Store {
 			return experimentstest.Store{RulesErr: xerrors.New("db down")}
@@ -305,11 +306,24 @@ func TestFailClosed(t *testing.T) {
 			store: func(t *testing.T, userID uuid.UUID) experiments.Store {
 				return storeWith(t, userID, condition(`true`))
 			},
-			ctx: func(ctx context.Context) context.Context {
-				ctx, cancel := context.WithCancel(ctx)
-				cancel()
-				return ctx
+			ctx:          canceledContext,
+			wantCategory: "canceled",
+		},
+		// The store ignores cancellation, so the rules read succeeds and
+		// only the decision itself can notice the canceled context.
+		"canceled context with on rule": {
+			store: func(t *testing.T, userID uuid.UUID) experiments.Store {
+				return storeWith(t, userID, &experiments.Rule{Mode: experiments.ModeOn, Revision: 2})
 			},
+			ctx:          canceledContext,
+			wantCategory: "canceled",
+		},
+		"canceled context without rule and static on": {
+			store: func(t *testing.T, userID uuid.UUID) experiments.Store {
+				return storeWith(t, userID, nil)
+			},
+			ctx:          canceledContext,
+			wantCategory: "canceled",
 		},
 		"nil subject": {
 			store: func(t *testing.T, userID uuid.UUID) experiments.Store {
@@ -334,8 +348,17 @@ func TestFailClosed(t *testing.T) {
 			require.False(t, e.Enabled(ctx, userID, scoped))
 			require.Equal(t, codersdk.Experiments{unscoped}, e.EnabledExperiments(ctx, userID))
 			require.NotEmpty(t, sink.Entries(), "fail-closed decisions must be logged")
+			if tc.wantCategory != "" {
+				requireLogField(t, sink, "category", tc.wantCategory)
+			}
 		})
 	}
+}
+
+func canceledContext(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	return ctx
 }
 
 // TestRuleChangesApplyToNextCall edits the stored rule between calls on one

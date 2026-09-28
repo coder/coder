@@ -130,10 +130,18 @@ func (d *decision) enabled(ex codersdk.Experiment) bool {
 	return result
 }
 
-// decide applies the rule order: failed call, no rule or inherit, malformed
-// rule, on or off, then condition.
+// decide applies the rule order: failed call, canceled context, no rule or
+// inherit, malformed rule, on or off, then condition.
 func (d *decision) decide(ex codersdk.Experiment) bool {
 	if d.failed {
+		return false
+	}
+	// A canceled caller must not get an enabled decision, even from an on
+	// rule or a static default that needs no further reads.
+	if d.ctx.Err() != nil {
+		d.e.logger.Debug(d.ctx, "experiment decision canceled; experiment is off",
+			slog.F("experiment", ex),
+			slog.F("category", categoryCancelled))
 		return false
 	}
 	stored, ok := d.rules[ex]
