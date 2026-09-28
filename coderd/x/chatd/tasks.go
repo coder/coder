@@ -705,31 +705,52 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 // cancelUnresolvedToolCalls cancels the chat's unresolved tool calls on
 // its agent and returns the results the agent's answers give, by provider
 // tool call ID. Calls without a result keep the generic interrupted
-// result.
+// result, and a warning says why.
 func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat) map[string]fantasy.ToolResponse {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
 		return nil
 	}
+	logger := s.opts.Logger.With(slog.F("chat_id", chat.ID))
 	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	if err != nil {
+		logger.Warn(ctx, "load messages to cancel tool calls on agent", slog.Error(err))
 		return nil
 	}
 	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
-	if err != nil || len(calls) == 0 {
+	if err != nil {
+		logger.Warn(ctx, "find tool calls to cancel on agent", slog.Error(err))
+		return nil
+	}
+	if len(calls) == 0 {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, interruptCancelTimeout)
 	defer cancel()
 	conn, release, err := s.server.agentConnFn(ctx, chat.AgentID.UUID)
 	if err != nil {
+		logger.Warn(ctx, "dial agent to cancel tool calls", slog.Error(err))
 		return nil
 	}
 	defer release()
 	// The agent keys tool call IDs by chat.
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
+	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
 	results := make(map[string]fantasy.ToolResponse, len(calls))
 	for _, call := range calls {
-		if resp, ok := chattool.CancelToolCall(ctx, conn, chattool.ToolCallID(chat.ID, messageID, call.ToolCallID), call.ToolName); ok {
+		id, ok := ids[call.ToolCallID]
+		if !ok {
+			continue
+		}
+		resp, ok, err := chattool.CancelToolCall(ctx, conn, id, call.ToolName)
+		if err != nil {
+			logger.Warn(ctx, "cancel tool call on agent",
+				slog.F("tool_call_id", call.ToolCallID),
+				slog.F("tool_name", call.ToolName),
+				slog.Error(err),
+			)
+			continue
+		}
+		if ok {
 			results[call.ToolCallID] = resp
 		}
 	}

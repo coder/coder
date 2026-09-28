@@ -2,11 +2,15 @@ package chattool
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -23,37 +27,65 @@ func ToolCallID(chatID uuid.UUID, messageID int64, providerToolCallID string) uu
 	return uuid.NewSHA1(toolCallIDNamespace, fmt.Appendf(nil, "%s/%d/%s", chatID, messageID, providerToolCallID))
 }
 
+// ToolCallIDs returns the ToolCallID of each of calls, the unresolved
+// calls of assistant message messageID, by provider tool call ID. A call
+// whose provider tool call ID is empty or repeats gets none and runs as
+// before tool call IDs: calls sharing an ID would get each other's saved
+// responses from the agent.
+func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallContent) map[string]uuid.UUID {
+	count := make(map[string]int, len(calls))
+	for _, call := range calls {
+		count[call.ToolCallID]++
+	}
+	ids := make(map[string]uuid.UUID, len(count))
+	for providerID, n := range count {
+		if providerID != "" && n == 1 {
+			ids[providerID] = ToolCallID(chatID, messageID, providerID)
+		}
+	}
+	return ids
+}
+
 // CancelToolCall cancels the execute, edit_files, or write_file call with
-// tool call ID id on the agent and returns the call's result. It returns
-// false for other tools and when the agent gives no answer, including the
-// 404 of an agent without the cancel route.
-func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, bool) {
+// tool call ID id on the agent and returns the call's result. ok is false
+// for other tools, which have nothing to cancel on the agent. An error
+// means the agent gave no usable answer, including the 404 of an agent
+// without the cancel route.
+func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (result fantasy.ToolResponse, ok bool, err error) {
 	if toolName != ExecuteToolName && toolName != "edit_files" && toolName != "write_file" {
-		return fantasy.ToolResponse{}, false
+		return fantasy.ToolResponse{}, false, nil
 	}
-	resp, err := conn.CancelToolCall(ctx, id)
-	switch {
-	case err != nil:
-		return fantasy.ToolResponse{}, false
-	case !resp.Received && toolName == ExecuteToolName:
-		return errorResult("not run: canceled before the agent received it"), true
-	case !resp.Received:
-		return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), true
-	case toolName == "edit_files":
-		return editFilesResponse(resp.EditFilesResult()), true
-	case toolName == "write_file":
-		return writeFileResponse(resp.WriteFileResult()), true
-	}
-	if _, err := resp.StartProcessResult(); err != nil {
-		return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), true
-	}
-	output, err := conn.ProcessOutput(ctx, id.String(), nil)
+	canceled, err := conn.CancelToolCall(ctx, id)
 	if err != nil {
-		return fantasy.ToolResponse{}, false
+		return fantasy.ToolResponse{}, false, xerrors.Errorf("cancel tool call: %w", err)
 	}
-	result := exitedResult(output)
+	switch {
+	case toolName == "edit_files" && canceled.Received:
+		return editFilesResponse(canceled.EditFilesResult()), true, nil
+	case toolName == "write_file" && canceled.Received:
+		return writeFileResponse(canceled.WriteFileResult()), true, nil
+	case toolName != ExecuteToolName:
+		return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), true, nil
+	}
+	if canceled.Received {
+		if _, err := canceled.StartProcessResult(); err != nil {
+			return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), true, nil
+		}
+	}
+	// Read the output even when the agent has no record of the call: a
+	// process started with the tool call ID outlives the record, and the
+	// cancel killed it.
+	output, err := conn.ProcessOutput(ctx, id.String(), nil)
+	var sdkErr *codersdk.Error
+	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+		return errorResult("not run: canceled before the agent received it"), true, nil
+	}
+	if err != nil {
+		return fantasy.ToolResponse{}, false, xerrors.Errorf("read process output: %w", err)
+	}
+	exited := exitedResult(output)
 	if output.Canceled {
-		result.Success, result.ExitCode, result.Error = false, -1, "canceled by the user"
+		exited.Success, exited.ExitCode, exited.Error = false, -1, "canceled by the user"
 	}
-	return marshalToolResponse(result), true
+	return marshalToolResponse(exited), true, nil
 }

@@ -865,10 +865,15 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		cancel    workspacesdk.CancelToolCallResponse
 		cancelErr error
 		output    *workspacesdk.ProcessOutputResponse
+		outputErr error
 		wantError bool
 		want      string
 	}{
-		{name: "ExecuteNotReceived", toolName: "execute", want: `"error":"not run: canceled before the agent received it"`},
+		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), want: `"error":"not run: canceled before the agent received it"`},
+		// The agent forgot the call, but its process outlives the record
+		// and the cancel killed it.
+		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `"error":"canceled by the user"`},
+		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
@@ -903,8 +908,12 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	for _, tc := range tests {
 		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
 		conn.EXPECT().CancelToolCall(gomock.Any(), id).Return(tc.cancel, tc.cancelErr)
-		if tc.output != nil {
-			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Nil()).Return(*tc.output, nil)
+		if tc.output != nil || tc.outputErr != nil {
+			var output workspacesdk.ProcessOutputResponse
+			if tc.output != nil {
+				output = *tc.output
+			}
+			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Nil()).Return(output, tc.outputErr)
 		}
 	}
 	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {

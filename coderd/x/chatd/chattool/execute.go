@@ -348,9 +348,8 @@ func waitForProcess(
 	// The server-side wait may return before the
 	// process exits if maxWaitDuration is shorter than
 	// the client's timeout. Retry if our context still
-	// has time left and the agent's execute deadline, set
-	// by the first start of a retried tool call, has not
-	// passed.
+	// has time left and the agent's waitUntil, set by the
+	// first start of a retried tool call, has not passed.
 	if resp.Running {
 		if ctx.Err() == nil && !resp.TimedOut {
 			// Still within the caller's timeout, retry.
