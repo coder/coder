@@ -82,6 +82,23 @@ Set an option to an empty value to disable that actor attribute without disablin
 AI Gateway uses values from the authenticated Coder account, not client-supplied headers.
 Gateway does not inject actor headers on passthrough routes.
 
+### Header name restrictions
+
+An empty header name turns off that actor attribute.
+A nonempty name must be a valid [HTTP field name](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1) as defined by RFC 9110.
+Nonempty configured names must be unique, ignoring case.
+
+You can't use any of these reserved names, regardless of casing:
+
+- **Authentication and session**: `Authorization`, `X-Api-Key`, `Cookie`, `Set-Cookie`.
+- **Transport and forwarding**: `Host`, `User-Agent`, `Content-Length`, `Content-Type`, `Content-Encoding`, `Accept-Encoding`, `Connection`, `Keep-Alive`, `Te`, `Trailer`, `Transfer-Encoding`, `Upgrade`, `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Forwarded-Port`.
+- **Proxy**: `Proxy-Authorization`, `Proxy-Authenticate`.
+- **Coder internal**: `Coder-Session-Token`, `X-Coder-Ai-Governance-Token`, `X-Coder-Ai-Governance-Request-Id`, `X-Coder-Agent-Firewall-Session-Id`, `X-Coder-Agent-Firewall-Sequence-Number`.
+
+Names beginning with `X-AI-Bridge-Actor` are also reserved, ignoring case, except for the standard name of the attribute you're configuring.
+For example, `X-User-ID` and `X-Username` are valid custom names.
+An invalid configuration prevents `coderd` or a standalone AI Gateway from starting.
+
 ## Supported APIs
 
 API support is divided into two categories:
