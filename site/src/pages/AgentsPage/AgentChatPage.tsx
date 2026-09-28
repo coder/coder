@@ -634,7 +634,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		serverMarkedID,
 		queuedMessageUnderEditID,
 		composerTarget,
-		handleEditQueuedMessage: beginQueuedMessageEdit,
+		handleEditQueuedMessage,
 		handleEndQueuedMessageEdit: requestEndQueuedMessageEdit,
 	} = useQueuedMessageEdit({
 		store,
@@ -667,12 +667,12 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		setComposerMode,
 		target: composerTarget,
 		targetContent: composerTargetContent,
+		// An edit sends reasoning effort only when the user changed it for
+		// that edit.
+		onLoadedTargetChange: () => {
+			isEditReasoningEffortDirtyRef.current = false;
+		},
 	});
-
-	const handleEditQueuedMessage = (id: number) => {
-		isEditReasoningEffortDirtyRef.current = false;
-		beginQueuedMessageEdit(id);
-	};
 
 	const handleEndQueuedMessageEdit = (id: number) => {
 		if (composerTarget?.kind === "queued" && composerTarget.id === id) {
@@ -691,7 +691,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			isOwner &&
 			serverMarkedID !== null
 		) {
-			isEditReasoningEffortDirtyRef.current = false;
 			editing.handleCancelEdit({ kind: "queued", id: serverMarkedID });
 			return;
 		}
@@ -699,7 +698,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	};
 
 	const handleBeginHistoryEdit = (messageId: number) => {
-		isEditReasoningEffortDirtyRef.current = false;
 		setComposerMode({ kind: "history", id: messageId });
 	};
 

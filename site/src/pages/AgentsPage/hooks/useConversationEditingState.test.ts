@@ -97,6 +97,7 @@ describe("useConversationEditingState", () => {
 	};
 	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
+		const onLoadedTargetChange = vi.fn();
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
 		const contents = new Map<string, readonly ChatMessagePart[]>();
@@ -127,6 +128,7 @@ describe("useConversationEditingState", () => {
 					setComposerMode,
 					target,
 					targetContent: target ? contents.get(contentKey(target)) : undefined,
+					onLoadedTargetChange,
 				});
 				return { ...editing, composerMode, setComposerMode };
 			},
@@ -177,6 +179,7 @@ describe("useConversationEditingState", () => {
 		return {
 			...hook,
 			onSend,
+			onLoadedTargetChange,
 			inputValueRef,
 			beginEdit,
 			markOnServer,
@@ -995,6 +998,23 @@ describe("useConversationEditingState", () => {
 				unmount();
 			},
 		);
+
+		it("reports a loaded target change when a marked row loads or leaves, and not when the composer picks the loaded row", () => {
+			const { result, unmount, markOnServer, onLoadedTargetChange } =
+				renderEditing();
+
+			markOnServer(5);
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
+
+			act(() => {
+				result.current.setComposerMode({ kind: "queued", id: 5 });
+			});
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
+
+			markOnServer(null);
+			expect(onLoadedTargetChange).toHaveBeenCalledTimes(2);
+			unmount();
+		});
 
 		describe("edit sessions", () => {
 			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
