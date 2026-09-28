@@ -244,11 +244,8 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
-/**
- * The active row normally swaps its timestamp for the actions trigger, but
- * another user's shared chat has no owner actions, so the timestamp stays.
- */
-export const ActiveSharedChatViewerHasNoActions: Story = {
+/** Shared chats expose the copy menu without owner-only actions. */
+export const ActiveSharedChatViewerHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -272,8 +269,8 @@ export const ActiveSharedChatViewerHasNoActions: Story = {
 	},
 };
 
-/** Viewers keep the subagents toggle, the touch path for expanding a row. */
-export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+/** Viewers can expand subagents and copy chat details without managing the chat. */
+export const SharedChatViewerMenuWithSubagents: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2085,7 +2082,7 @@ export const SubagentsMenuToggle: Story = {
 	},
 };
 
-export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+export const ArchivedChildChatRowHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2116,12 +2113,13 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Right-click the archived child row: it has no menu actions, so a
-		// correct render leaves the row undisturbed for the capture. An
-		// erroneous menu would appear in the screenshot.
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 
@@ -2314,6 +2312,163 @@ export const ActiveChatContextMenuHasNoReadToggle: Story = {
 			await canvas.findByLabelText("Open actions for Active unread agent"),
 		);
 		await within(document.body).findByText("Rename chat");
+	},
+};
+
+export const CopySubmenuContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "copy-agent",
+				title: "Copy agent",
+				updated_at: recentTimestamp,
+				diff_status: {
+					chat_id: "copy-agent",
+					pull_request_title: "",
+					pull_request_draft: false,
+					changes_requested: false,
+					additions: 0,
+					deletions: 0,
+					changed_files: 0,
+					head_branch: "jakehwll/copy-branch",
+				},
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
+export const CopySubmenuWithoutBranch: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "no-branch-agent",
+				title: "No branch agent",
+				updated_at: recentTimestamp,
+				diff_status: undefined,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for No branch agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/** Copying is read-only, so it stays available on another user's shared chat. */
+export const CopySubmenuOnSharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-copy-agent",
+				title: "Shared copy agent",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Shared copy agent"),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
+	},
+};
+
+/**
+ * Archived child chats have no archive or unarchive actions, so the copy
+ * submenu is the whole menu.
+ */
+export const CopySubmenuOnArchivedChildChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-copy-parent",
+				title: "Archived copy parent",
+				archived: true,
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "archived-copy-child",
+						title: "Archived copy child",
+						archived: true,
+						parent_chat_id: "archived-copy-parent",
+						root_chat_id: "archived-copy-parent",
+						updated_at: recentTimestamp,
+					}),
+				],
+			}),
+			buildChat({
+				id: "archived-copy-child",
+				title: "Archived copy child",
+				archived: true,
+				parent_chat_id: "archived-copy-parent",
+				root_chat_id: "archived-copy-parent",
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy parent"),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Show subagents (1)" }),
+		);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Archived copy child"),
+		);
+		await userEvent.click(await body.findByRole("menuitem", { name: "Copy" }));
+		await body.findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 

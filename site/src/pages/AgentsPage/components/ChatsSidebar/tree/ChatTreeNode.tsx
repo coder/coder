@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,6 +24,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -29,7 +35,6 @@ import {
 	ChatActionsMenuItems,
 	canManageChat,
 	chatFamilyAllowsArchive,
-	chatHasMenuActions,
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
@@ -155,10 +160,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
-		canManage,
-		hasSubagentsToggle: hasChildren,
-	});
 
 	const sharedMenuItemProps = {
 		chat,
@@ -190,7 +191,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
-				<ContextMenuTrigger asChild disabled={!hasMenuActions}>
+				<ContextMenuTrigger asChild>
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
@@ -315,11 +316,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										className={cn(
 											"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 											// The timestamp swaps out for the actions trigger on
-											// hover or while a menu is open. Without menu actions,
-											// there is no trigger, so keep the timestamp visible.
-											hasMenuActions &&
-												"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
-											hasMenuActions && isActiveChat && "hidden",
+											// hover or while a menu is open.
+											"[@media(hover:hover)]:group-hover:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+											isActiveChat && "hidden",
 										)}
 									>
 										{chat.has_unread && !isActiveChat ? (
@@ -350,7 +349,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									aria-label="Shared chat"
 								/>
 							)}
-							{hasMenuActions && !isArchivingThisChat && (
+							{!isArchivingThisChat && (
 								<DropdownMenu>
 									<DropdownMenuTrigger asChild>
 										<Button
@@ -397,6 +396,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 											{...sharedMenuItemProps}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
+											Sub={DropdownMenuSub}
+											SubTrigger={DropdownMenuSubTrigger}
+											SubContent={DropdownMenuSubContent}
 										/>
 									</DropdownMenuContent>
 								</DropdownMenu>
@@ -409,6 +411,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
+						Sub={ContextMenuSub}
+						SubTrigger={ContextMenuSubTrigger}
+						SubContent={ContextMenuSubContent}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>

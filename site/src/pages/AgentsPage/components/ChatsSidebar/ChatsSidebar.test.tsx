@@ -1,4 +1,10 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
@@ -847,5 +853,111 @@ describe("ChatsSidebar read state actions", () => {
 		);
 
 		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
+	});
+});
+
+describe("ChatsSidebar copy actions", () => {
+	// Radix submenu items do not react to userEvent clicks in jsdom, so the
+	// selection itself uses fireEvent.
+	const openCopySubmenu = async (
+		user: ReturnType<typeof userEvent.setup>,
+		title: string,
+	) => {
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Copy" }));
+	};
+
+	it("copies the chat ID", async () => {
+		// userEvent.setup() swaps in its own clipboard stub, so the spy has to
+		// come after it.
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "copy-chat", title: "Copy chat" })]}
+				/>
+			</Wrapper>,
+		);
+
+		await openCopySubmenu(user, "Copy chat");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith("copy-chat");
+		});
+	});
+
+	it("copies the chat's branch", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "branch-chat",
+							title: "Branch chat",
+							diff_status: {
+								chat_id: "branch-chat",
+								pull_request_title: "",
+								pull_request_draft: false,
+								changes_requested: false,
+								additions: 0,
+								deletions: 0,
+								changed_files: 0,
+								head_branch: "jakehwll/copy-branch",
+							},
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await openCopySubmenu(user, "Branch chat");
+		fireEvent.click(
+			await screen.findByRole("menuitem", { name: "Copy branch" }),
+		);
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith("jakehwll/copy-branch");
+		});
+	});
+
+	it("copies the ID of a chat the user does not own", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-copy-chat",
+							title: "Shared copy chat",
+							owner_id: "sharing-user-id",
+							shared: true,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await openCopySubmenu(user, "Shared copy chat");
+		fireEvent.click(await screen.findByRole("menuitem", { name: "Copy ID" }));
+
+		await waitFor(() => {
+			expect(writeText).toHaveBeenCalledWith("shared-copy-chat");
+		});
 	});
 });

@@ -2,6 +2,9 @@ import {
 	ArchiveIcon,
 	ArchiveRestoreIcon,
 	BotIcon,
+	CopyIcon,
+	GitBranchIcon,
+	HashIcon,
 	MailIcon,
 	MailOpenIcon,
 	PinIcon,
@@ -14,11 +17,18 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import type {
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { useClipboard } from "#/hooks/useClipboard";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
@@ -46,6 +56,13 @@ type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
 	| typeof DropdownMenuSeparator
 	| typeof ContextMenuSeparator;
+type SubComponent = typeof DropdownMenuSub | typeof ContextMenuSub;
+type SubTriggerComponent =
+	| typeof DropdownMenuSubTrigger
+	| typeof ContextMenuSubTrigger;
+type SubContentComponent =
+	| typeof DropdownMenuSubContent
+	| typeof ContextMenuSubContent;
 
 /**
  * Pin, rename, and archive write to the chat record itself, so from a shared
@@ -59,33 +76,16 @@ export const canManageChat = (
 	currentUserId: string,
 ): boolean => chat.owner_id === currentUserId;
 
-type ChatMenuActionsOptions = {
-	readonly canManage: boolean;
-	/** Whether the menu offers the subagents toggle, the only viewer action. */
-	readonly hasSubagentsToggle?: boolean;
-};
-
 /**
- * Archive state is root-only on the backend and cascades to children, so
- * child chats expose no archive or unarchive actions. An archived child chat
- * therefore has no menu actions at all, and a non-owner only has the
- * subagents toggle; call sites use this to hide the menu trigger instead of
- * rendering an empty menu.
+ * Every chat exposes the copy submenu, so the menu itself is never empty and
+ * call sites always render their trigger.
  */
-export const chatHasMenuActions = (
-	chat: TypesGen.Chat,
-	{ canManage, hasSubagentsToggle = false }: ChatMenuActionsOptions,
-): boolean => {
-	if (!canManage) {
-		return hasSubagentsToggle;
-	}
-	const isArchivedChild = chat.archived && getParentChatID(chat) !== undefined;
-	return !isArchivedChild;
-};
-
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
+	/**
+	 * See {@link canManageChat}. When false, only the subagents toggle and the
+	 * copy submenu render.
+	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
@@ -105,6 +105,9 @@ type ChatActionsMenuItemsProps = {
 	readonly onOpenRenameDialog?: () => void;
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
+	readonly Sub: SubComponent;
+	readonly SubTrigger: SubTriggerComponent;
+	readonly SubContent: SubContentComponent;
 };
 
 export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
@@ -126,7 +129,11 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onOpenRenameDialog,
 	Item,
 	Separator,
+	Sub,
+	SubTrigger,
+	SubContent,
 }) => {
+	const { copyToClipboard } = useClipboard();
 	const isArchived = chat.archived;
 	const isPinned = chat.pin_order > 0;
 	const isChildChat = getParentChatID(chat) !== undefined;
@@ -134,7 +141,19 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const showReadToggle = Boolean(onMarkRead && onMarkUnread);
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
-	const showArchiveActions = !isArchived && !isChildChat;
+	// Archive state is root-only on the backend and cascades to children, so
+	// child chats expose neither archive nor unarchive.
+	const showArchiveActions = canManage && !isArchived && !isChildChat;
+	const showUnarchiveAction = canManage && isArchived && !isChildChat;
+	const hasActionsAboveCopy = canManage
+		? showUnarchiveAction ||
+			(!isArchived &&
+				(Boolean(onOpenRenameDialog) ||
+					showPinAction ||
+					showSubagentsToggle ||
+					showReadToggle))
+		: showSubagentsToggle;
+	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -165,8 +184,43 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		</Item>
 	) : null;
 
+	const copySubmenu = (
+		<Sub>
+			<SubTrigger>
+				<CopyIcon className="size-3.5" />
+				Copy
+			</SubTrigger>
+			<SubContent>
+				<Item
+					onSelect={() => {
+						void copyToClipboard(chat.id);
+					}}
+				>
+					<HashIcon className="size-3.5" />
+					Copy ID
+				</Item>
+				{branch && (
+					<Item
+						onSelect={() => {
+							void copyToClipboard(branch);
+						}}
+					>
+						<GitBranchIcon className="size-3.5" />
+						Copy branch
+					</Item>
+				)}
+			</SubContent>
+		</Sub>
+	);
+
 	if (!canManage) {
-		return subagentToggle;
+		return (
+			<>
+				{subagentToggle}
+				{hasActionsAboveCopy && <Separator />}
+				{copySubmenu}
+			</>
+		);
 	}
 
 	return (
@@ -187,7 +241,7 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				</Item>
 			)}
 			{isArchived ? (
-				!isChildChat && (
+				showUnarchiveAction && (
 					<>
 						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
 							<ArchiveRestoreIcon className="size-3.5" />
@@ -207,41 +261,40 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 					)}
 					{subagentToggle}
 					{readToggle}
-					{showArchiveActions && (
-						<>
-							{(onOpenRenameDialog ||
-								showPinAction ||
-								showSubagentsToggle ||
-								showReadToggle) && <Separator />}
-							<Item
-								className="text-content-destructive focus:text-content-destructive"
-								aria-describedby={archiveBlockedDescribedBy}
-								disabled={isArchiving || isArchiveBlocked}
-								onSelect={onArchiveAgent}
-							>
-								<ArchiveIcon className="size-3.5" />
-								Archive agent
-							</Item>
-							{hasWorkspace && (
-								<Item
-									className="text-content-destructive focus:text-content-destructive"
-									aria-describedby={archiveBlockedDescribedBy}
-									disabled={isArchiving || isArchiveBlocked}
-									onSelect={onArchiveAndDeleteWorkspace}
-								>
-									<Trash2Icon className="size-3.5" />
-									Archive & delete workspace
-								</Item>
-							)}
-							{isArchiveBlocked && (
-								<div
-									id={archiveBlockedHintId}
-									className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
-								>
-									Interrupt or wait for the agent to finish first.
-								</div>
-							)}
-						</>
+				</>
+			)}
+			{hasActionsAboveCopy && <Separator />}
+			{copySubmenu}
+			{showArchiveActions && (
+				<>
+					<Separator />
+					<Item
+						className="text-content-destructive focus:text-content-destructive"
+						aria-describedby={archiveBlockedDescribedBy}
+						disabled={isArchiving || isArchiveBlocked}
+						onSelect={onArchiveAgent}
+					>
+						<ArchiveIcon className="size-3.5" />
+						Archive agent
+					</Item>
+					{hasWorkspace && (
+						<Item
+							className="text-content-destructive focus:text-content-destructive"
+							aria-describedby={archiveBlockedDescribedBy}
+							disabled={isArchiving || isArchiveBlocked}
+							onSelect={onArchiveAndDeleteWorkspace}
+						>
+							<Trash2Icon className="size-3.5" />
+							Archive & delete workspace
+						</Item>
+					)}
+					{isArchiveBlocked && (
+						<div
+							id={archiveBlockedHintId}
+							className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
+						>
+							Interrupt or wait for the agent to finish first.
+						</div>
 					)}
 				</>
 			)}
