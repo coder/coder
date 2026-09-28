@@ -94,6 +94,8 @@ export type AgentCreatePrefill = {
 		name: string;
 		text: string;
 	};
+	/** Shown in the composer until the user edits the message or sends it. */
+	warning?: string;
 };
 
 /**
@@ -206,6 +208,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft(prefill?.message);
+	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -825,7 +828,13 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						isLoading={isSubmitPending}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
-						onContentChange={handleContentChange}
+						onContentChange={(content, serializedEditorState, hasRefs) => {
+							if (content !== prefill?.message) {
+								setIsPrefillEdited(true);
+							}
+							handleContentChange(content, serializedEditorState, hasRefs);
+						}}
+						warning={isPrefillEdited ? undefined : prefill?.warning}
 						selectedModel={selectedModel}
 						onModelChange={handleModelChange}
 						modelOptions={modelOptions}

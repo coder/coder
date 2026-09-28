@@ -13,6 +13,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
@@ -185,6 +186,8 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Caution shown at the top of the composer, owned by the parent.
+	warning?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -522,6 +525,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	warning,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -1359,7 +1363,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					(isEditingHistoryMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1367,6 +1371,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{warning && (
+					<div className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning">
+						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+						{warning}
+					</div>
+				)}
 				{isEditingHistoryMessage && (
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">

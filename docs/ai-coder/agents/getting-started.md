@@ -278,7 +278,8 @@ https://coder.example.com/agents?prompt=Fix%20the%20failing%20tests%20in%20the%2
 
 The link fills in the message box only.
 Coder doesn't send the message: the user reviews it, can edit it, and selects **Send**.
-A notice above the message box asks the user to review the text, because any website can create such a link.
+Because any website can create such a link, a warning in the message box asks the user to take care before sending.
+The warning disappears once the user edits the message.
 
 If the user isn't signed in, Coder keeps the message through sign-in.
 

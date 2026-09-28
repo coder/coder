@@ -193,7 +193,14 @@ const AgentCreatePage: React.FC = () => {
 				}
 			: undefined;
 	const prefill: AgentCreatePrefill | undefined =
-		debugPrefill ?? (linkPrompt ? { message: linkPrompt } : undefined);
+		debugPrefill ??
+		(linkPrompt
+			? {
+					message: linkPrompt,
+					warning:
+						"Use caution before running this prompt. Malicious content could trick Coder Agents into attempting harmful actions or sharing your data.",
+				}
+			: undefined);
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
 	// and attachment only on mount.
 	const isPrefillLoading =
@@ -351,15 +358,6 @@ const AgentCreatePage: React.FC = () => {
 				<WebPushButton webPush={webPush} onToggle={handleNotificationToggle} />
 			</AgentPageHeader>
 			<DebugWorkspaceBuildAlert error={prefillError} build={debugBuild} />
-			{linkPrompt && (
-				<div className="mx-auto w-full max-w-3xl px-4 pt-4">
-					<Alert severity="info">
-						<AlertDescription>
-							This prompt came from a link. Review it before you send it.
-						</AlertDescription>
-					</Alert>
-				</div>
-			)}
 			{isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
