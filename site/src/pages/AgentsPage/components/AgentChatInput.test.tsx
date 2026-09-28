@@ -12,6 +12,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChatQueuedMessage,
 	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
@@ -716,7 +717,16 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("does not promote a queue head under edit on Enter with an empty composer", async () => {
+	it.each([
+		["sends the queue head when nothing is under edit", {}, true],
+		[
+			"does not send a queue head the server marks as under edit",
+			{ queuedMessages: [MockChatQueuedMessageUnderEdit] },
+			false,
+		],
+	] satisfies Array<
+		[string, Partial<React.ComponentProps<typeof AgentChatInput>>, boolean]
+	>)("Enter with an empty composer %s", async (_name, props, sendsHead) => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();
 
@@ -731,13 +741,26 @@ describe("AgentChatInput", () => {
 				modelSelectorPlaceholder="Select model"
 				hasModelOptions
 				canConfigureAgentSetup={false}
-				queuedMessages={[MockChatQueuedMessageUnderEdit]}
+				queuedMessages={[MockChatQueuedMessage]}
 				onPromoteQueuedMessage={onPromoteQueuedMessage}
+				{...props}
 			/>,
 		);
 
+		// Plain Enter sends only once the shortcut preference has loaded.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /^(Send|Queue)$/ }),
+			).toHaveAttribute("aria-keyshortcuts", "Enter");
+		});
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.keyboard("{Enter}");
-		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		if (sendsHead) {
+			expect(onPromoteQueuedMessage).toHaveBeenCalledWith(
+				MockChatQueuedMessage.id,
+			);
+		} else {
+			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
 	});
 });
