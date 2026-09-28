@@ -23,6 +23,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 		onPromote: fn(),
 		onEdit: fn(),
 		onEndEdit: fn(),
+		queuedMessageUnderEditID: null,
 		showEnterToSendHint: true,
 	},
 };
@@ -203,6 +204,7 @@ export const ReadOnlyViewerActions: Story = {
 // and its Editing badge shows its tooltip.
 export const RowUnderEditWithWaitingTail: Story = {
 	args: {
+		queuedMessageUnderEditID: 2,
 		messages: [
 			buildMessage(1, textContent("Install dependencies")),
 			{
@@ -224,6 +226,7 @@ export const RowUnderEditWithWaitingTail: Story = {
 // Waiting badge on the row behind it shows its tooltip.
 export const WaitingBehindHeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: 1,
 		showEnterToSendHint: false,
 		messages: [
 			{
@@ -245,6 +248,7 @@ export const WaitingBehindHeadUnderEdit: Story = {
 // disabled with a reason.
 export const HeadUnderEdit: Story = {
 	args: {
+		queuedMessageUnderEditID: 1,
 		chatPaused: true,
 		showEnterToSendHint: false,
 		messages: [
@@ -266,6 +270,7 @@ export const HeadUnderEdit: Story = {
 // tooltip says why.
 export const PausedEditBehindHead: Story = {
 	args: {
+		queuedMessageUnderEditID: 1,
 		chatPaused: true,
 		showEnterToSendHint: false,
 		messages: [

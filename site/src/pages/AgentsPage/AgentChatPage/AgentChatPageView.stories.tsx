@@ -196,6 +196,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		handlePromoteQueuedMessage: fn(),
 		handleEditQueuedMessage: fn(),
 		handleEndQueuedMessageEdit: fn(),
+		queuedMessageUnderEditID: null,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -985,6 +986,7 @@ export const PausedAtQueuedEdit: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
 			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
 		/>
 	),
 };
@@ -995,6 +997,7 @@ export const EditingQueuedMessageWhilePaused: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages, "paused", pausedQueue)}
 			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
 			editing={{
 				editingTarget: { kind: "queued", id: 1 },
 				editorInitialValue: "Run the migrations",

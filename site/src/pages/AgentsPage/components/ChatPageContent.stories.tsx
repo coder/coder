@@ -149,6 +149,7 @@ const StoryChatPageInput: React.FC<{
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -493,6 +494,7 @@ const CompactionChatPageInput: React.FC = () => {
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={fn()}
 				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);
