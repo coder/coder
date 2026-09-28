@@ -65,6 +65,7 @@ import {
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import {
 	runDeleteQueuedMessage,
+	runEditQueuedMessage,
 	runPromoteQueuedMessage,
 } from "./components/ChatConversation/chatQueueReconciliation";
 import {
@@ -341,15 +342,17 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const { mutateAsync: promoteQueuedMessage } = useMutation(
 		promoteChatQueuedMessage(queryClient, agentId),
 	);
-	const { isPending: isSaveQueuedPending, mutateAsync: saveQueuedMessage } =
-		useMutation(editChatQueuedMessage(queryClient, agentId));
+	const {
+		isPending: isSaveQueuedPending,
+		mutateAsync: requestQueuedMessageSave,
+	} = useMutation(editChatQueuedMessage(queryClient, agentId));
 	// Marker requests must not mark the composer pending, so they use a
 	// separate mutation instance. Its state tells the composer which begin or
 	// end is in flight.
 	const {
 		isPending: isMarkerPending,
 		variables: markerVariables,
-		mutateAsync: markQueuedMessageEditing,
+		mutateAsync: requestQueuedMessageEditing,
 	} = useMutation(editChatQueuedMessage(queryClient, agentId));
 	const updateChatManageAutomationsBase =
 		updateChatManageAutomations(queryClient);
@@ -601,45 +604,29 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			onError: handleRequestError,
 		});
 
-	// A 404 means the row was sent or removed. It is dropped locally because a
-	// queue_update without it is not guaranteed to arrive. Every failure is
-	// toasted before it is rethrown. A settled marker request is written into
-	// the row so the composer does not wait for the queue_update.
-	const patchQueuedMessage = async (
+	const saveQueuedMessage = (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,
-		failureMessage: string,
-	) => {
-		const mutate = req.content ? saveQueuedMessage : markQueuedMessageEditing;
-		try {
-			await mutate({ queuedMessageId: id, req });
-		} catch (error) {
-			if (getErrorStatus(error) === 404) {
-				store.setQueuedMessages(
-					store.getSnapshot().queuedMessages.filter((row) => row.id !== id),
-				);
-				toast.error("Queued message was already sent or removed.");
-			} else {
-				toast.error(getErrorMessage(error, failureMessage));
-			}
-			throw error;
-		}
-		if (req.editing !== undefined) {
-			// The server allows one row under edit per chat, so a begin ends any
-			// other row's edit.
-			const editingSince = req.editing ? new Date().toISOString() : undefined;
-			store.setQueuedMessages(
-				store.getSnapshot().queuedMessages.map((row) => {
-					if (row.id === id) {
-						return { ...row, editing_since: editingSince };
-					}
-					return req.editing && row.editing_since
-						? { ...row, editing_since: undefined }
-						: row;
-				}),
-			);
-		}
-	};
+	) =>
+		runEditQueuedMessage({
+			id,
+			req,
+			store,
+			editQueuedMessage: requestQueuedMessageSave,
+			failureMessage: "Failed to save the queued message.",
+			onError: toast.error,
+		});
+	const setQueuedMessageEditing = (id: number, editing: boolean) =>
+		runEditQueuedMessage({
+			id,
+			req: { editing },
+			store,
+			editQueuedMessage: requestQueuedMessageEditing,
+			failureMessage: editing
+				? "Failed to start editing the queued message."
+				: "Failed to cancel the edit.",
+			onError: toast.error,
+		});
 
 	const isOwner = chat !== undefined && !isViewerNotOwner;
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
@@ -658,7 +645,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			isPending: isMarkerPending,
 			variables: markerVariables,
 		},
-		patchQueuedMessage,
+		setQueuedMessageEditing,
 	});
 	const composerTargetContent = useChatSelector(store, (s) => {
 		if (composerTarget === null) {
@@ -779,15 +766,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		effectiveReasoningEffort,
 		mcpServerIds: effectiveMCPServerIds,
 		editMessage,
-		saveQueuedMessage: (
-			queuedMessageId: number,
-			req: TypesGen.EditChatQueuedMessageRequest,
-		) =>
-			patchQueuedMessage(
-				queuedMessageId,
-				req,
-				"Failed to save the queued message.",
-			),
+		saveQueuedMessage,
 		sendMessage,
 		onRequestError: handleRequestError,
 		invalidateChat: (chatId: string) => {
