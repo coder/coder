@@ -526,6 +526,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,
@@ -678,6 +679,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat-error",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,

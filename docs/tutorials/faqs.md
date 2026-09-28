@@ -90,11 +90,11 @@ to establish these direct connections.
 Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
-| Flag                                                                                          | Value       | Meaning                               |
-|-----------------------------------------------------------------------------------------------|-------------|---------------------------------------|
-| [`CODER_BLOCK_DIRECT`](../reference/cli/server.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
-| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
-| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
+| Flag                                                                                                | Value       | Meaning                               |
+|-----------------------------------------------------------------------------------------------------|-------------|---------------------------------------|
+| [`CODER_BLOCK_DIRECT`](../reference/cli/server/index.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
+| [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server/index.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
+| [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server/index.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
 ## How do I configure NGINX as the reverse proxy in front of Coder?
 
@@ -518,11 +518,9 @@ Host coder-jetbrains--*
   ServerAliveInterval 5
 ```
 
-This will make SSH check that it can contact the server every five seconds. If
-it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15
-seconds) then it will close the connection which forces JetBrains to recreate
-the hung session. You can tweak `ServerAliveInterval` and `ServerAliveCountMax`
-to increase or decrease the total timeout.
+This will make SSH check that it can contact the server every five seconds.
+If it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15&nbsp;seconds) then it will close the connection which forces JetBrains to recreate the hung session.
+You can tweak `ServerAliveInterval` and `ServerAliveCountMax` to increase or decrease the total timeout.
 
 Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it

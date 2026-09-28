@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -213,7 +213,7 @@ export type BlockListProps = {
 // Encapsulates the response / thinking / tool / file / sources switch so both
 // consumers stay in sync. PascalCase so the React Compiler auto-memoizes every
 // element inside.
-export const BlockList: FC<BlockListProps> = ({
+export const BlockList: React.FC<BlockListProps> = ({
 	organizationId,
 	blocks,
 	tools,

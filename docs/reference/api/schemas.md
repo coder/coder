@@ -1068,6 +1068,12 @@ title: Schemas
       "scheme": "string",
       "user": {}
     },
+    "max_attachments_per_chat": 0,
+    "max_concurrent_recording_uploads": 0,
+    "max_generation_retries": 0,
+    "max_prompt_bytes": 0,
+    "max_queued_messages_per_chat": 0,
+    "max_steps_per_turn": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2463,7 +2469,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect and via UpdateChatRequest.Read.                                                                                                            |
 | `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `inline_mcp_servers`    | array of [codersdk.InlineMCPServer](#codersdkinlinemcpserver)   | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2609,22 +2615,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "scheme": "string",
     "user": {}
   },
+  "max_attachments_per_chat": 0,
+  "max_concurrent_recording_uploads": 0,
+  "max_generation_retries": 0,
+  "max_prompt_bytes": 0,
+  "max_queued_messages_per_chat": 0,
+  "max_steps_per_turn": 0,
   "stream_silence_timeout": 0
 }
 ```
 
 ### Properties
 
-| Name                     | Type                       | Required | Restrictions | Description |
-|--------------------------|----------------------------|----------|--------------|-------------|
-| `acquire_batch_size`     | integer                    | false    |              |             |
-| `debug_logging_enabled`  | boolean                    | false    |              |             |
-| `hook_allow_insecure`    | boolean                    | false    |              |             |
-| `hook_enabled`           | boolean                    | false    |              |             |
-| `hook_secret`            | string                     | false    |              |             |
-| `hook_timeout`           | integer                    | false    |              |             |
-| `hook_url`               | [serpent.URL](#serpenturl) | false    |              |             |
-| `stream_silence_timeout` | integer                    | false    |              |             |
+| Name                               | Type                       | Required | Restrictions | Description                                                                                                                               |
+|------------------------------------|----------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `acquire_batch_size`               | integer                    | false    |              |                                                                                                                                           |
+| `debug_logging_enabled`            | boolean                    | false    |              |                                                                                                                                           |
+| `hook_allow_insecure`              | boolean                    | false    |              |                                                                                                                                           |
+| `hook_enabled`                     | boolean                    | false    |              |                                                                                                                                           |
+| `hook_secret`                      | string                     | false    |              |                                                                                                                                           |
+| `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
+| `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
+| `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
+| `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
+| `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
+| `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
+| `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
+| `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
 
 ## codersdk.ChatContext
 
@@ -6423,22 +6441,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                   |
-|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                               |
-| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                               |
-| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                     |
-| `labels`               | object                                                                      | false    |              |                                                                                                                                                                               |
-| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                               |
-| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                               |
-| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user. |
-| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                               |
-| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                               |
-| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                               |
-| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                    |
-| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                               |
+| Name                   | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                           |
+|------------------------|-----------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)                          | false    |              |                                                                                                                                                                                                       |
+| `content`              | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              | Content is the initial user message. It is optional: when empty, the chat is created idle with no initial user message and generation starts with the first message POSTed to /chats/{chat}/messages. |
+| `inline_mcp_servers`   | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers declares MCP servers by value on this chat, next to the org-configured servers selected by MCPServerIDs. Experimental.                                                             |
+| `labels`               | object                                                                      | false    |              |                                                                                                                                                                                                       |
+| » `[any property]`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `mcp_server_ids`       | array of string                                                             | false    |              |                                                                                                                                                                                                       |
+| `model_config_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `organization_id`      | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `owner_id`             | string                                                                      | false    |              | Owner ID makes another user the chat owner. It defaults to the caller. The chat runs with the owner's credentials, so setting it requires site-wide authority over that user.                         |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              |                                                                                                                                                                                                       |
+| `reasoning_effort`     | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `system_prompt`        | string                                                                      | false    |              |                                                                                                                                                                                                       |
+| `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)                       | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change.                                                            |
+| `workspace_id`         | string                                                                      | false    |              |                                                                                                                                                                                                       |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -7577,6 +7595,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "scheme": "string",
           "user": {}
         },
+        "max_attachments_per_chat": 0,
+        "max_concurrent_recording_uploads": 0,
+        "max_generation_retries": 0,
+        "max_prompt_bytes": 0,
+        "max_queued_messages_per_chat": 0,
+        "max_steps_per_turn": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -8204,6 +8228,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       },
+      "max_attachments_per_chat": 0,
+      "max_concurrent_recording_uploads": 0,
+      "max_generation_retries": 0,
+      "max_prompt_bytes": 0,
+      "max_queued_messages_per_chat": 0,
+      "max_steps_per_turn": 0,
       "stream_silence_timeout": 0
     }
   },
@@ -16088,6 +16118,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -16102,8 +16133,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `pin_order`        | integer                                        | false    |              | Pin order controls the chat's pinned state and position. - nil: no change to pin state. - 0: unpin the chat. - >0 (chat is unpinned): pin the chat, appending it to   the end of the pinned list. The specific value is   ignored; the server assigns the next available position. - >0 (chat is already pinned): move the chat to the   requested position, shifting neighbors as needed. The   value is clamped to [1, pinned_count]. |
 | `plan_mode`        | [codersdk.ChatPlanMode](#codersdkchatplanmode) | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                                                                                                                                                                                                                                                            |
-| `title`            | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `workspace_id`     | string                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|`read`|boolean|false||Read moves the owner's read cursor, which drives HasUnread. - nil: no change. - true: mark every existing message as read. - false: clear the cursor so the chat reads as unread again.
+The cursor is owner-scoped, so only the chat owner may set this. Opening a chat's stream marks it read, so marking the chat the owner is currently viewing as unread does not persist.|
+|`title`|string|false|||
+|`workspace_id`|string|false|||
 
 ## codersdk.UpdateChatRetentionDaysRequest
 
@@ -16536,6 +16569,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -16547,6 +16581,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
@@ -17406,6 +17441,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -17417,6 +17453,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
 | `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
 | `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
 | `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
 | `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 

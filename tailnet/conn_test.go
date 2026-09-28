@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +16,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"tailscale.com/derp"
+	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/tailnet"
@@ -23,6 +30,67 @@ import (
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
+func TestDERPGetHeadersReconnect(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	server := derp.NewServer(key.NewNode(), tailnet.Logger(logger))
+	t.Cleanup(func() { _ = server.Close() })
+	handler := derphttp.Handler(server)
+	received := make(chan string, 10)
+	connections := make(chan net.Conn, 10)
+	httpServer := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Upgrade") != "" {
+			select {
+			case received <- r.Header.Get("X-Token"):
+			case <-ctx.Done():
+				return
+			}
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	httpServer.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		if state == http.StateHijacked {
+			select {
+			case connections <- conn:
+			case <-ctx.Done():
+			}
+		}
+	}
+	httpServer.StartTLS()
+	t.Cleanup(httpServer.Close)
+	addr, ok := httpServer.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
+		1: {
+			RegionID:   1,
+			RegionCode: "test",
+			Nodes: []*tailcfg.DERPNode{{
+				Name: "test", RegionID: 1, IPv4: "127.0.0.1", IPv6: "none",
+				STUNPort: -1, DERPPort: addr.Port, InsecureForTests: true,
+			}},
+		},
+	}}
+	var token atomic.Pointer[string]
+	token.Store(new("first"))
+	conn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Logger:    logger,
+		DERPMap:   derpMap,
+		DERPGetHeaders: func() http.Header {
+			return http.Header{"X-Token": {*token.Load()}}
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.Equal(t, "first", testutil.TryReceive(ctx, t, received))
+	connection := testutil.TryReceive(ctx, t, connections)
+
+	token.Store(new("second"))
+	require.NoError(t, connection.Close())
+	require.Equal(t, "second", testutil.TryReceive(ctx, t, received))
 }
 
 func TestTailnet(t *testing.T) {

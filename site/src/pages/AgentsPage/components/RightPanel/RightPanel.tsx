@@ -1,13 +1,5 @@
 import { cn } from "cn";
-import {
-	type AnimationEvent as ReactAnimationEvent,
-	type ReactNode,
-	type PointerEvent as ReactPointerEvent,
-	type TransitionEvent as ReactTransitionEvent,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
@@ -71,7 +63,7 @@ type RightPanelProps = {
 	 * null when the drag ends so the parent falls back to the
 	 * committed isExpanded prop. */
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 /**
@@ -115,7 +107,7 @@ function useResizableDrag({
 	>(null);
 	const snapRef = useRef<"normal" | "expanded" | "closed" | null>(null);
 
-	const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		if (isDragging.current || e.button !== 0 || !e.isPrimary) {
 			return;
 		}
@@ -131,7 +123,7 @@ function useResizableDrag({
 		e.currentTarget.setPointerCapture(e.pointerId);
 	};
 
-	const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
 		if (!isDragging.current || e.pointerId !== activePointerId.current) {
 			return;
 		}
@@ -179,7 +171,7 @@ function useResizableDrag({
 	// release also fires lostpointercapture, which the isDragging guard
 	// turns into a no-op.
 	const finishDrag = (
-		e: ReactPointerEvent<HTMLDivElement>,
+		e: React.PointerEvent<HTMLDivElement>,
 		{ commit }: { commit: boolean },
 	) => {
 		if (!isDragging.current || e.pointerId !== activePointerId.current) {
@@ -214,11 +206,11 @@ function useResizableDrag({
 		}
 	};
 
-	const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
 		finishDrag(e, { commit: true });
 	};
 
-	const handlePointerAbort = (e: ReactPointerEvent<HTMLDivElement>) => {
+	const handlePointerAbort = (e: React.PointerEvent<HTMLDivElement>) => {
 		finishDrag(e, { commit: false });
 	};
 
@@ -338,12 +330,12 @@ export const RightPanel = ({
 	} else if (isNarrowSlideOut && !isBelowLg) {
 		setIsNarrowSlideOut(false);
 	}
-	const handleWidthTransitionEnd = (e: ReactTransitionEvent) => {
+	const handleWidthTransitionEnd = (e: React.TransitionEvent) => {
 		if (e.target === e.currentTarget && e.propertyName === "width") {
 			setIsAnimatingOpen(false);
 		}
 	};
-	const handleSlideOutEnd = (e: ReactAnimationEvent) => {
+	const handleSlideOutEnd = (e: React.AnimationEvent) => {
 		if (e.target === e.currentTarget) {
 			setIsNarrowSlideOut(false);
 		}

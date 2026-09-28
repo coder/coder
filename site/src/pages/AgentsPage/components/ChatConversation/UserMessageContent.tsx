@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, Fragment } from "react";
+import { Fragment } from "react";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
@@ -15,6 +15,7 @@ import type {
 	MessageDisplayState,
 	UserInlineRenderBlock,
 } from "./messageHelpers";
+import { WorkspaceFileChip } from "./WorkspaceFileChip";
 
 const getInlineParts = (
 	blocks: readonly UserInlineRenderBlock[],
@@ -57,12 +58,7 @@ const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
 	);
 };
 
-const workspaceFilePlaceholderText = (count: number): string =>
-	count === 1
-		? "Workspace file attached. Display support is coming soon."
-		: `${count} workspace files attached. Display support is coming soon.`;
-
-export const UserMessageContent: FC<{
+export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing?: boolean;
@@ -115,10 +111,20 @@ export const UserMessageContent: FC<{
 						</div>
 					)}
 					{displayState.hasWorkspaceFileReferences && (
-						<div className="rounded-md border border-border-default bg-surface-tertiary px-2.5 py-1.5 text-xs text-content-secondary">
-							{workspaceFilePlaceholderText(
-								displayState.workspaceFileReferenceCount,
+						<div
+							className={cn(
+								displayState.hasUserMessageBody && "mt-2",
+								"flex flex-wrap gap-2",
 							)}
+						>
+							{displayState.workspaceFileBlocks.map((block, index) => (
+								<WorkspaceFileChip
+									key={`workspace-file-${block.workspace_file_path}-${index}`}
+									name={block.workspace_file_name}
+									path={block.workspace_file_path}
+									size={block.workspace_file_size}
+								/>
+							))}
 						</div>
 					)}
 				</div>

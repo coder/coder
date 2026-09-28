@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
@@ -8,7 +7,7 @@ import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
 
-const WorkspaceSharingPage: FC = () => {
+const WorkspaceSharingPage: React.FC = () => {
 	const { workspace } = useWorkspaceSettings();
 	const sharing = useWorkspaceSharing(workspace);
 

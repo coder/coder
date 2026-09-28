@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -4394,6 +4395,66 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hookAllowInsecure",
 		},
 		{
+			Name:        "Chat: Max Steps Per Turn",
+			Description: "Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.",
+			Flag:        "chat-max-steps-per-turn",
+			Env:         "CODER_CHAT_MAX_STEPS_PER_TURN",
+			Value:       &c.AI.Chat.MaxStepsPerTurn,
+			Default:     strconv.Itoa(DefaultChatMaxStepsPerTurn),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxStepsPerTurn",
+		},
+		{
+			Name:        "Chat: Max Generation Retries",
+			Description: "Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.",
+			Flag:        "chat-max-generation-retries",
+			Env:         "CODER_CHAT_MAX_GENERATION_RETRIES",
+			Value:       &c.AI.Chat.MaxGenerationRetries,
+			Default:     strconv.Itoa(DefaultChatMaxGenerationRetries),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxGenerationRetries",
+		},
+		{
+			Name:        "Chat: Max Queued Messages Per Chat",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Flag:        "chat-max-queued-messages-per-chat",
+			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
+			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxQueuedMessagesPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxQueuedMessagesPerChat",
+		},
+		{
+			Name:        "Chat: Max Attachments Per Chat",
+			Description: "Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.",
+			Flag:        "chat-max-attachments-per-chat",
+			Env:         "CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT",
+			Value:       &c.AI.Chat.MaxAttachmentsPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxAttachmentsPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxAttachmentsPerChat",
+		},
+		{
+			Name:        "Chat: Max Prompt Bytes",
+			Description: "Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.",
+			Flag:        "chat-max-prompt-bytes",
+			Env:         "CODER_CHAT_MAX_PROMPT_BYTES",
+			Value:       &c.AI.Chat.MaxPromptBytes,
+			Default:     strconv.Itoa(DefaultChatMaxPromptBytes),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxPromptBytes",
+		},
+		{
+			Name:        "Chat: Max Concurrent Recording Uploads",
+			Description: "Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.",
+			Flag:        "chat-max-concurrent-recording-uploads",
+			Env:         "CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS",
+			Value:       &c.AI.Chat.MaxConcurrentRecordingUploads,
+			Default:     strconv.Itoa(DefaultChatMaxConcurrentRecordingUploads),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxConcurrentRecordingUploads",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4892,6 +4953,7 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
+// ChatConfig configures Coder Agents chats.
 type ChatConfig struct {
 	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
 	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
@@ -4901,6 +4963,23 @@ type ChatConfig struct {
 	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
 	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
 	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
+	// MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
+	// MaxGenerationRetries is the maximum number of consecutive retries
+	// after a model generation fails with a transient error.
+	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
+	// MaxQueuedMessagesPerChat is the maximum number of messages that can
+	// be queued in a chat.
+	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
+	// MaxAttachmentsPerChat is the maximum number of files linked to a
+	// chat.
+	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
+	// MaxPromptBytes is the maximum size in bytes of the deployment system
+	// prompt, the plan mode instructions, and each user's custom prompt.
+	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
+	// MaxConcurrentRecordingUploads is the maximum number of virtual
+	// desktop recordings that each Coder server stores at the same time.
+	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -5018,6 +5097,22 @@ func (c *DeploymentValues) Validate() error {
 
 	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 0 || timeout > 24*time.Hour {
 		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
+	}
+
+	for _, limit := range []struct {
+		flag  string
+		value int64
+	}{
+		{"chat-max-steps-per-turn", c.AI.Chat.MaxStepsPerTurn.Value()},
+		{"chat-max-generation-retries", c.AI.Chat.MaxGenerationRetries.Value()},
+		{"chat-max-queued-messages-per-chat", c.AI.Chat.MaxQueuedMessagesPerChat.Value()},
+		{"chat-max-attachments-per-chat", c.AI.Chat.MaxAttachmentsPerChat.Value()},
+		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
+		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
+	} {
+		if limit.value < 1 || limit.value > math.MaxInt32 {
+			return xerrors.Errorf("--%s (%d) must be between 1 and %d", limit.flag, limit.value, math.MaxInt32)
+		}
 	}
 
 	// Gated on the builder being enabled and run here rather than as a per-option

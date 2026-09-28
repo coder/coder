@@ -1,5 +1,4 @@
 import { UsersIcon } from "lucide-react";
-import type { FC } from "react";
 import type { SharedWorkspaceActor } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Link } from "#/components/Link/Link";
@@ -14,10 +13,9 @@ type WorkspaceSharingIndicatorProps = {
 	settingsPath: string;
 };
 
-export const WorkspaceSharingIndicator: FC<WorkspaceSharingIndicatorProps> = ({
-	sharedWith,
-	settingsPath,
-}) => {
+export const WorkspaceSharingIndicator: React.FC<
+	WorkspaceSharingIndicatorProps
+> = ({ sharedWith, settingsPath }) => {
 	// Sort by type (users then groups) and then alphabetically by name.
 	const sortedActors = [...sharedWith].sort((a, b) => {
 		if (a.actor_type !== b.actor_type) {

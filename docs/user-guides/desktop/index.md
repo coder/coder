@@ -90,7 +90,9 @@ winget install Coder.CoderDesktop
 
 </div>
 
-## Testing Your Connection
+<a id="testing-your-connection"></a>
+
+## Test your connection
 
 Once connected, test access to your workspaces:
 
@@ -354,14 +356,18 @@ You can quickly open the app log directory by pasting `%LOCALAPPDATA%\CoderDeskt
 > [!TIP]
 > Before attaching logs to a public issue, review them for any sensitive information (deployment URLs, usernames, hostnames) and redact as needed.
 
-### Getting Help
+<a id="getting-help"></a>
+
+### Get help
 
 If you encounter issues not covered here:
 
 - **File an issue**: [macOS](https://github.com/coder/coder-desktop-macos/issues) | [Windows](https://github.com/coder/coder-desktop-windows/issues) | [General](https://github.com/coder/coder/issues)
 - **Community support**: [Discord](https://coder.com/chat)
 
-## Uninstalling
+<a id="uninstalling"></a>
+
+## Uninstall Coder Desktop
 
 <div class="tabs">
 

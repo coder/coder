@@ -160,6 +160,9 @@
 		}
 	}
 
+	/* Steep ease-out for overlay enter and exit. Named curves start too gently. */
+	--ease-out-strong: cubic-bezier(0.19, 1, 0.22, 1);
+
 	/* Keyframes rather than transitions: breakpoint CSS changes before React
 		re-renders, leaving no start width to transition from. */
 	@keyframes panel-slide-out {

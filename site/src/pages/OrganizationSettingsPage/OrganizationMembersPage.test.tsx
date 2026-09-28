@@ -1,11 +1,14 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import type { SlimRole } from "#/api/typesGenerated";
+import { HttpResponse, http, type PathParams } from "msw";
+import type { SlimRole, UpdateRoles } from "#/api/typesGenerated";
 import {
+	MockAgentsAccessRole,
 	MockEntitlementsWithMultiOrg,
 	MockOrganization,
 	MockOrganizationAuditorRole,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockOrganizationPermissions,
 	MockUserMember,
 } from "#/testHelpers/entities";
@@ -122,6 +125,42 @@ describe("OrganizationMembersPage", () => {
 				await renderPage();
 				await updateUserRole(MockOrganizationAuditorRole);
 				await screen.findByText(/TestUser2's roles have been updated\./);
+			});
+
+			it("grants agents-access explicitly to a service account", async () => {
+				let requestedRoles: readonly string[] = [];
+				server.use(
+					http.get("/api/v2/organizations/:organizationId/members/roles", () =>
+						HttpResponse.json([
+							MockOrganizationAuditorRole,
+							MockAgentsAccessRole,
+						]),
+					),
+					http.get(
+						"/api/v2/organizations/:organizationId/paginated-members",
+						() =>
+							HttpResponse.json({
+								members: [
+									MockOrganizationMember,
+									{ ...MockOrganizationMember2, is_service_account: true },
+								],
+								count: 2,
+							}),
+					),
+					http.put<PathParams, UpdateRoles>(
+						`/api/v2/organizations/:organizationId/members/${MockUserMember.id}/roles`,
+						async ({ request }) => {
+							requestedRoles = (await request.json()).roles;
+							return HttpResponse.json(MockOrganizationMember2);
+						},
+					),
+				);
+
+				await renderPage();
+				await updateUserRole(MockAgentsAccessRole);
+				await waitFor(() =>
+					expect(requestedRoles).toEqual([MockAgentsAccessRole.name]),
+				);
 			});
 		});
 

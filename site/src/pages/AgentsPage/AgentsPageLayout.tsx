@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -32,6 +32,8 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
@@ -78,10 +80,17 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import {
+	CHAT_BOARD_PATH,
+	useChatBoardEnabled,
+} from "./exp/chatBoard/chatBoardFlag";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
@@ -90,6 +99,7 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
+import { readDeepLinkState } from "./utils/deepLinkState";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -186,7 +196,7 @@ export const chatCostIdToInvalidate = (
 	return getChatCostTreeID(chat);
 };
 
-const AgentsPageLayout: FC = () => {
+const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -208,6 +218,7 @@ const AgentsPageLayout: FC = () => {
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
 		setSearchParams,
+		location.state,
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
@@ -222,15 +233,16 @@ const AgentsPageLayout: FC = () => {
 	}, []);
 
 	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const chatStatusFilter =
-		sidebarFilters.chatStatuses.length === 1
-			? sidebarFilters.chatStatuses[0]
-			: undefined;
+	const statuses =
+		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
+			? undefined
+			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
-			chatStatus: chatStatusFilter,
+			statuses,
+			chatStatus: sidebarFilters.unread ? "unread" : undefined,
 			sources: sidebarFilters.sources,
 		}),
 	);
@@ -372,6 +384,22 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const markChatReadBase = markChatRead(queryClient);
+	const markChatReadMutation = useMutation({
+		...markChatReadBase,
+		onError: (error, chatId, context) => {
+			markChatReadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markChatUnreadBase = markChatUnread(queryClient);
+	const markChatUnreadMutation = useMutation({
+		...markChatUnreadBase,
+		onError: (error, chatId, context) => {
+			markChatUnreadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
 	const reorderPinnedChatMutation = useMutation({
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
@@ -506,6 +534,12 @@ const AgentsPageLayout: FC = () => {
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
 	};
+	const requestMarkChatRead = (chatId: string) => {
+		markChatReadMutation.mutate(chatId);
+	};
+	const requestMarkChatUnread = (chatId: string) => {
+		markChatUnreadMutation.mutate(chatId);
+	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
@@ -523,10 +557,24 @@ const AgentsPageLayout: FC = () => {
 		// Only clear the draft when the user is already on the empty
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
-		if (!agentId) {
+		// A composer prefilled from a prompt link shows the link's text,
+		// not the draft, so the draft is preserved there too. A debug link
+		// can fall back to the draft-backed composer, so it is not exempt.
+		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
+	};
+
+	const handleOpenSettings = () => {
+		// Already there: keep the original `from` so the back button
+		// still returns to the view the user opened settings from.
+		if (isSettingsView(sidebarViewFromPath(location.pathname))) {
+			return;
+		}
+		navigate("/agents/settings", {
+			state: { from: location.pathname + location.search },
+		});
 	};
 
 	useEffect(() => {
@@ -682,6 +730,7 @@ const AgentsPageLayout: FC = () => {
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
+		onOpenSettings: handleOpenSettings,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -704,6 +753,8 @@ const AgentsPageLayout: FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	const isBoardRoute =
+		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
 
 	// Mobile hides the sidebar on chat and settings detail routes, so slide it
 	// across the sm breakpoint.
@@ -778,6 +829,9 @@ const AgentsPageLayout: FC = () => {
 							: isSettingsDetail
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+						// The board is a full-width view. The frame stays mounted so the
+						// dialogs and handlers it owns keep working behind it.
+						isBoardRoute && "hidden sm:hidden",
 					)}
 					isCollapsed={isSidebarCollapsed}
 					viewportSlide={sidebarViewportSlide}
@@ -794,6 +848,8 @@ const AgentsPageLayout: FC = () => {
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 						onPinAgent={requestPinAgent}
 						onUnpinAgent={requestUnpinAgent}
+						onMarkChatRead={requestMarkChatRead}
+						onMarkChatUnread={requestMarkChatUnread}
 						onReorderPinnedAgent={requestReorderPinnedAgent}
 						onRenameTitle={requestRenameTitle}
 						onProposeTitle={requestProposeTitle}

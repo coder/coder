@@ -1,4 +1,4 @@
-import { type FC, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
@@ -23,7 +23,7 @@ import {
 	toSelectedBaseMeta,
 } from "./wizardState";
 
-const TemplateBuilderPage: FC = () => {
+const TemplateBuilderPage: React.FC = () => {
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const { permissions } = useAuthenticated();

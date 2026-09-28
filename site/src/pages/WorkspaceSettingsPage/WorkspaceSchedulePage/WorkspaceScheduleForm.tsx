@@ -1,7 +1,6 @@
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type { Template } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -154,7 +153,7 @@ export const validationSchema = Yup.object({
 		),
 });
 
-export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
+export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 	error,
 	initialValues,
 	isLoading,

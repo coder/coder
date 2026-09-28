@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -9,12 +8,12 @@ import {
 
 type FullPageHorizontalFormProps = {
 	title: string;
-	detail?: ReactNode;
+	detail?: React.ReactNode;
 	onCancel?: () => void;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
+export const FullPageHorizontalForm: React.FC<FullPageHorizontalFormProps> = ({
 	title,
 	detail,
 	onCancel,
