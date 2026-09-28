@@ -40,7 +40,6 @@ import {
 } from "../DiffViewer/DiffViewer";
 import { LocalDiffPanel } from "../DiffViewer/LocalDiffPanel";
 import { RemoteDiffPanel } from "../DiffViewer/RemoteDiffPanel";
-import { insertCommitPrompt } from "./commitPrompt";
 
 type GitView = { type: "remote" } | { type: "local"; repoRoot: string };
 
@@ -322,9 +321,15 @@ export const GitPanel: FC<GitPanelProps> = ({
 
 	const handleCommit = (repoRoot: string) => {
 		const input = chatInputRef?.current;
-		if (input) {
-			insertCommitPrompt(input, repoRoot);
+		if (!input) {
+			return;
 		}
+		const prompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
+		const current = input.getValue();
+		if (!current.includes(prompt)) {
+			input.insertText(current.trim() ? `\n\n${prompt}` : prompt);
+		}
+		input.focus();
 	};
 
 	return (
