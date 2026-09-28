@@ -41,15 +41,20 @@ type experimentRulesFixture struct {
 }
 
 // newExperimentRulesFixture starts a licensed deployment that audits into
-// the database, plus any extra audit backends, and captures server logs.
-func newExperimentRulesFixture(t *testing.T, extraBackends ...entaudit.Backend) experimentRulesFixture {
+// the database, plus extra audit backends built with the server logger,
+// and captures server logs.
+func newExperimentRulesFixture(t *testing.T, extraBackends ...func(slog.Logger) entaudit.Backend) experimentRulesFixture {
 	t.Helper()
 
 	db, ps := dbtestutil.NewDB(t)
 	failUpsert := &atomic.Bool{}
 	logs := testutil.NewFakeSink(t)
 	logger := logs.Logger()
-	auditor := entaudit.NewAuditor(db, entaudit.DefaultFilter, append([]entaudit.Backend{backends.NewPostgres(db, true)}, extraBackends...)...)
+	auditBackends := []entaudit.Backend{backends.NewPostgres(db, true)}
+	for _, backend := range extraBackends {
+		auditBackends = append(auditBackends, backend(logger))
+	}
+	auditor := entaudit.NewAuditor(db, entaudit.DefaultFilter, auditBackends...)
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		AuditLogging: true,
 		Options: &coderdtest.Options{
@@ -189,7 +194,7 @@ func TestExperimentRuleAudit(t *testing.T) {
 	// fails, the change stands and the failure is logged.
 	t.Run("FailedExportKeepsChange", func(t *testing.T) {
 		t.Parallel()
-		f := newExperimentRulesFixture(t, failingAuditBackend{})
+		f := newExperimentRulesFixture(t, func(slog.Logger) entaudit.Backend { return failingAuditBackend{} })
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		stored, err := f.put(ctx, codersdk.ExperimentRuleModeOn, "", 0)
@@ -203,13 +208,14 @@ func TestExperimentRuleAudit(t *testing.T) {
 	})
 }
 
-// TestExperimentRuleRedaction checks that condition text is readable only
-// through the rules API and audit diffs: it must not reach logs,
-// /deployment/config or a support bundle, even for invalid conditions and
-// conditions that fail during evaluation.
+// TestExperimentRuleRedaction checks where condition text can appear. The
+// rules API, audit entries and the server log's audit lines carry it. No
+// other log line, /deployment/config or a support bundle may, even for
+// invalid conditions and conditions that fail during evaluation.
 func TestExperimentRuleRedaction(t *testing.T) {
 	t.Parallel()
-	f := newExperimentRulesFixture(t)
+	// Enterprise servers always export audit entries to the server log.
+	f := newExperimentRulesFixture(t, func(logger slog.Logger) entaudit.Backend { return backends.NewSlog(logger) })
 	memberClient, _ := coderdtest.CreateAnotherUser(t, f.owner, f.orgID)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	sentinel := "redaction-sentinel-" + uuid.NewString()
@@ -261,10 +267,39 @@ func TestExperimentRuleRedaction(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, string(bundleJSON), sentinel)
 
-	for _, entry := range f.logs.Entries() {
-		line := fmt.Sprintf("%s %+v", entry.Message, entry.Fields)
-		require.False(t, strings.Contains(line, sentinel), "log entry contains condition text: %s", entry.Message)
+	// Audit lines are exported after the handler returns. Requiring one
+	// with the condition keeps the check below from passing vacuously.
+	auditLine := func(e slog.SinkEntry) bool { return e.Message == "audit_log" || e.Message == "export audit log" }
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		for _, entry := range f.logs.Entries(func(e slog.SinkEntry) bool { return e.Message == "audit_log" }) {
+			if strings.Contains(logText(entry), sentinel) {
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+	for _, entry := range f.logs.Entries(func(e slog.SinkEntry) bool { return !auditLine(e) }) {
+		require.False(t, strings.Contains(logText(entry), sentinel), "log entry contains condition text: %s", entry.Message)
 	}
+}
+
+// logText renders a log entry's message and field values. Byte slices,
+// such as audit diffs, are rendered as text.
+func logText(entry slog.SinkEntry) string {
+	var b strings.Builder
+	b.WriteString(entry.Message)
+	for _, field := range entry.Fields {
+		b.WriteString(" ")
+		switch v := field.Value.(type) {
+		case json.RawMessage:
+			b.Write(v)
+		case []byte:
+			b.Write(v)
+		default:
+			_, _ = fmt.Fprintf(&b, "%+v", v)
+		}
+	}
+	return b.String()
 }
 
 // upsertFaultStore fails experiment rule upserts while fail is set.

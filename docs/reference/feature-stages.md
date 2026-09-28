@@ -108,8 +108,8 @@ Without the flag, the command reads the current revision and writes against it, 
 The command never retries a conflict: it prints the current rule and exits with an error.
 
 If you use [audit logs](../admin/security/audit-logs.md), each change creates an entry with the `experiment_rule` resource type.
-The entry records who changed the rule and when, but not the condition text.
-To read a condition, list the rules.
+The entry records who changed the rule, when, and the old and new condition.
+Audit lines in the server log carry the same diff.
 
 #### Condition variables
 
@@ -127,7 +127,7 @@ It can read one variable, `user`, with these fields:
 
 A condition can be at most 4,096 characters long, and each evaluation has a CEL cost limit of 10,000.
 Coder rejects a condition that fails to compile and returns the error to the person who wrote it.
-Server logs record only the experiment, the rule revision, the error category, and the line and column, never the condition text.
+Log lines about a failed condition record only the experiment, the rule revision, the error category, and the line and column, never the condition text.
 
 #### When a change takes effect
 
