@@ -859,8 +859,11 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	}
 	exitCode := 0
 	tests := []struct {
-		name      string
-		toolName  string
+		name     string
+		toolName string
+		// agentless marks a tool that does not act on the agent, so the
+		// interrupt sends it no cancel.
+		agentless bool
 		cancel    workspacesdk.CancelToolCallResponse
 		cancelErr error
 		output    *workspacesdk.ProcessOutputResponse
@@ -878,7 +881,8 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
 		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true,"wall_duration_ms":0}`},
 		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
-		{name: "AgentWithoutCancelRoute", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "OtherTool", toolName: "read_file", agentless: true, wantError: true, want: interruptedToolResultErrorMessage},
 	}
 
 	f := newTaskTestFixture(t)
@@ -901,8 +905,11 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	assistantID := messages[len(messages)-1].ID
 
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
-	conn.EXPECT().SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {batch.chat.ID.String()}})
+	conn.EXPECT().SetExtraHeaders(gomock.Any())
 	for _, tc := range tests {
+		if tc.agentless {
+			continue
+		}
 		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
 		conn.EXPECT().CancelToolCall(gomock.Any(), id).Return(tc.cancel, tc.cancelErr)
 		if tc.output != nil || tc.outputErr != nil {

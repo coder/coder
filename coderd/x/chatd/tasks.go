@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -721,6 +722,13 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 		logger.Warn(ctx, "find tool calls to cancel on agent", slog.Error(err))
 		return nil
 	}
+	// Only these tools act on the agent, and only calls with a tool call
+	// ID can be canceled there, so other calls do not dial the agent.
+	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
+	calls = slices.DeleteFunc(calls, func(call fantasy.ToolCallContent) bool {
+		_, ok := ids[call.ToolCallID]
+		return !ok || (call.ToolName != chattool.ExecuteToolName && call.ToolName != "edit_files" && call.ToolName != "write_file")
+	})
 	if len(calls) == 0 {
 		return nil
 	}
@@ -734,14 +742,9 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 	defer release()
 	// The agent keys tool call IDs by chat.
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
-	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
 	results := make(map[string]fantasy.ToolResponse, len(calls))
 	for _, call := range calls {
-		id, ok := ids[call.ToolCallID]
-		if !ok {
-			continue
-		}
-		resp, ok, err := chattool.CancelToolCall(ctx, conn, id, call.ToolName)
+		resp, err := chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
 		if err != nil {
 			logger.Warn(ctx, "cancel tool call on agent",
 				slog.F("tool_call_id", call.ToolCallID),
@@ -750,9 +753,7 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 			)
 			continue
 		}
-		if ok {
-			results[call.ToolCallID] = resp
-		}
+		results[call.ToolCallID] = resp
 	}
 	return results
 }

@@ -47,29 +47,25 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 }
 
 // CancelToolCall cancels the execute, edit_files, or write_file call with
-// tool call ID id on the agent and returns the call's result. ok is false
-// for other tools, which have nothing to cancel on the agent. An error
+// tool call ID id on the agent and returns the call's result. An error
 // means the agent gave no usable answer, including the 404 of an agent
 // without the cancel route.
-func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (result fantasy.ToolResponse, ok bool, err error) {
-	if toolName != ExecuteToolName && toolName != "edit_files" && toolName != "write_file" {
-		return fantasy.ToolResponse{}, false, nil
-	}
+func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
 	canceled, err := conn.CancelToolCall(ctx, id)
 	if err != nil {
-		return fantasy.ToolResponse{}, false, xerrors.Errorf("cancel tool call: %w", err)
+		return fantasy.ToolResponse{}, xerrors.Errorf("cancel tool call: %w", err)
 	}
 	switch {
 	case toolName == "edit_files" && canceled.Received:
-		return editFilesResponse(canceled.EditFilesResult()), true, nil
+		return editFilesResponse(canceled.EditFilesResult()), nil
 	case toolName == "write_file" && canceled.Received:
-		return writeFileResponse(canceled.WriteFileResult()), true, nil
+		return writeFileResponse(canceled.WriteFileResult()), nil
 	case toolName != ExecuteToolName:
-		return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), true, nil
+		return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
 	}
 	if canceled.Received {
 		if _, err := canceled.StartProcessResult(); err != nil {
-			return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), true, nil
+			return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), nil
 		}
 	}
 	// Read the output even when the agent has no record of the call: a
@@ -78,14 +74,14 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	output, err := conn.ProcessOutput(ctx, id.String(), nil)
 	var sdkErr *codersdk.Error
 	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-		return errorResult("not run: canceled before the agent received it"), true, nil
+		return errorResult("not run: canceled before the agent received it"), nil
 	}
 	if err != nil {
-		return fantasy.ToolResponse{}, false, xerrors.Errorf("read process output: %w", err)
+		return fantasy.ToolResponse{}, xerrors.Errorf("read process output: %w", err)
 	}
 	exited := exitedResult(output)
 	if output.Canceled {
 		exited.Success, exited.ExitCode, exited.Error = false, -1, "canceled by the user"
 	}
-	return marshalToolResponse(exited), true, nil
+	return marshalToolResponse(exited), nil
 }
