@@ -29,7 +29,8 @@ const writeLockTimeout = 5 * time.Second
 type RevisionConflictError struct {
 	Experiment codersdk.Experiment
 	Expected   int64
-	// Current is the stored revision; zero means no rule is stored.
+	// Current is the stored revision; zero means no rule is stored or the
+	// stored value has no readable positive revision.
 	Current int64
 }
 
