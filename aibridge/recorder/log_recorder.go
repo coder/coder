@@ -2,6 +2,8 @@ package recorder
 
 import (
 	"context"
+	"encoding/json"
+	"maps"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -37,26 +39,83 @@ const (
 // compatibility. A single failure therefore still produces two lines for
 // most records. This is suboptimal, but a requirement for backwards compatibility.
 type LogRecorder struct {
-	logger  slog.Logger
-	wrapped Recorder
+	logger     slog.Logger
+	apiKeyID   string
+	structured bool
+	wrapped    Recorder
 }
 
 // NewLogRecorder creates a [LogRecorder] which logs each record and then
 // delegates it to wrapped. wrapped may be nil, in which case records are only
 // logged.
-func NewLogRecorder(logger slog.Logger, wrapped Recorder) *LogRecorder {
-	return &LogRecorder{logger: logger, wrapped: wrapped}
+func NewLogRecorder(logger slog.Logger, apiKeyID string, structured bool, wrapped Recorder) *LogRecorder {
+	return &LogRecorder{logger: logger, apiKeyID: apiKeyID, structured: structured, wrapped: wrapped}
 }
 
-// WithLogging returns a [Decorator] which wraps a [Recorder] in a
+// WithLogging returns a [Middleware] which wraps a [Recorder] in a
 // [LogRecorder], for composition by [ChainMiddleware].
-func WithLogging(logger slog.Logger) Middleware {
+func WithLogging(logger slog.Logger, apiKeyID string, structured bool) Middleware {
 	return func(next Recorder) Recorder {
-		return NewLogRecorder(logger, next)
+		return NewLogRecorder(logger, apiKeyID, structured, next)
 	}
 }
 
+// logStructured emits one record in the format described by
+// [InterceptionLogMarker], when the deployment has asked for it.
+//
+// It runs before the record is delegated, so that a record dropped lower in the
+// chain is still reported.
+func (r *LogRecorder) logStructured(ctx context.Context, recordType string, fields ...slog.Field) {
+	if !r.structured {
+		return
+	}
+	r.logger.Info(ctx, InterceptionLogMarker, append([]slog.Field{slog.F("record_type", recordType)}, fields...)...)
+}
+
+// metadataWithUserAgent copies metadata rather than writing through: the
+// record's own metadata travels on to coderd, which merges the user agent
+// itself and warns when the key is already set.
+func metadataWithUserAgent(metadata Metadata, userAgent string) Metadata {
+	if userAgent == "" {
+		return metadata
+	}
+	merged := make(Metadata, len(metadata)+1)
+	maps.Copy(merged, metadata)
+	merged[MetadataUserAgentKey] = userAgent
+	return merged
+}
+
+// marshalToolArgs renders tool call arguments the way [DRPCRecorder] sends
+// them, so that both emitters report an identical input field.
+func (r *LogRecorder) marshalToolArgs(ctx context.Context, args ToolArgs) string {
+	serialized, err := json.Marshal(args)
+	if err != nil {
+		// An empty input field is indistinguishable from a tool called with
+		// no arguments, so the difference is reported here.
+		r.logger.Warn(ctx, "failed to marshal tool call arguments, reporting empty input", slog.Error(err))
+		return ""
+	}
+	return string(serialized)
+}
+
 func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	// thread_parent_id and thread_root_id are deliberately absent: they are
+	// resolved from recorded tool usages by a database lookup which only
+	// coderd can perform. An absent key fails a consumer loudly; a nil UUID
+	// would assert, wrongly, that the interception has no parent.
+	r.logStructured(ctx, RecordTypeInterceptionStart,
+		slog.F("interception_id", req.ID),
+		slog.F("initiator_id", req.InitiatorID),
+		slog.F("api_key_id", r.apiKeyID),
+		slog.F("provider", req.Provider),
+		slog.F("model", req.Model),
+		slog.F("client", req.Client),
+		slog.F("client_session_id", ptr.NilToEmpty(req.ClientSessionID)),
+		slog.F("started_at", req.StartedAt),
+		slog.F("metadata", metadataWithUserAgent(req.Metadata, req.UserAgent)),
+		slog.F("correlating_tool_call_id", ptr.NilToEmpty(req.CorrelatingToolCallID)),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordInterception(ctx, req)
@@ -85,6 +144,11 @@ func (r *LogRecorder) RecordInterception(ctx context.Context, req *InterceptionR
 }
 
 func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
+	r.logStructured(ctx, RecordTypeInterceptionEnd,
+		slog.F("interception_id", req.ID),
+		slog.F("ended_at", req.EndedAt),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordInterceptionEnded(ctx, req)
@@ -106,6 +170,14 @@ func (r *LogRecorder) RecordInterceptionEnded(ctx context.Context, req *Intercep
 }
 
 func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
+	r.logStructured(ctx, RecordTypePromptUsage,
+		slog.F("interception_id", req.InterceptionID),
+		slog.F("msg_id", req.MsgID),
+		slog.F("prompt", req.Prompt),
+		slog.F("created_at", req.CreatedAt),
+		slog.F("metadata", req.Metadata),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordPromptUsage(ctx, req)
@@ -127,6 +199,17 @@ func (r *LogRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRec
 }
 
 func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
+	r.logStructured(ctx, RecordTypeTokenUsage,
+		slog.F("interception_id", req.InterceptionID),
+		slog.F("msg_id", req.MsgID),
+		slog.F("input_tokens", req.Input),
+		slog.F("output_tokens", req.Output),
+		slog.F("cache_read_input_tokens", req.CacheReadInputTokens),
+		slog.F("cache_write_input_tokens", req.CacheWriteInputTokens),
+		slog.F("created_at", req.CreatedAt),
+		slog.F("metadata", req.Metadata),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordTokenUsage(ctx, req)
@@ -152,6 +235,24 @@ func (r *LogRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecor
 }
 
 func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
+	var structuredInvocationErr string
+	if req.InvocationError != nil {
+		structuredInvocationErr = req.InvocationError.Error()
+	}
+	r.logStructured(ctx, RecordTypeToolUsage,
+		slog.F("interception_id", req.InterceptionID),
+		slog.F("msg_id", req.MsgID),
+		slog.F("tool_call_id", req.ToolCallID),
+		slog.F("item_id", req.ItemID),
+		slog.F("tool", req.Tool),
+		slog.F("input", r.marshalToolArgs(ctx, req.Args)),
+		slog.F("server_url", ptr.NilToEmpty(req.ServerURL)),
+		slog.F("injected", req.Injected),
+		slog.F("invocation_error", structuredInvocationErr),
+		slog.F("created_at", req.CreatedAt),
+		slog.F("metadata", req.Metadata),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordToolUsage(ctx, req)
@@ -182,6 +283,13 @@ func (r *LogRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord)
 }
 
 func (r *LogRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
+	r.logStructured(ctx, RecordTypeModelThought,
+		slog.F("interception_id", req.InterceptionID),
+		slog.F("content", req.Content),
+		slog.F("created_at", req.CreatedAt),
+		slog.F("metadata", req.Metadata),
+	)
+
 	var err error
 	if r.wrapped != nil {
 		err = r.wrapped.RecordModelThought(ctx, req)
