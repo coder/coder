@@ -81,6 +81,7 @@ var aiGatewayInheritedEnvs = map[string]struct{}{
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL":          {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS":      {},
 	"CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT":           {},
+	"CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING":         {},
 	"CODER_AI_GATEWAY_DUMP_DIR":                          {},
 	"CODER_AI_GATEWAY_MAX_CONCURRENCY":                   {},
 	"CODER_AI_GATEWAY_RATE_LIMIT":                        {},
@@ -315,7 +316,7 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 	// The aibridged daemon must outlive the serving context so in-flight HTTP
 	// requests retain their DRPC connection during graceful HTTP shutdown.
 	daemon, err := aibridged.New(context.Background(), params.dialer, params.logger.Named("aibridged"), params.tracer, params.experiments, params.metrics,
-		aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(params.bridgeConfig)))
+		aibridged.WithPoolOptions(aibridged.PoolOptionsFromConfig(context.Background(), params.logger, params.bridgeConfig)))
 	if err != nil {
 		return nil, xerrors.Errorf("start AI Gateway daemon: %w", err)
 	}

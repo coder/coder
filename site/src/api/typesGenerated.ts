@@ -74,6 +74,13 @@ export interface AIBridgeConfig {
 	 * the provider. Empty disables dumping.
 	 */
 	readonly api_dump_dir: string;
+	/**
+	 * DisableContentRecording stops user prompts, tool calls and model
+	 * reasoning from being recorded, including tool names and their arguments.
+	 * Interceptions and token usage are still recorded, so cost controls,
+	 * budget enforcement and spend reporting are unaffected.
+	 */
+	readonly disable_content_recording: boolean;
 }
 
 // From codersdk/aibridge.go

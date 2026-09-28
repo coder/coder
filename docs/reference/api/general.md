@@ -202,6 +202,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "circuit_breaker_interval": 0,
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
+        "disable_content_recording": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,

@@ -399,6 +399,7 @@ title: Schemas
   "circuit_breaker_interval": 0,
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
+  "disable_content_recording": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -412,25 +413,26 @@ title: Schemas
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
-|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
-| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
-| `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
-| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                     |
-| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                        |
-| `enabled`                           | boolean | false    |              |                                                                                                                                                                        |
-| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                           |
-| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                        |
-| `rate_limit`                        | integer | false    |              |                                                                                                                                                                        |
-| `retention`                         | integer | false    |              |                                                                                                                                                                        |
-| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
-| `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
-| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                       |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.                                                                                                 |
+| `budget_period`                     | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                                                                                                                     |
+| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
+| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `rate_limit`                        | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `retention`                         | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1042,6 +1044,7 @@ title: Schemas
     "circuit_breaker_interval": 0,
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
+    "disable_content_recording": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -7570,6 +7573,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_interval": 0,
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
+        "disable_content_recording": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8204,6 +8208,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_interval": 0,
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
+      "disable_content_recording": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
