@@ -387,6 +387,64 @@ func TestRuleWithoutPositiveRevisionIsMalformed(t *testing.T) {
 	}
 }
 
+// TestCanceledStoreReadIsNotAnError checks that a store read failing
+// because the caller went away logs at Debug with category canceled, while
+// other read failures stay errors. Every case decides off.
+func TestCanceledStoreReadIsNotAnError(t *testing.T) {
+	t.Parallel()
+
+	canceled := xerrors.Errorf("read: %w", context.Canceled)
+	expired := xerrors.Errorf("read: %w", context.DeadlineExceeded)
+	cases := map[string]struct {
+		store        func(t *testing.T) experiments.Store
+		wantCategory string
+		wantLevel    slog.Level
+	}{
+		"rules canceled": {
+			store:        func(*testing.T) experiments.Store { return experimentstest.Store{RulesErr: canceled} },
+			wantCategory: "canceled", wantLevel: slog.LevelDebug,
+		},
+		"rules deadline": {
+			store:        func(*testing.T) experiments.Store { return experimentstest.Store{RulesErr: expired} },
+			wantCategory: "canceled", wantLevel: slog.LevelDebug,
+		},
+		"rules failure": {
+			store:        func(*testing.T) experiments.Store { return experimentstest.Store{RulesErr: xerrors.New("db down")} },
+			wantCategory: "read", wantLevel: slog.LevelError,
+		},
+		"attributes canceled": {
+			store: func(t *testing.T) experiments.Store {
+				return experimentstest.Store{
+					StoredRules: map[codersdk.Experiment]experiments.StoredRule{scoped: experimentstest.StoredRule(t, *condition(`true`))},
+					UserErr:     canceled,
+				}
+			},
+			wantCategory: "canceled", wantLevel: slog.LevelDebug,
+		},
+		"attributes failure": {
+			store: func(t *testing.T) experiments.Store {
+				return experimentstest.Store{
+					StoredRules: map[codersdk.Experiment]experiments.StoredRule{scoped: experimentstest.StoredRule(t, *condition(`true`))},
+					UserErr:     xerrors.New("db down"),
+				}
+			},
+			wantCategory: "read", wantLevel: slog.LevelError,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			e, sink := newEvaluator(t, tc.store(t), codersdk.Experiments{scoped})
+			require.False(t, e.Enabled(ctx, uuid.New(), scoped))
+			entries := sink.Entries()
+			require.Len(t, entries, 1)
+			require.Equal(t, tc.wantLevel, entries[0].Level)
+			requireLogField(t, sink, "category", tc.wantCategory)
+		})
+	}
+}
+
 func canceledContext(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancel(ctx)
 	cancel()

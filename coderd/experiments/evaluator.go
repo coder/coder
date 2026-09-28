@@ -112,8 +112,7 @@ func (e *Evaluator) newDecision(ctx context.Context, userID uuid.UUID) *decision
 	}
 	rules, err := e.store.Rules(ctx)
 	if err != nil {
-		e.logger.Error(ctx, "read experiment rules failed; user-scoped experiments are off",
-			slog.F("category", categoryRead), slog.Error(err))
+		e.logReadError(ctx, "read experiment rules failed; user-scoped experiments are off", err)
 		d.failed = true
 		return d
 	}
@@ -175,15 +174,9 @@ func (d *decision) decide(ex codersdk.Experiment) bool {
 func (d *decision) evaluate(ex codersdk.Experiment, rule Rule) bool {
 	user, err := d.loadUser()
 	if err != nil {
-		category := categoryRead
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			category = categoryCancelled
-		}
-		d.e.logger.Error(d.ctx, "load experiment subject attributes failed; experiment is off",
+		d.e.logReadError(d.ctx, "load experiment subject attributes failed; experiment is off", err,
 			slog.F("experiment", ex),
-			slog.F("revision", rule.Revision),
-			slog.F("category", category),
-			slog.Error(err))
+			slog.F("revision", rule.Revision))
 		return false
 	}
 	prg, err := d.e.programs.get(rule.Condition)
@@ -196,6 +189,17 @@ func (d *decision) evaluate(ex codersdk.Experiment, rule Rule) bool {
 	}
 	d.logConditionError(ex, rule, err)
 	return false
+}
+
+// logReadError logs a failed store read. A read that failed because the
+// context was canceled or expired is expected when a caller goes away, so
+// it logs at Debug with category canceled instead of as an error.
+func (e *Evaluator) logReadError(ctx context.Context, msg string, err error, fields ...slog.Field) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		e.logger.Debug(ctx, msg, append(fields, slog.F("category", categoryCancelled), slog.Error(err))...)
+		return
+	}
+	e.logger.Error(ctx, msg, append(fields, slog.F("category", categoryRead), slog.Error(err))...)
 }
 
 func (d *decision) loadUser() (User, error) {
