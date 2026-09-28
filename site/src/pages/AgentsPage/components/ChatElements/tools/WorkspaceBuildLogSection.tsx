@@ -1,4 +1,4 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceById } from "#/api/queries/workspaces";
@@ -30,10 +30,9 @@ const LOG_LOAD_TIMEOUT_MS = 30_000;
  * are fetched via REST and cached by React Query so expand/collapse
  * cycles don't re-fetch.
  */
-export const WorkspaceBuildLogSection: FC<WorkspaceBuildLogSectionProps> = ({
-	status,
-	buildId,
-}) => {
+export const WorkspaceBuildLogSection: React.FC<
+	WorkspaceBuildLogSectionProps
+> = ({ status, buildId }) => {
 	const isRunning = status === "running";
 
 	// Primary source: build ID from the chat binding, pushed via

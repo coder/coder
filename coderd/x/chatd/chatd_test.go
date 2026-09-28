@@ -788,8 +788,9 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 			ChatMode: database.ChatModeExplore,
 			Valid:    true,
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
-		ClientType:   database.ChatClientTypeApi,
+		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		ClientType:    database.ChatClientTypeApi,
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -1728,68 +1729,86 @@ func TestMessageFileLinking(t *testing.T) {
 func TestMessageFileLinkingCapRollsBack(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "cap-rollback",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// A single batch over the cap is rejected.
-	tooMany := []codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}
-	for i := range codersdk.MaxChatFileIDs + 1 {
-		row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
-			OwnerID:        user.ID,
-			OrganizationID: org.ID,
-			Name:           fmt.Sprintf("cap-%d.png", i),
-			Mimetype:       "image/png",
-			Data:           []byte("png-bytes"),
-		})
-		require.NoError(t, err)
-		tooMany = append(tooMany, codersdk.ChatMessageFile(row.ID, "image/png", row.Name))
+	tests := []struct {
+		name          string
+		limits        chatd.Limits
+		attachmentCap int
+	}{
+		{name: "Default", attachmentCap: codersdk.DefaultChatMaxAttachmentsPerChat},
+		{name: "Configured3", limits: chatd.Limits{MaxAttachmentsPerChat: 3}, attachmentCap: 3},
+		{name: "Configured60", limits: chatd.Limits{MaxAttachmentsPerChat: 60}, attachmentCap: 60},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusWaiting,
-	})
-	require.NoError(t, err)
-	messagesBefore, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
+			db, ps := dbtestutil.NewDB(t)
+			replica := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
+				cfg.Limits = tt.limits
+			})
+			user, org, model := seedChatDependencies(t, db)
 
-	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: tooMany,
-	})
-	require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID:     org.ID,
+				OwnerID:            user.ID,
+				Title:              "cap-rollback-" + tt.name,
+				ModelConfigID:      model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+			})
+			require.NoError(t, err)
 
-	messagesAfter, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
-	files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, files, "rejected send must not link files")
+			fileParts := make([]codersdk.ChatMessagePart, 0, tt.attachmentCap+1)
+			for i := range tt.attachmentCap + 1 {
+				row, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+					OwnerID:        user.ID,
+					OrganizationID: org.ID,
+					Name:           fmt.Sprintf("cap-%d.png", i),
+					Mimetype:       "image/png",
+					Data:           []byte("png-bytes"),
+				})
+				require.NoError(t, err)
+				fileParts = append(fileParts, codersdk.ChatMessageFile(row.ID, "image/png", row.Name))
+			}
 
-	sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: tooMany[:2],
-	})
-	require.NoError(t, err)
-	require.False(t, sendResult.Queued)
+			chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+				ID:     chat.ID,
+				Status: database.ChatStatusWaiting,
+			})
+			require.NoError(t, err)
+			messagesBefore, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				ChatID:  chat.ID,
+				AfterID: 0,
+			})
+			require.NoError(t, err)
+
+			_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:  chat.ID,
+				Content: append([]codersdk.ChatMessagePart{codersdk.ChatMessageText("one too many")}, fileParts...),
+			})
+			require.ErrorIs(t, err, chatstate.ErrChatFileCapExceeded)
+
+			messagesAfter, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+				ChatID:  chat.ID,
+				AfterID: 0,
+			})
+			require.NoError(t, err)
+			require.Len(t, messagesAfter, len(messagesBefore), "rejected send must not persist a message")
+			files, err := db.GetChatFileMetadataByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Empty(t, files, "rejected send must not link files")
+
+			sendResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
+				ChatID:  chat.ID,
+				Content: append([]codersdk.ChatMessagePart{codersdk.ChatMessageText("exactly at the cap")}, fileParts[:tt.attachmentCap]...),
+			})
+			require.NoError(t, err)
+			require.False(t, sendResult.Queued)
+			files, err = db.GetChatFileMetadataByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Len(t, files, tt.attachmentCap)
+		})
+	}
 }
 
 func TestPlanTurnPromptContract(t *testing.T) {
@@ -1851,7 +1870,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))
-	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
+	require.False(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {
 		if msg.Role != "system" {
@@ -1993,6 +2012,122 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.NotContains(t, workspaceContent, "start_workspace")
 		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
 		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
+	})
+}
+
+// TestCreateChatWithoutInitialUserContent verifies that chats created
+// without initial user content start idle in `waiting` with system
+// messages only, so no worker picks them up before the first message.
+// APIKeyID is not required because no user message is inserted.
+func TestCreateChatWithoutInitialUserContent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "empty-create",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages, "system messages are still inserted")
+	for _, msg := range messages {
+		require.Equal(t, database.ChatMessageRoleSystem, msg.Role, "no user message on an empty create")
+	}
+}
+
+// TestSendMessageFirstUserTurnFallbackTitle verifies that the first
+// message on a chat created without initial content persists the
+// fallback title in the send itself, independent of title generation.
+func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	const text = "investigate the flaky workspace upload tests today"
+
+	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          title,
+			ModelConfigID:  model.ID,
+		})
+		require.NoError(t, err)
+		return ctx, db, server, chat
+	}
+	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
+		t.Helper()
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:  chatID,
+			Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		})
+		require.NoError(t, err)
+		require.False(t, result.Queued)
+		return result
+	}
+
+	t.Run("PlaceholderTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		result := send(ctx, t, server, chat.ID)
+		require.True(t, result.FirstUserTurn)
+		require.Equal(t, chatprompt.FallbackTitle(text), result.Chat.Title)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+	})
+
+	t.Run("ExistingTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, "custom title")
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "custom title", stored.Title)
+	})
+
+	t.Run("PriorVisibleMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		send(ctx, t, server, chat.ID)
+		// Reset to an idle chat that still carries the placeholder
+		// title but already has a user-visible message.
+		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: chatprompt.DefaultChatTitle,
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
 	})
 }
 
@@ -2561,6 +2696,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		Title:             "stale-requires-action",
 		DynamicTools:      nullRawMessage(dynamicToolsJSON),
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -2652,6 +2788,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Title:             "orphaned-chat",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -3101,6 +3238,99 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 		"requires action chats should persist a waiting status label")
 	require.Equal(t, int32(0), mockPush.dispatchCount.Load(),
 		"expected no web push dispatch for a requires_action chat")
+}
+
+func TestChatTurnStopsAtStepLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		limits    chatd.Limits
+		stepLimit int
+		// preseededSteps are committed before the server starts, so the
+		// default limit is reached without streaming every step.
+		preseededSteps int
+	}{
+		{name: "Configured1", limits: chatd.Limits{MaxStepsPerTurn: 1}, stepLimit: 1},
+		{name: "Configured3", limits: chatd.Limits{MaxStepsPerTurn: 3}, stepLimit: 3},
+		{
+			name:           "Default",
+			stepLimit:      codersdk.DefaultChatMaxStepsPerTurn,
+			preseededSteps: codersdk.DefaultChatMaxStepsPerTurn - 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			var streamedCalls atomic.Int32
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				streamedCalls.Add(1)
+				// list_templates runs without a workspace, so every step
+				// commits a tool result and the history stays incomplete.
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk("list_templates", `{}`),
+				)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			creator := newTestServer(t, db, ps, uuid.New())
+			chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          "step-limit-" + tt.name,
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("Keep listing templates."),
+				},
+			})
+			require.NoError(t, err)
+			for i := range tt.preseededSteps {
+				callID := fmt.Sprintf("preseeded-%d", i)
+				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolCall(callID, "list_templates", json.RawMessage(`{}`)),
+				})
+				insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleTool, model.ID, uuid.Nil, []codersdk.ChatMessagePart{
+					codersdk.ChatMessageToolResult(callID, "list_templates", json.RawMessage(`{"templates":[]}`), false, false),
+				})
+			}
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				cfg.Limits = tt.limits
+			})
+
+			chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+			chatd.WaitUntilIdleForTest(server)
+			require.Equal(t, database.ChatStatusWaiting, chatResult.Status,
+				"last_error=%q", chatLastErrorMessage(chatResult.LastError))
+			require.EqualValues(t, tt.stepLimit-tt.preseededSteps, streamedCalls.Load())
+
+			messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+			require.NoError(t, err)
+			var steps int
+			for _, msg := range messages {
+				if msg.Role == database.ChatMessageRoleAssistant {
+					steps++
+				}
+			}
+			require.Equal(t, tt.stepLimit, steps)
+
+			last := messages[len(messages)-1]
+			require.Equal(t, database.ChatMessageRoleTool, last.Role)
+			parts, err := chatprompt.ParseContent(last)
+			require.NoError(t, err)
+			require.Len(t, parts, 1)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+			require.Equal(t, "list_templates", parts[0].ToolName)
+			require.False(t, parts[0].IsError, "result=%s", parts[0].Result)
+		})
+	}
 }
 
 func TestActiveServer_InterruptionBehavior(t *testing.T) {
@@ -6973,6 +7203,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Title:             "provider-runner-replay-active",
 			MCPServerIDs:      []uuid.UUID{},
 			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				userMessageForTest(t, "use provider runner", model.ID, user.ID, apiKey.ID),
 				assistantMessageForTest(t, []codersdk.ChatMessagePart{computerCall}, model.ID),

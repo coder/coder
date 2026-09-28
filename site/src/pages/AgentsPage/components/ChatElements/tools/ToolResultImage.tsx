@@ -1,7 +1,7 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { ImageLightbox } from "../../ImageLightbox";
 
-export const ToolResultImage: FC<{
+export const ToolResultImage: React.FC<{
 	data: string;
 	mimeType: string;
 	alt: string;

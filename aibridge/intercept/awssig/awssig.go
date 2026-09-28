@@ -86,6 +86,16 @@ func SignMiddleware(creds aws.CredentialsProvider, region, service string) func(
 	}
 }
 
+// BearerMiddleware authenticates a request with a user-supplied AWS Bedrock API
+// key instead of SigV4. Callers install it in place of SignMiddleware so no
+// deployment AWS credentials are resolved for the request.
+func BearerMiddleware(token string) func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+	return func(req *http.Request, next func(*http.Request) (*http.Response, error)) (*http.Response, error) {
+		req.Header.Set("Authorization", "Bearer "+token)
+		return next(req)
+	}
+}
+
 // trimMantleSegments removes any trailing Mantle vendor path segments from the
 // parsed URL path so BaseURLForModel can re-append the correct one. Applied in
 // longest-first order so /anthropic/v1 and /openai/v1 collapse before their

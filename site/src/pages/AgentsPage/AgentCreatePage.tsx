@@ -1,9 +1,13 @@
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
-import { createChat } from "#/api/queries/chats";
+import { getErrorMessage, isApiError } from "#/api/errors";
+import {
+	archiveChat,
+	createChat,
+	createChatMessageByChatId,
+} from "#/api/queries/chats";
 import {
 	workspaceBuildById,
 	workspaceBuildLogs,
@@ -26,7 +30,10 @@ import {
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { isAbortError } from "./utils/chatAttachments";
+import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
+import { type DeepLinkState, readDeepLinkState } from "./utils/deepLinkState";
 import { buildAgentChatPath } from "./utils/navigation";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -34,25 +41,14 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-// The deep link's build ID moves from the URL into this entry's history state
-// on arrival, because the layout's links forward location.search and the
-// next composer must be a plain one.
-type DebugLinkState = { debugWorkspaceBuildId: string };
-
-const readDebugLinkState = (state: unknown): string | null =>
-	typeof state === "object" &&
-	state !== null &&
-	"debugWorkspaceBuildId" in state &&
-	typeof state.debugWorkspaceBuildId === "string"
-		? state.debugWorkspaceBuildId
-		: null;
+const promptSearchParam = "prompt";
 
 type DebugWorkspaceBuildAlertProps = {
 	error: unknown;
 	build: TypesGen.WorkspaceBuild | undefined;
 };
 
-const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
+const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	error,
 	build,
 }) => {
@@ -78,7 +74,10 @@ const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
 	) : null;
 };
 
-const AgentCreatePage: FC = () => {
+const isConflictError = (error: unknown) =>
+	isApiError(error) && error.response.status === 409;
+
+const AgentCreatePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
@@ -88,32 +87,83 @@ const AgentCreatePage: FC = () => {
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
+	const sendFirstMessageMutation = useMutation(
+		createChatMessageByChatId(queryClient),
+	);
+	const archiveMutation = useMutation(archiveChat(queryClient));
+	// Cleanup for a shell chat whose deferred uploads or first message
+	// failed. The primary failure is already toasted by the caller, so
+	// this only adds the cleanup outcome.
+	const archiveUnusedChat = (chatId: string) => {
+		archiveMutation.mutate(chatId, {
+			onError: (error) => {
+				toast.error(
+					getErrorMessage(error, "Failed to clean up the unused chat."),
+				);
+			},
+		});
+	};
+	// Resolves true when the chat already holds the first message. A
+	// failed send can still commit server-side; the chat then left the
+	// idle state and archiving it returns 409.
+	const archiveChatAfterFailedSend = async (chatId: string) => {
+		try {
+			await archiveMutation.mutateAsync(chatId);
+		} catch (error) {
+			if (isConflictError(error)) {
+				return true;
+			}
+			toast.error(
+				getErrorMessage(error, "Failed to clean up the unused chat."),
+			);
+		}
+		return false;
+	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
+	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
+	const debugLinkValue = debugLinkParam ?? linkState.debugWorkspaceBuildId;
 	const debugBuildId =
-		debugLinkValue !== null &&
+		debugLinkValue !== undefined &&
 		isUUID(debugLinkValue) &&
 		experiments.includes("enable-ai-workspace-debug")
 			? debugLinkValue
 			: null;
+	const promptParam = searchParams.get(promptSearchParam);
+	const promptValue = promptParam ?? linkState.prompt;
+	// The debug link wins when both are present.
+	const linkPrompt =
+		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	// One navigation removes both parameters: separate navigations would each
+	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
-		if (debugLinkParam === null) {
+		if (debugLinkParam === null && promptParam === null) {
 			return;
 		}
 		const search = new URLSearchParams(searchParams);
 		search.delete(debugWorkspaceBuildSearchParam);
-		const state: DebugLinkState | undefined =
+		search.delete(promptSearchParam);
+		const state: DeepLinkState | undefined =
 			debugBuildId !== null
 				? { debugWorkspaceBuildId: debugBuildId }
-				: undefined;
+				: linkPrompt !== undefined
+					? { prompt: linkPrompt }
+					: undefined;
 		navigate(
 			{ pathname: location.pathname, search: search.toString() },
 			{ replace: true, state },
 		);
-	}, [debugLinkParam, debugBuildId, location.pathname, navigate, searchParams]);
+	}, [
+		debugLinkParam,
+		promptParam,
+		debugBuildId,
+		linkPrompt,
+		location.pathname,
+		navigate,
+		searchParams,
+	]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
@@ -129,7 +179,7 @@ const AgentCreatePage: FC = () => {
 		enabled: debugBuildFailed,
 	});
 	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
-	const prefill: AgentCreatePrefill | undefined =
+	const debugPrefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
 					message: debugWorkspaceBuildPrompt(debugBuild),
@@ -142,6 +192,15 @@ const AgentCreatePage: FC = () => {
 					},
 				}
 			: undefined;
+	const prefill: AgentCreatePrefill | undefined =
+		debugPrefill ??
+		(linkPrompt
+			? {
+					message: linkPrompt,
+					warning:
+						"Use caution before running this prompt. Malicious content could trick Coder Agents into attempting harmful actions or sharing your data.",
+				}
+			: undefined);
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
 	// and attachment only on mount.
 	const isPrefillLoading =
@@ -159,6 +218,7 @@ const AgentCreatePage: FC = () => {
 		mcpServerIds,
 		organizationId,
 		planMode,
+		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
 		if (message.trim()) {
@@ -171,7 +231,10 @@ const AgentCreatePage: FC = () => {
 		}
 		const createRequest: TypesGen.CreateChatRequest = {
 			organization_id: organizationId,
-			content,
+			// Workspace files need the chat ID to upload, so the chat is
+			// created idle without content and the first message follows
+			// after the uploads land.
+			content: uploadWorkspaceFiles ? [] : content,
 			workspace_id: workspaceId,
 			mcp_server_ids:
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
@@ -181,6 +244,82 @@ const AgentCreatePage: FC = () => {
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};
 		const createdChat = await createMutation.mutateAsync(createRequest);
+
+		if (uploadWorkspaceFiles) {
+			let uploaded: Awaited<ReturnType<typeof uploadWorkspaceFiles>>;
+			try {
+				uploaded = await uploadWorkspaceFiles(createdChat.id);
+			} catch (error) {
+				// The empty chat never started generating, so archiving it
+				// right away is the cleanup path; retry creates a fresh one.
+				archiveUnusedChat(createdChat.id);
+				if (!isAbortError(error)) {
+					toast.error(
+						getErrorMessage(error, "Failed to upload files to the workspace."),
+					);
+				}
+				throw error;
+			}
+			const failedCount = uploaded.filter(
+				(upload) => upload.status !== "uploaded" || !upload.response,
+			).length;
+			if (failedCount > 0) {
+				archiveUnusedChat(createdChat.id);
+				toast.error(
+					`${failedCount} file${failedCount > 1 ? "s" : ""} failed to upload to the workspace. Remove or retry the failed files, then send again.`,
+				);
+				throw new Error("workspace file upload failed");
+			}
+			for (const upload of uploaded) {
+				if (!upload.response) {
+					continue;
+				}
+				content.push(
+					toWorkspaceFileReferencePart({
+						path: upload.response.path,
+						name: upload.response.name,
+						size: upload.response.size,
+						mediaType: upload.response.media_type,
+						workspaceId: upload.response.workspace_id,
+					}),
+				);
+			}
+			// All entries removed mid-upload leaves nothing to say; the
+			// idle chat behaves like a plain empty create.
+			if (content.length > 0) {
+				// Built outside the try block: React Compiler does not
+				// support value blocks inside try/catch.
+				const firstMessageReq: TypesGen.CreateChatMessageRequest = {
+					content,
+					mcp_server_ids:
+						mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
+					plan_mode: planMode === "plan" ? "plan" : undefined,
+					...(model ? { model_config_id: model } : {}),
+					...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+				};
+				const firstMessage = {
+					chatId: createdChat.id,
+					req: firstMessageReq,
+				};
+				let sendFailed = false;
+				let sendError: unknown;
+				try {
+					await sendFirstMessageMutation.mutateAsync(firstMessage);
+				} catch (error) {
+					sendFailed = true;
+					sendError = error;
+				}
+				// Without the message the fresh chat is an empty shell, so
+				// archive it and stay on the composer with the draft intact;
+				// a retry re-creates the chat and re-uploads.
+				if (sendFailed && !(await archiveChatAfterFailedSend(createdChat.id))) {
+					toast.error(
+						getErrorMessage(sendError, "Failed to send the message."),
+					);
+					throw sendError;
+				}
+			}
+		}
 
 		navigate({
 			pathname: buildAgentChatPath({ chatId: createdChat.id }),
@@ -223,7 +362,13 @@ const AgentCreatePage: FC = () => {
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
-					key={prefill ? debugBuildId : "draft"}
+					key={
+						debugPrefill
+							? debugBuildId
+							: linkPrompt
+								? `prompt:${linkPrompt}`
+								: "draft"
+					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
 					createError={createMutation.error}

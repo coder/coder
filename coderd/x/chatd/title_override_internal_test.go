@@ -355,6 +355,7 @@ func titleOverrideTestServer(db database.Store, logger slog.Logger) *Server {
 		logger:                   logger,
 		configCache:              newChatConfigCache(context.Background(), db, quartz.NewReal()),
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		chatLimits:               Limits{}.withDefaults(),
 	}
 }
 

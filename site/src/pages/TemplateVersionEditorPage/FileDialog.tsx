@@ -1,4 +1,4 @@
-import { type ChangeEvent, type FC, useState } from "react";
+import { useState } from "react";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormField } from "#/components/FormField/FormField";
 import { type FileTree, isFolder, validatePath } from "#/utils/filetree";
@@ -11,7 +11,7 @@ type CreateFileDialogProps = {
 	fileTree: FileTree;
 };
 
-export const CreateFileDialog: FC<CreateFileDialogProps> = ({
+export const CreateFileDialog: React.FC<CreateFileDialogProps> = ({
 	checkExists,
 	onClose,
 	onConfirm,
@@ -20,7 +20,7 @@ export const CreateFileDialog: FC<CreateFileDialogProps> = ({
 }) => {
 	const [pathValue, setPathValue] = useState("");
 	const [error, setError] = useState<string>();
-	const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+	const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		setPathValue(event.target.value);
 	};
 	const handleConfirm = () => {
@@ -96,7 +96,7 @@ type DeleteFileDialogProps = {
 	filename: string;
 };
 
-export const DeleteFileDialog: FC<DeleteFileDialogProps> = ({
+export const DeleteFileDialog: React.FC<DeleteFileDialogProps> = ({
 	onClose,
 	onConfirm,
 	open,
@@ -128,7 +128,7 @@ type RenameFileDialogProps = {
 	fileTree: FileTree;
 };
 
-export const RenameFileDialog: FC<RenameFileDialogProps> = ({
+export const RenameFileDialog: React.FC<RenameFileDialogProps> = ({
 	checkExists,
 	onClose,
 	onConfirm,
@@ -138,7 +138,7 @@ export const RenameFileDialog: FC<RenameFileDialogProps> = ({
 }) => {
 	const [pathValue, setPathValue] = useState(filename);
 	const [error, setError] = useState<string>();
-	const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+	const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		setPathValue(event.target.value);
 	};
 	const handleConfirm = () => {

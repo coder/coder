@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useState,
-} from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -42,7 +36,7 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { PendingAttachment } from "./components/ChatPageContent";
+import type { SendChatMessageOptions } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
@@ -84,7 +78,7 @@ import {
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
 type EditingState = {
-	chatInputRef: RefObject<ChatMessageInputRef | null>;
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -96,10 +90,7 @@ type EditingState = {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
-	handleSendFromInput: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => void;
+	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
@@ -127,7 +118,7 @@ type AgentChatPageViewProps = {
 	modelOptions: readonly ModelSelectorOption[];
 	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
+	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
@@ -163,7 +154,6 @@ type AgentChatPageViewProps = {
 
 	// Workspace action handlers.
 	sshCommand: string | undefined;
-	handleCommit: (repoRoot: string) => void;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -192,7 +182,7 @@ type AgentChatPageViewProps = {
 	desktopChatId?: string;
 };
 
-const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
+const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
 		{message}
 	</div>
@@ -210,7 +200,7 @@ type UserTabContentProps = {
 	onTerminalReady: (tabId: string) => void;
 };
 
-const UserTabContent: FC<UserTabContentProps> = ({
+const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
 	workspace,
@@ -277,7 +267,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	}
 };
 
-export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
+export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
 	workspaceAgent,
@@ -313,7 +303,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	debugLoggingEnabled,
 	gitWatcher,
 	sshCommand,
-	handleCommit,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -450,11 +439,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
-	// Desktop is only available when the workspace and agent are ready;
-	// offer it as a singleton panel on that same condition to avoid
-	// selecting "desktop" when no desktop panel is rendered.
-	const availableDesktopChatId =
-		workspace && workspaceAgent ? desktopChatId : undefined;
+	// The desktop panel owns the stopped and starting states, so it only
+	// needs a workspace to render; the agent arrives once the build runs.
+	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
 	const availableBrowserApp = workspace
 		? getAgentBrowserApp(workspaceAgent)
@@ -673,7 +660,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	const renderTabContent = (tabId: string): ReactNode => {
+	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
 				return (
@@ -695,7 +682,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							!gitWatcher.hasReceivedChanges
 						}
 						onRefresh={handleRefresh}
-						onCommit={handleCommit}
 						isExpanded={visualExpanded}
 						remoteDiffStats={chat.diff_status}
 						chatInputRef={editing.chatInputRef}
@@ -710,9 +696,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					/>
 				) : null;
 			case "desktop":
-				return availableDesktopChatId ? (
+				return workspace && availableDesktopChatId ? (
 					<DesktopPanel
 						chatId={availableDesktopChatId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
 						isVisible={effectiveSidebarTabId === "desktop"}
 					/>
 				) : null;
@@ -1046,7 +1034,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 type AgentChatPageLoadingViewProps = {
-	inputRef: RefObject<ChatMessageInputRef | null>;
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -1067,7 +1055,9 @@ type AgentChatPageLoadingViewProps = {
 	showRightPanel: boolean;
 };
 
-export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+export const AgentChatPageLoadingView: React.FC<
+	AgentChatPageLoadingViewProps
+> = ({
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1147,7 +1137,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	);
 };
 
-export const AgentChatPageNotFoundView: FC = () => {
+export const AgentChatPageNotFoundView: React.FC = () => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 			<ChatTopBar

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CircleCheckIcon, KeyIcon } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -103,7 +103,7 @@ export const useSingleSignOnSection = () => {
 	};
 };
 
-const SSOEmptyState: FC = () => {
+const SSOEmptyState: React.FC = () => {
 	return (
 		<EmptyState
 			className="rounded-lg border border-solid border-border min-h-0"
@@ -127,7 +127,7 @@ type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
 	userLoginType: UserLoginType;
 };
 
-export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
+export const SingleSignOnSection: React.FC<SingleSignOnSectionProps> = ({
 	authMethods,
 	userLoginType,
 	openConfirmation,
@@ -218,7 +218,7 @@ type OIDCIconProps = {
 	oidcAuth: OIDCAuthMethod;
 };
 
-const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
+const OIDCIcon: React.FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
 		return <KeyIcon />;
 	}
@@ -244,13 +244,9 @@ type ConfirmLoginTypeChangeModalProps = {
 	onConfirm: (password: string) => void;
 };
 
-const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
-	open,
-	loading,
-	error,
-	onClose,
-	onConfirm,
-}) => {
+const ConfirmLoginTypeChangeModal: React.FC<
+	ConfirmLoginTypeChangeModalProps
+> = ({ open, loading, error, onClose, onConfirm }) => {
 	const [password, setPassword] = useState("");
 	const passwordId = useId();
 	const errorId = useId();

@@ -1,4 +1,4 @@
-import { type FC, type FormEvent, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
@@ -23,7 +23,7 @@ type DefaultModelSettingsProps = {
 	disabled: boolean;
 };
 
-export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
+export const DefaultModelSettings: React.FC<DefaultModelSettingsProps> = ({
 	defaultModelID,
 	enabledModels,
 	providerInfoByID,
@@ -54,7 +54,7 @@ export const DefaultModelSettings: FC<DefaultModelSettingsProps> = ({
 	}
 	const selectedModelID = pendingModelID ?? defaultModelID;
 
-	const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+	const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (pendingModelID !== undefined) {
 			onSaveDefaultModel(pendingModelID, { onSuccess: showSavedState });

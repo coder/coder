@@ -79,6 +79,8 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mcpServerConfigACL,
 	mcpServerConfigACLAvailable,
 	mcpServerConfigACLAvailableKey,
@@ -619,20 +621,53 @@ describe("invalidateChatListQueries", () => {
 		).not.toBe(true);
 	});
 
-	it("prepends new root chats to filtered list caches", () => {
-		const queryClient = createTestQueryClient();
-		const activeChat = makeChat("active-created", { archived: false });
+	it.each<{ status: TypesGen.ChatStatus; matchingFilters: string[] }>([
+		{ status: "waiting", matchingFilters: ["idle"] },
+		{ status: "running", matchingFilters: ["working"] },
+		{ status: "interrupting", matchingFilters: ["working"] },
+		{ status: "error", matchingFilters: ["error", "attention"] },
+		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+	])(
+		"prepends $status root chats only to matching list caches",
+		({ status, matchingFilters }) => {
+			const queryClient = createTestQueryClient();
+			const chat = makeChat("active-created", { archived: false, status });
+			const filters: { name: string; input: ChatListInput }[] = [
+				{ name: "unfiltered", input: {} },
+				{ name: "idle", input: { statuses: ["waiting"] } },
+				{ name: "working", input: { statuses: ["running"] } },
+				{ name: "error", input: { statuses: ["error"] } },
+				{ name: "action", input: { statuses: ["requires_action"] } },
+				{
+					name: "attention",
+					input: { statuses: ["error", "requires_action"] },
+				},
+				{
+					name: "all",
+					input: {
+						statuses: ["requires_action", "error", "running", "waiting"],
+					},
+				},
+				{ name: "archived", input: { archived: true, statuses: [status] } },
+			];
+			for (const { input } of filters) {
+				seedInfiniteChats(queryClient, [], input);
+			}
 
-		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
-			archived: false,
-		});
+			prependToInfiniteChatsCache(queryClient, chat);
+			prependToInfiniteChatsCache(queryClient, chat);
 
-		prependToInfiniteChatsCache(queryClient, activeChat);
-
-		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
-			activeChat,
-		);
-	});
+			for (const { name, input } of filters) {
+				const matches =
+					name === "unfiltered" ||
+					name === "all" ||
+					matchingFilters.includes(name);
+				expect(readInfiniteChats(queryClient, input), name).toEqual(
+					matches ? [chat] : [],
+				);
+			}
+		},
+	);
 });
 
 describe("planModeFieldsForCreateMessage", () => {
@@ -683,6 +718,61 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
+	});
+});
+
+describe("markChatRead and markChatUnread cache updates", () => {
+	it("drops the chat from a list whose read-status filter it no longer matches", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { has_unread: true }),
+			makeChat("chat-2", { has_unread: true }),
+		]);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		await markChatRead(queryClient).onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
+				(c) => c.id,
+			),
+		).toEqual([]);
+		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+	});
+
+	it("patches a nested subagent chat without dropping its root", async () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		seedInfiniteChats(queryClient, [
+			makeChat("root-1", {
+				children: [makeChat(childId, { has_unread: false })],
+			}),
+		]);
+
+		await markChatUnread(queryClient).onMutate(childId);
+
+		const roots = readInfiniteChats(queryClient);
+		expect(roots?.map((c) => c.id)).toEqual(["root-1"]);
+		expect(roots?.[0].children[0].has_unread).toBe(true);
+	});
+
+	it("restores the list cache when the mutation fails", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		const mutation = markChatRead(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		const restored = readInfiniteChats(queryClient, { chatStatus: "unread" });
+		expect(restored?.map((c) => c.id)).toEqual([chatId]);
+		expect(restored?.[0].has_unread).toBe(true);
 	});
 });
 
@@ -2087,6 +2177,7 @@ describe("chatListKey shape", () => {
 			archived: true,
 			prStatuses: [],
 			status: "all",
+			statuses: [],
 			sources: [],
 		});
 	});
@@ -2110,6 +2201,39 @@ describe("getChatListQueryString", () => {
 		).toBe(
 			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		);
+		expect(
+			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
+		).toBe("archived:false pr_status:none");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe("archived:false status:requires_action,running,interrupting");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					chatStatus: "unread",
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe(
+			"archived:false has_unread:true status:requires_action,running,interrupting",
+		);
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: [
+						"requires_action",
+						"error",
+						"running",
+						"interrupting",
+						"waiting",
+					],
+				}),
+			),
+		).toBe("archived:false");
 	});
 });
 

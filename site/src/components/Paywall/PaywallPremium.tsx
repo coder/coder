@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Supergraphic } from "#/components/Supergraphic/Supergraphic";
 import {
 	PaywallCTALink,
@@ -16,7 +15,7 @@ import {
 
 const DEFAULT_HERO_SUBTITLE = "Start an unlimited 30-day trial today";
 
-const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
+const PaywallPremiumHeader: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props
@@ -35,7 +34,7 @@ const PaywallPremiumHeader: FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-const PaywallPremiumContent: FC<React.ComponentProps<"div">> = ({
+const PaywallPremiumContent: React.FC<React.ComponentProps<"div">> = ({
 	children,
 	className,
 	...props

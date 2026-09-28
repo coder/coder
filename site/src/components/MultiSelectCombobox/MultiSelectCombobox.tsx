@@ -6,10 +6,6 @@ import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { cn } from "cn";
 import { InfoIcon, XIcon } from "lucide-react";
 import {
-	type ComponentProps,
-	type KeyboardEvent,
-	type ReactNode,
-	type Ref,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
@@ -55,9 +51,9 @@ type MultiSelectComboboxProps = {
 	options?: Option[];
 	placeholder?: string;
 	/** Loading component. */
-	loadingIndicator?: ReactNode;
+	loadingIndicator?: React.ReactNode;
 	/** Empty component. */
-	emptyIndicator?: ReactNode;
+	emptyIndicator?: React.ReactNode;
 	/** Debounce time for async search. Only work with `onSearch`. */
 	delay?: number;
 	/**
@@ -95,17 +91,17 @@ type MultiSelectComboboxProps = {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: Omit<ComponentProps<typeof Command>, "ref">;
+	commandProps?: Omit<React.ComponentProps<typeof Command>, "ref">;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
-		ComponentProps<typeof CommandPrimitive.Input>,
+		React.ComponentProps<typeof CommandPrimitive.Input>,
 		"ref" | "value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
 	/** Test ID for testing purposes */
 	"data-testid"?: string;
-	ref?: Ref<MultiSelectComboboxRef>;
+	ref?: React.Ref<MultiSelectComboboxRef>;
 };
 
 type MultiSelectComboboxRef = {
@@ -243,7 +239,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		[onChange, selected],
 	);
 
-	const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
 		const input = inputRef.current;
 		if (input) {
 			if (e.key === "Delete" || e.key === "Backspace") {

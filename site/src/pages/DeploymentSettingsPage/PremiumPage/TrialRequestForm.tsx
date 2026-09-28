@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -60,7 +60,7 @@ type TrialRequestFormProps = {
 	error?: unknown;
 };
 
-export const TrialRequestForm: FC<TrialRequestFormProps> = ({
+export const TrialRequestForm: React.FC<TrialRequestFormProps> = ({
 	onSubmit,
 	isSubmitting,
 	error,

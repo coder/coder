@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { deploymentDAUs } from "#/api/queries/deployment";
 import {
@@ -11,7 +10,7 @@ import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvid
 import { pageTitle } from "#/utils/page";
 import { OverviewPageView } from "./OverviewPageView";
 
-const OverviewPage: FC = () => {
+const OverviewPage: React.FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
