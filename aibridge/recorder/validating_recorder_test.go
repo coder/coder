@@ -107,163 +107,91 @@ func TestValidatingRecorder(t *testing.T) {
 		name string
 		// record makes the call under test.
 		record func(context.Context, recorder.Recorder) error
-		// wantRejected is true when the record must not be delegated.
-		wantRejected bool
+		// wantRefused is true when the record must not be delegated.
+		wantRefused bool
 	}{
 		{name: "InterceptionValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordInterception(ctx, validInterception())
 		}},
-		{name: "InterceptionUnsetStartedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "InterceptionUnsetStartedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validInterception()
 			req.StartedAt = time.Time{}
 			return r.RecordInterception(ctx, req)
 		}},
-		{name: "InterceptionIDNotUUID", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validInterception()
-			req.ID = "not-a-uuid"
-			return r.RecordInterception(ctx, req)
-		}},
-		{name: "InterceptionInitiatorNotUUID", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validInterception()
-			req.InitiatorID = ""
-			return r.RecordInterception(ctx, req)
-		}},
-		{name: "InterceptionEmptyProvider", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validInterception()
-			req.Provider = ""
-			return r.RecordInterception(ctx, req)
-		}},
-		{
-			// The model comes from the client's request body, so the provider,
-			// not the gateway, decides whether the request is acceptable.
-			name: "InterceptionEmptyModelIsRecorded",
-			record: func(ctx context.Context, r recorder.Recorder) error {
-				req := validInterception()
-				req.Model = ""
-				return r.RecordInterception(ctx, req)
-			},
-		},
 
 		{name: "EndedValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordInterceptionEnded(ctx, validEnded())
 		}},
-		{name: "EndedUnsetEndedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "EndedUnsetEndedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validEnded()
 			req.EndedAt = time.Time{}
-			return r.RecordInterceptionEnded(ctx, req)
-		}},
-		{name: "EndedIDNotUUID", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validEnded()
-			req.ID = ""
 			return r.RecordInterceptionEnded(ctx, req)
 		}},
 
 		{name: "TokenUsageValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordTokenUsage(ctx, validToken())
 		}},
-		{name: "TokenUsageUnsetCreatedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "TokenUsageUnsetCreatedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validToken()
 			req.CreatedAt = time.Time{}
 			return r.RecordTokenUsage(ctx, req)
 		}},
-		{name: "TokenUsageInterceptionIDNotUUID", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validToken()
-			req.InterceptionID = "not-a-uuid"
-			return r.RecordTokenUsage(ctx, req)
-		}},
-		{name: "TokenUsageNegativeCount", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validToken()
-			req.Output = -1
-			return r.RecordTokenUsage(ctx, req)
-		}},
-		{name: "TokenUsageImplausibleCount", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validToken()
-			req.CacheReadInputTokens = recorder.MaxTokenUsage + 1
-			return r.RecordTokenUsage(ctx, req)
-		}},
-		{
-			// An empty message ID costs correlation, not correctness, so the
-			// record is still delegated.
-			name: "TokenUsageEmptyMsgIDIsRecorded",
-			record: func(ctx context.Context, r recorder.Recorder) error {
-				req := validToken()
-				req.MsgID = ""
-				return r.RecordTokenUsage(ctx, req)
-			},
-		},
 
 		{name: "PromptUsageValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordPromptUsage(ctx, validPrompt())
 		}},
-		{name: "PromptUsageUnsetCreatedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "PromptUsageUnsetCreatedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validPrompt()
 			req.CreatedAt = time.Time{}
 			return r.RecordPromptUsage(ctx, req)
 		}},
-		{
-			// Empty prompts occur in production, so dropping them would lose
-			// records that are recorded today.
-			name: "PromptUsageEmptyPromptIsRecorded",
-			record: func(ctx context.Context, r recorder.Recorder) error {
-				req := validPrompt()
-				req.Prompt = ""
-				return r.RecordPromptUsage(ctx, req)
-			},
-		},
 
 		{name: "ToolUsageValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordToolUsage(ctx, validTool())
 		}},
-		{name: "ToolUsageUnsetCreatedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "ToolUsageUnsetCreatedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validTool()
 			req.CreatedAt = time.Time{}
 			return r.RecordToolUsage(ctx, req)
 		}},
-		{name: "ToolUsageEmptyTool", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validTool()
-			req.Tool = ""
-			return r.RecordToolUsage(ctx, req)
-		}},
-		{
-			// Hosted Responses tools are executed by the provider and carry no
-			// call ID, so it must stay optional.
-			name: "ToolUsageWithoutToolCallIDIsRecorded",
-			record: func(ctx context.Context, r recorder.Recorder) error {
-				req := validTool()
-				req.ToolCallID = ""
-				req.ItemID = ""
-				return r.RecordToolUsage(ctx, req)
-			},
-		},
 
 		{name: "ModelThoughtValid", record: func(ctx context.Context, r recorder.Recorder) error {
 			return r.RecordModelThought(ctx, validThought())
 		}},
-		{name: "ModelThoughtUnsetCreatedAt", wantRejected: true, record: func(ctx context.Context, r recorder.Recorder) error {
+		{name: "ModelThoughtUnsetCreatedAt", wantRefused: true, record: func(ctx context.Context, r recorder.Recorder) error {
 			req := validThought()
 			req.CreatedAt = time.Time{}
 			return r.RecordModelThought(ctx, req)
 		}},
-		{name: "ModelThoughtEmptyContentIsRecorded", record: func(ctx context.Context, r recorder.Recorder) error {
-			req := validThought()
-			req.Content = ""
-			return r.RecordModelThought(ctx, req)
-		}},
+
+		{
+			// Everything other than the timestamp is the database's to
+			// enforce, so that this recorder cannot diverge from it.
+			name: "RecordWithoutTimestampRuleIsDelegated",
+			record: func(ctx context.Context, r recorder.Recorder) error {
+				req := validInterception()
+				req.ID = "not-a-uuid"
+				req.InitiatorID = ""
+				req.Provider = ""
+				req.Model = ""
+				return r.RecordInterception(ctx, req)
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			term := &acceptingRecorder{}
-			// Rejections are logged at error level, which slogtest fails on
+			// Refusals are logged at error level, which slogtest fails on
 			// unless ignored.
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			rec := recorder.NewValidatingRecorder(logger, term)
 
 			err := tc.record(t.Context(), rec)
 
-			if tc.wantRejected {
+			if tc.wantRefused {
 				require.ErrorIs(t, err, recorder.ErrInvalidRecord)
-				require.Zero(t, term.delegated, "an invalid record must not be delegated")
+				require.Zero(t, term.delegated, "a record with an unset timestamp must not be delegated")
 				return
 			}
 			require.NoError(t, err)
