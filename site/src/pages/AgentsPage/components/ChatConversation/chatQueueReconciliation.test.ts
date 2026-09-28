@@ -8,6 +8,7 @@ import {
 	buildInactiveChatQueueReconciliation,
 	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
+	runDeleteQueuedMessage,
 	runPromoteQueuedMessage,
 	settlePromotedQueueHead,
 	submitEdit,
@@ -15,6 +16,27 @@ import {
 import { createChatStore } from "./chatStore";
 
 describe("restoreOptimisticRequestSnapshot", () => {
+	it("keeps a queue update received after the baseline fence and restores the rest", () => {
+		const store = createChatStore();
+		const queued: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 9 };
+		store.setQueuedMessages([queued]);
+		store.setChatStatus("waiting");
+		const previousSnapshot = store.getSnapshot();
+		const baselineFence = store.getQueueConvergenceFence();
+
+		store.batch(() => {
+			store.setQueuedMessages([]);
+			store.setChatStatus("running");
+		});
+		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
+		store.applyAuthoritativeQueuedMessages(updated);
+
+		restoreOptimisticRequestSnapshot(store, previousSnapshot, baselineFence);
+
+		expect(store.getSnapshot().queuedMessages).toEqual(updated);
+		expect(store.getSnapshot().chatStatus).toBe("waiting");
+	});
+
 	it("restores queued messages, stream output, status, and stream error", () => {
 		const store = createChatStore();
 		store.setQueuedMessages([
@@ -46,6 +68,58 @@ describe("restoreOptimisticRequestSnapshot", () => {
 		expect(restoredSnapshot.chatStatus).toBe(previousSnapshot.chatStatus);
 		expect(restoredSnapshot.streamState).toBe(previousSnapshot.streamState);
 		expect(restoredSnapshot.streamError).toEqual(previousSnapshot.streamError);
+	});
+});
+
+describe("runDeleteQueuedMessage", () => {
+	const a: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 1 };
+	const b: ChatQueuedMessage = { ...MockChatQueuedMessage, id: 2 };
+
+	it("removes the row optimistically and keeps it removed on success", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const deleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
+
+		await runDeleteQueuedMessage({ id: b.id, store, deleteQueuedMessage });
+
+		expect(deleteQueuedMessage).toHaveBeenCalledWith(b.id);
+		expect(store.getSnapshot().queuedMessages).toEqual([a]);
+	});
+
+	it("restores the queue and rethrows when the delete fails with no queue update", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const apiError = new Error("boom");
+
+		await expect(
+			runDeleteQueuedMessage({
+				id: b.id,
+				store,
+				deleteQueuedMessage: vi.fn().mockRejectedValue(apiError),
+			}),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().queuedMessages).toEqual([a, b]);
+	});
+
+	it("keeps a queue update received while the delete request fails", async () => {
+		const store = createChatStore();
+		store.setQueuedMessages([a, b]);
+		const updated = [{ ...a, editing_since: "2024-01-01T00:00:01Z" }, b];
+		const apiError = new Error("boom");
+
+		await expect(
+			runDeleteQueuedMessage({
+				id: b.id,
+				store,
+				deleteQueuedMessage: vi.fn(async () => {
+					store.applyAuthoritativeQueuedMessages(updated);
+					throw apiError;
+				}),
+			}),
+		).rejects.toBe(apiError);
+
+		expect(store.getSnapshot().queuedMessages).toEqual(updated);
 	});
 });
 
