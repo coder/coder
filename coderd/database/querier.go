@@ -70,7 +70,8 @@ type sqlcQuerier interface {
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	// Deletes custom roles named agents-access, which the built-in role would
-	// shadow, and appends agents-access to every organization's default member
+	// shadow, removes stale site-wide agents-access grants, which no longer name a
+	// role, and appends agents-access to every organization's default member
 	// roles where missing.
 	BackfillAgentsAccessDefaultOrgMemberRole(ctx context.Context) error
 	// Backfills chat_messages.search_tsv for pending rows, newest first.

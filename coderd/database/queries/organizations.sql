@@ -137,10 +137,15 @@ RETURNING *;
 
 -- name: BackfillAgentsAccessDefaultOrgMemberRole :exec
 -- Deletes custom roles named agents-access, which the built-in role would
--- shadow, and appends agents-access to every organization's default member
+-- shadow, removes stale site-wide agents-access grants, which no longer name a
+-- role, and appends agents-access to every organization's default member
 -- roles where missing.
 WITH deleted_custom_roles AS (
     DELETE FROM custom_roles WHERE name = 'agents-access'
+), removed_site_grants AS (
+    UPDATE users
+    SET rbac_roles = array_remove(rbac_roles, 'agents-access')
+    WHERE 'agents-access' = ANY(rbac_roles)
 )
 UPDATE organizations
 SET default_org_member_roles = array_append(default_org_member_roles, 'agents-access')

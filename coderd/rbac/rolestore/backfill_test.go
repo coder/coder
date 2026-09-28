@@ -65,6 +65,12 @@ func newAgentsAccessBackfillFixture(t *testing.T) agentsAccessBackfillFixture {
 	})
 
 	member := dbgen.User(t, db, database.User{})
+	// The retired built-in role can linger as a site-wide grant.
+	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+		GrantedRoles: []string{rbac.RoleAgentsAccess()},
+		ID:           member.ID,
+	})
+	require.NoError(t, err)
 	customMember := dbgen.User(t, db, database.User{})
 	for _, m := range []database.OrganizationMember{
 		{OrganizationID: extraOrg.ID, UserID: member.ID},
@@ -103,6 +109,14 @@ func agentsAccessCount(t *testing.T, db database.Store, orgID uuid.UUID) int {
 		}
 	}
 	return count
+}
+
+func siteRoles(t *testing.T, db database.Store, userID uuid.UUID) []string {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	user, err := db.GetUserByID(ctx, userID)
+	require.NoError(t, err)
+	return user.RBACRoles
 }
 
 func getBackfillMarker(t *testing.T, db database.Store) error {
@@ -147,6 +161,7 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, mem, 1)
 		require.Equal(t, []string{rbac.RoleAgentsAccess()}, mem[0].OrganizationMember.Roles)
+		require.NotContains(t, siteRoles(t, f.db, f.member.ID), rbac.RoleAgentsAccess())
 
 		// The custom role delete trigger strips grants of the deleted role in
 		// its organization; those members keep access through the defaults.
@@ -242,12 +257,14 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, roles, 1)
+		require.Contains(t, siteRoles(t, f.db, f.member.ID), rbac.RoleAgentsAccess())
 
 		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 		require.NoError(t, getBackfillMarker(t, f.db))
 		for _, orgID := range f.orgs {
 			require.Equal(t, 1, agentsAccessCount(t, f.db, orgID))
 		}
+		require.NotContains(t, siteRoles(t, f.db, f.member.ID), rbac.RoleAgentsAccess())
 	})
 }
 
