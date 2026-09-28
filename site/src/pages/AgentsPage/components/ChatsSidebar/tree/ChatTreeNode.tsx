@@ -5,7 +5,7 @@ import {
 	EllipsisVerticalIcon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -45,7 +45,10 @@ type ChatTreeNodeProps = {
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
+export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
+	chat,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {
@@ -67,6 +70,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	} = useChatTree();
 	const chatID = chat.id;
@@ -166,6 +171,10 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
 		onToggleSubagents: () => toggleExpanded(chatID),
 		onPinAgent: () => onPinAgent(chat.id),
 		onUnpinAgent: () => onUnpinAgent(chat.id),
+		// Opening a chat marks it read, so the read toggle would be undone
+		// immediately for the chat the user is already viewing.
+		onMarkRead: isActiveChat ? undefined : () => onMarkChatRead(chat.id),
+		onMarkUnread: isActiveChat ? undefined : () => onMarkChatUnread(chat.id),
 		onArchiveAgent: () => onArchiveAgent(chat.id),
 		onUnarchiveAgent: () => onUnarchiveAgent(chat.id),
 		onArchiveAndDeleteWorkspace: () => {

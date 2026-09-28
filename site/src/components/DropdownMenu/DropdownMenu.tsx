@@ -138,16 +138,9 @@ export const DropdownMenuSeparator: React.FC<
 	);
 };
 
-type DropdownMenuLabelProps = React.ComponentProps<
-	typeof DropdownMenuPrimitive.Label
-> & {
-	inset?: boolean;
-};
-
-export const DropdownMenuLabel: React.FC<DropdownMenuLabelProps> = ({
-	className,
-	...props
-}) => {
+export const DropdownMenuLabel: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Label>
+> = ({ className, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.Label
 			className={cn(

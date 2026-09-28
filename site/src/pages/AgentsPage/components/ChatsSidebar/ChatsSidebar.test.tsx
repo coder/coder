@@ -1,12 +1,5 @@
-import {
-	act,
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-} from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC, ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -86,11 +79,14 @@ const dashboardValue = {
 };
 
 type WrapperProps = {
-	children: ReactNode;
+	children: React.ReactNode;
 	initialPath?: string;
 };
 
-const Wrapper: FC<WrapperProps> = ({ children, initialPath = "/agents" }) => {
+const Wrapper: React.FC<WrapperProps> = ({
+	children,
+	initialPath = "/agents",
+}) => {
 	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
@@ -125,6 +121,8 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
+	onMarkChatRead: vi.fn(),
+	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -138,7 +136,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 // ---- Tests ----
 
 describe("ChatsSidebar section switcher", () => {
-	const LocationProbe: FC = () => {
+	const LocationProbe: React.FC = () => {
 		const location = useLocation();
 		return <div data-testid="location-pathname">{location.pathname}</div>;
 	};
@@ -240,24 +238,39 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
-const openFilterSubmenu = async (
-	user: ReturnType<typeof userEvent.setup>,
-	name: string | RegExp,
-) => {
-	const menuOpen = screen.queryByRole("menu", { name: "Filter agents" });
-	if (!menuOpen) {
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-	}
-	await user.click(await screen.findByRole("menuitem", { name }));
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+const openFilterMenu = async (user: MenuUser) => {
+	await user.click(screen.getByRole("button", { name: "Filter agents" }));
 };
 
-// user-event pointerdown dismisses portaled submenus in jsdom before the
-// click can select. Radix selects on click, which fireEvent delivers.
-const chooseFilterOption = async (
-	role: "menuitemcheckbox" | "menuitemradio",
+// Every element reports a zero-size rect in jsdom, so Radix's pointer grace
+// area closes a submenu as soon as user-event moves the pointer into it.
+// Keyboard navigation drives the same selection path, and the real pointer
+// path is covered by the FilterPopover stories.
+const focusMenuItem = async (
+	user: MenuUser,
+	role: "menuitem" | "menuitemcheckbox" | "menuitemradio",
+	name: string | RegExp,
+) => {
+	const item = await screen.findByRole(role, { name });
+	for (let step = 0; step < 16 && document.activeElement !== item; step++) {
+		await user.keyboard("{ArrowDown}");
+	}
+	expect(item).toHaveFocus();
+};
+
+const toggleSubmenuOption = async (
+	user: MenuUser,
+	submenu: string | RegExp,
 	name: string,
 ) => {
-	fireEvent.click(await screen.findByRole(role, { name }));
+	await openFilterMenu(user);
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, "menuitemcheckbox", name);
+	await user.keyboard("{Enter}");
+	await user.keyboard("{Escape}{Escape}");
 };
 
 describe("ChatsSidebar filters", () => {
@@ -340,8 +353,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await openFilterSubmenu(user, "Source");
-		await chooseFilterOption("menuitemcheckbox", "Shared with me");
+		await toggleSubmenuOption(user, "Source", "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
@@ -361,7 +373,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await chooseFilterOption("menuitemcheckbox", "Created by me");
+		await toggleSubmenuOption(user, "Source", "Created by me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
@@ -387,10 +399,8 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await openFilterSubmenu(user, "Status");
-		await chooseFilterOption("menuitemcheckbox", "Working");
-		await openFilterSubmenu(user, /Source/);
-		await chooseFilterOption("menuitemcheckbox", "Shared with me");
+		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, /Source/, "Shared with me");
 
 		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
 	});
@@ -440,7 +450,7 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(await screen.findByRole("button", { name: "Reset" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -836,5 +846,67 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar read state actions", () => {
+	const openActionsMenu = async (title: string) => {
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		return user;
+	};
+
+	it("marks a read chat as unread", async () => {
+		const onMarkChatUnread = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+							has_unread: false,
+						}),
+					]}
+					onMarkChatUnread={onMarkChatUnread}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Read chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+		);
+
+		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
+	});
+
+	it("marks an unread chat as read", async () => {
+		const onMarkChatRead = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+					]}
+					onMarkChatRead={onMarkChatRead}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Unread chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as read" }),
+		);
+
+		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
 	});
 });

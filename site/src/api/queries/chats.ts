@@ -2,6 +2,7 @@ import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
 	type QueryClient,
+	type QueryKey,
 	queryOptions,
 	type UseInfiniteQueryOptions,
 } from "react-query";
@@ -47,7 +48,7 @@ export type ChatListPRStatusFilter =
 	| "merged"
 	| "closed"
 	| "none";
-export type ChatListStatusFilter = "read" | "unread";
+type ChatListStatusFilter = "read" | "unread";
 // Interrupting is a brief stop-in-progress state, so it is not its own
 // filter. Selecting Working includes it.
 export const CHAT_STATUS_FILTER_ORDER = [
@@ -134,7 +135,7 @@ export const canonicalizeChatListPRStatuses = (
 };
 
 /** Shared ordering keeps URL serialization stable. */
-export const canonicalizeChatListStatuses = (
+const canonicalizeChatListStatuses = (
 	statuses: Iterable<unknown>,
 ): readonly TypesGen.ChatStatus[] => {
 	const selected = new Set<TypesGen.ChatStatus>();
@@ -1526,6 +1527,158 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
+/**
+ * Chat lists apply their read-status filter server-side, so a read-state
+ * change can move a chat out of a list entirely. The filter params are the
+ * last segment of the list query key.
+ */
+const chatListStatusFromKey = (
+	queryKey: QueryKey,
+): ChatListStatusFilter | "all" => {
+	const params = queryKey[chatListFamilyKey.length];
+	if (params && typeof params === "object" && "status" in params) {
+		const { status } = params;
+		if (status === "read" || status === "unread") {
+			return status;
+		}
+	}
+	return "all";
+};
+
+type ChatListSnapshot = ReadonlyArray<
+	readonly [QueryKey, InfiniteChatsCacheData]
+>;
+
+/**
+ * Applies a read-state change across every cached chat list, dropping the
+ * chat from lists whose read-status filter it no longer satisfies. Returns
+ * the replaced cache entries so a failed mutation can restore them without
+ * depending on a refetch.
+ */
+const applyChatReadStateToLists = (
+	queryClient: QueryClient,
+	chatId: string,
+	read: boolean,
+): ChatListSnapshot => {
+	const snapshot: Array<readonly [QueryKey, InfiniteChatsCacheData]> = [];
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatListFamilyKey,
+	});
+
+	for (const [queryKey, data] of queries) {
+		if (!data?.pages) {
+			continue;
+		}
+		const excluded =
+			chatListStatusFromKey(queryKey) === (read ? "unread" : "read");
+		let changed = false;
+		const pages = data.pages.map((page) => {
+			let pageChanged = false;
+			const nextPage: TypesGen.Chat[] = [];
+			for (const chat of page) {
+				if (chat.id === chatId) {
+					pageChanged = true;
+					if (!excluded) {
+						nextPage.push({ ...chat, has_unread: !read });
+					}
+					continue;
+				}
+				// Subagent chats are nested under their root and the list
+				// filter only applies to roots, so patch them in place.
+				if (chat.children?.some((child) => child.id === chatId)) {
+					pageChanged = true;
+					nextPage.push({
+						...chat,
+						children: chat.children.map((child) =>
+							child.id === chatId ? { ...child, has_unread: !read } : child,
+						),
+					});
+					continue;
+				}
+				nextPage.push(chat);
+			}
+			if (!pageChanged) {
+				return page;
+			}
+			changed = true;
+			return nextPage;
+		});
+		if (!changed) {
+			continue;
+		}
+		snapshot.push([queryKey, data]);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, {
+			...data,
+			pages,
+		});
+	}
+
+	return snapshot;
+};
+
+const restoreChatLists = (
+	queryClient: QueryClient,
+	snapshot: ChatListSnapshot,
+) => {
+	for (const [queryKey, data] of snapshot) {
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, data);
+	}
+};
+
+type SetChatReadStateContext = {
+	readonly previousChat?: TypesGen.Chat;
+	readonly previousLists: ChatListSnapshot;
+};
+
+/**
+ * Moves the owner's read cursor for a chat, which drives the sidebar's
+ * unread indicator. Opening a chat marks it read on its own, so this
+ * only exists for explicitly marking a chat read or unread.
+ */
+const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
+	onMutate: async (chatId: string): Promise<SetChatReadStateContext> => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		const previousLists = applyChatReadStateToLists(queryClient, chatId, read);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				has_unread: !read,
+			});
+		}
+		return { previousChat, previousLists };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context: SetChatReadStateContext | undefined,
+	) => {
+		// Restore before invalidating so a failed refetch still leaves the
+		// rejected read state off the screen.
+		if (context) {
+			restoreChatLists(queryClient, context.previousLists);
+		}
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+		void invalidateChatListQueries(queryClient);
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+	},
+});
+
+export const markChatRead = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, true);
+
+export const markChatUnread = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, false);
+
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
@@ -1785,6 +1938,27 @@ export const createChatMessage = (
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatPrompts(queryClient, chatId);
+	},
+});
+
+// Variant of createChatMessage for callers that only learn the chat ID
+// at mutate time, such as the new-chat page sending the first message
+// right after creating the chat.
+export const createChatMessageByChatId = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		chatId,
+		req,
+	}: {
+		chatId: string;
+		req: TypesGen.CreateChatMessageRequest;
+	}) => API.experimental.createChatMessage(chatId, req),
+	onSuccess: (
+		_: TypesGen.CreateChatMessageResponse,
+		{ chatId }: { chatId: string; req: TypesGen.CreateChatMessageRequest },
+	) => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);

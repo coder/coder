@@ -1987,7 +1987,7 @@ export interface Chat {
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
-	 * connect and disconnect.
+	 * connect and disconnect and via UpdateChatRequest.Read.
 	 */
 	readonly has_unread: boolean;
 	/**
@@ -3989,6 +3989,12 @@ export interface CreateChatRequest {
 	 * requires site-wide authority over that user.
 	 */
 	readonly owner_id?: string;
+	/**
+	 * Content is the initial user message. It is optional: when
+	 * empty, the chat is created idle with no initial user message
+	 * and generation starts with the first message POSTed to
+	 * /chats/{chat}/messages.
+	 */
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -8713,9 +8719,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
- * @deprecated the agents-access role was removed. Coder Agents chat
- * access is part of the organization-member permission floor, and
- * servers without this built-in role reject assigning it.
+ * RoleAgentsAccess is the organization role that grants Coder Agents
+ * chat access. Organizations include it in their default member roles
+ * unless an administrator removes it.
  */
 export const RoleAgentsAccess = "agents-access";
 
@@ -10200,6 +10206,17 @@ export interface UpdateChatRequest {
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
 	/**
+	 * Read moves the owner's read cursor, which drives HasUnread.
+	 * - nil: no change.
+	 * - true: mark every existing message as read.
+	 * - false: clear the cursor so the chat reads as unread again.
+	 *
+	 * The cursor is owner-scoped, so only the chat owner may set this.
+	 * Opening a chat's stream marks it read, so marking the chat the
+	 * owner is currently viewing as unread does not persist.
+	 */
+	readonly read?: boolean;
+	/**
 	 * PlanMode switches the chat's persistent plan mode.
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
@@ -10550,6 +10567,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
@@ -11072,6 +11090,7 @@ export interface UserPreferenceSettings {
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 

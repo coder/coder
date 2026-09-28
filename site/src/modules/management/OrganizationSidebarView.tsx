@@ -1,5 +1,5 @@
 import { CheckIcon, PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -40,7 +40,7 @@ type OrganizationsSettingsNavigationProps = {
  *
  * If organizations or their permissions are still loading, show a loader.
  */
-export const OrganizationSidebarView: FC<
+export const OrganizationSidebarView: React.FC<
 	OrganizationsSettingsNavigationProps
 > = ({ activeOrganization, orgPermissions, organizations, permissions }) => {
 	const sortedOrganizations = [...organizations].sort((a, b) => {
@@ -160,7 +160,7 @@ type OrganizationSettingsNavigationProps = {
 	orgPermissions: OrganizationPermissions;
 };
 
-const OrganizationSettingsNavigation: FC<
+const OrganizationSettingsNavigation: React.FC<
 	OrganizationSettingsNavigationProps
 > = ({ organization, orgPermissions }) => {
 	return (

@@ -16,7 +16,6 @@ export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
 
 type AgentArchiveStatusFilter = (typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
 export type AgentChatStatusFilter = (typeof AGENT_CHAT_STATUS_ORDER)[number];
-
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
 export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];

@@ -21,6 +21,7 @@ export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
 	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
@@ -74,8 +75,8 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
-	// Workspace file references render via the display-state
-	// placeholder, not as standalone timeline blocks.
+	// Workspace file references render as chips from the display
+	// state, not as standalone timeline blocks.
 	const visibleBlocks = parsed.blocks.filter(
 		(block) =>
 			block.type !== "workspace-file-reference" &&
@@ -156,9 +157,10 @@ export const deriveMessageDisplayState = ({
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
-	const workspaceFileReferenceCount = isUser
-		? parsed.blocks.filter(isWorkspaceFileReferenceBlock).length
-		: 0;
+	const workspaceFileBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
+		: [];
+	const workspaceFileReferenceCount = workspaceFileBlocks.length;
 	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
@@ -186,6 +188,7 @@ export const deriveMessageDisplayState = ({
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
+		workspaceFileBlocks,
 		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,

@@ -1203,6 +1203,63 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, member.ID, chat.OwnerID)
 	})
 
+	t.Run("AgentsAccessDefaultRole", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		createChat := func() error {
+			_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content: []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "hello"},
+				},
+			})
+			return err
+		}
+		setDefaults := func(roles []string) {
+			t.Helper()
+			org, err := rawDB.GetOrganizationByID(ctx, firstUser.OrganizationID)
+			require.NoError(t, err)
+			_, err = rawDB.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+				ID:                    org.ID,
+				UpdatedAt:             dbtime.Now(),
+				Name:                  org.Name,
+				DisplayName:           org.DisplayName,
+				Description:           org.Description,
+				Icon:                  org.Icon,
+				DefaultOrgMemberRoles: roles,
+			})
+			require.NoError(t, err)
+		}
+		setMemberRoles := func(roles []string) {
+			t.Helper()
+			_, err := client.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, member.ID.String(), codersdk.UpdateRoles{Roles: roles})
+			require.NoError(t, err)
+		}
+
+		setDefaults([]string{codersdk.RoleOrganizationWorkspaceAccess})
+		requireSDKError(t, createChat(), http.StatusForbidden)
+
+		setMemberRoles([]string{codersdk.RoleAgentsAccess})
+		require.NoError(t, createChat())
+
+		setMemberRoles([]string{})
+		requireSDKError(t, createChat(), http.StatusForbidden)
+
+		setDefaults(rbac.DefaultOrgMemberRoles())
+		require.NoError(t, createChat())
+	})
+
 	t.Run("WithReasoningEffort", func(t *testing.T) {
 		t.Parallel()
 
@@ -1669,14 +1726,16 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
 
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		// Empty content creates an idle chat; see
+		// TestPostChats_EmptyContent for the full behavior.
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content:        nil,
 		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Content is required.", sdkErr.Message)
-		require.Equal(t, "Content cannot be empty.", sdkErr.Detail)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
 	})
 
 	t.Run("EmptyText", func(t *testing.T) {
@@ -11069,6 +11128,148 @@ func TestPostChats_AutomaticTitleGenerationPasteOnly(t *testing.T) {
 	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 }
 
+// TestPostChats_EmptyContent verifies chats can be created without an
+// initial message. The chat starts idle in `waiting` with the
+// placeholder title and only system messages, can be archived right
+// away (the cleanup path for clients whose post-create work fails),
+// and its first message inserts directly instead of queueing.
+func TestPostChats_EmptyContent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateIdleThenFirstMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
+		require.Equal(t, chatprompt.DefaultChatTitle, chat.Title)
+
+		messagesResp, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		for _, msg := range messagesResp.Messages {
+			require.NotEqual(t, codersdk.ChatMessageRoleUser, msg.Role, "an empty create must not insert a user message")
+		}
+		require.Empty(t, messagesResp.QueuedMessages)
+
+		// The chat is idle, so the first message inserts directly
+		// (W -> R0) rather than queueing behind a running turn.
+		messageResp, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+		require.False(t, messageResp.Queued)
+		require.NotNil(t, messageResp.Message)
+	})
+
+	t.Run("ArchiveImmediately", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusWaiting, chat.Status)
+
+		// An idle chat archives without waiting for any generation,
+		// so clients can clean up when post-create work fails.
+		archived := true
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: &archived})
+		require.NoError(t, err)
+
+		refreshed, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.True(t, refreshed.Archived)
+	})
+}
+
+// TestPostChatMessages_TitleGenerationForEmptyCreatedChat verifies
+// that a chat created without an initial message gets its automatic
+// title when the first message is posted instead of at create time.
+func TestPostChatMessages_TitleGenerationForEmptyCreatedChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	titleRequested := make(chan struct{}, 1)
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		if bytes.Contains(req.RawBody, []byte("propose_title")) {
+			select {
+			case titleRequested <- struct{}{}:
+			default:
+			}
+		}
+		return chattest.OpenAINonStreamingResponse(`{"title": "Generated Title"}`)
+	})
+
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithBaseURL(t, client, baseURL)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, chatprompt.DefaultChatTitle, chat.Title, "empty creates carry the placeholder title")
+
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "name this chat please"}},
+	})
+	require.NoError(t, err)
+
+	select {
+	case <-titleRequested:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for automatic title generation after the first message")
+	}
+
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+}
+
+// TestPostChatMessages_FallbackTitleForEmptyCreatedChat verifies that
+// the first message on an empty-created chat persists the fallback
+// title even when automatic title generation fails.
+func TestPostChatMessages_FallbackTitleForEmptyCreatedChat(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := newChatClientWithoutAIBridge(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelWithTitleFailure(t, client)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	const text = "summarize the failing upload integration tests for me"
+	_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: text}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	refreshed, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, chatprompt.FallbackTitle(text), refreshed.Title)
+}
+
 func TestGetChatDiffStatus(t *testing.T) {
 	t.Parallel()
 
@@ -15289,6 +15490,55 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		require.Equal(t, ptr.Ref("high"), chat.LastReasoningEffort)
 	})
 
+	t.Run("EmptyCreateFirstMessageUsesSavedReasoningEffort", func(t *testing.T) {
+		reasoningModel, err := adminClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
+			AIProviderID: &overrideProvider.ID,
+			Model:        "claude-root-personal-empty-" + uuid.NewString(),
+			ContextLimit: &contextLimit,
+			ModelConfig: &codersdk.ChatModelCallConfig{
+				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+					Default: ptr.Ref("medium"),
+					Max:     ptr.Ref("high"),
+				},
+			},
+		})
+		require.NoError(t, err)
+		err = adminClient.UpdateUserChatPersonalModelOverride(ctx, firstUser.OrganizationID, codersdk.Me, codersdk.ChatPersonalModelOverrideContextRoot, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+			Mode:            codersdk.ChatPersonalModelOverrideModeModel,
+			ModelConfigID:   reasoningModel.ID.String(),
+			ReasoningEffort: ptr.Ref("high"),
+		})
+		require.NoError(t, err)
+
+		sendFirstMessage := func(modelConfigID *uuid.UUID) database.Chat {
+			t.Helper()
+			chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, reasoningModel.ID, chat.LastModelConfigID)
+			require.Nil(t, chat.LastReasoningEffort)
+
+			_, err = adminClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content:       []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "first message"}},
+				ModelConfigID: modelConfigID,
+			})
+			require.NoError(t, err)
+			storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+			require.NoError(t, err)
+			return storedChat
+		}
+
+		storedChat := sendFirstMessage(nil)
+		require.True(t, storedChat.LastReasoningEffort.Valid)
+		require.Equal(t, database.ChatReasoningEffortHigh, storedChat.LastReasoningEffort.ChatReasoningEffort)
+
+		// The override effort belongs to its model, so a send that
+		// targets another model must not inherit it.
+		storedChat = sendFirstMessage(ptr.Ref(defaultModel.ID))
+		require.False(t, storedChat.LastReasoningEffort.Valid)
+	})
+
 	t.Run("CrossOrgRootModelIsUnrepresentable", func(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		orgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -18140,5 +18390,84 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 					"owner must not receive 403")
 			}
 		}
+	})
+}
+
+func TestChatReadState(t *testing.T) {
+	t.Parallel()
+
+	hasUnread := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) bool {
+		t.Helper()
+
+		chats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		for _, chat := range chats {
+			if chat.ID == chatID {
+				return chat.HasUnread
+			}
+		}
+		require.FailNow(t, "chat not found in list")
+		return false
+	}
+
+	t.Run("MarkReadAndUnread", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "read state chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// A chat the owner has never opened starts unread.
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(true),
+		}))
+		require.False(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(false),
+		}))
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+	})
+
+	t.Run("NonOwnerForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           otherUser.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "other user chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// The deployment owner may update the chat but must not move
+		// another user's read cursor, and the rejection must land before
+		// any other field of the same request is written.
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("renamed by admin"),
+			Read:  ptr.Ref(true),
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		persisted, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "other user chat", persisted.Title)
 	})
 }

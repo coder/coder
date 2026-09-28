@@ -13202,12 +13202,13 @@ WHERE id = $2::uuid
 `
 
 type UpdateChatLastReadMessageIDParams struct {
-	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
-	ID                uuid.UUID `db:"id" json:"id"`
+	LastReadMessageID sql.NullInt64 `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
 }
 
 // Updates the last read message ID for a chat. This is used to track
-// which messages the owner has seen, enabling unread indicators.
+// which messages the owner has seen, enabling unread indicators. A NULL
+// value clears the cursor, marking every message unread again.
 func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
 	return err
@@ -14401,7 +14402,8 @@ const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+	client_session_id
 )
 SELECT
     u.id,
@@ -14421,7 +14423,8 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.client_session_id, '')
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -14440,7 +14443,8 @@ FROM (
         unnest($14::text[]) AS slug_or_port,
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
-        unnest($17::timestamptz[]) AS disconnect_time
+        unnest($17::timestamptz[]) AS disconnect_time,
+        unnest($18::text[]) AS client_session_id
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -14489,6 +14493,7 @@ type BatchUpsertConnectionLogsParams struct {
 	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	ClientSessionID  []string         `db:"client_session_id" json:"client_session_id"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -14510,6 +14515,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.ConnectionID),
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
+		pq.Array(arg.ClientSessionID),
 	)
 	return err
 }
@@ -14692,7 +14698,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -14906,6 +14912,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.ClientSessionID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -31537,6 +31544,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -31547,7 +31556,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE
@@ -31807,6 +31820,23 @@ func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const getUserCollapseAssistantSteps = `-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_collapse_assistant_steps'
+`
+
+func (q *sqlQuerier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserCollapseAssistantSteps, userID)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const getUserCount = `-- name: GetUserCount :one
@@ -32441,6 +32471,33 @@ func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg Upda
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const updateUserCollapseAssistantSteps = `-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_collapse_assistant_steps', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps
+`
+
+type UpdateUserCollapseAssistantStepsParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	CollapseAssistantSteps bool      `db:"collapse_assistant_steps" json:"collapse_assistant_steps"`
+}
+
+func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCollapseAssistantSteps, arg.UserID, arg.CollapseAssistantSteps)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

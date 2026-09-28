@@ -1546,8 +1546,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Kick off best-effort automatic title generation now that the
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
-	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
+	// on the first user turn. Empty creates title on their first send.
+	if len(contentBlocks) > 0 {
+		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
+	}
 
 	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
@@ -2348,7 +2350,8 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, and pinned-chat ordering.
+// workspace binding, archiving, pinning, pinned-chat ordering, and the
+// owner's read state.
 //
 // @Summary Update chat
 // @ID update-chat
@@ -2397,6 +2400,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+	}
+
+	// The read cursor is owner-scoped, so an admin with update
+	// permission must not move another user's unread state. Checked
+	// before any write so a rejected request does not commit the
+	// other fields of a multi-field update.
+	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its read state.",
+		})
+		return
 	}
 
 	if req.Title != nil {
@@ -2569,6 +2583,31 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 					Detail:  err.Error(),
 				})
 			}
+			return
+		}
+	}
+
+	if req.Read != nil {
+		markRead := *req.Read
+		var err error
+		if markRead {
+			err = api.advanceChatReadCursor(ctx, chat.ID)
+		} else {
+			err = api.clearChatReadCursor(ctx, chat.ID)
+		}
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			action := "read"
+			if !markRead {
+				action = "unread"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to mark chat as %s.", action),
+				Detail:  err.Error(),
+			})
 			return
 		}
 	}
@@ -2825,6 +2864,24 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Chats created without an initial message have no stored effort,
+	// so apply the personal override postChats would have applied.
+	if reasoningEffort == nil && !chat.LastReasoningEffort.Valid {
+		overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, chat.OwnerID, chat.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve chat model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if overrideEffort != nil &&
+			overrideModelConfigID == cmp.Or(modelConfigID, chat.LastModelConfigID) &&
+			chatprovider.IsValidReasoningEffort(*overrideEffort) {
+			reasoningEffort = overrideEffort
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
@@ -2893,6 +2950,17 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
 		})
 		return
+	}
+
+	// Pass the inserted message as the snapshot: SendMessage published
+	// the ownership hint, so a fresh history read could already contain
+	// the assistant reply and disqualify title generation.
+	if sendResult.FirstUserTurn {
+		api.chatDaemon.GenerateChatTitleForMessagesAsync(
+			ctx,
+			sendResult.Chat,
+			[]database.ChatMessage{sendResult.Message},
+		)
 	}
 
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
@@ -3229,32 +3297,48 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // messages as seen. This is called on stream connect and disconnect
 // to avoid per-message API calls during active streaming.
 func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	if err := api.advanceChatReadCursor(ctx, chatID); err != nil {
+		api.Logger.Warn(ctx, "failed to mark chat as read",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// advanceChatReadCursor moves the chat's owner-scoped read cursor to the
+// latest assistant message, so nothing in the chat is unread.
+func (api *API) advanceChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
 	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// No assistant messages yet, nothing to mark as read.
-		return
+		// No assistant messages yet, so nothing can be unread.
+		return nil
 	}
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
+		return xerrors.Errorf("get last assistant message: %w", err)
 	}
 
-	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chatID,
-		LastReadMessageID: lastMsg.ID,
-	})
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to update chat last read message ID",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("update chat last read message id: %w", err)
 	}
+	return nil
+}
+
+// clearChatReadCursor clears the chat's owner-scoped read cursor, so every
+// assistant message in the chat counts as unread again.
+func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: sql.NullInt64{},
+	}); err != nil {
+		return xerrors.Errorf("clear chat last read message id: %w", err)
+	}
+	return nil
 }
 
 // @Summary Stream chat events via WebSockets
@@ -4408,73 +4492,85 @@ func (api *API) resolveCreateChatModelConfigID(
 		return *req.ModelConfigID, nil, 0, nil
 	}
 
-	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, userID, req.OrganizationID)
 	if err != nil {
 		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
 	}
-	if !personalOverridesEnabled {
-		id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
-		return id, nil, status, resp
-	}
-
-	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
-		UserID:         userID,
-		OrganizationID: req.OrganizationID,
-		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to resolve chat model config.",
-			Detail:  err.Error(),
-		}
-	}
-	if err == nil {
-		switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
-		case codersdk.ChatPersonalModelOverrideModeChatDefault:
-		case codersdk.ChatPersonalModelOverrideModeModel:
-			if override.ModelConfigID.Valid {
-				_, reason, err := api.userCanUseChatModelConfig(
-					ctx,
-					userID,
-					req.OrganizationID,
-					override.ModelConfigID.UUID,
-				)
-				if err != nil {
-					return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-						Message: "Failed to resolve chat model config.",
-						Detail:  err.Error(),
-					}
-				}
-				if reason == chatModelConfigAvailable {
-					var effort *string
-					if override.ReasoningEffort.Valid {
-						effort = &override.ReasoningEffort.String
-					}
-					return override.ModelConfigID.UUID, effort, 0, nil
-				}
-				api.Logger.Debug(
-					ctx,
-					"personal root model override is unavailable, using default model",
-					slog.F("user_id", userID),
-					slog.F("model_config_id", override.ModelConfigID.UUID),
-					slog.F("reason", reason),
-				)
-			}
-		default:
-			api.Logger.Warn(
-				ctx,
-				"unsupported personal root model override mode, using default model",
-				slog.F("user_id", userID),
-				slog.F("mode", override.Mode),
-			)
-		}
+	if overrideModelConfigID != uuid.Nil {
+		return overrideModelConfigID, overrideEffort, 0, nil
 	}
 
 	id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
 	return id, nil, status, resp
+}
+
+// personalRootModelOverride returns the user's available personal root
+// model override and its reasoning effort, or uuid.Nil when personal
+// overrides are disabled or none applies.
+func (api *API) personalRootModelOverride(
+	ctx context.Context,
+	userID uuid.UUID,
+	organizationID uuid.UUID,
+) (uuid.UUID, *string, error) {
+	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	if !personalOverridesEnabled {
+		return uuid.Nil, nil, nil
+	}
+
+	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
+	case codersdk.ChatPersonalModelOverrideModeChatDefault:
+	case codersdk.ChatPersonalModelOverrideModeModel:
+		if override.ModelConfigID.Valid {
+			_, reason, err := api.userCanUseChatModelConfig(
+				ctx,
+				userID,
+				organizationID,
+				override.ModelConfigID.UUID,
+			)
+			if err != nil {
+				return uuid.Nil, nil, err
+			}
+			if reason == chatModelConfigAvailable {
+				var effort *string
+				if override.ReasoningEffort.Valid {
+					effort = &override.ReasoningEffort.String
+				}
+				return override.ModelConfigID.UUID, effort, nil
+			}
+			api.Logger.Debug(
+				ctx,
+				"personal root model override is unavailable, using default model",
+				slog.F("user_id", userID),
+				slog.F("model_config_id", override.ModelConfigID.UUID),
+				slog.F("reason", reason),
+			)
+		}
+	default:
+		api.Logger.Warn(
+			ctx,
+			"unsupported personal root model override mode, using default model",
+			slog.F("user_id", userID),
+			slog.F("mode", override.Mode),
+		)
+	}
+	return uuid.Nil, nil, nil
 }
 
 func (api *API) defaultCreateChatModelConfigID(
@@ -7078,6 +7174,14 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	string,
 	*codersdk.Response,
 ) {
+	// Empty content creates an idle chat with no initial user
+	// message. Generation starts with the first message POSTed to
+	// /chats/{chat}/messages. This lets clients sequence work that
+	// needs the chat ID before the first turn, such as workspace
+	// file uploads.
+	if len(req.Content) == 0 {
+		return nil, "", nil
+	}
 	// Chat creation has no chat ID yet, so workspace-file-reference
 	// parts are rejected (they require an existing chat's uploads).
 	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")

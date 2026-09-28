@@ -13995,6 +13995,12 @@ const docTemplate = `{
                         "description": "Return data instead of HTTP 404 if the workspace is deleted",
                         "name": "include_deleted",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Comma-separated list of related data to include (e.g. ` + "`" + `template,latest_build.resources.agents.*` + "`" + `). Omit to include everything.",
+                        "name": "include_related",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -19836,7 +19842,7 @@ const docTemplate = `{
                     }
                 },
                 "has_unread": {
-                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
+                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect and via UpdateChatRequest.Read.",
                     "type": "boolean"
                 },
                 "id": {
@@ -22161,6 +22167,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
                 "content": {
+                    "description": "Content is the initial user message. It is optional: when\nempty, the chat is created idle with no initial user message\nand generation starts with the first message POSTed to\n/chats/{chat}/messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
@@ -30116,6 +30123,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "read": {
+                    "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
+                    "type": "boolean"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -30586,6 +30597,9 @@ const docTemplate = `{
                 },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
@@ -31283,6 +31297,9 @@ const docTemplate = `{
                 },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "collapse_assistant_steps": {
+                    "type": "boolean"
                 },
                 "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"

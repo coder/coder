@@ -84,7 +84,7 @@ export const PrStatusSubmenu: Story = {
 		const user = await openFilterMenu(canvasElement);
 		await user.click(
 			await within(canvasElement.ownerDocument.body).findByRole("menuitem", {
-				name: /PR status/,
+				name: "PR",
 			}),
 		);
 	},
