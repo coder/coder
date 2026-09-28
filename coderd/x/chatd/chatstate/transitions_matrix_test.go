@@ -41,11 +41,11 @@ const (
 	// messages so the post-mutation queue stays non-empty.
 	scenarioMulti scenario = "multi"
 	// scenarioHeadTarget marks multi-queued PromoteQueuedMessage
-	// cases that target the queue head. For R1/I1 head-target is
-	// reorder-only: no rows are reordered, so queue order is
-	// unchanged and queue_version advances only when the head's
-	// edit had to end. For E1/A1 head-target still pops the head
-	// into history.
+	// cases that target the queue head. For R1, R1P, I1, and I1P
+	// head-target is reorder-only: no rows are reordered, so queue
+	// order is unchanged, and queue_version advances only from R1P
+	// and I1P, where the head's edit ends. For E1, E1P, A1, and A1P
+	// head-target still pops the head into history.
 	scenarioHeadTarget scenario = "head_target"
 	// scenarioNonHead marks multi-queued PromoteQueuedMessage cases
 	// that target a non-head queued message so the target moves to
