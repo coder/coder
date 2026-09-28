@@ -249,7 +249,7 @@ export const WaitingBehindHeadUnderEdit: Story = {
 export const HeadUnderEdit: Story = {
 	args: {
 		queuedMessageUnderEditID: 1,
-		chatPaused: true,
+		isChatPaused: true,
 		showEnterToSendHint: false,
 		messages: [
 			{
@@ -271,7 +271,7 @@ export const HeadUnderEdit: Story = {
 export const PausedEditBehindHead: Story = {
 	args: {
 		queuedMessageUnderEditID: 1,
-		chatPaused: true,
+		isChatPaused: true,
 		showEnterToSendHint: false,
 		messages: [
 			{
