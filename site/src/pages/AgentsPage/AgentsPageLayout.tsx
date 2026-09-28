@@ -81,7 +81,10 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	getAgentSidebarFilters,
+} from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
@@ -192,15 +195,16 @@ const AgentsPageLayout: React.FC = () => {
 	}, []);
 
 	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const chatStatusFilter =
-		sidebarFilters.chatStatuses.length === 1
-			? sidebarFilters.chatStatuses[0]
-			: undefined;
+	const statuses =
+		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
+			? undefined
+			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
-			chatStatus: chatStatusFilter,
+			statuses,
+			chatStatus: sidebarFilters.unread ? "unread" : undefined,
 			sources: sidebarFilters.sources,
 		}),
 	);

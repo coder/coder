@@ -621,20 +621,53 @@ describe("invalidateChatListQueries", () => {
 		).not.toBe(true);
 	});
 
-	it("prepends new root chats to filtered list caches", () => {
-		const queryClient = createTestQueryClient();
-		const activeChat = makeChat("active-created", { archived: false });
+	it.each<{ status: TypesGen.ChatStatus; matchingFilters: string[] }>([
+		{ status: "waiting", matchingFilters: ["idle"] },
+		{ status: "running", matchingFilters: ["working"] },
+		{ status: "interrupting", matchingFilters: ["working"] },
+		{ status: "error", matchingFilters: ["error", "attention"] },
+		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+	])(
+		"prepends $status root chats only to matching list caches",
+		({ status, matchingFilters }) => {
+			const queryClient = createTestQueryClient();
+			const chat = makeChat("active-created", { archived: false, status });
+			const filters: { name: string; input: ChatListInput }[] = [
+				{ name: "unfiltered", input: {} },
+				{ name: "idle", input: { statuses: ["waiting"] } },
+				{ name: "working", input: { statuses: ["running"] } },
+				{ name: "error", input: { statuses: ["error"] } },
+				{ name: "action", input: { statuses: ["requires_action"] } },
+				{
+					name: "attention",
+					input: { statuses: ["error", "requires_action"] },
+				},
+				{
+					name: "all",
+					input: {
+						statuses: ["requires_action", "error", "running", "waiting"],
+					},
+				},
+				{ name: "archived", input: { archived: true, statuses: [status] } },
+			];
+			for (const { input } of filters) {
+				seedInfiniteChats(queryClient, [], input);
+			}
 
-		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
-			archived: false,
-		});
+			prependToInfiniteChatsCache(queryClient, chat);
+			prependToInfiniteChatsCache(queryClient, chat);
 
-		prependToInfiniteChatsCache(queryClient, activeChat);
-
-		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
-			activeChat,
-		);
-	});
+			for (const { name, input } of filters) {
+				const matches =
+					name === "unfiltered" ||
+					name === "all" ||
+					matchingFilters.includes(name);
+				expect(readInfiniteChats(queryClient, input), name).toEqual(
+					matches ? [chat] : [],
+				);
+			}
+		},
+	);
 });
 
 describe("planModeFieldsForCreateMessage", () => {
@@ -2144,6 +2177,7 @@ describe("chatListKey shape", () => {
 			archived: true,
 			prStatuses: [],
 			status: "all",
+			statuses: [],
 			sources: [],
 		});
 	});
@@ -2170,6 +2204,36 @@ describe("getChatListQueryString", () => {
 		expect(
 			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
 		).toBe("archived:false pr_status:none");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe("archived:false status:requires_action,running,interrupting");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					chatStatus: "unread",
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe(
+			"archived:false has_unread:true status:requires_action,running,interrupting",
+		);
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: [
+						"requires_action",
+						"error",
+						"running",
+						"interrupting",
+						"waiting",
+					],
+				}),
+			),
+		).toBe("archived:false");
 	});
 });
 

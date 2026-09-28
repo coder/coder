@@ -17576,6 +17576,27 @@ func TestGetChatsFilter(t *testing.T) {
 	unreadNoPR := createRoot("unread no pr")
 	makeUnread(unreadNoPR.ID)
 
+	setStatus := func(chat database.Chat, status database.ChatStatus) {
+		t.Helper()
+		_, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: status,
+		})
+		require.NoError(t, err)
+	}
+
+	// Inbox status is computed from lifecycle status, then unread.
+	// A running chat with unread messages stays working.
+	workingUnread := createRoot("working unread chat")
+	makeUnread(workingUnread.ID)
+	setStatus(workingUnread, database.ChatStatusRunning)
+	needsAttention := createRoot("needs attention chat")
+	setStatus(needsAttention, database.ChatStatusRequiresAction)
+	failedChat := createRoot("failed chat")
+	setStatus(failedChat, database.ChatStatusError)
+	interruptingChat := createRoot("interrupting chat")
+	setStatus(interruptingChat, database.ChatStatusInterrupting)
+
 	// Read chat (message exists but marked read).
 	readChat := createRoot("read chat")
 	makeUnread(readChat.ID)
@@ -17618,11 +17639,13 @@ func TestGetChatsFilter(t *testing.T) {
 		draftPR.ID, openPR.ID, mergedPR.ID, closedPR.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID,
 		prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID,
+		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
 	}
 	noPRRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID, clearedPR.ID,
+		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
 	}
 	noPROrOpenRootIDs := append(append([]uuid.UUID{}, noPRRootIDs...),
 		openPR.ID, prNumberChat.ID, prTitleChat.ID)
@@ -17656,9 +17679,18 @@ func TestGetChatsFilter(t *testing.T) {
 		{"PRStatus/NoneAndOpen", database.GetChatsParams{PullRequestStatuses: []string{"none", "open"}}, noPROrOpenRootIDs},
 
 		// Unread filter.
-		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
+		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID, workingUnread.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID}},
+
+		// chat_status enum, the same value the sidebar row icon uses.
+		{"Status/Running", database.GetChatsParams{ChatStatuses: []string{"running"}}, []uuid.UUID{workingUnread.ID}},
+		{"Status/Interrupting", database.GetChatsParams{ChatStatuses: []string{"interrupting"}}, []uuid.UUID{interruptingChat.ID}},
+		{"Status/RequiresAction", database.GetChatsParams{ChatStatuses: []string{"requires_action"}}, []uuid.UUID{needsAttention.ID}},
+		{"Status/Error", database.GetChatsParams{ChatStatuses: []string{"error"}}, []uuid.UUID{failedChat.ID}},
+		{"Status/Waiting", database.GetChatsParams{ChatStatuses: []string{"waiting"}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, draftPR.ID, unreadNoPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
+		{"Status/RunningAndError", database.GetChatsParams{ChatStatuses: []string{"running", "error"}}, []uuid.UUID{workingUnread.ID, failedChat.ID}},
+		{"Status/EmptyIsNoOp", database.GetChatsParams{ChatStatuses: nil}, allRootIDs},
 
 		// PR number filter.
 		{"PRNumber/ExactMatch", database.GetChatsParams{PrNumber: 42}, []uuid.UUID{prNumberChat.ID}},

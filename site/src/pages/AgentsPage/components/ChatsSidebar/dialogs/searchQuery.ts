@@ -1,9 +1,13 @@
-import { CHAT_LIST_PR_STATUS_ORDER } from "#/api/queries/chats";
+import {
+	CHAT_LIST_PR_STATUS_ORDER,
+	CHAT_STATUS_GROUP_ORDER,
+} from "#/api/queries/chats";
 import type { SearchFilter } from "./ChatSearchInput";
 
 export const CHAT_SEARCH_FILTER_KEYS = [
 	"has_unread",
 	"archived",
+	"status",
 	"pr_status",
 	"diff_url",
 ] as const;
@@ -38,7 +42,7 @@ export const normalizeChatSearchFilterValue = (
 	if (key === "diff_url") {
 		return addDefaultURLScheme(sanitizedValue);
 	}
-	if (key === "pr_status") {
+	if (isCommaSeparatedChatSearchFilter(key)) {
 		return sanitizedValue
 			.split(/[\s,]+/)
 			.filter(Boolean)
@@ -48,6 +52,13 @@ export const normalizeChatSearchFilterValue = (
 };
 
 const validPRStatuses = new Set<string>(CHAT_LIST_PR_STATUS_ORDER);
+const validChatStatuses = new Set<string>(CHAT_STATUS_GROUP_ORDER);
+
+// These values are lists, so a trailing comma means the user is still
+// typing the next entry.
+export const isCommaSeparatedChatSearchFilter = (key: string): boolean => {
+	return key === "pr_status" || key === "status";
+};
 
 const validBooleans = new Set(["true", "false"]);
 
@@ -72,6 +83,10 @@ const CHAT_SEARCH_FILTER_VALIDATORS: Readonly<
 		value
 			.split(",")
 			.every((status) => validPRStatuses.has(status.toLowerCase())),
+	status: (value) =>
+		value
+			.split(",")
+			.every((status) => validChatStatuses.has(status.toLowerCase())),
 	diff_url: isValidDiffURL,
 };
 
@@ -210,7 +225,7 @@ export const extractTypedFilters = (
 			.trim();
 		const candidateTokens = [token.value];
 		let nextTokenIndex = tokenIndex + 1;
-		if (key === "pr_status" && value.endsWith(",")) {
+		if (isCommaSeparatedChatSearchFilter(key) && value.endsWith(",")) {
 			while (value.endsWith(",") && nextTokenIndex < tokens.length) {
 				const nextToken = tokens[nextTokenIndex];
 				value = `${value} ${nextToken.value}`;
@@ -236,7 +251,7 @@ export const extractTypedFilters = (
 		} else {
 			filtersByKey.set(key, {
 				key,
-				value: key === "pr_status" ? normalizedValue : value,
+				value: isCommaSeparatedChatSearchFilter(key) ? normalizedValue : value,
 			});
 		}
 		tokenIndex = nextTokenIndex;

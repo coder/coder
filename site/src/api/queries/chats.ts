@@ -48,12 +48,42 @@ export type ChatListPRStatusFilter =
 	| "merged"
 	| "closed"
 	| "none";
-export type ChatListStatusFilter = "read" | "unread";
+type ChatListStatusFilter = "read" | "unread";
+// Interrupting is a brief stop-in-progress state, so it is not its own
+// filter. Selecting Working includes it.
+export const CHAT_STATUS_FILTER_ORDER = [
+	"requires_action",
+	"error",
+	"running",
+	"waiting",
+] as const satisfies readonly Exclude<TypesGen.ChatStatus, "interrupting">[];
+export const CHAT_STATUS_GROUP_ORDER = [
+	"requires_action",
+	"error",
+	"running",
+	"interrupting",
+	"waiting",
+] as const satisfies readonly TypesGen.ChatStatus[];
+type _Assert<T extends true> = T;
+type _ChatStatusFilterCovers = _Assert<
+	Exclude<
+		TypesGen.ChatStatus,
+		"interrupting"
+	> extends (typeof CHAT_STATUS_FILTER_ORDER)[number]
+		? true
+		: false
+>;
+type _ChatStatusGroupCovers = _Assert<
+	TypesGen.ChatStatus extends (typeof CHAT_STATUS_GROUP_ORDER)[number]
+		? true
+		: false
+>;
 
 type ChatListParams = Readonly<{
 	archived: boolean;
 	prStatuses: readonly ChatListPRStatusFilter[];
 	status: ChatListStatusFilter | "all";
+	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
 }>;
 
@@ -61,6 +91,7 @@ export type ChatListInput = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
+	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
 }>;
 
@@ -80,6 +111,9 @@ export const CHAT_LIST_PR_STATUS_ORDER = [
 const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(
 	CHAT_LIST_PR_STATUS_ORDER,
 );
+const chatStatusFilterSet = new Set<TypesGen.ChatStatus>(
+	CHAT_STATUS_FILTER_ORDER,
+);
 
 type InfiniteChatsCacheData = InfiniteData<TypesGen.Chat[]>;
 
@@ -98,6 +132,23 @@ export const canonicalizeChatListPRStatuses = (
 	}
 
 	return CHAT_LIST_PR_STATUS_ORDER.filter((status) => selected.has(status));
+};
+
+/** Shared ordering keeps URL serialization stable. */
+const canonicalizeChatListStatuses = (
+	statuses: Iterable<unknown>,
+): readonly TypesGen.ChatStatus[] => {
+	const selected = new Set<TypesGen.ChatStatus>();
+	for (const status of statuses) {
+		if (
+			typeof status === "string" &&
+			chatStatusFilterSet.has(status as TypesGen.ChatStatus)
+		) {
+			selected.add(status as TypesGen.ChatStatus);
+		}
+	}
+
+	return CHAT_STATUS_FILTER_ORDER.filter((status) => selected.has(status));
 };
 
 const canonicalWorkspaceIds = (
@@ -142,9 +193,8 @@ export const updateInfiniteChatsCache = (
  * in the cache, but only if the chat doesn't already exist in any
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
- * runs independently on each page. Lists whose archived filter
- * conflicts with the chat's archive state are skipped, so an active
- * chat is never inserted into an archived-only list.
+ * runs independently on each page. Lists whose archive or status
+ * filters exclude the chat are skipped.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
@@ -156,6 +206,24 @@ export const prependToInfiniteChatsCache = (
 	for (const [queryKey] of queries) {
 		const archivedFilter = archivedFilterForChatListKey(queryKey);
 		if (archivedFilter !== undefined && archivedFilter !== chat.archived) {
+			continue;
+		}
+		const params = queryKey[chatListFamilyKey.length];
+		const statuses =
+			queryKey.length === chatListFamilyKey.length + 1 &&
+			params !== null &&
+			typeof params === "object" &&
+			"statuses" in params &&
+			Array.isArray(params.statuses)
+				? canonicalizeChatListStatuses(params.statuses)
+				: [];
+		if (
+			statuses.length > 0 &&
+			statuses.length < CHAT_STATUS_FILTER_ORDER.length &&
+			!statuses.includes(
+				chat.status === "interrupting" ? "running" : chat.status,
+			)
+		) {
 			continue;
 		}
 		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
@@ -1100,6 +1168,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	archived: input?.archived ?? false,
 	prStatuses: canonicalizeChatListPRStatuses(input?.prStatuses ?? []),
 	status: input?.chatStatus ?? "all",
+	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
 });
 
@@ -1115,6 +1184,15 @@ export const getChatListQueryString = (
 	}
 	if (params.status !== "all") {
 		qParts.push(`has_unread:${params.status === "unread"}`);
+	}
+	if (
+		params.statuses.length > 0 &&
+		params.statuses.length < CHAT_STATUS_FILTER_ORDER.length
+	) {
+		const statuses = params.statuses.flatMap((status) =>
+			status === "running" ? (["running", "interrupting"] as const) : [status],
+		);
+		qParts.push(`status:${statuses.join(",")}`);
 	}
 	if (params.sources.length) {
 		qParts.push(`source:${params.sources.join(",")}`);

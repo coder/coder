@@ -568,6 +568,30 @@ export const ParameterizedFilterPillEnterCommit: Story = {
 	},
 };
 
+export const StatusFilterPill: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(mockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+		const toggleButton = body.getByRole("button", { name: "Toggle filters" });
+
+		await userEvent.click(toggleButton);
+		await userEvent.click(await body.findByText("Status"));
+		await userEvent.click(searchInput);
+		await userEvent.type(searchInput, "running");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: "status:running",
+			});
+		});
+	},
+};
+
 export const BackspaceRemovesFilter: Story = {
 	play: async () => {
 		const body = within(document.body);
