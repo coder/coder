@@ -1289,7 +1289,7 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: mcpDeploymentValues(t),
 	})
-	defer closer.Close()
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 	admin := coderdtest.CreateFirstUser(t, coderClient)
 
@@ -1317,6 +1317,8 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 
 	for _, toolset := range []string{"standard", "workspace"} {
 		t.Run(toolset, func(t *testing.T) {
+			t.Parallel()
+
 			// Connect with the template-admin user.
 			mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=" + toolset
 			ctx := testutil.Context(t, testutil.WaitLong)

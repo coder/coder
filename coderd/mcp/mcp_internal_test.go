@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/coder/aisdk-go"
-	"github.com/coder/coder/v2/codersdk/toolsdk"
-	"github.com/coder/coder/v2/testutil"
+	"testing"
+
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
+
+	"github.com/coder/aisdk-go"
+	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestRegisterSDKTool(t *testing.T) {
@@ -56,7 +58,7 @@ func TestRegisterSDKTool(t *testing.T) {
 
 			server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "1.0.0"}, nil)
 			if structured {
-				registerSDKTool(server, tool, toolsdk.Deps{}, true)
+				addSDKTool(server, tool, toolsdk.Deps{}, structuredResult)
 			} else {
 				RegisterSDKTool(server, tool, toolsdk.Deps{})
 			}

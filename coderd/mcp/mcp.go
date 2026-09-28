@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
@@ -124,7 +125,7 @@ func (s *Server) RegisterWorkspaceTools(client *codersdk.Client, opts ...func(*t
 			toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
 			toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
 			toolsdk.ToolNameWorkspaceListApps:
-			registerSDKTool(s.mcpServer, tool, deps, true)
+			addSDKTool(s.mcpServer, tool, deps, structuredResult)
 		}
 	}
 	return nil
@@ -164,10 +165,17 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client, opts ...func(*too
 
 // RegisterSDKTool registers a [toolsdk.GenericTool] with an MCP server.
 func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps) {
-	registerSDKTool(srv, sdkTool, tb, false)
+	addSDKTool(srv, sdkTool, tb, textResult)
 }
 
-func registerSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps, structured bool) {
+type resultFormat int
+
+const (
+	textResult resultFormat = iota
+	structuredResult
+)
+
+func addSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps, format resultFormat) {
 	if sdkTool.Schema.Properties == nil {
 		panic("developer error: schema properties cannot be nil")
 	}
@@ -215,7 +223,7 @@ func registerSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: string(result)}},
 		}
-		if structured {
+		if format == structuredResult {
 			var object map[string]json.RawMessage
 			if err := json.Unmarshal(result, &object); err == nil && object != nil {
 				response.StructuredContent = object
