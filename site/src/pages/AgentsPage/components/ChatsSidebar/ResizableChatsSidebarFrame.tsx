@@ -53,6 +53,7 @@ export const ResizableChatsSidebarFrame = ({
 			setMaxWidth(getLeftSidebarMaxWidth());
 			setWidth(clampLeftSidebarWidth(userWidth.current));
 		};
+		handleResize();
 		globalThis.addEventListener("resize", handleResize);
 		return () => globalThis.removeEventListener("resize", handleResize);
 	}, []);

@@ -1083,6 +1083,16 @@ describe("nextSidebarViewportSlide", () => {
 			expected: "in",
 		},
 		{
+			name: "keeps a running slide",
+			input: {
+				...chatRoute,
+				slide: "out",
+				isMobileViewport: true,
+				prevIsMobileViewport: true,
+			},
+			expected: "out",
+		},
+		{
 			name: "stops a stale out after navigating to the chat list",
 			input: {
 				...chatRoute,

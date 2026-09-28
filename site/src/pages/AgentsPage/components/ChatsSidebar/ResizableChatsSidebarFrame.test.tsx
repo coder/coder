@@ -131,6 +131,16 @@ describe("ResizableChatsSidebarFrame", () => {
 		);
 	});
 
+	it("keeps a resized width across window resizes", () => {
+		const handle = renderHandle();
+
+		fireEvent.keyDown(handle, { key: "End" });
+		const resizedWidth = handle.getAttribute("aria-valuenow");
+		fireEvent(window, new Event("resize"));
+
+		expect(handle).toHaveAttribute("aria-valuenow", resizedWidth);
+	});
+
 	it("reports the end of its own slide but not of a child animation", () => {
 		const onViewportSlideEnd = vi.fn();
 		render(
