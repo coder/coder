@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -8,6 +8,11 @@ import {
 	loadStoredLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
+
+const subscribeToResize = (onResize: () => void) => {
+	globalThis.addEventListener("resize", onResize);
+	return () => globalThis.removeEventListener("resize", onResize);
+};
 
 type ResizableChatsSidebarFrameProps = {
 	children: React.ReactNode;
@@ -29,11 +34,14 @@ export const ResizableChatsSidebarFrame = ({
 	viewportSlide = null,
 	onViewportSlideEnd,
 }: ResizableChatsSidebarFrameProps) => {
-	const [storedWidth] = useState(loadStoredLeftSidebarWidth);
-	const [width, setWidth] = useState(() => clampLeftSidebarWidth(storedWidth));
-	// The width the user chose, kept in memory because storage writes can fail.
-	const userWidth = useRef(storedWidth);
-	const [maxWidth, setMaxWidth] = useState(getLeftSidebarMaxWidth);
+	const maxWidth = useSyncExternalStore(
+		subscribeToResize,
+		getLeftSidebarMaxWidth,
+	);
+	// The width the user chose, kept in state because storage writes can fail.
+	const [userWidth, setUserWidthState] = useState(loadStoredLeftSidebarWidth);
+	// Derived rather than stored so a squeezed sidebar grows back.
+	const width = Math.min(maxWidth, userWidth);
 	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);
 	const activePointerId = useRef<number | null>(null);
@@ -42,21 +50,9 @@ export const ResizableChatsSidebarFrame = ({
 
 	const setUserWidth = (nextWidth: number) => {
 		const clampedWidth = clampLeftSidebarWidth(nextWidth);
-		userWidth.current = clampedWidth;
-		setWidth(clampedWidth);
+		setUserWidthState(clampedWidth);
 		persistLeftSidebarWidth(clampedWidth);
 	};
-
-	useEffect(() => {
-		// Clamp from the user's width so a squeezed sidebar grows back.
-		const handleResize = () => {
-			setMaxWidth(getLeftSidebarMaxWidth());
-			setWidth(clampLeftSidebarWidth(userWidth.current));
-		};
-		handleResize();
-		globalThis.addEventListener("resize", handleResize);
-		return () => globalThis.removeEventListener("resize", handleResize);
-	}, []);
 
 	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		// Only a primary left-button pointer starts a drag; a second pointer
