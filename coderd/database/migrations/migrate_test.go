@@ -1692,6 +1692,12 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 		UserID:         granted.ID,
 		Roles:          []string{"agents-access"},
 	})
+	grantedServiceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: optedOut.ID,
+		UserID:         grantedServiceAccount.ID,
+		Roles:          []string{"agents-access"},
+	})
 
 	upSQL, err := os.ReadFile("000587_remove_agents_access_role.up.sql")
 	require.NoError(t, err)
@@ -1701,6 +1707,16 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.Equal(t, []string{"agents-access"}, memberRoles(optedOut.ID, granted.ID))
 	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
 	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedIn.ID))
+	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
+
+	downSQL, err := os.ReadFile("000587_remove_agents_access_role.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(org.ID, user.ID))
+	require.Equal(t, []string{"agents-access"}, memberRoles(optedOut.ID, granted.ID))
+	require.Equal(t, []string{"agents-access"}, memberRoles(optedOut.ID, grantedServiceAccount.ID))
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
 	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
 
 	_, err = sqlDB.ExecContext(ctx, "DELETE FROM site_configs WHERE key = $1", agentsAccessBackfillMarker)
@@ -1837,6 +1853,12 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 		UserID:         granted.ID,
 		Roles:          []string{"agents-access"},
 	})
+	grantedServiceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: optedOut.ID,
+		UserID:         grantedServiceAccount.ID,
+		Roles:          []string{"agents-access"},
+	})
 	markedLegacyRole := dbgen.CustomRole(t, db, database.CustomRole{
 		Name:           "agents-access",
 		OrganizationID: uuid.NullUUID{UUID: optedIn.ID, Valid: true},
@@ -1848,16 +1870,29 @@ func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.
 		require.NoError(t, err)
 		return roles
 	}
+	optedOutRoles := func(userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", optedOut.ID, userID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
 
 	_, err = sqlDB.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
 	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedIn.ID))
-	var grantedRoles pq.StringArray
-	err = sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", optedOut.ID, granted.ID).Scan(&grantedRoles)
-	require.NoError(t, err)
-	require.Equal(t, []string{"agents-access"}, []string(grantedRoles))
+	require.Equal(t, []string{"agents-access"}, optedOutRoles(granted.ID))
 	require.False(t, customRoleExists(markedLegacyRole.ID))
+	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
+
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	assertDefaults(true)
+	require.Equal(t, []string{"organization-workspace-access"}, defaultRoles(optedOut.ID))
+	require.Equal(t, []string{"organization-workspace-access", "agents-access"}, defaultRoles(optedIn.ID))
+	require.Equal(t, []string{"agents-access"}, optedOutRoles(granted.ID))
+	require.Equal(t, []string{"agents-access"}, optedOutRoles(grantedServiceAccount.ID))
 	require.True(t, agentsAccessBackfillMarkerExists(ctx, t, sqlDB))
 
 	_, err = sqlDB.ExecContext(ctx, "DELETE FROM site_configs WHERE key = $1", agentsAccessBackfillMarker)
