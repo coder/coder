@@ -363,6 +363,9 @@ func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome i
 
 func (s *taskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	if s.server.disableCallerSuppliedTools {
+		return s.cancelRequiresAction(ctx, machine, input, "Tool execution canceled because caller-supplied tools are disabled")
+	}
 	for {
 		decision, err := decideRequiresActionTimeout(ctx, machine, input)
 		if err != nil {
@@ -447,7 +450,7 @@ func (s *taskStarter) cancelRequiresAction(
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if chat.RequiresActionDeadlineAt.Valid {
+		if !s.server.disableCallerSuppliedTools && chat.RequiresActionDeadlineAt.Valid {
 			now, err := store.GetDatabaseNow(ctx)
 			if err != nil {
 				return xerrors.Errorf("get database time: %w", err)

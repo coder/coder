@@ -46,6 +46,7 @@ For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRO
 - Prefer targeted tests and checks while iterating. Run the broader checks required by the affected area before handoff.
 - Do not force-push unless explicitly requested.
 - Commit and PR titles use `type(scope): message`. A scope must be a real path containing every changed file. Use a broader scope or no scope for cross-cutting changes.
+- Name branches so they do not collide with issue-tracker IDs. When a branch references a GitHub issue number, write it as `issue-<number>` (for example, `issue-1234-fix-flake`), not as a bare `<word>-<number>` such as `docs-1234` or a leading number. Connected trackers like Linear auto-link any branch containing a `<key>-<number>` token to the same-numbered issue on the team that owns `<key>`, silently attaching the PR to an unrelated ticket and moving it through that ticket's workflow.
 
 ## Essential commands
 
@@ -69,7 +70,7 @@ Docs use `pnpm run format-docs` and `pnpm run lint-docs`. Frontend commands live
 
 - **Database changes:** edit `coderd/database/queries/*.sql`, run `make gen`, update `enterprise/audit/table.go` for audit errors, then run `make gen` again.
 - **New resources:** scope every new resource to an organization (`organization_id` column, organization-scoped RBAC and routes), never deployment-wide.
-- **OAuth2:** return RFC-compliant errors such as `writeOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
+- **OAuth2:** return RFC-compliant errors with `httpapi.WriteOAuth2Error(...)`. Public endpoints that need system access use `dbauthz.AsSystemRestricted`.
 - **Chatd:** when a change affects the documented architecture, do not edit the architecture document yourself. Leave TODO items in the affected sections; the human PR author writes the actual updates.
   - When you review a PR, treat changes to that document as the owner's work. TODOs are notes for the author, so flag any that the PR adds to the architecture document.
 - **Public API:** add the required Swagger annotations for new public HTTP endpoints.

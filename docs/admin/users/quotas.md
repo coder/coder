@@ -21,7 +21,9 @@ Quotas are scoped to [Groups](./groups-roles.md) in Enterprise and
 - **Budget** is the per-user, enforced, upper limit to credit spend.
 - **Allowance** is a grant of credits to the budget.
 
-## Establishing Costs
+<a id="establishing-costs"></a>
+
+## Establish costs
 
 Templates describe their cost through the `daily_cost` attribute in
 [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
@@ -68,7 +70,9 @@ removed on the `docker_volume` above, the template would consume 0 credits when
 it's offline. This technique is good for incentivizing users to shut down their
 unused workspaces and freeing up compute in the cluster.
 
-## Establishing Budgets
+<a id="establishing-budgets"></a>
+
+## Establish budgets
 
 Each group has a configurable Quota Allowance. A user's budget is calculated as
 the sum of their allowances.

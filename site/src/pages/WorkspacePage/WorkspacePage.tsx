@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { toast } from "sonner";
@@ -15,7 +15,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 
-const WorkspacePage: FC = () => {
+const WorkspacePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const params = useParams() as {
 		username: string;

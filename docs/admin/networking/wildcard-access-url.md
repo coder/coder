@@ -76,7 +76,7 @@ Use a reverse proxy to handle TLS termination with automatic certificate managem
 
 If your reverse proxy rewrites the request `Host` and forwards the original
 host in `X-Forwarded-Host`, configure
-[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server.md#--proxy-trusted-origins)
+[`CODER_PROXY_TRUSTED_ORIGINS`](../../reference/cli/server/index.md#--proxy-trusted-origins)
 to trust that proxy's address. Otherwise Coder will ignore `X-Forwarded-Host`
 for subdomain app routing.
 

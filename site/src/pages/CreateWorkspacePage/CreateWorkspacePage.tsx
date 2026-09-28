@@ -1,5 +1,4 @@
 import {
-	type FC,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -43,7 +42,7 @@ import {
 const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
-const CreateWorkspacePage: FC = () => {
+const CreateWorkspacePage: React.FC = () => {
 	const { organization: organizationName = "default", template: templateName } =
 		useParams() as { organization?: string; template: string };
 	const { user: me } = useAuthenticated();

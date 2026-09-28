@@ -1,6 +1,4 @@
-import type { FC } from "react";
-
-export const PrivacyPolicyNotice: FC = () => {
+export const PrivacyPolicyNotice: React.FC = () => {
 	return (
 		<>
 			The information you provide will be treated in accordance with the{" "}
