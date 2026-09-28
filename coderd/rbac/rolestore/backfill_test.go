@@ -120,11 +120,9 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 
 		f := newAgentsAccessBackfillFixture(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		sink := testutil.NewFakeSink(t)
 
-		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, sink.Logger(), f.db))
+		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 		require.NoError(t, getBackfillMarker(t, f.db))
-		require.Len(t, sink.Entries(), 1)
 		for _, orgID := range f.orgs {
 			require.Equal(t, 1, agentsAccessCount(t, f.db, orgID))
 		}
@@ -168,8 +166,7 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 		require.NotContains(t, saRoles.Roles, rbac.ScopedRoleAgentsAccess(f.extraOrg).String())
 
 		// A second run changes nothing.
-		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, sink.Logger(), f.db))
-		require.Len(t, sink.Entries(), 1)
+		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 		for _, orgID := range f.orgs {
 			require.Equal(t, 1, agentsAccessCount(t, f.db, orgID))
 		}
@@ -180,7 +177,7 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 
 		f := newAgentsAccessBackfillFixture(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, testutil.Logger(t), f.db))
+		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 
 		org, err := f.db.GetOrganizationByID(ctx, f.extraOrg)
 		require.NoError(t, err)
@@ -197,7 +194,7 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, testutil.Logger(t), f.db))
+		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 		require.Equal(t, 0, agentsAccessCount(t, f.db, f.extraOrg))
 	})
 
@@ -206,7 +203,6 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 
 		f := newAgentsAccessBackfillFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		sink := testutil.NewFakeSink(t)
 
 		const runs = 8
 		var wg sync.WaitGroup
@@ -215,7 +211,7 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				errs <- rolestore.BackfillAgentsAccessDefaultRole(ctx, sink.Logger(), f.db)
+				errs <- rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db)
 			}()
 		}
 		wg.Wait()
@@ -224,7 +220,6 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 			require.NoError(t, err)
 		}
 		require.NoError(t, getBackfillMarker(t, f.db))
-		require.Len(t, sink.Entries(), 1)
 		for _, orgID := range f.orgs {
 			require.Equal(t, 1, agentsAccessCount(t, f.db, orgID))
 		}
@@ -235,12 +230,10 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 
 		f := newAgentsAccessBackfillFixture(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		sink := testutil.NewFakeSink(t)
 
-		err := rolestore.BackfillAgentsAccessDefaultRole(ctx, sink.Logger(), failingMarkerStore{Store: f.db})
+		err := rolestore.BackfillAgentsAccessDefaultRole(ctx, failingMarkerStore{Store: f.db})
 		require.Error(t, err)
 		require.ErrorIs(t, getBackfillMarker(t, f.db), sql.ErrNoRows)
-		require.Empty(t, sink.Entries())
 		for _, orgID := range f.orgs {
 			require.Equal(t, 0, agentsAccessCount(t, f.db, orgID))
 		}
@@ -250,9 +243,8 @@ func TestBackfillAgentsAccessDefaultRole(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, roles, 1)
 
-		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, sink.Logger(), f.db))
+		require.NoError(t, rolestore.BackfillAgentsAccessDefaultRole(ctx, f.db))
 		require.NoError(t, getBackfillMarker(t, f.db))
-		require.Len(t, sink.Entries(), 1)
 		for _, orgID := range f.orgs {
 			require.Equal(t, 1, agentsAccessCount(t, f.db, orgID))
 		}
