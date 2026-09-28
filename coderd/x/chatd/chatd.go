@@ -2329,7 +2329,7 @@ func (p *Server) EditQueuedMessage(
 		}
 		if len(contentParts) > 0 {
 			// File-link errors must roll back the edit.
-			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+			if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 				return err
 			}
 		}

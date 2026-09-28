@@ -171,6 +171,11 @@ describe("extractTypedFilters", () => {
 			remainingText: "",
 			consumed: true,
 		});
+		expect(extractTypedFilters("status:waiting,paused", [])).toEqual({
+			filters: [{ key: "status", value: "waiting,paused" }],
+			remainingText: "",
+			consumed: true,
+		});
 	});
 
 	it("leaves invalid chat status text unchanged", () => {
