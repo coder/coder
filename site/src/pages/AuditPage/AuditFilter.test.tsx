@@ -1,10 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { useResourceTypeFilterMenu } from "./AuditFilter";
 
-const createWrapper = (): FC<PropsWithChildren> => {
+const createWrapper = (): React.FC<React.PropsWithChildren> => {
 	const queryClient = createTestQueryClient();
 	return ({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
