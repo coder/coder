@@ -40,9 +40,9 @@ import (
 	"github.com/coder/serpent"
 )
 
-// defaultAgentLogBufferSize is the default number of below-level (debug) log
-// entries the agent keeps in memory and emits when it loses its connection to
-// coderd.
+// defaultAgentLogBufferSize is the default number of log entries below the
+// current log level that the agent keeps in memory and emits when it logs an
+// error, such as losing its connection to coderd.
 const defaultAgentLogBufferSize = 1000
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
@@ -516,9 +516,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Flag:    "log-buffer-size",
 			Env:     "CODER_AGENT_LOG_BUFFER_SIZE",
 			Default: strconv.Itoa(defaultAgentLogBufferSize),
-			Description: "Number of debug log entries to keep in memory and emit " +
-				"on a connection failure to coderd. Set to 0 to disable buffering. " +
-				"Ignored when --verbose is set.",
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable buffering.",
 			Value: serpent.Int64Of(&logBufferSize),
 		},
 		{
