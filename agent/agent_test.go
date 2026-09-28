@@ -1526,6 +1526,171 @@ func TestAgent_SCP(t *testing.T) {
 	})
 }
 
+// TestAgent_ToolCalls sends tool call requests through a real AgentConn,
+// so they pass the agent's router, agentchat.Middleware, and the tool
+// call store: the one cancel route stops a process and makes an edit's
+// outcome final, a request after its cancel does nothing (US10), a cut-off
+// write can be retried, and a restarted agent answers tool_call_unknown.
+func TestAgent_ToolCalls(t *testing.T) {
+	t.Parallel()
+
+	// Tool calls in messages above the cutoff are new to the agent.
+	const cutoff, messageID = 10, 11
+	//nolint:dogsled
+	conn, _, _, fs, _ := setupAgent(t, agentsdk.Manifest{LastChatMessageID: new(int64(cutoff))}, 0)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	chatID := uuid.New()
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+	// toolCall returns the context of one request for a tool call. Each
+	// request has its own deadline, so a request that never gets an answer
+	// fails without holding the test context.
+	toolCall := func(name, id string) context.Context {
+		reqCtx, cancel := context.WithTimeout(ctx, testutil.WaitShort)
+		t.Cleanup(cancel)
+		return workspacesdk.WithToolCall(reqCtx, workspacesdk.ToolCall{MessageID: messageID, ID: id, Name: name})
+	}
+	toolCallUUID := func(name, id string) string {
+		return workspacesdk.ToolCallUUID(chatID, messageID, name, id).String()
+	}
+	requireToolCallError := func(t *testing.T, err error, code workspacesdk.ToolCallErrorCode) {
+		t.Helper()
+		var tcErr *workspacesdk.ToolCallError
+		require.ErrorAs(t, err, &tcErr)
+		require.Equal(t, code, tcErr.Code)
+	}
+
+	// newFile writes "one\n" to a file for one subtest and returns its path.
+	newFile := func(t *testing.T) string {
+		t.Helper()
+		filePath := filepath.Join(os.TempDir(), "tool-call-"+t.Name()[len("TestAgent_ToolCalls/"):]+".txt")
+		require.NoError(t, afero.WriteFile(fs, filePath, []byte("one\n"), 0o644))
+		return filePath
+	}
+	requireFile := func(t *testing.T, filePath, want string) {
+		t.Helper()
+		got, err := afero.ReadFile(fs, filePath)
+		require.NoError(t, err)
+		require.Equal(t, want, string(got))
+	}
+	edits := func(filePath string) workspacesdk.FileEditRequest {
+		return workspacesdk.FileEditRequest{
+			Files:       []workspacesdk.FileEdits{{Path: filePath, Edits: []workspacesdk.FileEdit{{OldText: "one", NewText: "two"}}}},
+			IncludeDiff: true,
+		}
+	}
+
+	t.Run("ProcessCancel", func(t *testing.T) {
+		t.Parallel()
+		processID := toolCallUUID("execute", "sleep")
+		// Kill the process if the cancel below does not, so agent
+		// shutdown does not wait for it. Cleanups run in reverse order,
+		// so the agent is still up.
+		t.Cleanup(func() {
+			_ = conn.SignalProcess(context.Background(), processID, "kill")
+		})
+		for range 2 {
+			resp, err := conn.StartProcess(toolCall("execute", "sleep"), workspacesdk.StartProcessRequest{Command: "sleep 60"})
+			require.NoError(t, err)
+			require.Equal(t, processID, resp.ID, "every start for the tool call returns its process")
+		}
+		require.NoError(t, conn.CancelToolCall(toolCall("execute", "sleep"), processID))
+		out, err := conn.ProcessOutput(ctx, processID, nil)
+		require.NoError(t, err)
+		assert.False(t, out.Running)
+		assert.True(t, out.Canceled)
+	})
+
+	t.Run("EditCancel", func(t *testing.T) {
+		t.Parallel()
+		filePath := newFile(t)
+		edited, err := conn.EditFiles(toolCall("edit_files", "edit"), edits(filePath))
+		require.NoError(t, err)
+		requireFile(t, filePath, "two\n")
+
+		require.NoError(t, conn.CancelToolCall(toolCall("edit_files", "edit"), toolCallUUID("edit_files", "edit")))
+		// Undo the edit so a second run would show on disk.
+		require.NoError(t, afero.WriteFile(fs, filePath, []byte("one\n"), 0o644))
+		replayed, err := conn.EditFiles(toolCall("edit_files", "edit"), edits(filePath))
+		require.NoError(t, err)
+		assert.Equal(t, edited, replayed, "a request after the cancel gets the recorded response")
+		requireFile(t, filePath, "one\n")
+	})
+
+	// US10: a request that arrives after its cancel does nothing.
+	t.Run("CanceledBeforeReceived", func(t *testing.T) {
+		t.Parallel()
+		filePath := newFile(t)
+		require.NoError(t, conn.CancelToolCall(toolCall("edit_files", "late-edit"), toolCallUUID("edit_files", "late-edit")))
+		_, err := conn.EditFiles(toolCall("edit_files", "late-edit"), edits(filePath))
+		requireToolCallError(t, err, workspacesdk.ToolCallErrorCanceled)
+
+		require.NoError(t, conn.CancelToolCall(toolCall("write_file", "late-write"), toolCallUUID("write_file", "late-write")))
+		err = conn.WriteFile(toolCall("write_file", "late-write"), filePath, strings.NewReader("three\n"))
+		requireToolCallError(t, err, workspacesdk.ToolCallErrorCanceled)
+
+		processID := toolCallUUID("execute", "late-start")
+		require.NoError(t, conn.CancelToolCall(toolCall("execute", "late-start"), processID))
+		_, err = conn.StartProcess(toolCall("execute", "late-start"), workspacesdk.StartProcessRequest{Command: "echo late"})
+		requireToolCallError(t, err, workspacesdk.ToolCallErrorCanceled)
+
+		requireFile(t, filePath, "one\n")
+	})
+
+	t.Run("WriteCutOffThenRetried", func(t *testing.T) {
+		t.Parallel()
+		filePath := newFile(t)
+		body, bodyWriter := io.Pipe()
+		writeErr := make(chan error, 1)
+		go func() {
+			writeErr <- conn.WriteFile(toolCall("write_file", "write"), filePath, body)
+		}()
+		_, err := bodyWriter.Write([]byte("par"))
+		require.NoError(t, err)
+		// The temp file shows the agent is copying the body.
+		require.Eventually(t, func() bool {
+			entries, err := afero.ReadDir(fs, filepath.Dir(filePath))
+			if err != nil {
+				return false
+			}
+			return slices.ContainsFunc(entries, func(e os.FileInfo) bool {
+				return strings.HasPrefix(e.Name(), "."+filepath.Base(filePath)+".tmp.")
+			})
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.NoError(t, bodyWriter.CloseWithError(xerrors.New("body cut off")))
+		require.Error(t, testutil.RequireReceive(ctx, t, writeErr))
+		requireFile(t, filePath, "one\n")
+
+		// The cut-off request left no record, so the retry runs.
+		require.NoError(t, conn.WriteFile(toolCall("write_file", "write"), filePath, strings.NewReader("two\n")))
+		requireFile(t, filePath, "two\n")
+	})
+
+	// A new agent instance with a higher cutoff cannot tell whether an
+	// earlier instance ran the tool calls of message messageID.
+	t.Run("UnknownAfterRestart", func(t *testing.T) {
+		t.Parallel()
+		filePath := newFile(t)
+		_, err := conn.EditFiles(toolCall("edit_files", "before-restart"), edits(filePath))
+		require.NoError(t, err)
+		require.NoError(t, afero.WriteFile(fs, filePath, []byte("one\n"), 0o644))
+
+		//nolint:dogsled
+		restarted, _, _, _, _ := setupAgent(t, agentsdk.Manifest{LastChatMessageID: new(int64(messageID + 1))}, 0,
+			func(_ *agenttest.Client, o *agent.Options) { o.Filesystem = fs })
+		restarted.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+
+		for _, id := range []string{"before-restart", "never-sent"} {
+			_, err := restarted.EditFiles(toolCall("edit_files", id), edits(filePath))
+			requireToolCallError(t, err, workspacesdk.ToolCallErrorUnknown)
+		}
+		err = restarted.WriteFile(toolCall("write_file", "restart-write"), filePath, strings.NewReader("three\n"))
+		requireToolCallError(t, err, workspacesdk.ToolCallErrorUnknown)
+		_, err = restarted.StartProcess(toolCall("execute", "restart-start"), workspacesdk.StartProcessRequest{Command: "echo again"})
+		requireToolCallError(t, err, workspacesdk.ToolCallErrorUnknown)
+		requireFile(t, filePath, "one\n")
+	})
+}
+
 func TestAgent_FileTransferBlocked(t *testing.T) {
 	t.Parallel()
 
