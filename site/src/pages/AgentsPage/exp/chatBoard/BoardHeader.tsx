@@ -74,11 +74,11 @@ export const BoardHeader: React.FC<BoardHeaderProps> = ({
 			size="icon"
 			aria-label="Board assistant"
 			title="Board assistant"
-			className="ml-auto size-7 text-content-secondary"
+			className="ml-auto size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
 			disabled={!chatCount}
 			onClick={onBoardAssistant}
 		>
-			<BotIcon className="size-4" />
+			<BotIcon />
 		</Button>
 		{effortCounts.length > 0 && (
 			<EffortMenu
@@ -147,7 +147,7 @@ const EffortMenu: FC<EffortMenuProps> = ({
 					className="h-auto min-w-0 p-0 text-[11px] font-normal data-[state=open]:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
 				>
 					{value ?? "Efforts"}
-					<ChevronDownIcon className="size-3.5" />
+					<ChevronDownIcon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="min-w-44 text-xs">

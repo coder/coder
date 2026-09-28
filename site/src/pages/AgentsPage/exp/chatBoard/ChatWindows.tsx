@@ -215,11 +215,11 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 						size="icon"
 						aria-label={`Assistant for ${cardAssistant.cardTitle}`}
 						title="Assistant"
-						className="size-6 shrink-0 text-content-secondary hover:text-content-primary"
+						className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={cardAssistant.open}
 					>
-						<BotIcon className="size-3.5" />
+						<BotIcon />
 					</Button>
 				)}
 				<Button

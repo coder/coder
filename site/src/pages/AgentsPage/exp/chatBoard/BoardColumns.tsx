@@ -137,7 +137,7 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 					className="mt-0.5 size-7 min-w-0 border border-dashed border-content-secondary/40 p-0 hover:border-content-link hover:text-content-link [&>svg]:size-3.5! [&>svg]:p-0"
 					onClick={() => setAddingColumn(true)}
 				>
-					<PlusIcon className="size-3.5" />
+					<PlusIcon />
 				</Button>
 			)}
 		</div>

@@ -51,7 +51,7 @@ export const ChatOpener: FC<ChatOpenerProps> = ({
 		onPointerLeave={onPreviewEnd}
 		onClick={() => onOpen(chat)}
 	>
-		<MessageSquareIcon className="size-3.5" />
+		<MessageSquareIcon />
 		<UnreadBadge chat={chat} />
 	</Button>
 );
@@ -91,10 +91,7 @@ export const AssistantOpener: FC<AssistantOpenerProps> = ({
 			onClick={() => onOpen(assistant)}
 		>
 			<BotIcon
-				className={cn(
-					"size-3.5",
-					isActiveChatStatus(assistant.status) && "animate-pulse",
-				)}
+				className={cn(isActiveChatStatus(assistant.status) && "animate-pulse")}
 			/>
 			<UnreadBadge chat={assistant} />
 		</Button>

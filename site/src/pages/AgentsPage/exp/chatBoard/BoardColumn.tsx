@@ -216,7 +216,7 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 						onPointerDown={(e) => e.stopPropagation()}
 						onClick={onNewChat}
 					>
-						<PlusIcon className="size-3.5" />
+						<PlusIcon />
 					</Button>
 				</div>
 			</header>

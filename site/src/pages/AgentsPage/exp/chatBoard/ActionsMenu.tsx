@@ -56,7 +56,7 @@ export const ActionsMenu: React.FC<ActionsMenuProps> = ({
 							"opacity-0 group-hover/column:opacity-100 data-[state=open]:opacity-100",
 					)}
 				>
-					<Icon className="size-3.5" />
+					<Icon />
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="min-w-40 text-xs">
