@@ -964,6 +964,7 @@ type sqlcQuerier interface {
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
@@ -1522,7 +1523,8 @@ type sqlcQuerier interface {
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
-	// which messages the owner has seen, enabling unread indicators.
+	// which messages the owner has seen, enabling unread indicators. A NULL
+	// value clears the cursor, marking every message unread again.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
 	// Updates the cached last completed turn summary for sidebar display.
 	// Empty or whitespace-only summaries are stored as NULL here so direct
@@ -1611,6 +1613,7 @@ type sqlcQuerier interface {
 	UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error)
 	UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error)
 	UpdateUserCodeDiffDisplayMode(ctx context.Context, arg UpdateUserCodeDiffDisplayModeParams) (string, error)
+	UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error)
 	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
 	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error)
 	UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error

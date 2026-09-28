@@ -113,6 +113,11 @@ not by per-provider key policy flags. When BYOK is enabled, users can save a
 personal API key for any enabled AI provider. When BYOK is disabled, saved user
 keys are ignored and users cannot add or update personal keys.
 
+For AWS Bedrock providers, the personal key is an AWS Bedrock API key. AI
+Gateway forwards it as a bearer token, which authenticates that user's requests
+instead of the deployment-managed AWS credentials (SigV4). This applies to
+every model family Bedrock serves, including Anthropic and OpenAI models.
+
 For each provider request, Coder selects credentials in this order:
 
 1. If BYOK is enabled and the user has saved a personal key for the selected
@@ -143,8 +148,9 @@ Create, update, delete, and share permissions control their corresponding action
 
 Members with model share permission can let members and groups in the selected organization use the model.
 
-Model access lists control who can use Coder Agents.
-All organization members except service accounts hold chat permissions, but a member without read access to at least one model in the organization can't use the feature.
+Model access lists control which models a member can use in Coder Agents.
+Chat permissions come from the **Coder Agents User** role, which every member except service accounts holds by default; see [Control who can use Coder Agents](./getting-started.md#control-who-can-use-coder-agents).
+A member without read access to at least one model in the organization can't use the feature.
 New models grant read access to the whole organization by default.
 
 1. Navigate to **Admin settings** > **AI** > **Models**.

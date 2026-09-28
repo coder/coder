@@ -166,7 +166,7 @@ func TestDatabaseFunction(t *testing.T) {
 
 ### Schema Design
 
-1. **Use appropriate data types**: VARCHAR for strings, TIMESTAMP for times
+1. **Match existing column types**: `text` for strings, `timestamp with time zone` for times (see `coderd/database/dump.sql`)
 2. **Add constraints**: NOT NULL, UNIQUE, FOREIGN KEY as appropriate
 3. **Create indexes**: For frequently queried columns
 4. **Consider performance**: Normalize appropriately but avoid over-normalization
@@ -203,48 +203,47 @@ func TestDatabaseFunction(t *testing.T) {
 ### Complex Queries
 
 ```sql
--- Example: Complex join with aggregation
+-- name: GetWorkspaceCountsPerUser :many
 SELECT
     u.id,
     u.username,
-    COUNT(w.id) as workspace_count
+    COUNT(w.id) AS workspace_count
 FROM users u
 LEFT JOIN workspaces w ON u.id = w.owner_id
-WHERE u.created_at > $1
+WHERE u.created_at > @created_after
 GROUP BY u.id, u.username
 ORDER BY workspace_count DESC;
 ```
 
 ### Conditional Queries
 
+sqlc makes cast parameters non-nullable, so an optional filter compares
+against the zero value instead of `IS NULL`. Use `sqlc.narg` when the caller
+must pass a real NULL. `GetTemplatesWithFilter` in
+`coderd/database/queries/templates.sql` is a complete example.
+
 ```sql
--- Example: Dynamic filtering
-SELECT * FROM oauth2_provider_apps
+-- name: GetTemplatesFiltered :many
+SELECT * FROM templates
 WHERE
-    ($1::text IS NULL OR name ILIKE '%' || $1 || '%')
-    AND ($2::uuid IS NULL OR organization_id = $2)
+    CASE
+        WHEN @fuzzy_name :: text != '' THEN name ILIKE '%' || @fuzzy_name || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN organization_id = @organization_id
+        ELSE true
+    END
 ORDER BY created_at DESC;
 ```
 
 ### Audit Patterns
 
-```go
-// Example: Auditable database operation
-func (q *sqlQuerier) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-    // Implementation here
-
-    // Audit the change
-    if auditor := audit.FromContext(ctx); auditor != nil {
-        auditor.Record(audit.UserUpdate{
-            UserID: arg.ID,
-            Old:    oldUser,
-            New:    newUser,
-        })
-    }
-
-    return newUser, nil
-}
-```
+Auditable resources are tracked field by field in `enterprise/audit/table.go`.
+When you add a column to an auditable type, add it there with an action and
+rerun `make gen`. HTTP handlers record audit entries with
+`audit.InitRequest[T]`; read a nearby handler such as `coderd/ai_providers.go`
+for the pattern.
 
 ## Debugging Database Issues
 

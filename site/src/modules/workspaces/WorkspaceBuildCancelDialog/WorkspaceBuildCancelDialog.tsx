@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 
@@ -9,7 +8,7 @@ type WorkspaceBuildCancelDialogProps = {
 	workspace: Workspace;
 };
 
-export const WorkspaceBuildCancelDialog: FC<
+export const WorkspaceBuildCancelDialog: React.FC<
 	WorkspaceBuildCancelDialogProps
 > = ({ open, onClose, onConfirm, workspace }) => {
 	const action =

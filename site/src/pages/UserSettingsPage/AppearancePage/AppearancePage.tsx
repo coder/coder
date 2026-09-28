@@ -1,4 +1,4 @@
-import { type FC, useRef } from "react";
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	appearanceSettings,
@@ -47,7 +47,7 @@ export const useQueuedAppearanceSubmit = (mutate: MutateAppearanceSettings) => {
 	};
 };
 
-const AppearancePage: FC = () => {
+const AppearancePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const updateAppearanceSettingsMutation = useMutation(
 		updateAppearanceSettings(queryClient),

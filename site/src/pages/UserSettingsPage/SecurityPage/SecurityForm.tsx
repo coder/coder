@@ -1,5 +1,4 @@
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -42,7 +41,7 @@ type SecurityFormProps = {
 	error?: unknown;
 };
 
-export const SecurityForm: FC<SecurityFormProps> = ({
+export const SecurityForm: React.FC<SecurityFormProps> = ({
 	disabled,
 	isLoading,
 	onSubmit,

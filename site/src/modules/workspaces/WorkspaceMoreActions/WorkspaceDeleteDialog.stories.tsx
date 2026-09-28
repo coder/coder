@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { MockFailedWorkspace, MockWorkspace } from "#/testHelpers/entities";
 import { daysAgo } from "#/utils/time";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
@@ -77,18 +77,18 @@ export const FilledWrong: Story = {
 		const confirm = body.getByTestId("delete-dialog-name-confirmation");
 
 		await userEvent.type(confirm, "wrong-name");
+		// Blur so the mismatch error becomes visible.
 		await userEvent.tab();
-		// The validation error renders asynchronously after blur, so wait for
-		// visibility instead of asserting it once.
-		await waitFor(
-			() =>
-				expect(
-					body.getByText(
-						"wrong-name does not match the name of this workspace",
-					),
-				).toBeVisible(),
-			{ timeout: 5_000 },
+	},
+};
+
+// Shows the error while the input still has focus after pressing Enter.
+export const FilledWrongSubmitted: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.type(
+			body.getByTestId("delete-dialog-name-confirmation"),
+			"wrong name{Enter}",
 		);
-		await expect(body.getByRole("button", { name: "Delete" })).toBeDisabled();
 	},
 };

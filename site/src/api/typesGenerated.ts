@@ -1998,7 +1998,7 @@ export interface Chat {
 	/**
 	 * HasUnread is true when assistant messages exist beyond
 	 * the owner's read cursor, which updates on stream
-	 * connect and disconnect.
+	 * connect and disconnect and via UpdateChatRequest.Read.
 	 */
 	readonly has_unread: boolean;
 	/**
@@ -2106,6 +2106,9 @@ export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 ];
 
 // From codersdk/deployment.go
+/**
+ * ChatConfig configures Coder Agents chats.
+ */
 export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
@@ -2115,6 +2118,35 @@ export interface ChatConfig {
 	readonly hook_enabled: boolean;
 	readonly hook_allow_insecure: boolean;
 	readonly stream_silence_timeout: number;
+	/**
+	 * MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	 */
+	readonly max_steps_per_turn: number;
+	/**
+	 * MaxGenerationRetries is the maximum number of consecutive retries
+	 * after a model generation fails with a transient error.
+	 */
+	readonly max_generation_retries: number;
+	/**
+	 * MaxQueuedMessagesPerChat is the maximum number of messages that can
+	 * be queued in a chat.
+	 */
+	readonly max_queued_messages_per_chat: number;
+	/**
+	 * MaxAttachmentsPerChat is the maximum number of files linked to a
+	 * chat.
+	 */
+	readonly max_attachments_per_chat: number;
+	/**
+	 * MaxPromptBytes is the maximum size in bytes of the deployment system
+	 * prompt, the plan mode instructions, and each user's custom prompt.
+	 */
+	readonly max_prompt_bytes: number;
+	/**
+	 * MaxConcurrentRecordingUploads is the maximum number of virtual
+	 * desktop recordings that each Coder server stores at the same time.
+	 */
+	readonly max_concurrent_recording_uploads: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -2681,15 +2713,34 @@ export interface ChatInputPart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeWorkspaceFileReference.
+	 */
+	readonly workspace_file_path?: string;
+	readonly workspace_file_name?: string;
+	readonly workspace_file_size?: number;
+	readonly workspace_file_media_type?: string;
+	/**
+	 * WorkspaceFileWorkspaceID is the workspace the file was uploaded
+	 * to, as returned by the upload endpoint. It must match the chat's
+	 * currently bound workspace.
+	 */
+	readonly workspace_file_workspace_id?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "file-reference" | "text";
+export type ChatInputPartType =
+	| "file"
+	| "file-reference"
+	| "text"
+	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -2759,6 +2810,7 @@ export type ChatMessagePart =
 	| ChatFileReferencePart
 	| ChatContextFilePart
 	| ChatSkillPart
+	| ChatWorkspaceFileReferencePart
 	| ChatHookNoticePart;
 
 // From codersdk/chats.go
@@ -2773,7 +2825,8 @@ export type ChatMessagePartType =
 	| "source"
 	| "text"
 	| "tool-call"
-	| "tool-result";
+	| "tool-result"
+	| "workspace-file-reference";
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"context-file",
@@ -2787,6 +2840,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"text",
 	"tool-call",
 	"tool-result",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -3688,6 +3742,35 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 ];
 
 // From codersdk/chats.go
+export interface ChatWorkspaceFileReferencePart {
+	readonly type: "workspace-file-reference";
+	/**
+	 * WorkspaceFilePath is the absolute path of a workspace upload.
+	 * The bytes live on the workspace filesystem; only metadata is
+	 * persisted on the message.
+	 */
+	readonly workspace_file_path: string;
+	/**
+	 * WorkspaceFileName is the sanitized basename of a workspace upload.
+	 */
+	readonly workspace_file_name: string;
+	/**
+	 * WorkspaceFileSize is the byte size of a workspace upload.
+	 */
+	readonly workspace_file_size: number;
+	/**
+	 * WorkspaceFileWorkspaceID identifies the workspace whose
+	 * filesystem holds the uploaded bytes. References are only
+	 * readable while the chat stays bound to that workspace.
+	 */
+	readonly workspace_file_workspace_id: string;
+	/**
+	 * WorkspaceFileMediaType is the best-effort declared MIME type.
+	 */
+	readonly workspace_file_media_type?: string;
+}
+
+// From codersdk/chats.go
 /**
  * ChatWorkspaceTTLResponse is the response for getting the chat
  * workspace TTL setting.
@@ -3979,6 +4062,12 @@ export interface CreateChatRequest {
 	 * requires site-wide authority over that user.
 	 */
 	readonly owner_id?: string;
+	/**
+	 * Content is the initial user message. It is optional: when
+	 * empty, the chat is created idle with no initial user message
+	 * and generation starts with the first message POSTed to
+	 * /chats/{chat}/messages.
+	 */
 	readonly content: readonly ChatInputPart[];
 	readonly system_prompt?: string;
 	readonly workspace_id?: string;
@@ -4757,6 +4846,57 @@ export const DefaultChatAutoArchiveDays = 0;
  * config value to zero to disable the purge.
  */
 export const DefaultChatDebugRetentionDays = 30;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAttachmentsPerChat is the default maximum number of
+ * files linked to a chat.
+ */
+export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxConcurrentRecordingUploads is the default maximum
+ * number of virtual desktop recordings that each Coder server stores
+ * at the same time.
+ */
+export const DefaultChatMaxConcurrentRecordingUploads = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxGenerationRetries is the default maximum number of
+ * consecutive retries after a model generation fails with a transient
+ * error.
+ */
+export const DefaultChatMaxGenerationRetries = 25;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxPromptBytes is the default maximum size in bytes of the
+ * deployment system prompt, the plan mode instructions, and each
+ * user's custom prompt.
+ */
+export const DefaultChatMaxPromptBytes = 131072;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxQueuedMessagesPerChat is the default maximum number of
+ * messages that can be queued in a chat.
+ */
+export const DefaultChatMaxQueuedMessagesPerChat = 20;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxStepsPerTurn is the default maximum number of steps in
+ * a chat turn.
+ */
+export const DefaultChatMaxStepsPerTurn = 1200;
 
 // From codersdk/chats.go
 /**
@@ -6272,14 +6412,6 @@ export const MaxAISpendLimitMicros = 1000000000000;
  * MaxAISpendPeriodDays bounds explicit AI spend reporting windows.
  */
 export const MaxAISpendPeriodDays = 31;
-
-// From codersdk/chats.go
-/**
- * MaxChatFileIDs is the number of most recent attachments a chat
- * keeps. Linking a new file past this cap deletes the oldest files
- * on the chat. A single batch larger than the cap is rejected.
- */
-export const MaxChatFileIDs = 50;
 
 // From codersdk/chats.go
 /**
@@ -8711,9 +8843,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
- * @deprecated the agents-access role was removed. Coder Agents chat
- * access is part of the organization-member permission floor, and
- * servers without this built-in role reject assigning it.
+ * RoleAgentsAccess is the organization role that grants Coder Agents
+ * chat access. Organizations include it in their default member roles
+ * unless an administrator removes it.
  */
 export const RoleAgentsAccess = "agents-access";
 
@@ -10208,6 +10340,17 @@ export interface UpdateChatRequest {
 	readonly pin_order?: number;
 	readonly labels?: Record<string, string>;
 	/**
+	 * Read moves the owner's read cursor, which drives HasUnread.
+	 * - nil: no change.
+	 * - true: mark every existing message as read.
+	 * - false: clear the cursor so the chat reads as unread again.
+	 *
+	 * The cursor is owner-scoped, so only the chat owner may set this.
+	 * Opening a chat's stream marks it read, so marking the chat the
+	 * owner is currently viewing as unread does not persist.
+	 */
+	readonly read?: boolean;
+	/**
 	 * PlanMode switches the chat's persistent plan mode.
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
@@ -10558,6 +10701,7 @@ export interface UpdateUserPreferenceSettingsRequest {
 	readonly thinking_display_mode?: ThinkingDisplayMode;
 	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly collapse_assistant_steps?: boolean;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
@@ -10722,6 +10866,35 @@ export interface UpdateWorkspaceTTLRequest {
  */
 export interface UploadChatFileResponse {
 	readonly id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UploadChatWorkspaceFileResponse describes a file uploaded to a
+ * chat's workspace filesystem.
+ */
+export interface UploadChatWorkspaceFileResponse {
+	/**
+	 * Path is the absolute path of the file on the workspace.
+	 */
+	readonly path: string;
+	/**
+	 * Name is the final basename of the uploaded file.
+	 */
+	readonly name: string;
+	/**
+	 * Size is the number of bytes written to the workspace.
+	 */
+	readonly size: number;
+	/**
+	 * MediaType is the client-declared content type for display.
+	 */
+	readonly media_type: string;
+	/**
+	 * WorkspaceID is the workspace whose filesystem received the
+	 * bytes. Message parts referencing this upload must carry it.
+	 */
+	readonly workspace_id: string;
 }
 
 // From codersdk/files.go
@@ -11051,6 +11224,7 @@ export interface UserPreferenceSettings {
 	readonly thinking_display_mode: ThinkingDisplayMode;
 	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly collapse_assistant_steps: boolean;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 

@@ -1,7 +1,7 @@
 import dayjs, { type Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
 import capitalize from "lodash/capitalize";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type {
 	Template,
 	TransitionStats,
@@ -66,7 +66,7 @@ type WorkspaceBuildProgressProps = {
 	transitionStats: TransitionStats;
 };
 
-export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
+export const WorkspaceBuildProgress: React.FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
 }) => {

@@ -7,7 +7,6 @@ import {
 	StarIcon,
 	StarOffIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
@@ -26,7 +25,7 @@ export type ActionButtonProps = {
 	requireActiveVersion?: boolean;
 };
 
-export const UpdateButton: FC<ActionButtonProps> = ({
+export const UpdateButton: React.FC<ActionButtonProps> = ({
 	handleAction,
 	loading,
 	isRunning,
@@ -61,7 +60,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 	);
 };
 
-export const ActivateButton: FC<ActionButtonProps> = ({
+export const ActivateButton: React.FC<ActionButtonProps> = ({
 	handleAction,
 	loading,
 }) => {
@@ -77,7 +76,7 @@ type ActionButtonPropsWithWorkspace = ActionButtonProps & {
 	workspace: Workspace;
 };
 
-export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
+export const StartButton: React.FC<ActionButtonPropsWithWorkspace> = ({
 	handleAction,
 	workspace,
 	loading,
@@ -118,7 +117,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 };
 
-export const StopButton: FC<ActionButtonProps> = ({
+export const StopButton: React.FC<ActionButtonProps> = ({
 	handleAction,
 	loading,
 }) => {
@@ -134,7 +133,7 @@ export const StopButton: FC<ActionButtonProps> = ({
 	);
 };
 
-export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
+export const RestartButton: React.FC<ActionButtonPropsWithWorkspace> = ({
 	handleAction,
 	loading,
 	workspace,
@@ -158,7 +157,7 @@ export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 };
 
-export const CancelButton: FC<ActionButtonProps> = ({ handleAction }) => {
+export const CancelButton: React.FC<ActionButtonProps> = ({ handleAction }) => {
 	return (
 		<TopbarButton onClick={() => handleAction()}>
 			<BanIcon />
@@ -171,7 +170,7 @@ type DisabledButtonProps = {
 	label: string;
 };
 
-export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
+export const DisabledButton: React.FC<DisabledButtonProps> = ({ label }) => {
 	return (
 		<TopbarButton disabled>
 			<BanIcon />
@@ -186,7 +185,7 @@ type FavoriteButtonProps = {
 	isFavorite: boolean;
 };
 
-export const FavoriteButton: FC<FavoriteButtonProps> = ({
+export const FavoriteButton: React.FC<FavoriteButtonProps> = ({
 	onToggle,
 	workspaceID,
 	isFavorite,

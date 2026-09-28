@@ -837,7 +837,7 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{uuid.New()},
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
@@ -2085,7 +2085,7 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatLastReadMessageIDParams{
 			ID:                chat.ID,
-			LastReadMessageID: 42,
+			LastReadMessageID: sql.NullInt64{Int64: 42, Valid: true},
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastReadMessageID(gomock.Any(), arg).Return(nil).AnyTimes()
@@ -3463,6 +3463,19 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserCodeDiffDisplayMode(gomock.Any(), arg).Return("always_collapsed", nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("always_collapsed")
+	}))
+	s.Run("GetUserCollapseAssistantSteps", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserCollapseAssistantSteps(gomock.Any(), u.ID).Return(false, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(false)
+	}))
+	s.Run("UpdateUserCollapseAssistantSteps", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserCollapseAssistantStepsParams{UserID: u.ID, CollapseAssistantSteps: true}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserCollapseAssistantSteps(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(true)
 	}))
 	s.Run("GetUserAgentChatSendShortcut", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})

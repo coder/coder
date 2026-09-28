@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
@@ -13,7 +12,7 @@ type VersionsTableProps = {
 	onArchiveClick?: (version: TemplateVersion) => void;
 };
 
-export const VersionsTable: FC<VersionsTableProps> = ({
+export const VersionsTable: React.FC<VersionsTableProps> = ({
 	activeVersionId,
 	versions,
 	onArchiveClick,
