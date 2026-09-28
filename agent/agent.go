@@ -467,7 +467,8 @@ func (a *agent) init() {
 	a.containerAPI = agentcontainers.NewAPI(a.logger.Named("containers"), containerAPIOpts...)
 
 	pathStore := agentgit.NewPathStore()
-	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo))
+	a.toolCallStore = agenttoolcall.NewStore(a.clock)
+	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore, agentfiles.WithEnvInfo(a.envInfo), agentfiles.WithToolCallStore(a.toolCallStore))
 	// workingDirFn reports the workspace directory ("" before the first manifest).
 	workingDirFn := func() string {
 		if m := a.manifest.Load(); m != nil {
@@ -475,7 +476,6 @@ func (a *agent) init() {
 		}
 		return ""
 	}
-	a.toolCallStore = agenttoolcall.NewStore(a.clock)
 	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn, agentproc.WithClock(a.clock), agentproc.WithToolCallStore(a.toolCallStore))
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)

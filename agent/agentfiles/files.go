@@ -19,6 +19,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentchat"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -369,7 +370,31 @@ func (api *API) writeFile(ctx context.Context, r *http.Request, path string) (HT
 		mode = &m
 	}
 
-	return api.atomicWrite(ctx, path, mode, r.Body)
+	body := &bodyReader{r: r.Body}
+	status, err := api.atomicWrite(ctx, path, mode, body)
+	if err != nil && body.err != nil {
+		// The body was cut off, so the file is unchanged and a later
+		// request for the tool call may run the write.
+		if tc, ok := agenttoolcall.FromContext(ctx); ok {
+			tc.Abandon()
+		}
+	}
+	return status, err
+}
+
+// bodyReader keeps the first error reading a request body other than
+// io.EOF, so a failed copy can be told apart from a failed write.
+type bodyReader struct {
+	r   io.Reader
+	err error
+}
+
+func (b *bodyReader) Read(p []byte) (int, error) {
+	n, err := b.r.Read(p)
+	if err != nil && !errors.Is(err, io.EOF) && b.err == nil {
+		b.err = err
+	}
+	return n, err
 }
 
 func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
@@ -377,6 +402,11 @@ func (api *API) HandleEditFiles(rw http.ResponseWriter, r *http.Request) {
 
 	var req workspacesdk.FileEditRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		// Nothing was changed, so a later request for the tool call may
+		// run the edit.
+		if tc, ok := agenttoolcall.FromContext(ctx); ok {
+			tc.Abandon()
+		}
 		return
 	}
 
