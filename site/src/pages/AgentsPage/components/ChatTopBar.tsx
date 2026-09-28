@@ -28,8 +28,7 @@ import {
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
-import { originRepoLabel } from "../utils/originRepoLabel";
-import { parsePullRequestUrl } from "../utils/pullRequest";
+import { prNumber } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
 	canManageChat,
@@ -40,6 +39,7 @@ import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
+import { PRMenuLinks, prMenuContentClassName } from "./PRMenuLinks";
 
 type SidebarPanelState = {
 	showSidebarPanel: boolean;
@@ -93,11 +93,6 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 		</Popover>
 	);
 };
-
-// Branch rows carry a /tree URL with no number, so they stay out
-// of the PR chips.
-const prNumber = (status: TypesGen.ChatDiffStatus): string | undefined =>
-	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;
 
 export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
@@ -172,16 +167,12 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 		Boolean(chatTitle) &&
 		chatHasMenuActions(chat, { canManage });
 
+	// Branch rows carry a /tree URL with no number, so they stay out
+	// of the PR chips.
 	const prStatuses = (chat?.diff_statuses ?? []).filter(
 		(status) => prNumber(status) !== undefined,
 	);
 	const hasMultiplePRs = prStatuses.length > 1;
-	// PR numbers are per-repository, so two origins can both carry
-	// the same number. Naming the repository keeps those entries
-	// apart.
-	const hasMultipleOrigins =
-		new Set(prStatuses.map((status) => status.remote_origin).filter(Boolean))
-			.size > 1;
 
 	return (
 		<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
@@ -337,30 +328,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-[240px] p-1">
-						{prStatuses.map((status) => {
-							const originPrefix = hasMultipleOrigins
-								? `${originRepoLabel(status.remote_origin)} · `
-								: "";
-							return (
-								<DropdownMenuItem
-									key={`${status.remote_origin}/${status.git_branch}`}
-									asChild
-									className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs"
-								>
-									<a href={status.url} target="_blank" rel="noreferrer">
-										<PrStateIcon
-											state={status.pull_request_state}
-											draft={status.pull_request_draft}
-											className="size-3.5! shrink-0"
-										/>
-										<span className="truncate">
-											{`${originPrefix}PR #${prNumber(status)} ${status.pull_request_title}`}
-										</span>
-									</a>
-								</DropdownMenuItem>
-							);
-						})}
+					<DropdownMenuContent align="start" className={prMenuContentClassName}>
+						<PRMenuLinks prStatuses={prStatuses} />
 					</DropdownMenuContent>
 				</DropdownMenu>
 			) : (

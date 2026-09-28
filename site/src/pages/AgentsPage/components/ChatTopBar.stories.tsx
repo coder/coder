@@ -406,6 +406,27 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+// Enough long titles to show the menu's width and height limits.
+export const WithManyPRs: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+				...MockChatDiffStatus,
+				git_branch: `refactor/agents-${index + 1}`,
+				url: `https://github.com/coder/coder/pull/${29901 + index}`,
+				pr_number: 29901 + index,
+				pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+			})),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /15 PRs/ }));
+		await within(document.body).findByRole("menu");
+	},
+};
+
 // Both repositories carry PR #123, so the menu must name each
 // repository to keep the entries apart.
 const mockCrossOriginPRStatuses = [
