@@ -957,10 +957,12 @@ type ProcessOutputOptions struct {
 
 // ProcessTruncation describes how process output was truncated.
 type ProcessTruncation struct {
-	OriginalBytes int    `json:"original_bytes"`
-	RetainedBytes int    `json:"retained_bytes"`
-	OmittedBytes  int    `json:"omitted_bytes"`
-	Strategy      string `json:"strategy"`
+	OriginalBytes int `json:"original_bytes"`
+	// RetainedBytes includes formatting markers in the returned output.
+	RetainedBytes int `json:"retained_bytes"`
+	// OmittedBytes counts source bytes removed by buffer and line limits.
+	OmittedBytes int    `json:"omitted_bytes"`
+	Strategy     string `json:"strategy"`
 }
 
 // SignalProcessRequest is the request body for signaling a
