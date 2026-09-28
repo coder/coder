@@ -2211,8 +2211,6 @@ func (p *Server) DeleteQueued(
 	return nil
 }
 
-// reloadChatAndStatusChanged re-reads the chat after a transition and
-// reports whether its status differs from before.
 func reloadChatAndStatusChanged(ctx context.Context, store database.Store, before database.Chat) (database.Chat, bool, error) {
 	after, err := store.GetChatByID(ctx, before.ID)
 	if err != nil {
