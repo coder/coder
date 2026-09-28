@@ -18392,3 +18392,82 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 		}
 	})
 }
+
+func TestChatReadState(t *testing.T) {
+	t.Parallel()
+
+	hasUnread := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) bool {
+		t.Helper()
+
+		chats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		for _, chat := range chats {
+			if chat.ID == chatID {
+				return chat.HasUnread
+			}
+		}
+		require.FailNow(t, "chat not found in list")
+		return false
+	}
+
+	t.Run("MarkReadAndUnread", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "read state chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// A chat the owner has never opened starts unread.
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(true),
+		}))
+		require.False(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(false),
+		}))
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+	})
+
+	t.Run("NonOwnerForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           otherUser.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "other user chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// The deployment owner may update the chat but must not move
+		// another user's read cursor, and the rejection must land before
+		// any other field of the same request is written.
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("renamed by admin"),
+			Read:  ptr.Ref(true),
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		persisted, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "other user chat", persisted.Title)
+	})
+}

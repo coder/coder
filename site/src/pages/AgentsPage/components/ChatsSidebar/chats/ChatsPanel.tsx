@@ -82,6 +82,8 @@ type ChatsPanelProps = {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
@@ -115,6 +117,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkChatRead,
+	onMarkChatUnread,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
@@ -314,6 +318,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	};
 

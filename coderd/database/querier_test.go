@@ -17490,7 +17490,7 @@ func TestGetChatsFilter(t *testing.T) {
 		require.NoError(t, err)
 		err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 			ID:                chatID,
-			LastReadMessageID: lastMsg.ID,
+			LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -17993,7 +17993,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	require.False(t, getHasUnread(), "chat should not be unread after marking as read")
@@ -18011,7 +18011,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	insertMsg(database.ChatMessageRoleUser, "user msg")

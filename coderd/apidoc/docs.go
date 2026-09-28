@@ -19842,7 +19842,7 @@ const docTemplate = `{
                     }
                 },
                 "has_unread": {
-                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect.",
+                    "description": "HasUnread is true when assistant messages exist beyond\nthe owner's read cursor, which updates on stream\nconnect and disconnect and via UpdateChatRequest.Read.",
                     "type": "boolean"
                 },
                 "id": {
@@ -30122,6 +30122,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatPlanMode"
                         }
                     ]
+                },
+                "read": {
+                    "description": "Read moves the owner's read cursor, which drives HasUnread.\n- nil: no change.\n- true: mark every existing message as read.\n- false: clear the cursor so the chat reads as unread again.\n\nThe cursor is owner-scoped, so only the chat owner may set this.\nOpening a chat's stream marks it read, so marking the chat the\nowner is currently viewing as unread does not persist.",
+                    "type": "boolean"
                 },
                 "title": {
                     "type": "string"

@@ -1519,7 +1519,8 @@ type sqlcQuerier interface {
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
-	// which messages the owner has seen, enabling unread indicators.
+	// which messages the owner has seen, enabling unread indicators. A NULL
+	// value clears the cursor, marking every message unread again.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
 	// Updates the cached last completed turn summary for sidebar display.
 	// Empty or whitespace-only summaries are stored as NULL here so direct

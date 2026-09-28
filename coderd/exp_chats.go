@@ -2349,7 +2349,8 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, and pinned-chat ordering.
+// workspace binding, archiving, pinning, pinned-chat ordering, and the
+// owner's read state.
 //
 // @Summary Update chat
 // @ID update-chat
@@ -2398,6 +2399,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+	}
+
+	// The read cursor is owner-scoped, so an admin with update
+	// permission must not move another user's unread state. Checked
+	// before any write so a rejected request does not commit the
+	// other fields of a multi-field update.
+	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its read state.",
+		})
+		return
 	}
 
 	if req.Title != nil {
@@ -2570,6 +2582,31 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 					Detail:  err.Error(),
 				})
 			}
+			return
+		}
+	}
+
+	if req.Read != nil {
+		markRead := *req.Read
+		var err error
+		if markRead {
+			err = api.advanceChatReadCursor(ctx, chat.ID)
+		} else {
+			err = api.clearChatReadCursor(ctx, chat.ID)
+		}
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			action := "read"
+			if !markRead {
+				action = "unread"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to mark chat as %s.", action),
+				Detail:  err.Error(),
+			})
 			return
 		}
 	}
@@ -3259,32 +3296,48 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // messages as seen. This is called on stream connect and disconnect
 // to avoid per-message API calls during active streaming.
 func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	if err := api.advanceChatReadCursor(ctx, chatID); err != nil {
+		api.Logger.Warn(ctx, "failed to mark chat as read",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// advanceChatReadCursor moves the chat's owner-scoped read cursor to the
+// latest assistant message, so nothing in the chat is unread.
+func (api *API) advanceChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
 	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// No assistant messages yet, nothing to mark as read.
-		return
+		// No assistant messages yet, so nothing can be unread.
+		return nil
 	}
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
+		return xerrors.Errorf("get last assistant message: %w", err)
 	}
 
-	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chatID,
-		LastReadMessageID: lastMsg.ID,
-	})
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to update chat last read message ID",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("update chat last read message id: %w", err)
 	}
+	return nil
+}
+
+// clearChatReadCursor clears the chat's owner-scoped read cursor, so every
+// assistant message in the chat counts as unread again.
+func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: sql.NullInt64{},
+	}); err != nil {
+		return xerrors.Errorf("clear chat last read message id: %w", err)
+	}
+	return nil
 }
 
 // @Summary Stream chat events via WebSockets

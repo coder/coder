@@ -117,6 +117,8 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
+	onMarkChatRead: vi.fn(),
+	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -702,5 +704,67 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar read state actions", () => {
+	const openActionsMenu = async (title: string) => {
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		return user;
+	};
+
+	it("marks a read chat as unread", async () => {
+		const onMarkChatUnread = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+							has_unread: false,
+						}),
+					]}
+					onMarkChatUnread={onMarkChatUnread}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Read chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+		);
+
+		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
+	});
+
+	it("marks an unread chat as read", async () => {
+		const onMarkChatRead = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+					]}
+					onMarkChatRead={onMarkChatRead}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Unread chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as read" }),
+		);
+
+		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
 	});
 });
