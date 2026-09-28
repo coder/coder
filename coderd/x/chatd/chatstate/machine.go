@@ -53,7 +53,7 @@ func NewChatMachine(
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
+// every transition method reads the chat row and queue state
 // from the database on entry, so a bundle of transitions inside one
 // Update callback always validates against the latest committed state.
 type Tx struct {

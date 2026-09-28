@@ -981,8 +981,9 @@ type DeleteQueuedMessageResult struct {
 	DeletedQueuedMessage database.ChatQueuedMessage
 }
 
-// DeleteQueuedMessage removes a single queued user message. From P the
-// chat resumes if no pause condition remains.
+// DeleteQueuedMessage removes a single queued user message. From P it
+// leaves paused once the head is ready or the queue is empty (see
+// leavePaused).
 func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessage)
 	if err != nil {
@@ -1009,7 +1010,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 		return DeleteQueuedMessageResult{}, ErrQueuedMessageNotFound
 	}
 	if from == StateP {
-		if err := tx.resumeIfNoPauseCondition(chat); err != nil {
+		if err := tx.leavePaused(chat); err != nil {
 			return DeleteQueuedMessageResult{}, err
 		}
 	}
@@ -1038,9 +1039,9 @@ type EditQueuedMessageResult struct {
 }
 
 // EditQueuedMessage rewrites a queued row's content and/or edit marker.
-// Beginning an edit on a row ends any other row's edit. Ending the edit
-// from P resumes the chat if no pause condition remains; beginning an
-// edit on a different row from P is refused with
+// Beginning an edit on a row ends any other row's edit. From P, ending
+// the head's edit leaves paused once the head is ready (see
+// leavePaused); beginning an edit on a different row is refused with
 // [ErrPausedQueuedHeadUnderEdit].
 func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionEditQueuedMessage)
@@ -1101,7 +1102,7 @@ func (tx *Tx) EditQueuedMessage(input EditQueuedMessageInput) (EditQueuedMessage
 			return EditQueuedMessageResult{}, xerrors.Errorf("update queued editing: %w", err)
 		}
 		if from == StateP && !*input.Editing {
-			if err := tx.resumeIfNoPauseCondition(chat); err != nil {
+			if err := tx.leavePaused(chat); err != nil {
 				return EditQueuedMessageResult{}, err
 			}
 		}
@@ -1131,9 +1132,10 @@ func (tx *Tx) endOtherEdit(exceptID int64) error {
 	return nil
 }
 
-// resumeIfNoPauseCondition leaves P once the head has no pause
-// condition: promotes the head, or sets W when the queue is empty.
-func (tx *Tx) resumeIfNoPauseCondition(chat database.Chat) error {
+// leavePaused moves a chat out of P once the head has no pause
+// condition: it promotes the head and the chat runs, or sets W when the
+// queue is empty. A head that is still paused keeps the chat in P.
+func (tx *Tx) leavePaused(chat database.Chat) error {
 	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err := tx.applyExecutionState(executionStateUpdate{
