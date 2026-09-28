@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -185,7 +186,6 @@ const (
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
 	FeatureExternalTokenEncryption    FeatureName = "external_token_encryption"
 	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
-	FeatureTaskBatchActions           FeatureName = "task_batch_actions"
 	FeatureAccessControl              FeatureName = "access_control"
 	FeatureControlSharedPorts         FeatureName = "control_shared_ports"
 	FeatureCustomRoles                FeatureName = "custom_roles"
@@ -226,7 +226,6 @@ var (
 		FeatureUserRoleManagement,
 		FeatureExternalTokenEncryption,
 		FeatureWorkspaceBatchActions,
-		FeatureTaskBatchActions,
 		FeatureAccessControl,
 		FeatureControlSharedPorts,
 		FeatureCustomRoles,
@@ -279,7 +278,6 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,
-		FeatureTaskBatchActions:           true,
 		FeatureHighAvailability:           true,
 		FeatureCustomRoles:                true,
 		FeatureMultipleOrganizations:      true,
@@ -737,10 +735,12 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableChatCallerSuppliedTools          serpent.Bool                         `json:"disable_chat_caller_supplied_tools,omitempty" typescript:",notnull"`
 	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	DisableUserSecretFilePath               serpent.Bool                         `json:"disable_user_secret_file_path,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	DynamicParametersFullEvaluation         serpent.Bool                         `json:"dynamic_parameters_full_evaluation,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 	// Deprecated: Use the per-template allow_workspace_renames setting instead.
@@ -753,7 +753,6 @@ type DeploymentValues struct {
 	AdditionalCSPPolicy     serpent.StringArray   `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 	WorkspaceHostnameSuffix serpent.String        `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
 	Prebuilds               PrebuildsConfig       `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	EnableAITasks           serpent.Bool          `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
 	MCPAllowedPrivateCIDRs  serpent.StringArray   `json:"mcp_allowed_private_cidrs,omitempty" typescript:",notnull"`
 	AI                      AIConfig              `json:"ai,omitempty"`
 	StatsCollection         StatsCollectionConfig `json:"stats_collection,omitempty" typescript:",notnull"`
@@ -980,7 +979,17 @@ type PprofConfig struct {
 }
 
 type OAuth2Config struct {
-	Github OAuth2GithubConfig `json:"github" typescript:",notnull"`
+	Github   OAuth2GithubConfig   `json:"github" typescript:",notnull"`
+	Provider OAuth2ProviderConfig `json:"provider" typescript:",notnull"`
+}
+
+// OAuth2ProviderConfig configures Coder's own OAuth 2.1 authorization server.
+// This is separate from the GitHub login integration. It is also distinct
+// from OAuth2ProviderSettings: this struct decides whether the server is on
+// at all, while OAuth2ProviderSettings holds runtime behavior such as
+// dynamic client registration that admins change while it runs.
+type OAuth2ProviderConfig struct {
+	Enable serpent.Bool `json:"enable" typescript:",notnull"`
 }
 
 type OAuth2GithubConfig struct {
@@ -1220,7 +1229,7 @@ type ExternalAuthConfig struct {
 	//
 	// Git clone makes use of this by parsing the URL from:
 	// 'Username for "https://github.com":'
-	// And sending it to the Coder server to match against the Regex.
+	// And sending it to the control plane to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// APIBaseURL is the base URL for provider REST API calls
 	// (e.g., "https://api.github.com" for GitHub). Derived from
@@ -1243,6 +1252,10 @@ type ProvisionerConfig struct {
 	DaemonPollJitter    serpent.Duration    `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval serpent.Duration    `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           serpent.String      `json:"daemon_psk" typescript:",notnull"`
+	// DisableModuleCache disables the reuse of Terraform modules cached at
+	// template import for every template in the deployment. Templates cannot
+	// opt back in.
+	DisableModuleCache serpent.Bool `json:"disable_module_cache" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -1599,13 +1612,18 @@ communicating directly.`,
 		}
 		deploymentGroupOAuth2 = serpent.Group{
 			Name:        "OAuth2",
-			Description: `Configure login and user-provisioning with GitHub via oAuth2.`,
+			Description: `Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.`,
 			YAML:        "oauth2",
 		}
 		deploymentGroupOAuth2GitHub = serpent.Group{
 			Parent: &deploymentGroupOAuth2,
 			Name:   "GitHub",
 			YAML:   "github",
+		}
+		deploymentGroupOAuth2Provider = serpent.Group{
+			Parent: &deploymentGroupOAuth2,
+			Name:   "Provider",
+			YAML:   "provider",
 		}
 		deploymentGroupOIDC = serpent.Group{
 			Name: "OIDC",
@@ -1934,7 +1952,7 @@ communicating directly.`,
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
-		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+		Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. Whether to inject Coder's MCP tools into intercepted AI Gateway requests (requires CODER_OAUTH2_PROVIDER_ENABLE and the \"mcp-server-http\" experiment to be enabled).",
 		Flag:        "ai-gateway-inject-coder-mcp-tools",
 		Env:         "CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS",
 		Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
@@ -2700,6 +2718,16 @@ communicating directly.`,
 			Group:       &deploymentGroupOAuth2GitHub,
 			YAML:        "enterpriseBaseURL",
 		},
+		{
+			Name:        "OAuth2 Provider Enable",
+			Description: "Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.",
+			Flag:        "oauth2-provider-enable",
+			Env:         "CODER_OAUTH2_PROVIDER_ENABLE",
+			Value:       &c.OAuth2.Provider.Enable,
+			Group:       &deploymentGroupOAuth2Provider,
+			YAML:        "enable",
+			Default:     "false",
+		},
 		// OIDC settings.
 		{
 			Name:        "OIDC Allow Signups",
@@ -3220,6 +3248,16 @@ communicating directly.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Disable Terraform Module Cache",
+			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Flag:        "provisioner-disable-module-cache",
+			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
+			Default:     "false",
+			Value:       &c.Provisioner.DisableModuleCache,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "disableModuleCache",
+		},
+		{
 			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
 			Description: "Pre-shared key to authenticate external provisioner daemons to Coder server.",
 			Flag:        "provisioner-daemon-psk",
@@ -3308,6 +3346,18 @@ communicating directly.`,
 			Value:       &c.EnableTerraformDebugMode,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
+		},
+		{
+			Name: "Dynamic Parameters Full Evaluation",
+			Description: "Evaluate every resource in a template when rendering dynamic parameters, " +
+				"instead of only the parameter, preset, and tag blocks and what they reference. " +
+				"Slower, and only needed if a template renders incorrectly with the default.",
+			Flag:    "dynamic-parameters-full-evaluation",
+			Env:     "CODER_DYNAMIC_PARAMETERS_FULL_EVALUATION",
+			Default: "false",
+			Value:   &c.DynamicParametersFullEvaluation,
+			Hidden:  true,
+			YAML:    "dynamicParametersFullEvaluation",
 		},
 		{
 			Name: "Additional CSP Policy",
@@ -3701,6 +3751,15 @@ communicating directly.`,
 			YAML:  "disableChatSharing",
 		},
 		{
+			Name:        "Disable Chat Caller-supplied Tools",
+			Description: "Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.",
+			Flag:        "disable-chat-caller-supplied-tools",
+			Env:         "CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS",
+
+			Value: &c.DisableChatCallerSuppliedTools,
+			YAML:  "disableChatCallerSuppliedTools",
+		},
+		{
 			Name:        "Disable Workspace Agent Context Sync",
 			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
 			Flag:        "disable-workspace-agent-context-sync",
@@ -3791,7 +3850,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "CLI Upgrade Message",
-			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.",
+			Description: "The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.",
 			Flag:        "cli-upgrade-message",
 			Env:         "CODER_CLI_UPGRADE_MESSAGE",
 			YAML:        "cliUpgradeMessage",
@@ -4257,19 +4316,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "failure_hard_limit",
 			Hidden:      true,
 		},
-		{
-			Name:        "Enable AI Tasks",
-			Description: "Enable Coder Tasks. When unset, the Tasks routes are not served, the Tasks UI and its URLs are unavailable, the task RBAC permissions are stripped from built-in roles, and the CLI task commands are hidden.",
-			Flag:        "enable-ai-tasks",
-			Env:         "CODER_ENABLE_AI_TASKS",
-			Default:     "false",
-			Value:       &c.EnableAITasks,
-			YAML:        "enableAITasks",
-			// Hidden keeps Tasks out of the generated CLI and configuration
-			// reference documentation while the feature is withdrawn from the
-			// product.
-			Hidden: true,
-		},
 		// Chat Options
 		{
 			Name:        "Chat: Acquire Batch Size",
@@ -4349,6 +4395,66 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "hookAllowInsecure",
 		},
 		{
+			Name:        "Chat: Max Steps Per Turn",
+			Description: "Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.",
+			Flag:        "chat-max-steps-per-turn",
+			Env:         "CODER_CHAT_MAX_STEPS_PER_TURN",
+			Value:       &c.AI.Chat.MaxStepsPerTurn,
+			Default:     strconv.Itoa(DefaultChatMaxStepsPerTurn),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxStepsPerTurn",
+		},
+		{
+			Name:        "Chat: Max Generation Retries",
+			Description: "Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.",
+			Flag:        "chat-max-generation-retries",
+			Env:         "CODER_CHAT_MAX_GENERATION_RETRIES",
+			Value:       &c.AI.Chat.MaxGenerationRetries,
+			Default:     strconv.Itoa(DefaultChatMaxGenerationRetries),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxGenerationRetries",
+		},
+		{
+			Name:        "Chat: Max Queued Messages Per Chat",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Flag:        "chat-max-queued-messages-per-chat",
+			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
+			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxQueuedMessagesPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxQueuedMessagesPerChat",
+		},
+		{
+			Name:        "Chat: Max Attachments Per Chat",
+			Description: "Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.",
+			Flag:        "chat-max-attachments-per-chat",
+			Env:         "CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT",
+			Value:       &c.AI.Chat.MaxAttachmentsPerChat,
+			Default:     strconv.Itoa(DefaultChatMaxAttachmentsPerChat),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxAttachmentsPerChat",
+		},
+		{
+			Name:        "Chat: Max Prompt Bytes",
+			Description: "Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.",
+			Flag:        "chat-max-prompt-bytes",
+			Env:         "CODER_CHAT_MAX_PROMPT_BYTES",
+			Value:       &c.AI.Chat.MaxPromptBytes,
+			Default:     strconv.Itoa(DefaultChatMaxPromptBytes),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxPromptBytes",
+		},
+		{
+			Name:        "Chat: Max Concurrent Recording Uploads",
+			Description: "Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.",
+			Flag:        "chat-max-concurrent-recording-uploads",
+			Env:         "CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS",
+			Value:       &c.AI.Chat.MaxConcurrentRecordingUploads,
+			Default:     strconv.Itoa(DefaultChatMaxConcurrentRecordingUploads),
+			Group:       &deploymentGroupChat,
+			YAML:        "maxConcurrentRecordingUploads",
+		},
+		{
 			Name:        "Chat: AI Gateway Routing Enabled",
 			Description: "Deprecated: AI Gateway routing is now the only routing path. Setting this value has no effect. This option will be removed in a future release.",
 			Flag:        "chat-ai-gateway-routing-enabled",
@@ -4358,6 +4464,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
+		},
+		{
+			Name:        "Chat: Stream Silence Timeout",
+			Description: "Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.",
+			Flag:        "chat-stream-silence-timeout",
+			Env:         "CODER_CHAT_STREAM_SILENCE_TIMEOUT",
+			Value:       &c.AI.Chat.StreamSilenceTimeout,
+			Default:     (10 * time.Minute).String(),
+			Group:       &deploymentGroupChat,
+			YAML:        "streamSilenceTimeout",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
@@ -4836,14 +4953,33 @@ type AIBridgeProxyConfig struct {
 	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
+// ChatConfig configures Coder Agents chats.
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
-	HookURL             serpent.URL      `json:"hook_url" typescript:",notnull"`
-	HookSecret          serpent.String   `json:"hook_secret" typescript:",notnull"`
-	HookTimeout         serpent.Duration `json:"hook_timeout" typescript:",notnull"`
-	HookEnabled         serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
-	HookAllowInsecure   serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	AcquireBatchSize     serpent.Int64    `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled  serpent.Bool     `json:"debug_logging_enabled" typescript:",notnull"`
+	HookURL              serpent.URL      `json:"hook_url" typescript:",notnull"`
+	HookSecret           serpent.String   `json:"hook_secret" typescript:",notnull"`
+	HookTimeout          serpent.Duration `json:"hook_timeout" typescript:",notnull"`
+	HookEnabled          serpent.Bool     `json:"hook_enabled" typescript:",notnull"`
+	HookAllowInsecure    serpent.Bool     `json:"hook_allow_insecure" typescript:",notnull"`
+	StreamSilenceTimeout serpent.Duration `json:"stream_silence_timeout" typescript:",notnull"`
+	// MaxStepsPerTurn is the maximum number of steps in a chat turn.
+	MaxStepsPerTurn serpent.Int64 `json:"max_steps_per_turn" typescript:",notnull"`
+	// MaxGenerationRetries is the maximum number of consecutive retries
+	// after a model generation fails with a transient error.
+	MaxGenerationRetries serpent.Int64 `json:"max_generation_retries" typescript:",notnull"`
+	// MaxQueuedMessagesPerChat is the maximum number of messages that can
+	// be queued in a chat.
+	MaxQueuedMessagesPerChat serpent.Int64 `json:"max_queued_messages_per_chat" typescript:",notnull"`
+	// MaxAttachmentsPerChat is the maximum number of files linked to a
+	// chat.
+	MaxAttachmentsPerChat serpent.Int64 `json:"max_attachments_per_chat" typescript:",notnull"`
+	// MaxPromptBytes is the maximum size in bytes of the deployment system
+	// prompt, the plan mode instructions, and each user's custom prompt.
+	MaxPromptBytes serpent.Int64 `json:"max_prompt_bytes" typescript:",notnull"`
+	// MaxConcurrentRecordingUploads is the maximum number of virtual
+	// desktop recordings that each Coder server stores at the same time.
+	MaxConcurrentRecordingUploads serpent.Int64 `json:"max_concurrent_recording_uploads" typescript:",notnull"`
 	// Deprecated: AI Gateway routing is now the only routing path. Setting this
 	// value has no effect. This option will be removed in a future release.
 	AIGatewayRoutingEnabled serpent.Bool `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
@@ -4956,6 +5092,26 @@ func (c *DeploymentValues) Validate() error {
 			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
+		}
+	}
+
+	if timeout := c.AI.Chat.StreamSilenceTimeout.Value(); timeout < 0 || timeout > 24*time.Hour {
+		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
+	}
+
+	for _, limit := range []struct {
+		flag  string
+		value int64
+	}{
+		{"chat-max-steps-per-turn", c.AI.Chat.MaxStepsPerTurn.Value()},
+		{"chat-max-generation-retries", c.AI.Chat.MaxGenerationRetries.Value()},
+		{"chat-max-queued-messages-per-chat", c.AI.Chat.MaxQueuedMessagesPerChat.Value()},
+		{"chat-max-attachments-per-chat", c.AI.Chat.MaxAttachmentsPerChat.Value()},
+		{"chat-max-prompt-bytes", c.AI.Chat.MaxPromptBytes.Value()},
+		{"chat-max-concurrent-recording-uploads", c.AI.Chat.MaxConcurrentRecordingUploads.Value()},
+	} {
+		if limit.value < 1 || limit.value > math.MaxInt32 {
+			return xerrors.Errorf("--%s (%d) must be between 1 and %d", limit.flag, limit.value, math.MaxInt32)
 		}
 	}
 
@@ -5121,6 +5277,9 @@ type BuildInfoResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 	// Telemetry is a boolean that indicates whether telemetry is enabled.
 	Telemetry bool `json:"telemetry"`
+	// OAuth2Provider reports whether the OAuth 2.1 authorization server is
+	// enabled. The dashboard uses it to show or hide OAuth2 navigation.
+	OAuth2Provider bool `json:"oauth2_provider"`
 
 	WorkspaceProxy bool `json:"workspace_proxy"`
 
@@ -5181,16 +5340,18 @@ const (
 	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
-	ExperimentOAuth2                    Experiment = "oauth2"                      // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
 	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
-	ExperimentNATSPubsub                Experiment = "nats_pubsub"                 // Enables embedded NATS pubsub.
+	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
+	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
 	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
+	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
+	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5203,24 +5364,28 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentOAuth2:
-		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
-	case ExperimentNATSPubsub:
-		return "NATS Pubsub"
+	case ExperimentNoNATSPubsub:
+		return "No NATS Pubsub"
 	case ExperimentWorkspaceCapableLicensing:
 		return "Workspace-Capable Licensing"
 	case ExperimentAIGatewaySeatExclusion:
 		return "AI Gateway Seat Exclusion"
+	case ExperimentAIGatewayReverseProxy:
+		return "AI Gateway Reverse Proxy"
 	case ExperimentChatAdvisor:
 		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
 		return "Agent Lifecycle Hooks"
+	case ExperimentChatInlineMCPServers:
+		return "Chat Inline MCP Servers"
+	case ExperimentEnableAIWorkspaceDebug:
+		return "AI Workspace Debugging"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5235,16 +5400,18 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentMCPToolSearch,
-	ExperimentNATSPubsub,
+	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
+	ExperimentAIGatewayReverseProxy,
 	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
+	ExperimentChatInlineMCPServers,
+	ExperimentEnableAIWorkspaceDebug,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5408,9 +5575,16 @@ type WorkspaceDeploymentStats struct {
 }
 
 type SessionCountDeploymentStats struct {
-	VSCode          int64 `json:"vscode"`
-	SSH             int64 `json:"ssh"`
-	JetBrains       int64 `json:"jetbrains"`
+	// Apps holds one entry per reported app name, each carrying the family it
+	// totals under. The fields below duplicate those totals for one release.
+	Apps map[string]SessionCountApp `json:"apps"`
+	// Deprecated: total Apps by Family instead.
+	VSCode int64 `json:"vscode"`
+	// Deprecated: total Apps by Family instead.
+	SSH int64 `json:"ssh"`
+	// Deprecated: total Apps by Family instead.
+	JetBrains int64 `json:"jetbrains"`
+	// Deprecated: total Apps by Family instead.
 	ReconnectingPTY int64 `json:"reconnecting_pty"`
 }
 

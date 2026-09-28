@@ -534,6 +534,7 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].OrganizationID.String(), template.OrganizationID)
 			require.Equal(t, expected[i].AgentsAllowed, template.AgentsAllowed)
 		}
 	})
@@ -556,6 +557,7 @@ func TestTools(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, result, 1, "expected 1 workspace")
 		workspace := result[0]
+		require.Equal(t, r.Workspace.OrganizationID.String(), workspace.OrganizationID)
 		require.Equal(t, r.Workspace.ID.String(), workspace.ID, "expected the workspace to match the one we created")
 	})
 
@@ -900,6 +902,7 @@ func TestTools(t *testing.T) {
 
 			// MinimalTemplate fields populated.
 			require.Equal(t, gtBuild.Template.ID.String(), result.ID)
+			require.Equal(t, gtBuild.Template.OrganizationID.String(), result.OrganizationID)
 			require.Equal(t, gtBuild.Template.Name, result.Name)
 			require.Equal(t, gtBuild.Template.ActiveVersionID, result.ActiveVersionID)
 
@@ -943,6 +946,7 @@ func TestTools(t *testing.T) {
 			b, err := json.Marshal(result)
 			require.NoError(t, err)
 			require.NotContains(t, string(b), `"presets"`)
+			require.Contains(t, string(b), `"organization_id":"`+gtNoPresetBuild.Template.OrganizationID.String()+`"`)
 		})
 
 		t.Run("InvalidID", func(t *testing.T) {
@@ -1059,26 +1063,38 @@ func TestTools(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, tv)
 		})
+		t.Run("ExplicitOrganization", func(t *testing.T) {
+			organization := dbgen.Organization(t, store, database.Organization{})
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				OrganizationID: organization.ID.String(),
+				FileID:         file.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, organization.ID, tv.OrganizationID)
+		})
 	})
 
 	t.Run("CreateTemplate", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
+		organization := dbgen.Organization(t, store, database.Organization{})
 		// Create a new template version for use here.
 		tv := dbfake.TemplateVersion(t, store).
 			// nolint:gocritic // This is in a test package and does not end up in the build
-			Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
+			Seed(database.TemplateVersion{OrganizationID: organization.ID, CreatedBy: owner.UserID}).
 			SkipCreateTemplate().Do()
 
 		// We're going to re-use the pre-existing template version
-		_, err = testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
-			Name:        testutil.GetRandomNameHyphenated(t),
-			DisplayName: "Test Template",
-			Description: "This is a test template",
-			VersionID:   tv.TemplateVersion.ID.String(),
+		created, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+			OrganizationID: organization.ID.String(),
+			Name:           testutil.GetRandomNameHyphenated(t),
+			DisplayName:    "Test Template",
+			Description:    "This is a test template",
+			VersionID:      tv.TemplateVersion.ID.String(),
 		})
 
 		require.NoError(t, err)
+		require.Equal(t, organization.ID, created.OrganizationID)
 	})
 
 	t.Run("CreateWorkspace", func(t *testing.T) {

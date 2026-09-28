@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -49,11 +50,23 @@ func init() {
 		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	oauth2AppNameValidator := func(fl validator.FieldLevel) bool {
+		str, ok := fl.Field().Interface().(string)
+		if !ok {
+			return false
+		}
+		return codersdk.OAuth2AppNameValid(str) == nil
+	}
+	err := Validate.RegisterValidation("oauth2_app_name", oauth2AppNameValidator)
+	if err != nil {
+		panic(err)
 	}
 
 	displayNameValidator := func(fl validator.FieldLevel) bool {
@@ -81,7 +94,7 @@ func init() {
 		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -342,6 +355,26 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	<-chan struct{},
 	error,
 ) {
+	return newServerSentEventSender(quartz.NewReal(), rw, r)
+}
+
+// ServerSentEventSenderWithClock is ServerSentEventSender with the heartbeat
+// ticker driven by clk.
+func ServerSentEventSenderWithClock(clk quartz.Clock) EventSender {
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(sse codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		return newServerSentEventSender(clk, rw, r)
+	}
+}
+
+func newServerSentEventSender(clk quartz.Clock, rw http.ResponseWriter, r *http.Request) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -364,7 +397,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := clk.NewTicker(HeartbeatInterval, "ServerSentEventSender")
 		defer ticker.Stop()
 
 		for {
@@ -557,4 +590,18 @@ func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, e
 		Error:            errorCode,
 		ErrorDescription: description,
 	})
+}
+
+// WriteOAuth2RequestTooLarge reports a request body over limit as an RFC 6749
+// error, for the OAuth2 endpoints that read a form body rather than decoding
+// through Read. RFC 6749 defines no error code for a transport rejection, so
+// invalid_request is the closest compliant framing.
+//
+// The limit is the one carried by the *http.MaxBytesError that tripped, so a
+// caller of this function reports the bound that actually applied rather than
+// the one it assumes applied.
+func WriteOAuth2RequestTooLarge(ctx context.Context, rw http.ResponseWriter, limit int64) {
+	RecordRequestBodyLimit(ctx, limit)
+	WriteOAuth2Error(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.OAuth2ErrorCodeInvalidRequest,
+		fmt.Sprintf("Maximum request body size is %d bytes.", limit))
 }

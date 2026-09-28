@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -21,6 +20,8 @@ import {
 } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+
+export const CLASSIC_PARAMETER_FLOW_FILTER = "compatibility_mode:true";
 
 export type TemplateFilterState = {
 	filter: UseFilterResult;
@@ -62,14 +63,14 @@ export const useTemplatesFilter = ({
 	};
 };
 
-interface TemplatesFilterProps {
+type TemplatesFilterProps = {
 	filter: UseFilterResult;
 	error?: unknown;
 
 	userMenu?: UserFilterMenu;
-}
+};
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({
+export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	filter,
 	error,
 	userMenu,
@@ -101,6 +102,10 @@ export const TemplatesFilter: FC<TemplatesFilterProps> = ({
 				{ query: "", name: "All templates" },
 				{ query: "author:me", name: "Templates you authored" },
 				{ query: "deprecated:true", name: "Deprecated templates" },
+				{
+					query: CLASSIC_PARAMETER_FLOW_FILTER,
+					name: "Templates using compatibility mode",
+				},
 			]}
 			// TODO: Add docs for this
 			// learnMoreLink={docs("/admin/templates#template-filtering")}

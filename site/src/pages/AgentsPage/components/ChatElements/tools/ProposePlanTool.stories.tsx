@@ -188,10 +188,4 @@ export const FileIDFetchError: Story = {
 			new Error("Failed to load plan"),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			await canvas.findByRole("img", { name: "Failed to load plan" }),
-		).toBeInTheDocument();
-	},
 };

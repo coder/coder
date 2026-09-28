@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type {
 	CreateTemplateVersionRequest,
 	TemplateVersion,
@@ -13,7 +12,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
-interface TemplateVariablesPageViewProps {
+type TemplateVariablesPageViewProps = {
 	templateVersion?: TemplateVersion;
 	templateVariables?: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -29,12 +28,14 @@ interface TemplateVariablesPageViewProps {
 		 */
 		publishError?: unknown;
 	};
-	initialTouched?: ComponentProps<
+	initialTouched?: React.ComponentProps<
 		typeof TemplateVariablesForm
 	>["initialTouched"];
-}
+};
 
-export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
+export const TemplateVariablesPageView: React.FC<
+	TemplateVariablesPageViewProps
+> = ({
 	templateVersion,
 	templateVariables,
 	onCancel,

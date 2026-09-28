@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -19,7 +18,7 @@ import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
-interface NavbarViewProps {
+type NavbarViewProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
@@ -29,7 +28,7 @@ interface NavbarViewProps {
 	canCreateChat: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
-}
+};
 
 const linkStyles = {
 	default:
@@ -37,7 +36,7 @@ const linkStyles = {
 	active: "text-content-primary",
 };
 
-export const NavbarView: FC<NavbarViewProps> = ({
+export const NavbarView: React.FC<NavbarViewProps> = ({
 	user,
 	buildInfo,
 	supportLinks,
@@ -151,12 +150,12 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	);
 };
 
-interface NavItemsProps {
+type NavItemsProps = {
 	className?: string;
 	canCreateChat: boolean;
-}
+};
 
-const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
+const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
@@ -198,14 +197,18 @@ function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
 }
 
-interface SupportButtonProps {
+type SupportButtonProps = {
 	name: string;
 	target: string;
 	icon: string;
 	location?: string;
-}
+};
 
-const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
+const SupportButton: React.FC<SupportButtonProps> = ({
+	name,
+	target,
+	icon,
+}) => {
 	return (
 		<Button asChild variant="outline">
 			<a

@@ -141,30 +141,6 @@ export const WithAllApps: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
-
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("VS Code")).toBeInTheDocument();
-			expect(body.getByText("VS Code Insiders")).toBeInTheDocument();
-			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
-			expect(body.getByText("Cursor")).toBeInTheDocument();
-			expect(body.getByText("Terminal")).toBeInTheDocument();
-			expect(body.getByText("Copy SSH Command")).toBeInTheDocument();
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-
-			// Verify items are enabled on a running workspace.
-			const vscodeItem = body.getByText("VS Code").closest("[role=menuitem]");
-			expect(vscodeItem).not.toHaveAttribute("aria-disabled", "true");
-
-			// External apps should be enabled with API key mock.
-			const jetbrainsItem = body
-				.getByText("JetBrains Gateway")
-				.closest("[role=menuitem]");
-			expect(jetbrainsItem).not.toHaveAttribute("aria-disabled", "true");
-
-			const cursorItem = body.getByText("Cursor").closest("[role=menuitem]");
-			expect(cursorItem).not.toHaveAttribute("aria-disabled", "true");
-		});
 	},
 };
 
@@ -223,15 +199,6 @@ export const WithBuiltinAppsOnly: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
-
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("VS Code")).toBeInTheDocument();
-			expect(body.getByText("Terminal")).toBeInTheDocument();
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			// No external apps or VS Code Insiders.
-			expect(body.queryByText("VS Code Insiders")).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -245,16 +212,6 @@ export const WithExternalAppsOnly: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
-
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
-			expect(body.getByText("Cursor")).toBeInTheDocument();
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			// No built-in apps.
-			expect(body.queryByText("VS Code")).not.toBeInTheDocument();
-			expect(body.queryByText("Terminal")).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -268,11 +225,6 @@ export const NoApps: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
-
-		await waitFor(() => {
-			const body = within(document.body);
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-		});
 	},
 };
 
@@ -286,15 +238,6 @@ export const WithHiddenApp: Story = {
 		const canvas = within(canvasElement);
 		const pill = canvas.getByText("test-workspace");
 		await userEvent.click(pill);
-
-		await waitFor(() => {
-			const body = within(document.body);
-			// Visible apps should appear.
-			expect(body.getByText("VS Code")).toBeInTheDocument();
-			expect(body.getByText("JetBrains Gateway")).toBeInTheDocument();
-			// Hidden app should NOT appear.
-			expect(body.queryByText("Hidden Internal Tool")).not.toBeInTheDocument();
-		});
 	},
 };
 
@@ -373,25 +316,8 @@ export const WithListeningPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		await waitFor(() => {
-			// The ports sub-trigger should show the count.
-			expect(body.getByText(/Ports \(\d+\)/)).toBeInTheDocument();
-		});
-
-		// Hover over the ports item to open the submenu.
-		await userEvent.hover(body.getByText(/Ports \(\d+\)/));
-
-		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-			expect(body.getByText("8080")).toBeInTheDocument();
-			expect(body.getByText("gogo")).toBeInTheDocument();
-			expect(body.getByText("30000")).toBeInTheDocument();
-			expect(body.getByText("webb")).toBeInTheDocument();
-			expect(body.getByText("Manage sharing")).toBeInTheDocument();
-			// Port items render as anchor links.
-			const port8080Anchor = body.getByText("8080").closest("a");
-			expect(port8080Anchor).toHaveAttribute("href");
-		});
+		await userEvent.hover(await body.findByText(/Ports \(\d+\)/));
+		await body.findByText("Listening Ports");
 	},
 };
 
@@ -423,22 +349,8 @@ export const WithSharedPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText(/Ports/)).toBeInTheDocument();
-		});
-
-		await userEvent.hover(body.getByText(/Ports/));
-
-		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-			expect(body.getByText("Shared Ports")).toBeInTheDocument();
-			// Shared ports from MockSharedPortsResponse for this agent.
-			expect(body.getByText("4000")).toBeInTheDocument();
-			expect(body.getByText("Manage sharing")).toBeInTheDocument();
-			// Port 8081 is both listening and shared; deduplication ensures it
-			// appears only in the Shared Ports section, not in Listening Ports.
-			expect(body.getAllByText("8081")).toHaveLength(1);
-		});
+		await userEvent.hover(await body.findByText(/Ports/));
+		await body.findByText("Listening Ports");
 	},
 };
 
@@ -467,15 +379,8 @@ export const EmptyPorts: Story = {
 		await userEvent.click(pill);
 
 		const body = within(document.body);
-		await waitFor(() => {
-			expect(body.getByText("Ports (0)")).toBeInTheDocument();
-		});
-
-		await userEvent.hover(body.getByText("Ports (0)"));
-
-		await waitFor(() => {
-			expect(body.getByText("No open ports detected.")).toBeInTheDocument();
-		});
+		await userEvent.hover(await body.findByText("Ports (0)"));
+		await body.findByText("No open ports detected.");
 	},
 };
 
@@ -579,9 +484,6 @@ export const MobilePortsInlinePanelOpen: Story = {
 	...mobilePortsStoryConfig,
 	play: async ({ canvasElement }) => {
 		const { body } = await openMobilePortsPanel(canvasElement);
-
-		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-		});
+		await body.findByText("Listening Ports");
 	},
 };

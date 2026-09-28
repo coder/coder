@@ -1,13 +1,9 @@
-import {
-	type KeyboardEvent as ReactKeyboardEvent,
-	useEffect,
-	useMemo,
-	useReducer,
-	useRef,
-} from "react";
+import { useEffect, useMemo, useReducer, useRef } from "react";
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
+	type CategoryPreview,
+	categoryPreview,
 	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
@@ -48,6 +44,7 @@ type Action =
 	| { type: "typeInCategory"; value: string }
 	| { type: "typeFreeText"; value: string }
 	| { type: "setCommittedFreeText"; value: string }
+	| { type: "leaveCategory" }
 	| { type: "close"; input: "restore" | "clear" | "keep" }
 	| { type: "reconcile"; freeText: string };
 
@@ -88,6 +85,13 @@ const reducer = (state: State, action: Action): State => {
 			};
 		case "setCommittedFreeText":
 			return { ...state, committedFreeText: action.value.trim() };
+		case "leaveCategory":
+			return {
+				...state,
+				mode: "browsing",
+				activeCategoryKey: null,
+				inputValue: state.committedFreeText,
+			};
 		case "close":
 			return closeState(state, action.input);
 		case "reconcile":
@@ -326,6 +330,41 @@ export const useFilterCombobox = ({
 		},
 	});
 
+	// Category rows preview their options while the menu is open with an empty
+	// input. The empty-query key is shared with the category view, so entering a
+	// category reuses the cached result.
+	const previewsEnabled =
+		isBrowsing && activeCategoryKey === null && inputValue.trim().length === 0;
+	const previewOptions = useQueries({
+		queries: categories.map((category) =>
+			filterComboboxOptions(
+				category.key,
+				category.getOptions,
+				"",
+				previewsEnabled,
+			),
+		),
+		combine: (results) => {
+			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			results.forEach((result, index) => {
+				if (result.data) {
+					optionsByKey.set(categories[index].key, result.data);
+				}
+			});
+			return optionsByKey;
+		},
+	});
+	const categoryPreviews = useMemo(() => {
+		const previews = new Map<string, CategoryPreview>();
+		for (const category of categories) {
+			previews.set(
+				category.key,
+				categoryPreview(category, chipValues, previewOptions.get(category.key)),
+			);
+		}
+		return previews;
+	}, [categories, chipValues, previewOptions]);
+
 	const valueSuggestions =
 		activeCategoryKey !== null || !isBrowsing
 			? []
@@ -464,7 +503,13 @@ export const useFilterCombobox = ({
 		dispatch({ type: "close", input: "keep" });
 	};
 
+	// From inside a category the toggle steps back to the category list rather
+	// than closing, so an accidental click can be corrected without reopening the menu.
 	const toggleFilterMenu = () => {
+		if (mode === "category") {
+			dispatch({ type: "leaveCategory" });
+			return;
+		}
 		if (open) {
 			dispatch({ type: "close", input: "restore" });
 			return;
@@ -554,13 +599,13 @@ export const useFilterCombobox = ({
 		updateFromChips(chipValues.filter((entry) => entry !== token));
 	};
 
-	const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+	const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
 		const isBackspaceOrDelete =
 			event.key === "Backspace" || event.key === "Delete";
 
 		if (isBackspaceOrDelete && inputValue === "" && mode === "category") {
 			event.preventDefault();
-			dispatch({ type: "close", input: "restore" });
+			dispatch({ type: "leaveCategory" });
 			return;
 		}
 
@@ -641,6 +686,7 @@ export const useFilterCombobox = ({
 		activeOptionsError,
 		statusMessage,
 		listedCategories,
+		categoryPreviews,
 		valueSuggestions,
 		searchResults,
 		chipValues,

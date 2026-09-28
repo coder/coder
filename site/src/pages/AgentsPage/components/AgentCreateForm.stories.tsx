@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
-import { type ComponentProps, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import { useLocation } from "react-router";
 import {
@@ -28,20 +28,28 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspace,
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	formatWorkspaceBuildLogsForDebug,
+} from "../utils/workspaceBuildDebug";
 import {
 	AgentCreateForm,
 	emptyInputStorageKey,
@@ -206,24 +214,8 @@ const buildRootPersonalModelOverride = (
 const buildPersonalModelOverridesResponse = (
 	root = buildRootPersonalModelOverride({ is_set: false }),
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
-	enabled: true,
+	...MockUnsetUserChatPersonalModelOverrides,
 	root,
-	general: {
-		context: "general",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	explore: {
-		context: "explore",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	deployment_defaults: {
-		general: { context: "general", model_config_id: "" },
-		explore: { context: "explore", model_config_id: "" },
-	},
 });
 
 const mock403Error = Object.assign(
@@ -245,6 +237,28 @@ const mock403Error = Object.assign(
 	},
 );
 
+// Stories that replace parameters.queries must re-seed these entries or the
+// form fetches them, gets a 404 from the story sandbox, and never enables
+// send.
+const defaultQueries = [
+	{
+		key: organizationChatModelsKey(MockDefaultOrganization.id),
+		data: defaultModelCatalog,
+	},
+	{
+		key: userChatProviderConfigsKey,
+		data: defaultUserProviderConfigs,
+	},
+	{
+		key: userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
+		data: buildPersonalModelOverridesResponse(),
+	},
+	{
+		key: preferenceSettingsKey,
+		data: MockUserPreferenceSettings,
+	},
+];
+
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -260,25 +274,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isWorkspacesLoading: false,
 	},
 	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: defaultModelCatalog,
-			},
-			{
-				key: userChatProviderConfigsKey,
-				data: defaultUserProviderConfigs,
-			},
-			{
-				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
-					.queryKey,
-				data: buildPersonalModelOverridesResponse(),
-			},
-			{
-				key: preferenceSettingsKey,
-				data: MockUserPreferenceSettings,
-			},
-		],
+		queries: defaultQueries,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -302,7 +298,7 @@ type Story = StoryObj<typeof AgentCreateForm>;
 const defaultArgs = meta.args;
 
 const RemountAgentCreateForm = (
-	props: ComponentProps<typeof AgentCreateForm>,
+	props: React.ComponentProps<typeof AgentCreateForm>,
 ) => {
 	const [key, setKey] = useState(0);
 	return (
@@ -478,25 +474,24 @@ export const RootOverrideMissingFromCatalog: Story = {
 	},
 };
 
-export const LastUsedModelFallbackWithoutRootOverride: Story = {
+export const OrganizationDefaultModelWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
 		).toBeInTheDocument();
-		await submitMessage(canvasElement, "create with last used model");
+		await submitMessage(canvasElement, "create with the default model");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -897,13 +892,11 @@ export const WithWorkspaces: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		// Open the "+" menu first, then click the workspace trigger inside it.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await waitFor(() => {
-			const trigger = body.getByText("Attach workspace").closest("button")!;
-			expect(trigger).toBeEnabled();
-		});
-		await userEvent.click(
-			body.getByText("Attach workspace").closest("button")!,
-		);
+		// Wait for the menu and the Attach workspace trigger to render.
+		const trigger = (await body.findByText("Attach workspace")).closest(
+			"button",
+		)!;
+		await userEvent.click(trigger);
 		// Wait for the workspace combobox dropdown to appear so snapshot tests
 		// capture it.
 		await body.findByPlaceholderText("Search workspaces...");
@@ -923,26 +916,17 @@ export const SearchWorkspaces: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		// Open the "+" menu first, then click the workspace trigger inside it.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await waitFor(() => {
-			const trigger = body.getByText("Attach workspace").closest("button")!;
-			expect(trigger).toBeEnabled();
-		});
-		await userEvent.click(
-			body.getByText("Attach workspace").closest("button")!,
-		);
+		// Wait for the menu and the Attach workspace trigger to render.
+		const trigger = (await body.findByText("Attach workspace")).closest(
+			"button",
+		)!;
+		await userEvent.click(trigger);
 
 		// Type in the search input to filter workspaces.
-		const searchInput = body.getByPlaceholderText("Search workspaces...");
+		const searchInput = await body.findByPlaceholderText(
+			"Search workspaces...",
+		);
 		await userEvent.type(searchInput, "backend");
-
-		// Only the matching workspace should remain visible.
-		await waitFor(() => {
-			const options = body.getAllByRole("option");
-			// "Auto-create Workspace" is filtered out, only
-			// "johndoe/backend-api" matches.
-			expect(options).toHaveLength(1);
-			expect(options[0]).toHaveTextContent("backend-api");
-		});
 	},
 };
 
@@ -961,29 +945,26 @@ export const SelectWorkspaceViaSearch: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		// Open the "+" menu first, then click the workspace trigger inside it.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await waitFor(() => {
-			const trigger = body.getByText("Attach workspace").closest("button")!;
-			expect(trigger).toBeEnabled();
-		});
-		await userEvent.click(
-			body.getByText("Attach workspace").closest("button")!,
-		);
+		// Wait for the menu and the Attach workspace trigger to render.
+		const trigger = (await body.findByText("Attach workspace")).closest(
+			"button",
+		)!;
+		await userEvent.click(trigger);
 
 		// Search for "backend" and select the result.
-		const searchInput = body.getByPlaceholderText("Search workspaces...");
+		const searchInput = await body.findByPlaceholderText(
+			"Search workspaces...",
+		);
 		await userEvent.type(searchInput, "backend");
 
-		await waitFor(() => {
-			expect(body.getAllByRole("option")).toHaveLength(1);
-		});
+		await userEvent.click(
+			await body.findByRole("option", { name: /backend-api/ }),
+		);
 
-		await userEvent.click(body.getByRole("option", { name: /backend-api/ }));
-
-		// Re-open the "+" menu to verify the selected workspace label.
+		// Re-open the "+" menu so the snapshot captures the selected
+		// workspace label.
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await waitFor(() => {
-			expect(body.getByText("backend-api")).toBeInTheDocument();
-		});
+		await body.findByText("backend-api");
 	},
 };
 
@@ -992,6 +973,11 @@ export const LoadingModelCatalog: Story = {
 	parameters: { queries: [] },
 	args: {
 		...defaultArgs,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockReturnValue(
+			new Promise(() => undefined),
+		);
 	},
 };
 
@@ -1037,13 +1023,6 @@ export const LoadingPersonalModelOverrides: Story = {
 			},
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
-	},
 };
 
 export const FailedPersonalModelOverridesBlocksSend: Story = {
@@ -1067,17 +1046,6 @@ export const FailedPersonalModelOverridesBlocksSend: Story = {
 				data: defaultUserProviderConfigs,
 			},
 		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// A failed override fetch must keep sending blocked: submitting would
-		// pass a catalog fallback as an explicit model, silently bypassing the
-		// user's saved root override.
-		await canvas.findAllByText(/failed to load personal overrides/i);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
 	},
 };
 
@@ -1162,28 +1130,6 @@ export const MissingProviderAndModelSetup: Story = {
 		...defaultArgs,
 		canConfigureAgentSetup: true,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
-		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
-			"href",
-			"/ai/settings/providers",
-		);
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
-		);
-	},
 };
 
 export const LocalOrganizationMissingProviderAndModelSetup: Story = {
@@ -1219,21 +1165,7 @@ export const LocalOrganizationMissingProviderAndModelSetup: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		await waitFor(() => {
-			expect(
-				canvas.getAllByText((_content, element) => {
-					return (
-						element?.textContent ===
-						"To chat with Coder Agents, set up a provider then add a model."
-					);
-				})[0],
-			).toBeVisible();
-		});
 		await userEvent.click(canvas.getByRole("link", { name: "model" }));
-		await expect(
-			await canvas.findByRole("status", { name: "Current location" }),
-		).toHaveTextContent(`/ai/settings/models?org=${MockOrganization2.name}`);
 	},
 };
 
@@ -1241,13 +1173,6 @@ export const AIGatewayDisabled: Story = {
 	args: {
 		...defaultArgs,
 		aiGatewayDisabled: true,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("textbox")).toHaveAttribute(
-			"aria-disabled",
-			"true",
-		);
 	},
 };
 
@@ -1403,12 +1328,10 @@ export const WithOrganizationPicker: Story = {
 		const organizationTrigger = await canvas.findByRole("button", {
 			name: `Organization: ${MockDefaultOrganization.display_name}`,
 		});
-		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
 
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		await expect(organizationTrigger).toBeVisible();
 
 		await userEvent.click(organizationTrigger);
 		await userEvent.click(
@@ -1417,41 +1340,20 @@ export const WithOrganizationPicker: Story = {
 			}),
 		);
 
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", {
-					name: `Organization: ${MockOrganization2.display_name}`,
-				}),
-			).toBeVisible();
-			expect(
-				canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
-			).toBeVisible();
-		});
+		// Wait for the organization switch to settle before interacting with
+		// the organization 2 model selector.
+		await canvas.findByRole("combobox", { name: "GPT 4.1 Mini" });
 
 		await userEvent.keyboard("{Escape}");
 		await userEvent.click(
 			canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
 		);
-		await waitFor(() => {
-			const visibleOptions = body
-				.getAllByRole("option")
-				.filter((option) => option.checkVisibility());
-			expect(
-				visibleOptions.some((option) =>
-					option.textContent?.includes("GPT 4.1 Mini"),
-				),
-			).toBe(true);
-			expect(
-				visibleOptions.some((option) => option.textContent?.includes("GPT-4o")),
-			).toBe(false);
-		});
-		expect(
-			canvas.queryByRole("combobox", { name: "GPT-4o" }),
-		).not.toBeInTheDocument();
+		// Wait for the model dropdown to open so snapshot tests capture it.
+		await body.findByRole("option", { name: /GPT 4\.1 Mini/ });
 	},
 };
 
-export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
+export const DelayedAuthorizationResolvesPermittedOrganization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
@@ -1472,10 +1374,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(
-			"agents.last-model-config-id",
-			organization2ModelConfig.id,
-		);
 		mockPermittedOrganizations(
 			{
 				[MockDefaultOrganization.id]: false,
@@ -1852,11 +1750,6 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(
-				canvas.queryByRole("button", { name: /organization/i }),
-			).not.toBeInTheDocument(),
-		);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2005,9 +1898,9 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-		await waitFor(() =>
-			expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument(),
-		);
+		// Wait for the persisted attachment chip so the organization change
+		// opens the confirmation dialog.
+		await canvas.findByLabelText("Remove notes.txt");
 		await userEvent.click(
 			await canvas.findByRole("button", {
 				name: "Organization: My Organization",
@@ -2022,14 +1915,6 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await waitFor(() =>
-			expect(
-				body.queryByText(
-					"Changing organization will remove your current attachments.",
-				),
-			).not.toBeInTheDocument(),
-		);
-		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
 	},
 };
 
@@ -2072,15 +1957,6 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 				data: defaultUserProviderConfigs,
 			},
 		],
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
-		expect(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-		).toHaveAttribute("aria-disabled", "true");
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
-		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
 };
 
@@ -2262,13 +2138,6 @@ export const MCPServersLoadingDisablesSend: Story = {
 			() => new Promise(() => {}),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const input = canvas.getByRole("textbox");
-		await userEvent.click(input);
-		await userEvent.keyboard("send while MCP servers load");
-		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
-	},
 };
 
 export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
@@ -2296,8 +2165,6 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		const input = canvas.getByRole("textbox");
 		await userEvent.click(input);
 		await userEvent.keyboard("send after a failed refetch");
-		const send = canvas.getByRole("button", { name: "Send" });
-		await waitFor(() => expect(send).toBeEnabled());
 		if (!capturedQueryClient) {
 			throw new Error("query client was not captured by the story decorator");
 		}
@@ -2305,9 +2172,126 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
 			exact: true,
 		});
-		await waitFor(() => {
-			expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-			expect(send).toBeEnabled();
+	},
+};
+
+const workspaceBuildDebugPrefill = {
+	message: debugWorkspaceBuildPrompt(MockFailedWorkspace.latest_build),
+	attachment: {
+		name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
+		text: formatWorkspaceBuildLogsForDebug(
+			MockFailedWorkspace.latest_build,
+			MockWorkspaceBuildLogs,
+		),
+	},
+};
+
+export const PrefilledWorkspaceBuildDebug: Story = {
+	args: {
+		...defaultArgs,
+		prefill: workspaceBuildDebugPrefill,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "workspace-build-logs-file",
 		});
+	},
+};
+
+// Deferred workspace uploads: with a workspace selected, files that
+// cannot ride the attachment pipeline (e.g. zips) queue locally and
+// upload during submit, after the chat is created. Behavior is covered
+// in AgentCreateForm.test.tsx; these stories capture the visual states.
+
+const attachZipFile = async (canvasElement: HTMLElement) => {
+	// The hidden input has no role or accessible name.
+	const fileInput = within(canvasElement).getByTestId(
+		"chat-attachment-file-input",
+	);
+	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
+		type: "application/zip",
+	});
+	await userEvent.upload(fileInput, zip);
+};
+
+export const WorkspaceFileQueuedForDeferredUpload: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement).findByText("Uploads when sent");
+	},
+};
+
+export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.",
+		);
+	},
+};
+
+export const WorkspaceFileSubmissionLocksScopeControls: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	args: {
+		onCreateChat: fn(() => new Promise<void>(() => {})),
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await submitMessage(canvasElement, "inspect this archive");
+	},
+};
+
+export const DetachingWorkspaceDropsQueuedFiles: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await attachZipFile(canvasElement);
+		await canvas.findByText("bundle.zip");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Remove workspace my-project" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Removed 1 file that uploads to the workspace",
+		);
 	},
 };

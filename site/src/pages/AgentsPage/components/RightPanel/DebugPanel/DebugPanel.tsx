@@ -1,6 +1,6 @@
 import { saveAs } from "file-saver";
 import { DownloadIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
 	type QueryClient,
 	useMutation,
@@ -28,11 +28,11 @@ import {
 	debugExportFilename,
 } from "./debugExport";
 
-interface DebugPanelProps {
+type DebugPanelProps = {
 	chatId: string;
 	isVisible?: boolean;
 	download?: DownloadDebugFile;
-}
+};
 
 const DEBUG_RUN_EXPORT_FETCH_CONCURRENCY = 5;
 
@@ -50,10 +50,10 @@ const chatDebugRunExportQuery = (chatId: string, run: ChatDebugRunSummary) => ({
 	staleTime: isTerminalDebugRun(run) ? Number.POSITIVE_INFINITY : 0,
 });
 
-interface DebugRunExportFetchResult {
+type DebugRunExportFetchResult = {
 	runDetails: ChatDebugRun[];
 	failedRuns: ChatDebugRunFetchFailure[];
-}
+};
 
 const fetchDebugRunDetailsForExport = async (
 	queryClient: QueryClient,
@@ -98,7 +98,7 @@ const fetchDebugRunDetailsForExport = async (
 	return { runDetails, failedRuns };
 };
 
-export const DebugPanel: FC<DebugPanelProps> = ({
+export const DebugPanel: React.FC<DebugPanelProps> = ({
 	chatId,
 	isVisible = false,
 	download = saveAs,
@@ -129,7 +129,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 			</div>
 		) : null;
 
-	let content: ReactNode;
+	let content: React.ReactNode;
 	if (runsQuery.isError && !hasRunsData) {
 		content = (
 			<div className="p-4">
@@ -198,13 +198,13 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 	);
 };
 
-interface ExportAllDebugRunsButtonProps {
+type ExportAllDebugRunsButtonProps = {
 	chatId: string;
 	runs: readonly ChatDebugRunSummary[];
 	download: DownloadDebugFile;
-}
+};
 
-const ExportAllDebugRunsButton: FC<ExportAllDebugRunsButtonProps> = ({
+const ExportAllDebugRunsButton: React.FC<ExportAllDebugRunsButtonProps> = ({
 	chatId,
 	runs,
 	download,

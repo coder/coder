@@ -71,8 +71,14 @@ type Template struct {
 	AgentsAllowed           bool `json:"agents_allowed"`
 
 	// DisableModuleCache disables the use of cached Terraform modules during
-	// provisioning.
+	// provisioning for this template. It is read-only while
+	// ModuleCacheDisabledByDeployment is true.
 	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// ModuleCacheDisabledByDeployment reports that the deployment disables the
+	// Terraform module cache for every template. Templates cannot opt back in,
+	// so the effective state is disabled regardless of DisableModuleCache.
+	ModuleCacheDisabledByDeployment bool `json:"module_cache_disabled_by_deployment"`
 
 	// AllowWorkspaceRenames permits users to rename workspaces built from this
 	// template. Renaming can be destructive for templates whose Terraform
@@ -183,6 +189,19 @@ type ArchiveTemplateVersionsResponse struct {
 	ArchivedIDs []uuid.UUID `json:"archived_ids"`
 }
 
+// ModuleCacheDisabled reports whether cached Terraform modules must be withheld
+// from provisioner jobs. The deployment-wide setting wins: a template cannot opt
+// back into the cache once the deployment disables it.
+func ModuleCacheDisabled(dv *DeploymentValues, templateDisableModuleCache bool) bool {
+	return templateDisableModuleCache || ModuleCacheDisabledByDeployment(dv)
+}
+
+// ModuleCacheDisabledByDeployment reports whether the deployment disables the
+// Terraform module cache for every template.
+func ModuleCacheDisabledByDeployment(dv *DeploymentValues) bool {
+	return dv != nil && dv.Provisioner.DisableModuleCache.Value()
+}
+
 type TemplateRole string
 
 const (
@@ -286,7 +305,8 @@ type UpdateTemplateMeta struct {
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
 	// DisableModuleCache disables the using of cached Terraform modules during
-	// provisioning. It is recommended not to disable this.
+	// provisioning. It is ignored while the deployment disables the module
+	// cache for all templates. It is recommended not to disable this.
 	DisableModuleCache *bool `json:"disable_module_cache,omitempty"`
 	// AgentsAllowed controls whether Coder Agents can create workspaces using
 	// this template. If omitted, the current value is preserved.

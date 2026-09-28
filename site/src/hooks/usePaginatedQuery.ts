@@ -152,7 +152,7 @@ export function usePaginatedQuery<
 	const query = useQuery<TQueryFnData, TError, TData, TQueryKey>({
 		...extraOptions,
 		...getQueryOptionsFromPage(currentPage),
-		placeholderData: keepPreviousData,
+		placeholderData: extraOptions.placeholderData ?? keepPreviousData,
 	});
 
 	const count = query.data?.count;
@@ -317,9 +317,11 @@ export function usePaginatedQuery<
 			}
 		},
 
-		...(query.isSuccess
+		// A failed refetch keeps the previous page, so the pagination info must
+		// stay available alongside the error instead of falling back to loading.
+		// React Query's own status flags pass through untouched.
+		...(query.data !== undefined
 			? {
-					isSuccess: true,
 					hasNextPage,
 					hasPreviousPage,
 					totalRecords: totalRecords as number,
@@ -328,7 +330,6 @@ export function usePaginatedQuery<
 					countIsCapped,
 				}
 			: {
-					isSuccess: false,
 					hasNextPage: false,
 					hasPreviousPage: false,
 					totalRecords: undefined,
@@ -370,7 +371,6 @@ export type PaginationResultInfo = {
 	goToFirstPage: () => void;
 } & (
 	| {
-			isSuccess: false;
 			hasNextPage: false;
 			hasPreviousPage: false;
 			totalRecords: undefined;
@@ -379,7 +379,6 @@ export type PaginationResultInfo = {
 			countIsCapped: false;
 	  }
 	| {
-			isSuccess: true;
 			hasNextPage: boolean;
 			hasPreviousPage: boolean;
 			totalRecords: number;

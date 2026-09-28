@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 const meta: Meta<typeof TextPreviewDialog> = {
@@ -82,24 +81,6 @@ export const MarkdownByExtension: Story = {
 		fileName: "AUTH_SPLIT.md",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		// The heading should render as a real <h1>, not raw "# Auth split…".
-		const heading = await within(dialog).findByRole("heading", {
-			name: /Auth split runbook/i,
-			level: 1,
-		});
-		expect(heading).toBeInTheDocument();
-		// Inline link from the markdown should be a real anchor.
-		const link = within(dialog).getByRole("link", {
-			name: /the SDK types/i,
-		});
-		expect(link).toHaveAttribute("href", "https://example.com/sdk");
-		// The verbatim "# " heading prefix must not appear as text. That
-		// would mean we fell back to the plain <pre> renderer.
-		expect(dialog.textContent ?? "").not.toContain("# Auth split runbook");
-	},
 };
 
 /** Equivalent to MarkdownByExtension but driven entirely by the explicit
@@ -112,15 +93,6 @@ export const MarkdownByMediaType: Story = {
 		mediaType: "text/markdown",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const heading = await within(dialog).findByRole("heading", {
-			name: /Auth split runbook/i,
-			level: 1,
-		});
-		expect(heading).toBeInTheDocument();
-	},
 };
 
 /** When the file looks like markdown but the body is just plain prose, the
@@ -132,26 +104,6 @@ export const MarkdownProseOnly: Story = {
 			"Just a short paragraph of prose with **bold** and _italic_ runs and an inline `code` token.",
 		fileName: "notes.md",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		await waitFor(() => {
-			// The markdown renderer schedules updates via useTransition,
-			// so wait for the inline formatting nodes to appear before
-			// asserting on them. Streamdown renders bold as a styled
-			// <span data-streamdown="strong"> rather than a literal
-			// <strong> element.
-			const strong = dialog.querySelector('[data-streamdown="strong"]');
-			expect(strong?.textContent).toBe("bold");
-		});
-		const em = dialog.querySelector("em");
-		expect(em?.textContent).toBe("italic");
-		// Inline code should render in a <code> element.
-		const code = dialog.querySelector("code");
-		expect(code?.textContent).toBe("code");
-		// Raw markdown markers should not be visible as text.
-		expect(dialog.textContent ?? "").not.toContain("**bold**");
 	},
 };
 

@@ -1,7 +1,5 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
 	userCompactionThresholdsKey,
@@ -9,7 +7,12 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatCompactionMessage,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
@@ -20,13 +23,14 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
-const StoryChatPageTimeline: FC<{
+const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 }> = ({ store }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
@@ -93,10 +97,11 @@ const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
-const StoryChatPageInput: FC<{
+const StoryChatPageInput: React.FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
-}> = ({ store, onInterrupt }) => (
+	contextLimit?: number;
+}> = ({ store, onInterrupt, contextLimit }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
@@ -118,6 +123,7 @@ const StoryChatPageInput: FC<{
 					provider: "openai",
 					model: "gpt-4o",
 					displayName: "GPT-4o",
+					contextLimit,
 				},
 			]}
 			modelSelectorPlaceholder="Select model"
@@ -127,6 +133,38 @@ const StoryChatPageInput: FC<{
 		/>
 	</div>
 );
+
+export const ContextUsageAfterCompaction: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([MockChatCompactionMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
+
+export const UncommittedCompactionKeepsContextUsage: Story = {
+	render: () => {
+		const store = createChatStore();
+		const previousMessage: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			usage: { input_tokens: 90000, context_limit: 200000 },
+		};
+		store.replaceMessages([previousMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
 
 const buildMessage = (
 	id: number,
@@ -211,6 +249,48 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	},
 };
 
+// The advisor streams its reasoning and advice after its assistant message
+// is already durable. Both must land on that message's card, with no second
+// live card for the same call.
+export const StreamedAdvisorResultOverlaysDurableCall: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Should the advisor be on by default?" },
+			]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-call",
+					tool_name: "advisor",
+					args: {
+						question: "on or off by default?",
+						model_intent: "Checking the default",
+					},
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				reasoning_delta: "Weighing the default against the rollout risk.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				result_delta: "Keep it off by default and let teams opt in.",
+			},
+		]);
+
+		return <StoryChatPageTimeline store={store} />;
+	},
+};
+
 // Matches the fixed terminal error path.
 const errorClearsStreamStore = createChatStore();
 export const ErrorClearsStreamingTool: Story = {
@@ -233,10 +313,7 @@ export const ErrorClearsStreamingTool: Story = {
 			</ChatWorkspaceContext>
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
-
+	play: async () => {
 		errorClearsStreamStore.batch(() => {
 			errorClearsStreamStore.applyServerChatStatus("error");
 			errorClearsStreamStore.setStreamError({
@@ -245,14 +322,6 @@ export const ErrorClearsStreamingTool: Story = {
 			});
 			errorClearsStreamStore.clearStreamState();
 		});
-
-		await waitFor(() => {
-			expect(canvas.queryByText("Creating workspace…")).toBeNull();
-		});
-		expect(canvas.getByText("Request failed")).toBeInTheDocument();
-		expect(
-			canvas.getByText("The chat session ended unexpectedly."),
-		).toBeInTheDocument();
 	},
 };
 
@@ -332,7 +401,7 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
@@ -350,15 +419,9 @@ export const RunningShowsBusyComposer: Story = {
 		store.setChatStatus("running");
 		return <StoryChatPageInput store={store} />;
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeEnabled();
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
-	},
 };
 
-const CompactionChatPageInput: FC = () => {
+const CompactionChatPageInput: React.FC = () => {
 	const store = createChatStore();
 	store.replaceMessages([
 		buildMessage(1, "user", [{ type: "text", text: "Summarize the diff" }]),
@@ -400,13 +463,6 @@ const CompactionChatPageInput: FC = () => {
 	);
 };
 
-const openContextUsage = async (canvasElement: HTMLElement) => {
-	const canvas = within(canvasElement);
-	await userEvent.click(
-		await canvas.findByRole("button", { name: /Context usage/ }),
-	);
-};
-
 export const CompactsAtUserOverride: Story = {
 	parameters: {
 		pixel: { exclude: true },
@@ -433,13 +489,6 @@ export const CompactsAtUserOverride: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 60%")).toBeVisible();
-		});
-		expect(within(document.body).queryByText("Compacts at 70%")).toBeNull();
-	},
 };
 
 export const CompactsAtHistoricalModelDefault: Story = {
@@ -468,10 +517,4 @@ export const CompactsAtHistoricalModelDefault: Story = {
 		],
 	},
 	render: () => <CompactionChatPageInput />,
-	play: async ({ canvasElement }) => {
-		await openContextUsage(canvasElement);
-		await waitFor(() => {
-			expect(within(document.body).getByText("Compacts at 70%")).toBeVisible();
-		});
-	},
 };

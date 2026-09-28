@@ -45,7 +45,7 @@ const statusConfig = {
 	},
 } as const satisfies Record<ChatStatus, ChatIconConfig>;
 
-const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
+export const getChatStatusDisplay = (status: ChatStatus): ChatIconConfig => {
 	return statusConfig[status] ?? statusConfig.waiting;
 };
 
@@ -103,7 +103,7 @@ export const getChatDisplayConfig = (
 	diffStatus: ChatDiffStatus | undefined;
 } => {
 	const diffStatus = getChatDiffStatus(chat);
-	const config = getStatusConfig(chat.status);
+	const config = getChatStatusDisplay(chat.status);
 	return {
 		icon: config.icon,
 		className: config.className,

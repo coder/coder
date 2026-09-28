@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"sync"
@@ -103,6 +104,51 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	require.NotEmpty(t, followup.Prompt)
 	requireNoResponsesProviderItemReplay(t, followup.Prompt, reasoningID, webSearchID)
 	require.NotContains(t, promptItemTypes(followup.Prompt), "web_search_call")
+}
+
+func TestOpenAIResponsesPersistsProviderResponseID(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer")...)
+		resp.ResponseID = "resp_persisted"
+		return resp
+	})
+
+	user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	model := insertOpenAIResponsesModelConfig(t, db, user.ID, false, false)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newOpenAIResponsesTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          uniqueResponsesTitle(t, "response-id"),
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("hello"),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+	requireResponsesChatWaiting(ctx, t, db, chat.ID)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	responseIDs := make(map[database.ChatMessageRole]sql.NullString)
+	for _, message := range messages {
+		responseIDs[message.Role] = message.ProviderResponseID
+	}
+	require.Equal(t, sql.NullString{String: "resp_persisted", Valid: true}, responseIDs[database.ChatMessageRoleAssistant])
+	require.False(t, responseIDs[database.ChatMessageRoleUser].Valid)
 }
 
 func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {

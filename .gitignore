@@ -11,6 +11,8 @@ gotests_stats.json
 gotests.json
 node_modules/
 vendor/
+!site/src/vendor/
+!site/src/vendor/**
 yarn-error.log
 
 # Vale (prose linter) pulls package contents into docs/.style/styles/ on

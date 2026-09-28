@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import type { CreateAIGatewayKeyResponse } from "#/api/typesGenerated";
@@ -18,9 +17,9 @@ import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { getFormHelpers } from "#/utils/formUtils";
 
-interface CreateGatewayKeyFormValues {
+type CreateGatewayKeyFormValues = {
 	name: string;
-}
+};
 
 const validationSchema = Yup.object({
 	name: Yup.string()
@@ -33,16 +32,16 @@ const validationSchema = Yup.object({
 		.max(64, "Name cannot be longer than 64 characters."),
 });
 
-interface CreateGatewayKeyDialogProps {
+type CreateGatewayKeyDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onCreate: (name: string) => void;
 	createdKey?: CreateAIGatewayKeyResponse;
 	submitError?: unknown;
 	isSubmitting?: boolean;
-}
+};
 
-export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
+export const CreateGatewayKeyDialog: React.FC<CreateGatewayKeyDialogProps> = ({
 	open,
 	onClose,
 	onCreate,

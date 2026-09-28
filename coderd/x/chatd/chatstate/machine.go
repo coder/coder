@@ -50,9 +50,6 @@ func NewChatMachine(
 	}
 }
 
-// ChatID returns the chat ID this machine is scoped to.
-func (m *ChatMachine) ChatID() uuid.UUID { return m.chatID }
-
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID. Tx does not cache mutable chat state across calls:

@@ -1,5 +1,5 @@
 import { Volume2Icon, VolumeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
@@ -8,12 +8,15 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
-interface ChimeButtonProps {
+type ChimeButtonProps = {
 	enabled?: boolean;
 	onToggle?: () => void;
-}
+};
 
-export const ChimeButton: FC<ChimeButtonProps> = ({ enabled, onToggle }) => {
+export const ChimeButton: React.FC<ChimeButtonProps> = ({
+	enabled,
+	onToggle,
+}) => {
 	const [internalEnabled, setInternalEnabled] = useState(getChimeEnabled);
 	const isControlled = enabled !== undefined && onToggle !== undefined;
 	const isEnabled = isControlled ? enabled : internalEnabled;

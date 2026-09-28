@@ -9,6 +9,11 @@ const renameCheckbox = () =>
 		name: /allow users to rename their workspaces/i,
 	});
 
+const moduleCacheCheckbox = () =>
+	screen.getByRole("checkbox", {
+		name: /disable terraform module caching/i,
+	});
+
 const renderForm = (
 	overrides: Partial<Parameters<typeof TemplateSettingsForm>[0]> = {},
 ) => {
@@ -77,6 +82,40 @@ describe("TemplateSettingsForm", () => {
 					expect.anything(),
 				);
 			});
+		});
+	});
+
+	describe("disable_module_cache", () => {
+		it("submits the new value when toggled on", async () => {
+			const user = userEvent.setup();
+			const { onSubmit } = renderForm();
+
+			await user.click(moduleCacheCheckbox());
+			await user.click(screen.getByRole("button", { name: /save/i }));
+
+			await waitFor(() => {
+				expect(onSubmit).toHaveBeenCalledWith(
+					expect.objectContaining({ disable_module_cache: true }),
+					expect.anything(),
+				);
+			});
+		});
+
+		it("is checked and read-only when the deployment disables caching", async () => {
+			const user = userEvent.setup();
+			renderForm({
+				template: {
+					...MockTemplate,
+					module_cache_disabled_by_deployment: true,
+				},
+			});
+
+			const checkbox = moduleCacheCheckbox();
+			expect(checkbox).toBeChecked();
+			expect(checkbox).toBeDisabled();
+
+			await user.click(checkbox);
+			expect(checkbox).toBeChecked();
 		});
 	});
 });

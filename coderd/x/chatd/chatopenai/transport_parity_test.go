@@ -14,6 +14,7 @@ import (
 
 // Keep this map in sync with the OpenAI transport selection table in
 // ARCHITECTURE.md so intentional transport asymmetries remain explicit.
+// TestResolveModelCallReasoningModeWire covers the client-applied mode.
 var openAIOptionTransportSupport = map[string]struct {
 	responses       bool
 	chatCompletions bool
@@ -27,6 +28,7 @@ var openAIOptionTransportSupport = map[string]struct {
 	"parallel_tool_calls":   {responses: true, chatCompletions: true},
 	"user":                  {responses: true, chatCompletions: true},
 	"reasoning_summary":     {responses: true},
+	"reasoning_mode":        {},
 	"max_completion_tokens": {chatCompletions: true},
 	"text_verbosity":        {responses: true, chatCompletions: true},
 	"prediction":            {chatCompletions: true},
@@ -56,6 +58,7 @@ var sampledOpenAIOptions = codersdk.ChatModelOpenAIProviderOptions{
 	ParallelToolCalls:   ptr(true),
 	User:                ptr("user-1"),
 	ReasoningSummary:    ptr("auto"),
+	ReasoningMode:       ptr("pro"),
 	MaxCompletionTokens: ptr(int64(4096)),
 	TextVerbosity:       ptr("high"),
 	Prediction:          map[string]any{"type": "content"},

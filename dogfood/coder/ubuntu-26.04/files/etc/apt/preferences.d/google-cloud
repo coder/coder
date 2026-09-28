@@ -4,12 +4,12 @@ Pin: origin packages.cloud.google.com
 Pin-Priority: 1
 
 # Google Cloud SDK for gcloud and gsutil CLI tools
-Package: google-cloud-sdk
+Package: google-cloud-cli
 Pin: origin packages.cloud.google.com
 Pin-Priority: 500
 
 # Datastore emulator for working with the licensor
-Package: google-cloud-sdk-datastore-emulator
+Package: google-cloud-cli-datastore-emulator
 Pin: origin packages.cloud.google.com
 Pin-Priority: 500
 

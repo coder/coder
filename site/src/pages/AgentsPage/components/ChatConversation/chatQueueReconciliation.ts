@@ -209,17 +209,3 @@ export async function submitEdit({
 		throw error;
 	}
 }
-
-/** @internal Exported for testing. */
-export const waitForPendingChatSettingsSyncs = async (
-	pendingSyncs: readonly (Promise<unknown> | null | undefined)[],
-): Promise<void> => {
-	const activeSyncs = pendingSyncs.filter(
-		(pendingSync): pendingSync is Promise<unknown> =>
-			pendingSync !== null && pendingSync !== undefined,
-	);
-	if (activeSyncs.length === 0) {
-		return;
-	}
-	await Promise.all(activeSyncs);
-};

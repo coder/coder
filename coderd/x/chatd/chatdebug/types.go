@@ -16,15 +16,6 @@ const (
 	KindCompaction RunKind = "compaction"
 )
 
-// AllRunKinds contains every RunKind value. Update this when
-// adding new constants above.
-var AllRunKinds = []RunKind{
-	KindChatTurn,
-	KindTitleGeneration,
-	KindQuickgen,
-	KindCompaction,
-}
-
 // Status identifies lifecycle state shared by runs and steps.
 type Status string
 
@@ -62,15 +53,6 @@ func (s Status) Priority() int {
 	}
 }
 
-// AllStatuses contains every Status value. Update this when
-// adding new constants above.
-var AllStatuses = []Status{
-	StatusInProgress,
-	StatusCompleted,
-	StatusError,
-	StatusInterrupted,
-}
-
 // Operation identifies the model operation a step performed.
 type Operation string
 
@@ -80,13 +62,6 @@ const (
 	// OperationGenerate records a non-streaming generation operation.
 	OperationGenerate Operation = "generate"
 )
-
-// AllOperations contains every Operation value. Update this when
-// adding new constants above.
-var AllOperations = []Operation{
-	OperationStream,
-	OperationGenerate,
-}
 
 // RunContext carries identity and metadata for a debug run.
 type RunContext struct {
@@ -103,11 +78,9 @@ type RunContext struct {
 
 // StepContext carries identity and metadata for a debug step.
 type StepContext struct {
-	StepID     uuid.UUID
-	RunID      uuid.UUID
-	ChatID     uuid.UUID
-	StepNumber int32
-	Operation  Operation
+	StepID uuid.UUID
+	RunID  uuid.UUID
+	ChatID uuid.UUID
 }
 
 // Attempt captures a single HTTP round trip made during a step.

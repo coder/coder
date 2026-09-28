@@ -23,14 +23,14 @@ export const canShowPortForwarding = (
 	);
 };
 
-export interface PortsData {
+export type PortsData = {
 	listeningPorts: readonly WorkspaceAgentListeningPort[] | undefined;
 	sharedPorts: readonly WorkspaceAgentPortShare[] | undefined;
 	privateListeningPorts: readonly WorkspaceAgentListeningPort[];
 	totalCount: number | undefined;
 	protocol: "http" | "https";
 	refetchSharedPorts: () => void;
-}
+};
 
 /**
  * Used by both the workspace port-forward button and the agents page right-panel

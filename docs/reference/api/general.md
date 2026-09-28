@@ -62,6 +62,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   "dashboard_url": "string",
   "deployment_id": "string",
   "external_url": "string",
+  "oauth2_provider": true,
   "provisioner_api_version": "string",
   "telemetry": true,
   "upgrade_message": "string",
@@ -228,7 +229,14 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "rawQuery": "string",
           "scheme": "string",
           "user": {}
-        }
+        },
+        "max_attachments_per_chat": 0,
+        "max_concurrent_recording_uploads": 0,
+        "max_generation_retries": 0,
+        "max_prompt_bytes": 0,
+        "max_queued_messages_per_chat": 0,
+        "max_steps_per_turn": 0,
+        "stream_silence_timeout": 0
       }
     },
     "allow_workspace_renames": true,
@@ -281,6 +289,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ]
       }
     },
+    "disable_chat_caller_supplied_tools": true,
     "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
@@ -301,7 +310,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
-    "enable_ai_tasks": true,
+    "dynamic_parameters_full_evaluation": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -431,6 +440,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "default_provider_enable": true,
         "device_flow": true,
         "enterprise_base_url": "string"
+      },
+      "provider": {
+        "enable": true
       }
     },
     "oidc": {
@@ -534,6 +546,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "string"
       ],
       "daemons": 0,
+      "disable_module_cache": true,
       "force_cancel_interval": 0
     },
     "proxy_health_status_interval": 0,
@@ -762,6 +775,20 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   "collected_at": "2019-08-24T14:15:22Z",
   "next_update_at": "2019-08-24T14:15:22Z",
   "session_count": {
+    "apps": {
+      "property1": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      },
+      "property2": {
+        "count": 0,
+        "display_name": "string",
+        "family": "vscode",
+        "icon": "string"
+      }
+    },
     "jetbrains": 0,
     "reconnecting_pty": 0,
     "ssh": 0,

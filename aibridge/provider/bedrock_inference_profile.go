@@ -88,25 +88,42 @@ func modelIDFromARN(modelARN string) (string, error) {
 	return model, nil
 }
 
-// resolveBedrockModels resolves the configured model identifiers to the model
-// IDs used for capability detection, usage recording, and pricing. Identifiers
-// that are not application inference profile ARNs are returned unchanged and
-// cost no AWS call.
-func resolveBedrockModels(ctx context.Context, cfg config.AWSBedrock, awsCfg aws.Config) (model, smallFastModel string, err error) {
-	resolveOne := func(configured string) (string, error) {
-		if !isApplicationInferenceProfileARN(configured) {
-			return configured, nil
+// ResolveBedrockModels resolves the application inference profile ARNs among
+// the configured model identifiers, returning what each ARN refers to. The
+// result is empty when neither identifier is an ARN, which costs no AWS call.
+//
+// The identity comes from cfg, including any role assumed via config.AWSBedrock.RoleARN,
+// so the required bedrock:GetInferenceProfile permission belongs to that identity.
+func ResolveBedrockModels(ctx context.Context, cfg config.AWSBedrock) (map[string]string, error) {
+	resolved := make(map[string]string, 2)
+
+	var profiles []string
+	for _, configured := range []string{cfg.Model, cfg.SmallFastModel} {
+		if isApplicationInferenceProfileARN(configured) {
+			profiles = append(profiles, configured)
 		}
-		return resolveInferenceProfile(ctx, awsCfg, configured)
+	}
+	if len(profiles) == 0 {
+		return resolved, nil
 	}
 
-	model, err = resolveOne(cfg.Model)
+	awsCfg, err := buildBedrockCredentials(ctx, cfg)
 	if err != nil {
-		return "", "", xerrors.Errorf("resolve model: %w", err)
+		return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 	}
-	smallFastModel, err = resolveOne(cfg.SmallFastModel)
-	if err != nil {
-		return "", "", xerrors.Errorf("resolve small fast model: %w", err)
+
+	resolveCtx, cancel := context.WithTimeout(ctx, inferenceProfileResolutionTimeout)
+	defer cancel()
+
+	for _, profileARN := range profiles {
+		if _, ok := resolved[profileARN]; ok {
+			continue
+		}
+		model, err := resolveInferenceProfile(resolveCtx, awsCfg, profileARN)
+		if err != nil {
+			return nil, err
+		}
+		resolved[profileARN] = model
 	}
-	return model, smallFastModel, nil
+	return resolved, nil
 }

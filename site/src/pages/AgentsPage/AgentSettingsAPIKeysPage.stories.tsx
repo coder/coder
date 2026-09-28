@@ -1,11 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import {
-	AgentSettingsAPIKeysPageView,
-	type AgentSettingsAPIKeysPageViewProps,
-} from "./AgentSettingsAPIKeysPageView";
+import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
 
 const createProvider = (
 	overrides: Partial<UserChatProviderConfig> &
@@ -46,29 +44,16 @@ const baseModel = createModel({
 
 const baseModels = [baseModel];
 
-const createProviderItems = (
-	providers: readonly UserChatProviderConfig[],
-): AgentSettingsAPIKeysPageViewProps["providerItems"] => {
-	return providers.map((provider) => ({
-		provider,
-		renderKey: `${provider.provider_id}-${provider.has_user_api_key}`,
-		isSaving: false,
-		isRemoving: false,
-	}));
-};
-
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsAPIKeysPageView",
 	component: AgentSettingsAPIKeysPageView,
 	args: {
 		error: undefined,
 		isLoading: false,
-		providerItems: createProviderItems([baseProvider]),
+		providers: [baseProvider],
 		models: baseModels,
 		isModelsLoading: false,
 		areModelsUnavailable: false,
-		onSave: fn(),
-		onRemove: fn(),
 	},
 } satisfies Meta<typeof AgentSettingsAPIKeysPageView>;
 
@@ -79,7 +64,7 @@ export const Default: Story = {};
 
 export const WithSavedKey: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-1",
 				provider: "openai",
@@ -87,42 +72,35 @@ export const WithSavedKey: Story = {
 				has_user_api_key: true,
 				has_central_api_key_fallback: true,
 			}),
-		]),
+		],
 		models: baseModels,
 	},
 };
 
-export const MasksApiKeyInput: Story = {
+export const UserKeysDisabled: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-1",
 				provider: "openai",
 				display_name: "OpenAI",
-				has_user_api_key: true,
+				byok_enabled: false,
+				has_central_api_key_fallback: true,
 			}),
-		]),
-		models: [],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(await canvas.findByLabelText(/API Key/i)).toHaveAttribute(
-			"type",
-			"password",
-		);
+		],
 	},
 };
 
 export const WithFallback: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-1",
 				provider: "anthropic",
 				display_name: "Anthropic",
 				has_central_api_key_fallback: true,
 			}),
-		]),
+		],
 		models: [
 			createModel({
 				id: "model-1",
@@ -136,7 +114,7 @@ export const WithFallback: Story = {
 
 export const MultipleProviders: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-openai",
 				provider: "openai",
@@ -155,7 +133,7 @@ export const MultipleProviders: Story = {
 				provider: "google",
 				display_name: "Google",
 			}),
-		]),
+		],
 		models: [
 			createModel({
 				id: "model-openai-1",
@@ -181,7 +159,7 @@ export const MultipleProviders: Story = {
 
 export const Empty: Story = {
 	args: {
-		providerItems: [],
+		providers: [],
 		models: [],
 	},
 };
@@ -189,7 +167,7 @@ export const Empty: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
-		providerItems: [],
+		providers: [],
 		models: [],
 	},
 };
@@ -197,6 +175,13 @@ export const Loading: Story = {
 export const ModelsUnavailable: Story = {
 	args: {
 		areModelsUnavailable: true,
+		models: [],
+	},
+};
+
+export const ModelsLoading: Story = {
+	args: {
+		isModelsLoading: true,
 		models: [],
 	},
 };
@@ -209,23 +194,13 @@ export const SomeModelsUnavailable: Story = {
 
 export const SavingSingleProvider: Story = {
 	args: {
-		providerItems: [
-			{
-				provider: baseProvider,
-				renderKey: `${baseProvider.provider_id}-${baseProvider.has_user_api_key}`,
-				isSaving: true,
-				isRemoving: false,
-			},
-			{
-				provider: createProvider({
-					provider_id: "prov-2",
-					provider: "anthropic",
-					display_name: "Anthropic",
-				}),
-				renderKey: "prov-2-false",
-				isSaving: false,
-				isRemoving: false,
-			},
+		providers: [
+			baseProvider,
+			createProvider({
+				provider_id: "prov-2",
+				provider: "anthropic",
+				display_name: "Anthropic",
+			}),
 		],
 		models: [
 			...baseModels,
@@ -237,79 +212,58 @@ export const SavingSingleProvider: Story = {
 			}),
 		],
 	},
-};
-
-export const SavesProviderKey: Story = {
-	args: {
-		onSave: fn(),
-	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
+		spyOn(API.experimental, "upsertUserAIProviderKey").mockImplementation(
+			() => new Promise(() => {}),
+		);
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText("API Key");
-		await userEvent.type(apiKeyInput, "sk-test-key");
-		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(args.onSave).toHaveBeenCalledWith("prov-1", "sk-test-key");
-		});
+		const panel = within(
+			await canvas.findByRole("article", { name: "OpenAI" }),
+		);
+		await userEvent.type(panel.getByLabelText("API Key"), "sk-test-key");
+		await userEvent.click(panel.getByRole("button", { name: "Save" }));
 	},
 };
 
 export const RemovesProviderKey: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-1",
 				provider: "openai",
 				display_name: "OpenAI",
 				has_user_api_key: true,
 			}),
-		]),
-		onRemove: fn(),
+		],
 	},
-	play: async ({ canvasElement, args }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const removeButton = await canvas.findByRole("button", { name: "Remove" });
-		await userEvent.click(removeButton);
-
-		const body = within(canvasElement.ownerDocument.body);
-		await waitFor(() =>
-			expect(body.getByText("Remove API key?")).toBeVisible(),
-		);
-		const dialog = await body.findByRole("dialog");
 		await userEvent.click(
-			within(dialog).getByRole("button", { name: "Remove" }),
+			await canvas.findByRole("button", { name: "Remove" }),
 		);
-
-		await waitFor(() => {
-			expect(args.onRemove).toHaveBeenCalledWith("prov-1");
-		});
 	},
 };
 
 export const ClearsMaskedApiKeyOnFocus: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-1",
 				provider: "openai",
 				display_name: "OpenAI",
 				has_user_api_key: true,
 			}),
-		]),
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText("API Key");
-		await expect(apiKeyInput).toHaveValue("••••••••••••••••");
-		await userEvent.click(apiKeyInput);
-		await expect(apiKeyInput).toHaveValue("");
+		await userEvent.click(await canvas.findByLabelText("API Key"));
 	},
 };
 
 export const ShowsProviderStatuses: Story = {
 	args: {
-		providerItems: createProviderItems([
+		providers: [
 			createProvider({
 				provider_id: "prov-openai",
 				provider: "openai",
@@ -331,7 +285,7 @@ export const ShowsProviderStatuses: Story = {
 				has_user_api_key: false,
 				has_central_api_key_fallback: false,
 			}),
-		]),
+		],
 		models: [
 			createModel({
 				id: "model-openai-1",

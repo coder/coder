@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
@@ -6,10 +5,9 @@ import { DeploymentSidebarView } from "./DeploymentSidebarView";
 /**
  * A sidebar for deployment settings.
  */
-export const DeploymentSidebar: FC = () => {
+export const DeploymentSidebar: React.FC = () => {
 	const { permissions } = useAuthenticated();
-	const { entitlements, showOrganizations, experiments, buildInfo } =
-		useDashboard();
+	const { entitlements, showOrganizations, buildInfo } = useDashboard();
 	// Trialing deployments keep the Premium tab so they can convert.
 	const hidePremiumTab = entitlements.has_license && !entitlements.trial;
 
@@ -18,7 +16,6 @@ export const DeploymentSidebar: FC = () => {
 			permissions={permissions}
 			showOrganizations={showOrganizations}
 			hidePremiumTab={hidePremiumTab}
-			experiments={experiments}
 			buildInfo={buildInfo}
 		/>
 	);

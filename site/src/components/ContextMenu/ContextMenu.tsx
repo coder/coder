@@ -25,7 +25,7 @@ export const ContextMenuGroup = ContextMenuPrimitive.Group;
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
 export const ContextMenuContent: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Content>
+	React.ComponentProps<typeof ContextMenuPrimitive.Content>
 > = ({ className, ...props }) => {
 	return (
 		<ContextMenuPrimitive.Portal>
@@ -37,7 +37,7 @@ export const ContextMenuContent: React.FC<
 	);
 };
 
-type ContextMenuItemProps = React.ComponentPropsWithRef<
+type ContextMenuItemProps = React.ComponentProps<
 	typeof ContextMenuPrimitive.Item
 > & {
 	inset?: boolean;
@@ -57,7 +57,7 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 };
 
 export const ContextMenuSeparator: React.FC<
-	React.ComponentPropsWithRef<typeof ContextMenuPrimitive.Separator>
+	React.ComponentProps<typeof ContextMenuPrimitive.Separator>
 > = ({ className, ...props }) => {
 	return (
 		<ContextMenuPrimitive.Separator

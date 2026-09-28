@@ -133,6 +133,53 @@ func TestInMemoryRoundTripper_PassesHeadersAndStatus(t *testing.T) {
 	require.Equal(t, `{"ok":true}`, string(body))
 }
 
+func TestInMemoryRoundTripper_EmptyWrites(t *testing.T) {
+	t.Parallel()
+
+	for _, payload := range [][]byte{nil, {}} {
+		t.Run(fmt.Sprintf("Nil=%t", payload == nil), func(t *testing.T) {
+			t.Parallel()
+
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/event-stream")
+				for _, chunk := range []string{"data: first\n\n", "data: second\n\n", ""} {
+					for range 128 {
+						if _, err := w.Write(payload); err != nil {
+							return
+						}
+					}
+					if _, err := io.WriteString(w, chunk); err != nil {
+						return
+					}
+				}
+			})
+
+			rt, err := aibridged.NewTransportFactory(handler).TransportFor("openai", aibridge.SourceAgents)
+			require.NoError(t, err)
+
+			ctx := aibridge.WithDelegatedAPIKeyID(testutil.Context(t, testutil.WaitShort), "test-key-id")
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/v1/responses", nil)
+			require.NoError(t, err)
+
+			resp, err := rt.RoundTrip(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+			reader := bufio.NewReader(resp.Body)
+			for _, want := range []string{"data: first\n", "\n", "data: second\n", "\n"} {
+				line, err := reader.ReadString('\n')
+				require.NoError(t, err)
+				require.Equal(t, want, line)
+			}
+			line, err := reader.ReadString('\n')
+			require.ErrorIs(t, err, io.EOF)
+			require.Empty(t, line)
+		})
+	}
+}
+
 // Verify that response chunks become readable on the client side before the
 // handler has finished writing. This is the property SSE/NDJSON streaming
 // depends on.

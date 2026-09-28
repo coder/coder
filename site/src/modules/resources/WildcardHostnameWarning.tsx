@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -6,14 +5,14 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
 
-interface WildcardHostnameWarningProps {
+type WildcardHostnameWarningProps = {
 	// If resources are provided, show template-focused warning
 	resources?: WorkspaceResource[];
-}
+};
 
-export const WildcardHostnameWarning: FC<WildcardHostnameWarningProps> = ({
-	resources,
-}) => {
+export const WildcardHostnameWarning: React.FC<
+	WildcardHostnameWarningProps
+> = ({ resources }) => {
 	const { proxy } = useProxy();
 	const { permissions } = useAuthenticated();
 

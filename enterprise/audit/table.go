@@ -27,7 +27,6 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Group":                         {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"Task":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AISeatState":                   {codersdk.AuditActionCreate},
 	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
@@ -155,7 +154,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_name":         ActionIgnore,
 		"archived":                ActionTrack,
 		"source_example_id":       ActionIgnore, // Never changes.
-		"has_ai_task":             ActionIgnore, // Never changes.
 		"has_external_agent":      ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
@@ -218,7 +216,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_username":      ActionIgnore,
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
-		"has_ai_task":                ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
 		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},
@@ -443,19 +440,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":        ActionIgnore, // Implicit; not useful in a diff.
 		"last_heartbeat_at": ActionIgnore, // Bumped on every heartbeat.
 	},
-	&database.TaskTable{}: {
-		"id":                  ActionTrack,
-		"organization_id":     ActionIgnore, // Never changes.
-		"owner_id":            ActionTrack,
-		"name":                ActionTrack,
-		"display_name":        ActionTrack,
-		"workspace_id":        ActionTrack,
-		"template_version_id": ActionTrack,
-		"template_parameters": ActionTrack,
-		"prompt":              ActionTrack,
-		"created_at":          ActionIgnore, // Never changes.
-		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
-	},
 	&database.Chat{}: {
 		"id":                          ActionTrack,
 		"owner_id":                    ActionTrack,
@@ -545,6 +529,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
 		"custom_headers":              ActionSecret, // May contain credentials
 		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
+		"signing_secret":              ActionSecret,
+		"signing_secret_key_id":       ActionIgnore, // dbcrypt bookkeeping.
 		"tool_allow_list":             ActionTrack,
 		"tool_deny_list":              ActionTrack,
 		"availability":                ActionTrack,

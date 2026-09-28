@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -21,7 +20,7 @@ import {
 } from "./components/AdminPersonalModelOverridesSettings";
 import type { MutationCallbacks } from "./components/SubagentModelOverrideSettings";
 
-export interface CoderAgentsPageViewProps {
+export type CoderAgentsPageViewProps = {
 	organization?: TypesGen.Organization;
 	organizations: readonly TypesGen.Organization[];
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
@@ -29,7 +28,7 @@ export interface CoderAgentsPageViewProps {
 	organizationPermissionsError?: unknown;
 	requestedOrganizationDenied: boolean;
 	isOrganizationAccessLoading: boolean;
-	organizationSettings?: ReactNode;
+	organizationSettings?: React.ReactNode;
 	canEditDeploymentConfig: boolean;
 	adminOverridesData?: TypesGen.ChatPersonalModelOverridesAdminSettings;
 	adminOverridesError?: unknown;
@@ -61,9 +60,9 @@ export interface CoderAgentsPageViewProps {
 	>;
 	isSavingComputerUseProvider: boolean;
 	computerUseProviderSaveError: Error | null;
-}
+};
 
-export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
+export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	organization,
 	organizations,
 	onSelectOrganization,

@@ -232,6 +232,17 @@ coder:
   # This is an Enterprise feature. Contact sales@coder.com.
   replicaCount: 1
 
+  # coder.strategy -- Deployment update strategy for the `coder` deployment. When
+  # empty, the Kubernetes defaults apply (RollingUpdate with 25% maxSurge and 25%
+  # maxUnavailable).
+  # See: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+  strategy:
+    {}
+    # type: RollingUpdate
+    # rollingUpdate:
+    #   maxSurge: 25%
+    #   maxUnavailable: 0
+
   # coder.workspaceProxy -- Whether or not this deployment of Coder is a Coder
   # Workspace Proxy. Workspace Proxies reduce the latency between the user and
   # their workspace for web connections (workspace apps and web terminal) and

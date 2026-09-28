@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -11,21 +10,17 @@ import {
 } from "#/components/Dialog/Dialog";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-interface AutoCreateConsentDialogProps {
+type AutoCreateConsentDialogProps = {
 	open: boolean;
 	autofillParameters: AutofillBuildParameter[];
 	presetName?: string;
 	onConfirm: () => void;
 	onDeny: () => void;
-}
+};
 
-export const AutoCreateConsentDialog: FC<AutoCreateConsentDialogProps> = ({
-	open,
-	autofillParameters,
-	presetName,
-	onConfirm,
-	onDeny,
-}) => {
+export const AutoCreateConsentDialog: React.FC<
+	AutoCreateConsentDialogProps
+> = ({ open, autofillParameters, presetName, onConfirm, onDeny }) => {
 	return (
 		<Dialog open={open}>
 			<DialogContent

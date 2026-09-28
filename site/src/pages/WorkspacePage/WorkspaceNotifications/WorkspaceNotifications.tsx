@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { workspaceResolveAutostart } from "#/api/queries/workspaceQuota";
 import type {
 	Template,
@@ -19,8 +19,8 @@ import { useQuery } from "react-query";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../../modules/workspaces/permissions";
 import {
+	type Notification,
 	NotificationActionButton,
-	type NotificationItem,
 	Notifications,
 } from "./Notifications";
 
@@ -34,7 +34,7 @@ type WorkspaceNotificationsProps = {
 	latestVersion?: TemplateVersion;
 };
 
-export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
+export const WorkspaceNotifications: React.FC<WorkspaceNotificationsProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -43,7 +43,7 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	onUpdateWorkspace,
 	onActivateWorkspace,
 }) => {
-	const notifications: NotificationItem[] = [];
+	const notifications: Notification[] = [];
 
 	// Outdated
 	const canAutostartQuery = useQuery(workspaceResolveAutostart(workspace.id));

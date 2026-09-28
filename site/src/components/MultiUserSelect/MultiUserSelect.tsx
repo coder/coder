@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { organizationMembers } from "#/api/queries/organizations";
 import { users } from "#/api/queries/users";
@@ -32,7 +32,7 @@ type UserAutocompleteProps = CommonMultiSelectProps<User> & {
 	filter: string;
 };
 
-export const MultiUserSelect: FC<UserAutocompleteProps> = ({
+export const MultiUserSelect: React.FC<UserAutocompleteProps> = ({
 	filter,
 	setFilter,
 	...props
@@ -60,7 +60,7 @@ type MemberAutocompleteProps =
 		organizationId: string;
 	};
 
-export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
+export const MultiMemberSelect: React.FC<MemberAutocompleteProps> = ({
 	filter,
 	organizationId,
 	setFilter,
@@ -83,7 +83,7 @@ export const MultiMemberSelect: FC<MemberAutocompleteProps> = ({
 	);
 };
 
-type UsersTable<T extends SelectedUser> = {
+type UsersTableProps<T extends SelectedUser> = {
 	error: unknown;
 	onChange: (user: T, checked: boolean) => void;
 	selected: readonly T[];
@@ -95,7 +95,7 @@ const UsersTable = <T extends SelectedUser>({
 	onChange,
 	selected,
 	users,
-}: UsersTable<T>) => {
+}: UsersTableProps<T>) => {
 	if (error) {
 		return (
 			<div className="p-3">
@@ -217,7 +217,7 @@ const InnerMultiSelect = <T extends SelectedUser>({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
 	return (
@@ -234,14 +234,14 @@ const TableLoader: FC = () => {
 	);
 };
 
-interface UserRowProps<T extends SelectedUser> {
+type UserRowProps<T extends SelectedUser> = {
 	checked: boolean;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	isFirst: boolean;
 	isLast: boolean;
 	onChange: (user: T, checked: boolean) => void;
 	user: T;
-}
+};
 
 const UserRow = <T extends SelectedUser>({
 	checked,

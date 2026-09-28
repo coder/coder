@@ -10,12 +10,11 @@ import {
 	ShrinkIcon,
 	UserIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { Link, type Location } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { SettingsNavItem } from "./SettingsNavItem";
 
-interface SettingsPanelProps {
+type SettingsPanelProps = {
 	readonly isSettingsPanel: boolean;
 	readonly settingsSection: string | undefined;
 	readonly showApiKeysItem: boolean;
@@ -23,9 +22,9 @@ interface SettingsPanelProps {
 	readonly canManageAgentSettings: boolean;
 	readonly location: Location;
 	readonly onCollapse?: () => void;
-}
+};
 
-export const SettingsPanel: FC<SettingsPanelProps> = ({
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 	isSettingsPanel,
 	settingsSection,
 	showApiKeysItem,

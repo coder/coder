@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -12,7 +12,7 @@ import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 export { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
-interface ChatsSidebarProps {
+type ChatsSidebarProps = {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
@@ -22,6 +22,8 @@ interface ChatsSidebarProps {
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
 	onPinAgent: (chatId: string) => void;
 	onUnpinAgent: (chatId: string) => void;
+	onMarkChatRead: (chatId: string) => void;
+	onMarkChatUnread: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
@@ -57,9 +59,9 @@ interface ChatsSidebarProps {
 	 */
 	canManageAgentSettings?: boolean;
 	currentUserId: string;
-}
+};
 
-export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
+export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
 		chatErrorReasons,
@@ -70,6 +72,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onReorderPinnedAgent,
 		onRenameTitle,
 		onProposeTitle,
@@ -137,6 +141,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
 				onPinAgent={onPinAgent}
 				onUnpinAgent={onUnpinAgent}
+				onMarkChatRead={onMarkChatRead}
+				onMarkChatUnread={onMarkChatUnread}
 				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
 				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}

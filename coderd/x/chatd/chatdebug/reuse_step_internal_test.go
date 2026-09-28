@@ -51,16 +51,8 @@ func TestBeginStepReuseStep(t *testing.T) {
 		require.Same(t, firstHandle.sink, secondHandle.sink)
 		require.Equal(t, runID, firstHandle.stepCtx.RunID)
 		require.Equal(t, chatID, firstHandle.stepCtx.ChatID)
-		require.Equal(t, int32(1), firstHandle.stepCtx.StepNumber)
-		require.Equal(t, OperationStream, firstHandle.stepCtx.Operation)
 		require.NotEqual(t, uuid.Nil, firstHandle.stepCtx.StepID)
 
-		firstStepCtx, ok := StepFromContext(firstEnriched)
-		require.True(t, ok)
-		secondStepCtx, ok := StepFromContext(secondEnriched)
-		require.True(t, ok)
-		require.Same(t, firstStepCtx, secondStepCtx)
-		require.Same(t, firstHandle.stepCtx, firstStepCtx)
 		require.Same(t, attemptSinkFromContext(firstEnriched), attemptSinkFromContext(secondEnriched))
 	})
 
@@ -106,8 +98,6 @@ func TestBeginStepReuseStep(t *testing.T) {
 		require.NotNil(t, secondHandle)
 		require.NotSame(t, firstHandle, secondHandle)
 		require.NotSame(t, firstHandle.sink, secondHandle.sink)
-		require.Equal(t, int32(1), firstHandle.stepCtx.StepNumber)
-		require.Equal(t, int32(2), secondHandle.stepCtx.StepNumber)
 		require.NotEqual(t, firstHandle.stepCtx.StepID, secondHandle.stepCtx.StepID)
 	})
 }

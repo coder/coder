@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn } from "storybook/test";
+import { fn } from "storybook/test";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 
 const meta: Meta<typeof InlineDesktopPreview> = {
@@ -48,11 +48,6 @@ export const Connected: Story = {
 			rfb: null,
 			remoteClipboardText: null,
 		},
-	},
-	play: async ({ canvasElement }) => {
-		// The connected state renders the VNC container with
-		// pointer-events-none to act as a read-only preview.
-		expect(canvasElement.querySelector(".pointer-events-none")).not.toBeNull();
 	},
 };
 

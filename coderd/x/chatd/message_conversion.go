@@ -36,8 +36,7 @@ type buildCommitStepMessagesInput struct {
 }
 
 type stepMessagesForCommit struct {
-	Messages       []chatstate.Message
-	VisibleIndexes []int
+	Messages []chatstate.Message
 	// ConsumeCompactionRequest clears the manual compaction marker
 	// atomically with the commit. Set on compaction commits.
 	ConsumeCompactionRequest bool
@@ -87,8 +86,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 	}
 
 	return stepMessagesForCommit{
-		Messages:       messages,
-		VisibleIndexes: visibleMessageIndexes(messages),
+		Messages: messages,
 	}, nil
 }
 
@@ -209,6 +207,7 @@ func assistantMessage(
 	// invocation shorter than a millisecond persists the same way an
 	// unmeasured one does.
 	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
+	msg.ProviderResponseID = sql.NullString{String: step.ProviderResponseID, Valid: step.ProviderResponseID != ""}
 	return msg
 }
 
@@ -283,16 +282,6 @@ func batchUsageMessage(
 	return msg, true, nil
 }
 
-func visibleMessageIndexes(messages []chatstate.Message) []int {
-	indexes := make([]int, 0, len(messages))
-	for i, msg := range messages {
-		if msg.Visibility == database.ChatMessageVisibilityBoth || msg.Visibility == database.ChatMessageVisibilityUser {
-			indexes = append(indexes, i)
-		}
-	}
-	return indexes
-}
-
 func textFromParts(parts []codersdk.ChatMessagePart) string {
 	var builder strings.Builder
 	for _, part := range parts {
@@ -313,8 +302,7 @@ type buildCompactionMessagesInput struct {
 }
 
 type compactionMessagesForCommit struct {
-	Messages    []chatstate.Message
-	HiddenCount int
+	Messages []chatstate.Message
 }
 
 func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMessagesForCommit, error) {
@@ -349,12 +337,13 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
 	summaryResult, err := json.Marshal(map[string]any{
-		"summary":              input.compaction.SummaryReport,
-		"source":               source,
-		"threshold_percent":    input.compaction.ThresholdPercent,
-		"usage_percent":        input.compaction.UsagePercent,
-		"context_tokens":       input.compaction.ContextTokens,
-		"context_limit_tokens": input.compaction.ContextLimit,
+		"summary":                  input.compaction.SummaryReport,
+		"source":                   source,
+		"threshold_percent":        input.compaction.ThresholdPercent,
+		"usage_percent":            input.compaction.UsagePercent,
+		"context_tokens":           input.compaction.ContextTokens,
+		"context_limit_tokens":     input.compaction.ContextLimit,
+		"estimated_context_tokens": input.compaction.EstimatedContextTokens,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)
@@ -368,6 +357,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 
 	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
 	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
+	assistantMsg.ProviderResponseID = sql.NullString{String: input.compaction.ProviderResponseID, Valid: input.compaction.ProviderResponseID != ""}
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -391,7 +381,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			ContentVersion: row.ContentVersion,
 		})
 	}
-	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
+	return compactionMessagesForCommit{Messages: messages}, nil
 }
 
 type buildClearMessagesInput struct {
@@ -730,9 +720,11 @@ type partialToolCall struct {
 }
 
 type partialToolResult struct {
-	part        codersdk.ChatMessagePart
-	resultDelta strings.Builder
-	completed   bool
+	part codersdk.ChatMessagePart
+	// streamed records that live result or reasoning deltas arrived
+	// without a durable result; they are stream-only and never persisted.
+	streamed  bool
+	completed bool
 }
 
 func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) ([]chatstate.Message, error) {
@@ -892,11 +884,11 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		result := s.toolResult(part.ToolCallID)
 		result.part.ToolCallID = part.ToolCallID
 		result.part.ToolName = part.ToolName
-		result.resultDelta.Reset()
+		result.streamed = false
 		s.logSkippedPart(buffered, "streaming tool result reset is not durable")
 		return nil
 	}
-	if part.ResultDelta != "" {
+	if part.ResultDelta != "" || part.ReasoningDelta != "" {
 		result := s.toolResult(part.ToolCallID)
 		result.part.ToolCallID = part.ToolCallID
 		if part.ToolName != "" {
@@ -909,7 +901,7 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 			result.part.CreatedAt = part.CreatedAt
 		}
 		result.part.ProviderExecuted = result.part.ProviderExecuted || part.ProviderExecuted
-		_, _ = result.resultDelta.WriteString(part.ResultDelta)
+		result.streamed = true
 		return nil
 	}
 	if err := s.finalizeToolCallPlaceholders(); err != nil {
@@ -928,6 +920,7 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 		return nil
 	}
 	part.ResultDelta = ""
+	part.ReasoningDelta = ""
 	part.ResultReset = false
 	if err := s.flushAssistant(); err != nil {
 		return err
@@ -997,6 +990,7 @@ func (s *partialMessageConversionState) flushAssistant() error {
 		}
 		part.ArgsDelta = ""
 		part.ResultDelta = ""
+		part.ReasoningDelta = ""
 		part.ResultReset = false
 		durable = append(durable, part)
 	}
@@ -1018,10 +1012,7 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 			continue
 		}
 		result := s.toolResults[id]
-		if result == nil || result.completed {
-			continue
-		}
-		if result.resultDelta.Len() == 0 {
+		if result == nil || result.completed || !result.streamed {
 			continue
 		}
 		s.logSkippedPart(messagepartbuffer.Part{Role: codersdk.ChatMessageRoleTool, MessagePart: result.part}, "streaming tool result delta is not durable")

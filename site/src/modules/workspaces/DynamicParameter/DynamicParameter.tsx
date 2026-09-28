@@ -9,7 +9,7 @@ import {
 	SettingsIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import * as Yup from "yup";
 import type {
 	NullHCLString,
@@ -48,16 +48,16 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 
-interface DynamicParameterProps {
+type DynamicParameterProps = {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	isPreset?: boolean;
 	autofill?: boolean;
-}
+};
 
-export const DynamicParameter: FC<DynamicParameterProps> = ({
+export const DynamicParameter: React.FC<DynamicParameterProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -94,14 +94,14 @@ export const DynamicParameter: FC<DynamicParameterProps> = ({
 	);
 };
 
-interface ParameterLabelProps {
+type ParameterLabelProps = {
 	parameter: PreviewParameter;
 	isPreset?: boolean;
 	autofill: boolean;
 	id: string;
-}
+};
 
-const ParameterLabel: FC<ParameterLabelProps> = ({
+const ParameterLabel: React.FC<ParameterLabelProps> = ({
 	parameter,
 	isPreset,
 	autofill,
@@ -235,15 +235,15 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 	);
 };
 
-interface ParameterFieldProps {
+type ParameterFieldProps = {
 	parameter: PreviewParameter;
 	value?: string;
 	onChange: (value: string) => void;
 	disabled?: boolean;
 	id: string;
-}
+};
 
-const ParameterField: FC<ParameterFieldProps> = ({
+const ParameterField: React.FC<ParameterFieldProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -487,7 +487,7 @@ type MaskableInputProps = Omit<React.ComponentProps<"input">, "onChange"> & {
 	masked?: boolean;
 };
 
-const MaskableInput: FC<MaskableInputProps> = ({
+const MaskableInput: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -535,7 +535,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	);
 };
 
-const MaskableTextArea: FC<MaskableInputProps> = ({
+const MaskableTextArea: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -614,11 +614,11 @@ const parseStringArrayValue = (value: string): ParsedValues => {
 	return parsedValues;
 };
 
-interface OptionDisplayProps {
+type OptionDisplayProps = {
 	option: PreviewParameterOption;
-}
+};
 
-const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
+const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 	return (
 		<div className="flex items-center gap-2">
 			{option.icon && (
@@ -645,11 +645,11 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 	);
 };
 
-interface ParameterDiagnosticsProps {
+type ParameterDiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
-}
+};
 
-const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
+const ParameterDiagnostics: React.FC<ParameterDiagnosticsProps> = ({
 	diagnostics,
 }) => {
 	return (
@@ -912,11 +912,11 @@ const parameterError = (
 	);
 };
 
-interface DiagnosticsProps {
+type DiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
-}
+};
 
-export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
 			{diagnostics.map((diagnostic, index) => (

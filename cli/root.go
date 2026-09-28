@@ -123,7 +123,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.secrets(),
 		r.sharing(),
 		r.state(),
-		r.tasksCommand(),
 		r.templates(),
 		r.tokens(),
 		r.users(),
@@ -172,6 +171,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
+		r.updateUserEmail(),
 	}
 }
 
@@ -602,7 +602,7 @@ type RootCmd struct {
 	useKeyringWithGlobalConfig bool
 
 	// clock is used for time-dependent operations. Initialized to
-	// quartz.NewReal() in Command() if not set via SetClock.
+	// quartz.NewReal() in Command() if unset.
 	clock quartz.Clock
 
 	// TLS configuration for custom CA or client certificates.
@@ -610,12 +610,6 @@ type RootCmd struct {
 	tlsClientCertFile string
 	tlsClientKeyFile  string
 	tlsConfig         *tls.Config
-}
-
-// SetClock sets the clock used for time-dependent operations.
-// Must be called before Command() to take effect.
-func (r *RootCmd) SetClock(clk quartz.Clock) {
-	r.clock = clk
 }
 
 // ensureClientURL loads the client URL from the config file if it
@@ -1670,7 +1664,7 @@ func defaultUpgradeMessage(version string) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
 	}
-	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+	return fmt.Sprintf("download the server version with: 'curl -fsSL https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
 
 // serverVersionMessage returns a warning message if the server version

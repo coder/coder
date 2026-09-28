@@ -1,36 +1,38 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import type { FC, PropsWithChildren, ReactNode } from "react";
 import { Link } from "#/components/Link/Link";
 
 type SettingsHeaderProps = Readonly<
-	PropsWithChildren<{
-		actions?: ReactNode;
+	React.PropsWithChildren<{
+		actions?: React.ReactNode;
 		className?: string;
 	}>
 >;
-export const SettingsHeader: FC<SettingsHeaderProps> = ({
+export const SettingsHeader: React.FC<SettingsHeaderProps> = ({
 	children,
 	actions,
 	className,
 }) => {
 	return (
-		<hgroup className="flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row">
-			<div className={cn("text-sm flex flex-col gap-2 flex-1", className)}>
-				{children}
-			</div>
+		<hgroup
+			className={cn(
+				"flex flex-col justify-between items-start gap-2 pb-6 sm:flex-row",
+				className,
+			)}
+		>
+			<div className="text-sm flex flex-col gap-2 flex-1">{children}</div>
 			{actions}
 		</hgroup>
 	);
 };
 
 type SettingsHeaderDocsLinkProps = Readonly<
-	PropsWithChildren<{
+	React.PropsWithChildren<{
 		href: string;
 		context?: string;
 	}>
 >;
-export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
+export const SettingsHeaderDocsLink: React.FC<SettingsHeaderDocsLinkProps> = ({
 	href,
 	context,
 	children = "View docs",
@@ -49,6 +51,7 @@ const titleVariants = cva("m-0 flex items-center gap-2 leading-tight", {
 		hierarchy: {
 			primary: "text-3xl font-semibold",
 			secondary: "text-2xl font-medium",
+			tertiary: "text-xl font-medium",
 		},
 	},
 	defaultVariants: {
@@ -56,15 +59,15 @@ const titleVariants = cva("m-0 flex items-center gap-2 leading-tight", {
 	},
 });
 type SettingsHeaderTitleProps = Readonly<
-	PropsWithChildren<
+	React.PropsWithChildren<
 		VariantProps<typeof titleVariants> & {
 			level?: `h${1 | 2 | 3 | 4 | 5 | 6}`;
-			tooltip?: ReactNode;
+			tooltip?: React.ReactNode;
 			className?: string;
 		}
 	>
 >;
-export const SettingsHeaderTitle: FC<SettingsHeaderTitleProps> = ({
+export const SettingsHeaderTitle: React.FC<SettingsHeaderTitleProps> = ({
 	children,
 	tooltip,
 	className,
@@ -87,14 +90,13 @@ export const SettingsHeaderTitle: FC<SettingsHeaderTitleProps> = ({
 };
 
 type SettingsHeaderDescriptionProps = Readonly<
-	PropsWithChildren<{
+	React.PropsWithChildren<{
 		className?: string;
 	}>
 >;
-export const SettingsHeaderDescription: FC<SettingsHeaderDescriptionProps> = ({
-	children,
-	className,
-}) => {
+export const SettingsHeaderDescription: React.FC<
+	SettingsHeaderDescriptionProps
+> = ({ children, className }) => {
 	return (
 		<p
 			className={cn(

@@ -1,22 +1,21 @@
 import { cn } from "cn";
-import type { FC, HTMLAttributes, ReactNode } from "react";
 
-export interface EmptyStateProps extends HTMLAttributes<HTMLDivElement> {
+export type EmptyStateProps = React.ComponentProps<"div"> & {
 	/** Text Message to display, placed inside Typography component */
 	message: string;
 	/** Longer optional description to display below the message */
-	description?: string | ReactNode;
-	cta?: ReactNode;
-	image?: ReactNode;
+	description?: string | React.ReactNode;
+	cta?: React.ReactNode;
+	image?: React.ReactNode;
 	isCompact?: boolean;
-}
+};
 
 /**
  * Component to place on screens or in lists that have no content. Optionally
  * provide a button that would allow the user to return from where they were,
  * or to add an item that they currently have none of.
  */
-export const EmptyState: FC<EmptyStateProps> = ({
+export const EmptyState: React.FC<EmptyStateProps> = ({
 	message,
 	description,
 	cta,

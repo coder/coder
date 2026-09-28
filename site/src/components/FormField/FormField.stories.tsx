@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { expect, within } from "storybook/test";
 import { FormField } from "./FormField";
 
-interface ExampleFormFieldProps {
+type ExampleFormFieldProps = {
 	id?: string;
 	label: string;
 	description?: string;
@@ -12,9 +11,9 @@ interface ExampleFormFieldProps {
 	required?: boolean;
 	error?: string;
 	value?: string;
-}
+};
 
-const ExampleFormField: FC<ExampleFormFieldProps> = ({
+const ExampleFormField: React.FC<ExampleFormFieldProps> = ({
 	id,
 	label,
 	description,

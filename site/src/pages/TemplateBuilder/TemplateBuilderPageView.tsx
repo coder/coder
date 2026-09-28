@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -59,7 +52,7 @@ import {
 	wizardReducer,
 } from "./wizardState";
 
-interface TemplateBuilderPageViewProps {
+type TemplateBuilderPageViewProps = {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
@@ -71,9 +64,11 @@ interface TemplateBuilderPageViewProps {
 	isCreating: boolean;
 	onClearCreateError?: () => void;
 	sessionId: string;
-}
+};
 
-export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
+export const TemplateBuilderPageView: React.FC<
+	TemplateBuilderPageViewProps
+> = ({
 	error,
 	basesData,
 	preselectedBase,
@@ -389,7 +384,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 };
 
-interface StepContentProps {
+type StepContentProps = {
 	stepId: StepId;
 	state: TemplateBuilderWizardState;
 	dispatch: (action: WizardAction) => void;
@@ -400,9 +395,9 @@ interface StepContentProps {
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	onCreate: (values: CustomizationsFormValues) => void;
 	showValidationErrors: boolean;
-}
+};
 
-const StepContent: FC<StepContentProps> = ({
+const StepContent: React.FC<StepContentProps> = ({
 	stepId,
 	state,
 	dispatch,

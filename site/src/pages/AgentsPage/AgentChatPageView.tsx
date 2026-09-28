@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	type RefObject,
-	useEffect,
-	useState,
-} from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
@@ -42,7 +36,7 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { PendingAttachment } from "./components/ChatPageContent";
+import type { SendChatMessageOptions } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
@@ -83,8 +77,8 @@ import {
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-interface EditingState {
-	chatInputRef: RefObject<ChatMessageInputRef | null>;
+type EditingState = {
+	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -96,18 +90,15 @@ interface EditingState {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
-	handleSendFromInput: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => void;
+	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
-}
+};
 
-interface AgentChatPageViewProps {
+type AgentChatPageViewProps = {
 	chat: TypesGen.Chat;
 	persistedError: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -127,7 +118,7 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	models: readonly TypesGen.ChatModel[] | undefined;
 	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: ReactNode;
+	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
 	unavailableModelNotice?: string;
 	reasoningEffort?: string;
@@ -189,15 +180,15 @@ interface AgentChatPageViewProps {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-}
+};
 
-const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
+const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
 		{message}
 	</div>
 );
 
-interface UserTabContentProps {
+type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
 	workspace: TypesGen.Workspace | undefined;
@@ -207,9 +198,9 @@ interface UserTabContentProps {
 	isActive: boolean;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
-}
+};
 
-const UserTabContent: FC<UserTabContentProps> = ({
+const UserTabContent: React.FC<UserTabContentProps> = ({
 	tab,
 	chatId,
 	workspace,
@@ -276,7 +267,7 @@ const UserTabContent: FC<UserTabContentProps> = ({
 	}
 };
 
-export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
+export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	chat,
 	persistedError,
 	workspaceAgent,
@@ -344,13 +335,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const prNumber = chat.diff_status?.pr_number ?? (parsedPrNumber || undefined);
 
+	const canSubmitChatTurn = !isInputDisabled && !isSubmissionPending;
+
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
-	const canSendAskUserQuestionResponse =
-		!isInputDisabled && !isSubmissionPending
-			? onSendAskUserQuestionResponse
-			: undefined;
-
 	const handleRefresh = () => {
 		const sent = gitWatcher.refresh();
 		if (sent && agentId) {
@@ -451,11 +439,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
-	// Desktop is only available when the workspace and agent are ready;
-	// offer it as a singleton panel on that same condition to avoid
-	// selecting "desktop" when no desktop panel is rendered.
-	const availableDesktopChatId =
-		workspace && workspaceAgent ? desktopChatId : undefined;
+	// The desktop panel owns the stopped and starting states, so it only
+	// needs a workspace to render; the agent arrives once the build runs.
+	const availableDesktopChatId = workspace ? desktopChatId : undefined;
 
 	const availableBrowserApp = workspace
 		? getAgentBrowserApp(workspaceAgent)
@@ -674,7 +660,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	const renderTabContent = (tabId: string): ReactNode => {
+	const renderTabContent = (tabId: string): React.ReactNode => {
 		switch (tabId) {
 			case "summary":
 				return (
@@ -710,9 +696,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					/>
 				) : null;
 			case "desktop":
-				return availableDesktopChatId ? (
+				return workspace && availableDesktopChatId ? (
 					<DesktopPanel
 						chatId={availableDesktopChatId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
 						isVisible={effectiveSidebarTabId === "desktop"}
 					/>
 				) : null;
@@ -839,12 +827,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
-				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
+				value={{
+					workspaceId: workspace?.id,
+					buildId: chat.build_id,
+					agentId: chat.agent_id,
+				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
@@ -912,6 +904,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								key={agentId}
 								organizationId={organizationId}
 								store={store}
+								chatFiles={chat.files}
 								initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
@@ -928,12 +921,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly ? undefined : onImplementPlan
+									isOtherUserReadOnly || !canSubmitChatTurn
+										? undefined
+										: onImplementPlan
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly
+									isOtherUserReadOnly || !canSubmitChatTurn
 										? undefined
-										: canSendAskUserQuestionResponse
+										: onSendAskUserQuestionResponse
 								}
 								footer={
 									chat.queued_for_capacity ? (
@@ -945,54 +940,57 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									) : undefined
 								}
 							/>
-							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-								<ChatPageInput
-									chat={chat}
-									store={store}
-									models={models}
-									onSend={editing.handleSendFromInput}
-									onDeleteQueuedMessage={handleDeleteQueuedMessage}
-									onPromoteQueuedMessage={handlePromoteQueuedMessage}
-									onInterrupt={handleInterrupt}
-									isInputDisabled={isInputDisabled}
-									isSendPending={isSubmissionPending}
-									isInterruptPending={isInterruptPending}
-									hasModelOptions={hasModelOptions}
-									canConfigureAgentSetup={canConfigureAgentSetup}
-									providerCount={providerCount}
-									modelCount={modelCount}
-									unsupportedProviderNames={unsupportedProviderNames}
-									aiGatewayDisabled={aiGatewayDisabled}
-									selectedModel={effectiveSelectedModel}
-									onModelChange={setSelectedModel}
-									modelOptions={modelOptions}
-									modelSelectorPlaceholder={modelSelectorPlaceholder}
-									modelSelectorHelp={modelSelectorHelp}
-									reasoningEffort={reasoningEffort}
-									onReasoningEffortChange={onReasoningEffortChange}
-									onPlanModeToggle={onPlanModeToggle}
-									isModelCatalogLoading={isModelCatalogLoading}
-									onWorkspaceChange={onWorkspaceChange}
-									isWorkspaceLoading={isWorkspaceLoading}
-									inputRef={editing.chatInputRef}
-									initialValue={editing.editorInitialValue}
-									initialEditorState={editing.initialEditorState}
-									remountKey={editing.remountKey}
-									onContentChange={editing.handleContentChange}
-									isEditing={isEditing}
-									onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-									editingFileBlocks={editing.editingFileBlocks}
-									mcpServers={mcpServers}
-									selectedMCPServerIds={selectedMCPServerIds}
-									onMCPSelectionChange={onMCPSelectionChange}
-									onMCPAuthComplete={onMCPAuthComplete}
-									workspace={workspace}
-									workspaceAgent={workspaceAgent}
-									sshCommand={sshCommand}
-									attachedWorkspace={attachedWorkspace}
-									folder={preferredFolder}
-								/>
-							</div>
+							{!isArchived && (
+								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+									<ChatPageInput
+										chat={chat}
+										store={store}
+										models={models}
+										onSend={editing.handleSendFromInput}
+										onDeleteQueuedMessage={handleDeleteQueuedMessage}
+										onPromoteQueuedMessage={handlePromoteQueuedMessage}
+										onInterrupt={handleInterrupt}
+										isInputDisabled={isInputDisabled}
+										isReadOnly={isOtherUserReadOnly}
+										isSendPending={isSubmissionPending}
+										isInterruptPending={isInterruptPending}
+										hasModelOptions={hasModelOptions}
+										canConfigureAgentSetup={canConfigureAgentSetup}
+										providerCount={providerCount}
+										modelCount={modelCount}
+										unsupportedProviderNames={unsupportedProviderNames}
+										aiGatewayDisabled={aiGatewayDisabled}
+										selectedModel={effectiveSelectedModel}
+										onModelChange={setSelectedModel}
+										modelOptions={modelOptions}
+										modelSelectorPlaceholder={modelSelectorPlaceholder}
+										modelSelectorHelp={modelSelectorHelp}
+										reasoningEffort={reasoningEffort}
+										onReasoningEffortChange={onReasoningEffortChange}
+										onPlanModeToggle={onPlanModeToggle}
+										isModelCatalogLoading={isModelCatalogLoading}
+										onWorkspaceChange={onWorkspaceChange}
+										isWorkspaceLoading={isWorkspaceLoading}
+										inputRef={editing.chatInputRef}
+										initialValue={editing.editorInitialValue}
+										initialEditorState={editing.initialEditorState}
+										remountKey={editing.remountKey}
+										onContentChange={editing.handleContentChange}
+										isEditing={isEditing}
+										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
+										editingFileBlocks={editing.editingFileBlocks}
+										mcpServers={mcpServers}
+										selectedMCPServerIds={selectedMCPServerIds}
+										onMCPSelectionChange={onMCPSelectionChange}
+										onMCPAuthComplete={onMCPAuthComplete}
+										workspace={workspace}
+										workspaceAgent={workspaceAgent}
+										sshCommand={sshCommand}
+										attachedWorkspace={attachedWorkspace}
+										folder={preferredFolder}
+									/>
+								</div>
+							)}
 						</div>
 						<RightPanel
 							isOpen={shouldShowSidebar}
@@ -1035,8 +1033,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 };
 
-interface AgentChatPageLoadingViewProps {
-	inputRef: RefObject<ChatMessageInputRef | null>;
+type AgentChatPageLoadingViewProps = {
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
@@ -1055,9 +1053,11 @@ interface AgentChatPageLoadingViewProps {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	showRightPanel: boolean;
-}
+};
 
-export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+export const AgentChatPageLoadingView: React.FC<
+	AgentChatPageLoadingViewProps
+> = ({
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -1137,7 +1137,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	);
 };
 
-export const AgentChatPageNotFoundView: FC = () => {
+export const AgentChatPageNotFoundView: React.FC = () => {
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 			<ChatTopBar

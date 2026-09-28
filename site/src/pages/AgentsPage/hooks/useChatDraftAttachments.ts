@@ -5,6 +5,7 @@ import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
+	isRasterImageMediaType,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
@@ -123,7 +124,7 @@ const computePreview = (
 	current?: DraftAttachmentPreview,
 ): DraftAttachmentPreview => {
 	if (status === "uploaded") {
-		if (fileId && file.type.startsWith("image/")) {
+		if (fileId && isRasterImageMediaType(file.type)) {
 			return { previewUrl: getChatFileURL(fileId), previewUrlKind: "chatFile" };
 		}
 		return {};
@@ -268,7 +269,7 @@ const beginUpload = (entry: UploadRegistryEntry) => {
 			entry.fileId = result.id;
 			entry.error = undefined;
 			persistUploadedRecord(entry, generation);
-			if (entry.file.type.startsWith("image/")) {
+			if (isRasterImageMediaType(entry.file.type)) {
 				void fetch(getChatFileURL(result.id)).catch(() => undefined);
 			}
 			notifySubscribers(entry);
@@ -639,7 +640,7 @@ export function useChatDraftAttachments(
 		// animated GIF on Anthropic that we don't re-encode).
 		// Surface the error at attach time rather than letting
 		// the server backstop reject only at send time.
-		if (replacement.type.startsWith("image/") && replacement.size > budget) {
+		if (isRasterImageMediaType(replacement.type) && replacement.size > budget) {
 			setViews((prev) =>
 				prev.map((view) => {
 					if (view.clientId !== clientId) {

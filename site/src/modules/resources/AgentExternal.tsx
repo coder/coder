@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { workspaceAgentCredentials } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
@@ -6,12 +5,15 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Loader } from "#/components/Loader/Loader";
 
-interface AgentExternalProps {
+type AgentExternalProps = {
 	agent: WorkspaceAgent;
 	workspace: Workspace;
-}
+};
 
-export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
+export const AgentExternal: React.FC<AgentExternalProps> = ({
+	agent,
+	workspace,
+}) => {
 	const {
 		data: credentials,
 		error,
@@ -37,7 +39,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 				code={credentials?.command ?? ""}
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
-				redactReplacement={`CODER_AGENT_TOKEN="********"`}
+				redactReplacement='CODER_AGENT_TOKEN="********"'
 				showRevealButton
 			/>
 		</section>

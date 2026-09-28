@@ -4,8 +4,9 @@
  */
 
 import { cn } from "cn";
+import dayjs from "dayjs";
 import { CalendarIcon, CheckIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -35,29 +36,70 @@ import {
 	toClockFields,
 } from "./dateTimeRange";
 
-interface DateTimeRangePickerProps {
+type DateTimeRangePickerProps = {
 	value: DateTimeRangeValue;
 	onChange: (value: DateTimeRangeValue) => void;
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
-}
+	/**
+	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
+	 * time cannot be applied, and presets that would start before it are
+	 * hidden.
+	 */
+	minDate?: Date;
+	/**
+	 * Longest range that can be applied, in days. Presets that would exceed
+	 * it are hidden.
+	 */
+	maxDays?: number;
+};
 
 const INVALID_TIME_MESSAGE = "Enter a valid time, e.g. 09:30:00";
 const RANGE_ORDER_MESSAGE = "End must be after start";
+const rangeLengthMessage = (maxDays: number) =>
+	`Range must not exceed ${maxDays} days`;
+const rangeStartMessage = (minDate: Date) =>
+	`Start must be on or after ${dayjs(minDate).format("MMM D, YYYY h:mm A")}`;
+
+// maxDays bounds the exact duration, since that is what APIs enforce, rather
+// than a count of calendar days.
+const exceedsMaxDays = (start: Date, end: Date, maxDays: number): boolean =>
+	dayjs(end).diff(start, "hour", true) > maxDays * 24;
+
+const validateRange = (
+	start: Date | null,
+	end: Date | null,
+	minDate: Date | undefined,
+	maxDays: number | undefined,
+): string | null => {
+	if (!start || !end) {
+		return null;
+	}
+	if (end.getTime() <= start.getTime()) {
+		return RANGE_ORDER_MESSAGE;
+	}
+	if (minDate !== undefined && start < minDate) {
+		return rangeStartMessage(minDate);
+	}
+	if (maxDays !== undefined && exceedsMaxDays(start, end, maxDays)) {
+		return rangeLengthMessage(maxDays);
+	}
+	return null;
+};
 // How long the floating error stays visible before fading, mirroring
 // toast behavior. The invalid field styling and disabled Apply remain
 // until the input is corrected.
 const ERROR_DISMISS_TIMEOUT_MS = 5_000;
 
-interface TimeFieldsState {
+type TimeFieldsState = {
 	from: string;
 	fromMeridiem: Meridiem;
 	fromTouched: boolean;
 	to: string;
 	toMeridiem: Meridiem;
 	toTouched: boolean;
-}
+};
 
 // From defaults to the start of the day and To to the end, so any
 // day-only selection spans the full final day.
@@ -70,15 +112,27 @@ const defaultTimeFields = (): TimeFieldsState => ({
 	toTouched: false,
 });
 
-export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
+export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	value,
 	onChange,
 	now,
 	presets,
 	size = "sm",
+	minDate,
+	maxDays,
 }) => {
 	const currentTime = now ?? new Date();
-	const quickPresets = presets ?? DEFAULT_QUICK_PRESETS;
+	const quickPresets = (presets ?? DEFAULT_QUICK_PRESETS).filter((preset) => {
+		const { start, end } = preset.range(currentTime);
+		return (
+			(minDate === undefined || start >= minDate) &&
+			(maxDays === undefined || !exceedsMaxDays(start, end, maxDays))
+		);
+	});
+	// The cutoff's own day stays selectable so times after the cutoff can be
+	// picked; validateRange rejects a start before the cutoff itself.
+	const firstSelectableDay =
+		minDate === undefined ? undefined : dayjs(minDate).startOf("day").toDate();
 	const [open, setOpen] = useState(false);
 	const [customExpanded, setCustomExpanded] = useState(false);
 	const [selection, setSelection] = useState<DayPickerDateRange | undefined>();
@@ -121,7 +175,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	};
 
 	// Roving focus for the quick-pick radiogroup.
-	const handleQuickPickKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+	const handleQuickPickKeyDown = (
+		event: React.KeyboardEvent<HTMLDivElement>,
+	) => {
 		const isNext = event.key === "ArrowDown" || event.key === "ArrowRight";
 		const isPrevious = event.key === "ArrowUp" || event.key === "ArrowLeft";
 		if (!isNext && !isPrevious) {
@@ -159,10 +215,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 					timeFields.toMeridiem,
 				)
 			: null;
-	const rangeError =
-		draftStart && draftEnd && draftEnd.getTime() <= draftStart.getTime()
-			? RANGE_ORDER_MESSAGE
-			: null;
+	const rangeError = validateRange(draftStart, draftEnd, minDate, maxDays);
 	const canApply =
 		draftStart !== null && draftEnd !== null && rangeError === null;
 
@@ -263,7 +316,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 									defaultMonth={
 										value.preset === undefined ? value.start : currentTime
 									}
-									disabled={{ after: currentTime }}
+									disabled={
+										firstSelectableDay === undefined
+											? { after: currentTime }
+											: [{ before: firstSelectableDay }, { after: currentTime }]
+									}
 									endMonth={currentTime}
 									today={currentTime}
 								/>
@@ -354,14 +411,14 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	);
 };
 
-interface QuickPickButtonProps {
+type QuickPickButtonProps = {
 	label: string;
 	selected: boolean;
 	tabIndex: number;
 	onClick: () => void;
-}
+};
 
-const QuickPickButton: FC<QuickPickButtonProps> = ({
+const QuickPickButton: React.FC<QuickPickButtonProps> = ({
 	label,
 	selected,
 	tabIndex,
@@ -386,7 +443,7 @@ const QuickPickButton: FC<QuickPickButtonProps> = ({
 	</button>
 );
 
-interface TimeRowProps {
+type TimeRowProps = {
 	id: string;
 	label: string;
 	time: string;
@@ -396,9 +453,9 @@ interface TimeRowProps {
 	onTimeChange: (time: string) => void;
 	onBlur: () => void;
 	onMeridiemChange: (meridiem: Meridiem) => void;
-}
+};
 
-const TimeRow: FC<TimeRowProps> = ({
+const TimeRow: React.FC<TimeRowProps> = ({
 	id,
 	label,
 	time,
