@@ -7,7 +7,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -19,13 +18,11 @@ func (r *RootCmd) start() *serpent.Command {
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
 
-		noWait        bool
-		logDir        string
-		logBufferSize int64
+		noWait bool
 	)
 
 	cmd := &serpent.Command{
-		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationBufferedLogger, ""),
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(
@@ -38,31 +35,16 @@ func (r *RootCmd) start() *serpent.Command {
 				Value:       serpent.BoolOf(&noWait),
 				Hidden:      false,
 			},
-			logDirOption(&logDir, "CODER_LOG_DIR"),
-			logBufferSizeOption(&logBufferSize),
 			cliui.SkipPromptOption(),
 		},
-		Handler: func(inv *serpent.Invocation) (retErr error) {
+		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
-
-			ctx := inv.Context()
-			logger, closeLog, err := r.newSessionLogger(inv, "start", logDir, logBufferSize)
-			if err != nil {
-				return err
-			}
-			defer closeLog()
-			client.SetLogger(logger)
-			// Logging the terminal error at Error flushes the buffered debug
-			// history so the detail leading up to a failure is written to the
-			// log file.
-			defer func() {
-				if retErr != nil {
-					logger.Error(ctx, "command exit", slog.Error(retErr))
-				}
-			}()
+			// The invocation logger buffers debug detail and emits it to stderr
+			// only if the command fails (see bufferedLoggerMiddleware).
+			client.SetLogger(inv.Logger)
 
 			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])
 			if err != nil {

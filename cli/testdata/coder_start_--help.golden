@@ -22,14 +22,6 @@ OPTIONS:
           Set the value of ephemeral parameters defined in the template. The
           format is "name=value".
 
-      --log-buffer-size int, $CODER_LOG_BUFFER_SIZE (default: 1000)
-          Number of log entries below the current log level to keep in memory
-          and emit on errors. Set to 0 to disable buffering.
-
-      --log-dir string, $CODER_LOG_DIR
-          Directory to write session diagnostic log files to. Defaults to the
-          user state directory.
-
       --no-wait bool
           Return immediately after starting the workspace.
 

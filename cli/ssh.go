@@ -132,7 +132,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 		waitEnum            string
 		noWait              bool
 		logDirPath          string
-		logBufferSize       int64
 		remoteForwards      []string
 		env                 []string
 		usageApp            string
@@ -317,7 +316,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// Buffer debug detail in memory and write it to the log file only
 				// when the command logs an error (via the deferred error log above),
 				// so normal operation stays quiet. Verbose writes debug directly.
-				logger = r.bufferedLogger(logger, sloghuman.Sink(dc), logBufferSize)
+				logger = r.bufferedLogger(logger, sloghuman.Sink(dc), r.logBufferSize)
 
 				// log HTTP requests
 				client.SetLogger(logger)
@@ -855,7 +854,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 			FlagShorthand: "l",
 			Value:         serpent.StringOf(&logDirPath),
 		},
-		logBufferSizeOption(&logBufferSize),
 		{
 			Flag:          "remote-forward",
 			Description:   "Enable remote port forwarding (remote_port:local_address:local_port).",

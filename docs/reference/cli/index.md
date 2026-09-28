@@ -171,6 +171,16 @@ Force the use of a TTY.
 
 Enable verbose output.
 
+### --log-buffer-size
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>int</code>                    |
+| Environment | <code>$CODER_LOG_BUFFER_SIZE</code> |
+| Default     | <code>10</code>                     |
+
+Number of log entries below the current log level to keep in memory and emit on errors. Set to 0 to disable buffering.
+
 ### --disable-direct-connections
 
 |             |                                                |

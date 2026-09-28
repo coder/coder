@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/serpent"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
 func TestClampLogBufferSize(t *testing.T) {
@@ -69,54 +70,55 @@ func TestDefaultSessionLogDir(t *testing.T) {
 		"got %q", defaultSessionLogDir())
 }
 
-// readSessionLog returns the contents of the single session log file in dir.
-func readSessionLog(t *testing.T, dir string) string {
-	t.Helper()
-	matches, err := filepath.Glob(filepath.Join(dir, "coder-*.log"))
-	require.NoError(t, err)
-	require.Len(t, matches, 1)
-	content, err := os.ReadFile(matches[0])
-	require.NoError(t, err)
-	return string(content)
-}
-
-func TestNewSessionLogger_BuffersUntilError(t *testing.T) {
+func TestBufferedLogger_BuffersUntilError(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	var buf bytes.Buffer
 	r := &RootCmd{}
-	inv := &serpent.Invocation{Logger: slog.Make()}
-
-	logger, closeLog, err := r.newSessionLogger(inv, "test", dir, 10)
-	require.NoError(t, err)
-	defer closeLog()
+	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
 
 	ctx := context.Background()
 	logger.Debug(ctx, "buffered-debug")
 	logger.Sync()
-	require.NotContains(t, readSessionLog(t, dir), "buffered-debug",
+	require.NotContains(t, buf.String(), "buffered-debug",
 		"debug entry should be buffered, not written")
 
 	// Logging an error flushes the buffered history before the error entry.
 	logger.Error(ctx, "command failed for test")
-	got := readSessionLog(t, dir)
+	logger.Sync()
+	got := buf.String()
 	require.Contains(t, got, "buffered-debug")
 	require.Contains(t, got, "command failed for test")
 }
 
-func TestNewSessionLogger_VerboseWritesDebug(t *testing.T) {
+func TestBufferedLogger_FlushEmitsBuffer(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	r := &RootCmd{verbose: true}
-	inv := &serpent.Invocation{Logger: slog.Make()}
+	// Flush is the path bufferedLoggerMiddleware uses to emit the buffered
+	// history on a returned error without logging a duplicate error line.
+	var buf bytes.Buffer
+	r := &RootCmd{}
+	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
 
-	logger, closeLog, err := r.newSessionLogger(inv, "test", dir, 10)
-	require.NoError(t, err)
-	defer closeLog()
+	ctx := context.Background()
+	logger.Debug(ctx, "buffered-debug")
+	logger.Sync()
+	require.NotContains(t, buf.String(), "buffered-debug")
+
+	logger.Flush(ctx)
+	logger.Sync()
+	require.Contains(t, buf.String(), "buffered-debug")
+}
+
+func TestBufferedLogger_VerboseWritesDebug(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	r := &RootCmd{verbose: true}
+	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
 
 	logger.Debug(context.Background(), "verbose-debug")
 	logger.Sync()
-	require.Contains(t, readSessionLog(t, dir), "verbose-debug",
+	require.Contains(t, buf.String(), "verbose-debug",
 		"verbose should write debug entries directly")
 }

@@ -127,16 +127,6 @@ Enter workspace immediately after the agent has connected. This is the default i
 
 Specify the directory containing SSH diagnostic log files.
 
-### --log-buffer-size
-
-|             |                                     |
-|-------------|-------------------------------------|
-| Type        | <code>int</code>                    |
-| Environment | <code>$CODER_LOG_BUFFER_SIZE</code> |
-| Default     | <code>1000</code>                   |
-
-Number of log entries below the current log level to keep in memory and emit on errors. Set to 0 to disable buffering.
-
 ### -R, --remote-forward
 
 |             |                                        |

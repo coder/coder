@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"runtime/trace"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -75,6 +77,7 @@ const (
 	varAllowRedirects          = "allow-redirects"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
+	varLogBufferSize           = "log-buffer-size"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 	varUseKeyring              = "use-keyring"
@@ -404,9 +407,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	// the invocation context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.bufferedLoggerMiddleware(), PrintDeprecatedOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.bufferedLoggerMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
 		}
 	})
 
@@ -499,6 +502,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:         globalGroup,
 		},
 		{
+			Flag:    varLogBufferSize,
+			Env:     "CODER_LOG_BUFFER_SIZE",
+			Default: strconv.Itoa(defaultCLILogBufferSize),
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable buffering.",
+			Value: serpent.Int64Of(&r.logBufferSize),
+			Group: globalGroup,
+		},
+		{
 			Flag:        varDisableDirect,
 			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
 			Description: "Disable direct (P2P) connections to workspaces.",
@@ -586,6 +598,7 @@ type RootCmd struct {
 	forceTTY      bool
 	noOpen        bool
 	verbose       bool
+	logBufferSize int64
 	versionFlag   bool
 	disableDirect bool
 	debugHTTP     bool
@@ -1814,6 +1827,42 @@ const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
 // long-running daemon commands (server, agent, provisionerd, and so on) never
 // carry a meaningless session ID in their logs, request baggage, or telemetry.
 const annotationClientSessionID = "client_session_id"
+
+// annotationBufferedLogger marks commands whose diagnostic logs should be
+// buffered in memory and emitted to stderr only when the command returns an
+// error. bufferedLoggerMiddleware installs the buffered logger for these
+// commands. Commands that manage their own logger destination (for example ssh,
+// which writes to a file to avoid corrupting its stdio stream) do not opt in.
+const annotationBufferedLogger = "buffered_logger"
+
+// bufferedLoggerMiddleware installs a stderr logger backed by a flight recorder
+// for commands that opt in with annotationBufferedLogger. Entries below the
+// display level (Info, or Debug under --verbose) are kept in a bounded in-memory
+// ring and emitted only when the command returns an error, so successful runs
+// stay quiet while the detail leading up to a failure is still available. The
+// recorder is shared with any logger derived from the invocation logger (such as
+// the codersdk client logger), so flushing here also emits their buffered
+// entries.
+func (r *RootCmd) bufferedLoggerMiddleware() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationBufferedLogger) {
+				return next(inv)
+			}
+			logger := r.bufferedLogger(inv.Logger, sloghuman.Sink(inv.Stderr), r.logBufferSize)
+			inv.Logger = logger
+			err := next(inv)
+			if err != nil {
+				// Replay the buffered diagnostic history to stderr. Flush does not
+				// add a duplicate error line; the returned error is rendered by the
+				// top-level formatter.
+				logger.Flush(inv.Context())
+			}
+			return err
+		}
+	}
+}
 
 type clientSessionIDContextKey struct{}
 

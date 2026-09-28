@@ -41,10 +41,6 @@ OPTIONS:
           Specifies which identity agent to use (overrides $SSH_AUTH_SOCK),
           forward agent must also be enabled.
 
-      --log-buffer-size int, $CODER_LOG_BUFFER_SIZE (default: 1000)
-          Number of log entries below the current log level to keep in memory
-          and emit on errors. Set to 0 to disable buffering.
-
   -l, --log-dir string, $CODER_SSH_LOG_DIR
           Specify the directory containing SSH diagnostic log files.
 

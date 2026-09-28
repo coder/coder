@@ -1,46 +1,28 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/adrg/xdg"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"github.com/coder/coder/v2/cli/cliutil"
-	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/serpent"
 )
 
 const (
-	// defaultCLILogBufferSize is the default number of below-level (debug) log
-	// entries a session command keeps in memory and writes to its log file on a
-	// connection failure.
-	defaultCLILogBufferSize = 1000
-	maxCLILogBufferSize     = 10000
-	// keepSessionLogFiles is the number of session log files retained per log
+	// defaultCLILogBufferSize is the default number of log entries below the
+	// current log level that a command keeps in memory and emits to stderr when
+	// it fails. It is intentionally small so a failure prints a few lines of
+	// context rather than flooding the terminal.
+	defaultCLILogBufferSize = 10
+	// maxCLILogBufferSize caps the configurable buffer size to bound memory use.
+	maxCLILogBufferSize = 10000
+	// keepSessionLogFiles is the number of ssh session log files retained per log
 	// directory; older files are pruned when a new session starts.
 	keepSessionLogFiles = 50
 )
-
-// logBufferSizeOption returns the shared --log-buffer-size option used by the
-// session commands (ssh, start, stop, update).
-func logBufferSizeOption(value *int64) serpent.Option {
-	return serpent.Option{
-		Flag:    "log-buffer-size",
-		Env:     "CODER_LOG_BUFFER_SIZE",
-		Default: strconv.Itoa(defaultCLILogBufferSize),
-		Description: "Number of log entries below the current log level to keep " +
-			"in memory and emit on errors. Set to 0 to disable buffering.",
-		Value: serpent.Int64Of(value),
-	}
-}
 
 // bufferedLogger returns logger writing to sink at the current display level
 // (Info by default, Debug under --verbose) with a flight recorder attached. The
@@ -56,25 +38,14 @@ func (r *RootCmd) bufferedLogger(logger slog.Logger, sink slog.Sink, bufferSize 
 	return logger.AppendSinks(sink).Leveled(level).FlightRecorder(int(clampLogBufferSize(bufferSize)))
 }
 
-// logDirOption returns the --log-dir option for a session command. The env
-// differs per command so ssh keeps its historical CODER_SSH_LOG_DIR.
-func logDirOption(value *string, env string) serpent.Option {
-	return serpent.Option{
-		Flag: "log-dir",
-		Env:  env,
-		Description: "Directory to write session diagnostic log files to. " +
-			"Defaults to the user state directory.",
-		Value: serpent.StringOf(value),
-	}
-}
-
-// defaultSessionLogDir returns the default directory for CLI session logs.
+// defaultSessionLogDir returns the default directory for ssh session logs.
 // Following the XDG Base Directory spec, logs are state data, so they live under
 // the state directory rather than the cache or data directory.
 func defaultSessionLogDir() string {
 	return filepath.Join(xdg.StateHome, "coder", "logs")
 }
 
+// clampLogBufferSize bounds a requested buffer size to [0, maxCLILogBufferSize].
 func clampLogBufferSize(size int64) int64 {
 	if size < 0 {
 		return 0
@@ -114,45 +85,4 @@ func pruneSessionLogs(dir string, keep int) {
 	for _, f := range files[keep:] {
 		_ = os.Remove(f.path)
 	}
-}
-
-// newSessionLogger builds the logger for a session command. It writes to a
-// per-invocation file in logDir (defaulting to the user state directory) and,
-// unless verbose is enabled, runs at Info while keeping a rolling in-memory
-// history of debug entries via a flight recorder. The history is flushed to the
-// file automatically when the command logs an error on exit, so the detail
-// leading up to a failure is available without writing debug logs during normal
-// operation. Verbose runs at Debug and bypasses the recorder.
-//
-// The returned closer must be called when the command finishes to flush and
-// close the log file.
-func (r *RootCmd) newSessionLogger(inv *serpent.Invocation, cmdName, logDir string, bufferSize int64) (slog.Logger, func(), error) {
-	if logDir == "" {
-		logDir = defaultSessionLogDir()
-	}
-	if err := os.MkdirAll(logDir, 0o700); err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("create log dir %q: %w", logDir, err)
-	}
-	pruneSessionLogs(logDir, keepSessionLogFiles)
-
-	nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
-	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("generate log file nonce: %w", err)
-	}
-	// The time portion makes it easier to find the right log file, and the nonce
-	// prevents collisions between invocations that start in the same second.
-	name := fmt.Sprintf("coder-%s-%s-%s.log", cmdName, time.Now().Format("20060102-150405"), nonce)
-
-	logFile, err := os.OpenFile(
-		filepath.Join(logDir, name),
-		os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
-		0o600,
-	)
-	if err != nil {
-		return slog.Logger{}, nil, xerrors.Errorf("open log file: %w", err)
-	}
-	dc := cliutil.DiscardAfterClose(logFile)
-
-	logger := r.bufferedLogger(inv.Logger, sloghuman.Sink(dc), bufferSize)
-	return logger, func() { _ = dc.Close() }, nil
 }

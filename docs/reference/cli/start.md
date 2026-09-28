@@ -24,25 +24,6 @@ coder start [flags] <workspace>
 
 Return immediately after starting the workspace.
 
-### --log-dir
-
-|             |                             |
-|-------------|-----------------------------|
-| Type        | <code>string</code>         |
-| Environment | <code>$CODER_LOG_DIR</code> |
-
-Directory to write session diagnostic log files to. Defaults to the user state directory.
-
-### --log-buffer-size
-
-|             |                                     |
-|-------------|-------------------------------------|
-| Type        | <code>int</code>                    |
-| Environment | <code>$CODER_LOG_BUFFER_SIZE</code> |
-| Default     | <code>1000</code>                   |
-
-Number of log entries below the current log level to keep in memory and emit on errors. Set to 0 to disable buffering.
-
 ### -y, --yes
 
 |      |                   |
