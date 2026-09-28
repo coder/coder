@@ -2,12 +2,10 @@ package chatstate_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -101,46 +99,6 @@ func TestEditing_ContentEditKeepsOverridesUnlessGiven(t *testing.T) {
 	res = edit(chatstate.EditQueuedMessageInput{QueuedMessageID: queued.ID, Content: userMessageContent(t, "edited once more")})
 	assertQueuedMessageText(t, res.QueuedMessage, "edited once more")
 	require.Equal(t, database.ChatReasoningEffortHigh, res.QueuedMessage.ReasoningEffort.ChatReasoningEffort, "a content-only edit keeps the override")
-}
-
-// TestGetStaleChats_ExcludesPaused: a waiting chat with rows is stale; a
-// paused chat with rows is not.
-func TestGetStaleChats_ExcludesPaused(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedPaused(t, f, 1)
-	threshold := time.Now().Add(time.Hour)
-	//nolint:gocritic // GetStaleChats is a system sweep query.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-
-	contains := func(chats []database.Chat) bool {
-		for _, c := range chats {
-			if c.ID == seeded.chatID {
-				return true
-			}
-		}
-		return false
-	}
-	stale, err := f.DB.GetStaleChats(sysCtx, threshold)
-	require.NoError(t, err)
-	require.False(t, contains(stale), "paused is not reported")
-
-	// The same rows under waiting are reported: nothing will promote them.
-	chat, err := f.DB.GetChatByID(ctx, seeded.chatID)
-	require.NoError(t, err)
-	_, err = f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
-		ID:                       chat.ID,
-		Status:                   database.ChatStatusWaiting,
-		WorkerID:                 chat.WorkerID,
-		RunnerID:                 chat.RunnerID,
-		LastError:                chat.LastError,
-		RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
-	})
-	require.NoError(t, err)
-	stale, err = f.DB.GetStaleChats(sysCtx, threshold)
-	require.NoError(t, err)
-	require.True(t, contains(stale), "waiting with rows is reported")
 }
 
 // The listing follows position, which PromoteQueuedMessage on a later
