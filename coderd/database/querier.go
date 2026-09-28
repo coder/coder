@@ -550,7 +550,9 @@ type sqlcQuerier interface {
 	// to publish the state update and classify execution state, plus whether the
 	// queue is non-empty and whether the current ownership lease is stale. One
 	// single-table statement replaces GetChatByID, CountChatQueuedMessages, and
-	// IsChatHeartbeatStale while the transition lock is held.
+	// IsChatHeartbeatStale while the transition lock is held. The worker also
+	// uses it as a lock-free acquisition pre-check; owner_id and organization_id
+	// let that caller cache the chat's RBAC object without another read.
 	GetChatTransitionState(ctx context.Context, arg GetChatTransitionStateParams) (GetChatTransitionStateRow, error)
 	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
 	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)

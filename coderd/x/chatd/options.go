@@ -34,6 +34,10 @@ const (
 	defaultStateChannelSize        = 64
 	defaultTaskRetryInitialBackoff = 100 * time.Millisecond
 	defaultTaskRetryMaxBackoff     = 5 * time.Second
+	// defaultAcquireJitter spreads replicas woken by the same ownership hint
+	// over roughly two winner transactions so most losers see the winner in
+	// the lock-free pre-check instead of contending for the row lock.
+	defaultAcquireJitter = 25 * time.Millisecond
 )
 
 // chatWorkerPubsub is the chat worker pubsub dependency.
@@ -193,15 +197,20 @@ type chatWorkerOptions struct {
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
 
-	AcquisitionInterval        time.Duration
-	CapacityMetricsInterval    time.Duration
-	AcquisitionBatchSize       int32
-	ArchiveInterval            time.Duration
-	ArchiveBatchSize           int32
-	RunnerSyncInterval         time.Duration
-	HeartbeatInterval          time.Duration
-	HeartbeatCleanupInterval   time.Duration
-	HeartbeatStaleSeconds      int32
+	AcquisitionInterval      time.Duration
+	CapacityMetricsInterval  time.Duration
+	AcquisitionBatchSize     int32
+	ArchiveInterval          time.Duration
+	ArchiveBatchSize         int32
+	RunnerSyncInterval       time.Duration
+	HeartbeatInterval        time.Duration
+	HeartbeatCleanupInterval time.Duration
+	HeartbeatStaleSeconds    int32
+	// AcquireJitter is the maximum random delay a worker waits before a
+	// lock-free acquisition pre-check, so replicas woken by the same
+	// ownership hint observe the winner instead of all racing for the row
+	// lock. Zero disables the delay; the server sets a small default.
+	AcquireJitter              time.Duration
 	StateChannelSize           int
 	RunnerManagerChannelSize   int
 	AcquisitionWakeChannelSize int

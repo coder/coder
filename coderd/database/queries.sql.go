@@ -9524,6 +9524,8 @@ func (q *sqlQuerier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID)
 const getChatTransitionState = `-- name: GetChatTransitionState :one
 SELECT
     c.id,
+    c.owner_id,
+    c.organization_id,
     c.snapshot_version,
     c.history_version,
     c.queue_version,
@@ -9558,6 +9560,8 @@ type GetChatTransitionStateParams struct {
 
 type GetChatTransitionStateRow struct {
 	ID                uuid.UUID     `db:"id" json:"id"`
+	OwnerID           uuid.UUID     `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID     `db:"organization_id" json:"organization_id"`
 	SnapshotVersion   int64         `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion    int64         `db:"history_version" json:"history_version"`
 	QueueVersion      int64         `db:"queue_version" json:"queue_version"`
@@ -9575,12 +9579,16 @@ type GetChatTransitionStateRow struct {
 // to publish the state update and classify execution state, plus whether the
 // queue is non-empty and whether the current ownership lease is stale. One
 // single-table statement replaces GetChatByID, CountChatQueuedMessages, and
-// IsChatHeartbeatStale while the transition lock is held.
+// IsChatHeartbeatStale while the transition lock is held. The worker also
+// uses it as a lock-free acquisition pre-check; owner_id and organization_id
+// let that caller cache the chat's RBAC object without another read.
 func (q *sqlQuerier) GetChatTransitionState(ctx context.Context, arg GetChatTransitionStateParams) (GetChatTransitionStateRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatTransitionState, arg.StaleSeconds, arg.ID)
 	var i GetChatTransitionStateRow
 	err := row.Scan(
 		&i.ID,
+		&i.OwnerID,
+		&i.OrganizationID,
 		&i.SnapshotVersion,
 		&i.HistoryVersion,
 		&i.QueueVersion,

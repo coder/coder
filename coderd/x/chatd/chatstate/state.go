@@ -80,6 +80,11 @@ func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) Exec
 	return classifyExecutionState(chat.Status, chat.Archived, queueNonEmpty, exists)
 }
 
+// ClassifyTransitionState classifies the lean transition-state row.
+func ClassifyTransitionState(row database.GetChatTransitionStateRow) ExecutionState {
+	return classifyExecutionState(row.Status, row.Archived, row.HasQueued, true)
+}
+
 //nolint:revive // queueNonEmpty/exists are simple classifier inputs.
 func classifyExecutionState(status database.ChatStatus, archived, queueNonEmpty, exists bool) ExecutionState {
 	if !exists {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -350,4 +351,45 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 	case <-time.After(testutil.WaitLong):
 		t.Fatal("task context was not canceled")
 	}
+}
+
+// bumpCountingStore counts snapshot bumps, including those issued on the
+// transactional handle inside InTx.
+type bumpCountingStore struct {
+	database.Store
+	bumps *atomic.Int64
+}
+
+func (s *bumpCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&bumpCountingStore{Store: tx, bumps: s.bumps})
+	}, opts)
+}
+
+func (s *bumpCountingStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
+	s.bumps.Add(1)
+	return s.Store.LockChatAndBumpSnapshotVersion(ctx, id)
+}
+
+// TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking verifies the
+// lock-free acquisition pre-check: a replica that loses the race to a chat
+// with a live lease must skip without taking the row lock or bumping the
+// snapshot, since every such bump would otherwise queue behind the winner
+// and roll back.
+func TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
+
+	bumps := &atomic.Int64{}
+	opts := testOptions(t, f, newRecordingTaskStarter())
+	opts.Store = &bumpCountingStore{Store: f.db, bumps: bumps}
+	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
+	require.NoError(t, err)
+
+	acquired, err := worker.acquireCandidate(testutil.Context(t, testutil.WaitShort), worker.opts.WorkerID, nil, chat.ID)
+	require.NoError(t, err)
+	require.False(t, acquired)
+	require.Zero(t, bumps.Load(), "a losing replica must not take the row lock")
 }

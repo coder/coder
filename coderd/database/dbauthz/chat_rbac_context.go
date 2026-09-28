@@ -15,10 +15,16 @@ import (
 // cache for the chat's lifetime; ACLs are omitted because sharing changes
 // at runtime.
 func CacheableChatRBAC(chat database.Chat) rbac.Object {
+	return CacheableChatRBACFor(chat.ID, chat.OwnerID, chat.OrganizationID)
+}
+
+// CacheableChatRBACFor is CacheableChatRBAC for callers holding only the
+// identifying fields, such as a lean chat read.
+func CacheableChatRBACFor(chatID, ownerID, organizationID uuid.UUID) rbac.Object {
 	return rbac.ResourceChat.
-		WithID(chat.ID).
-		WithOwner(chat.OwnerID.String()).
-		InOrg(chat.OrganizationID)
+		WithID(chatID).
+		WithOwner(ownerID.String()).
+		InOrg(organizationID)
 }
 
 func isChatRBACObjectEmpty(rbacObj rbac.Object) bool {

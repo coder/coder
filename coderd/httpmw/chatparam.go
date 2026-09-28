@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -44,6 +45,11 @@ func ExtractChatParam(db database.Store) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(ctx, chatParamContextKey{}, chat)
+			// The request already paid for this read; cache the chat's RBAC
+			// object so downstream dbauthz chat writes do not read it again.
+			if rbacCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(chat)); err == nil {
+				ctx = rbacCtx
+			}
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}

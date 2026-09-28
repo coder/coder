@@ -2,7 +2,9 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 )
@@ -253,15 +256,66 @@ func (w *chatWorker) acquireCandidateSafely(
 	return w.acquireCandidate(ctx, workerID, manager, chatID)
 }
 
+// waitAcquireJitter sleeps a random duration in [0, AcquireJitter) so
+// replicas racing for the same chat stagger their acquisition pre-checks.
+// It uses wall time rather than the injected clock: the delay is random
+// load shaping, and tests that drive a mock clock would otherwise stall
+// acquisition on a timer they never advance.
+func (w *chatWorker) waitAcquireJitter(ctx context.Context) error {
+	if w.opts.AcquireJitter <= 0 {
+		return nil
+	}
+	//nolint:gosec // Load-shaping jitter, not used for crypto.
+	delay := time.Duration(rand.Int64N(int64(w.opts.AcquireJitter)))
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (w *chatWorker) acquireCandidate(
 	ctx context.Context,
 	workerID uuid.UUID,
 	manager *runnerManager,
 	chatID uuid.UUID,
 ) (bool, error) {
+	// Every replica woken by the same ownership hint races for this chat and
+	// only one can win. Without a pre-check each loser takes the row lock,
+	// bumps the snapshot, and rolls back. A short random delay spreads the
+	// replicas, then a lock-free read lets the later ones see the winner's
+	// ownership and skip. The authoritative check still runs under the lock.
+	if err := w.waitAcquireJitter(ctx); err != nil {
+		return false, err
+	}
+	precheck, err := w.opts.Store.GetChatTransitionState(ctx, database.GetChatTransitionStateParams{
+		ID:           chatID,
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("acquisition pre-check: %w", err)
+	}
+	if !chatstate.ClassifyTransitionState(precheck).IsRunnable() || precheck.Archived || !precheck.OwnershipStale {
+		return false, nil
+	}
+	// The pre-check already identified the chat; caching its RBAC object
+	// lets the bump authorize without re-reading it.
+	if rbacCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBACFor(precheck.ID, precheck.OwnerID, precheck.OrganizationID)); err == nil {
+		ctx = rbacCtx
+	}
+
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// The bump already returned the locked row; reading it again here
 		// would add two round trips while the transition lock is held.
 		chat, state, err := tx.Current()
