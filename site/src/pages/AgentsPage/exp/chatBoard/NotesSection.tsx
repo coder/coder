@@ -145,17 +145,18 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 					{note.timestamp ? shortRelativeTime(note.timestamp) : ""}
 				</span>
 				<span className="-mr-1 absolute inset-0 flex items-center justify-end opacity-0 group-hover/note:opacity-100 focus-within:opacity-100 group-has-[[data-state=open]]/note:opacity-100">
-					<button
-						type="button"
+					<Button
+						variant="subtle"
+						size="icon"
 						ref={setActivatorNodeRef}
 						{...dragHandleListeners(listeners)}
 						{...attributes}
 						aria-label="Drag note"
 						title="Drag to reorder or move to another card"
-						className="grid size-4 cursor-grab touch-none place-items-center rounded border-0 bg-transparent p-0 text-content-secondary active:cursor-grabbing"
+						className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
 					>
 						<GripVerticalIcon className="size-3" />
-					</button>
+					</Button>
 					<Button
 						variant="subtle"
 						size="icon"
@@ -272,11 +273,12 @@ const NoteEditor: FC<NoteEditorProps> = ({
 					}
 				}}
 			/>
-			<button
-				type="button"
+			<Button
+				variant="subtle"
+				size="icon"
 				aria-label="Save note"
 				className={cn(
-					"grid size-5 shrink-0 place-items-center rounded-[5px] border-0 bg-transparent p-0 text-content-secondary/40 hover:bg-content-primary hover:text-surface-primary",
+					"size-5 min-w-0 rounded-[5px] p-0 text-content-secondary/40 hover:bg-content-primary hover:text-surface-primary [&>svg]:size-3! [&>svg]:p-0",
 					composer ? "mt-1" : "mt-px",
 				)}
 				// Keep focus in the textarea, or its blur would commit first.
@@ -284,7 +286,7 @@ const NoteEditor: FC<NoteEditorProps> = ({
 				onClick={commit}
 			>
 				<ArrowUpIcon className="size-3" strokeWidth={2.4} />
-			</button>
+			</Button>
 		</div>
 	);
 };

@@ -4,6 +4,7 @@ import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCost, chat as chatQuery } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
@@ -63,12 +64,13 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 			}}
 		>
 			<PopoverTrigger asChild>
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="icon"
 					aria-label={`Details for ${chat.title}`}
 					// Above the row's open-chat link, so this click stays its own.
 					className={cn(
-						"relative z-[1] grid size-4 place-items-center rounded border-0 bg-transparent p-0 text-content-secondary/60 hover:text-content-primary",
+						"relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0",
 						state === "pinned" && "text-content-primary",
 					)}
 					onPointerEnter={hoverIn}
@@ -81,7 +83,7 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 					}}
 				>
 					<InfoIcon className="size-3.5" />
-				</button>
+				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				side="right"

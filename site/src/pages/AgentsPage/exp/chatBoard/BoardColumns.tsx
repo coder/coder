@@ -23,7 +23,7 @@ import type {
 	BoardColumn as BoardColumnModel,
 } from "./boardLabels";
 
-type BoardColumnsProps = {
+type BoardColumnsProps = ChatOpenHandlers & {
 	/** Columns after the filter, drawn left to right. */
 	readonly columns: readonly BoardColumnModel[];
 	/** The unfiltered model that every command acts on. */
@@ -32,7 +32,7 @@ type BoardColumnsProps = {
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
 	readonly onAssistant: (card: BoardCardModel) => void;
-} & ChatOpenHandlers;
+};
 
 // The composer clears and the editor closes before the write settles, and
 // the refetch drops the optimistic note; this keeps the text on screen,

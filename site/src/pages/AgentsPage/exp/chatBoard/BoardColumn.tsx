@@ -36,7 +36,7 @@ const columnHeader = cva(
 	},
 );
 
-type BoardColumnProps = {
+type BoardColumnProps = ChatOpenHandlers & {
 	readonly column: BoardColumnModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
@@ -57,7 +57,7 @@ type BoardColumnProps = {
 		text: string,
 	) => void;
 	readonly onRemoveNote: (card: BoardCardModel, index: number) => void;
-} & ChatOpenHandlers;
+};
 
 export const BoardColumn: FC<BoardColumnProps> = ({
 	column,

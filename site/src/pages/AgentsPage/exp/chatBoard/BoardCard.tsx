@@ -56,7 +56,7 @@ type ChatOpeners = {
 const rectOf = (node: RefObject<HTMLElement | null>) =>
 	node.current?.getBoundingClientRect() ?? new DOMRect();
 
-type BoardCardProps = {
+type BoardCardProps = ChatOpenHandlers & {
 	readonly card: BoardCardModel;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly isDropTarget: boolean;
@@ -70,7 +70,7 @@ type BoardCardProps = {
 	readonly onAddNote: (text: string) => void;
 	readonly onEditNote: (index: number, text: string) => void;
 	readonly onRemoveNote: (index: number) => void;
-} & ChatOpenHandlers;
+};
 
 export const BoardCard: FC<BoardCardProps> = ({
 	card,
@@ -294,9 +294,9 @@ const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
 	);
 };
 
-type ChatOpenerProps = {
+type ChatOpenerProps = ChatOpeners & {
 	readonly chat: Chat;
-} & ChatOpeners;
+};
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
 const ChatOpener: FC<ChatOpenerProps> = ({
@@ -319,13 +319,13 @@ const ChatOpener: FC<ChatOpenerProps> = ({
 	</button>
 );
 
-type ChatRowProps = {
+type ChatRowProps = ChatOpenHandlers & {
 	readonly chat: Chat;
 	readonly card: BoardCardModel;
 	readonly open: boolean;
 	readonly onRename: (title: string) => void;
 	readonly onRemove: () => void;
-} & ChatOpenHandlers;
+};
 
 // Any member can leave, the primary included: the mutation hands the card
 // to the next member, so nothing here needs to know who is primary.
