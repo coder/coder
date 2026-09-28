@@ -20619,6 +20619,10 @@
 				"model_config_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"reasoning_effort": {
+					"description": "ReasoningEffort is the message's reasoning effort override, when\none is set.",
+					"type": "string"
 				}
 			}
 		},
@@ -22970,11 +22974,11 @@
 					}
 				},
 				"editing": {
-					"description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. Ending the edit of a paused chat's head sends it.",
+					"description": "Editing begins (true) or ends (false) an edit of the message. A\nchat has at most one message under edit; beginning another ends the\nfirst. While the chat is paused, beginning an edit on another\nmessage returns 409. Ending the edit of a paused chat's head sends\nit.",
 					"type": "boolean"
 				},
 				"model_config_id": {
-					"description": "ModelConfigID and ReasoningEffort apply only together with Content.",
+					"description": "ModelConfigID and ReasoningEffort require Content; sending either\nwithout it returns 400. Omitted values keep the stored ones.",
 					"type": "string",
 					"format": "uuid"
 				},
