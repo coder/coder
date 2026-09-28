@@ -1070,7 +1070,7 @@ describe("useConversationEditingState", () => {
 				unmount();
 			});
 
-			it("an edit opened while a save is in flight keeps its row after the save, and Cancel gives the draft back", async () => {
+			it("an edit opened while a save is in flight keeps its row and typed text after the save, and Cancel gives the draft back", async () => {
 				const {
 					result,
 					unmount,
@@ -1102,13 +1102,16 @@ describe("useConversationEditingState", () => {
 					save = result.current.handleSendFromInput({ message: "queued edit" });
 				});
 				openEditWhileBeginPending(6, "other row", 42);
+				act(() => {
+					result.current.handleContentChange("other row!", "other row!", false);
+				});
 				await act(async () => {
 					resolveSave();
 					await save;
 				});
 
 				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
-				expect(result.current.editorInitialValue).toBe("other row");
+				expect(result.current.inputValueRef.current).toBe("other row!");
 
 				act(() => {
 					result.current.handleCancelEdit();
