@@ -18,9 +18,9 @@ architectural tier](./2k-users.md).
 
 ### Coderd
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 2    | 8 GB   | 3        |
+| vCPU | Memory    | Replicas |
+|------|-----------|----------|
+| 2    | 8&nbsp;GB | 3        |
 
 **Notes**:
 
@@ -35,9 +35,9 @@ architectural tier](./2k-users.md).
 
 ### Provisioners
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 1    | 1 GB   | 60       |
+| vCPU | Memory    | Replicas |
+|------|-----------|----------|
+| 1    | 1&nbsp;GB | 60       |
 
 **Notes**:
 
@@ -54,9 +54,9 @@ architectural tier](./2k-users.md).
 
 ### Database
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 8    | 30 GB  | 1        |
+| vCPU | Memory     | Replicas |
+|------|------------|----------|
+| 8    | 30&nbsp;GB | 1        |
 
 **Notes**:
 
@@ -70,9 +70,9 @@ such should be interpreted as the _bare minimum_ requirements for a Coder worksp
 case your users will be undertaking. If in doubt, chose sizes based on the development environments your users are
 migrating from onto Coder.
 
-| vCPU | Memory |
-|------|--------|
-| 0.1  | 128 MB |
+| vCPU | Memory      |
+|------|-------------|
+| 0.1  | 128&nbsp;MB |
 
 ## Footnotes for AWS instance types
 

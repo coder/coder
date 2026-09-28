@@ -518,11 +518,9 @@ Host coder-jetbrains--*
   ServerAliveInterval 5
 ```
 
-This will make SSH check that it can contact the server every five seconds. If
-it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15
-seconds) then it will close the connection which forces JetBrains to recreate
-the hung session. You can tweak `ServerAliveInterval` and `ServerAliveCountMax`
-to increase or decrease the total timeout.
+This will make SSH check that it can contact the server every five seconds.
+If it fails to do so `ServerAliveCountMax` times (3 by default for a total of 15&nbsp;seconds) then it will close the connection which forces JetBrains to recreate the hung session.
+You can tweak `ServerAliveInterval` and `ServerAliveCountMax` to increase or decrease the total timeout.
 
 Note that the JetBrains Gateway configuration blocks for each host in your SSH
 config file will be overwritten by the JetBrains Gateway client when it

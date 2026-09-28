@@ -355,8 +355,7 @@ messages._
 - a message begins in `pending` state
 - transitions to `leased` when a Coder replica acquires new messages from the
   database
-  - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL`
-    (default: 15s)
+  - new messages are checked for every `CODER_NOTIFICATIONS_FETCH_INTERVAL` (default: `15s`)
 - if a message is delivered successfully, it transitions to `sent` state
 - if a message encounters a non-retryable error (e.g. misconfiguration), it
   transitions to `permanent_failure`
