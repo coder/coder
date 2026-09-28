@@ -28,7 +28,6 @@ type LoadedTarget = {
 
 const noFileBlocks: readonly ChatMessagePart[] = [];
 
-/** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
 	onSend: (options: SendChatTurnOptions) => Promise<void>;
@@ -93,8 +92,9 @@ export function useConversationEditingState(deps: {
 	// Counts target loads, so code that resumes after an await can tell
 	// whether another edit opened in the meantime.
 	const targetLoadCountRef = useRef(0);
-	// The draft the user had before an edit opened; restored when the edit
-	// ends without sending.
+	// The draft the user had before the edit session opened. It is restored
+	// when the session ends, except after a history send or when the server
+	// closes a modified edit.
 	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
 		null,
 	);
@@ -227,7 +227,8 @@ export function useConversationEditingState(deps: {
 		};
 	};
 
-	// Clears all input and editing state after a successful send.
+	// Clears the input, the stored draft and, after a history send, the
+	// pre-edit draft.
 	const finalizeSuccessfulSend = (sentTarget: EditingTarget | undefined) => {
 		inputValueRef.current = "";
 		chatInputRef.current?.clear();
@@ -274,9 +275,10 @@ export function useConversationEditingState(deps: {
 		}
 
 		if (sendTarget?.kind === "queued") {
-			// A saved queued row does not start a turn; the pre-edit draft
-			// is restored. An edit opened during the save keeps the editor
-			// and the pre-edit draft.
+			// Saving puts the row back in the queue, and on a paused chat's
+			// head it also sends it. The composer text is not a new message,
+			// so the pre-edit draft is restored, unless an edit opened during
+			// the save; that edit keeps the editor and the pre-edit draft.
 			if (targetLoadCountRef.current === targetLoadCount) {
 				restoreDraftBeforeEdit();
 			}
