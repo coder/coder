@@ -123,7 +123,7 @@ func (s *Server) RegisterWorkspaceTools(client *codersdk.Client, opts ...func(*t
 			toolsdk.ToolNameWorkspaceLS, toolsdk.ToolNameWorkspaceReadFile,
 			toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
 			toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
-			toolsdk.ToolNameWorkspaceListApps:
+			toolsdk.ToolNameWorkspaceListApps, toolsdk.ToolNameWorkspaceReadiness:
 			addSDKTool(s.mcpServer, tool, deps, structuredResult)
 		}
 	}

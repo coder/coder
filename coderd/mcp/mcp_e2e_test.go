@@ -1122,6 +1122,10 @@ func TestMCPHTTP_E2E_WorkspaceToolset(t *testing.T) {
 			require.NotNil(t, tool.Annotations)
 			assert.False(t, tool.Annotations.ReadOnlyHint)
 			assert.False(t, tool.Annotations.IdempotentHint)
+		case toolsdk.ToolNameWorkspaceReadiness:
+			require.NotNil(t, tool.Annotations)
+			assert.True(t, tool.Annotations.ReadOnlyHint)
+			assert.True(t, tool.Annotations.IdempotentHint)
 		}
 	}
 	require.ElementsMatch(t, []string{
@@ -1134,7 +1138,7 @@ func TestMCPHTTP_E2E_WorkspaceToolset(t *testing.T) {
 		toolsdk.ToolNameWorkspaceLS, toolsdk.ToolNameWorkspaceReadFile,
 		toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
 		toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
-		toolsdk.ToolNameWorkspaceListApps,
+		toolsdk.ToolNameWorkspaceListApps, toolsdk.ToolNameWorkspaceReadiness,
 	}, names)
 
 	result, err := client.CallTool(ctx, &mcp.CallToolParams{

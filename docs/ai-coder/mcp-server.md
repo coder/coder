@@ -93,8 +93,8 @@ The endpoint implements the [Streamable HTTP transport](https://modelcontextprot
 It supports MCP specification versions from `2024-11-05` through `2026-07-28` and doesn't issue `Mcp-Session-Id` headers.
 It answers `GET` and `DELETE` with `405 Method Not Allowed`, without a standalone server-event stream or explicit session termination.
 The default toolset exposes tools and prompts.
-Object tool results include `structuredContent` alongside the JSON text result.
-Other result shapes use text.
+The workspace toolset includes `structuredContent` alongside the JSON text result
+for object results. Other toolsets and result shapes use text.
 MCP resources, elicitation, and the MCP Tasks extension aren't implemented.
 
 ### Choose a toolset
