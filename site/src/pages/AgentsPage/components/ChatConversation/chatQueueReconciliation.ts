@@ -1,11 +1,16 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatStore, ChatStoreState } from "./chatStore";
 
-/** @internal Exported for testing. */
+/**
+ * Restores the store to a snapshot taken before an optimistic request.
+ * With baselineFence, the queue is restored only while the queue
+ * convergence fence still has that value.
+ */
 export const restoreOptimisticRequestSnapshot = (
 	store: Pick<
 		ChatStore,
 		| "batch"
+		| "getQueueConvergenceFence"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
@@ -15,9 +20,16 @@ export const restoreOptimisticRequestSnapshot = (
 		ChatStoreState,
 		"chatStatus" | "queuedMessages" | "streamError" | "streamState"
 	>,
+	baselineFence?: number,
 ): void => {
 	store.batch(() => {
-		store.setQueuedMessages(snapshot.queuedMessages);
+		// A queue update received during the request is newer than the snapshot.
+		if (
+			baselineFence === undefined ||
+			store.getQueueConvergenceFence() === baselineFence
+		) {
+			store.setQueuedMessages(snapshot.queuedMessages);
+		}
 		store.setChatStatus(snapshot.chatStatus);
 		store.setStreamState(snapshot.streamState);
 		store.setStreamError(snapshot.streamError);
@@ -42,6 +54,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "batch"
 		| "clearStreamError"
 		| "clearStreamState"
+		| "getQueueConvergenceFence"
 		| "getSnapshot"
 		| "setChatStatus"
 		| "setQueuedMessages"
@@ -82,6 +95,34 @@ export const runPromoteQueuedMessage = async (params: {
 		store.unsuppressQueuedMessageID(id);
 		restoreOptimisticRequestSnapshot(store, previousSnapshot);
 		onError(error);
+		throw error;
+	}
+};
+
+/**
+ * Removes a queued message optimistically and deletes it. On failure the
+ * queue is restored unless a queue update arrived during the request.
+ */
+export const runDeleteQueuedMessage = async (params: {
+	id: number;
+	store: Pick<
+		ChatStore,
+		"getQueueConvergenceFence" | "getSnapshot" | "setQueuedMessages"
+	>;
+	deleteQueuedMessage: (id: number) => Promise<unknown>;
+}): Promise<void> => {
+	const { id, store, deleteQueuedMessage } = params;
+	const previousQueuedMessages = store.getSnapshot().queuedMessages;
+	const baselineFence = store.getQueueConvergenceFence();
+	store.setQueuedMessages(
+		previousQueuedMessages.filter((message) => message.id !== id),
+	);
+	try {
+		await deleteQueuedMessage(id);
+	} catch (error) {
+		if (store.getQueueConvergenceFence() === baselineFence) {
+			store.setQueuedMessages(previousQueuedMessages);
+		}
 		throw error;
 	}
 };

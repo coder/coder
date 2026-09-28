@@ -1967,6 +1967,133 @@ describe("useChatStore", () => {
 		},
 	);
 
+	it("caches a queue_update that changes only a row's editing_since", async () => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		const markedMessage = {
+			...queuedMessage,
+			editing_since: "2024-01-01T00:00:01Z",
+		};
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		const initialChatMessagesData: TypesGen.ChatMessagesResponse = {
+			messages: [existingMessage],
+			queued_messages: [queuedMessage],
+			has_more: false,
+		};
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [initialChatMessagesData],
+			pageParams: [undefined],
+		});
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: initialChatMessagesData,
+					chatQueuedMessages: [queuedMessage],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{ wrapper: createWrapper(queryClient) },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "queue_update",
+				chat_id: chatID,
+				queued_messages: [markedMessage],
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([markedMessage]);
+		});
+		const cachedData = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cachedData?.pages[0]?.queued_messages).toEqual([markedMessage]);
+	});
+
+	it("re-hydrates a REST queue that changes only a row's editing_since", async () => {
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
+		const markedMessage = {
+			...queuedMessage,
+			editing_since: "2024-01-01T00:00:01Z",
+		};
+		mockWatchChatReturn(createMockSocket());
+
+		const initialOptions = {
+			chatID,
+			chatMessages: [existingMessage],
+			chatRecord: buildChat(chatID),
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [queuedMessage],
+				has_more: false,
+			},
+			chatQueuedMessages: [queuedMessage],
+			setChatErrorReason: vi.fn(),
+			clearChatErrorReason: vi.fn(),
+		};
+		const { result, rerender } = renderHook(
+			(options: Parameters<typeof useChatStore>[0]) => {
+				const { store } = useChatStore(options);
+				return {
+					queuedMessages: useChatSelector(store, selectQueuedMessages),
+				};
+			},
+			{
+				initialProps: initialOptions,
+				wrapper: createWrapper(createTestQueryClient()),
+			},
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+		expect(result.current.queuedMessages).toEqual([queuedMessage]);
+
+		rerender({
+			...initialOptions,
+			chatMessagesData: {
+				messages: [existingMessage],
+				queued_messages: [markedMessage],
+				has_more: false,
+			},
+			chatQueuedMessages: [markedMessage],
+		});
+
+		await waitFor(() => {
+			expect(result.current.queuedMessages).toEqual([markedMessage]);
+		});
+	});
+
 	it("caches the filtered queue when a queue_update still contains a suppressed message", async () => {
 		const chatID = "chat-1";
 		const existingMessage = buildMessage(chatID, 1, "user", "hello");
