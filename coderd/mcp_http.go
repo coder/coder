@@ -22,8 +22,9 @@ import (
 type MCPToolset string
 
 const (
-	MCPToolsetStandard MCPToolset = "standard"
-	MCPToolsetChatGPT  MCPToolset = "chatgpt"
+	MCPToolsetStandard  MCPToolset = "standard"
+	MCPToolsetChatGPT   MCPToolset = "chatgpt"
+	MCPToolsetWorkspace MCPToolset = "workspace"
 )
 
 // mcpHTTPHandler creates the MCP HTTP transport handler
@@ -81,6 +82,10 @@ func (api *API) mcpHTTPHandler() http.Handler {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
 			mcpServer.RegisterPrompts()
+		case MCPToolsetWorkspace:
+			if err := mcpServer.RegisterWorkspaceTools(authenticatedClient, toolOpt); err != nil {
+				api.Logger.Warn(r.Context(), "failed to register MCP workspace tools", slog.Error(err))
+			}
 		case MCPToolsetChatGPT:
 			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))

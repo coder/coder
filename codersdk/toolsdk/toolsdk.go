@@ -1853,7 +1853,7 @@ type WorkspaceLSResponse struct {
 var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceLS,
-		Description: `List directories in a workspace.`,
+		Description: `List directories in a workspace. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1868,7 +1868,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Required: []string{"path", "workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
 		conn, err := openAgentConn(ctx, deps, args.Workspace)
@@ -1911,7 +1911,7 @@ const maxFileLimit = 1 << 20 // 1MiB
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceReadFile,
-		Description: `Read from a file in a workspace.`,
+		Description: `Read from a file in a workspace. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1934,7 +1934,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Required: []string{"path", "workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
 		conn, err := openAgentConn(ctx, deps, args.Workspace)
@@ -2207,7 +2207,7 @@ type WorkspacePortForwardResponse struct {
 var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspacePortForward,
-		Description: `Fetch URLs that forward to the specified port.`,
+		Description: `Fetch URLs that forward to the specified port. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -2222,7 +2222,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Required: []string{"workspace", "port"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)
@@ -2265,7 +2265,7 @@ type WorkspaceListAppsResponse struct {
 var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceListApps,
-		Description: `List the URLs of Coder apps running in a workspace for a single agent.`,
+		Description: `List the URLs of Coder apps running in a workspace for a single agent. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -2276,7 +2276,7 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 			Required: []string{"workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceListAppsArgs) (WorkspaceListAppsResponse, error) {
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)

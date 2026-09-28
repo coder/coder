@@ -145,11 +145,11 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			openWorldHint:   false,
 		},
 		{
-			name:            "PortForwardIsReadOnly",
+			name:            "PortForwardMayStartWorkspace",
 			toolName:        toolsdk.ToolNameWorkspacePortForward,
-			readOnlyHint:    true,
+			readOnlyHint:    false,
 			destructiveHint: false,
-			idempotentHint:  true,
+			idempotentHint:  false,
 			openWorldHint:   false,
 		},
 		{

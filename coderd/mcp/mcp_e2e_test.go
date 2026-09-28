@@ -1096,6 +1096,60 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	})
 }
 
+func TestMCPHTTP_E2E_WorkspaceToolset(t *testing.T) {
+	t.Parallel()
+
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: mcpDeploymentValues(t),
+	})
+	defer closer.Close()
+	coderdtest.CreateFirstUser(t, coderClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, err := newIsolatedMCPClient(ctx, api.AccessURL.String()+mcpserver.MCPEndpoint+"?toolset=workspace", "workspace-tools", map[string]string{
+		"Authorization": "Bearer " + coderClient.SessionToken(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	list, err := client.ListTools(ctx, nil)
+	require.NoError(t, err)
+	var names []string
+	for _, tool := range list.Tools {
+		names = append(names, tool.Name)
+		switch tool.Name {
+		case toolsdk.ToolNameWorkspaceLS, toolsdk.ToolNameWorkspaceReadFile,
+			toolsdk.ToolNameWorkspacePortForward, toolsdk.ToolNameWorkspaceListApps:
+			require.NotNil(t, tool.Annotations)
+			assert.False(t, tool.Annotations.ReadOnlyHint)
+			assert.False(t, tool.Annotations.IdempotentHint)
+		}
+	}
+	require.ElementsMatch(t, []string{
+		toolsdk.ToolNameGetWorkspace, toolsdk.ToolNameCreateWorkspace,
+		toolsdk.ToolNameListWorkspaces, toolsdk.ToolNameListOrganizations,
+		toolsdk.ToolNameListTemplates, toolsdk.ToolNameListTemplateVersionParams,
+		toolsdk.ToolNameGetTemplate, toolsdk.ToolNameGetAuthenticatedUser,
+		toolsdk.ToolNameCreateWorkspaceBuild, toolsdk.ToolNameGetWorkspaceAgentLogs,
+		toolsdk.ToolNameGetWorkspaceBuildLogs, toolsdk.ToolNameWorkspaceBash,
+		toolsdk.ToolNameWorkspaceLS, toolsdk.ToolNameWorkspaceReadFile,
+		toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
+		toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
+		toolsdk.ToolNameWorkspaceListApps,
+	}, names)
+
+	result, err := client.CallTool(ctx, &mcp.CallToolParams{
+		Name: toolsdk.ToolNameGetAuthenticatedUser, Arguments: map[string]any{},
+	})
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 1)
+	content, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	structured, err := json.Marshal(result.StructuredContent)
+	require.NoError(t, err)
+	require.JSONEq(t, content.Text, string(structured))
+}
+
 func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -1259,37 +1313,39 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 		t, coderClient, admin.OrganizationID, rbac.RoleTemplateAdmin(),
 	)
 
-	// Connect with the template-admin user.
-	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	for _, toolset := range []string{"standard", "workspace"} {
+		// Connect with the template-admin user.
+		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=" + toolset
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 
-	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
-		"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
-	})
-	require.NoError(t, err)
-	defer func() {
-		_ = mcpClient.Close()
-	}()
+		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
+			"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
+		})
+		require.NoError(t, err)
+		defer func() {
+			_ = mcpClient.Close()
+		}()
 
-	// Calling a workspace tool that requires an agent connection
-	// should fail because the template-admin user lacks ActionSSH.
-	// Use owner/workspace format so the lookup resolves to the
-	// admin's workspace rather than defaulting to "me".
-	workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
-	toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
-		Name: toolsdk.ToolNameWorkspaceReadFile,
-		Arguments: map[string]any{
-			"workspace": workspaceIdent,
-			"path":      "/tmp/secret.txt",
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
-	require.Len(t, toolResult.Content, 1)
-	textContent, ok := toolResult.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
+		// Calling a workspace tool that requires an agent connection
+		// should fail because the template-admin user lacks ActionSSH.
+		// Use owner/workspace format so the lookup resolves to the
+		// admin's workspace rather than defaulting to "me".
+		workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
+		toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+			Name: toolsdk.ToolNameWorkspaceReadFile,
+			Arguments: map[string]any{
+				"workspace": workspaceIdent,
+				"path":      "/tmp/secret.txt",
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+		require.Len(t, toolResult.Content, 1)
+		textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
+	}
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {

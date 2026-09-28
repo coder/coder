@@ -102,6 +102,34 @@ func (s *Server) RegisterTools(client *codersdk.Client, opts ...func(*toolsdk.De
 	return nil
 }
 
+// RegisterWorkspaceTools registers workspace operations and the discovery
+// tools needed to select a template, without template administration or chat tools.
+func (s *Server) RegisterWorkspaceTools(client *codersdk.Client, opts ...func(*toolsdk.Deps)) error {
+	if client == nil {
+		return xerrors.New("client cannot be nil: MCP HTTP server requires authenticated client")
+	}
+	deps, err := toolsdk.NewDeps(client, opts...)
+	if err != nil {
+		return xerrors.Errorf("initialize tool dependencies: %w", err)
+	}
+	for _, tool := range toolsdk.All {
+		switch tool.Name {
+		case toolsdk.ToolNameGetWorkspace, toolsdk.ToolNameCreateWorkspace,
+			toolsdk.ToolNameListWorkspaces, toolsdk.ToolNameListOrganizations,
+			toolsdk.ToolNameListTemplates, toolsdk.ToolNameListTemplateVersionParams,
+			toolsdk.ToolNameGetTemplate, toolsdk.ToolNameGetAuthenticatedUser,
+			toolsdk.ToolNameCreateWorkspaceBuild, toolsdk.ToolNameGetWorkspaceAgentLogs,
+			toolsdk.ToolNameGetWorkspaceBuildLogs, toolsdk.ToolNameWorkspaceBash,
+			toolsdk.ToolNameWorkspaceLS, toolsdk.ToolNameWorkspaceReadFile,
+			toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
+			toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
+			toolsdk.ToolNameWorkspaceListApps:
+			RegisterSDKTool(s.mcpServer, tool, deps)
+		}
+	}
+	return nil
+}
+
 // RegisterPrompts registers all MCP prompt templates with the server.
 func (s *Server) RegisterPrompts() {
 	for _, prompt := range toolsdk.AllPrompts {
@@ -180,11 +208,14 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			}
 			return toolErrorResult(string(content)), nil
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(result)},
-			},
-		}, nil
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: string(result)}},
+		}
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(result, &object); err == nil && object != nil {
+			response.StructuredContent = object
+		}
+		return response, nil
 	})
 }
 
