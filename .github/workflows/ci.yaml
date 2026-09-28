@@ -685,6 +685,11 @@ jobs:
           # tracked in coder/internal#1365.
           test-parallelism-packages: "8"
           test-parallelism-tests: "8"
+          # Setup and compile take 3 to 10 minutes on macOS, which leaves
+          # too little of the 30 minute job for a goroutine dump when the
+          # default 25 minute Go timeout fires. A healthy run of these
+          # packages takes about 4 minutes.
+          test-timeout: "20m"
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}

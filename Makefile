@@ -1525,10 +1525,12 @@ RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism). CI job timeout is 30m (see test-go-pg in ci.yaml),
-# keep the Go timeout 5m shorter so tests produce goroutine dumps
-# instead of the CI runner killing the process with no output.
-GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 25m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+# parallelism). CI job timeout is 30m (see test-go-pg in ci.yaml).
+# Keep the Go timeout shorter so tests produce goroutine dumps instead
+# of the CI runner stopping the process with no output. Override via
+# TEST_TIMEOUT for lanes where setup takes a large share of the job.
+GOTEST_TIMEOUT := $(or $(TEST_TIMEOUT),25m)
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout $(GOTEST_TIMEOUT) -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
