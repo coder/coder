@@ -1,4 +1,5 @@
-package intercept
+// Package credential defines shared upstream authentication and metadata.
+package credential
 
 import (
 	"context"
@@ -8,38 +9,31 @@ import (
 	"github.com/coder/coder/v2/aibridge/utils"
 )
 
-// CredentialKind identifies how a request was authenticated.
-// Keep in sync with the credential_kind enum in coderd's database.
-type CredentialKind string
+// Kind identifies how a request was authenticated.
+// Values must match the credential_kind enum in coderd's database.
+type Kind string
 
 const (
-	CredentialKindCentralized CredentialKind = "centralized"
-	CredentialKindBYOK        CredentialKind = "byok"
+	// KindCentralized identifies provider-managed credentials.
+	KindCentralized Kind = "centralized"
+	// KindBYOK identifies user-supplied provider credentials.
+	KindBYOK Kind = "byok"
+
+	// Hint placeholders for credentials with no static key value to mask.
+	// Hints are persisted to aibridge_interceptions.credential_hint, a VARCHAR(15),
+	// so every value here must be at most 15 characters.
+	// HintFailoverKey is used before a centralized key is selected.
+	HintFailoverKey = "<failover key>" //nolint:gosec // Placeholder, not a credential.
+	// HintAWSChainKey identifies credentials resolved through the AWS default chain.
+	HintAWSChainKey = "<aws chain>"
 )
 
-// Auth header names shared by providers (which set them on resolved
-// credentials) and interceptors (which present credentials under them).
-const (
-	AuthHeaderXAPIKey       = "X-Api-Key" //nolint:gosec // G101 false positive: HTTP header name, not a credential.
-	AuthHeaderAuthorization = "Authorization"
-)
-
-// Hint placeholders for credentials with no static key value to mask: a pool
-// before failover selects a key, and a key resolved dynamically at request time.
-//
-// Hints are persisted to aibridge_interceptions.credential_hint, a
-// VARCHAR(15), so every value here must be at most 15 characters.
-const (
-	hintFailoverKey = "<failover key>"
-	hintAWSChainKey = "<aws chain>"
-)
-
-// Credential is the per-request upstream authentication for an interception:
+// Credential is the per-request upstream authentication:
 //   - BYOK: a user-supplied secret.
 //   - AWSSigV4: AWS credentials, used to sign requests.
 //   - CentralizedPool: a provider-managed key pool with failover.
 type Credential interface {
-	Kind() CredentialKind
+	Kind() Kind
 	// AuthHeader is the header carrying this request's credential, or empty when
 	// the credential is not carried in a header.
 	AuthHeader() string
@@ -55,7 +49,7 @@ type BYOK struct {
 	Header string
 }
 
-func (BYOK) Kind() CredentialKind { return CredentialKindBYOK }
+func (BYOK) Kind() Kind           { return KindBYOK }
 func (b BYOK) AuthHeader() string { return b.Header }
 func (b BYOK) Hint() string       { return utils.MaskSecret(b.Secret) }
 func (b BYOK) Length() int        { return len(b.Secret) }
@@ -68,13 +62,13 @@ type AWSSigV4 struct {
 	AccessKey string
 }
 
-func (AWSSigV4) Kind() CredentialKind { return CredentialKindCentralized }
-func (AWSSigV4) AuthHeader() string   { return "" }
-func (c AWSSigV4) Length() int        { return len(c.AccessKey) }
+func (AWSSigV4) Kind() Kind         { return KindCentralized }
+func (AWSSigV4) AuthHeader() string { return "" }
+func (c AWSSigV4) Length() int      { return len(c.AccessKey) }
 
 func (c AWSSigV4) Hint() string {
 	if c.AccessKey == "" {
-		return hintAWSChainKey
+		return HintAWSChainKey
 	}
 	return utils.MaskSecret(c.AccessKey)
 }
@@ -88,14 +82,14 @@ type CentralizedPool struct {
 	currentKey *keypool.Key
 }
 
-func (*CentralizedPool) Kind() CredentialKind { return CredentialKindCentralized }
+func (*CentralizedPool) Kind() Kind           { return KindCentralized }
 func (c *CentralizedPool) AuthHeader() string { return c.Header }
 
 func (c *CentralizedPool) Hint() string {
 	if c.currentKey != nil {
 		return c.currentKey.Hint()
 	}
-	return hintFailoverKey
+	return HintFailoverKey
 }
 
 func (c *CentralizedPool) Length() int {

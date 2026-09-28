@@ -1,4 +1,5 @@
-package aibridge
+// Package interceptionerror categorizes terminal AI Gateway interception errors.
+package interceptionerror
 
 import (
 	"context"
@@ -14,20 +15,20 @@ import (
 // the interception record to avoid storing unbounded provider payloads.
 const maxRecordedErrorMessageBytes = 1024
 
-// errorCategorizer categorizes a provider's own terminal errors. It is
-// implemented by provider.Provider.
-type errorCategorizer interface {
+// ErrorCategorizer categorizes a provider's own terminal errors. It is implemented
+// by provider.Provider.
+type ErrorCategorizer interface {
 	CategorizeError(err error) *recorder.ErrorType
 }
 
-// categorizeInterceptionError maps a terminal interception error to a recorder
-// error type and a truncated raw message. It returns the empty ErrorType and an
-// empty message when err is nil (the interception succeeded).
+// Categorize maps a terminal interception error to a recorder error type and a
+// truncated raw message. It returns the empty ErrorType and an empty message
+// when err is nil (the interception succeeded).
 //
 // Provider-agnostic failures (circuit breaker, key-pool exhaustion) are handled
 // here; anything provider-specific is delegated to the provider, which owns the
 // knowledge of its SDK errors and response envelopes.
-func categorizeInterceptionError(c errorCategorizer, err error) (recorder.ErrorType, string) {
+func Categorize(c ErrorCategorizer, err error) (recorder.ErrorType, string) {
 	if err == nil {
 		return "", ""
 	}
