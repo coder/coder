@@ -9777,7 +9777,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "editing": true,
