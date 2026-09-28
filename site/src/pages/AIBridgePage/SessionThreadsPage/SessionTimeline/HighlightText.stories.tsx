@@ -7,7 +7,7 @@ const meta: Meta<typeof HighlightText> = {
 	component: HighlightText,
 	args: {
 		text: "Relay through the relay.",
-		query: "relay",
+		highlight: "relay",
 	},
 };
 
@@ -22,7 +22,7 @@ export const Matches: Story = {
 
 export const NoMatch: Story = {
 	args: {
-		query: "missing",
+		highlight: "missing",
 	},
 	play: async ({ canvas }) => {
 		await expect(canvas.getByText("Relay through the relay.")).toBeVisible();

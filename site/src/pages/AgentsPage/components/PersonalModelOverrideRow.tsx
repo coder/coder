@@ -1,5 +1,6 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import isEqual from "lodash/isEqual";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -17,23 +18,23 @@ type PersonalOverride = TypesGen.ChatPersonalModelOverride;
 type UpdatePersonalOverrideRequest =
 	TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
 type SavePersonalOverride = (
 	req: UpdatePersonalOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;
 
-interface PersonalOverrideFormValues {
+type PersonalOverrideFormValues = {
 	mode: PersonalOverrideMode;
 	model_config_id: string;
 	reasoning_effort: string;
-}
+};
 
-interface PersonalModelOverrideRowProps {
+type PersonalModelOverrideRowProps = {
 	context: PersonalOverrideContext;
 	overrideData: PersonalOverride | undefined;
 	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
@@ -44,7 +45,7 @@ interface PersonalModelOverrideRowProps {
 	onSave: SavePersonalOverride;
 	isSaving: boolean;
 	disabled: boolean;
-}
+};
 
 const PERSONAL_OVERRIDE_COPY: Record<
 	PersonalOverrideContext,
@@ -172,7 +173,9 @@ const isDefaultModeOption = (
 	return value === "chat_default" || value === "deployment_default";
 };
 
-export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
+export const PersonalModelOverrideRow: React.FC<
+	PersonalModelOverrideRowProps
+> = ({
 	context,
 	overrideData,
 	deploymentDefault,
@@ -186,15 +189,23 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 }) => {
 	const { title, description } = PERSONAL_OVERRIDE_COPY[context];
 	const hasLoadedOverride = overrideData !== undefined;
+	const [hasDraft, setHasDraft] = useState(false);
 	const form = useFormik<PersonalOverrideFormValues>({
-		enableReinitialize: true,
+		enableReinitialize: !hasDraft,
 		initialValues: toFormValues(overrideData, context),
 		onSubmit: (values, { resetForm }) => {
 			onSave(toUpdateRequest(values), {
-				onSuccess: () => resetForm({ values }),
+				onSuccess: () => {
+					resetForm({ values });
+					setHasDraft(false);
+				},
 			});
 		},
 	});
+	const changeValues = (values: PersonalOverrideFormValues) => {
+		setHasDraft(!isEqual(values, form.initialValues));
+		void form.setValues(values);
+	};
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedOverride;
 	const canSave = hasLoadedOverride && !disabled && form.dirty;
@@ -254,7 +265,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					value={selectionValue}
 					onValueChange={(value) => {
 						if (isDefaultModeOption(value)) {
-							void form.setValues({
+							changeValues({
 								mode: value,
 								model_config_id: "",
 								reasoning_effort: "",
@@ -271,7 +282,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 									option.reasoningEffortDefault,
 								) ?? "";
 						}
-						void form.setValues({
+						changeValues({
 							mode: "model",
 							model_config_id: value,
 							reasoning_effort: reasoningEffort,
@@ -291,7 +302,7 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					contentClassName="min-w-[18rem]"
 					reasoningEffort={selectedReasoningEffort}
 					onReasoningEffortChange={(value) =>
-						void form.setFieldValue("reasoning_effort", value)
+						changeValues({ ...form.values, reasoning_effort: value })
 					}
 				/>
 				{isLoading && modelOptions.length === 0 && (

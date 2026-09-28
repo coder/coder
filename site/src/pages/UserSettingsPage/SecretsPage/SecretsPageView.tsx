@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	ImportUserSecretsRequest,
@@ -20,6 +20,7 @@ import { SecretsTable } from "./SecretsTable";
 
 type SecretsPageViewProps = {
 	secrets?: readonly UserSecret[];
+	filePathEnabled: boolean;
 	isLoading: boolean;
 	hasLoaded: boolean;
 	isCreating: boolean;
@@ -45,8 +46,9 @@ type SecretDialogState =
 	| { mode: "add"; open: boolean }
 	| { mode: "edit"; open: boolean; secret: UserSecret };
 
-export const SecretsPageView: FC<SecretsPageViewProps> = ({
+export const SecretsPageView: React.FC<SecretsPageViewProps> = ({
 	secrets = [],
+	filePathEnabled,
 	isLoading,
 	hasLoaded,
 	isCreating,
@@ -96,9 +98,9 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			>
 				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Secrets with an environment variable or file path are injected into
-					workspaces you own when they start. Each environment variable and file
-					path must be unique.{" "}
+					{filePathEnabled
+						? "Secrets with an environment variable or file path are injected into workspaces you own when they start. Each environment variable and file path must be unique."
+						: "File path delivery is disabled. Environment variables still work; saved paths remain blocked until delivery is enabled."}{" "}
 					<SettingsHeaderDocsLink href={docs("/user-guides/user-secrets")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
@@ -106,6 +108,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<SecretDialog
 				open={dialogState.open}
 				secret={dialogSecret}
+				filePathEnabled={filePathEnabled}
 				isSubmitting={isCreating || isUpdating}
 				returnFocusElement={secretDialogReturnFocusElement}
 				onClose={closeSecretDialog}
@@ -119,6 +122,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<section className="flex flex-col gap-4">
 				<SecretsTable
 					secrets={secrets}
+					filePathEnabled={filePathEnabled}
 					isLoading={isLoading}
 					hasLoaded={hasLoadedSecrets}
 					isDeleting={isDeleting}

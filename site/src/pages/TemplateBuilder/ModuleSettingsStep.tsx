@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -10,14 +9,12 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
-interface ModuleSettingsStepProps {
+type ModuleSettingsStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	moduleVariables: Record<string, Record<string, string>>;
@@ -28,7 +25,7 @@ interface ModuleSettingsStepProps {
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	showErrors?: boolean;
-}
+};
 
 function variableToField(
 	moduleId: string,
@@ -38,7 +35,7 @@ function variableToField(
 	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {
@@ -60,8 +57,9 @@ function variableToField(
 		description: variable.description || undefined,
 		required: variable.required,
 		placeholder:
+			getModuleFieldPlaceholder(moduleId, variable.name) ??
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,
@@ -105,7 +103,7 @@ export function moduleSettingsComplete(
 	return true;
 }
 
-export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
+export const ModuleSettingsStep: React.FC<ModuleSettingsStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	moduleVariables,

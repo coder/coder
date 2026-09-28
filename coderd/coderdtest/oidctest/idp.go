@@ -250,12 +250,6 @@ func WithPKCE() func(*FakeIDP) {
 	}
 }
 
-func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeIDP) {
-	return func(f *FakeIDP) {
-		f.hookValidRedirectURL = hook
-	}
-}
-
 func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.middlewares = append(f.middlewares, mws...)

@@ -62,7 +62,7 @@ func TestCompactionMetricIdentity(t *testing.T) {
 
 	// With an override, metrics use the prepare-time identity, not the
 	// chat model carried by the options.
-	compaction.Override = &resolvedCompactionOverride{
+	compaction.Override = &resolvedModelOverride{
 		ResolvedProvider: "openai",
 		ResolvedModel:    "gpt-4.1-mini",
 	}

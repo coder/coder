@@ -1,13 +1,12 @@
-import type { FC } from "react";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
 import { createDisplayDate } from "./utils";
 
-export interface TimelineDateRow {
+type TimelineDateRowProps = {
 	date: Date;
-}
+};
 
-export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
+export const TimelineDateRow: React.FC<TimelineDateRowProps> = ({ date }) => {
 	return (
 		<TableRow>
 			<TableCell

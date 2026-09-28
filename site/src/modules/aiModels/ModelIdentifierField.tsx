@@ -1,13 +1,7 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { CheckIcon } from "lucide-react";
-import {
-	type FocusEvent,
-	type KeyboardEvent,
-	useEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -339,7 +333,7 @@ export const ModelIdentifierField = ({
 		clearSearchSnapshot();
 	};
 
-	const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+	const handleBlur = (event: React.FocusEvent<HTMLDivElement>) => {
 		const relatedTarget = event.relatedTarget;
 		if (
 			relatedTarget instanceof Node &&
@@ -366,7 +360,7 @@ export const ModelIdentifierField = ({
 		applyDefaultsOnExactCanonicalModel();
 	};
 
-	const handleKeyDownCapture = (event: KeyboardEvent<HTMLDivElement>) => {
+	const handleKeyDownCapture = (event: React.KeyboardEvent<HTMLDivElement>) => {
 		if (event.key === "Escape") {
 			closeIntentRef.current = "escape";
 		}

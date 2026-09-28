@@ -1,14 +1,13 @@
 import { LaptopIcon } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
-interface BaseIconProps {
+type BaseIconProps = {
 	app: WorkspaceApp;
 	onIconPathError?: () => void;
-}
+};
 
-export const BaseIcon: FC<BaseIconProps> = ({ app, onIconPathError }) => {
+export const BaseIcon: React.FC<BaseIconProps> = ({ app, onIconPathError }) => {
 	return app.icon ? (
 		<ExternalImage
 			alt={`${app.display_name} Icon`}

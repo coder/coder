@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number
+	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint, agent_firewall_session_id, agent_firewall_sequence_number, workspace_id
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint, sqlc.narg('agent_firewall_session_id')::uuid, sqlc.narg('agent_firewall_sequence_number')
+	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint, sqlc.narg('agent_firewall_session_id')::uuid, sqlc.narg('agent_firewall_sequence_number'), sqlc.narg('workspace_id')::uuid
 )
 RETURNING *;
 
@@ -764,8 +764,12 @@ WHERE
 	-- Authorize Filter clause will be injected below in
 	-- ListAIBridgeClientsAuthorized.
 	-- @authorize_filter
+	-- Group by the coalesced value so a NULL client and a literal 'Unknown'
+	-- client collapse into one entry.
 GROUP BY
-	client
+	COALESCE(client, 'Unknown')
+ORDER BY
+	client ASC
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
 OFFSET @offset_
 ;
@@ -797,8 +801,8 @@ WITH per_request AS (
 			c.root_chat_id = @root_chat_id::uuid
 			OR (c.root_chat_id IS NULL AND c.id = @root_chat_id::uuid)
 		)
-		-- Restrict to aibridge.ClientCoderAgents so another client's session
-		-- reference cannot match a chat ID.
+		-- Restrict to aibridge/client.CoderAgents so another client's
+		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id

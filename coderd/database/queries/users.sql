@@ -284,29 +284,6 @@ END
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
--- name: GetUserTaskNotificationAlertDismissed :one
-SELECT
-	value::boolean as task_notification_alert_dismissed
-FROM
-	user_configs
-WHERE
-	user_id = @user_id
-	AND key = 'preference_task_notification_alert_dismissed';
-
--- name: UpdateUserTaskNotificationAlertDismissed :one
-INSERT INTO
-	user_configs (user_id, key, value)
-VALUES
-	(@user_id, 'preference_task_notification_alert_dismissed', (@task_notification_alert_dismissed::boolean)::text)
-ON CONFLICT
-	ON CONSTRAINT user_configs_pkey
-DO UPDATE
-SET
-	value = @task_notification_alert_dismissed
-WHERE user_configs.user_id = @user_id
-	AND user_configs.key = 'preference_task_notification_alert_dismissed'
-RETURNING value::boolean AS task_notification_alert_dismissed;
-
 -- name: GetUserThinkingDisplayMode :one
 SELECT
 	value AS thinking_display_mode
@@ -399,6 +376,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_agent_chat_send_shortcut'
 RETURNING value AS agent_chat_send_shortcut;
 
+-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_collapse_assistant_steps';
+
+-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_collapse_assistant_steps', (@collapse_assistant_steps::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @collapse_assistant_steps
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users
@@ -418,6 +418,19 @@ SET
 	one_time_passcode_expires_at = NULL
 WHERE
 	id = $1;
+
+-- name: UpdateUserEmail :one
+UPDATE
+	users
+SET
+	email = @new_email,
+	updated_at = @updated_at,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	LOWER(email) = LOWER(@old_email)
+	AND deleted = false
+RETURNING *;
 
 -- name: UpdateUserDeletedByID :exec
 UPDATE
@@ -607,6 +620,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -617,7 +632,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE

@@ -129,10 +129,10 @@ func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
-	cfg := database.MCPServerConfig{
+	cfg := mcpclient.Server{
 		ID:       uuid.New(),
 		Slug:     "revoked",
-		AuthType: "oauth2",
+		UserAuth: mcpclient.UserAuthOAuth2,
 	}
 
 	t.Run("FailureReasonSet", func(t *testing.T) {

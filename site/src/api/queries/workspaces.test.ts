@@ -1,6 +1,7 @@
 import { QueryClient } from "react-query";
 import { describe, expect, it } from "vitest";
 import type { WorkspacesResponse } from "#/api/typesGenerated";
+import { MockWorkspace } from "#/testHelpers/entities";
 import { getWorkspaceQuotaQueryKey } from "./workspaceQuota";
 import {
 	autoCreateWorkspace,
@@ -8,6 +9,7 @@ import {
 	createWorkspace,
 	invalidateWorkspaceListQueries,
 	invalidateWorkspaceMutationQueries,
+	setOptimisticWorkspaceListBuildStatus,
 	workspacesKey,
 	workspacesQueryKeyPrefix,
 	workspaceUsage,
@@ -131,6 +133,34 @@ describe("invalidateWorkspaceMutationQueries", () => {
 				`${JSON.stringify(key)} should NOT be invalidated`,
 			).not.toBe(true);
 		}
+	});
+});
+
+describe("setOptimisticWorkspaceListBuildStatus", () => {
+	it("patches the matching workspace's build status across list caches and rolls back", () => {
+		const queryClient = createTestQueryClient();
+		const listKey = workspacesKey({});
+		const seeded = {
+			workspaces: [MockWorkspace],
+			count: 1,
+		} satisfies WorkspacesResponse;
+		queryClient.setQueryData(listKey, seeded);
+
+		const rollback = setOptimisticWorkspaceListBuildStatus(
+			queryClient,
+			MockWorkspace.id,
+			"stopping",
+			"stop",
+		);
+
+		const patched = queryClient.getQueryData<WorkspacesResponse>(listKey);
+		expect(patched?.workspaces[0].latest_build.status).toBe("stopping");
+		expect(patched?.workspaces[0].latest_build.transition).toBe("stop");
+
+		rollback();
+
+		const restored = queryClient.getQueryData<WorkspacesResponse>(listKey);
+		expect(restored?.workspaces[0].latest_build.status).toBe("running");
 	});
 });
 

@@ -29,19 +29,19 @@ Every step should be concrete enough that another agent could execute it without
 - ❌ "Improve error handling" → ✓ "Add try-catch to API calls in user-service.ts, return 400 with error message"
 - ❌ "Update tests" → ✓ "Add test case to auth.test.ts: 'should reject expired tokens with 401'"
 
-NEVER include thinking output or other stream-of-consciousness prose mid-plan.
+Write the plan as finished, executable steps. Leave exploratory reasoning out of the plan text.
 
-### 2. Push Back on Unclear Requirements
+### 2. Resolve Unclear Requirements
 
-When requirements are ambiguous, ask questions before proceeding.
+Resolve ambiguity using the conversation, relevant code, existing tests, and documentation. Make reasonable, reversible assumptions consistent with the requested outcome and record them in the plan. Ask only when essential missing information cannot be recovered and would materially change the result; continue independent planning work while waiting.
 
 ### 3. Tests Define Requirements
 
 Writing test cases forces disambiguation. Use test definition as a requirements clarification tool.
 
-### 4. TDD is Non-Negotiable
+### 4. Plans Follow TDD
 
-All plans follow: **Red → Green → Refactor**. The refactor phase is MANDATORY.
+All plans follow **Red → Green → Refactor**, including an explicit refactor phase.
 
 ## The TDD Workflow
 
@@ -59,9 +59,7 @@ All plans follow: **Red → Green → Refactor**. The refactor phase is MANDATOR
 - Integration tests: Component interactions (use for critical paths)
 - E2E tests: Complete workflows (use sparingly)
 
-**Write descriptive test cases:**
-
-**If you can't write the test, you don't understand the requirement and MUST ask for clarification.**
+If you cannot define a test yet, investigate the behavior and comparable tests first. Use the clarification criteria above only if essential requirements remain unresolved.
 
 ### Green Phase: Make Tests Pass
 
@@ -73,7 +71,7 @@ Focus on correctness first. Hardcode if needed. Add just enough logic. Resist ur
 
 **Purpose:** Apply insights gained during implementation.
 
-**This phase is MANDATORY.** During implementation you'll discover better structure, repeated patterns, and simplification opportunities.
+Every plan includes this phase, because during implementation you'll discover better structure, repeated patterns, and simplification opportunities.
 
 **When to Extract vs Keep Duplication:**
 
@@ -112,11 +110,11 @@ Look for missing tests, vague steps, no refactor phase, ambiguous requirements, 
 
 ### Step 3: Handle Unclear Requirements
 
-If you can't write the plan without this information, ask the user. Otherwise, make reasonable assumptions and note them in the plan.
+Investigate gaps using available context, then record reasonable assumptions in the plan. Ask only about essential unresolved requirements, and continue the parts of the plan that do not depend on the answer.
 
 ### Step 4: Define Test Cases
 
-For each requirement, write concrete test cases. If you struggle to write test cases, you need more clarification.
+For each requirement, write concrete test cases. If a case is unclear, inspect existing behavior and related tests before deciding whether user input is needed.
 
 ### Step 5: Structure with Red-Green-Refactor
 
@@ -131,7 +129,7 @@ Specify how to confirm the change works (automated tests + manual checks).
 1. **Start with tests:** If you can't write the test, you don't understand the requirement.
 2. **Be specific:** "Update API" is not a step. "Add error handling to POST /users endpoint" is.
 3. **Always refactor:** Even if code looks good, ask "How could this be clearer?"
-4. **Question everything:** Ambiguity is the enemy.
+4. **Investigate ambiguity:** Use evidence and explicit assumptions to make progress.
 5. **Think in phases:** Red → Green → Refactor.
 6. **Keep plans manageable:** If plan exceeds ~10 files or >5 phases, consider splitting.
 

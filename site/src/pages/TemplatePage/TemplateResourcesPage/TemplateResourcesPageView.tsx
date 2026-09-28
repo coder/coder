@@ -1,17 +1,16 @@
-import type { FC } from "react";
 import { Navigate, useLocation } from "react-router";
 import type { Template, WorkspaceResource } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 
-interface TemplateResourcesPageViewProps {
+type TemplateResourcesPageViewProps = {
 	resources?: WorkspaceResource[];
 	template: Template;
-}
+};
 
-export const TemplateResourcesPageView: FC<TemplateResourcesPageViewProps> = ({
-	resources,
-}) => {
+export const TemplateResourcesPageView: React.FC<
+	TemplateResourcesPageViewProps
+> = ({ resources }) => {
 	const location = useLocation();
 
 	if (location.hash === "#readme") {

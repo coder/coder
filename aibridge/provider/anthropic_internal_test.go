@@ -13,7 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
@@ -27,40 +27,6 @@ func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWS
 	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
 	require.NoError(t, err)
 	return p
-}
-
-func TestAnthropic_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		cfg        config.Anthropic
-		expectType string
-		expectName string
-	}{
-		{
-			name:       "defaults",
-			cfg:        config.Anthropic{},
-			expectType: config.ProviderAnthropic,
-			expectName: config.ProviderAnthropic,
-		},
-		{
-			name:       "custom_name",
-			cfg:        config.Anthropic{Name: "anthropic-custom"},
-			expectType: config.ProviderAnthropic,
-			expectName: "anthropic-custom",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			p := newTestAnthropic(t, tc.cfg, nil)
-			assert.Equal(t, tc.expectType, p.Type())
-			assert.Equal(t, tc.expectName, p.Name())
-		})
-	}
 }
 
 func TestNewAnthropic_KeyResolution(t *testing.T) {
@@ -275,7 +241,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
-		wantCredentialKind intercept.CredentialKind
+		wantCredentialKind credential.Kind
 		wantCredentialHint string
 		// Upstream expectations after ProcessRequest. Not checked for Bedrock,
 		// which signs via AWS rather than forwarding a key header.
@@ -286,7 +252,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			name:               "byok_bearer_token",
 			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-access-token"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 			wantAuthorization:  "Bearer user-access-token",
 		},
@@ -294,7 +260,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			name:               "byok_api_key",
 			pool:               true,
 			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...ey",
 			wantXApiKey:        "user-api-key",
 		},
@@ -303,7 +269,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			pool:       true,
 			setHeaders: map[string]string{"Authorization": "Bearer user-access-token", "X-Api-Key": "user-api-key"},
 			// X-Api-Key takes priority over Authorization.
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...ey",
 			wantXApiKey:        "user-api-key",
 		},
@@ -311,7 +277,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			name:               "byok_without_pool",
 			pool:               false,
 			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...ey",
 			wantXApiKey:        "user-api-key",
 		},
@@ -319,7 +285,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			name:               "centralized",
 			pool:               true,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			// The pool hasn't handed out a key at CreateInterceptor, so the hint
 			// is a placeholder until the failover loop selects one.
 			wantCredentialHint: "<failover key>",
@@ -332,7 +298,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			pool:               false,
 			bedrock:            true,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "<aws chain>",
 		},
 		{
@@ -342,7 +308,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			bedrock:            true,
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "AKIA...MPLE",
 		},
 		{

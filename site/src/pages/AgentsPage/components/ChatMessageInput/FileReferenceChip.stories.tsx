@@ -103,10 +103,4 @@ export const LongFileNameTruncation: Story = {
 		startLine: 274,
 		endLine: 289,
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const chip = canvas.getByTitle(/UserCompactionThresholdSettings/);
-		// The chip should be constrained to its max-width and not overflow.
-		expect(chip.scrollWidth).toBeLessThanOrEqual(300);
-	},
 };

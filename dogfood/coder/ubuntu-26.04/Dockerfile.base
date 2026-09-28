@@ -53,7 +53,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	gettext-base \
 	git \
 	gnupg \
-	google-cloud-sdk \
+	google-cloud-cli \
 	hx \
 	htop \
 	httpie \

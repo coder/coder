@@ -3,7 +3,13 @@ import { useState } from "react";
 import { fn, screen, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockPersonalClaudeChatModel,
+	MockPersonalDefaultChatModel,
+	MockPersonalModelOptions,
+	MockPersonalReasoningChatModel,
+	MockUnsetUserChatPersonalModelOverrides,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -13,84 +19,36 @@ import {
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
 
-const buildModelConfig = (
-	overrides: Partial<TypesGen.ChatModel> = {},
-): TypesGen.ChatModel => ({
-	...MockChatModel,
-	id: "model-default",
-	model: "gpt-4.1-mini",
-	display_name: "GPT 4.1 Mini",
-	context_limit: 1_000_000,
-	created_at: "2026-03-12T12:00:00.000Z",
-	updated_at: "2026-03-12T12:00:00.000Z",
-	...overrides,
-});
-
-export const buildOverride = (
-	context: TypesGen.ChatPersonalModelOverrideContext,
-	overrides: Partial<TypesGen.ChatPersonalModelOverride> = {},
-): TypesGen.ChatPersonalModelOverride => ({
-	context,
-	mode: context === "root" ? "chat_default" : "deployment_default",
-	model_config_id: "",
-	is_set: false,
-	...overrides,
-});
-
-const buildDeploymentDefault = (
-	context: TypesGen.ChatModelOverrideContext,
-	overrides: Partial<TypesGen.ChatModelOverrideResponse> = {},
-): TypesGen.ChatModelOverrideResponse => ({
-	context,
-	model_config_id: "",
-	...overrides,
-});
-
-const buildDeploymentDefaults = (
-	overrides: Partial<TypesGen.ChatPersonalModelOverrideDeploymentDefaults> = {},
-): TypesGen.ChatPersonalModelOverrideDeploymentDefaults => ({
-	general: buildDeploymentDefault("general"),
-	explore: buildDeploymentDefault("explore"),
-	...overrides,
-});
-
-export const defaultModelConfig = buildModelConfig({
-	id: "model-gpt-4.1-mini",
-	display_name: "GPT 4.1 Mini",
-	is_default: true,
-});
-
-export const claudeModelConfig = buildModelConfig({
-	id: "model-claude-sonnet-4",
-	ai_provider_id: "provider-anthropic",
-	model: "claude-sonnet-4",
-	display_name: "Claude Sonnet 4",
-	context_limit: 200_000,
-});
-
-export const reasoningModelConfig = buildModelConfig({
-	id: "model-gpt-5",
-	model: "gpt-5",
-	display_name: "GPT-5",
-	model_config: {
-		reasoning_effort: { default: "medium", max: "high" },
+const defaultModelConfig = MockPersonalDefaultChatModel;
+const claudeModelConfig = MockPersonalClaudeChatModel;
+const reasoningModelConfig = MockPersonalReasoningChatModel;
+const modelOptions = MockPersonalModelOptions;
+const buildOverridesResponse = (
+	overrides: Partial<TypesGen.UserChatPersonalModelOverridesResponse> = {},
+): TypesGen.UserChatPersonalModelOverridesResponse => ({
+	...MockUnsetUserChatPersonalModelOverrides,
+	deployment_defaults: {
+		general: { context: "general", model_config_id: claudeModelConfig.id },
+		explore: { context: "explore", model_config_id: claudeModelConfig.id },
 	},
-	reasoning_efforts: ["none", "minimal", "low", "medium", "high"],
+	...overrides,
 });
 
-const disabledModelConfig = buildModelConfig({
+const disabledModelConfig: TypesGen.ChatModel = {
+	...MockPersonalDefaultChatModel,
 	id: "model-disabled",
 	model: "gpt-4.1-legacy",
 	display_name: "GPT 4.1 Legacy",
 	enabled: false,
-});
+};
 
-const inaccessibleModelConfig = buildModelConfig({
+const inaccessibleModelConfig: TypesGen.ChatModel = {
+	...MockPersonalDefaultChatModel,
 	id: "model-inaccessible",
 	ai_provider_id: "provider-bedrock",
 	model: "claude-3-5-sonnet",
 	display_name: "Bedrock Claude",
-});
+};
 
 const models = [
 	defaultModelConfig,
@@ -100,23 +58,16 @@ const models = [
 	inaccessibleModelConfig,
 ];
 
-const reasoningModelOption: ModelSelectorOption = {
-	id: reasoningModelConfig.id,
-	provider: "openai",
-	model: reasoningModelConfig.model,
-	displayName: reasoningModelConfig.display_name,
-	contextLimit: reasoningModelConfig.context_limit,
-	reasoningEffortDefault: "medium",
-	reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
-};
+const reasoningModelOption = MockPersonalModelOptions[2];
 
-const organization2ModelConfig = buildModelConfig({
+const organization2ModelConfig: TypesGen.ChatModel = {
+	...MockPersonalDefaultChatModel,
 	id: "organization-2-model",
 	organization_id: MockOrganization2.id,
 	model: "organization-two-model",
 	display_name: "Organization Two Model",
 	is_default: true,
-});
+};
 
 const organization2ModelOption: ModelSelectorOption = {
 	id: organization2ModelConfig.id,
@@ -126,43 +77,7 @@ const organization2ModelOption: ModelSelectorOption = {
 	contextLimit: organization2ModelConfig.context_limit,
 };
 
-export const modelOptions: ModelSelectorOption[] = [
-	{
-		id: defaultModelConfig.id,
-		provider: "openai",
-		model: defaultModelConfig.model,
-		displayName: defaultModelConfig.display_name,
-		contextLimit: defaultModelConfig.context_limit,
-	},
-	{
-		id: claudeModelConfig.id,
-		provider: "anthropic",
-		model: claudeModelConfig.model,
-		displayName: claudeModelConfig.display_name,
-		contextLimit: claudeModelConfig.context_limit,
-	},
-	reasoningModelOption,
-];
-
-export const buildOverridesResponse = (
-	overrides: Partial<TypesGen.UserChatPersonalModelOverridesResponse> = {},
-): TypesGen.UserChatPersonalModelOverridesResponse => ({
-	enabled: true,
-	root: buildOverride("root"),
-	general: buildOverride("general"),
-	explore: buildOverride("explore"),
-	deployment_defaults: buildDeploymentDefaults({
-		general: buildDeploymentDefault("general", {
-			model_config_id: claudeModelConfig.id,
-		}),
-		explore: buildDeploymentDefault("explore", {
-			model_config_id: claudeModelConfig.id,
-		}),
-	}),
-	...overrides,
-});
-
-export const buildArgs = (
+const buildArgs = (
 	overrides: Partial<AgentSettingsUserAgentsPageViewProps> = {},
 ): AgentSettingsUserAgentsPageViewProps => ({
 	overridesData: buildOverridesResponse(),
@@ -182,11 +97,12 @@ export const buildArgs = (
 });
 
 const organization2OverridesResponse = buildOverridesResponse({
-	root: buildOverride("root", {
+	root: {
+		...MockUnsetUserChatPersonalModelOverrides.root,
 		mode: "model",
 		model_config_id: organization2ModelConfig.id,
 		is_set: true,
-	}),
+	},
 });
 
 const MultiOrganizationView = (props: AgentSettingsUserAgentsPageViewProps) => {
@@ -215,15 +131,7 @@ const getSection = async (
 	canvasElement: HTMLElement,
 	headingName: string,
 ): Promise<HTMLElement> => {
-	const canvas = within(canvasElement);
-	const heading = await canvas.findByRole("heading", { name: headingName });
-	const section = heading.closest("section");
-	if (!(section instanceof HTMLElement)) {
-		throw new Error(
-			`Expected ${headingName} heading to live inside a section.`,
-		);
-	}
-	return section;
+	return within(canvasElement).findByRole("region", { name: headingName });
 };
 
 const selectOption = async (
@@ -244,15 +152,6 @@ const selectOption = async (
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsUserAgentsPageView",
 	component: AgentSettingsUserAgentsPageView,
-	excludeStories: [
-		"buildArgs",
-		"buildOverride",
-		"buildOverridesResponse",
-		"claudeModelConfig",
-		"defaultModelConfig",
-		"modelOptions",
-		"reasoningModelConfig",
-	],
 	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsUserAgentsPageView>;
 
@@ -264,25 +163,49 @@ export const EnabledWithNoSavedValues: Story = {
 };
 
 export const SavingOverride: Story = {
-	args: buildArgs({ isSaving: true }),
+	render: function SavingOverride(args) {
+		const [isSaving, setIsSaving] = useState(false);
+		return (
+			<AgentSettingsUserAgentsPageView
+				{...args}
+				isSaving={isSaving}
+				onSaveOverride={() => setIsSaving(true)}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		await selectOption(
+			rootSection,
+			canvasElement,
+			"Root agent model behavior, Chat default: GPT 4.1 Mini",
+			/Claude Sonnet 4/i,
+		);
+		await userEvent.click(
+			within(rootSection).getByRole("button", { name: "Save" }),
+		);
+	},
 };
 
 export const EnabledWithSavedValues: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "chat_default",
 				is_set: true,
-			}),
-			general: buildOverride("general", {
+			},
+			general: {
+				...MockUnsetUserChatPersonalModelOverrides.general,
 				mode: "deployment_default",
 				is_set: true,
-			}),
-			explore: buildOverride("explore", {
+			},
+			explore: {
+				...MockUnsetUserChatPersonalModelOverrides.explore,
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 };
@@ -308,11 +231,12 @@ export const SavedReasoningModel: Story = {
 			},
 		],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: defaultModelConfig.id,
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 	play: async ({ canvasElement }) => {
@@ -330,12 +254,13 @@ export const SavedLowReasoningEffort: Story = {
 	args: buildArgs({
 		modelOptions: [reasoningModelOption],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: reasoningModelConfig.id,
 				reasoning_effort: "low",
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 	play: async ({ canvasElement }) => {
@@ -351,16 +276,18 @@ export const SavedLowReasoningEffort: Story = {
 export const UnavailableSavedModels: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: disabledModelConfig.id,
 				is_set: true,
-			}),
-			general: buildOverride("general", {
+			},
+			general: {
+				...MockUnsetUserChatPersonalModelOverrides.general,
 				mode: "model",
 				model_config_id: inaccessibleModelConfig.id,
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 };
@@ -369,21 +296,24 @@ export const ModelsError: Story = {
 	args: buildArgs({
 		modelsError: new Error("Failed to load models."),
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
-			}),
-			general: buildOverride("general", {
+			},
+			general: {
+				...MockUnsetUserChatPersonalModelOverrides.general,
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
-			}),
-			explore: buildOverride("explore", {
+			},
+			explore: {
+				...MockUnsetUserChatPersonalModelOverrides.explore,
 				mode: "model",
 				model_config_id: claudeModelConfig.id,
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 	play: async ({ canvasElement }) => {
@@ -448,6 +378,10 @@ export const SwitchOrganizations: Story = {
 				name: new RegExp(MockOrganization2.display_name, "i"),
 			}),
 		);
+		const rootSection = await getSection(canvasElement, "Root agent model");
+		await within(rootSection).findByRole("combobox", {
+			name: /Organization Two Model$/,
+		});
 	},
 };
 
@@ -456,11 +390,12 @@ export const NoAvailableOrganizationModels: Story = {
 		modelOptions: [],
 		models: [],
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: "model-stale",
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 };
@@ -478,11 +413,12 @@ export const AdminDisabledReadOnly: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			enabled: false,
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "model",
 				model_config_id: defaultModelConfig.id,
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 };
@@ -490,10 +426,11 @@ export const AdminDisabledReadOnly: Story = {
 export const InvalidRootDeploymentDefault: Story = {
 	args: buildArgs({
 		overridesData: buildOverridesResponse({
-			root: buildOverride("root", {
+			root: {
+				...MockUnsetUserChatPersonalModelOverrides.root,
 				mode: "deployment_default",
 				is_set: true,
-			}),
+			},
 		}),
 	}),
 };

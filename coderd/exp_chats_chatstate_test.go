@@ -237,7 +237,7 @@ func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -264,7 +264,7 @@ func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodDelete,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -299,7 +299,7 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999/promote", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -326,7 +326,7 @@ func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	res, err := client.Request(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("/api/experimental/chats/%s/queue/99999999/promote", chat.ID),
+		fmt.Sprintf("/api/v2/chats/%s/queue/99999999/promote", chat.ID),
 		nil,
 	)
 	require.NoError(t, err)
@@ -436,7 +436,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	require.True(t, foundToolResult, "tool result message must be visible in chat history")
 }
 
-// TestPatchChatArchiveChildRejected verifies that PATCH /api/experimental/chats/{child}
+// TestPatchChatArchiveChildRejected verifies that PATCH /api/v2/chats/{child}
 // with archived=true returns the root-only error regardless of the
 // child's current archived value, and does not change archive state on
 // any family member.
@@ -485,7 +485,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	}
 }
 
-// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/experimental/chats/{child}
+// TestPatchChatUnarchiveChildRejected verifies that PATCH /api/v2/chats/{child}
 // with archived=false on an archived family is rejected with the
 // root-only error and leaves every family member archived. The child
 // already matches the requested value? No, the family is archived;

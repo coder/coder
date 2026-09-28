@@ -1,10 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type ReactNode,
-	useContext,
-	useMemo,
-} from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ExternalImageModeStyles } from "#/theme/externalImages";
 
 /**
@@ -19,18 +13,18 @@ import type { ExternalImageModeStyles } from "#/theme/externalImages";
  * Values are provided by the surrounding `AppearanceProvider` (see
  * `ThemeOverride` and the Storybook preview decorator).
  */
-interface Appearance {
+type Appearance = {
 	externalImages: ExternalImageModeStyles;
-}
+};
 
 const AppearanceContext = createContext<Appearance | undefined>(undefined);
 
-interface AppearanceProviderProps {
+type AppearanceProviderProps = {
 	externalImages: ExternalImageModeStyles;
-	children: ReactNode;
-}
+	children: React.ReactNode;
+};
 
-export const AppearanceProvider: FC<AppearanceProviderProps> = ({
+export const AppearanceProvider: React.FC<AppearanceProviderProps> = ({
 	externalImages,
 	children,
 }) => {

@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type HTMLAttributes, useState } from "react";
+import { useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -10,12 +10,12 @@ import { useClipboard } from "#/hooks/useClipboard";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 
-interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
+type CopyableValueProps = React.ComponentProps<"span"> & {
 	value: string;
 	side?: TooltipSide;
-}
+};
 
-export const CopyableValue: FC<CopyableValueProps> = ({
+export const CopyableValue: React.FC<CopyableValueProps> = ({
 	value,
 	side = "bottom",
 	children,

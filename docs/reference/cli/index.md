@@ -126,6 +126,15 @@ Suppress warning when client and server versions do not match.
 
 Suppress warnings about unlicensed features.
 
+### --allow-redirects
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_ALLOW_REDIRECTS</code> |
+
+Follow HTTP redirects from the server instead of returning an error. Following redirects may alter the request method and/or drop its body.
+
 ### --header
 
 |             |                            |

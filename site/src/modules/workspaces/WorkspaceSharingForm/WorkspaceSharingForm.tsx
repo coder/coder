@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
@@ -40,13 +39,13 @@ import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 
-interface RoleSelectProps {
+type RoleSelectProps = {
 	value: WorkspaceRole;
 	disabled?: boolean;
 	onValueChange: (value: WorkspaceRole) => void;
-}
+};
 
-const RoleSelect: FC<RoleSelectProps> = ({
+const RoleSelect: React.FC<RoleSelectProps> = ({
 	value,
 	disabled,
 	onValueChange,
@@ -88,10 +87,10 @@ type AddWorkspaceMemberFormProps = {
 	isLoading: boolean;
 	onSubmit: () => void;
 	disabled: boolean;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
-export const AddWorkspaceMemberForm: FC<AddWorkspaceMemberFormProps> = ({
+export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 	isLoading,
 	onSubmit,
 	disabled,
@@ -118,7 +117,7 @@ type RoleSelectFieldProps = {
 	disabled?: boolean;
 };
 
-export const RoleSelectField: FC<RoleSelectFieldProps> = ({
+export const RoleSelectField: React.FC<RoleSelectFieldProps> = ({
 	value,
 	onChange,
 	disabled,
@@ -140,7 +139,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 	);
 };
 
-interface WorkspaceSharingFormProps {
+type WorkspaceSharingFormProps = {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
 	canUpdatePermissions: boolean;
@@ -151,12 +150,12 @@ interface WorkspaceSharingFormProps {
 	onUpdateGroup: (group: WorkspaceGroup, role: WorkspaceRole) => void;
 	updatingGroupId?: WorkspaceGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
-	addMemberForm?: ReactNode;
+	addMemberForm?: React.ReactNode;
 	isCompact?: boolean;
 	showRestartWarning?: boolean;
-}
+};
 
-export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
+export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
 	canUpdatePermissions,

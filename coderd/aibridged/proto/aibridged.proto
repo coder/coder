@@ -75,6 +75,7 @@ message RecordInterceptionRequest {
   // used to order network requests relative to Agent Firewall audit events.
   // Absent when the request did not pass through Agent Firewall.
   optional int32 agent_firewall_sequence_number = 16;
+  string workspace_id = 17; // UUID. Empty when workspace attribution is unknown.
 }
 
 message RecordInterceptionResponse {}
@@ -185,6 +186,7 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+  string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
 }
 
 message IsBudgetExceededRequest {
@@ -236,4 +238,11 @@ message AIProviderKindBedrock {
   // protocol selects the Bedrock wire protocol ("invoke-model" or "mantle").
   // Empty falls back to invoke-model.
   string protocol = 8;
+  // resolved_model is the model ID behind model, which differs from it only
+  // when model is an application inference profile ARN. coderd resolves it when
+  // the provider is written, so the gateway never calls the Bedrock control
+  // plane.
+  string resolved_model = 9;
+  // resolved_small_fast_model is resolved_model for small_fast_model.
+  string resolved_small_fast_model = 10;
 }

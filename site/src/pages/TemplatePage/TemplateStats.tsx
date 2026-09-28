@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { Template, TemplateVersion } from "#/api/typesGenerated";
 import { Stats, StatsItem } from "#/components/Stats/Stats";
@@ -8,12 +7,12 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 
-interface TemplateStatsProps {
+type TemplateStatsProps = {
 	template: Template;
 	activeVersion: TemplateVersion;
-}
+};
 
-export const TemplateStats: FC<TemplateStatsProps> = ({
+export const TemplateStats: React.FC<TemplateStatsProps> = ({
 	template,
 	activeVersion,
 }) => {

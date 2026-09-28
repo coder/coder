@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -14,7 +13,7 @@ import {
 	useOrganizationModels,
 } from "../organizationModels";
 
-interface AddModelPageViewProps {
+type AddModelPageViewProps = {
 	isLoading: boolean;
 	loadError: unknown;
 	refetchError: unknown;
@@ -25,9 +24,9 @@ interface AddModelPageViewProps {
 	isSaving: boolean;
 	onProviderChange: (providerKey: string) => void;
 	onCreateModel: (req: TypesGen.CreateChatModelRequest) => Promise<unknown>;
-}
+};
 
-const AddModelPageView: FC<AddModelPageViewProps> = ({
+const AddModelPageView: React.FC<AddModelPageViewProps> = ({
 	isLoading,
 	loadError,
 	refetchError,

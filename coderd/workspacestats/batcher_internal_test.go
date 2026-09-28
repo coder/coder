@@ -2,10 +2,14 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	prom_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -18,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -86,12 +91,12 @@ func TestBatchStats(t *testing.T) {
 	for _, stat := range stats {
 		byAgent[stat.AgentID] = stat
 	}
-	require.EqualValues(t, 3, byAgent[deps1.Agent.ID].SessionCountVSCode)
-	require.EqualValues(t, 1, byAgent[deps1.Agent.ID].SessionCountSSH)
-	require.EqualValues(t, 0, byAgent[deps1.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 4, byAgent[deps2.Agent.ID].SessionCountJetBrains)
-	require.EqualValues(t, 2, byAgent[deps2.Agent.ID].SessionCountReconnectingPTY)
-	require.EqualValues(t, 0, byAgent[deps2.Agent.ID].SessionCountVSCode)
+	require.EqualValues(t, 3, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["vscode"])
+	require.EqualValues(t, 1, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["ssh"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps1.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 4, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["jetbrains"])
+	require.EqualValues(t, 2, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["reconnecting_pty"])
+	require.EqualValues(t, 0, sessionFamilyCounts(t, byAgent[deps2.Agent.ID].SessionCounts)["vscode"])
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
@@ -143,6 +148,46 @@ func TestBatchStats(t *testing.T) {
 
 	// Ensure that buf never grew beyond what we expect
 	require.Equal(t, defaultBufferSize, cap(b.buf.ID), "buffer grew beyond expected capacity")
+}
+
+// TestBatchStatsSessionCountFold asserts that a report over the session count
+// cap folds the excess into the overflow counter and logs it at debug, never
+// at warn, so one misbehaving agent cannot flood the logs.
+func TestBatchStatsSessionCountFold(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	store, ps := dbtestutil.NewDB(t)
+	deps := setupDeps(t, store, ps)
+
+	b, closer, err := NewBatcher(ctx,
+		BatcherWithStore(store),
+		BatcherWithLogger(sink.Logger(slog.LevelDebug)),
+		func(b *DBBatcher) {
+			// Take control of flushes so they do not interleave with the
+			// assertions below.
+			b.tickCh = make(chan time.Time)
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(closer)
+
+	const extra = 6
+	st := randStats(t, func(s *agentproto.Stats) {
+		s.SessionCounts = make(map[string]int64, maxSessionCountEntries+extra)
+		for i := range maxSessionCountEntries + extra {
+			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
+		}
+	})
+	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
+
+	overcap := sink.Entries(func(e slog.SinkEntry) bool {
+		return strings.Contains(e.Message, "too many distinct session types")
+	})
+	require.Len(t, overcap, 1)
+	require.Equal(t, slog.LevelDebug, overcap[0].Level)
+	require.Equal(t, float64(extra), prom_testutil.ToFloat64(b.metrics.SessionCountsOverflowTotal))
 }
 
 // randStats returns a random agentproto.Stats
@@ -241,4 +286,11 @@ func mustRandInt64n(t *testing.T, n int64) int64 {
 	i, err := cryptorand.Intn(int(n))
 	require.NoError(t, err)
 	return int64(i)
+}
+
+func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
+	t.Helper()
+	counts, err := codersdk.DecodeAppMap[int64](data)
+	require.NoError(t, err)
+	return codersdk.SumByFamily(counts)
 }

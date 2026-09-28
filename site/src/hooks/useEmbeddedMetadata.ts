@@ -32,6 +32,7 @@ type AvailableMetadata = Readonly<{
 	regions: readonly Region[];
 	"build-info": BuildInfoResponse;
 	"ai-gateway-enabled": boolean;
+	"user-secret-file-path-enabled": boolean;
 	permissions: Permissions;
 	organizations: Organization[];
 }>;
@@ -68,11 +69,11 @@ type ParseJsonResult<T = unknown> = Readonly<
 	  }
 >;
 
-interface MetadataManagerApi {
+type MetadataManagerApi = {
 	subscribe: (callback: SubscriptionCallback) => () => void;
 	getMetadata: () => RuntimeHtmlMetadata;
 	clearMetadataByKey: (key: MetadataKey) => void;
-}
+};
 
 export class MetadataManager implements MetadataManagerApi {
 	private readonly metadataKey: string;
@@ -96,6 +97,9 @@ export class MetadataManager implements MetadataManagerApi {
 			"build-info": this.registerValue<BuildInfoResponse>("build-info"),
 			regions: this.registerRegionValue(),
 			"ai-gateway-enabled": this.registerValue<boolean>("ai-gateway-enabled"),
+			"user-secret-file-path-enabled": this.registerValue<boolean>(
+				"user-secret-file-path-enabled",
+			),
 			permissions: this.registerValue<Permissions>("permissions"),
 			organizations: this.registerValue<Organization[]>("organizations"),
 		};

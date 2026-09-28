@@ -1,20 +1,91 @@
-import { screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import type { UserChatPersonalModelOverridesResponse } from "#/api/typesGenerated";
+import {
+	MockPersonalClaudeChatModel,
+	MockPersonalDefaultChatModel,
+	MockPersonalModelOptions,
+	MockPersonalReasoningChatModel,
+	MockUnsetUserChatPersonalModelOverrides,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
+import type { AgentSettingsUserAgentsPageViewProps } from "./AgentSettingsUserAgentsPageView";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import {
-	buildArgs,
-	buildOverride,
-	buildOverridesResponse,
-	claudeModelConfig,
-	defaultModelConfig,
-	reasoningModelConfig,
-} from "./AgentSettingsUserAgentsPageView.stories";
+
+const defaultProps: AgentSettingsUserAgentsPageViewProps = {
+	overridesData: {
+		...MockUnsetUserChatPersonalModelOverrides,
+		deployment_defaults: {
+			general: {
+				context: "general",
+				model_config_id: MockPersonalClaudeChatModel.id,
+			},
+			explore: {
+				context: "explore",
+				model_config_id: MockPersonalClaudeChatModel.id,
+			},
+		},
+	},
+	overridesError: undefined,
+	onRetryOverrides: vi.fn(),
+	isRetryingOverrides: false,
+	isLoading: false,
+	modelOptions: MockPersonalModelOptions,
+	models: [
+		MockPersonalDefaultChatModel,
+		MockPersonalClaudeChatModel,
+		MockPersonalReasoningChatModel,
+	],
+	modelsError: undefined,
+	organizations: [MockDefaultOrganization],
+	selectedOrganization: MockDefaultOrganization,
+	onSelectOrganization: vi.fn(),
+	onSaveOverride: vi.fn(),
+	isSaving: false,
+};
+
+const rootModelOverride = (
+	modelId: string,
+): UserChatPersonalModelOverridesResponse => ({
+	...MockUnsetUserChatPersonalModelOverrides,
+	root: {
+		...MockUnsetUserChatPersonalModelOverrides.root,
+		mode: "model",
+		model_config_id: modelId,
+		is_set: true,
+	},
+});
+
+const renderWithOverrides = (
+	onSaveOverride: AgentSettingsUserAgentsPageViewProps["onSaveOverride"],
+) => {
+	let setOverrides: React.Dispatch<
+		React.SetStateAction<UserChatPersonalModelOverridesResponse>
+	> = () => {};
+	const View = () => {
+		const [overrides, setData] =
+			useState<UserChatPersonalModelOverridesResponse>(
+				MockUnsetUserChatPersonalModelOverrides,
+			);
+		setOverrides = setData;
+		return (
+			<AgentSettingsUserAgentsPageView
+				{...defaultProps}
+				onSaveOverride={onSaveOverride}
+				overridesData={overrides}
+			/>
+		);
+	};
+	render(<View />);
+	return (overrides: UserChatPersonalModelOverridesResponse) => {
+		act(() => setOverrides(overrides));
+	};
+};
 
 const selectModel = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -32,7 +103,10 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		const user = userEvent.setup();
 		const onSaveOverride = vi.fn();
 		render(
-			<AgentSettingsUserAgentsPageView {...buildArgs({ onSaveOverride })} />,
+			<AgentSettingsUserAgentsPageView
+				{...defaultProps}
+				onSaveOverride={onSaveOverride}
+			/>,
 		);
 		const root = await selectModel(
 			user,
@@ -44,7 +118,7 @@ describe("AgentSettingsUserAgentsPageView", () => {
 			{
 				organizationId: MockDefaultOrganization.id,
 				context: "root",
-				req: { mode: "model", model_config_id: claudeModelConfig.id },
+				req: { mode: "model", model_config_id: MockPersonalClaudeChatModel.id },
 			},
 			expect.objectContaining({ onSuccess: expect.any(Function) }),
 		);
@@ -70,16 +144,17 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		const onSaveOverride = vi.fn();
 		render(
 			<AgentSettingsUserAgentsPageView
-				{...buildArgs({
-					onSaveOverride,
-					overridesData: buildOverridesResponse({
-						root: buildOverride("root", {
-							mode: "model",
-							model_config_id: defaultModelConfig.id,
-							is_set: true,
-						}),
-					}),
-				})}
+				{...defaultProps}
+				onSaveOverride={onSaveOverride}
+				overridesData={{
+					...MockUnsetUserChatPersonalModelOverrides,
+					root: {
+						...MockUnsetUserChatPersonalModelOverrides.root,
+						mode: "model",
+						model_config_id: MockPersonalDefaultChatModel.id,
+						is_set: true,
+					},
+				}}
 			/>,
 		);
 		const root = await selectModel(user, "Root agent model", /GPT-5/i);
@@ -94,7 +169,7 @@ describe("AgentSettingsUserAgentsPageView", () => {
 				context: "root",
 				req: {
 					mode: "model",
-					model_config_id: reasoningModelConfig.id,
+					model_config_id: MockPersonalReasoningChatModel.id,
 					reasoning_effort: "high",
 				},
 			},
@@ -107,11 +182,10 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		const onRetryOverrides = vi.fn();
 		render(
 			<AgentSettingsUserAgentsPageView
-				{...buildArgs({
-					overridesData: undefined,
-					overridesError: new Error("Failed to load overrides"),
-					onRetryOverrides,
-				})}
+				{...defaultProps}
+				overridesData={undefined}
+				overridesError={new Error("Failed to load overrides")}
+				onRetryOverrides={onRetryOverrides}
 			/>,
 		);
 		await user.click(screen.getByRole("button", { name: "Retry" }));
@@ -123,15 +197,16 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		const onSaveOverride = vi.fn();
 		render(
 			<AgentSettingsUserAgentsPageView
-				{...buildArgs({
-					onSaveOverride,
-					overridesData: buildOverridesResponse({
-						root: buildOverride("root", {
-							mode: "deployment_default",
-							is_set: true,
-						}),
-					}),
-				})}
+				{...defaultProps}
+				onSaveOverride={onSaveOverride}
+				overridesData={{
+					...MockUnsetUserChatPersonalModelOverrides,
+					root: {
+						...MockUnsetUserChatPersonalModelOverrides.root,
+						mode: "deployment_default",
+						is_set: true,
+					},
+				}}
 			/>,
 		);
 		const root = await selectModel(user, "Root agent model", /Chat default/i);
@@ -146,6 +221,136 @@ describe("AgentSettingsUserAgentsPageView", () => {
 		);
 	});
 
+	it("recovers an unavailable saved model when the catalog is empty", async () => {
+		const user = userEvent.setup();
+		const onSaveOverride = vi.fn();
+		render(
+			<AgentSettingsUserAgentsPageView
+				{...defaultProps}
+				modelOptions={[]}
+				models={[]}
+				onSaveOverride={onSaveOverride}
+				overridesData={{
+					...MockUnsetUserChatPersonalModelOverrides,
+					root: {
+						...MockUnsetUserChatPersonalModelOverrides.root,
+						mode: "model",
+						model_config_id: "model-stale",
+						is_set: true,
+					},
+				}}
+			/>,
+		);
+		const root = await selectModel(user, "Root agent model", /Chat default/i);
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenCalledWith(
+			{
+				organizationId: MockDefaultOrganization.id,
+				context: "root",
+				req: { mode: "chat_default", model_config_id: "" },
+			},
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
+	});
+
+	it("preserves a dirty selection across server refetches", async () => {
+		const user = userEvent.setup();
+		const onSaveOverride =
+			vi.fn<AgentSettingsUserAgentsPageViewProps["onSaveOverride"]>();
+		const refetch = renderWithOverrides(onSaveOverride);
+		const root = await selectModel(
+			user,
+			"Root agent model",
+			/Claude Sonnet 4/i,
+		);
+		refetch(rootModelOverride(MockPersonalDefaultChatModel.id));
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenCalledWith(
+			{
+				organizationId: MockDefaultOrganization.id,
+				context: "root",
+				req: { mode: "model", model_config_id: MockPersonalClaudeChatModel.id },
+			},
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
+	});
+
+	it("accepts a server refetch when the form is pristine", async () => {
+		const user = userEvent.setup();
+		const onSaveOverride =
+			vi.fn<AgentSettingsUserAgentsPageViewProps["onSaveOverride"]>();
+		const refetch = renderWithOverrides(onSaveOverride);
+		refetch(rootModelOverride(MockPersonalClaudeChatModel.id));
+		const root = await selectModel(user, "Root agent model", /Chat default/i);
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenCalledWith(
+			{
+				organizationId: MockDefaultOrganization.id,
+				context: "root",
+				req: { mode: "chat_default", model_config_id: "" },
+			},
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
+	});
+
+	it("clears the draft after success and accepts a later refetch", async () => {
+		const user = userEvent.setup();
+		const onSaveOverride =
+			vi.fn<AgentSettingsUserAgentsPageViewProps["onSaveOverride"]>();
+		const refetch = renderWithOverrides(onSaveOverride);
+		const root = await selectModel(
+			user,
+			"Root agent model",
+			/Claude Sonnet 4/i,
+		);
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		const saveCallbacks = onSaveOverride.mock.calls[0]?.[1];
+		expect(saveCallbacks?.onSuccess).toEqual(expect.any(Function));
+		refetch(rootModelOverride(MockPersonalClaudeChatModel.id));
+		act(() => saveCallbacks?.onSuccess?.());
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenCalledTimes(1);
+
+		refetch(rootModelOverride(MockPersonalDefaultChatModel.id));
+		await selectModel(user, "Root agent model", /Chat default/i);
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenLastCalledWith(
+			{
+				organizationId: MockDefaultOrganization.id,
+				context: "root",
+				req: { mode: "chat_default", model_config_id: "" },
+			},
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
+		expect(onSaveOverride).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps an edited payload available for retry after failure", async () => {
+		const user = userEvent.setup();
+		const onSaveOverride =
+			vi.fn<AgentSettingsUserAgentsPageViewProps["onSaveOverride"]>();
+		const refetch = renderWithOverrides(onSaveOverride);
+		const root = await selectModel(
+			user,
+			"Root agent model",
+			/Claude Sonnet 4/i,
+		);
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		act(() => {
+			onSaveOverride.mock.calls[0]?.[1]?.onError?.();
+		});
+		refetch(rootModelOverride(MockPersonalDefaultChatModel.id));
+		await user.click(within(root).getByRole("button", { name: "Save" }));
+		expect(onSaveOverride).toHaveBeenCalledTimes(2);
+		for (const [payload] of onSaveOverride.mock.calls) {
+			expect(payload).toEqual({
+				organizationId: MockDefaultOrganization.id,
+				context: "root",
+				req: { mode: "model", model_config_id: MockPersonalClaudeChatModel.id },
+			});
+		}
+	});
+
 	it("uses the switched organization for subsequent saves", async () => {
 		const user = userEvent.setup();
 		const onSaveOverride = vi.fn();
@@ -156,15 +361,14 @@ describe("AgentSettingsUserAgentsPageView", () => {
 			);
 			return (
 				<AgentSettingsUserAgentsPageView
-					{...buildArgs({
-						onSaveOverride,
-						organizations: [MockDefaultOrganization, MockOrganization2],
-						selectedOrganization,
-						onSelectOrganization: (organization) => {
-							onSelectOrganization(organization);
-							setSelectedOrganization(organization);
-						},
-					})}
+					{...defaultProps}
+					onSaveOverride={onSaveOverride}
+					organizations={[MockDefaultOrganization, MockOrganization2]}
+					selectedOrganization={selectedOrganization}
+					onSelectOrganization={(organization) => {
+						onSelectOrganization(organization);
+						setSelectedOrganization(organization);
+					}}
 				/>
 			);
 		};
@@ -190,7 +394,7 @@ describe("AgentSettingsUserAgentsPageView", () => {
 			{
 				organizationId: MockOrganization2.id,
 				context: "root",
-				req: { mode: "model", model_config_id: claudeModelConfig.id },
+				req: { mode: "model", model_config_id: MockPersonalClaudeChatModel.id },
 			},
 			expect.objectContaining({ onSuccess: expect.any(Function) }),
 		);

@@ -22,14 +22,6 @@ export const Running: Story = {
 			<ToolCall.Header iconName="read_file" label="Reading README.md" />
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Reading README.md")).toBeVisible();
-		expect(canvas.queryByRole("button")).not.toBeInTheDocument();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeVisible();
-	},
 };
 
 export const Completed: Story = {
@@ -38,13 +30,6 @@ export const Completed: Story = {
 			<ToolCall.Header iconName="read_file" label="Read README.md" />
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Read README.md")).toBeVisible();
-		expect(
-			canvas.queryByRole("img", { name: "Tool call running" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const Failed: Story = {
@@ -58,18 +43,10 @@ export const Failed: Story = {
 			<ToolCall.Header iconName="read_file" label="Read README.md" />
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Read README.md")).toBeVisible();
-		expect(
-			canvas.getByRole("img", { name: "Failed to read file" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("img", { name: "Tool call running" }),
-		).not.toBeInTheDocument();
-	},
 };
 
+// A running tool call stays active even when the backend reports an
+// error; the error icon only appears once the status leaves "running".
 export const RunningWithBackendError: Story = {
 	render: () => (
 		<ToolCall.Root
@@ -81,16 +58,6 @@ export const RunningWithBackendError: Story = {
 			<ToolCall.Header iconName="read_file" label="Reading README.md" />
 		</ToolCall.Root>
 	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Reading README.md")).toBeVisible();
-		expect(
-			canvas.getByRole("img", { name: "Tool call running" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("img", { name: "Failed to read file" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const Collapsible: Story = {

@@ -541,8 +541,8 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// Registration stores the scope verbatim, so every value below is accepted.
-// The catalog is enforced at authorization: see
+// Registration stores the scope verbatim and only bounds its size, so every
+// name below is accepted. The catalog is enforced at authorization: see
 // TestOAuth2AuthorizeDCRScopeCompatibility.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
@@ -606,6 +606,21 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 			name:        "ValidCustom",
 			scope:       "custom:scope",
 			expectError: false,
+		},
+		{
+			name:        "AtNameLimit",
+			scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames),
+			expectError: false,
+		},
+		{
+			name:        "TooManyNames",
+			scope:       strings.Repeat("s ", codersdk.OAuth2ScopeListMaxNames+1),
+			expectError: true,
+		},
+		{
+			name:        "TooLong",
+			scope:       strings.Repeat("a", codersdk.OAuth2ScopeListMaxBytes+1),
+			expectError: true,
 		},
 	}
 

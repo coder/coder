@@ -158,6 +158,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	if err != nil {
 		return resolvedModelCall{}, xerrors.Errorf("create model: %w", err)
 	}
+	model = p.withThinkingDropBlock(model, out.route.Provider.ID, clientCallConfig, spec.chat.ID)
 
 	if out.debugEnabled {
 		model = model.WithLanguageModel(chatdebug.WrapModel(model.LanguageModel(), debugSvc, chatdebug.RecorderOptions{
@@ -167,7 +168,14 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	}
 	out.model = model
 
-	out.providerOptions = chatprovider.ProviderOptionsForCall(out.model, out.callConfig, spec.requestedEffort)
+	// Only the derived provider options see the coerced config: callConfig
+	// stays as configured so provider substitution (computer use rerouting
+	// to direct OpenAI) starts from the original value.
+	out.providerOptions = chatprovider.ProviderOptionsForCall(
+		out.model,
+		coerceBedrockReasoningSummary(out.route.Provider.Type, modelName, out.callConfig),
+		spec.requestedEffort,
+	)
 
 	p.logger.Debug(ctx, "resolved model call",
 		slog.F("purpose", spec.purpose),
@@ -192,14 +200,22 @@ func (r resolvedModelCall) newCall() fantasy.Call {
 }
 
 // compactionSummaryCall follows the resolved call template, except summaries
-// must not call tools and must not carry the default output cap: the summary
-// request is non-streaming, and the Anthropic SDK rejects non-streaming
-// requests whose max_tokens implies a completion longer than ten minutes.
+// must not call tools. Streaming avoids the Anthropic SDK's non-streaming
+// duration limit, while the explicit cap prevents adaptive thinking from
+// exhausting fantasy's smaller provider default before producing summary text.
+// The cap gets 50% headroom because the summary must fit reasoning plus
+// summary text in one response; a low configured chat cap could otherwise
+// truncate the summary that replaces pruned history. The headroom stays
+// modest because a cap configured at a provider's output ceiling overshoots
+// it; that residual overshoot is an accepted tradeoff. GenerateCompaction
+// bounds the increased cap by the remaining context window at trigger time.
 func compactionSummaryCall(resolved resolvedModelCall) fantasy.Call {
 	call := resolved.newCall()
 	toolChoiceNone := fantasy.ToolChoiceNone
 	call.ToolChoice = &toolChoiceNone
-	call.MaxOutputTokens = nil
+	if call.MaxOutputTokens != nil {
+		call.MaxOutputTokens = ptr.Ref(*call.MaxOutputTokens * 3 / 2)
+	}
 	return call
 }
 

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -11,7 +10,7 @@ import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { PersonalModelOverrideRow } from "./components/PersonalModelOverrideRow";
 import { SectionHeader } from "./components/SectionHeader";
 
-export interface AgentSettingsUserAgentsPageViewProps {
+export type AgentSettingsUserAgentsPageViewProps = {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;
 	overridesError: unknown;
 	onRetryOverrides: () => void;
@@ -32,11 +31,11 @@ export interface AgentSettingsUserAgentsPageViewProps {
 		options?: { onSuccess?: () => void; onError?: () => void },
 	) => void;
 	isSaving: boolean;
-}
+};
 
 const PERSONAL_OVERRIDE_CONTEXTS = ["root", "general", "explore"] as const;
 
-export const AgentSettingsUserAgentsPageView: FC<
+export const AgentSettingsUserAgentsPageView: React.FC<
 	AgentSettingsUserAgentsPageViewProps
 > = ({
 	overridesData,
@@ -61,10 +60,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 		modelOptions.length === 0;
 
 	const isDisabled =
-		isLoading ||
-		!personalOverridesEnabled ||
-		!selectedOrganization ||
-		hasNoOrganizationModels;
+		isLoading || !personalOverridesEnabled || !selectedOrganization;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -119,9 +115,9 @@ export const AgentSettingsUserAgentsPageView: FC<
 			{hasNoOrganizationModels && (
 				<Alert severity="info">
 					<AlertDescription>
-						The selected organization has no available chat models. Ask an
-						organization administrator to add and enable a model before you
-						choose a specific model.
+						The selected organization has no available chat models. Default
+						options can still be saved. Ask an organization administrator to add
+						and enable a model before you choose a specific model.
 					</AlertDescription>
 				</Alert>
 			)}

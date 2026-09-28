@@ -1,5 +1,4 @@
 import { BanIcon, CheckIcon, ChevronRightIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type {
 	AgentFirewallLog,
 	AIBridgeSessionNetworkCallSummary,
@@ -14,7 +13,7 @@ import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { formatDateTime } from "#/utils/time";
 import { HighlightText } from "./HighlightText";
 
-interface NetworkCallsTableProps {
+type NetworkCallsTableProps = {
 	/**
 	 * Reports the whole session's network call totals. The total can exceed the
 	 * number of rows in `calls`, which is capped server-side.
@@ -29,9 +28,9 @@ interface NetworkCallsTableProps {
 	 * bolds the matched substring in each row.
 	 */
 	search?: { loaded: number; query: string };
-}
+};
 
-export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
+export const NetworkCallsTable: React.FC<NetworkCallsTableProps> = ({
 	summary,
 	calls,
 	search,
@@ -84,7 +83,7 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 	);
 };
 
-const NetworkCallsList: FC<{
+const NetworkCallsList: React.FC<{
 	calls: readonly AgentFirewallLog[];
 	search?: { loaded: number; query: string };
 	sessionTotal: number;
@@ -144,13 +143,13 @@ const NetworkCallsList: FC<{
 	);
 };
 
-interface NetworkCallRowProps {
+type NetworkCallRowProps = {
 	call: AgentFirewallLog;
 	/** The active query, used to bold the matched substring in the URL. */
 	query: string;
-}
+};
 
-const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
+const NetworkCallRow: React.FC<NetworkCallRowProps> = ({ call, query }) => {
 	const timestamp = formatDateTime(new Date(call.created_at));
 
 	return (
@@ -173,7 +172,7 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 							title={call.detail}
 						>
 							{call.detail ? (
-								<HighlightText text={call.detail} query={query} />
+								<HighlightText text={call.detail} highlight={query} />
 							) : (
 								"N/A"
 							)}
@@ -225,7 +224,7 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call, query }) => {
 	);
 };
 
-const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
+const NetworkCallStatusBadge: React.FC<{ allowed: boolean }> = ({ allowed }) =>
 	allowed ? (
 		<Badge size="sm" svgSize="xs" className="shrink-0 gap-1">
 			<CheckIcon className="shrink-0" />
@@ -242,12 +241,12 @@ const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
 		</Badge>
 	);
 
-interface NetworkCallDetailRowProps {
+type NetworkCallDetailRowProps = {
 	label: string;
-	children: ReactNode;
-}
+	children: React.ReactNode;
+};
 
-const NetworkCallDetailRow: FC<NetworkCallDetailRowProps> = ({
+const NetworkCallDetailRow: React.FC<NetworkCallDetailRowProps> = ({
 	label,
 	children,
 }) => (

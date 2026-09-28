@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -35,7 +35,7 @@ func NewBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -82,12 +82,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		prompt = &promptText
 	}
 
-	// TODO(ssncferreira): inject actor headers directly in the client-header
-	//   middleware instead of using SDK options.
 	opts := []option.RequestOption{option.WithRequestTimeout(time.Second * 600)}
-	if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
-	}
 
 	svc, err := i.newMessagesService(ctx, opts...)
 	if err != nil {
@@ -105,7 +100,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -352,10 +347,10 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 // pool fails over across keys, while BYOK and Bedrock authenticate with a
 // single, fixed credential baked into svc, so they make one attempt.
 func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService, opts []option.RequestOption) (*anthropic.Message, int, error) {
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		return i.newMessageWithKeyFailover(ctx, svc, cp, opts)
 	}
-	msg, err := i.newMessageWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc, opts...)
+	msg, err := i.newMessageWithKey(credential.WithCredentialInfo(ctx, i.cred), svc, opts...)
 	return msg, 0, err
 }
 
@@ -372,7 +367,7 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream message,
 // the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*anthropic.Message, int, error) {
+func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService, cp *credential.CentralizedPool, opts []option.RequestOption) (*anthropic.Message, int, error) {
 	walker := cp.Pool.Walker()
 	for {
 		key, keyPoolErr := cp.NextKey(walker)
@@ -380,7 +375,7 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 			return nil, walker.Attempts(), keyPoolErr
 		}
 
-		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		ctx = credential.WithCredentialInfo(ctx, i.cred)
 		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

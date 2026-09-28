@@ -1,5 +1,3 @@
-import type { FC, PropsWithChildren, ReactNode } from "react";
-import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -27,8 +25,8 @@ type SwitchItem = {
 
 type BaseField = {
 	id: string;
-	label: ReactNode;
-	description?: ReactNode;
+	label: React.ReactNode;
+	description?: React.ReactNode;
 	required?: boolean;
 };
 
@@ -72,7 +70,7 @@ export type ConfigurationFieldDefinition =
 	| SwitchFieldDefinition
 	| SwitchGroupFieldDefinition;
 
-export const ConfigurationField: FC<{
+export const ConfigurationField: React.FC<{
 	field: ConfigurationFieldDefinition;
 }> = ({ field }) => {
 	switch (field.type) {
@@ -89,7 +87,7 @@ export const ConfigurationField: FC<{
 	}
 };
 
-const TextField: FC<TextFieldDefinition> = ({
+const TextField: React.FC<TextFieldDefinition> = ({
 	id,
 	field,
 	label,
@@ -104,10 +102,11 @@ const TextField: FC<TextFieldDefinition> = ({
 		description={description}
 		required={required}
 		placeholder={placeholder}
+		className="placeholder:text-content-disabled"
 	/>
 );
 
-const SelectField: FC<SelectFieldDefinition> = ({
+const SelectField: React.FC<SelectFieldDefinition> = ({
 	id,
 	label,
 	description,
@@ -123,15 +122,13 @@ const SelectField: FC<SelectFieldDefinition> = ({
 		<div className="col-end-1! flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -158,7 +155,7 @@ const SelectField: FC<SelectFieldDefinition> = ({
 	);
 };
 
-const RadioField: FC<RadioFieldDefinition> = ({
+const RadioField: React.FC<RadioFieldDefinition> = ({
 	id,
 	label,
 	description,
@@ -173,15 +170,13 @@ const RadioField: FC<RadioFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -221,9 +216,9 @@ const RadioField: FC<RadioFieldDefinition> = ({
 	);
 };
 
-const SwitchRow: FC<{
+const SwitchRow: React.FC<{
 	id: string;
-	label: ReactNode;
+	label: React.ReactNode;
 	checked?: boolean;
 	defaultChecked?: boolean;
 	onCheckedChange?: (checked: boolean) => void;
@@ -241,7 +236,7 @@ const SwitchRow: FC<{
 	</div>
 );
 
-const SwitchField: FC<SwitchFieldDefinition> = ({
+const SwitchField: React.FC<SwitchFieldDefinition> = ({
 	id,
 	label,
 	description,
@@ -285,7 +280,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 	);
 };
 
-const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
+const SwitchGroupField: React.FC<SwitchGroupFieldDefinition> = ({
 	id,
 	label,
 	description,
@@ -298,15 +293,13 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 		<div className="flex flex-col gap-2">
 			<Label id={labelId}>
 				{label}
-				{required ? (
+				{required && (
 					<>
 						{" "}
 						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
-				) : (
-					<OptionalIndicator />
 				)}
 			</Label>
 			{description && (
@@ -333,32 +326,12 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 	);
 };
 
-export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
+export const ConfigurationFieldContainer: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start *:col-start-1 *:col-span-full">
 			{children}
 		</div>
-	);
-};
-
-const OptionalIndicator: FC = () => {
-	return (
-		<>
-			{" "}
-			<span className="text-content-secondary">(optional)</span>
-		</>
-	);
-};
-
-export const ConfigurationFieldLabel: FC<{
-	variable: TemplateBuilderModuleVariable;
-}> = ({ variable }) => {
-	return (
-		<>
-			{variable.name}
-			{!variable.required && <OptionalIndicator />}
-		</>
 	);
 };

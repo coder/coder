@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -33,8 +33,9 @@ import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
-export interface AgentContextUsage {
+export type AgentContextUsage = {
 	readonly usedTokens?: number;
+	readonly estimated?: boolean;
 	readonly contextLimitTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
@@ -46,7 +47,7 @@ export interface AgentContextUsage {
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
-}
+};
 
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.
@@ -121,7 +122,7 @@ const sumResourceBytes = (
 
 // Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
 // section has no measurable size.
-const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
+const SectionSize: React.FC<{ bytes: number }> = ({ bytes }) =>
 	bytes > 0 ? (
 		<span className="ml-1 font-normal text-content-secondary">
 			{`(${formatKiB(bytes)})`}
@@ -178,7 +179,7 @@ const GLYPH_BAR_LENGTH = 8.1;
 const GLYPH_TOP = (RING_SIZE - GLYPH_HEIGHT) / 2;
 const GLYPH_CX = RING_SIZE / 2;
 
-const ExclamationGlyph: FC = () => (
+const ExclamationGlyph: React.FC = () => (
 	<svg
 		width={RING_SIZE}
 		height={RING_SIZE}
@@ -210,7 +211,7 @@ const HOVER_CLOSE_DELAY_MS = 150;
 
 // Dimmed directory header shown above a group of context resources when a
 // section spans more than one directory.
-const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
+const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 	<span
 		className="flex items-center gap-1 text-[11px] text-content-secondary"
 		title={dir}
@@ -220,7 +221,7 @@ const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
 	</span>
 );
 
-export const ContextUsageIndicator: FC<{
+export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage | null;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
@@ -383,19 +384,33 @@ export const ContextUsageIndicator: FC<{
 		hasResourceIssues ? "Some context resources failed to load." : "",
 	].filter((note) => note !== "");
 	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
-		: statusNote !== ""
-			? `Context usage.${statusNote}`
+	let ariaLabel = "Context usage";
+	if (hasPercent) {
+		const label = usage?.estimated
+			? "Estimated context usage"
 			: "Context usage";
+		ariaLabel = `${label} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`;
+	} else if (statusNote !== "") {
+		ariaLabel = `Context usage.${statusNote}`;
+	}
+
+	let usageLabel = "Context usage will appear after sending a message.";
+	if (hasPercent) {
+		const prefix = usage?.estimated ? "Estimated: " : "";
+		usageLabel = `${prefix}${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`;
+	} else if (hasReportedUsage) {
+		usageLabel = "Context usage unavailable";
+	}
 
 	const panelContent = (
 		<div className="text-xs text-content-primary">
-			{hasPercent
-				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
-				: hasReportedUsage
-					? "Context usage unavailable"
-					: "Context usage will appear after sending a message."}
+			{usageLabel}
+			{hasPercent && usage?.estimated && (
+				<div className="mt-1 max-w-64 text-content-secondary">
+					Based on the compacted summary only, excluding other prompt content
+					and tools. Replaced by measured usage after the next response.
+				</div>
+			)}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&
 				usage.compressionThreshold > 0 && (

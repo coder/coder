@@ -1,5 +1,4 @@
 import { XIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -36,7 +35,7 @@ type ProvisionersFilter = {
 	offline: boolean;
 };
 
-interface OrganizationProvisionersPageViewProps {
+type OrganizationProvisionersPageViewProps = {
 	showPaywall: boolean | undefined;
 	provisioners: readonly ProvisionerDaemon[] | undefined;
 	buildVersion: string | undefined;
@@ -45,9 +44,9 @@ interface OrganizationProvisionersPageViewProps {
 	permissions: Permissions;
 	onRetry: () => void;
 	onFilterChange: (filter: ProvisionersFilter) => void;
-}
+};
 
-export const OrganizationProvisionersPageView: FC<
+export const OrganizationProvisionersPageView: React.FC<
 	OrganizationProvisionersPageViewProps
 > = ({
 	showPaywall,

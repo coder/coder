@@ -30,7 +30,7 @@ to consider:
 - `curl`, `wget`, or `busybox` is required to download and run
   [the agent](../../../../provisionersdk/scripts/bootstrap_linux.sh)
 - `git` is recommended so developers can clone repositories
-- If the Coder server is using a certificate from an internal certificate
+- If the control plane is using a certificate from an internal certificate
   authority (CA), you'll need to add or mount these into your image
 - Other generic utilities that will be required by all users, such as `ssh`,
   `docker`, `bash`, `jq`, and/or internal tooling

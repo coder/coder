@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -50,7 +49,7 @@ const overrideSaveToast = (
 	};
 };
 
-const AgentSettingsUserAgentsPage: FC = () => {
+const AgentSettingsUserAgentsPage: React.FC = () => {
 	const { organizations } = useDashboard();
 	const organizationParam = useSearchParamsKey({
 		key: modelOrganizationSearchParam,

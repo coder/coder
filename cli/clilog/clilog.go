@@ -67,12 +67,6 @@ func WithStackdriver(loc string) Option {
 	}
 }
 
-func WithTrace() Option {
-	return func(b *Builder) {
-		b.Trace = true
-	}
-}
-
 func WithVerbose() Option {
 	return func(b *Builder) {
 		b.Verbose = true

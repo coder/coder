@@ -175,11 +175,6 @@ const (
 	APIKeyScopeTailnetCoordinatorDelete            APIKeyScope = "tailnet_coordinator:delete"
 	APIKeyScopeTailnetCoordinatorRead              APIKeyScope = "tailnet_coordinator:read"
 	APIKeyScopeTailnetCoordinatorUpdate            APIKeyScope = "tailnet_coordinator:update"
-	APIKeyScopeTaskAll                             APIKeyScope = "task:*"
-	APIKeyScopeTaskCreate                          APIKeyScope = "task:create"
-	APIKeyScopeTaskDelete                          APIKeyScope = "task:delete"
-	APIKeyScopeTaskRead                            APIKeyScope = "task:read"
-	APIKeyScopeTaskUpdate                          APIKeyScope = "task:update"
 	APIKeyScopeTemplateAll                         APIKeyScope = "template:*"
 	APIKeyScopeTemplateCreate                      APIKeyScope = "template:create"
 	APIKeyScopeTemplateDelete                      APIKeyScope = "template:delete"
@@ -281,11 +276,6 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeOrganizationDelete,
 	APIKeyScopeOrganizationRead,
 	APIKeyScopeOrganizationUpdate,
-	APIKeyScopeTaskAll,
-	APIKeyScopeTaskCreate,
-	APIKeyScopeTaskDelete,
-	APIKeyScopeTaskRead,
-	APIKeyScopeTaskUpdate,
 	APIKeyScopeTemplateAll,
 	APIKeyScopeTemplateCreate,
 	APIKeyScopeTemplateDelete,

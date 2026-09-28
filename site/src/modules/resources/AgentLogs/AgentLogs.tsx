@@ -1,14 +1,5 @@
 import { cn } from "cn";
-import {
-	type CSSProperties,
-	type FC,
-	type JSX,
-	type ReactNode,
-	type Ref,
-	useCallback,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { VariableSizeList as List } from "react-window";
 import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -33,17 +24,17 @@ const fallbackLog: WorkspaceAgentLogSource = {
 };
 
 type AgentLogsProps = Omit<
-	React.ComponentPropsWithoutRef<typeof List>,
+	React.ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
 > & {
 	logs: readonly Line[];
 	sources: readonly WorkspaceAgentLogSource[];
 	overflowed: boolean;
 	showSourceIcons?: boolean;
-	ref?: Ref<List>;
+	ref?: React.Ref<List>;
 };
 
-export const AgentLogs: FC<AgentLogsProps> = ({
+export const AgentLogs: React.FC<AgentLogsProps> = ({
 	logs,
 	sources,
 	overflowed,
@@ -138,7 +129,7 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 					const logSource = getLogSource(log.sourceId);
 
 					let assignedIcon = false;
-					let icon: JSX.Element;
+					let icon: React.JSX.Element;
 					// If no icon is specified, we show a deterministic
 					// colored circle to identify unique scripts.
 					if (logSource.icon) {
@@ -257,19 +248,19 @@ export const AgentLogs: FC<AgentLogsProps> = ({
 	);
 };
 
-interface MeasuredLogRowProps {
+type MeasuredLogRowProps = {
 	index: number;
 	// react-window's positioning style for the row (absolute top/left/width).
-	style: CSSProperties;
+	style: React.CSSProperties;
 	onMeasure: (index: number, height: number) => void;
-	children: ReactNode;
-}
+	children: React.ReactNode;
+};
 
 // Wraps a log line and reports its rendered height back to the virtualized
 // list. The height is left to the content (`height: auto`) so wrapped or
 // multi-line output is measured accurately instead of being assumed to be a
 // single fixed-height row.
-const MeasuredLogRow: FC<MeasuredLogRowProps> = ({
+const MeasuredLogRow: React.FC<MeasuredLogRowProps> = ({
 	index,
 	style,
 	onMeasure,

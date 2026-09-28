@@ -245,10 +245,6 @@ func (*echo) Graph(sess *provisionersdk.Session, req *proto.GraphRequest, cancel
 			sess.ProvisionLog(log.Level, log.Output)
 		}
 		if complete := response.GetGraph(); complete != nil {
-			if len(complete.AiTasks) > 0 {
-				// These two fields are linked; if there are AI tasks, indicate that.
-				complete.HasAiTasks = true
-			}
 			return complete
 		}
 	}
@@ -426,10 +422,8 @@ func TarWithOptions(ctx context.Context, logger slog.Logger, responses *Response
 				responses.ProvisionPlan = []*proto.Response{{
 					Type: &proto.Response_Plan{
 						Plan: &proto.PlanComplete{
-							Plan: []byte("{}"),
-							//nolint:gosec // the number of resources will not exceed int32
-							AiTaskCount: int32(len(g.GetAiTasks())),
-							DailyCost:   dailycost,
+							Plan:      []byte("{}"),
+							DailyCost: dailycost,
 						},
 					},
 				}}
@@ -713,20 +707,6 @@ data "coder_parameter" "{{ .Name }}" {
 	var buf bytes.Buffer
 	err := tmpl.Execute(&buf, param)
 	return buf.String(), err
-}
-
-func WithResources(resources []*proto.Resource) *Responses {
-	return &Responses{
-		Parse:          ParseComplete,
-		ProvisionInit:  InitComplete,
-		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{}}}},
-		ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{
-			Resources: resources,
-		}}}},
-		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-			Plan: []byte("{}"),
-		}}}},
-	}
 }
 
 func WithExtraFiles(extraFiles map[string][]byte) *Responses {

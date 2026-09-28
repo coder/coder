@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -20,12 +19,15 @@ const insightsIntervals = {
 
 export type InsightsInterval = keyof typeof insightsIntervals;
 
-interface IntervalMenuProps {
+type IntervalMenuProps = {
 	value: InsightsInterval;
 	onChange: (value: InsightsInterval) => void;
-}
+};
 
-export const IntervalMenu: FC<IntervalMenuProps> = ({ value, onChange }) => {
+export const IntervalMenu: React.FC<IntervalMenuProps> = ({
+	value,
+	onChange,
+}) => {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>

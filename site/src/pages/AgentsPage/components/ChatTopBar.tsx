@@ -9,9 +9,10 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, Fragment, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { chat as chatById } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -23,35 +24,39 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parsePullRequestUrl } from "../utils/pullRequest";
 import {
 	ChatActionsMenuItems,
+	canManageChat,
 	chatFamilyAllowsArchive,
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
-interface SidebarPanelState {
+type SidebarPanelState = {
 	showSidebarPanel: boolean;
 	onToggleSidebar: () => void;
-}
+};
 
 type ChatSharingTopBarButtonProps = {
-	renderChatSharingContent: (open: boolean) => ReactNode;
+	chatId: string;
+	organizationId: string;
 };
 
 type ChatTopBarProps = {
 	chat?: TypesGen.Chat;
 	liveChatStatus?: TypesGen.ChatStatus | null;
 	panel: SidebarPanelState;
-	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
-const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
-	renderChatSharingContent,
+const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
+	chatId,
+	organizationId,
 }) => {
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
 	const [contentGeneration, setContentGeneration] = useState(0);
@@ -76,20 +81,23 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 					<Share2Icon className="size-4" />
 				</Button>
 			</PopoverTrigger>
-			<Fragment key={contentGeneration}>
-				{renderChatSharingContent(isChatSharingOpen)}
-			</Fragment>
+			<ChatSharingPopoverContent
+				key={contentGeneration}
+				chatId={chatId}
+				organizationId={organizationId}
+				open={isChatSharingOpen}
+			/>
 		</Popover>
 	);
 };
 
-export const ChatTopBar: FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,
-	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
 	const parentChatID = getParentChatID(chat);
 	const parentChatQuery = useQuery({
@@ -97,6 +105,24 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 		enabled: Boolean(parentChatID),
 	});
 	const parentChat = parentChatQuery.data;
+	const isRootChat = chat !== undefined && parentChatID === undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (chat !== undefined && isRootChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -114,6 +140,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	const chatTitle = chat?.title;
 	const isArchived = chat?.archived ?? false;
 	const isSharedChat = chat?.shared;
+	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = Boolean(
 		isArchiving &&
@@ -128,6 +155,14 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)
 		: false;
 	const showPinAction = Boolean(requestPinAgent && requestUnpinAgent);
+	// Suppressed when there is no chat to act on (loading and not-found views)
+	// and when the chat has no menu actions (archived child chats and chats
+	// shared by another user).
+	const showActionsMenu =
+		!isEmbedded &&
+		chat !== undefined &&
+		Boolean(chatTitle) &&
+		chatHasMenuActions(chat, { canManage });
 	const diffStatus = chat?.diff_status;
 
 	const prUrl = diffStatus?.url;
@@ -207,10 +242,8 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						)}
 					</div>
 				)}
-				{/* Actions menu sits inline with the title so it tracks the title's right edge.
-				   Suppressed when there is no chat to act on (loading and not-found views)
-				   and when the chat has no menu actions (archived child chats). */}
-				{!isEmbedded && chat && chatTitle && chatHasMenuActions(chat) && (
+				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
+				{chat && showActionsMenu && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -228,6 +261,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						>
 							<ChatActionsMenuItems
 								chat={chat}
+								canManage={canManage}
 								hasWorkspace={hasWorkspace}
 								isArchiving={isArchivingThisChat}
 								isArchiveBlocked={isArchiveBlocked}
@@ -304,9 +338,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && renderChatSharingContent && (
+				{!isEmbedded && canShareChat && chat && (
 					<ChatSharingTopBarButton
-						renderChatSharingContent={renderChatSharingContent}
+						chatId={chat.id}
+						organizationId={chat.organization_id}
 					/>
 				)}
 				{!isEmbedded && (

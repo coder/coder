@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -16,13 +15,13 @@ import {
 } from "#/components/Popover/Popover";
 import { docs } from "#/utils/docs";
 
-interface AgentSSHButtonProps {
+type AgentSSHButtonProps = {
 	workspaceName: string;
 	agentName: string;
 	workspaceOwnerUsername: string;
-}
+};
 
-export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
+export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 	workspaceName,
 	agentName,
 	workspaceOwnerUsername,
@@ -82,12 +81,12 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 	);
 };
 
-interface SSHStepProps {
+type SSHStepProps = {
 	helpText: string;
 	codeExample: string;
-}
+};
 
-const SSHStep: FC<SSHStepProps> = ({ helpText, codeExample }) => (
+const SSHStep: React.FC<SSHStepProps> = ({ helpText, codeExample }) => (
 	<li style={{ listStylePosition: "inside" }}>
 		<HelpPopoverText style={{ display: "inline" }}>
 			<strong className="text-xs">{helpText}</strong>

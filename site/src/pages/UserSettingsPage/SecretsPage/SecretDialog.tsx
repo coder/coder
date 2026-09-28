@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import {
 	type FieldError,
 	getErrorMessage,
@@ -44,6 +44,7 @@ import {
 type SecretDialogProps = {
 	open: boolean;
 	secret?: UserSecret;
+	filePathEnabled: boolean;
 	isSubmitting: boolean;
 	returnFocusElement?: HTMLElement | null;
 	onClose: () => void;
@@ -68,9 +69,10 @@ const emptyValues: SecretFormValues = {
 const infoText = "Secret values cannot be retrieved once saved.";
 export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••••••••••";
 
-export const SecretDialog: FC<SecretDialogProps> = ({
+export const SecretDialog: React.FC<SecretDialogProps> = ({
 	open,
 	secret,
+	filePathEnabled,
 	isSubmitting,
 	returnFocusElement,
 	onClose,
@@ -98,13 +100,14 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		enableReinitialize: true,
 		validateOnMount: true,
 		validate: (values) =>
-			isEdit ? {} : getCreateSecretRequiredFieldErrors(values),
+			isEdit ? {} : getCreateSecretRequiredFieldErrors(values, filePathEnabled),
 		onSubmit: async (values, helpers) => {
 			helpers.setStatus(undefined);
 			try {
 				if (secret) {
 					const request = buildUpdateUserSecretRequest(secret, values, {
 						clearValue: clearValueRequested,
+						filePathEnabled,
 					});
 					await onUpdateSecret(secret.name, request);
 				} else {
@@ -179,6 +182,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	const request = secret
 		? buildUpdateUserSecretRequest(secret, form.values, {
 				clearValue: clearValueRequested,
+				filePathEnabled,
 			})
 		: undefined;
 	const hasUpdate = request ? Object.keys(request).length > 0 : false;
@@ -230,9 +234,27 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 						<>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
+								filePathEnabled={filePathEnabled}
 								disableName
 								showValue={false}
 							/>
+							{!filePathEnabled && secret.file_path !== "" && (
+								<BlockedFilePathField
+									storedFilePath={secret.file_path}
+									isRemoved={form.values.file_path === ""}
+									disablesSecret={secret.enabled && form.values.env_name === ""}
+									onRemove={() => {
+										void form.setFieldValue("file_path", "", false);
+									}}
+									onRestore={() => {
+										void form.setFieldValue(
+											"file_path",
+											secret.file_path,
+											false,
+										);
+									}}
+								/>
+							)}
 							<SecretValueField
 								key={`${secret.name}-${open}`}
 								field={getFieldHelpers("value", {
@@ -282,6 +304,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 							</div>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
+								filePathEnabled={filePathEnabled}
 								showRequiredLabels
 								showValue
 							/>
@@ -306,17 +329,24 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 
 type SecretFieldsProps = {
 	getFieldHelpers: ReturnType<typeof getFormHelpers<SecretFormValues>>;
+	filePathEnabled: boolean;
 	disableName?: boolean;
 	showRequiredLabels?: boolean;
 	showValue: boolean;
 };
 
-const SecretFields: FC<SecretFieldsProps> = ({
+const SecretFields: React.FC<SecretFieldsProps> = ({
 	getFieldHelpers,
+	filePathEnabled,
 	disableName,
 	showRequiredLabels,
 	showValue,
 }) => {
+	const envNameRequired = Boolean(showRequiredLabels && !filePathEnabled);
+	const envNameHelperText = envNameRequired
+		? "Required while file path delivery is disabled."
+		: "Optional. Exposes the secret as an environment variable with this name in your workspace.";
+
 	return (
 		<>
 			<FormField
@@ -340,24 +370,32 @@ const SecretFields: FC<SecretFieldsProps> = ({
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
-					helperText:
-						"Optional. Exposes the secret as an environment variable with this name in your workspace.",
+					helperText: envNameHelperText,
 				})}
-				label="Environment variable"
+				label={
+					envNameRequired ? (
+						<RequiredFieldLabel>Environment variable</RequiredFieldLabel>
+					) : (
+						"Environment variable"
+					)
+				}
 				placeholder="SERVICE_TOKEN"
 				className="placeholder:text-content-disabled"
+				aria-required={envNameRequired}
 				ignorePasswordManagers
 			/>
-			<FormField
-				field={getFieldHelpers("file_path", {
-					helperText:
-						"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
-				})}
-				label="File path"
-				placeholder="~/api-key.txt"
-				className="placeholder:text-content-disabled"
-				ignorePasswordManagers
-			/>
+			{filePathEnabled && (
+				<FormField
+					field={getFieldHelpers("file_path", {
+						helperText:
+							"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
+					})}
+					label="File path"
+					placeholder="~/api-key.txt"
+					className="placeholder:text-content-disabled"
+					ignorePasswordManagers
+				/>
+			)}
 			{showValue && (
 				<SecretValueField
 					field={getFieldHelpers("value")}
@@ -369,11 +407,63 @@ const SecretFields: FC<SecretFieldsProps> = ({
 	);
 };
 
-type RequiredFieldLabelProps = {
-	children: ReactNode;
+type BlockedFilePathFieldProps = {
+	storedFilePath: string;
+	isRemoved: boolean;
+	disablesSecret: boolean;
+	onRemove: () => void;
+	onRestore: () => void;
 };
 
-const RequiredFieldLabel: FC<RequiredFieldLabelProps> = ({ children }) => {
+const BlockedFilePathField: React.FC<BlockedFilePathFieldProps> = ({
+	storedFilePath,
+	isRemoved,
+	disablesSecret,
+	onRemove,
+	onRestore,
+}) => {
+	return (
+		<div className="flex flex-col gap-2">
+			<span className="text-sm font-medium text-content-primary">
+				File path
+			</span>
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+				<span
+					className={cn(
+						"flex-1 font-mono text-sm text-content-secondary",
+						isRemoved && "line-through",
+					)}
+				>
+					{storedFilePath}
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="shrink-0"
+					onClick={isRemoved ? onRestore : onRemove}
+				>
+					{isRemoved ? "Keep file path" : "Remove file path"}
+				</Button>
+			</div>
+			<span className="text-xs text-content-secondary">
+				{isRemoved
+					? disablesSecret
+						? "The path will be removed, which also disables this secret."
+						: "The path will be removed."
+					: "Saved, not written to workspaces."}
+			</span>
+		</div>
+	);
+};
+
+type RequiredFieldLabelProps = {
+	children: React.ReactNode;
+};
+
+const RequiredFieldLabel: React.FC<RequiredFieldLabelProps> = ({
+	children,
+}) => {
 	return (
 		<span className="after:ml-1 after:text-content-destructive after:content-['*']">
 			{children}
@@ -391,7 +481,7 @@ type SecretValueFieldProps = {
 	onUndoClearValue?: () => void;
 };
 
-const SecretValueField: FC<SecretValueFieldProps> = ({
+const SecretValueField: React.FC<SecretValueFieldProps> = ({
 	field,
 	placeholder,
 	required,
@@ -507,7 +597,9 @@ type SecretDescriptionFieldProps = {
 	field: ReturnType<ReturnType<typeof getFormHelpers<SecretFormValues>>>;
 };
 
-const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
+const SecretDescriptionField: React.FC<SecretDescriptionFieldProps> = ({
+	field,
+}) => {
 	const errorId = `${field.id}-error`;
 
 	return (
@@ -548,7 +640,7 @@ type ImportSecretsErrorProps = {
 	error: unknown;
 };
 
-const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
+const ImportSecretsError: React.FC<ImportSecretsErrorProps> = ({ error }) => {
 	const validations = getImportSecretValidations(error);
 	if (validations.length === 0) {
 		return <ErrorAlert error={error} showDebugDetail={false} />;

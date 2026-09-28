@@ -1,4 +1,4 @@
-import { type FC, Fragment, useEffect } from "react";
+import { Fragment, useEffect } from "react";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -36,7 +36,7 @@ import {
 import type { Permissions } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
 
-const NotificationsPage: FC = () => {
+const NotificationsPage: React.FC = () => {
 	const { user, permissions } = useAuthenticated();
 	const [
 		disabledPreferences,

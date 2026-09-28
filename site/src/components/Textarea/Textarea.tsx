@@ -4,7 +4,7 @@
  */
 import { cn } from "cn";
 
-export const Textarea: React.FC<React.ComponentPropsWithRef<"textarea">> = ({
+export const Textarea: React.FC<React.ComponentProps<"textarea">> = ({
 	className,
 	...props
 }) => {

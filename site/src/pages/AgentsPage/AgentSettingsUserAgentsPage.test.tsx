@@ -14,6 +14,7 @@ import { ThemeOverride } from "#/contexts/ThemeProvider";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
@@ -22,7 +23,6 @@ import {
 } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
 import AgentSettingsUserAgentsPage from "./AgentSettingsUserAgentsPage";
-import { buildOverridesResponse } from "./AgentSettingsUserAgentsPageView.stories";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
@@ -30,7 +30,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	}),
 }));
 
-const overrides = buildOverridesResponse();
+const overrides = MockUnsetUserChatPersonalModelOverrides;
 
 const renderPage = (search = "") => {
 	const queryClient = new QueryClient({
@@ -88,7 +88,7 @@ describe("AgentSettingsUserAgentsPage", () => {
 		"prevents overlapping row saves until the pending save settles with %s",
 		async (outcome) => {
 			const user = userEvent.setup();
-			const pendingSave = createDeferred<void>();
+			const pendingSave = createDeferred<undefined>();
 			const save = vi
 				.spyOn(API.experimental, "updateUserChatPersonalModelOverride")
 				.mockImplementationOnce(() => pendingSave.promise)
@@ -128,7 +128,7 @@ describe("AgentSettingsUserAgentsPage", () => {
 
 			await act(async () => {
 				if (outcome === "success") {
-					pendingSave.resolve();
+					pendingSave.resolve(undefined);
 				} else {
 					pendingSave.reject(new Error("Save failed"));
 				}
@@ -152,9 +152,58 @@ describe("AgentSettingsUserAgentsPage", () => {
 		},
 	);
 
+	it("retains a confirmed save when refreshing overrides fails", async () => {
+		const user = userEvent.setup();
+		const save = vi
+			.spyOn(API.experimental, "updateUserChatPersonalModelOverride")
+			.mockResolvedValue(undefined);
+		vi.mocked(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).mockRejectedValue(new Error("Refresh failed"));
+		const { queryClient } = renderPage();
+		const root = within(
+			screen.getByRole("region", { name: "Root agent model" }),
+		);
+		await user.click(root.getByRole("combobox"));
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(MockChatModel.display_name),
+			}),
+		);
+		await user.click(root.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(toast.success).toHaveBeenCalled());
+		expect(
+			queryClient.getQueryData(
+				userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
+			),
+		).toEqual({
+			...overrides,
+			root: {
+				...overrides.root,
+				mode: "model",
+				model_config_id: MockChatModel.id,
+				is_set: true,
+			},
+		});
+		await user.click(root.getByRole("button", { name: "Save" }));
+		expect(save).toHaveBeenCalledOnce();
+		await user.click(root.getByRole("combobox"));
+		await user.click(
+			await screen.findByRole("option", { name: /^Chat default:/ }),
+		);
+		await user.click(root.getByRole("button", { name: "Save" }));
+		await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+		expect(save).toHaveBeenLastCalledWith(
+			MockDefaultOrganization.id,
+			"me",
+			"root",
+			{ mode: "chat_default", model_config_id: "" },
+		);
+	});
+
 	it("keeps saves blocked across organization switches and preserves other URL parameters", async () => {
 		const user = userEvent.setup();
-		const pendingSave = createDeferred<void>();
+		const pendingSave = createDeferred<undefined>();
 		const save = vi
 			.spyOn(API.experimental, "updateUserChatPersonalModelOverride")
 			.mockImplementationOnce(() => pendingSave.promise)
@@ -203,7 +252,7 @@ describe("AgentSettingsUserAgentsPage", () => {
 			).getByRole("button", { name: "Save" }),
 		);
 		expect(save).toHaveBeenCalledTimes(1);
-		await act(async () => pendingSave.resolve());
+		await act(async () => pendingSave.resolve(undefined));
 		await waitFor(() => expect(toast.success).toHaveBeenCalled());
 		expect(
 			queryClient.getQueryState(
