@@ -171,6 +171,12 @@
 							"icon_path": "./images/icons/openshift.svg"
 						},
 						{
+							"title": "RPM (RHEL family)",
+							"description": "Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.",
+							"path": "./install/server/rpm.md",
+							"icon_path": "./images/icons/system.svg"
+						},
+						{
 							"title": "Cloud Providers",
 							"description": "Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.",
 							"path": "./install/server/cloud/index.md",

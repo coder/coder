@@ -937,6 +937,7 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				StreamSilenceTimeout:           streamSilenceTimeout,
+				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
@@ -1039,6 +1040,13 @@ func New(options *Options) *API {
 	}
 
 	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.chatWorkspaceUploadsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat",
+		Name:      "workspace_upload_total",
+		Help:      "Total chat workspace file uploads by HTTP response status.",
+	}, []string{"status"})
+	options.PrometheusRegistry.MustRegister(api.chatWorkspaceUploadsTotal)
 	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
 
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
@@ -1852,6 +1860,7 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
+			r.Post("/debug-events", api.postWorkspaceBuildDebugEvent)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
@@ -2246,6 +2255,8 @@ type API struct {
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	wsWatcher                *httpapi.WSWatcher
+
+	chatWorkspaceUploadsTotal *prometheus.CounterVec
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

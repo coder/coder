@@ -28,6 +28,7 @@ The following database fields are currently encrypted:
 - `crypto_keys.secret`
 - `user_secrets.value`
 - `gitsshkeys.private_key`
+- `chat_mcp_servers.headers`
 
 Additional database fields may be encrypted in the future.
 

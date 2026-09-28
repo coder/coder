@@ -186,6 +186,7 @@ type Server struct {
 	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
+	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
@@ -1104,10 +1105,14 @@ type CreateOptions struct {
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
 	SystemPrompt            string
-	InitialUserContent      []codersdk.ChatMessagePart
-	MCPServerIDs            []uuid.UUID
-	Labels                  database.StringMap
-	DynamicTools            json.RawMessage
+	// InitialUserContent is the first user message. When empty, the
+	// chat is created idle (`waiting`) with system messages only and
+	// no worker processes it until the first SendMessage.
+	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
+	InlineMCPServers   []codersdk.InlineMCPServerRequest
+	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1133,6 +1138,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// InlineMCPServers replaces the inline MCP servers. nil: no change.
+	InlineMCPServers *[]codersdk.InlineMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1145,6 +1152,11 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// FirstUserTurn reports that the send inserted the first
+	// user-visible message into a chat still carrying
+	// chatprompt.DefaultChatTitle. The send already persisted the
+	// fallback title, so callers only schedule the async title upgrade.
+	FirstUserTurn bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1262,8 +1274,10 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 }
 
 // CreateChat creates a chat with its initial history through
-// chatstate.CreateChat. The new chat starts in `running` status per
-// the chat execution state model. Ownership hints wake chat workers.
+// chatstate.CreateChat. With initial user content the new chat starts
+// in `running` status and ownership hints wake chat workers. Without
+// initial user content the chat is created idle in `waiting` status
+// with system messages only; the first SendMessage starts generation.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -1274,8 +1288,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
-	if len(opts.InitialUserContent) == 0 {
-		return database.Chat{}, xerrors.New("initial user content is required")
+	initialStatus := database.ChatStatusWaiting
+	if len(opts.InitialUserContent) > 0 {
+		initialStatus = database.ChatStatusRunning
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
@@ -1316,7 +1331,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	if p.hooks.Enabled() {
+	// The prompt-submit hook fires with the first SendMessage when the
+	// chat is created without an initial user message.
+	if p.hooks.Enabled() && len(contentParts) > 0 {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
@@ -1357,11 +1374,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
-	}
-
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {
 		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1382,7 +1394,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	if len(contentParts) > 0 {
+		userContent, marshalErr := chatprompt.MarshalParts(contentParts)
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	}
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1397,6 +1415,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
+		InlineMCPServers:  opts.InlineMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1408,6 +1427,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
+		InitialStatus:   initialStatus,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1537,9 +1557,27 @@ func (p *Server) SendMessage(
 			return err
 		}
 
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
+		}
+
 		messageCreatedBy := opts.CreatedBy
 		if messageCreatedBy == uuid.Nil {
 			messageCreatedBy = lockedChat.OwnerID
+		}
+
+		firstUserTurn := false
+		if lockedChat.Title == chatprompt.DefaultChatTitle {
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+				ChatID:   opts.ChatID,
+				LimitVal: 1,
+			})
+			if err != nil {
+				return xerrors.Errorf("probe visible chat messages: %w", err)
+			}
+			firstUserTurn = len(visible) == 0
 		}
 
 		// Queue capacity is enforced inside tx.SendMessage; this
@@ -1571,6 +1609,24 @@ func (p *Server) SendMessage(
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
 			return err
 		}
+		if firstUserTurn && !result.Queued {
+			result.FirstUserTurn = true
+			// Persist the fallback title with the message so a failed
+			// async title call cannot leave the placeholder forever.
+			firstMessage := []database.ChatMessage{result.Message}
+			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			if err != nil {
+				return err
+			}
+			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
+				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					ID:    opts.ChatID,
+					Title: chatprompt.FallbackTitle(titleText),
+				}); err != nil {
+					return xerrors.Errorf("update fallback chat title: %w", err)
+				}
+			}
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1589,6 +1645,9 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	}
 	return result, nil
 }
 
@@ -2853,6 +2912,7 @@ type Config struct {
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
 	AlwaysEnableDebugLogs          bool
+	DisableCallerSuppliedTools     bool
 	WebpushDispatcher              webpush.Dispatcher
 	HookDispatcher                 *dispatch.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
@@ -2955,6 +3015,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
+		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
@@ -3312,6 +3373,36 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+// filterMCPServersForTurn returns the external MCP servers visible on the
+// current turn and the set of their IDs. Outside plan mode every server is
+// visible and the set is nil. Plan-mode subagents see none: their trust
+// boundary is narrower than the root chat's. Root plan-mode chats see the
+// servers whose policy allows plan mode.
+func filterMCPServersForTurn[T any](
+	servers []T,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	policy func(T) (id uuid.UUID, allowInPlanMode bool),
+) ([]T, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return servers, nil
+	}
+	approved := map[uuid.UUID]struct{}{}
+	if parentChatID.Valid {
+		return nil, approved
+	}
+	filtered := make([]T, 0, len(servers))
+	for _, srv := range servers {
+		id, allowInPlanMode := policy(srv)
+		if !allowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, srv)
+		approved[id] = struct{}{}
+	}
+	return filtered, approved
+}
+
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -3320,25 +3411,9 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return configs, nil
-	}
-	if parentChatID.Valid {
-		// Plan-mode subagents do not receive external MCP tools because
-		// their trust boundary is narrower than the root chat's.
-		return nil, map[uuid.UUID]struct{}{}
-	}
-
-	filtered := make([]database.MCPServerConfig, 0, len(configs))
-	approvedIDs := make(map[uuid.UUID]struct{})
-	for _, cfg := range configs {
-		if !cfg.AllowInPlanMode {
-			continue
-		}
-		filtered = append(filtered, cfg)
-		approvedIDs[cfg.ID] = struct{}{}
-	}
-	return filtered, approvedIDs
+	return filterMCPServersForTurn(configs, mode, parentChatID, func(cfg database.MCPServerConfig) (uuid.UUID, bool) {
+		return cfg.ID, cfg.AllowInPlanMode
+	})
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
@@ -3448,11 +3523,12 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. They were snapshot-filtered
-		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
-		// implement MCPToolIdentifier, so workspace tools are excluded
-		// here too, in addition to the structural exclusion in runChat
-		// tool assembly.
+		// External MCP tools pass through here. Org tools were
+		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+		// tools come only from root chat servers with allow_in_subagents.
+		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+		// workspace tools are excluded here too, in addition to the
+		// structural exclusion in runChat tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}

@@ -61,7 +61,7 @@ func TestAdvisorToolSuccess(t *testing.T) {
 	require.Equal(t, 1, result.RemainingUses)
 }
 
-func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
+func TestAdvisorToolPublishesLiveDeltasWithToolCallID(t *testing.T) {
 	t.Parallel()
 
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
@@ -70,6 +70,10 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 			ModelName:    "test-model",
 			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "checking "},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "tradeoffs"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Prefer "},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the small diff."},
@@ -95,22 +99,37 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 			published = append(published, part)
 		})
 	require.False(t, resp.IsError)
-	require.Len(t, published, 2)
+	require.Len(t, published, 4)
 	for _, part := range published {
 		require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
 		require.Equal(t, "call-1", part.ToolCallID)
 		require.Equal(t, chatadvisor.ToolName, part.ToolName)
 	}
-	require.Equal(t, "Prefer ", published[0].ResultDelta)
-	require.Equal(t, "the small diff.", published[1].ResultDelta)
+	require.Equal(t, "checking ", published[0].ReasoningDelta)
+	require.Equal(t, "tradeoffs", published[1].ReasoningDelta)
+	require.Empty(t, published[0].ResultDelta)
+	require.Empty(t, published[1].ResultDelta)
+	require.Equal(t, "Prefer ", published[2].ResultDelta)
+	require.Equal(t, "the small diff.", published[3].ResultDelta)
+	require.Empty(t, published[2].ReasoningDelta)
+	require.Empty(t, published[3].ReasoningDelta)
 
 	var result chatadvisor.AdvisorResult
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	require.Equal(t, "Prefer the small diff.", result.Advice)
+
+	ctx := chatloop.WithMessagePartPublisher(t.Context(), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {
+		t.Error("advisor must not publish live output without a tool call ID")
+	})
+	resp, err = tool.Run(ctx, fantasy.ToolCall{Name: chatadvisor.ToolName, Input: `{"question":"What's safest?"}`})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	require.Equal(t, "Prefer the small diff.", result.Advice)
 }
 
-func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
+func TestAdvisorToolPublishesLiveOutputResetWithToolCallID(t *testing.T) {
 	t.Parallel()
 
 	type publishedEvent struct {
@@ -128,12 +147,18 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 				calls++
 				if calls == 1 {
 					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeReasoningStart, ID: "r-1"},
+						{Type: fantasy.StreamPartTypeReasoningDelta, ID: "r-1", Delta: "stale reasoning"},
+						{Type: fantasy.StreamPartTypeReasoningEnd, ID: "r-1"},
 						{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 						{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "stale "},
 						{Type: fantasy.StreamPartTypeError, Error: xerrors.New("received status 429 from upstream")},
 					}), nil
 				}
 				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "r-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "r-1", Delta: "fresh reasoning"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "r-1"},
 					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "fresh advice"},
 					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
@@ -158,19 +183,26 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
 			require.Equal(t, chatadvisor.ToolName, part.ToolName)
 			kind := "delta"
+			delta := part.ResultDelta
+			if part.ReasoningDelta != "" {
+				kind = "reasoning"
+				delta = part.ReasoningDelta
+			}
 			if part.ResultReset {
 				kind = "reset"
 			}
 			published = append(published, publishedEvent{
 				kind:       kind,
 				toolCallID: part.ToolCallID,
-				delta:      part.ResultDelta,
+				delta:      delta,
 			})
 		})
 	require.False(t, resp.IsError)
 	require.Equal(t, []publishedEvent{
+		{kind: "reasoning", toolCallID: "call-1", delta: "stale reasoning"},
 		{kind: "delta", toolCallID: "call-1", delta: "stale "},
 		{kind: "reset", toolCallID: "call-1"},
+		{kind: "reasoning", toolCallID: "call-1", delta: "fresh reasoning"},
 		{kind: "delta", toolCallID: "call-1", delta: "fresh advice"},
 	}, published)
 

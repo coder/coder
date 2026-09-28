@@ -22,6 +22,8 @@ curl -fsSL https://coder.com/install.sh | sh
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
 
+To run the Coder control plane on a Red Hat Enterprise Linux host or another RHEL-family distribution, refer to [Install Coder on RHEL-family Linux](./server/rpm.md).
+
 ## Windows
 
 If you plan to use the built-in PostgreSQL database, ensure that the

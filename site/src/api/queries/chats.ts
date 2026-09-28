@@ -1724,6 +1724,27 @@ export const createChatMessage = (
 	},
 });
 
+// Variant of createChatMessage for callers that only learn the chat ID
+// at mutate time, such as the new-chat page sending the first message
+// right after creating the chat.
+export const createChatMessageByChatId = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		chatId,
+		req,
+	}: {
+		chatId: string;
+		req: TypesGen.CreateChatMessageRequest;
+	}) => API.experimental.createChatMessage(chatId, req),
+	onSuccess: (
+		_: TypesGen.CreateChatMessageResponse,
+		{ chatId }: { chatId: string; req: TypesGen.CreateChatMessageRequest },
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+		void invalidateChatEntity(queryClient, chatId);
+		void invalidateChatPrompts(queryClient, chatId);
+	},
+});
+
 type EditChatMessageMutationArgs = {
 	messageId: number;
 	optimisticMessage?: TypesGen.ChatMessage;
@@ -2327,9 +2348,30 @@ export const updateChatModel = (queryClient: QueryClient) => ({
 	mutationFn: ({ organizationId, modelId, req }: UpdateChatModelMutationArgs) =>
 		API.experimental.updateChatModel(organizationId, modelId, req),
 	onSuccess: async (
-		_model: TypesGen.ChatModel,
+		model: TypesGen.ChatModel,
 		variables: UpdateChatModelMutationArgs,
 	) => {
+		// Seed the catalog with the confirmed result so the saved state does not
+		// depend on the refetch that follows succeeding.
+		queryClient.setQueryData<TypesGen.OrganizationChatModelsResponse>(
+			organizationChatModelsKey(variables.organizationId),
+			(current) => {
+				if (!current) {
+					return current;
+				}
+				return {
+					...current,
+					models: current.models.map((existing) => {
+						if (existing.id === model.id) {
+							return model;
+						}
+						return model.is_default && existing.is_default
+							? { ...existing, is_default: false }
+							: existing;
+					}),
+				};
+			},
+		);
 		await invalidateChatConfigurationQueries(
 			queryClient,
 			variables.organizationId,

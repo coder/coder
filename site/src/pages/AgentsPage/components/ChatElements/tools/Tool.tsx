@@ -70,6 +70,8 @@ type ToolProps = Omit<ComponentProps<"div">, "children"> & {
 	status?: ToolStatus;
 	args?: unknown;
 	result?: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError?: boolean;
 	/** Set when the server persisted the result as {data, mime_type, text}. */
 	isMedia?: boolean;
@@ -110,6 +112,8 @@ type ToolRendererProps = {
 	status: ToolStatus;
 	args: unknown;
 	result: unknown;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	isError: boolean;
 	isMedia?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -756,6 +760,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 	args,
 	status,
 	result,
+	reasoning,
 	isError,
 	modelIntent,
 }) => {
@@ -791,6 +796,7 @@ const AdvisorRenderer: FC<ToolRendererProps> = ({
 			isError={hasError}
 			resultType={resolvedResultType}
 			advice={advice}
+			reasoning={reasoning}
 			errorMessage={errorMessage || undefined}
 			modelIntent={modelIntent}
 		/>
@@ -1215,6 +1221,7 @@ export const Tool = memo(
 		status = "completed",
 		args,
 		result,
+		reasoning,
 		isError = false,
 		isMedia,
 		killedBySignal,
@@ -1265,6 +1272,7 @@ export const Tool = memo(
 						status={status}
 						args={args}
 						result={result}
+						reasoning={reasoning}
 						isError={isError}
 						isMedia={isMedia}
 						killedBySignal={killedBySignal}

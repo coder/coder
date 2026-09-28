@@ -6,8 +6,10 @@ import type {
 } from "#/api/typesGenerated";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { Input } from "#/components/Input/Input";
-import { Label } from "#/components/Label/Label";
+import {
+	DeleteConfirmationField,
+	useDeleteConfirmation,
+} from "#/components/Dialog/DeleteDialog/DeleteConfirmationField";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
@@ -29,23 +31,27 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 	onCancel,
 	onConfirm,
 }) => {
-	const confirmId = useId();
-	const errorId = `${confirmId}-error`;
-	const orphanId = `${confirmId}-orphan`;
+	const orphanId = useId();
 
-	const [userConfirmationText, setUserConfirmationText] = useState("");
+	const confirmation = useDeleteConfirmation(workspace.name, isOpen);
 	const [orphanWorkspace, setOrphanWorkspace] =
 		useState<CreateWorkspaceBuildRequest["orphan"]>(false);
-	const [isFocused, setIsFocused] = useState(false);
+	const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-	const deletionConfirmed = workspace.name === userConfirmationText;
-	const hasError = !deletionConfirmed && userConfirmationText.length > 0;
-	const displayErrorMessage = hasError && !isFocused;
+	// The dialog stays mounted while closed, so clear the checkbox on close.
+	if (isOpen !== prevIsOpen) {
+		setPrevIsOpen(isOpen);
+		if (!isOpen) {
+			setOrphanWorkspace(false);
+		}
+	}
+
+	const confirm = () => onConfirm(orphanWorkspace);
 
 	const onSubmit = (event: FormEvent) => {
 		event.preventDefault();
-		if (deletionConfirmed) {
-			onConfirm(orphanWorkspace);
+		if (confirmation.confirmed) {
+			confirm();
 		}
 	};
 
@@ -68,9 +74,9 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 			hideCancel={false}
 			open={isOpen}
 			title="Delete Workspace"
-			onConfirm={() => onConfirm(orphanWorkspace)}
+			onConfirm={confirm}
 			onClose={onCancel}
-			disabled={!deletionConfirmed}
+			disabled={!confirmation.confirmed}
 			description={
 				<>
 					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">
@@ -95,27 +101,11 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 					</p>
 
 					<form className="mt-2 flex flex-col gap-2" onSubmit={onSubmit}>
-						<Label htmlFor={confirmId}>Workspace name</Label>
-						<Input
-							id={confirmId}
-							className="text-content-primary"
-							name="confirmation"
-							autoComplete="off"
-							autoFocus
-							placeholder={workspace.name}
-							value={userConfirmationText}
-							onChange={(event) => setUserConfirmationText(event.target.value)}
-							onFocus={() => setIsFocused(true)}
-							onBlur={() => setIsFocused(false)}
-							aria-invalid={displayErrorMessage}
-							aria-describedby={displayErrorMessage ? errorId : undefined}
-							data-testid="delete-dialog-name-confirmation"
+						<DeleteConfirmationField
+							confirmation={confirmation}
+							label="Workspace name"
+							entity="workspace"
 						/>
-						{displayErrorMessage && (
-							<span id={errorId} className="text-xs text-content-destructive">
-								{userConfirmationText} does not match the name of this workspace
-							</span>
-						)}
 
 						{canOrphan && (
 							<div className={warnBoxClassName}>

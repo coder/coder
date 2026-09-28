@@ -81,7 +81,7 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		[MockOrganization2.id]: true,
 	});
 	const buildReport = (
-		params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+		params: Parameters<typeof API.experimental.getOrganizationAISpendUsers>[1],
 	): OrganizationAISpendReport => ({
 		...MockOrganizationAISpendReport,
 		...period,
@@ -94,7 +94,7 @@ function mockSpendApi(report: Partial<OrganizationAISpendReport> = {}) {
 		...report,
 	});
 	const spendSpy = vi
-		.spyOn(API, "getOrganizationAISpendUsers")
+		.spyOn(API.experimental, "getOrganizationAISpendUsers")
 		.mockImplementation(async (_organizationId, params) => buildReport(params));
 	return { spendSpy, buildReport };
 }

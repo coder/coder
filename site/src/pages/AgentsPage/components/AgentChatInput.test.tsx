@@ -6,10 +6,12 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef, type ReactNode } from "react";
+import { type ComponentProps, createRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
+import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
@@ -51,6 +53,60 @@ const modelOptions = [
 		displayName: "GPT-4o",
 	},
 ] as const;
+
+const inputProps = {
+	onSend: vi.fn(),
+	isDisabled: false,
+	isLoading: false,
+	selectedModel: modelOptions[0].id,
+	onModelChange: vi.fn(),
+	modelOptions,
+	modelSelectorPlaceholder: "Select model",
+	hasModelOptions: true,
+	canConfigureAgentSetup: false,
+} satisfies ComponentProps<typeof AgentChatInput>;
+
+const mockSentryMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-sentry",
+	display_name: "Sentry",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+};
+
+const mockLinearMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-linear",
+	display_name: "Linear",
+	availability: "default_on",
+	auth_type: "api_key",
+};
+
+const mockGitHubMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-github",
+	display_name: "GitHub",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+};
+
+const mockGitHubMCPNeedingAuth: TypesGen.MCPServerConfig = {
+	...mockGitHubMCP,
+	auth_connected: false,
+};
+
+const mockNotionMCP: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-notion",
+	display_name: "Notion",
+	availability: "default_on",
+	auth_type: "api_key",
+};
+
+const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
+const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
 const renderInput = (children: ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>);
@@ -128,6 +184,115 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"Unsupported file type: archive.zip",
 		);
+	});
+
+	it("removes a selected MCP server from the group", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Remove Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockGitHubMCP.id,
+		]);
+	});
+
+	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[...mockMCPServers, mockNotionMCP]}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("switch", { name: "Enable Notion" }),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockLinearMCP.id,
+			mockGitHubMCP.id,
+			mockNotionMCP.id,
+		]);
+	});
+
+	it("keeps two active MCP servers as individual pills", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockLinearMCP, mockGitHubMCP]}
+				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
+	});
+
+	it("excludes selected MCP servers that still need OAuth from the group", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockSentryMCP, mockLinearMCP, mockGitHubMCPNeedingAuth]}
+				selectedMCPServerIds={[
+					mockSentryMCP.id,
+					mockLinearMCP.id,
+					mockGitHubMCPNeedingAuth.id,
+				]}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([
+			mockSentryMCP.id,
+			mockGitHubMCPNeedingAuth.id,
+		]);
+	});
+
+	it("allows viewing a disabled MCP group without changing its selection", async () => {
+		const user = userEvent.setup();
+		const onMCPSelectionChange = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				isDisabled
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={onMCPSelectionChange}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("button", {
+				name: "Remove Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
 
 	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
@@ -313,5 +478,238 @@ describe("AgentChatInput", () => {
 		await user.click(screen.getByRole("button", { name: "Voice input" }));
 		expect(start).toHaveBeenCalledTimes(1);
 		expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+	});
+
+	it("falls back to pasted text when every pasted file is refused", async () => {
+		const onAttach = vi.fn();
+		const inputRef = createRef<ChatMessageInputRef>();
+
+		renderInput(
+			<AgentChatInput
+				inputRef={inputRef}
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const target = screen.getByRole("textbox", { name: "Chat message" });
+		target.focus();
+		// Clipboard carrying both a file and a text payload. Without
+		// workspaceUploads the zip cannot be routed anywhere, so the
+		// paste must fall back to inserting the clipboard text.
+		fireEvent.paste(target, {
+			clipboardData: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+				types: ["Files", "text/plain"],
+				getData: (type: string) =>
+					type === "text/plain" ? "notes about the archive" : "",
+			},
+		});
+
+		await waitFor(() => {
+			expect(inputRef.current?.getValue()).toContain("notes about the archive");
+		});
+		expect(onAttach).not.toHaveBeenCalled();
+	});
+
+	it("routes workspace files to workspace uploads instead of attachments", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const zip = createMockFile("dataset.zip", "application/zip");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [zip] },
+		});
+
+		expect(onWorkspaceAttach).toHaveBeenCalledWith([zip]);
+		expect(onAttach).not.toHaveBeenCalled();
+	});
+
+	it("refuses workspace files while the composer is disabled", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		);
+	});
+
+	it("refuses workspace files while a send is pending", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		// The post-send reset would discard the chip after the bytes
+		// already landed, so the drop is refused with a wait message
+		// rather than the "attach a workspace" one.
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"Wait for the current message to finish sending, then add the file again.",
+		);
+	});
+
+	it("refuses pasted workspace files while a send is pending", () => {
+		const onAttach = vi.fn();
+		const onWorkspaceAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: onWorkspaceAttach,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		fireEvent.paste(screen.getByRole("textbox", { name: "Chat message" }), {
+			clipboardData: {
+				files: [createMockFile("dataset.zip", "application/zip")],
+				types: ["Files"],
+				getData: () => "",
+			},
+		});
+
+		expect(onWorkspaceAttach).not.toHaveBeenCalled();
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"Wait for the current message to finish sending, then add the file again.",
+		);
+	});
+
+	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
+		const onAttach = vi.fn();
+		const toastError = vi.spyOn(toast, "error");
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				onAttach={onAttach}
+				attachments={[]}
+				workspaceUploads={{
+					uploads: [],
+					onAttach: undefined,
+					onRemove: vi.fn(),
+				}}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+			/>,
+		);
+
+		const zip = createMockFile("archive.zip", "application/zip");
+		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+			dataTransfer: { files: [zip] },
+		});
+
+		expect(onAttach).not.toHaveBeenCalled();
+		expect(toastError).toHaveBeenCalledWith(
+			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+		);
 	});
 });

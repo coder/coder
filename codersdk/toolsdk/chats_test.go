@@ -856,9 +856,42 @@ func TestChatTools(t *testing.T) {
 		require.ErrorContains(t, err, "no organizations")
 	})
 
+	t.Run("CreateChatForOwner", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
+			Prompt:         "Say hello to the member.",
+			OrganizationID: firstUser.OrganizationID.String(),
+			OwnerID:        member.ID.String(),
+			ModelConfigID:  defaultModelConfig.ID.String(),
+		})
+		require.NoError(t, err)
+		chatID, err := uuid.Parse(created.ID)
+		require.NoError(t, err)
+
+		chat, err := codersdk.NewExperimentalClient(memberClient).GetChat(ctx, chatID)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
+
+		coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+	})
+
 	t.Run("Validation", func(t *testing.T) {
 		_, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{})
 		require.ErrorContains(t, err, "prompt is required")
+
+		for ownerID, expected := range map[string]string{
+			"not-a-uuid":      "owner_id must be a valid UUID",
+			uuid.Nil.String(): "owner_id must be a valid nonzero UUID",
+		} {
+			_, err = testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
+				Prompt:         "hi",
+				OrganizationID: firstUser.OrganizationID.String(),
+				OwnerID:        ownerID,
+			})
+			require.ErrorContains(t, err, expected)
+		}
 
 		_, err = testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{OrganizationID: "not-a-uuid"})
 		require.ErrorContains(t, err, "organization_id must be a valid UUID")

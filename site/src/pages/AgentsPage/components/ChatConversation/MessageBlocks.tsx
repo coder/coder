@@ -358,6 +358,7 @@ export const BlockList: FC<BlockListProps> = ({
 								name={tool.name}
 								args={tool.args}
 								result={tool.result}
+								reasoning={tool.reasoning}
 								status={tool.status}
 								isError={tool.isError}
 								isMedia={tool.isMedia}
@@ -409,6 +410,10 @@ export const BlockList: FC<BlockListProps> = ({
 								sources={block.sources}
 							/>
 						);
+					// Workspace file references render through the user
+					// message display state, not as timeline blocks.
+					case "workspace-file-reference":
+						return null;
 					default: {
 						const _exhaustive: never = block;
 						return _exhaustive;
@@ -422,6 +427,7 @@ export const BlockList: FC<BlockListProps> = ({
 					name={tool.name}
 					args={tool.args}
 					result={tool.result}
+					reasoning={tool.reasoning}
 					status={tool.status}
 					isError={tool.isError}
 					isMedia={tool.isMedia}

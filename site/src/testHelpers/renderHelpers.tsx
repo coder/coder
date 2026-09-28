@@ -50,6 +50,7 @@ export const renderWithRouter = (
 			</AppProviders>,
 		),
 		router,
+		queryClient,
 	};
 };
 
