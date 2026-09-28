@@ -26,10 +26,10 @@ export const BoardHeader: FC<BoardHeaderProps> = ({
 			variant="subtle"
 			size="icon"
 			aria-label="Exit board"
-			className="size-7 text-content-secondary"
+			className="size-7 text-content-secondary [&>svg]:size-3.5! [&>svg]:p-0"
 			onClick={onExit}
 		>
-			<ChevronLeftIcon className="size-4" />
+			<ChevronLeftIcon />
 		</Button>
 		<h1 className="m-0 text-sm font-medium tracking-[-0.01em] text-content-primary">
 			Board

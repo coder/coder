@@ -155,16 +155,16 @@ const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
 						title="Drag to reorder or move to another card"
 						className="size-4 min-w-0 cursor-grab touch-none rounded p-0 text-content-secondary active:cursor-grabbing [&>svg]:size-3! [&>svg]:p-0"
 					>
-						<GripVerticalIcon className="size-3" />
+						<GripVerticalIcon />
 					</Button>
 					<Button
 						variant="subtle"
 						size="icon"
 						aria-label="Edit note"
-						className="size-4 text-content-secondary"
+						className="size-4 text-content-secondary [&>svg]:size-3! [&>svg]:p-0"
 						onClick={() => setEditing(true)}
 					>
-						<PencilIcon className="size-3" />
+						<PencilIcon />
 					</Button>
 					<DeleteNoteButton onConfirm={onRemove} />
 				</span>
@@ -186,9 +186,9 @@ const DeleteNoteButton: FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
 					variant="subtle"
 					size="icon"
 					aria-label="Delete note"
-					className="size-4 text-content-secondary hover:bg-surface-destructive hover:text-content-destructive"
+					className="size-4 text-content-secondary hover:bg-surface-destructive hover:text-content-destructive [&>svg]:size-3! [&>svg]:p-0"
 				>
-					<Trash2Icon className="size-3" />
+					<Trash2Icon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -285,7 +285,7 @@ const NoteEditor: FC<NoteEditorProps> = ({
 				onPointerDown={(e) => e.preventDefault()}
 				onClick={commit}
 			>
-				<ArrowUpIcon className="size-3" strokeWidth={2.4} />
+				<ArrowUpIcon strokeWidth={2.4} />
 			</Button>
 		</div>
 	);

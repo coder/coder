@@ -82,7 +82,7 @@ export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
 						setState((s) => (s === "pinned" ? "closed" : "pinned"));
 					}}
 				>
-					<InfoIcon className="size-3.5" />
+					<InfoIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

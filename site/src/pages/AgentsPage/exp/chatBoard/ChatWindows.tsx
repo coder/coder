@@ -199,11 +199,11 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 					variant="subtle"
 					size="icon"
 					aria-label={`Close ${chat?.title ?? "chat"}`}
-					className="size-6 shrink-0 text-content-secondary hover:text-content-primary"
+					className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={onClose}
 				>
-					<XIcon className="size-3.5" />
+					<XIcon />
 				</Button>
 			</div>
 			<div className="flex min-h-0 flex-1 flex-col">
