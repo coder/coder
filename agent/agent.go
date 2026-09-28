@@ -48,6 +48,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -344,6 +345,7 @@ type agent struct {
 	filesAPI         *agentfiles.API
 	gitAPI           *agentgit.API
 	processAPI       *agentproc.API
+	toolCallStore    *agenttoolcall.Store
 	desktopAPI       *agentdesktop.API
 	mcpManager       *agentmcp.Manager
 	mcpAPI           *agentmcp.API
@@ -473,7 +475,8 @@ func (a *agent) init() {
 		}
 		return ""
 	}
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn)
+	a.toolCallStore = agenttoolcall.NewStore(a.clock)
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, workingDirFn, agentproc.WithClock(a.clock), agentproc.WithToolCallStore(a.toolCallStore))
 	gitOpts := append([]agentgit.Option{agentgit.WithClock(a.clock)}, a.gitAPIOptions...)
 	a.gitAPI = agentgit.NewAPI(a.logger.Named("git"), pathStore, gitOpts...)
 	desktop := agentdesktop.NewPortableDesktop(
@@ -1383,6 +1386,11 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		}
 		if manifest.AgentID == uuid.Nil {
 			return xerrors.New("nil agentID returned by manifest")
+		}
+		// Every reconnect fetches a manifest; the store keeps the
+		// value from the first one.
+		if manifest.LastChatMessageID != nil {
+			a.toolCallStore.SetLastChatMessageID(*manifest.LastChatMessageID)
 		}
 		if manifest.ParentID != uuid.Nil {
 			// This is a sub agent, disable all the features that should not

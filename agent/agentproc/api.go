@@ -1,7 +1,6 @@
 package agentproc
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,10 +16,12 @@ import (
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agenttoolcall"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -35,14 +36,48 @@ type API struct {
 	logger    slog.Logger
 	manager   *manager
 	pathStore *agentgit.PathStore
+	// toolCallStore runs the start route once per tool call. Nil
+	// leaves tool call headers unhandled.
+	toolCallStore *agenttoolcall.Store
+}
+
+// Option configures an API.
+type Option func(*apiOptions)
+
+type apiOptions struct {
+	clock         quartz.Clock
+	toolCallStore *agenttoolcall.Store
+}
+
+// WithClock sets the clock for process times, execute deadlines,
+// output waits, and the periodic sweep.
+func WithClock(clock quartz.Clock) Option {
+	return func(o *apiOptions) {
+		o.clock = clock
+	}
+}
+
+// WithToolCallStore runs the start route through store.Middleware, so
+// a start with tool call headers runs once and its process ID is the
+// tool call UUID. An exited tool call process is kept while the store
+// retains its record.
+func WithToolCallStore(store *agenttoolcall.Store) Option {
+	return func(o *apiOptions) {
+		o.toolCallStore = store
+	}
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string, opts ...Option) *API {
+	options := apiOptions{clock: quartz.NewReal()}
+	for _, opt := range opts {
+		opt(&options)
+	}
 	return &API{
-		logger:    logger,
-		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir),
-		pathStore: pathStore,
+		logger:        logger,
+		manager:       newManager(logger, execer, fs, envInfo, updateEnv, workingDir, options.clock, options.toolCallStore),
+		pathStore:     pathStore,
+		toolCallStore: options.toolCallStore,
 	}
 }
 
@@ -55,7 +90,11 @@ func (api *API) Close() error {
 // Routes returns the HTTP handler for process-related routes.
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
-	r.Post("/start", api.handleStartProcess)
+	if api.toolCallStore != nil {
+		r.With(api.toolCallStore.Middleware).Post("/start", api.handleStartProcess)
+	} else {
+		r.Post("/start", api.handleStartProcess)
+	}
 	r.Get("/list", api.handleListProcesses)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
@@ -65,9 +104,14 @@ func (api *API) Routes() http.Handler {
 // handleStartProcess starts a new process.
 func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	toolCall, isToolCall := agenttoolcall.FromContext(ctx)
 
 	var req workspacesdk.StartProcessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// Nothing ran, so a repeated request may run the tool call.
+		if isToolCall {
+			toolCall.Abandon()
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
@@ -81,13 +125,19 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if req.TimeoutMs < 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Timeout must not be negative.",
+		})
+		return
+	}
 
 	var chatID string
 	if chatContext, ok := agentchat.FromContext(ctx); ok {
 		chatID = chatContext.ID.String()
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	proc, err := api.manager.start(req, chatID, toolCall)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -194,11 +244,9 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout.
-		waitCtx, waitCancel := context.WithTimeout(ctx, maxWaitDuration)
-		defer waitCancel()
-
-		_ = proc.waitForOutput(waitCtx)
+		// client-supplied timeout, and end it at the execute
+		// deadline.
+		api.manager.waitForExit(ctx, proc, maxWaitDuration)
 		// Fall through to read snapshot below.
 	}
 
@@ -209,13 +257,17 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	// the final buffer state.
 	info := proc.info()
 	output, truncated := proc.output()
+	timedOut, canceled, duration := proc.runState(info, api.manager.clock.Now())
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ProcessOutputResponse{
-		Output:    output,
-		Truncated: truncated,
-		Running:   info.Running,
-		ExitCode:  info.ExitCode,
-		Command:   info.Command,
+		Output:     output,
+		Truncated:  truncated,
+		Running:    info.Running,
+		ExitCode:   info.ExitCode,
+		Command:    info.Command,
+		TimedOut:   timedOut,
+		Canceled:   canceled,
+		DurationMs: duration.Milliseconds(),
 	})
 }
 

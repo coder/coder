@@ -3639,6 +3639,41 @@ func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
+// TestAgent_ProcessToolCall checks the tool call wiring: the cutoff
+// from the first manifest, the start route through the tool call store,
+// and the cancel route.
+func TestAgent_ProcessToolCall(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	lastChatMessageID := int64(10)
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{LastChatMessageID: &lastChatMessageID}, 0)
+	chatID := uuid.New()
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chatID.String()}})
+
+	// An earlier agent instance may have received a tool call at or
+	// below the cutoff.
+	old := workspacesdk.ToolCall{MessageID: lastChatMessageID, ID: "old", Name: "execute"}
+	_, err := conn.StartProcess(workspacesdk.WithToolCall(ctx, old), workspacesdk.StartProcessRequest{Command: "true"})
+	var toolCallErr *workspacesdk.ToolCallError
+	require.ErrorAs(t, err, &toolCallErr)
+	require.Equal(t, workspacesdk.ToolCallErrorUnknown, toolCallErr.Code)
+
+	toolCall := workspacesdk.ToolCall{MessageID: lastChatMessageID + 1, ID: "new", Name: "execute"}
+	toolCallCtx := workspacesdk.WithToolCall(ctx, toolCall)
+	resp, err := conn.StartProcess(toolCallCtx, workspacesdk.StartProcessRequest{Command: "sleep 300"})
+	require.NoError(t, err)
+	id := workspacesdk.ToolCallUUID(chatID, toolCall.MessageID, toolCall.Name, toolCall.ID).String()
+	require.Equal(t, id, resp.ID)
+
+	require.NoError(t, conn.CancelToolCall(toolCallCtx, id))
+	out, err := conn.ProcessOutput(ctx, id, nil)
+	require.NoError(t, err)
+	require.False(t, out.Running)
+	require.True(t, out.Canceled)
+}
+
 func TestAgent_DebugServer(t *testing.T) {
 	t.Parallel()
 
