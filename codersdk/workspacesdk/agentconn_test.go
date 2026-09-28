@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -183,6 +184,141 @@ func TestAgentConnAppHTTPClientRefusesRedirects(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.invalid/", nil)
 	require.NoError(t, err)
 	require.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
+}
+
+// TestAgentConnToolCallRequests verifies that tool call headers come from
+// each request's context rather than the connection, that CancelToolCall
+// sends its route without a body and treats 204 as success, that the
+// new process fields round-trip, and that StartProcess, EditFiles,
+// WriteFile, and CancelToolCall decode a coded 409 as a ToolCallError.
+func TestAgentConnToolCallRequests(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentTailnet, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentTailnet,
+	})
+
+	chatID := uuid.New()
+	// conflictHeader makes every test route answer 409 with the header
+	// value as the error code.
+	const conflictHeader = "Test-Conflict-Code"
+
+	type received struct {
+		method string
+		path   string
+		header http.Header
+		body   []byte
+	}
+	receivedCh := make(chan received, 16)
+	toolRoute := func(status int, body string) http.HandlerFunc {
+		return func(rw http.ResponseWriter, r *http.Request) {
+			reqBody, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			receivedCh <- received{method: r.Method, path: r.URL.Path, header: r.Header.Clone(), body: reqBody}
+			if code := r.Header.Get(conflictHeader); code != "" {
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(http.StatusConflict)
+				_, _ = fmt.Fprintf(rw, `{"code":%q,"message":"Refused."}`, code)
+				return
+			}
+			if body != "" {
+				rw.Header().Set("Content-Type", "application/json")
+			}
+			rw.WriteHeader(status)
+			_, _ = io.WriteString(rw, body)
+		}
+	}
+	router := http.NewServeMux()
+	router.HandleFunc("POST /api/v0/processes/start", toolRoute(http.StatusOK, `{"id":"p","started":true}`))
+	router.HandleFunc("POST /api/v0/edit-files", toolRoute(http.StatusOK, `{}`))
+	router.HandleFunc("POST /api/v0/write-file", toolRoute(http.StatusOK, `{"message":"ok"}`))
+	router.HandleFunc("POST /api/v0/tool-calls/{id}/cancel", toolRoute(http.StatusNoContent, ""))
+	router.HandleFunc("GET /api/v0/processes/{id}/output", toolRoute(http.StatusOK, `{"output":"x","running":true,"timed_out":true,"canceled":true,"duration_ms":1234}`))
+	serveTailnetHTTP(t, agentTailnet, router)
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{AgentID: agentID})
+	conn.SetExtraHeaders(http.Header{
+		workspacesdk.CoderChatIDHeader:     {chatID.String()},
+		workspacesdk.CoderToolCallIDHeader: {"connection-wide"},
+	})
+
+	startCall := workspacesdk.ToolCall{MessageID: 42, ID: "toolu/start", Name: "execute"}
+	startResp, err := conn.StartProcess(workspacesdk.WithToolCall(ctx, startCall), workspacesdk.StartProcessRequest{Command: "true", TimeoutMs: 30000})
+	require.NoError(t, err)
+	assert.Equal(t, workspacesdk.StartProcessResponse{ID: "p", Started: true}, startResp)
+	got := testutil.RequireReceive(ctx, t, receivedCh)
+	assert.Equal(t, chatID.String(), got.header.Get(workspacesdk.CoderChatIDHeader))
+	assert.Equal(t, []string{"toolu%2Fstart"}, got.header.Values(workspacesdk.CoderToolCallIDHeader))
+	assert.Equal(t, "42", got.header.Get(workspacesdk.CoderToolCallMessageIDHeader))
+	assert.Equal(t, "execute", got.header.Get(workspacesdk.CoderToolCallNameHeader))
+	assert.JSONEq(t, `{"command":"true","timeout_ms":30000}`, string(got.body))
+
+	cancelCall := workspacesdk.ToolCall{MessageID: 43, ID: "toolu_cancel", Name: "execute"}
+	cancelID := workspacesdk.ToolCallUUID(chatID, cancelCall.MessageID, cancelCall.Name, cancelCall.ID).String()
+	require.NoError(t, conn.CancelToolCall(workspacesdk.WithToolCall(ctx, cancelCall), cancelID))
+	got = testutil.RequireReceive(ctx, t, receivedCh)
+	assert.Equal(t, http.MethodPost, got.method)
+	assert.Equal(t, "/api/v0/tool-calls/"+cancelID+"/cancel", got.path)
+	assert.Empty(t, got.body)
+	gotCall, ok, err := workspacesdk.ToolCallFromHeaders(got.header)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, cancelCall, gotCall)
+
+	// Without a tool call in the context, only the connection-wide
+	// headers are sent.
+	output, err := conn.ProcessOutput(ctx, "p", nil)
+	require.NoError(t, err)
+	assert.Equal(t, workspacesdk.ProcessOutputResponse{Output: "x", Running: true, TimedOut: true, Canceled: true, DurationMs: 1234}, output)
+	got = testutil.RequireReceive(ctx, t, receivedCh)
+	assert.Equal(t, []string{"connection-wide"}, got.header.Values(workspacesdk.CoderToolCallIDHeader))
+	assert.Empty(t, got.header.Values(workspacesdk.CoderToolCallMessageIDHeader))
+	assert.Empty(t, got.header.Values(workspacesdk.CoderToolCallNameHeader))
+
+	toolCallCtx := workspacesdk.WithToolCall(ctx, workspacesdk.ToolCall{MessageID: 44, ID: "toolu_conflict", Name: "edit_files"})
+	requests := []struct {
+		name string
+		do   func() error
+	}{
+		{name: "StartProcess", do: func() error {
+			_, err := conn.StartProcess(toolCallCtx, workspacesdk.StartProcessRequest{Command: "true"})
+			return err
+		}},
+		{name: "EditFiles", do: func() error {
+			_, err := conn.EditFiles(toolCallCtx, workspacesdk.FileEditRequest{})
+			return err
+		}},
+		{name: "WriteFile", do: func() error {
+			return conn.WriteFile(toolCallCtx, "/tmp/x", strings.NewReader("x"))
+		}},
+		{name: "CancelToolCall", do: func() error {
+			return conn.CancelToolCall(toolCallCtx, uuid.NewString())
+		}},
+	}
+	for _, code := range []workspacesdk.ToolCallErrorCode{workspacesdk.ToolCallErrorCanceled, workspacesdk.ToolCallErrorUnknown} {
+		conn.SetExtraHeaders(http.Header{
+			workspacesdk.CoderChatIDHeader: {chatID.String()},
+			conflictHeader:                 {string(code)},
+		})
+		for _, req := range requests {
+			err := req.do()
+			var tcErr *workspacesdk.ToolCallError
+			if assert.ErrorAs(t, err, &tcErr, "%s %s", req.name, code) {
+				assert.Equal(t, code, tcErr.Code, req.name)
+				assert.Equal(t, "Refused.", tcErr.Message, req.name)
+			}
+			_ = testutil.RequireReceive(ctx, t, receivedCh)
+		}
+	}
 }
 
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {

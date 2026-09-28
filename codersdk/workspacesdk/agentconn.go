@@ -116,6 +116,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
+	CancelToolCall(ctx context.Context, id string) error
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
@@ -912,6 +913,11 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// TimeoutMs sets the execute deadline of a foreground process
+	// started with tool call headers: the agent reports the process as
+	// timed out once it runs this long. Only the first start of a tool
+	// call sets it. 0 means no deadline.
+	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
@@ -945,6 +951,14 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
+	// TimedOut is true when the process is still running past the
+	// execute deadline set by StartProcessRequest.TimeoutMs.
+	TimedOut bool `json:"timed_out,omitempty"`
+	// Canceled is true when a tool call cancel killed the process.
+	Canceled bool `json:"canceled,omitempty"`
+	// DurationMs is the process run time measured by the agent: until
+	// exit, or until now while it runs.
+	DurationMs int64 `json:"duration_ms,omitempty"`
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -1125,7 +1139,7 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
+		return readToolCallError(res)
 	}
 
 	var m codersdk.Response
@@ -1376,10 +1390,50 @@ func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
+		return StartProcessResponse{}, readToolCallError(res)
 	}
 	var resp StartProcessResponse
 	return resp, decodeAgentJSON(res, &resp)
+}
+
+// CancelToolCall cancels the tool call set in ctx with WithToolCall. id
+// is its tool call UUID. A nil error means the agent answered 204: the
+// tool call's outcome is final.
+func (c *agentConn) CancelToolCall(ctx context.Context, id string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/tool-calls/"+id+"/cancel", nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return readToolCallError(res)
+	}
+	return nil
+}
+
+// readToolCallError returns a *ToolCallError for an HTTP 409 whose body
+// has a known ToolCallErrorCode, and codersdk.ReadBodyAsError(res) for
+// any other response.
+func readToolCallError(res *http.Response) error {
+	if res.StatusCode != http.StatusConflict {
+		return codersdk.ReadBodyAsError(res)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		// Same error as codersdk.ReadBodyAsError for a failed read.
+		return xerrors.Errorf("read body: %w", err)
+	}
+	var tcErr ToolCallError
+	if json.Unmarshal(body, &tcErr) == nil && tcErr.Code.known() {
+		return &tcErr
+	}
+	res.Body = struct {
+		io.Reader
+		io.Closer
+	}{bytes.NewReader(body), res.Body}
+	return codersdk.ReadBodyAsError(res)
 }
 
 // ListProcesses returns information about tracked processes on the agent.
@@ -1484,7 +1538,7 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
+		return FileEditResponse{}, readToolCallError(res)
 	}
 
 	var resp FileEditResponse
@@ -1542,6 +1596,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
+	}
+	if tc, ok := ToolCallFromContext(ctx); ok {
+		tc.SetHeaders(req.Header)
 	}
 
 	return c.apiClient(ctx).Do(req)
