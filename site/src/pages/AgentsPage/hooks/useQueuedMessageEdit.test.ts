@@ -168,8 +168,8 @@ const setup = (options?: {
 					isPending: marker.isPending,
 					variables: marker.variables,
 				},
-				patchQueuedMessage: (id, req) =>
-					marker.mutateAsync({ queuedMessageId: id, req }),
+				setQueuedMessageEditing: (id, editing) =>
+					marker.mutateAsync({ queuedMessageId: id, req: { editing } }),
 			});
 			return { ...edit, composerMode };
 		},
