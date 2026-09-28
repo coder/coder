@@ -332,6 +332,11 @@ CREATE TYPE build_reason AS ENUM (
     'jetbrains_connection'
 );
 
+CREATE TYPE chat_busy_behavior AS ENUM (
+    'queue',
+    'steer'
+);
+
 CREATE TYPE chat_client_type AS ENUM (
     'ui',
     'api'
@@ -2138,10 +2143,13 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    busy_behavior chat_busy_behavior DEFAULT 'queue'::chat_busy_behavior NOT NULL
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.busy_behavior IS 'queue: delivered at turn end. steer: delivered before the next model call.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1

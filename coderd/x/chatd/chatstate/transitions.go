@@ -283,9 +283,10 @@ func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
 	return nil
 }
 
-// insertQueuedMessage inserts a queued user message. created_by falls
-// back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSize int) (database.ChatQueuedMessage, error) {
+// insertQueuedMessage inserts a queued user message with the given
+// delivery mode. created_by falls back to chats.owner_id only when the
+// message does not supply one.
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavior database.ChatBusyBehavior, maxQueueSize int) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -303,6 +304,7 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSi
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
+		BusyBehavior:    busyBehavior,
 	})
 }
 
@@ -531,7 +533,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorQueue, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -577,7 +579,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorQueue, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
