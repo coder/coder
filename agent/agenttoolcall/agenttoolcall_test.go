@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,45 +28,55 @@ import (
 type killed struct {
 	chatID uuid.UUID
 	id     uuid.UUID
+	// runsFinished is how many runs had finished at the kill.
+	runsFinished int64
 }
 
+// testServer serves POST /run, which answers 201 with the number of the
+// run as its message, and POST /panic behind the table.
 type testServer struct {
-	table   *agenttoolcall.Table
-	handler http.Handler
-	runs    atomic.Int64
-	killed  chan killed
-	// block, when set, is received from before each run answers.
-	block chan struct{}
-	// entered receives once per run when the run starts.
+	clock    *quartz.Mock
+	handler  http.Handler
+	runs     atomic.Int64
+	finished atomic.Int64
+	killed   chan killed
+	// entered receives when a run starts.
 	entered chan struct{}
+	// block, when set, holds each run until it is closed.
+	block chan struct{}
 }
 
-func newTestServer(t *testing.T, clock quartz.Clock) *testServer {
-	s := &testServer{killed: make(chan killed, 10), entered: make(chan struct{}, 10)}
-	s.table = agenttoolcall.New(clock, func(_ context.Context, chatID, id uuid.UUID) {
-		s.killed <- killed{chatID: chatID, id: id}
+func newTestServer(t *testing.T) *testServer {
+	s := &testServer{
+		clock:   quartz.NewMock(t),
+		killed:  make(chan killed, 10),
+		entered: make(chan struct{}, 10),
+	}
+	table := agenttoolcall.New(s.clock, func(_ context.Context, chatID, id uuid.UUID) {
+		s.killed <- killed{chatID: chatID, id: id, runsFinished: s.finished.Load()}
 	})
 	r := chi.NewRouter()
-	r.Use(httpmw.Recover(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})), agentchat.Middleware, s.table.Middleware)
+	r.Use(httpmw.Recover(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})), agentchat.Middleware, table.Middleware)
 	r.Post("/run", func(rw http.ResponseWriter, r *http.Request) {
 		n := s.runs.Add(1)
 		s.entered <- struct{}{}
 		if s.block != nil {
 			<-s.block
 		}
-		httpapi.Write(r.Context(), rw, http.StatusCreated, codersdk.Response{Message: string(rune('0' + n))})
+		httpapi.Write(r.Context(), rw, http.StatusCreated, codersdk.Response{Message: strconv.FormatInt(n, 10)})
+		s.finished.Add(1)
 	})
 	r.Post("/panic", func(http.ResponseWriter, *http.Request) {
 		s.runs.Add(1)
 		panic("handler panic")
 	})
-	r.Mount("/tool-calls", s.table.Routes())
+	r.Mount("/tool-calls", table.Routes())
 	s.handler = r
 	return s
 }
 
-func (s *testServer) do(t *testing.T, path string, chatID, toolCallID uuid.UUID) *httptest.ResponseRecorder {
-	ctx := testutil.Context(t, testutil.WaitShort)
+// do sends POST path for chatID, with toolCallID unless it is uuid.Nil.
+func (s *testServer) do(ctx context.Context, path string, chatID, toolCallID uuid.UUID) *httptest.ResponseRecorder {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, nil)
 	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
 	if toolCallID != uuid.Nil {
@@ -76,17 +87,15 @@ func (s *testServer) do(t *testing.T, path string, chatID, toolCallID uuid.UUID)
 	return rw
 }
 
-func (s *testServer) run(t *testing.T, chatID, toolCallID uuid.UUID) *httptest.ResponseRecorder {
-	return s.do(t, "/run", chatID, toolCallID)
+func (s *testServer) cancel(ctx context.Context, chatID, toolCallID uuid.UUID) *httptest.ResponseRecorder {
+	return s.do(ctx, "/tool-calls/"+toolCallID.String()+"/cancel", chatID, uuid.Nil)
 }
 
-func (s *testServer) cancelRequest(t *testing.T, chatID, toolCallID uuid.UUID) *httptest.ResponseRecorder {
-	return s.do(t, "/tool-calls/"+toolCallID.String()+"/cancel", chatID, uuid.Nil)
-}
-
-func (s *testServer) cancel(t *testing.T, chatID, toolCallID uuid.UUID) workspacesdk.CancelToolCallResponse {
+func message(t *testing.T, body []byte) string {
 	t.Helper()
-	return decodeCancel(t, s.cancelRequest(t, chatID, toolCallID))
+	var resp codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &resp))
+	return resp.Message
 }
 
 func decodeCancel(t *testing.T, rw *httptest.ResponseRecorder) workspacesdk.CancelToolCallResponse {
@@ -100,142 +109,196 @@ func decodeCancel(t *testing.T, rw *httptest.ResponseRecorder) workspacesdk.Canc
 func TestMiddleware(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoHeaderRunsEachTime", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID := uuid.New()
-		require.Equal(t, http.StatusCreated, s.run(t, chatID, uuid.Nil).Code)
-		require.Equal(t, http.StatusCreated, s.run(t, chatID, uuid.Nil).Code)
-		require.EqualValues(t, 2, s.runs.Load())
-	})
+	chatA, chatB := uuid.New(), uuid.New()
+	// Each case sends one request for chatA after before.
+	tests := []struct {
+		name   string
+		before func(ctx context.Context, s *testServer, id uuid.UUID)
+		// path defaults to /run.
+		path        string
+		noID        bool
+		wantCode    int
+		wantMessage string
+		wantRuns    int64
+	}{
+		{
+			name:     "FirstRequestRuns",
+			wantCode: http.StatusCreated, wantMessage: "1", wantRuns: 1,
+		},
+		{
+			name:     "RepeatGetsSavedResponse",
+			before:   func(ctx context.Context, s *testServer, id uuid.UUID) { s.do(ctx, "/run", chatA, id) },
+			wantCode: http.StatusCreated, wantMessage: "1", wantRuns: 1,
+		},
+		{
+			name:     "WithoutToolCallIDRunsEachTime",
+			before:   func(ctx context.Context, s *testServer, _ uuid.UUID) { s.do(ctx, "/run", chatA, uuid.Nil) },
+			noID:     true,
+			wantCode: http.StatusCreated, wantMessage: "2", wantRuns: 2,
+		},
+		{
+			name: "OtherChatsDoNotShare",
+			before: func(ctx context.Context, s *testServer, id uuid.UUID) {
+				s.do(ctx, "/run", chatB, id)
+				s.cancel(ctx, chatB, id)
+			},
+			wantCode: http.StatusCreated, wantMessage: "2", wantRuns: 2,
+		},
+		{
+			name: "CanceledAfterRunIsRefused",
+			before: func(ctx context.Context, s *testServer, id uuid.UUID) {
+				s.do(ctx, "/run", chatA, id)
+				s.cancel(ctx, chatA, id)
+			},
+			wantCode: http.StatusConflict, wantRuns: 1,
+		},
+		{
+			name:     "CanceledBeforeRunIsRefused",
+			before:   func(ctx context.Context, s *testServer, id uuid.UUID) { s.cancel(ctx, chatA, id) },
+			wantCode: http.StatusConflict, wantRuns: 0,
+		},
+		{
+			name: "ForgottenAfterOneHour",
+			before: func(ctx context.Context, s *testServer, id uuid.UUID) {
+				s.do(ctx, "/run", chatA, id)
+				s.clock.Advance(time.Hour + time.Second)
+				// Entries are dropped when a new one is added.
+				s.do(ctx, "/run", chatA, uuid.New())
+			},
+			wantCode: http.StatusCreated, wantMessage: "3", wantRuns: 3,
+		},
+		{
+			name:     "RepeatAfterPanicGetsUnknownOutcome",
+			before:   func(ctx context.Context, s *testServer, id uuid.UUID) { s.do(ctx, "/panic", chatA, id) },
+			path:     "/panic",
+			wantCode: http.StatusInternalServerError, wantMessage: "outcome is unknown", wantRuns: 1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			s := newTestServer(t)
+			id := uuid.New()
+			if tc.before != nil {
+				tc.before(ctx, s, id)
+			}
+			path := tc.path
+			if path == "" {
+				path = "/run"
+			}
+			requestID := id
+			if tc.noID {
+				requestID = uuid.Nil
+			}
+			rw := s.do(ctx, path, chatA, requestID)
+			require.Equal(t, tc.wantCode, rw.Code)
+			if tc.wantMessage != "" {
+				require.Contains(t, message(t, rw.Body.Bytes()), tc.wantMessage)
+			}
+			require.Equal(t, tc.wantRuns, s.runs.Load())
+		})
+	}
+}
 
-	t.Run("RepeatReturnsSavedResponse", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID, id := uuid.New(), uuid.New()
-		first := s.run(t, chatID, id)
-		second := s.run(t, chatID, id)
-		require.Equal(t, http.StatusCreated, second.Code)
-		require.Equal(t, first.Header().Get("Content-Type"), second.Header().Get("Content-Type"))
-		require.Equal(t, first.Body.String(), second.Body.String())
-		require.EqualValues(t, 1, s.runs.Load())
-	})
+func TestConcurrentRequestsRunOnce(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	s := newTestServer(t)
+	s.block = make(chan struct{})
+	chatID, id := uuid.New(), uuid.New()
 
-	t.Run("RepeatWhileRunningWaits", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		s.block = make(chan struct{})
-		chatID, id := uuid.New(), uuid.New()
-		results := make(chan *httptest.ResponseRecorder, 2)
-		go func() { results <- s.run(t, chatID, id) }()
-		<-s.entered
-		go func() { results <- s.run(t, chatID, id) }()
-		close(s.block)
-		first, second := <-results, <-results
-		require.Equal(t, http.StatusCreated, first.Code)
-		require.Equal(t, first.Body.String(), second.Body.String())
-		require.EqualValues(t, 1, s.runs.Load())
-	})
-
-	t.Run("PanicSavesUnknownOutcome", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID, id := uuid.New(), uuid.New()
-		require.Equal(t, http.StatusInternalServerError, s.do(t, "/panic", chatID, id).Code)
-		// The repeat and the cancel answer at once instead of waiting
-		// for a response the panicked run never saved.
-		repeat := s.do(t, "/panic", chatID, id)
-		require.Equal(t, http.StatusInternalServerError, repeat.Code)
-		require.Contains(t, repeat.Body.String(), "outcome is unknown")
-		resp := s.cancel(t, chatID, id)
-		require.True(t, resp.Received)
-		require.Equal(t, http.StatusInternalServerError, resp.Status)
-		require.EqualValues(t, 1, s.runs.Load())
-	})
-
-	t.Run("CanceledRefuses", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID, id := uuid.New(), uuid.New()
-		s.run(t, chatID, id)
-		s.cancel(t, chatID, id)
-		<-s.killed
-		require.Equal(t, http.StatusConflict, s.run(t, chatID, id).Code)
-		require.EqualValues(t, 1, s.runs.Load())
-	})
-
-	t.Run("ChatIsolation", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatA, chatB, id := uuid.New(), uuid.New(), uuid.New()
-		require.False(t, s.cancel(t, chatB, id).Received)
-		require.Equal(t, killed{chatID: chatB, id: id}, <-s.killed, "the kill is scoped to the canceling chat")
-		require.Equal(t, http.StatusCreated, s.run(t, chatA, id).Code)
-		require.EqualValues(t, 1, s.runs.Load())
-		require.Equal(t, http.StatusConflict, s.run(t, chatB, id).Code)
-	})
-
-	t.Run("DropsEntriesOlderThanOneHour", func(t *testing.T) {
-		t.Parallel()
-		clock := quartz.NewMock(t)
-		s := newTestServer(t, clock)
-		chatID, id := uuid.New(), uuid.New()
-		s.run(t, chatID, id)
-		clock.Advance(time.Hour + time.Second)
-		s.run(t, chatID, uuid.New())
-		s.run(t, chatID, id)
-		require.EqualValues(t, 3, s.runs.Load())
-	})
+	const requests = 10
+	results := make(chan *httptest.ResponseRecorder, requests)
+	for range requests {
+		go func() { results <- s.do(ctx, "/run", chatID, id) }()
+	}
+	testutil.RequireReceive(ctx, t, s.entered)
+	close(s.block)
+	for range requests {
+		rw := testutil.RequireReceive(ctx, t, results)
+		require.Equal(t, http.StatusCreated, rw.Code)
+		require.Equal(t, "1", message(t, rw.Body.Bytes()))
+	}
+	require.EqualValues(t, 1, s.runs.Load())
 }
 
 func TestCancel(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NoRecord", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID, id := uuid.New(), uuid.New()
-		require.Equal(t, workspacesdk.CancelToolCallResponse{}, s.cancel(t, chatID, id))
-		// A process started with the ID outlives the agent's record of
-		// the tool call, so the cancel kills it.
-		require.Equal(t, killed{chatID: chatID, id: id}, <-s.killed)
-		require.Equal(t, http.StatusConflict, s.run(t, chatID, id).Code)
-		require.EqualValues(t, 0, s.runs.Load())
-	})
+	chatID := uuid.New()
+	// Each case cancels after before. Every cancel kills a process with
+	// the tool call ID, since the process can outlive the record.
+	tests := []struct {
+		name         string
+		before       func(ctx context.Context, s *testServer, id uuid.UUID)
+		wantReceived bool
+		wantStatus   int
+		wantMessage  string
+	}{
+		{name: "NoRecord"},
+		{
+			name:         "AfterRun",
+			before:       func(ctx context.Context, s *testServer, id uuid.UUID) { s.do(ctx, "/run", chatID, id) },
+			wantReceived: true, wantStatus: http.StatusCreated, wantMessage: "1",
+		},
+		{
+			name:         "AfterPanic",
+			before:       func(ctx context.Context, s *testServer, id uuid.UUID) { s.do(ctx, "/panic", chatID, id) },
+			wantReceived: true, wantStatus: http.StatusInternalServerError, wantMessage: "outcome is unknown",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			s := newTestServer(t)
+			id := uuid.New()
+			if tc.before != nil {
+				tc.before(ctx, s, id)
+			}
+			resp := decodeCancel(t, s.cancel(ctx, chatID, id))
+			require.Equal(t, tc.wantReceived, resp.Received)
+			require.Equal(t, tc.wantStatus, resp.Status)
+			if tc.wantMessage != "" {
+				require.Contains(t, message(t, resp.Body), tc.wantMessage)
+			}
+			k := testutil.RequireReceive(ctx, t, s.killed)
+			require.Equal(t, chatID, k.chatID)
+			require.Equal(t, id, k.id)
+		})
+	}
 
-	t.Run("WhileRunningKillsAfterRun", func(t *testing.T) {
+	t.Run("DuringRun", func(t *testing.T) {
 		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
+		ctx := testutil.Context(t, testutil.WaitShort)
+		s := newTestServer(t)
 		s.block = make(chan struct{})
-		chatID, id := uuid.New(), uuid.New()
-		runDone := make(chan *httptest.ResponseRecorder)
-		go func() { runDone <- s.run(t, chatID, id) }()
-		<-s.entered
-		cancelDone := make(chan *httptest.ResponseRecorder)
-		go func() { cancelDone <- s.cancelRequest(t, chatID, id) }()
-		// Release the run only after the cancel reached the table.
-		testutil.Eventually(testutil.Context(t, testutil.WaitShort), t, func(context.Context) bool {
-			return s.table.Canceled(chatID, id)
-		}, testutil.IntervalFast)
-		require.Empty(t, s.killed, "the cancel waits for the run before killing")
-		close(s.block)
-		run := <-runDone
-		resp := decodeCancel(t, <-cancelDone)
-		require.Equal(t, killed{chatID: chatID, id: id}, <-s.killed)
-		require.True(t, resp.Received)
-		require.Equal(t, http.StatusCreated, resp.Status)
-		require.Equal(t, "application/json; charset=utf-8", resp.ContentType)
-		require.Equal(t, run.Body.Bytes(), resp.Body)
-	})
+		id := uuid.New()
 
-	t.Run("FinishedReturnsSavedResponse", func(t *testing.T) {
-		t.Parallel()
-		s := newTestServer(t, quartz.NewReal())
-		chatID, id := uuid.New(), uuid.New()
-		run := s.run(t, chatID, id)
-		resp := s.cancel(t, chatID, id)
+		runDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() { runDone <- s.do(ctx, "/run", chatID, id) }()
+		testutil.RequireReceive(ctx, t, s.entered)
+		cancelDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() { cancelDone <- s.cancel(ctx, chatID, id) }()
+
+		// Once the cancel lands, a repeat is refused at once while the
+		// run goes on. Until then a repeat waits for the run, so each
+		// poll gives up quickly.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			pollCtx, cancel := context.WithTimeout(ctx, testutil.IntervalFast)
+			defer cancel()
+			return s.do(pollCtx, "/run", chatID, id).Code == http.StatusConflict
+		}, testutil.IntervalFast)
+		close(s.block)
+
+		run := testutil.RequireReceive(ctx, t, runDone)
+		resp := decodeCancel(t, testutil.RequireReceive(ctx, t, cancelDone))
 		require.True(t, resp.Received)
 		require.Equal(t, run.Code, resp.Status)
 		require.Equal(t, run.Body.Bytes(), resp.Body)
+		k := testutil.RequireReceive(ctx, t, s.killed)
+		require.EqualValues(t, 1, k.runsFinished, "the cancel kills after the run, so a process still starting is killed")
+		require.EqualValues(t, 1, s.runs.Load())
 	})
 }
