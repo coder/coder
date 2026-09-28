@@ -134,7 +134,7 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 		r:               brw.Reader,
 	}
 
-	t := time.NewTimer(time.Second)
+	t := time.NewTimer(30 * time.Second)
 	defer t.Stop()
 	select {
 	case ln.conn <- uconn:
