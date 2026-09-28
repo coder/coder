@@ -53,7 +53,7 @@ All other traffic is tunneled through without decryption.
 
 ### Proxy target
 
-Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server.md#--ai-gateway-proxy-target).
+Intercepted requests are forwarded to the AI Gateway, configured via [`CODER_AI_GATEWAY_PROXY_TARGET`](../../../reference/cli/server/index.md#--ai-gateway-proxy-target).
 By default, this is the embedded AI Gateway at `<coderd-access-url>/api/v2/ai-gateway`, and no configuration is needed.
 
 AI Gateway Proxy remains part of the `coderd` process when you [deploy AI Gateway as a standalone service](../standalone.md).
@@ -67,7 +67,7 @@ CODER_AI_GATEWAY_PROXY_TARGET=https://ai-gateway.example.com/
 
 The target is used as-is: the proxy appends only the provider and request path to it, and the URL must not include query parameters.
 
-For additional configuration options, see the [`coder server` configuration](../../../reference/cli/server.md#options).
+For additional configuration options, see the [`coder server` configuration](../../../reference/cli/server/index.md#options).
 
 ## Security Considerations
 
@@ -98,7 +98,7 @@ The IP validation and TCP connect happen atomically, preventing DNS rebinding at
 To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
 
 In case the AI Gateway [proxy target](#proxy-target) hostname (the Coder access URL by default) resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach the configured AI Gateway.
-If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server.md#--ai-gateway-proxy-allowed-private-cidrs)):
+If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server/index.md#--ai-gateway-proxy-allowed-private-cidrs)):
 
 ```sh
 CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS=10.0.0.0/8,172.16.0.0/12
@@ -256,7 +256,7 @@ If your organization requires all outbound traffic to pass through a corporate p
 
 ### How it works
 
-Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AI_GATEWAY_PROXY_UPSTREAM`](../../../reference/cli/server.md#--ai-gateway-proxy-upstream).
+Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AI_GATEWAY_PROXY_UPSTREAM`](../../../reference/cli/server/index.md#--ai-gateway-proxy-upstream).
 
 MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then communicates with AI providers.
 To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the `coderd` process.
@@ -283,7 +283,7 @@ CODER_AI_GATEWAY_PROXY_UPSTREAM=https://<corporate-proxy-url>:8080
 CODER_AI_GATEWAY_PROXY_UPSTREAM_CA=/path/to/corporate-ca.crt
 ```
 
-If the system already trusts the upstream proxy's CA certificate, [`CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`](../../../reference/cli/server.md#--ai-gateway-proxy-upstream-ca) is not required.
+If the system already trusts the upstream proxy's CA certificate, [`CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`](../../../reference/cli/server/index.md#--ai-gateway-proxy-upstream-ca) is not required.
 
 ## Client Configuration
 

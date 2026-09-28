@@ -35,7 +35,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
    - Verify a Client secret (or certificate) is valid.
      Coder uses it to redeem refresh tokens.
 
-1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params), request the same scopes:
+1. In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params), request the same scopes:
 
    ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access
@@ -60,7 +60,7 @@ To ensure Coder receives a refresh token when users authenticate with Google dir
 in the auth URL parameters (`CODER_OIDC_AUTH_URL_PARAMS`).
 Without this, users will be logged out when their access token expires.
 
-In your [Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
+In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
 
 ```dotenv
 CODER_OIDC_SCOPES=openid,profile,email
@@ -76,7 +76,7 @@ This means that when a user authenticates using OIDC, the application requests o
 including the ability to refresh access tokens without requiring the user to reauthenticate.
 
 Add the `offline_access` scope to enable refresh tokens in your
-[Coder configuration](../../../reference/cli/server.md#--oidc-auth-url-params):
+[Coder configuration](../../../reference/cli/server/index.md#--oidc-auth-url-params):
 
 ```dotenv
 CODER_OIDC_SCOPES=openid,profile,email,offline_access
@@ -99,7 +99,7 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
 
 1. Save your changes in PingFederate.
 
-1. In your [Coder configuration](../../../reference/cli/server.md#--oidc-scopes), add the `offline_access` scope:
+1. In your [Coder configuration](../../../reference/cli/server/index.md#--oidc-scopes), add the `offline_access` scope:
 
    ```dotenv
    CODER_OIDC_SCOPES=openid,profile,email,offline_access

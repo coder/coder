@@ -45,10 +45,10 @@ are automatically up to date.
 ### Encryption in transit
 
 Place Coder behind a TLS-capable reverse-proxy/load balancer and enable
-[Strict Transport Security](../../reference/cli/server.md#--strict-transport-security)
+[Strict Transport Security](../../reference/cli/server/index.md#--strict-transport-security)
 so that connections from end users are always encrypted.
 
-Enable [TLS](../../reference/cli/server.md#--tls-address) on the control plane and
+Enable [TLS](../../reference/cli/server/index.md#--tls-address) on the control plane and
 encrypt traffic from the reverse-proxy/load balancer to the control plane, so that
 even if an attacker gains access to your network, they will not be able to snoop
 on control plane traffic.
@@ -123,7 +123,7 @@ of the Coder deployment.
 ### Encryption in transit
 
 Enable TLS on PostgreSQL and set `sslmode=verify-full` in your
-[postgres URL](../../reference/cli/server.md#--postgres-url) on the control plane.
+[postgres URL](../../reference/cli/server/index.md#--postgres-url) on the control plane.
 This configures the control plane to only establish TLS connections to PostgreSQL and
 check that the PostgreSQL server’s certificate is valid and matches the expected
 hostname.
@@ -492,7 +492,7 @@ public STUN servers.
 You may choose not to configure any STUN servers, in which case most workspace
 traffic will need to be relayed via DERP. You may choose to deploy your own STUN
 servers, either on the public Internet, or on your corporate network and
-[configure Coder to use it](../../reference/cli/server.md#--derp-server-stun-addresses).
+[configure Coder to use it](../../reference/cli/server/index.md#--derp-server-stun-addresses).
 
 If you do not consider the addresses and ports to be sensitive, we recommend
 using the default set of STUN servers operated by Google.
@@ -502,7 +502,7 @@ using the default set of STUN servers operated by Google.
 Coder workspace apps are a way to allow users to access web applications running
 in the workspace via the control plane or Workspace Proxy.
 
-1. [Disable workspace apps on sub-paths](../../reference/cli/server.md#--disable-path-apps)
+1. [Disable workspace apps on sub-paths](../../reference/cli/server/index.md#--disable-path-apps)
    of the main Coder domain name.
 
 1. [Use a separate, wildcard domain name](../../admin/setup/index.md#wildcard-access-url)

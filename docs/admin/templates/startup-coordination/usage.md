@@ -121,7 +121,7 @@ Before rolling out to all users:
 3. Verify all units reach "completed" status using `coder exp sync list`
 4. Test workspace functionality
 
-Once you're satisfied, [promote the new template version](../../../reference/cli/templates_versions_promote.md).
+Once you're satisfied, [promote the new template version](../../../reference/cli/templates/versions/promote.md).
 
 ### Handle missing CLI gracefully
 
