@@ -88,9 +88,16 @@ describe("the row the composer edits", () => {
 			null,
 		],
 		["a draft ignores the marked row", "draft", 5, idle, owner, null],
-		["a history choice holds", history(3), 5, idle, owner, history(3)],
 		[
-			"a queued choice holds while the server marks that row",
+			"a history choice stays in effect",
+			history(3),
+			5,
+			idle,
+			owner,
+			history(3),
+		],
+		[
+			"a queued choice stays in effect while the server marks that row",
 			queued(5),
 			5,
 			idle,
@@ -98,7 +105,7 @@ describe("the row the composer edits", () => {
 			queued(5),
 		],
 		[
-			"a queued choice holds while its begin is pending, even if another row is marked",
+			"a queued choice stays in effect while its begin is pending, even if another row is marked",
 			queued(5),
 			6,
 			pendingBegin(5),
