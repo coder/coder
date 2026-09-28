@@ -1,6 +1,5 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -13,11 +12,14 @@ import type {
 	Organization,
 } from "#/api/typesGenerated";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	modelOrganizationSearchParam,
+	selectModelOrganization,
+} from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
 import { resolveModelSelector } from "./utils/modelOptions";
-
-const organizationSearchParam = "org";
 
 const overrideSaveLabel = {
 	root: "Root agent model",
@@ -50,14 +52,14 @@ const overrideSaveToast = (
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const { organizations } = useDashboard();
-	const [searchParams, setSearchParams] = useSearchParams();
-	const selectedOrganization =
-		organizations.find(
-			(organization) =>
-				organization.name === searchParams.get(organizationSearchParam),
-		) ??
-		organizations.find((organization) => organization.is_default) ??
-		organizations[0];
+	const organizationParam = useSearchParamsKey({
+		key: modelOrganizationSearchParam,
+		replace: false,
+	});
+	const { organization: selectedOrganization } = selectModelOrganization(
+		organizations,
+		organizationParam.value,
+	);
 	const organizationId = selectedOrganization?.id ?? "";
 	const queryClient = useQueryClient();
 
@@ -100,8 +102,6 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		organizationId,
 		modelsQuery,
 	);
-	const saveMatchesOrganization =
-		saveOverride.variables?.organizationId === organizationId;
 
 	return (
 		<AgentSettingsUserAgentsPageView
@@ -117,19 +117,12 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			organizations={organizations}
 			selectedOrganization={selectedOrganization}
 			onSelectOrganization={(organization) => {
-				setSearchParams((params) => {
-					const next = new URLSearchParams(params);
-					next.set(organizationSearchParam, organization.name);
-					return next;
-				});
+				organizationParam.setValue(organization.name);
 			}}
 			models={modelsQuery.data?.models ?? []}
 			modelsError={modelsQuery.error}
 			onSaveOverride={saveOverride.mutate}
-			isSaving={saveOverride.isPending && saveMatchesOrganization}
-			saveContext={
-				saveMatchesOrganization ? saveOverride.variables?.context : undefined
-			}
+			isSaving={saveOverride.isPending}
 		/>
 	);
 };

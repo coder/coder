@@ -22,7 +22,7 @@ interface MutationCallbacks {
 	onError?: () => void;
 }
 
-export type SavePersonalOverride = (
+type SavePersonalOverride = (
 	req: UpdatePersonalOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;

@@ -32,10 +32,8 @@ export interface AgentSettingsUserAgentsPageViewProps {
 		options?: { onSuccess?: () => void; onError?: () => void },
 	) => void;
 	isSaving: boolean;
-	saveContext?: TypesGen.ChatPersonalModelOverrideContext;
 }
 
-// Generated ChatPersonalModelOverrideContexts is alphabetical, not display order.
 const PERSONAL_OVERRIDE_CONTEXTS = ["root", "general", "explore"] as const;
 
 export const AgentSettingsUserAgentsPageView: FC<
@@ -54,7 +52,6 @@ export const AgentSettingsUserAgentsPageView: FC<
 	onSelectOrganization,
 	onSaveOverride,
 	isSaving,
-	saveContext,
 }) => {
 	const personalOverridesEnabled = overridesData?.enabled ?? true;
 	const hasNoOrganizationModels =
@@ -155,7 +152,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 							options,
 						);
 					}}
-					isSaving={isSaving && saveContext === context}
+					isSaving={isSaving}
 					disabled={isDisabled}
 				/>
 			))}
