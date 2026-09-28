@@ -44,7 +44,8 @@ The `error_description` opens with the requested name that caused the rejection:
 - `none of the scopes registered for this app are supported by this deployment`: the application's `scope` allowlist names nothing this deployment offers, so no request against it can succeed, including one that omits `scope`.
   Update the allowlist with supported scopes.
   This description stands alone.
-  Nothing checks a stored `scope` against the catalog, so the response never echoes it; the `coderd` log records the application ID.
+  Dynamic Client Registration drops unsupported names before storing, so this applies to an allowlist set through the web UI or the management API, or to an application that registered before names were checked.
+  Such a value was never checked against the catalog, so the response never echoes it; the `coderd` log records the application ID.
 
 Omitting `scope` requests the application's allowlist, or full access if it has none.
 

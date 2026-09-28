@@ -23,13 +23,11 @@ const (
 	OAuth2ScopeListMaxNames = 100
 )
 
-// ValidateOAuth2ScopeList bounds the size of a scope list before it is stored
-// as an app's allowlist. Names are not checked against the catalog: an
-// unknown name is rejected at authorization, where the client learns which
-// name to drop. Dynamic client registration is unauthenticated, so without a
-// cap the stored list is bounded only by the request body limit and is read on
-// every app response. The length check runs first so an oversized list is
-// never split.
+// ValidateOAuth2ScopeList caps the size of a scope list before it is stored as
+// an app's allowlist. Registration is unauthenticated, so the cap keeps an
+// anonymous caller from storing a list as large as the request body. Names are
+// checked against the catalog elsewhere. The length check runs first so an
+// oversized list is never split.
 func ValidateOAuth2ScopeList(raw string) error {
 	if len(raw) > OAuth2ScopeListMaxBytes {
 		return xerrors.Errorf("must be at most %d bytes", OAuth2ScopeListMaxBytes)
