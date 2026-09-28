@@ -62,7 +62,10 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
+import {
+	runDeleteQueuedMessage,
+	runPromoteQueuedMessage,
+} from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
@@ -564,18 +567,8 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) =>
+		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
