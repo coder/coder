@@ -16,6 +16,9 @@ type chatContextKey struct{}
 type Context struct {
 	ID          uuid.UUID
 	AncestorIDs []uuid.UUID
+	// ToolCallID is the chat tool call the request acts for, from
+	// Coder-Tool-Call-Id. uuid.Nil when absent or malformed.
+	ToolCallID uuid.UUID
 }
 
 // FromContext returns the chat identity stored on the context.
@@ -46,7 +49,7 @@ func Fields(ctx context.Context) []slog.Field {
 	if !ok {
 		return nil
 	}
-	return chatFields(chatCtx.ID, chatCtx.AncestorIDs)
+	return chatFields(chatCtx)
 }
 
 // Middleware tags agent logs for requests that originate from
@@ -55,30 +58,32 @@ func Fields(ctx context.Context) []slog.Field {
 // Install after loggermw.Logger so access-log enrichment can run.
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		chatID, ancestorIDs, ok := extractContext(r)
+		chatCtx, ok := extractContext(r)
 		if !ok {
 			next.ServeHTTP(rw, r)
 			return
 		}
 
-		fields := chatFields(chatID, ancestorIDs)
+		fields := chatFields(chatCtx)
 		if requestLogger := loggermw.RequestLoggerFromContext(r.Context()); requestLogger != nil {
 			requestLogger.WithFields(fields...)
 		}
 
-		ctx := WithContext(r.Context(), chatID, ancestorIDs)
-		next.ServeHTTP(rw, r.WithContext(ctx))
+		next.ServeHTTP(rw, r.WithContext(context.WithValue(r.Context(), chatContextKey{}, chatCtx)))
 	})
 }
 
-func chatFields(chatID uuid.UUID, ancestorIDs []uuid.UUID) []slog.Field {
-	fields := []slog.Field{slog.F("chat_id", chatID.String())}
-	if len(ancestorIDs) == 0 {
+func chatFields(chatCtx Context) []slog.Field {
+	fields := []slog.Field{slog.F("chat_id", chatCtx.ID.String())}
+	if chatCtx.ToolCallID != uuid.Nil {
+		fields = append(fields, slog.F("tool_call_id", chatCtx.ToolCallID.String()))
+	}
+	if len(chatCtx.AncestorIDs) == 0 {
 		return fields
 	}
 
-	ancestors := make([]string, 0, len(ancestorIDs))
-	for _, id := range ancestorIDs {
+	ancestors := make([]string, 0, len(chatCtx.AncestorIDs))
+	for _, id := range chatCtx.AncestorIDs {
 		ancestors = append(ancestors, id.String())
 	}
 	return append(fields, slog.F("ancestor_chat_ids", ancestors))

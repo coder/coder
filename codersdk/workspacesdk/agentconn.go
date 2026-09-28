@@ -116,6 +116,7 @@ type AgentConn interface {
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
 	SignalProcess(ctx context.Context, id string, signal string) error
 	StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error)
+	CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error)
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ResolvePath(ctx context.Context, path string) (string, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
@@ -912,6 +913,11 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// TimeoutMs is the execute timeout: it limits how long a blocking
+	// output wait blocks, counted from the first start of a tool call; a
+	// repeat start does not move it. The process keeps running after it.
+	// 0 means none.
+	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
@@ -945,6 +951,11 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
+	// TimedOut is true while the process runs past the execute timeout
+	// set by StartProcessRequest.TimeoutMs. The process keeps running.
+	TimedOut bool `json:"timed_out,omitempty"`
+	// Canceled is true when a tool call cancel killed the process.
+	Canceled bool `json:"canceled,omitempty"`
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -1117,13 +1128,17 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
+	res, err := c.toolCallRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/write-file", neturl.Values{
 		"path": []string{path},
 	}), reader)
 	if err != nil {
 		return xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readWriteFileResponse(res)
+}
+
+func readWriteFileResponse(res *http.Response) error {
 	if res.StatusCode != http.StatusOK {
 		return codersdk.ReadBodyAsError(res)
 	}
@@ -1370,15 +1385,37 @@ type MCPToolContent struct {
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
+	res, err := c.toolCallRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
 	if err != nil {
 		return StartProcessResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readStartProcessResponse(res)
+}
+
+func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) {
 	if res.StatusCode != http.StatusOK {
 		return StartProcessResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp StartProcessResponse
+	return resp, decodeAgentJSON(res, &resp)
+}
+
+// CancelToolCall cancels tool call id of the chat in the connection's
+// CoderChatIDHeader. It returns after the tool call's request finished,
+// with the killed process marked canceled.
+func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/tool-calls/"+id.String()+"/cancel", nil)
+	if err != nil {
+		return CancelToolCallResponse{}, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return CancelToolCallResponse{}, codersdk.ReadBodyAsError(res)
+	}
+	var resp CancelToolCallResponse
 	return resp, decodeAgentJSON(res, &resp)
 }
 
@@ -1478,11 +1515,15 @@ func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileE
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
+	res, err := c.toolCallRequest(ctx, http.MethodPost, "/api/v0/edit-files", edits)
 	if err != nil {
 		return FileEditResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	return readEditFilesResponse(res)
+}
+
+func readEditFilesResponse(res *http.Response) (FileEditResponse, error) {
 	if res.StatusCode != http.StatusOK {
 		return FileEditResponse{}, codersdk.ReadBodyAsError(res)
 	}
@@ -1504,6 +1545,21 @@ func agentAPIPath(path string, query neturl.Values) string {
 
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *agentConn) apiRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	return c.apiRequestWithHeader(ctx, method, path, body, nil)
+}
+
+// toolCallRequest is apiRequest that also sends CoderToolCallIDHeader
+// from ctx. Only requests that act use it: the agent runs a request with
+// a tool call ID once and answers repeats with the saved response.
+func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	header := http.Header{}
+	if id, ok := ToolCallIDFromContext(ctx); ok {
+		header.Set(CoderToolCallIDHeader, id.String())
+	}
+	return c.apiRequestWithHeader(ctx, method, path, body, header)
+}
+
+func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path string, body interface{}, header http.Header) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -1542,6 +1598,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		for _, value := range values {
 			req.Header.Add(key, value)
 		}
+	}
+	for key, values := range header {
+		req.Header[key] = values
 	}
 
 	return c.apiClient(ctx).Do(req)

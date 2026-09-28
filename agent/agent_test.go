@@ -4572,3 +4572,69 @@ func assertConnectionReport(t testing.TB, agentClient *agenttest.Client, report 
 	}
 	assert.Equal(t, report.clientSessionID, reports[0].GetConnection().GetClientSessionId(), "connect reason should be %s", report.clientSessionID)
 }
+
+func TestAgent_ToolCall(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
+	requireConflict := func(err error) {
+		t.Helper()
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	}
+
+	// A repeated start returns the first process. A cancel kills it and
+	// refuses later starts. Output reads do not send the tool call ID, so
+	// they are not refused.
+	startID := uuid.New()
+	startCtx := workspacesdk.WithToolCallID(ctx, startID)
+	req := workspacesdk.StartProcessRequest{Command: "sleep 300", Background: true}
+	for range 2 {
+		resp, err := conn.StartProcess(startCtx, req)
+		require.NoError(t, err)
+		require.Equal(t, startID.String(), resp.ID)
+	}
+	canceled, err := conn.CancelToolCall(ctx, startID)
+	require.NoError(t, err)
+	started, err := canceled.StartProcessResult()
+	require.NoError(t, err)
+	require.Equal(t, startID.String(), started.ID)
+	out, err := conn.ProcessOutput(startCtx, startID.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
+	require.NoError(t, err)
+	require.True(t, out.Canceled)
+	_, err = conn.StartProcess(startCtx, req)
+	requireConflict(err)
+
+	// Saved write and edit responses decode as WriteFile and EditFiles do.
+	filePath := filepath.Join(t.TempDir(), "tool-call.txt")
+	writeID := uuid.New()
+	require.NoError(t, conn.WriteFile(workspacesdk.WithToolCallID(ctx, writeID), filePath, strings.NewReader("hello")))
+	canceled, err = conn.CancelToolCall(ctx, writeID)
+	require.NoError(t, err)
+	require.True(t, canceled.Received)
+	require.NoError(t, canceled.WriteFileResult())
+
+	edits := workspacesdk.FileEditRequest{
+		Files:       []workspacesdk.FileEdits{{Path: filePath, Edits: []workspacesdk.FileEdit{{OldText: "hello", NewText: "bye"}}}},
+		IncludeDiff: true,
+	}
+	editID := uuid.New()
+	edited, err := conn.EditFiles(workspacesdk.WithToolCallID(ctx, editID), edits)
+	require.NoError(t, err)
+	canceled, err = conn.CancelToolCall(ctx, editID)
+	require.NoError(t, err)
+	saved, err := canceled.EditFilesResult()
+	require.NoError(t, err)
+	require.Equal(t, edited, saved)
+
+	// A cancel before the request refuses the edit.
+	neverID := uuid.New()
+	canceled, err = conn.CancelToolCall(ctx, neverID)
+	require.NoError(t, err)
+	require.False(t, canceled.Received)
+	_, err = conn.EditFiles(workspacesdk.WithToolCallID(ctx, neverID), edits)
+	requireConflict(err)
+}

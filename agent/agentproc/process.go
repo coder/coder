@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -42,10 +42,15 @@ type process struct {
 	buf        *HeadTailBuffer
 	logger     slog.Logger
 	running    bool
-	exitCode   *int
-	startedAt  int64
-	exitedAt   *int64
-	done       chan struct{} // closed when process exits
+	canceled   atomic.Bool // killed by a tool call cancel
+	// waitUntil bounds how long a blocking output wait blocks: the
+	// execute timeout. The process keeps running after it. Zero for
+	// none.
+	waitUntil time.Time
+	exitCode  *int
+	startedAt int64
+	exitedAt  *int64
+	done      chan struct{} // closed when process exits
 }
 
 // info returns a snapshot of the process state.
@@ -105,19 +110,24 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 	}
 }
 
-// start spawns a new process. Both foreground and background
-// processes use a long-lived context so the process survives
-// the HTTP request lifecycle. The background flag only affects
-// client-side polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*process, error) {
+// start spawns a new process with the given ID, or returns the
+// process that already has it: a repeated tool call start attaches to
+// its process and keeps its waitUntil. Both foreground and background
+// processes use a long-lived context so the process survives the HTTP
+// request lifecycle. The background flag only affects client-side
+// polling behavior.
+func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string) (*process, error) {
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return nil, xerrors.New("manager is closed")
 	}
+	if proc, ok := m.procs[id]; ok {
+		m.mu.Unlock()
+		return proc, nil
+	}
 	m.mu.Unlock()
 
-	id := uuid.New().String()
 	logger := m.logger
 	if chatID != "" {
 		logger = logger.With(slog.F("chat_id", chatID))
@@ -176,7 +186,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		return nil, xerrors.Errorf("start process: %w", err)
 	}
 
-	now := m.clock.Now().Unix()
+	now := m.clock.Now()
 	proc := &process{
 		id:         id,
 		command:    req.Command,
@@ -188,8 +198,11 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		buf:        buf,
 		logger:     logger,
 		running:    true,
-		startedAt:  now,
+		startedAt:  now.Unix(),
 		done:       make(chan struct{}),
+	}
+	if req.TimeoutMs > 0 {
+		proc.waitUntil = now.Add(time.Duration(req.TimeoutMs) * time.Millisecond)
 	}
 
 	m.mu.Lock()

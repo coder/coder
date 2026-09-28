@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -62,7 +63,8 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-// handleStartProcess starts a new process.
+// handleStartProcess starts a new process. A request with a tool call
+// ID uses it as the process ID.
 func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -83,11 +85,15 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var chatID string
+	id := uuid.New()
 	if chatContext, ok := agentchat.FromContext(ctx); ok {
 		chatID = chatContext.ID.String()
+		if chatContext.ToolCallID != uuid.Nil {
+			id = chatContext.ToolCallID
+		}
 	}
 
-	proc, err := api.manager.start(req, chatID)
+	proc, err := api.manager.start(req, chatID, id.String())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -194,9 +200,15 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout.
-		waitCtx, waitCancel := context.WithTimeout(ctx, maxWaitDuration)
+		// client-supplied timeout, and return at the execute
+		// timeout.
+		wait := maxWaitDuration
+		if !proc.waitUntil.IsZero() {
+			wait = min(wait, api.manager.clock.Until(proc.waitUntil))
+		}
+		waitCtx, waitCancel := context.WithCancel(ctx)
 		defer waitCancel()
+		defer api.manager.clock.AfterFunc(wait, waitCancel).Stop()
 
 		_ = proc.waitForOutput(waitCtx)
 		// Fall through to read snapshot below.
@@ -216,7 +228,27 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		Running:   info.Running,
 		ExitCode:  info.ExitCode,
 		Command:   info.Command,
+		TimedOut:  info.Running && !proc.waitUntil.IsZero() && !api.manager.clock.Now().Before(proc.waitUntil),
+		Canceled:  proc.canceled.Load(),
 	})
+}
+
+// KillToolCall kills the running process of tool call id and marks it
+// canceled.
+func (api *API) KillToolCall(ctx context.Context, id uuid.UUID) {
+	proc, ok := api.manager.get(id.String())
+	if !ok {
+		return
+	}
+	proc.mu.Lock()
+	defer proc.mu.Unlock()
+	if !proc.running {
+		return
+	}
+	proc.canceled.Store(true)
+	if err := signalProcess(proc.cmd.Process, syscall.SIGKILL); err != nil {
+		api.logger.Warn(ctx, "kill canceled tool call process", slog.F("process_id", id), slog.Error(err))
+	}
 }
 
 // handleSignalProcess sends a signal to a running process.
