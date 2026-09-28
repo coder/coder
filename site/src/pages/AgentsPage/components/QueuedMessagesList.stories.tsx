@@ -26,6 +26,7 @@ const meta: Meta<typeof QueuedMessagesList> = {
 		onEdit: fn(),
 		onEndEdit: fn(),
 		queuedMessageUnderEditID: null,
+		composerQueuedMessageID: null,
 		showEnterToSendHint: true,
 	},
 };
@@ -241,8 +242,8 @@ export const ReadOnlyViewerActions: Story = {
 };
 
 // A row under edit behind the head: the head stays sendable; rows behind the
-// edit wait. The row under edit offers Cancel edit, Edit, Send now and Remove,
-// and its Editing badge shows its tooltip.
+// edit wait. The row, under edit in another client, offers Cancel edit, Edit,
+// Send now and Remove, and its Editing badge shows its tooltip.
 export const RowUnderEditWithWaitingTail: Story = {
 	args: {
 		queuedMessageUnderEditID: 2,

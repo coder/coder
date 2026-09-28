@@ -28,13 +28,16 @@ type QueuedMessagesListProps = {
 	automationNames: ChatAutomationNames;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
-	onEdit?: (id: number) => Promise<void> | void;
+	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	// While paused, Edit is disabled on rows other than the one under edit and
 	// the Cancel edit tooltip says the row is sent.
 	isChatPaused?: boolean;
 	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID: number | null;
+	// The queued row this composer edits, or null. It gets no Edit action; a
+	// row under edit elsewhere keeps Edit so this client can take it over.
+	composerQueuedMessageID: number | null;
 	showEnterToSendHint?: boolean;
 	className?: string;
 };
@@ -74,7 +77,7 @@ export const isQueuedMessageUnderEdit = (
 	queuedMessageUnderEditID: number | null,
 ): boolean => message.id === queuedMessageUnderEditID;
 
-type QueuedMessageAction = "delete" | "promote" | "edit" | "end_edit";
+type QueuedMessageAction = "delete" | "promote" | "end_edit";
 
 type QueuedMessageActionButtonProps = {
 	label: string;
@@ -142,6 +145,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onEndEdit,
 	isChatPaused = false,
 	queuedMessageUnderEditID,
+	composerQueuedMessageID,
 	showEnterToSendHint,
 	className,
 }) => {
@@ -382,18 +386,18 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 										}
 									/>
 								)}
-								{onEdit && (
+								{onEdit && item.id !== composerQueuedMessageID && (
 									<QueuedMessageActionButton
 										label="Edit"
 										icon={<PencilIcon className="size-3.5" />}
-										busy={isRowPending && pendingAction.action === "edit"}
+										busy={false}
 										disabled={isBusy}
 										disabledReason={
-											isChatPaused && !item.isUnderEdit
+											isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
 												? "Finish the current edit first."
 												: undefined
 										}
-										onClick={() => void runAction(item.id, "edit", onEdit)}
+										onClick={() => onEdit(item.id)}
 									/>
 								)}
 								<QueuedMessageActionButton
