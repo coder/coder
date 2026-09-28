@@ -49,7 +49,11 @@ export const ResizableChatsSidebarFrame = ({
 	const startWidth = useRef(0);
 
 	const setUserWidth = (nextWidth: number) => {
-		const clampedWidth = clampLeftSidebarWidth(nextWidth);
+		// A request at the cap keeps a wider saved width so it can grow back.
+		const clampedWidth =
+			nextWidth >= maxWidth
+				? Math.max(userWidth, maxWidth)
+				: clampLeftSidebarWidth(nextWidth);
 		setUserWidthState(clampedWidth);
 		persistLeftSidebarWidth(clampedWidth);
 	};

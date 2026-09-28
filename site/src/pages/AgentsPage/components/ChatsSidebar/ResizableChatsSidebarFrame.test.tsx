@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
+	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
@@ -136,9 +137,23 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		fireEvent.keyDown(handle, { key: "End" });
 		const resizedWidth = handle.getAttribute("aria-valuenow");
+		expect(resizedWidth).toBe(String(getLeftSidebarMaxWidth()));
 		fireEvent(window, new Event("resize"));
 
 		expect(handle).toHaveAttribute("aria-valuenow", resizedWidth);
+	});
+
+	it("keeps the saved width when resizing against a squeezed cap", () => {
+		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "500");
+		const handle = renderHandle();
+
+		vi.stubGlobal("innerWidth", 700);
+		fireEvent(window, new Event("resize"));
+		fireEvent.keyDown(handle, { key: "ArrowRight" });
+		vi.stubGlobal("innerWidth", 1440);
+		fireEvent(window, new Event("resize"));
+
+		expect(handle).toHaveAttribute("aria-valuenow", "500");
 	});
 
 	it("reports the end of its own slide but not of a child animation", () => {
