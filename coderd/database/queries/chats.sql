@@ -1965,8 +1965,7 @@ FROM chats_expanded;
 --      disappeared).
 --   3. Waiting chats with a non-empty queue and stale updated_at
 --      (deferred-promote stranding when the worker dies before its
---      post-cancel cleanup runs). Paused chats hold their queue on
---      purpose and are not stranded.
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -2985,12 +2984,6 @@ VALUES (
     @created_by::uuid
 )
 RETURNING *;
-
--- name: GetChatQueuedMessagesByPosition :many
--- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC;
 
 -- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count

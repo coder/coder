@@ -582,8 +582,6 @@ type sqlcQuerier interface {
 	// changes only its position, and concurrent senders can commit with
 	// created_at and position in opposite orders.
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
-	// Returns queued messages in state-machine order (position ASC, id ASC).
-	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the chat retention period in days. Chats archived longer
 	// than this and orphaned chat files older than this are purged by
 	// dbpurge. Returns 30 (days) when no value has been configured.
