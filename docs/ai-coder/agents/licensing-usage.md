@@ -61,8 +61,8 @@ Coder doesn't send user-identifiable information or additional chat data to Tall
 Coder also shares the reported usage with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
 
 Your Coder deployment must be able to make outbound HTTPS requests to `https://tallyman-prod.coder.com` to report usage.
-Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after the hour ends, then checks for unpublished events approximately every 17 minutes.
-In steady state, each hour's usage typically reaches Tallyman within about 25 minutes of the hour closing.
+Coder generates one `hb_agent_runtime_v1` event for each UTC hour shortly after the hour ends, then checks for unpublished events approximately every 17&nbsp;minutes.
+In steady state, each hour's usage typically reaches Tallyman within about 25&nbsp;minutes of the hour closing.
 You can monitor these requests in `coderd` logs.
 
 A successful request produces a debug log similar to the following example when you enable debug logging with [`CODER_LOG_FILTER=.*`](../../reference/cli/server.md#-l---log-filter):
@@ -78,7 +78,7 @@ Idle hours have a value of `0`.
 If the deployment was offline, Coder backfills missed hours for up to seven days, batching up to 100 events per request.
 Hours missing beyond seven days aren't reported.
 
-The following example reports 1 hour of Agent Time:
+The following example reports 1&nbsp;hour of Agent Time:
 
 ```txt
 POST /api/v1/events/ingest HTTP/1.1

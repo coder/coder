@@ -202,4 +202,4 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > [!NOTE]
-> Logs are truncated once they reach 5MB in size.
+> Logs are truncated once they reach 5&nbsp;MB in size.

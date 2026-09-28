@@ -174,7 +174,7 @@ coder ai-gateway keys list
 
 The `LAST HEARTBEAT AT` column holds the timestamp.
 The first heartbeat is recorded when the replica connects.
-An active control connection updates the timestamp every 60 seconds.
+An active control connection updates the timestamp every 60&nbsp;seconds.
 Coder stores one timestamp per key, so a recent heartbeat on a shared key does not confirm that every replica is connected.
 Check `/readyz` on each replica to verify individual health.
 
@@ -300,7 +300,7 @@ coder ai-gateway keys delete standalone-production
 ```
 
 Deleting a key prevents new connections immediately.
-An established connection closes when its next heartbeat detects the deletion, within 60 seconds.
+An established connection closes when its next heartbeat detects the deletion, within 60&nbsp;seconds.
 The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop the deployment before deleting its key.
 

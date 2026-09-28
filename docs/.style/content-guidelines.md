@@ -72,11 +72,11 @@ Docs claims should be checked against the actual implementation, not approximati
 - Exact RBAC action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
-  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150 ms".
+  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5 minutes" can't drift-fail, but `300s default` can.
+*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
 Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim

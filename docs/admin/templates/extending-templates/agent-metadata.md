@@ -137,7 +137,7 @@ For example, let's say you have
 
 - 10 running agents
 - each with 6 metadata snippets
-- with an average interval of 4 seconds
+- with an average interval of 4&nbsp;seconds
 
 You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 

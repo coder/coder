@@ -46,7 +46,7 @@ Go to the Azure Portal > **Azure Active Directory** > **App registrations** > Yo
    Alternatively, you can force a sign-out for all users with the
    [sign-out request process](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc#send-a-sign-out-request).
 
-1. Azure issues rolling refresh tokens with a default absolute expiration of 90 days and inactivity expiration of 24 hours.
+1. Azure issues rolling refresh tokens with a default absolute expiration of 90&nbsp;days and inactivity expiration of 24&nbsp;hours.
 
    You can adjust these settings under **Authentication methods** > **Token lifetime** (or use Conditional-Access policies in Entra ID).
 
@@ -94,7 +94,7 @@ CODER_OIDC_AUTH_URL_PARAMS='{"access_type":"offline"}'
 
 1. Optionally, in **Token Settings**
 
-   - **Refresh Token Lifetime**: set a value that matches your security policy. Ping's default is 30 days.
+   - **Refresh Token Lifetime**: set a value that matches your security policy. Ping's default is 30&nbsp;days.
    - **Idle Timeout**: ensure it's more than or equal to the lifetime of the access token so that refreshes don't fail prematurely.
 
 1. Save your changes in PingFederate.
@@ -147,7 +147,7 @@ To verify refresh tokens are working correctly:
 
    </div>
 
-1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1 hour).
+1. Verify users can stay logged in beyond the identity provider's access token expiration period (typically 1&nbsp;hour).
 
 1. Monitor Coder logs for `failed to renew OIDC token: token has expired` messages.
    There should not be any.
@@ -161,7 +161,7 @@ If all verification steps pass successfully, your refresh token configuration is
 **Symptoms**:
 
 - Users experience session timeouts and must re-authenticate.
-- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1 hour).
+- Session timeouts typically occur after the access token expiration period (varies by provider, commonly 1&nbsp;hour).
 
 **Causes**:
 
