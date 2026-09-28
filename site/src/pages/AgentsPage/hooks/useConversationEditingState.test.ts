@@ -947,6 +947,55 @@ describe("useConversationEditingState", () => {
 			unmount();
 		});
 
+		it.each([
+			[
+				"a file reference added during an edit keeps the edit as a new-message draft",
+				"queued text",
+				"queued text",
+				"queued text with a chip",
+			],
+			[
+				"an edit reduced to a file reference keeps its draft",
+				"queued text",
+				"",
+				"a chip only",
+			],
+			[
+				"a file reference added to a row with no text keeps the edit as a new-message draft",
+				"",
+				"",
+				"a chip only",
+			],
+		])(
+			"when the server ends the edit, %s",
+			(_name, rowText, textWhileEditing, editorStateWhileEditing) => {
+				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+				act(() => {
+					beginEdit({ kind: "queued", id: 42 }, rowText);
+				});
+				// The editor echoes a non-empty seed before the change.
+				if (rowText) {
+					act(() => {
+						result.current.handleContentChange(rowText, rowText, false);
+					});
+				}
+				act(() => {
+					result.current.handleContentChange(
+						textWhileEditing,
+						editorStateWhileEditing,
+						true,
+					);
+				});
+
+				markOnServer(null);
+
+				expect(result.current.composerMode).toBe("draft");
+				expect(result.current.inputValueRef.current).toBe(textWhileEditing);
+				expect(localStorage.getItem(expectedKey)).toBe(editorStateWhileEditing);
+				unmount();
+			},
+		);
+
 		describe("edit sessions", () => {
 			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
 				const { result, unmount, beginEdit, markOnServer } = renderEditing();

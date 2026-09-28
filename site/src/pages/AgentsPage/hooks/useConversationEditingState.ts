@@ -94,6 +94,11 @@ export function useConversationEditingState(deps: {
 		null,
 	);
 
+	// Whether the user changed the editor since the current target loaded,
+	// including editor state such as file-reference chips.
+	const editModifiedRef = useRef(false);
+	const hasFileReferencesRef = useRef(false);
+
 	const loadEditorText = (text: string, editorState: string | undefined) => {
 		setDraftState({
 			editorInitialValue: text,
@@ -102,22 +107,36 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = editorState;
 		setRemountKey((k) => k + 1);
 		inputValueRef.current = text;
+		hasFileReferencesRef.current = false;
+		editModifiedRef.current = false;
 	};
 
-	const persistDraft = () => {
+	// A draft is kept while it has text or file references.
+	const writeDraft = (
+		text: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
 		if (!draftStorageKey) {
 			return;
 		}
-		const draft = serializedEditorStateRef.current ?? inputValueRef.current;
-		if (inputValueRef.current.trim()) {
+		if (text.trim() || hasFileReferences) {
 			try {
-				localStorage.setItem(draftStorageKey, draft);
+				localStorage.setItem(draftStorageKey, serializedEditorState);
 			} catch {
 				// QuotaExceededError, silently discard the draft.
 			}
 		} else {
 			localStorage.removeItem(draftStorageKey);
 		}
+	};
+
+	const persistDraft = () => {
+		writeDraft(
+			inputValueRef.current,
+			serializedEditorStateRef.current ?? inputValueRef.current,
+			hasFileReferencesRef.current,
+		);
 	};
 
 	const restoreDraftBeforeEdit = () => {
@@ -137,10 +156,9 @@ export function useConversationEditingState(deps: {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
 		}
-		const textModified =
-			loadedTarget !== null && inputValueRef.current !== loadedTarget.text;
+		const editModified = loadedTarget !== null && editModifiedRef.current;
 		if (target === null) {
-			if (textModified) {
+			if (editModified) {
 				setLoadedTarget(null);
 				setDraftBeforeEdit(null);
 				persistDraft();
@@ -183,6 +201,8 @@ export function useConversationEditingState(deps: {
 		const snapshot = {
 			editorState: serializedEditorStateRef.current,
 			loadedTarget,
+			editModified: editModifiedRef.current,
+			hasFileReferences: hasFileReferencesRef.current,
 		};
 
 		inputValueRef.current = "";
@@ -192,6 +212,8 @@ export function useConversationEditingState(deps: {
 
 		return () => {
 			loadEditorText(message, snapshot.editorState);
+			editModifiedRef.current = snapshot.editModified;
+			hasFileReferencesRef.current = snapshot.hasFileReferences;
 			setLoadedTarget(snapshot.loadedTarget);
 			if (snapshot.loadedTarget) {
 				setComposerMode(snapshot.loadedTarget.target);
@@ -268,8 +290,19 @@ export function useConversationEditingState(deps: {
 		// The editor seed echoes the text the ref already holds; anything
 		// else is user input.
 		const isUserInput = content !== inputValueRef.current;
+		// The first change after a load is the seed echo, except after an
+		// empty-text load, which the editor does not echo. A later change of
+		// the serialized state is an edit even when the text is the same.
+		const isEditorStateChange =
+			serializedEditorStateRef.current === undefined
+				? loadedTarget?.text === ""
+				: serializedEditorState !== serializedEditorStateRef.current;
+		if (loadedTarget !== null && (isUserInput || isEditorStateChange)) {
+			editModifiedRef.current = true;
+		}
 		inputValueRef.current = content;
 		serializedEditorStateRef.current = serializedEditorState;
+		hasFileReferencesRef.current = hasFileReferences;
 		if (isUserInput && composerMode === "follow") {
 			setComposerMode(target ?? "draft");
 		}
@@ -280,18 +313,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		if (draftStorageKey) {
-			const shouldPersist = content.trim() || hasFileReferences;
-			if (shouldPersist) {
-				try {
-					localStorage.setItem(draftStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
-			} else {
-				localStorage.removeItem(draftStorageKey);
-			}
-		}
+		writeDraft(content, serializedEditorState, hasFileReferences);
 	};
 
 	// Separate from handleContentChange, which avoids setState to prevent
