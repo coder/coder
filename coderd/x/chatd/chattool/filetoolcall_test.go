@@ -270,3 +270,104 @@ func TestFileToolCall(t *testing.T) {
 		})
 	}
 }
+
+// TestFileToolCallInterrupt covers edit_files and write_file in an
+// interrupt run: the tool cancels the tool call first, sends its request
+// only after the cancel succeeded, and skips the plan turn checks, which
+// depend on chat state that may have changed since the first request.
+func TestFileToolCallInterrupt(t *testing.T) {
+	t.Parallel()
+
+	notFound := codersdk.NewTestError(http.StatusNotFound, http.MethodPost, "http://agent/api/v0/tool-calls/x/cancel")
+	badRequest := codersdk.NewTestError(http.StatusBadRequest, http.MethodPost, "http://agent/api/v0/tool-calls/x/cancel")
+	badRequest.Message = "Tool call headers require the Coder-Chat-Id header."
+
+	for _, ft := range fileTools() {
+		t.Run(ft.name, func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name      string
+				cancelErr error
+				// sent is whether the tool sends its request, and answer
+				// the agent's answer to it.
+				sent        bool
+				answer      error
+				wantIsError bool
+				wantContent string
+			}{
+				{name: "Replayed", sent: true, wantContent: `"ok":true`},
+				{
+					name:        "CanceledBeforeReceived",
+					sent:        true,
+					answer:      &workspacesdk.ToolCallError{Code: workspacesdk.ToolCallErrorCanceled},
+					wantIsError: true,
+					wantContent: ft.change + " not applied: the tool call was canceled before the workspace agent received it.",
+				},
+				{
+					name:        "Unknown",
+					sent:        true,
+					answer:      &workspacesdk.ToolCallError{Code: workspacesdk.ToolCallErrorUnknown},
+					wantIsError: true,
+					wantContent: "the " + ft.change + " may have been applied. Check the file before changing it again.",
+				},
+				{
+					name:        "CancelRefused",
+					cancelErr:   xerrors.Errorf("do request: %w", badRequest),
+					wantIsError: true,
+					wantContent: "outcome unknown: the workspace agent refused to cancel it",
+				},
+				{
+					// An agent without the cancel route keeps the generic
+					// interrupted result.
+					name:        "CancelNotFound",
+					cancelErr:   notFound,
+					wantIsError: true,
+					wantContent: chattool.InterruptedToolResultMessage,
+				},
+			}
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitShort)
+					id := newFileToolCallIdentity(ft.name)
+					id.Cause = chattool.ToolCallCauseInterrupt
+					conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+					cancel := conn.EXPECT().CancelToolCall(gomock.Any(), id.UUID()).
+						DoAndReturn(func(ctx context.Context, _ string) error {
+							tc, ok := workspacesdk.ToolCallFromContext(ctx)
+							assert.True(t, ok, "cancel must carry the tool call")
+							assert.Equal(t, id.AgentToolCall(), tc)
+							return tt.cancelErr
+						})
+					if tt.sent {
+						ft.expect(t, conn, func(context.Context) error { return tt.answer }).After(cancel)
+					}
+					// A plan turn restricted to another path would reject
+					// the call in generation.
+					resolvePlanPath := func(context.Context) (string, string, error) {
+						t.Error("the interrupt run must not resolve the plan path")
+						return "/home/coder/plan.md", "/home/coder", nil
+					}
+					tool := ft.build(func(context.Context) (workspacesdk.AgentConn, error) { return conn, nil }, quartz.NewMock(t), true, resolvePlanPath)
+
+					resp := runFileTool(ctx, t, tool, ft, id)
+					assert.Equal(t, tt.wantIsError, resp.IsError, resp.Content)
+					assert.Contains(t, resp.Content, tt.wantContent)
+				})
+			}
+
+			t.Run("NoRunningAgent", func(t *testing.T) {
+				t.Parallel()
+				id := newFileToolCallIdentity(ft.name)
+				id.Cause = chattool.ToolCallCauseInterrupt
+				tool := ft.build(func(context.Context) (workspacesdk.AgentConn, error) { return nil, chattool.ErrWorkspaceHasNoAgent }, quartz.NewMock(t), false, nil)
+
+				resp := runFileTool(testutil.Context(t, testutil.WaitShort), t, tool, ft, id)
+				assert.True(t, resp.IsError)
+				assert.Contains(t, resp.Content, "outcome unknown: the workspace agent could not be reached")
+				assert.Contains(t, resp.Content, "the "+ft.change+" may have been applied")
+			})
+		})
+	}
+}

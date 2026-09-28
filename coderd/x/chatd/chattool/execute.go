@@ -256,17 +256,26 @@ func cancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, clock quar
 // result. The start is never sent after a failed cancel, because it
 // could start the command the user interrupted.
 func cancelErrorResult(id ToolCallIdentity, err error) fantasy.ToolResponse {
+	text, generic := cancelErrorText(err, executeWords(id))
+	if generic {
+		return fantasy.NewTextErrorResponse(text)
+	}
+	return errorResult(text)
+}
+
+// cancelErrorText returns the result text for a failed cancel of a tool
+// call whose tool uses words. generic is true when the text is
+// InterruptedToolResultMessage: a plain 404 means the agent has no cancel
+// route, so it is older than its api_version said.
+func cancelErrorText(err error, words ToolCallWords) (text string, generic bool) {
 	var sdkErr *codersdk.Error
 	if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-		// The agent has no cancel route, so it is older than its
-		// api_version said and the call keeps the generic result.
-		return fantasy.NewTextErrorResponse(InterruptedToolResultMessage)
+		return InterruptedToolResultMessage, true
 	}
-	words := executeWords(id)
 	if text, ok := ToolCallErrorText(err, words); ok {
-		return errorResult(text)
+		return text, false
 	}
-	return errorResult(UnknownOutcome(fmt.Sprintf("the workspace agent refused to cancel it (%v)", err), words.Effect, words.Check))
+	return UnknownOutcome(fmt.Sprintf("the workspace agent refused to cancel it (%v)", err), words.Effect, words.Check), false
 }
 
 // startToolCallProcess sends req with the tool call headers of id until

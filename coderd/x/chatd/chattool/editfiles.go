@@ -93,6 +93,13 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			}
 			resolvePlanPath := options.ResolvePlanPath
 			if interrupt {
+				// After the cancel the agent never applies the edit, so the
+				// request below replays the recorded response or gets
+				// tool_call_canceled.
+				if err := cancelToolCall(ctx, conn, options.Clock, id); err != nil {
+					text, _ := cancelErrorText(err, editFilesWords(id))
+					return fantasy.NewTextErrorResponse(text), nil
+				}
 				resolvePlanPath = nil
 			}
 			return executeEditFilesTool(ctx, conn, options.Clock, args, resolvePlanPath)
