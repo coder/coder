@@ -1,5 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
-import { useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { renderHookWithAuth } from "#/testHelpers/hooks";
 import {
 	AGENT_CHAT_STATUS_ORDER,
@@ -29,7 +29,14 @@ const renderFilters = (route = "/agents") => {
 	return renderHookWithAuth(
 		() => {
 			const [searchParams, setSearchParams] = useSearchParams();
-			return getAgentSidebarFilters(searchParams, setSearchParams);
+			const location = useLocation();
+			const navigate = useNavigate();
+			const [filters, setFilters] = getAgentSidebarFilters(
+				searchParams,
+				setSearchParams,
+				location.state,
+			);
+			return [filters, setFilters, navigate] as const;
 		},
 		{
 			routingOptions: { path: "/agents", route },
@@ -179,5 +186,20 @@ describe(getAgentSidebarFilters.name, () => {
 			"/agents?chat_status=working,interrupting,done",
 		);
 		expect(result.current[0].chatStatuses).toEqual(AGENT_CHAT_STATUS_ORDER);
+	});
+
+	it("keeps the history state when writing filters", async () => {
+		const { result, getLocationSnapshot } = await renderFilters();
+		// A prompt link leaves its text in history state for the composer.
+		await act(() =>
+			result.current[2]("/agents", { replace: true, state: { prompt: "hi" } }),
+		);
+
+		act(() => {
+			result.current[1](archivedFilters);
+		});
+		await waitFor(() => expect(result.current[0]).toEqual(archivedFilters));
+
+		expect(getLocationSnapshot().state).toEqual({ prompt: "hi" });
 	});
 });
