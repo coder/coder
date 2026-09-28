@@ -1160,8 +1160,8 @@ func (s *Server) trackListener(l net.Listener, add bool) {
 	delete(s.listeners, l)
 }
 
-// trackConn registers the connection with the server. If the server is closed
-// or the listener is non-nil and is closed, the connection is not registered
+// trackConn registers the connection with the server. If the server is
+// closed or the listener is closed, the connection is not registered
 // and should be closed.
 //
 //nolint:revive
@@ -1170,20 +1170,14 @@ func (s *Server) trackConn(l net.Listener, c net.Conn, add bool) (ok bool) {
 	defer s.mu.Unlock()
 	if add {
 		found := false
-		if l != nil {
-			for ll := range s.listeners {
-				if l == ll {
-					found = true
-					break
-				}
-			}
-			if !found {
-				// Listener closed.
-				return false
+		for ll := range s.listeners {
+			if l == ll {
+				found = true
+				break
 			}
 		}
-		if s.closing != nil {
-			// Server closed.
+		if s.closing != nil || !found {
+			// Server or listener closed.
 			return false
 		}
 		s.wg.Add(1)
