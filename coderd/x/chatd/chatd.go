@@ -2279,7 +2279,9 @@ func (p *Server) EditQueuedMessage(
 		}
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
-			return p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
+			// A chat with a queued row is never idle, so a failed
+			// dispatch does not park it in error: only the edit fails.
+			return chathooks.UserPromptDenial(err)
 		}
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
