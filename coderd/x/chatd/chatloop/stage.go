@@ -62,17 +62,17 @@ type TurnOutcome string
 const (
 	// TurnOutcomeCompleted is a turn that finished normally.
 	TurnOutcomeCompleted TurnOutcome = "completed"
-	// TurnOutcomeInterrupted is a turn the user stopped: the chat was
-	// interrupting while the turn was open. The span ends with error
-	// status.
+	// TurnOutcomeInterrupted is a turn stopped by an interrupt request,
+	// from a user, an API client, or a parent agent: the chat was
+	// interrupting while the turn was open. The span status stays unset.
 	TurnOutcomeInterrupted TurnOutcome = "interrupted"
-	// TurnOutcomeError is a turn stopped by a failure.
+	// TurnOutcomeError is a turn stopped by a failure. The span ends
+	// with the failure's error status.
 	TurnOutcomeError TurnOutcome = "error"
 	// TurnOutcomeAbandoned is a turn closed before it finished for any
-	// other reason: an expected exit such as a fence mismatch, a newer
-	// prompt such as a message edit, or runner exit, including shutdown
-	// and loss of ownership. An expected exit ends the span with its
-	// error; the other paths leave the status unset.
+	// other reason: a newer prompt such as a message edit, or runner
+	// exit, including shutdown and loss of ownership. The span status
+	// stays unset.
 	TurnOutcomeAbandoned TurnOutcome = "abandoned"
 )
 

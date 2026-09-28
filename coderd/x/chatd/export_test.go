@@ -10,10 +10,6 @@ import (
 // count recorded for reason.
 var StageAnomalyCount = anomalyCount
 
-// ErrChatInterrupted is the error an interrupted chat_turn span ends
-// with.
-var ErrChatInterrupted = errChatInterrupted
-
 // DefaultTaskTimeout is how long a task attempt runs before the task
 // timeout cancels it.
 const DefaultTaskTimeout = defaultTaskTimeout

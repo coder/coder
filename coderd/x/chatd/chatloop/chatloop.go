@@ -1139,10 +1139,17 @@ func executeTools(
 
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
-		toolCtx, toolSpan := stages.Start(ctx, StageToolCall,
-			attribute.String(AttrToolName, tc.ToolName),
-		)
-		toolSpan.SetModel(stageModel)
+		// The tool_call stage starts only for a call whose tool runs, so
+		// calls rejected as inactive or unknown record no stage.
+		var toolSpan *StageSpan
+		startRun := func(ctx context.Context) context.Context {
+			var toolCtx context.Context
+			toolCtx, toolSpan = stages.Start(ctx, StageToolCall,
+				attribute.String(AttrToolName, tc.ToolName),
+			)
+			toolSpan.SetModel(stageModel)
+			return toolCtx
+		}
 		var execErr error
 		defer func() {
 			if r := recover(); r != nil {
@@ -1166,7 +1173,7 @@ func executeTools(
 			toolSpan.End(execErr)
 		}()
 		executions[i].content, execErr = executeSingleTool(
-			toolCtx,
+			ctx,
 			toolMap,
 			tc,
 			metrics,
@@ -1180,6 +1187,7 @@ func executeTools(
 			resultProviderMetadata,
 			maxResultBytes,
 			toolNameAliases,
+			startRun,
 		)
 	}
 	// SerialToolCalls run in call order after concurrent siblings settle, so
@@ -1320,7 +1328,8 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 // response into a ToolResultContent. The error is non-nil only when
 // tool.Run fails; the result also reports it to the model. It is nil
 // when the tool is not active, is not found, or ran and returned an
-// error result of its own.
+// error result of its own. startRun, when non-nil, is called just
+// before the tool runs and returns the context it runs on.
 func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,
@@ -1335,6 +1344,7 @@ func executeSingleTool(
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
+	startRun func(context.Context) context.Context,
 ) (fantasy.ToolResultContent, error) {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1385,6 +1395,9 @@ func executeSingleTool(
 		slog.F("builtin", builtinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
+	if startRun != nil {
+		ctx = startRun(ctx)
+	}
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  resolvedName,

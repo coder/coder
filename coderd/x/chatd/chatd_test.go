@@ -14903,12 +14903,10 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, queueWait, chatloop.AttrChatKind))
 		require.Equal(t, org.Name, chatd.SpanAttr(t, queueWait, chatloop.AttrOrganizationName))
 	}
-	// requireInterrupted asserts a turn the interrupt task closed.
 	requireInterrupted := func(t *testing.T, turn sdktrace.ReadOnlySpan) {
 		t.Helper()
 		require.Equal(t, string(chatloop.TurnOutcomeInterrupted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
-		require.Equal(t, codes.Error, turn.Status().Code)
-		require.Equal(t, chatd.ErrChatInterrupted.Error(), turn.Status().Description)
+		require.Equal(t, codes.Unset, turn.Status().Code)
 	}
 
 	t.Run("Completed", func(t *testing.T) {

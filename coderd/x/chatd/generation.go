@@ -447,24 +447,12 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if again {
 			continue
 		}
-		if stepAbandonsTurn(ctx, err) {
-			input.TurnSpan.Invalidate(input.TurnToken, chatloop.TurnOutcomeAbandoned, err)
-		}
 		// The step's stage has ended by now, so a turn the step finished
-		// or invalidated closes with that stage counted.
+		// or invalidated closes with that stage counted. A failed step
+		// that recorded no outcome leaves the turn open.
 		input.TurnSpan.Settle(input.TurnToken)
 		return err
 	}
-}
-
-// stepAbandonsTurn reports whether a failed generation step closes its
-// turn as abandoned: an expected, non-retryable exit, such as a fence
-// or history mismatch, while ctx is live. Every other error on a live
-// ctx is retried as the same turn. A done ctx means the task was
-// canceled or timed out, and the step records no outcome for either.
-func stepAbandonsTurn(ctx context.Context, err error) bool {
-	return err != nil && ctx.Err() == nil &&
-		errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable)
 }
 
 // runGenerationStep runs one step of a turn: preparation, the action
