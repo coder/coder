@@ -1,5 +1,5 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -132,7 +132,7 @@ describe("useFileAttachments org scoping", () => {
 		// intermediate commit between the org changing and the
 		// adoption effect running; that window must expose nothing.
 		const renderLog: { orgId: string; fileIds: string[] }[] = [];
-		const Probe: FC<ProbeProps> = ({ orgId }) => {
+		const Probe: React.FC<ProbeProps> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			renderLog.push({ orgId, fileIds: uploadedFileIds(result) });
 			return null;
@@ -159,7 +159,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const log: { adopted: boolean; fileIds: string[] }[] = [];
-		const Probe: FC<ProbeProps> = ({ orgId }) => {
+		const Probe: React.FC<ProbeProps> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			log.push({
 				adopted: result.organizationAdopted,
@@ -284,7 +284,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Suspending after the hook runs simulates a render React abandons before commit.
-		const Suspender: FC<ProbeProps> = ({ orgId }) => {
+		const Suspender: React.FC<ProbeProps> = ({ orgId }) => {
 			useFileAttachments(orgId, { persist: true });
 			throw new Promise(() => {});
 		};

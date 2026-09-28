@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { PaginationContainer } from "./PaginationContainer";
 import {
 	mockInitialRenderResult,
@@ -7,12 +6,12 @@ import {
 } from "./PaginationContainer.mocks";
 
 // Filtering out optional <div> props to give better auto-complete experience
-type EssentialComponent = FC<
+type EssentialComponent = React.FC<
 	Omit<
-		ComponentProps<typeof PaginationContainer>,
-		keyof ComponentProps<"div">
+		React.ComponentProps<typeof PaginationContainer>,
+		keyof React.ComponentProps<"div">
 	> &
-		PropsWithChildren
+		React.PropsWithChildren
 >;
 
 const meta: Meta<EssentialComponent> = {

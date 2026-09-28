@@ -5,12 +5,7 @@ import {
 	renderHook,
 	waitFor,
 } from "@testing-library/react";
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useReducer,
-} from "react";
+import { useReducer } from "react";
 import type { QueryClient } from "react-query";
 import {
 	createMemoryRouter,
@@ -92,15 +87,15 @@ export async function renderHookWithAuth<Result, Props>(
 	 */
 	// Some of the let variables are defined with definite assignment (! operator)
 	let currentLocation!: Location;
-	const LocationLeaker: FC<PropsWithChildren> = ({ children }) => {
+	const LocationLeaker: React.FC<React.PropsWithChildren> = ({ children }) => {
 		currentLocation = useLocation();
 		return children;
 	};
 
 	let forceUpdateRenderHookChildren!: () => void;
-	let currentRenderHookChildren: ReactNode;
+	let currentRenderHookChildren: React.ReactNode;
 
-	const InitialRoute: FC = () => {
+	const InitialRoute: React.FC = () => {
 		const [, forceRerender] = useReducer((b: boolean) => !b, false);
 		forceUpdateRenderHookChildren = () => act(forceRerender);
 		return <LocationLeaker>{currentRenderHookChildren}</LocationLeaker>;

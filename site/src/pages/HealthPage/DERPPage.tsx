@@ -1,5 +1,4 @@
 import { MapPinIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
 import type {
 	HealthcheckReport,
@@ -129,7 +128,7 @@ const severityColor = (severity: HealthSeverity): string => {
 	}
 };
 
-const DERPPage: FC = () => {
+const DERPPage: React.FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
 	const safeNetcheck = netcheck || ({} as NetcheckReport);

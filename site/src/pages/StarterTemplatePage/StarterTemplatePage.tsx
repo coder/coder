@@ -1,11 +1,10 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { templateExamples } from "#/api/queries/templates";
 import { pageTitle } from "#/utils/page";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
-const StarterTemplatePage: FC = () => {
+const StarterTemplatePage: React.FC = () => {
 	const { exampleId } = useParams() as { exampleId: string };
 	const templateExamplesQuery = useQuery(templateExamples());
 	const starterTemplate = templateExamplesQuery.data?.find(

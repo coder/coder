@@ -5,7 +5,7 @@ import {
 	PlusIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useRef } from "react";
+import { useRef } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type { Chat, ChatProject } from "#/api/typesGenerated";
@@ -50,7 +50,7 @@ type ProjectFoldersProps = {
  * Projects section above Chats. Owned, unpinned chats render in their folder;
  * chats whose project is unavailable stay in the sections below.
  */
-export const ProjectFolders: FC<ProjectFoldersProps> = ({
+export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	projects,
 	chatsByProjectId,
 	expandedProjectIds,
@@ -127,7 +127,7 @@ type ProjectFolderProps = {
 	readonly emptyMessage: string;
 };
 
-const ProjectFolder: FC<ProjectFolderProps> = ({
+const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
 	chats,
 	expanded,
@@ -259,7 +259,7 @@ type ProjectFolderMenuItemsProps = {
 	readonly onDelete: () => void;
 };
 
-const ProjectFolderMenuItems: FC<ProjectFolderMenuItemsProps> = ({
+const ProjectFolderMenuItems: React.FC<ProjectFolderMenuItemsProps> = ({
 	Item,
 	Separator,
 	projectPath,

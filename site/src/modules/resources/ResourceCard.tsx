@@ -1,4 +1,4 @@
-import { Children, type FC, type JSX, useState } from "react";
+import { Children, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -14,10 +14,13 @@ import { SensitiveValue } from "./SensitiveValue";
 
 type ResourceCardProps = {
 	resource: WorkspaceResource;
-	agentRow: (agent: WorkspaceAgent) => JSX.Element;
+	agentRow: (agent: WorkspaceAgent) => React.JSX.Element;
 };
 
-export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
+export const ResourceCard: React.FC<ResourceCardProps> = ({
+	resource,
+	agentRow,
+}) => {
 	const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
 		useState(false);
 	const metadataToDisplay = resource.metadata ?? [];

@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import {
@@ -103,6 +102,8 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onArchiveAndDeleteWorkspace: fn(),
 		onPinAgent: fn(),
 		onUnpinAgent: fn(),
+		onMarkChatRead: fn(),
+		onMarkChatUnread: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
 		isSearchDialogOpen: false,
@@ -127,7 +128,7 @@ export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
 
 const ChatsSidebarWithKeybindings = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
@@ -152,7 +153,7 @@ const ChatsSidebarWithKeybindings = (
 };
 
 const ChatsSidebarWithDeferredModels = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [modelsResolved, setModelsResolved] = useState(false);
 
@@ -1759,6 +1760,33 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
+export const ActiveChatContextMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [
@@ -1851,6 +1879,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
 		await within(document.body).findByText("Pin agent");
 	},
 };
@@ -2207,6 +2262,65 @@ export const UnpinContextMenu: Story = {
 		});
 		await userEvent.click(body.getByText("Unpin agent"));
 		expect(args.onUnpinAgent).toHaveBeenCalledWith("unpin-test");
+	},
+};
+
+export const ReadStateContextMenu: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "unread-agent",
+				title: "Unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Unread agent"),
+		);
+		await within(document.body).findByText("Mark as read");
+	},
+};
+
+/**
+ * The read toggle is hidden for the chat the user already has open,
+ * because opening a chat marks it read and would undo the toggle.
+ */
+export const ActiveChatContextMenuHasNoReadToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-unread-agent",
+				title: "Active unread agent",
+				updated_at: recentTimestamp,
+				has_unread: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-unread-agent",
+				pathParams: { agentId: "active-unread-agent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByLabelText("Open actions for Active unread agent"),
+		);
+		await within(document.body).findByText("Rename chat");
 	},
 };
 

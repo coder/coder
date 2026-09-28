@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { ChatProject } from "#/api/typesGenerated";
 import { ChatProjectIcon } from "./ChatProjectIcon";
 
@@ -7,7 +6,7 @@ type ProjectComposerHeaderProps = {
 };
 
 /** Project name and description shown above the new-chat composer. */
-export const ProjectComposerHeader: FC<ProjectComposerHeaderProps> = ({
+export const ProjectComposerHeader: React.FC<ProjectComposerHeaderProps> = ({
 	project,
 }) => (
 	<div className="mb-4 min-w-0 text-center">

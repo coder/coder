@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { CopyableCodeBlock, RoleBadge } from "./DebugPanelPrimitives";
 import {
@@ -21,7 +21,7 @@ type ToolPayloadDisclosureProps = {
 	copyLabel: string;
 };
 
-export const ToolPayloadDisclosure: FC<ToolPayloadDisclosureProps> = ({
+export const ToolPayloadDisclosure: React.FC<ToolPayloadDisclosureProps> = ({
 	label,
 	code,
 	copyLabel,
@@ -40,7 +40,7 @@ export const ToolPayloadDisclosure: FC<ToolPayloadDisclosureProps> = ({
 	);
 };
 
-export const ToolBadge: FC<{ label: string }> = ({ label }) => {
+export const ToolBadge: React.FC<{ label: string }> = ({ label }) => {
 	return (
 		<Badge size="sm" variant="purple" className="max-w-full">
 			<WrenchIcon className="size-3 shrink-0" />
@@ -57,7 +57,7 @@ type ToolEventCardProps = {
 	copyLabel?: string;
 };
 
-export const ToolEventCard: FC<ToolEventCardProps> = ({
+export const ToolEventCard: React.FC<ToolEventCardProps> = ({
 	badgeLabel,
 	toolCallId,
 	payloadLabel,
@@ -85,7 +85,7 @@ export const ToolEventCard: FC<ToolEventCardProps> = ({
 	);
 };
 
-const TranscriptToolRow: FC<{ msg: MessagePart }> = ({ msg }) => {
+const TranscriptToolRow: React.FC<{ msg: MessagePart }> = ({ msg }) => {
 	const isToolCall = msg.kind === "tool-call";
 	const badgeLabel = msg.toolName ?? (isToolCall ? "Tool call" : "Tool result");
 	const payloadLabel = isToolCall ? "Arguments" : "Result";
@@ -107,7 +107,7 @@ const TranscriptToolRow: FC<{ msg: MessagePart }> = ({ msg }) => {
 	);
 };
 
-const TranscriptTextRow: FC<MessageRowProps> = ({ msg, clamp }) => {
+const TranscriptTextRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 	const [expanded, setExpanded] = useState(false);
 	// Use the same code-point count as clampContent so the "see more"
 	// control never appears when the message is short enough that
@@ -160,7 +160,7 @@ const TranscriptTextRow: FC<MessageRowProps> = ({ msg, clamp }) => {
 	);
 };
 
-export const MessageRow: FC<MessageRowProps> = ({ msg, clamp }) => {
+export const MessageRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 	if (msg.kind === "tool-call" || msg.kind === "tool-result") {
 		return <TranscriptToolRow msg={msg} />;
 	}

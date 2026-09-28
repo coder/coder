@@ -21,7 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -389,6 +389,18 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.AssignableRoles = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	assignable: true,
+	built_in: true,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -521,6 +533,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter",
 };
 

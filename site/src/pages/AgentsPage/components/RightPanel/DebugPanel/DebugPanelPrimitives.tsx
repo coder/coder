@@ -1,17 +1,16 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { getRoleBadgeVariant, safeJsonStringify } from "./debugPanelUtils";
 
 type DebugDataSectionProps = {
 	title: string;
-	description?: ReactNode;
-	children: ReactNode;
+	description?: React.ReactNode;
+	children: React.ReactNode;
 	className?: string;
 };
 
-export const DebugDataSection: FC<DebugDataSectionProps> = ({
+export const DebugDataSection: React.FC<DebugDataSectionProps> = ({
 	title,
 	description,
 	children,
@@ -33,7 +32,7 @@ type DebugCodeBlockProps = {
 	className?: string;
 };
 
-const DebugCodeBlock: FC<DebugCodeBlockProps> = ({ code, className }) => {
+const DebugCodeBlock: React.FC<DebugCodeBlockProps> = ({ code, className }) => {
 	return (
 		<pre
 			className={cn(
@@ -56,7 +55,7 @@ type CopyableCodeBlockProps = {
 	className?: string;
 };
 
-export const CopyableCodeBlock: FC<CopyableCodeBlockProps> = ({
+export const CopyableCodeBlock: React.FC<CopyableCodeBlockProps> = ({
 	code,
 	label,
 	className,
@@ -84,10 +83,10 @@ type PillToggleProps = {
 	count?: number;
 	isActive: boolean;
 	onToggle: () => void;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 };
 
-export const PillToggle: FC<PillToggleProps> = ({
+export const PillToggle: React.FC<PillToggleProps> = ({
 	label,
 	count,
 	isActive,
@@ -121,7 +120,7 @@ type RoleBadgeProps = {
 	role: string;
 };
 
-export const RoleBadge: FC<RoleBadgeProps> = ({ role }) => {
+export const RoleBadge: React.FC<RoleBadgeProps> = ({ role }) => {
 	return (
 		<Badge size="xs" variant={getRoleBadgeVariant(role)}>
 			{role}
@@ -137,7 +136,7 @@ type EmptyHelperProps = {
 	message: string;
 };
 
-export const EmptyHelper: FC<EmptyHelperProps> = ({ message }) => {
+export const EmptyHelper: React.FC<EmptyHelperProps> = ({ message }) => {
 	return <p className="text-sm leading-6 text-content-secondary">{message}</p>;
 };
 
@@ -151,7 +150,7 @@ type KeyValueGridProps = {
 	formatValue?: (value: unknown) => string;
 };
 
-export const KeyValueGrid: FC<KeyValueGridProps> = ({
+export const KeyValueGrid: React.FC<KeyValueGridProps> = ({
 	entries,
 	formatValue,
 }) => {
@@ -180,10 +179,10 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 
 type MetadataItemProps = {
 	label: string;
-	value: ReactNode;
+	value: React.ReactNode;
 };
 
-export const MetadataItem: FC<MetadataItemProps> = ({ label, value }) => {
+export const MetadataItem: React.FC<MetadataItemProps> = ({ label, value }) => {
 	return (
 		<span className="text-xs text-content-secondary">
 			<span className="text-content-tertiary">{label}:</span>{" "}

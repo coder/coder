@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	InstructionsPageView,
@@ -418,7 +418,7 @@ export const SavesBothSections: Story = {
 	},
 };
 
-const RefetchPromptWrapper: FC = () => {
+const RefetchPromptWrapper: React.FC = () => {
 	const [systemPromptValue, setSystemPromptValue] = useState("Old");
 
 	return (

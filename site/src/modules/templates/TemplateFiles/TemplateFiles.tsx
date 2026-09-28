@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import set from "lodash/set";
 import { EditIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import { SyntaxHighlighter } from "#/components/SyntaxHighlighter/SyntaxHighlighter";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
@@ -21,7 +21,7 @@ type TemplateFilesProps = {
 	baseFiles?: TemplateVersionFiles;
 };
 
-export const TemplateFiles: FC<TemplateFilesProps> = ({
+export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 	organizationName,
 	templateName,
 	versionName,

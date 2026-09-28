@@ -20,7 +20,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -901,10 +901,10 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.NotEmpty(t, receivedHeaders, "upstream server should have received headers")
 
 			// Verify the actor ID header is present with the correct value.
-			actorIDHeader := receivedHeaders.Get(intercept.ActorIDHeader())
+			actorIDHeader := receivedHeaders.Get(aibheaders.ActorIDHeader())
 			assert.Equal(t, testUserID.String(), actorIDHeader, "actor ID header should contain user ID")
 			// Verify the actor metadata header for username is present.
-			usernameHeader := receivedHeaders.Get(intercept.ActorMetadataHeader("Username"))
+			usernameHeader := receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username"))
 			assert.Equal(t, testUsername, usernameHeader, "actor metadata username header should contain username")
 		})
 	}

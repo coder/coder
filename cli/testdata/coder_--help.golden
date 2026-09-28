@@ -111,7 +111,8 @@ variables or flags.
       --header-command string, $CODER_HEADER_COMMAND
           An external command that outputs additional HTTP headers added to all
           requests. The command must output each header as `key=value` on its
-          own line.
+          own line. If a header value is a JWT, it will be refreshed based on
+          the value in its `exp` field.
 
       --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.

@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -31,7 +30,7 @@ type ChatProjectDialogProps = {
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
-export const ChatProjectDialog: FC<ChatProjectDialogProps> = ({
+export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 	project,
 	open,
 	onOpenChange,
@@ -70,7 +69,7 @@ type ChatProjectFormProps = {
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
-const ChatProjectForm: FC<ChatProjectFormProps> = ({
+const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	project,
 	isSubmitting,
 	error,

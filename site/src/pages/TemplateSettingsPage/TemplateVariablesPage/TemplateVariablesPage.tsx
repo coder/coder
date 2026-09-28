@@ -1,4 +1,4 @@
-import { type FC, useCallback } from "react";
+import { useCallback } from "react";
 import {
 	keepPreviousData,
 	useMutation,
@@ -25,7 +25,7 @@ import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
-const TemplateVariablesPage: FC = () => {
+const TemplateVariablesPage: React.FC = () => {
 	const getLink = useLinks();
 	const { template } = useTemplateSettings();
 	const navigate = useNavigate();

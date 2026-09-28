@@ -52,14 +52,14 @@ curl -X GET http://coder-server:8080/api/v2/chats \
 
 ### Parameters
 
-| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|--------------|-------|---------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
-| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `project_id` | query | string(uuid)  | false    | Only chats in this project. Requires the chat-projects experiment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Name         | In    | Type          | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------|-------|---------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`          | query | string        | false    | Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`. |
+| `label`      | query | array[string] | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `after_id`   | query | string(uuid)  | false    | After ID                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `limit`      | query | integer       | false    | Page limit                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `offset`     | query | integer       | false    | Page offset                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `project_id` | query | string(uuid)  | false    | Only chats in this project. Requires the chat-projects experiment.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Example responses
 
@@ -253,7 +253,7 @@ Status Code **200**
 | `»» organization_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» owner_id`              | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» size_bytes`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
-| `» has_unread`             | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `» has_unread`             | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect and via UpdateChatRequest.Read.                                                                                                            |
 | `» id`                     | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» inline_mcp_servers`     | array                                                                              | false    |              | Inline mcp servers lists the inline MCP servers declared on the chat, without headers. Only the single-chat GET sets it. Experimental.                                                                                                                                     |
 | `»» allow_in_subagents`    | boolean                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
@@ -335,7 +335,12 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "inline_mcp_servers": [
@@ -1818,6 +1823,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   },
   "pin_order": 0,
   "plan_mode": "plan",
+  "read": true,
   "title": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -2561,7 +2567,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -2637,7 +2648,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -2683,7 +2699,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "inline_mcp_servers": [
@@ -2781,7 +2802,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -2856,7 +2882,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -2932,7 +2963,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -2979,7 +3015,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0,
+      "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
   "mcp_server_ids": [
@@ -3062,7 +3103,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -3137,7 +3183,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3665,7 +3716,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0,
+          "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3739,7 +3795,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0,
+        "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
       },
       "role": "system",
       "seq": 0
@@ -3800,7 +3861,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "tool_call_id": "string",
             "tool_name": "string",
             "type": "text",
-            "url": "string"
+            "url": "string",
+            "workspace_file_media_type": "string",
+            "workspace_file_name": "string",
+            "workspace_file_path": "string",
+            "workspace_file_size": 0,
+            "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
           }
         ],
         "created_at": "2019-08-24T14:15:22Z",
@@ -3894,6 +3960,11 @@ Status Code **200**
 | `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» url`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» workspace_file_media_type`    | string                                                                           | false    |              | Workspace file media type is the best-effort declared MIME type.                                                                                                                                                                                                                                                                                                                                           |
+| `»»» workspace_file_name`          | string                                                                           | false    |              | Workspace file name is the sanitized basename of a workspace upload.                                                                                                                                                                                                                                                                                                                                       |
+| `»»» workspace_file_path`          | string                                                                           | false    |              | Workspace file path is the absolute path of a workspace upload. The bytes live on the workspace filesystem; only metadata is persisted on the message.                                                                                                                                                                                                                                                     |
+| `»»» workspace_file_size`          | integer                                                                          | false    |              | Workspace file size is the byte size of a workspace upload.                                                                                                                                                                                                                                                                                                                                                |
+| `»»» workspace_file_workspace_id`  | string(uuid)                                                                     | false    |              | Workspace file workspace ID identifies the workspace whose filesystem holds the uploaded bytes. References are only readable while the chat stays bound to that workspace.                                                                                                                                                                                                                                 |
 | `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» created_by`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3934,12 +4005,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)                                                                                                                                                                                                                                                                |
-|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                |
-| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
-| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
-| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
+| Property | Value(s)                                                                                                                                                                                                                                                                                            |
+|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                            |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                               |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4069,6 +4140,64 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upload a file to a chat's workspace
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/chats/{chat}/workspace-files \
+  -H 'Content-Type: */*' \
+  -H 'Accept: application/json' \
+  -H 'Content-Disposition: string' \
+  -H 'Coder-Session-Token: API_KEY' \
+  --data-binary '@archive.zip'
+```
+
+`POST /api/v2/chats/{chat}/workspace-files`
+
+Streams the request body into the chat workspace's
+upload directory. The request Content-Type header is
+recorded as the file's media type. There is no
+server-imposed size cap; client cancellation aborts the
+stream and the agent leaves no partial target file behind.
+
+### Parameters
+
+| Name                  | In     | Type         | Required | Description                                     |
+|-----------------------|--------|--------------|----------|-------------------------------------------------|
+| `chat`                | path   | string(uuid) | true     | Chat ID                                         |
+| `Content-Disposition` | header | string       | true     | Filename of the file (attachment; filename=...) |
+| `body`                | body   | string       | true     | Raw file binary data                            |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "media_type": "string",
+  "name": "string",
+  "path": "string",
+  "size": 0,
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                    | Description           | Schema                                                                                         |
+|--------|----------------------------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)               | Created               | [codersdk.UploadChatWorkspaceFileResponse](schemas.md#codersdkuploadchatworkspacefileresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Bad Request           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)             | Forbidden             | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)              | Conflict              | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 429    | [Too Many Requests](https://tools.ietf.org/html/rfc6585#section-4)         | Too Many Requests     | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 502    | [Bad Gateway](https://tools.ietf.org/html/rfc7231#section-6.6.3)           | Bad Gateway           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
