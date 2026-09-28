@@ -10,6 +10,7 @@ import {
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
+import { ChatBoardSettings } from "./exp/chatBoard/ChatBoardSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -68,6 +69,7 @@ export const AgentSettingsGeneralPageView: React.FC<
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
+			<ChatBoardSettings />
 		</div>
 	);
 };

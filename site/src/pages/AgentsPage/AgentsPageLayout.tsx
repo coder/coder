@@ -78,6 +78,10 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import {
+	CHAT_BOARD_PATH,
+	useChatBoardEnabled,
+} from "./exp/chatBoard/chatBoardFlag";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -717,6 +721,8 @@ const AgentsPageLayout: React.FC = () => {
 	const isSettingsPanel = isSettingsView(sidebarView);
 	const isSettingsIndex = isSettingsPanel && !sidebarView.section;
 	const isSettingsDetail = isSettingsPanel && Boolean(sidebarView.section);
+	const isBoardRoute =
+		useChatBoardEnabled() && location.pathname.startsWith(CHAT_BOARD_PATH);
 
 	// The sidebar expects plain string error messages, but the outlet
 	// context carries structured ChatDetailError objects.
@@ -768,6 +774,9 @@ const AgentsPageLayout: React.FC = () => {
 								? "hidden sm:block shrink-0"
 								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
+						// The board is a full-width view. The frame stays mounted so the
+						// dialogs and handlers it owns keep working behind it.
+						isBoardRoute && "hidden sm:hidden",
 					)}
 				>
 					<ChatsSidebar
