@@ -42,7 +42,12 @@ const chatAnalyticsKey = ["chats", "analytics"] as const;
 
 const chatConfigKey = ["chats", "config"] as const;
 
-export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
+export type ChatListPRStatusFilter =
+	| "draft"
+	| "open"
+	| "merged"
+	| "closed"
+	| "none";
 export type ChatListStatusFilter = "read" | "unread";
 
 type ChatListParams = Readonly<{
@@ -69,6 +74,7 @@ export const CHAT_LIST_PR_STATUS_ORDER = [
 	"open",
 	"merged",
 	"closed",
+	"none",
 ] as const satisfies readonly ChatListPRStatusFilter[];
 
 const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(

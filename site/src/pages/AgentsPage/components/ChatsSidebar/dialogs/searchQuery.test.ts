@@ -151,6 +151,14 @@ describe("extractTypedFilters", () => {
 		});
 	});
 
+	it("accepts chats with no pull request", () => {
+		expect(extractTypedFilters("pr_status:none", [])).toEqual({
+			filters: [{ key: "pr_status", value: "none" }],
+			remainingText: "",
+			consumed: true,
+		});
+	});
+
 	it("merges whitespace-separated PR status continuations", () => {
 		expect(extractTypedFilters("pr_status:open, merged", [])).toEqual({
 			filters: [{ key: "pr_status", value: "open,merged" }],

@@ -17549,14 +17549,31 @@ func TestGetChatsFilter(t *testing.T) {
 	prTitleChat := createRoot("pr title filter chat")
 	linkPRFull(prTitleChat.ID, "https://github.com/acme/widget/pull/99", "open", false, 99, "https://github.com/acme/widget.git", "Deploy new dashboard")
 
+	// Diff status exists, but the pull request was cleared.
+	clearedPR := createRoot("cleared pr chat")
+	now := time.Now()
+	_, err = store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:      clearedPR.ID,
+		RefreshedAt: now,
+		StaleAt:     now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
 	// All root chat IDs (for "returns everything" baseline).
 	allRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		draftPR.ID, openPR.ID, mergedPR.ID, closedPR.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID,
-		prNumberChat.ID, repoChat.ID, prTitleChat.ID,
+		prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID,
 	}
+	noPRRootIDs := []uuid.UUID{
+		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
+		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
+		unreadNoPR.ID, readChat.ID, childParent.ID, clearedPR.ID,
+	}
+	noPROrOpenRootIDs := append(append([]uuid.UUID{}, noPRRootIDs...),
+		openPR.ID, prNumberChat.ID, prTitleChat.ID)
 
 	// --- test cases ---
 
@@ -17583,11 +17600,13 @@ func TestGetChatsFilter(t *testing.T) {
 		{"PRStatus/Merged", database.GetChatsParams{PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedPR.ID, repoChat.ID}},
 		{"PRStatus/Closed", database.GetChatsParams{PullRequestStatuses: []string{"closed"}}, []uuid.UUID{closedPR.ID}},
 		{"PRStatus/MultiStatus", database.GetChatsParams{PullRequestStatuses: []string{"draft", "closed"}}, []uuid.UUID{draftPR.ID, closedPR.ID}},
+		{"PRStatus/None", database.GetChatsParams{PullRequestStatuses: []string{"none"}}, noPRRootIDs},
+		{"PRStatus/NoneAndOpen", database.GetChatsParams{PullRequestStatuses: []string{"none", "open"}}, noPROrOpenRootIDs},
 
 		// Unread filter.
 		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
 
 		// PR number filter.
 		{"PRNumber/ExactMatch", database.GetChatsParams{PrNumber: 42}, []uuid.UUID{prNumberChat.ID}},

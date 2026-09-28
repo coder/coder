@@ -1108,6 +1108,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "HasUnread", query: "has_unread:true"},
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "PRStatusNone", query: "pr_status:none"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
 		{name: "SidebarDefault", query: "archived:false"},
@@ -1116,6 +1117,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 			name:  "SidebarFiltered",
 			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		},
+		{name: "SidebarNoPR", query: "archived:false pr_status:none"},
 	}
 
 	for _, testCase := range testCases {
@@ -1240,6 +1242,24 @@ func TestSearchChats(t *testing.T) {
 				Archived:            sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly:           true,
 				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusNone",
+			Query: "pr_status:none",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none"},
+			},
+		},
+		{
+			Name:  "PRStatusNoneAndOpen",
+			Query: "pr_status:none,open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:           true,
+				PullRequestStatuses: []string{"none", "open"},
 			},
 		},
 		{
