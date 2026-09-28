@@ -10,11 +10,14 @@ import {
 	INBOX_COLUMN,
 	keyBetween,
 	parseComments,
+	parseEfforts,
 	placementKey,
 	removeCommentLabels,
 	setColumnLabel,
+	setEffortsLabels,
 	setGroupLabel,
 	stripCardLabels,
+	takeCardLabels,
 	updateCommentLabels,
 } from "./boardLabels";
 
@@ -113,6 +116,7 @@ describe("stripCardLabels", () => {
 			"board/color": "sky",
 			"board/pos": "1",
 			"board/column": "Doing",
+			"board/effort.0": "Q3",
 			...addCommentLabels({}, "note", 1),
 			"other/tool": "keep",
 		};
@@ -120,6 +124,55 @@ describe("stripCardLabels", () => {
 			"board/column": "Doing",
 			"other/tool": "keep",
 		});
+		expect(takeCardLabels(labels)).toMatchObject({ "board/effort.0": "Q3" });
+	});
+});
+
+describe("efforts", () => {
+	it("parses in index order, deduped, and writes renumbered from 0", () => {
+		expect(
+			parseEfforts({
+				"board/effort.2": "Q3",
+				"board/effort.0": "This week",
+				"board/effort.5": "This week",
+				"board/title": "x",
+			}),
+		).toEqual(["This week", "Q3"]);
+		expect(
+			setEffortsLabels({ "board/effort.4": "old", "board/title": "x" }, [
+				"Q3",
+				"This week",
+				"Q3",
+			]),
+		).toEqual({
+			"board/title": "x",
+			"board/effort.0": "Q3",
+			"board/effort.1": "This week",
+		});
+		expect(setEffortsLabels({ "board/effort.0": "Q3" }, [])).toEqual({});
+		// A key without a numeric index is not shown, and a rewrite clears it.
+		expect(
+			parseEfforts({
+				"board/effort.x": "Q3",
+				"board/effort.": "Q4",
+				"board/effort.-1": "Q5",
+			}),
+		).toEqual([]);
+		expect(setEffortsLabels({ "board/effort.x": "Q3" }, [])).toEqual({});
+		expect(setEffortsLabels({}, ["Q3", " Q3 ", "", "  "])).toEqual({
+			"board/effort.0": "Q3",
+		});
+		expect(
+			parseEfforts({ "board/effort.0": " Q3 ", "board/effort.1": " " }),
+		).toEqual(["Q3"]);
+	});
+
+	it("reads efforts from the primary onto the card", () => {
+		const [card] = buildCards([
+			chat("p", { "board/effort.0": "Q3" }),
+			chat("m", { "board/group": "p", "board/effort.0": "ignored" }),
+		]);
+		expect(card?.efforts).toEqual(["Q3"]);
 	});
 });
 

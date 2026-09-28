@@ -1,15 +1,11 @@
 import { cn } from "cn";
-import { XIcon } from "lucide-react";
-import { lazy, Suspense, useEffect, useEffectEvent, useState } from "react";
-import type { Chat } from "#/api/typesGenerated";
+import { BotIcon, XIcon } from "lucide-react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "#/components/Button/Button";
-import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
 import { cardSwatch } from "./cardColor";
 import { clampWindow, MIN_WINDOW_SIZE } from "./windows";
-
-const AgentChatPage = lazy(() => import("../../AgentChatPage"));
 
 /** How far one arrow press moves or resizes a window. */
 const KEY_STEP_PX = 16;
@@ -49,9 +45,9 @@ const applyGesture = (
 
 type FloatingChatProps = {
 	readonly window: ChatWindow;
-	readonly chat: Chat | undefined;
+	readonly title: string;
 	readonly color: CardColor | undefined;
-	/** New geometry after a drag or resize gesture ends. */
+	/** New geometry after a drag or resize gesture ends, or a toggled draft option. */
 	readonly onChange: (next: ChatWindow) => void;
 	readonly onClose: () => void;
 	/** Any pointer or key interaction inside; pins a preview, raises a window. */
@@ -59,23 +55,28 @@ type FloatingChatProps = {
 	/** Preview only: the pointer entering keeps it, leaving lets it close. */
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
+	/** Present for chats that belong to a card: opens that card's assistant. */
+	readonly cardAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
+	readonly children: React.ReactNode;
 };
 
 /**
- * One chat floating over the board. The title bar drags it, the corner
+ * One window floating over the board. The title bar drags it, the corner
  * handle resizes it. Geometry is committed when the gesture ends so the
  * board does not re-render per pixel; meanwhile only this window follows
  * the pointer.
  */
 export const FloatingChat: React.FC<FloatingChatProps> = ({
 	window: win,
-	chat,
+	title,
 	color,
 	onChange,
 	onClose,
 	onInteract,
 	onPreviewEnter,
 	onPreviewLeave,
+	cardAssistant,
+	children,
 }) => {
 	const [gesture, setGesture] = useState<Gesture | null>(null);
 	const [live, setLive] = useState<ChatWindow | null>(null);
@@ -140,8 +141,6 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 		);
 	};
 
-	const title = chat?.title ?? "Chat";
-
 	return (
 		<div
 			role="dialog"
@@ -186,10 +185,39 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 						</span>
 					)}
 				</button>
+				{win.kind === "draft" && "cardId" in win.target && (
+					<label
+						className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] font-normal text-content-secondary"
+						onPointerDown={(e) => e.stopPropagation()}
+					>
+						<input
+							type="checkbox"
+							className="size-3 accent-content-link"
+							checked={win.includeCardContext}
+							onChange={(e) =>
+								onChange({ ...win, includeCardContext: e.target.checked })
+							}
+						/>
+						Include card context
+					</label>
+				)}
+				{cardAssistant && (
+					<Button
+						variant="subtle"
+						size="icon"
+						aria-label={`Assistant for ${cardAssistant.cardTitle}`}
+						title="Assistant"
+						className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
+						onPointerDown={(e) => e.stopPropagation()}
+						onClick={cardAssistant.open}
+					>
+						<BotIcon />
+					</Button>
+				)}
 				<Button
 					variant="subtle"
 					size="icon"
-					aria-label={`Close ${chat?.title ?? "chat"}`}
+					aria-label={`Close ${title}`}
 					className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
 					onPointerDown={(e) => e.stopPropagation()}
 					onClick={onClose}
@@ -197,11 +225,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 					<XIcon />
 				</Button>
 			</div>
-			<div className="flex min-h-0 flex-1 flex-col">
-				<Suspense fallback={<AgentChatPageSkeleton />}>
-					<AgentChatPage chatId={win.chatId} />
-				</Suspense>
-			</div>
+			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
 			{/* Above the chat's own footer, which otherwise takes the pointer. */}
 			<div
 				role="presentation"

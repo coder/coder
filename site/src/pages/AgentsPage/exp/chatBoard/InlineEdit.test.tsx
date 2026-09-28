@@ -34,6 +34,7 @@ describe("InlineEdit", () => {
 		await user.type(field, "After{Enter}");
 		expect(onSave).toHaveBeenCalledWith("After");
 		expect(onDone).toHaveBeenCalledTimes(1);
+		expect(field).toHaveValue("Before");
 	});
 
 	it("saves a changed value when focus leaves", async () => {

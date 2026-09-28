@@ -1,6 +1,8 @@
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
 import {
@@ -16,12 +18,14 @@ import {
 	renameChat,
 	renameColumn,
 	setCardColor,
+	setCardEfforts,
 } from "./boardApi";
 import type { DropTarget } from "./boardDrag";
 import type {
 	BoardCard as BoardCardModel,
 	BoardColumn as BoardColumnModel,
 } from "./boardLabels";
+import type { DraftTarget } from "./boardStorage";
 
 type BoardColumnsProps = ChatOpenHandlers & {
 	/** Columns after the filter, drawn left to right. */
@@ -29,9 +33,17 @@ type BoardColumnsProps = ChatOpenHandlers & {
 	/** The unfiltered model that every command acts on. */
 	readonly board: BoardState;
 	readonly run: (plan: Plan | null) => Promise<boolean>;
+	/** Assistant chat by card id, for the cards that have one. */
+	readonly assistants: ReadonlyMap<string, Chat>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
-	readonly onAssistant: (card: BoardCardModel) => void;
+	/** Every effort on the board, for the card editors. */
+	readonly knownEfforts: readonly string[];
+	readonly onCardAssistant: (card: BoardCardModel) => void;
+	/** Opens the create form for a chat born in a column or on a card. */
+	readonly onNewChat: (target: DraftTarget) => void;
+	/** A card's effort tag narrows the board to that effort. */
+	readonly onFilterEffort: (name: string) => void;
 };
 
 // The composer clears and the editor closes before the write settles, and
@@ -49,9 +61,13 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 	columns,
 	board,
 	run,
+	assistants,
 	openChatIds,
 	dropTarget,
-	onAssistant,
+	knownEfforts,
+	onCardAssistant,
+	onNewChat,
+	onFilterEffort,
 	onOpen,
 	onPreview,
 	onPreviewEnd,
@@ -64,20 +80,28 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 				<BoardColumn
 					key={column.name}
 					column={column}
+					assistants={assistants}
 					openChatIds={openChatIds}
 					dropTarget={dropTarget}
+					knownEfforts={knownEfforts}
 					onRename={(to) => void run(renameColumn(board, column.name, to))}
 					onDelete={() => void run(deleteColumn(board, column.name))}
+					onNewChat={() => onNewChat({ column: column.name })}
 					onSetCardTitle={(card, title) =>
 						void run(renameCard(board, card.id, title))
 					}
 					onSetCardColor={(card, color) =>
 						void run(setCardColor(board, card.id, color))
 					}
+					onSetCardEfforts={(card, names) =>
+						void run(setCardEfforts(board, card.id, names))
+					}
+					onFilterEffort={onFilterEffort}
 					onRenameChat={(chat, title) =>
 						void run(renameChat(board, chat.id, title))
 					}
-					onAssistant={onAssistant}
+					onCardAssistant={onCardAssistant}
+					onNewChatInCard={(card) => onNewChat({ cardId: card.id })}
 					onRemoveFromGroup={(chat) =>
 						void run(removeFromGroup(board, chat.id))
 					}
@@ -105,15 +129,16 @@ export const BoardColumns: React.FC<BoardColumnsProps> = ({
 					onCancel={() => setAddingColumn(false)}
 				/>
 			) : (
-				<button
-					type="button"
+				<Button
+					variant="subtle"
+					size="icon"
 					aria-label="Add column"
 					// Sits on the column header line, matching header height.
-					className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md border border-dashed border-content-secondary/40 bg-transparent text-content-secondary hover:border-content-link hover:text-content-link"
+					className="mt-0.5 size-7 min-w-0 border border-dashed border-content-secondary/40 p-0 hover:border-content-link hover:text-content-link [&>svg]:size-3.5! [&>svg]:p-0"
 					onClick={() => setAddingColumn(true)}
 				>
-					<PlusIcon className="size-3.5" />
-				</button>
+					<PlusIcon />
+				</Button>
 			)}
 		</div>
 	);

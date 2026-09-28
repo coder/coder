@@ -1,9 +1,10 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { ActionsMenu } from "./ActionsMenu";
 import {
 	BoardCard,
@@ -38,17 +39,28 @@ const columnHeader = cva(
 
 type BoardColumnProps = ChatOpenHandlers & {
 	readonly column: BoardColumnModel;
+	/** Assistant chat by card id, for the cards that have one. */
+	readonly assistants: ReadonlyMap<string, Chat>;
 	readonly openChatIds: ReadonlySet<string>;
 	readonly dropTarget: DropTarget | null;
+	/** Every effort on the board, for the card editors. */
+	readonly knownEfforts: readonly string[];
 	readonly onRename: (to: string) => void;
 	readonly onDelete: () => void;
+	readonly onNewChat: () => void;
 	readonly onSetCardTitle: (card: BoardCardModel, title: string) => void;
 	readonly onSetCardColor: (
 		card: BoardCardModel,
 		color: CardColor | undefined,
 	) => void;
+	readonly onSetCardEfforts: (
+		card: BoardCardModel,
+		names: readonly string[],
+	) => void;
+	readonly onFilterEffort: (name: string) => void;
 	readonly onRenameChat: (chat: Chat, title: string) => void;
-	readonly onAssistant: (card: BoardCardModel) => void;
+	readonly onCardAssistant: (card: BoardCardModel) => void;
+	readonly onNewChatInCard: (card: BoardCardModel) => void;
 	readonly onRemoveFromGroup: (chat: Chat, card: BoardCardModel) => void;
 	readonly onAddNote: (card: BoardCardModel, text: string) => void;
 	readonly onEditNote: (
@@ -61,14 +73,20 @@ type BoardColumnProps = ChatOpenHandlers & {
 
 export const BoardColumn: React.FC<BoardColumnProps> = ({
 	column,
+	assistants,
 	openChatIds,
 	dropTarget,
+	knownEfforts,
 	onRename,
 	onDelete,
+	onNewChat,
 	onSetCardTitle,
 	onSetCardColor,
+	onSetCardEfforts,
+	onFilterEffort,
 	onRenameChat,
-	onAssistant,
+	onCardAssistant,
+	onNewChatInCard,
 	onRemoveFromGroup,
 	onOpen,
 	onPreview,
@@ -166,22 +184,41 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 			>
 				<span className={dot({ hue: columnHue(column.name) })} />
 				{title}
-				<span className="ml-auto text-[11px] text-content-secondary/70 tabular-nums">
-					{column.cards.length}
-				</span>
-				{!isInbox && (
-					<ActionsMenu
-						label={`${column.name} column`}
-						items={[
-							{
-								label: "Delete column",
-								icon: Trash2Icon,
-								destructive: true,
-								onSelect: onDelete,
-							},
-						]}
-					/>
-				)}
+				{/*
+				  The new-chat button is last in every column, Inbox included, so
+				  its right edge lines up across the board; the menu keeps its
+				  slot while hidden.
+				*/}
+				<div className="ml-auto flex items-center gap-1.5">
+					<span className="text-[11px] text-content-secondary/70 tabular-nums">
+						{column.cards.length}
+					</span>
+					{!isInbox && (
+						<ActionsMenu
+							label={`${column.name} column`}
+							items={[
+								{
+									label: "Delete column",
+									icon: Trash2Icon,
+									destructive: true,
+									onSelect: onDelete,
+								},
+							]}
+						/>
+					)}
+					<Button
+						variant="subtle"
+						size="icon"
+						aria-label={`New chat in ${column.name}`}
+						title="New chat"
+						className="relative z-[1] size-4 min-w-0 rounded p-0 text-content-secondary/60 [&>svg]:size-3.5! [&>svg]:p-0"
+						// The column header is a drag handle; the press must not start a drag.
+						onPointerDown={(e) => e.stopPropagation()}
+						onClick={onNewChat}
+					>
+						<PlusIcon />
+					</Button>
+				</div>
 			</header>
 			<div className="flex min-h-16 flex-1 flex-col overflow-y-auto pb-2">
 				{column.cards.map((card) => (
@@ -189,13 +226,18 @@ export const BoardColumn: React.FC<BoardColumnProps> = ({
 						<InsertionLine visible={insertBefore === card.id} />
 						<BoardCard
 							card={card}
+							assistant={assistants.get(card.id)}
 							openChatIds={openChatIds}
 							isDropTarget={dropTargetId === card.id}
 							noteDrop={noteDrop?.card === card.id ? noteDrop.slot : undefined}
+							knownEfforts={knownEfforts}
 							onSetTitle={(title) => onSetCardTitle(card, title)}
 							onSetColor={(color) => onSetCardColor(card, color)}
+							onSetEfforts={(names) => onSetCardEfforts(card, names)}
+							onFilterEffort={onFilterEffort}
 							onRenameChat={onRenameChat}
-							onAssistant={() => onAssistant(card)}
+							onCardAssistant={() => onCardAssistant(card)}
+							onNewChat={() => onNewChatInCard(card)}
 							onRemoveFromGroup={(chat) => onRemoveFromGroup(chat, card)}
 							onOpen={onOpen}
 							onPreview={onPreview}

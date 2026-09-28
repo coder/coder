@@ -1,4 +1,4 @@
-import type { ChatWindow } from "./boardStorage";
+import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 
 const DEFAULT_SIZE = { width: 520, height: 640 };
 export const MIN_WINDOW_SIZE = { width: 320, height: 240 };
@@ -31,21 +31,45 @@ export const windowBeside = (
 	const x = fitsRight
 		? anchor.right + ANCHOR_GAP_PX
 		: anchor.left - ANCHOR_GAP_PX - width;
-	return clampWindow({ chatId, x, y: anchor.top, width, height, pinned });
+	return clampWindow({
+		kind: "chat",
+		chatId,
+		x,
+		y: anchor.top,
+		width,
+		height,
+		pinned,
+	});
 };
 
-/** A pinned window in the middle of the viewport, for chats opened without a card in view. */
-export const windowCentered = (chatId: string): ChatWindow => {
+const centered = () => {
 	const { width, height } = fittedSize();
 	return {
-		chatId,
 		x: (window.innerWidth - width) / 2,
 		y: (window.innerHeight - height) / 2,
 		width,
 		height,
-		pinned: true,
 	};
 };
+
+/** A pinned window in the middle of the viewport, for chats opened without a card in view. */
+export const windowCentered = (chatId: string): ChatWindow => ({
+	kind: "chat",
+	chatId,
+	...centered(),
+	pinned: true,
+});
+
+/** The create form for a chat that will be born at `target`, centred and pinned. */
+export const draftWindow = (
+	target: DraftTarget,
+): ChatWindow & { kind: "draft" } => ({
+	kind: "draft",
+	target,
+	includeCardContext: false,
+	...centered(),
+	pinned: true,
+});
 
 // The list is back to front: the last window is the frontmost. One list
 // holds pinned windows and the hover preview (pinned: false), so pinning is
@@ -54,23 +78,68 @@ export const windowCentered = (chatId: string): ChatWindow => {
 export const dropPreview = (list: readonly ChatWindow[]) =>
 	list.filter((w) => w.pinned);
 
-/** Pins `win` and moves it to the front, replacing any window for the same chat. */
-export const toFront = (list: readonly ChatWindow[], win: ChatWindow) => [
-	...list.filter((w) => w.chatId !== win.chatId),
+/** Pins `win` and moves it to the front, replacing any window with the same key. */
+export const toFront = (
+	list: readonly ChatWindow[],
+	win: ChatWindow,
+): ChatWindow[] => [
+	...list.filter((w) => windowKey(w) !== windowKey(win)),
 	{ ...win, pinned: true },
 ];
 
-/** Raises the window for `chatId`, pinning a preview; a chat without a window is left alone. */
-export const raise = (list: readonly ChatWindow[], chatId: string) => {
-	const win = list.find((w) => w.chatId === chatId);
+/** Raises the window for `key`, pinning a preview; a key without a window is left alone. */
+export const raise = (list: readonly ChatWindow[], key: string) => {
+	const win = list.find((w) => windowKey(w) === key);
 	return win ? toFront(list, win) : list;
 };
 
-/** New geometry for one window; pinning is not a geometry change and stays as it was. */
-export const changeWindow = (list: readonly ChatWindow[], next: ChatWindow) =>
-	list.map((w) =>
-		w.chatId === next.chatId ? { ...next, pinned: w.pinned } : w,
+/**
+ * New geometry, or a toggled draft option, for one window. Pinning is not a
+ * geometry change and stays as it was; drafts are always pinned.
+ */
+export const changeWindow = (
+	list: readonly ChatWindow[],
+	next: ChatWindow,
+): ChatWindow[] =>
+	list.map((w) => {
+		if (windowKey(w) !== windowKey(next)) return w;
+		return next.kind === "chat" ? { ...next, pinned: w.pinned } : next;
+	});
+
+export const closeWindow = (list: readonly ChatWindow[], key: string) =>
+	list.filter((w) => windowKey(w) !== key);
+
+/**
+ * The chat a draft submitted takes over the draft's frame and stack place.
+ * If that draft was replaced or closed while the request ran, the chat
+ * still exists, so it opens on its own.
+ */
+export const replaceDraftWithChat = (
+	list: readonly ChatWindow[],
+	target: DraftTarget,
+	chatId: string,
+): ChatWindow[] => {
+	const draft = list.find((w) => w.kind === "draft");
+	const sameTarget =
+		draft !== undefined &&
+		("column" in target
+			? "column" in draft.target && draft.target.column === target.column
+			: "cardId" in draft.target && draft.target.cardId === target.cardId);
+	if (!sameTarget) return toFront(list, windowCentered(chatId));
+	return list.map((w) =>
+		w === draft
+			? {
+					kind: "chat",
+					chatId,
+					x: w.x,
+					y: w.y,
+					width: w.width,
+					height: w.height,
+					pinned: true,
+				}
+			: w,
 	);
+};
 
 /** Escape: the preview goes first, else the frontmost window. */
 export const dismissTop = (list: readonly ChatWindow[]) =>

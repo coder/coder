@@ -7,11 +7,8 @@ import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { MIN_WINDOW_SIZE } from "./windows";
 
-vi.mock("../../AgentChatPage", () => ({
-	default: () => <div>chat body</div>,
-}));
-
 const win: ChatWindow = {
+	kind: "chat",
 	chatId: MockChat.id,
 	x: 100,
 	y: 80,
@@ -20,19 +17,29 @@ const win: ChatWindow = {
 	pinned: true,
 };
 
-const renderWindow = (overrides: Partial<ChatWindow> = {}) => {
+const renderWindow = ({
+	frame = {},
+	cardAssistant,
+}: {
+	/** Geometry only: the union's discriminant cannot be spread over. */
+	frame?: Partial<Pick<ChatWindow, "x" | "y" | "width" | "height">>;
+	cardAssistant?: { cardTitle: string; open: () => void };
+} = {}) => {
 	const onChange = vi.fn();
 	renderComponent(
 		<FloatingChat
-			window={{ ...win, ...overrides }}
-			chat={MockChat}
+			window={{ ...win, ...frame }}
+			title={MockChat.title}
 			color={undefined}
 			onChange={onChange}
 			onClose={vi.fn()}
 			onInteract={vi.fn()}
 			onPreviewEnter={vi.fn()}
 			onPreviewLeave={vi.fn()}
-		/>,
+			cardAssistant={cardAssistant}
+		>
+			<div>chat body</div>
+		</FloatingChat>,
 	);
 	return { onChange };
 };
@@ -117,7 +124,9 @@ describe("FloatingChat", () => {
 
 	it("resizes with Shift+arrow and stops at the minimum size", async () => {
 		const user = userEvent.setup();
-		const { onChange } = renderWindow({ width: MIN_WINDOW_SIZE.width });
+		const { onChange } = renderWindow({
+			frame: { width: MIN_WINDOW_SIZE.width },
+		});
 		screen
 			.getByRole("button", { name: `Move or resize ${MockChat.title}` })
 			.focus();
@@ -154,5 +163,17 @@ describe("FloatingChat", () => {
 		expect(caf).toHaveBeenCalledWith(7);
 		expect(onChange).toHaveBeenCalledTimes(1);
 		expect(onChange).toHaveBeenCalledWith({ ...win, x: 130, y: 120 });
+	});
+
+	it("opens the card's assistant from the title bar", async () => {
+		const user = userEvent.setup();
+		const open = vi.fn();
+		renderWindow({ cardAssistant: { cardTitle: "Epic", open } });
+
+		await user.click(
+			screen.getByRole("button", { name: "Assistant for Epic" }),
+		);
+
+		expect(open).toHaveBeenCalledTimes(1);
 	});
 });
