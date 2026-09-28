@@ -3542,6 +3542,13 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+	if req.Content == nil && (req.ModelConfigID != nil || req.ReasoningEffort != nil) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "model_config_id and reasoning_effort require content.",
+			Detail:  "The overrides apply to the content they are sent with.",
+		})
+		return
+	}
 
 	opts := chatd.EditQueuedMessageOptions{
 		ChatID:          chat.ID,

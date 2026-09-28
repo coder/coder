@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -106,6 +107,42 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
 	})
 
+	// Overrides sent with content are stored; a later content-only edit
+	// keeps them.
+	t.Run("OverridesApplyWithContent", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		otherModel := createAdditionalChatModel(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-mini-queued-edit-"+uuid.NewString())
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+			LastModelConfigID: modelConfig.ID, Title: "queued edit overrides", Status: database.ChatStatusError,
+		})
+		queued := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
+
+		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+			Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "with overrides"}},
+			ModelConfigID:   &otherModel.ID,
+			ReasoningEffort: ptr.Ref("high"),
+		}))
+		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, listed.QueuedMessages, 1)
+		require.Equal(t, &otherModel.ID, listed.QueuedMessages[0].ModelConfigID)
+		require.Equal(t, ptr.Ref("high"), listed.QueuedMessages[0].ReasoningEffort)
+
+		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "content only"}},
+		}))
+		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, "content only", listed.QueuedMessages[0].Content[0].Text)
+		require.Equal(t, &otherModel.ID, listed.QueuedMessages[0].ModelConfigID, "a content-only edit keeps the model")
+		require.Equal(t, ptr.Ref("high"), listed.QueuedMessages[0].ReasoningEffort, "a content-only edit keeps the effort")
+	})
+
 	// The archive refusal names the paused state when a child, not the
 	// root, is the member that refuses.
 	t.Run("ArchiveRefusedByPausedChild", func(t *testing.T) {
@@ -154,6 +191,28 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 
 		err := client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{})
 		require.Equal(t, "Nothing to edit.", requireSDKError(t, err, http.StatusBadRequest).Message)
+
+		// Overrides without content return 400, and the request that
+		// also sets editing: true does not begin an edit.
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+			Editing:       boolPtr(false),
+			ModelConfigID: &modelConfig.ID,
+		})
+		require.Equal(t, "model_config_id and reasoning_effort require content.", requireSDKError(t, err, http.StatusBadRequest).Message)
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+			Editing:         boolPtr(true),
+			ReasoningEffort: ptr.Ref("high"),
+		})
+		require.Equal(t, "model_config_id and reasoning_effort require content.", requireSDKError(t, err, http.StatusBadRequest).Message)
+		afterRefusal, err := db.GetChatQueuedMessageByID(dbauthz.AsSystemRestricted(ctx), database.GetChatQueuedMessageByIDParams{ID: queued.ID, ChatID: chat.ID})
+		require.NoError(t, err)
+		require.False(t, afterRefusal.EditingSince.Valid, "the refused request does not begin an edit")
+
+		err = client.EditChatQueuedMessage(ctx, chat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{
+			Content:         []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "edited"}},
+			ReasoningEffort: ptr.Ref("bogus"),
+		})
+		require.Equal(t, "Invalid reasoning_effort value.", requireSDKError(t, err, http.StatusBadRequest).Message)
 
 		// The SDK omits empty slices, so send the raw body.
 		res, err := client.Request(ctx, http.MethodPatch, path, map[string]any{"content": []any{}})
