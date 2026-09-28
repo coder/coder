@@ -216,7 +216,8 @@ func TestExperimentRules(t *testing.T) {
 	t.Run("StoredRulesOutsideTheAPI", func(t *testing.T) {
 		t.Parallel()
 		ownerClient, db := coderdtest.NewWithDatabase(t, nil)
-		_ = coderdtest.CreateFirstUser(t, ownerClient)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
 		for ex, value := range map[codersdk.Experiment]string{
@@ -247,6 +248,24 @@ func TestExperimentRules(t *testing.T) {
 		rule, err = client.PutExperimentRule(ctx, codersdk.ExperimentMCPToolSearch, codersdk.PutExperimentRuleRequest{Mode: codersdk.ExperimentRuleModeOn, ExpectedRevision: 0})
 		require.NoError(t, err)
 		require.Equal(t, int64(1), rule.Revision)
+		for _, c := range []*codersdk.Client{ownerClient, memberClient} {
+			requireEnabled(ctx, t, c, codersdk.ExperimentExample, true)
+			requireEnabled(ctx, t, c, codersdk.ExperimentMCPToolSearch, true)
+		}
+
+		// An on rule without a positive revision is malformed: it is
+		// listed at revision 0 and decides off for everyone.
+		for ex, value := range map[codersdk.Experiment]string{
+			codersdk.ExperimentExample:       `{"mode":"on","revision":0}`,
+			codersdk.ExperimentMCPToolSearch: `{"mode":"on"}`,
+		} {
+			require.NoError(t, db.UpsertExperimentRule(sysCtx, database.UpsertExperimentRuleParams{Experiment: string(ex), Value: value}))
+			require.Equal(t, &codersdk.ExperimentRule{}, ruleEntry(ctx, t, client, ex).Rule, ex)
+		}
+		for _, c := range []*codersdk.Client{ownerClient, memberClient} {
+			requireEnabled(ctx, t, c, codersdk.ExperimentExample, false)
+			requireEnabled(ctx, t, c, codersdk.ExperimentMCPToolSearch, false)
+		}
 	})
 }
 
