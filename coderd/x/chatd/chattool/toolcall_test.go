@@ -41,9 +41,10 @@ func TestIsCapableAgent(t *testing.T) {
 func TestSendsToolCallIdentity(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, chattool.SendsToolCallIdentity(chattool.ExecuteToolName))
-	// File tools send no identity until the agent records them.
-	for _, name := range []string{"edit_files", "write_file", "read_file", "process_output"} {
+	for _, name := range []string{chattool.ExecuteToolName, chattool.EditFilesToolName, chattool.WriteFileToolName} {
+		assert.True(t, chattool.SendsToolCallIdentity(name), name)
+	}
+	for _, name := range []string{"read_file", "process_output"} {
 		assert.False(t, chattool.SendsToolCallIdentity(name), name)
 	}
 }

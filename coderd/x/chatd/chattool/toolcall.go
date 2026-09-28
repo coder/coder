@@ -50,7 +50,7 @@ func IsCapableAgent(agent database.WorkspaceAgent) bool {
 // call headers to a capable agent, so its dispatch needs a
 // ToolCallIdentity.
 func SendsToolCallIdentity(name string) bool {
-	return name == ExecuteToolName
+	return name == ExecuteToolName || name == EditFilesToolName || name == WriteFileToolName
 }
 
 // ToolCallCause says why a tool call runs outside its first dispatch.
@@ -293,11 +293,13 @@ func NewToolCallTools(opts ToolCallToolsOptions) ToolCallTools {
 			GetWorkspaceConn: opts.GetWorkspaceConn,
 			ResolvePlanPath:  opts.ResolvePlanPath,
 			IsPlanTurn:       opts.IsPlanTurn,
+			Clock:            opts.Clock,
 		}),
 		WriteFile: WriteFile(WriteFileOptions{
 			GetWorkspaceConn: opts.GetWorkspaceConn,
 			ResolvePlanPath:  opts.ResolvePlanPath,
 			IsPlanTurn:       opts.IsPlanTurn,
+			Clock:            opts.Clock,
 		}),
 	}
 }

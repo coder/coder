@@ -896,7 +896,7 @@ TODO (CODAGT-757): for a capable workspace agent, the interrupt goroutine now ru
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
 
-TODO (CODAGT-757): for a workspace agent with API version 2.13 or later, checked once per turn, `execute` sends tool call headers with its start request, so the agent starts at most one process per tool call and a task retry or ownership change gets the same process and result instead of starting another. The agent owns the execute deadline, and a request the agent does not answer is sent again for up to one minute before the result says the outcome is unknown. Rewrite this paragraph.
+TODO (CODAGT-757): for a workspace agent with API version 2.13 or later, checked once per turn, `execute`, `edit_files`, and `write_file` send tool call headers with their requests, so the agent starts at most one process and applies at most one edit or write per tool call, and a task retry or ownership change gets the same process or the recorded edit or write result instead of acting again. The agent owns the execute deadline, and a request the agent does not answer is sent again for up to one minute before the result says the outcome is unknown. Rewrite this paragraph.
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 

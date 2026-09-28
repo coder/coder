@@ -7,12 +7,16 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 type WriteFileOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	ResolvePlanPath  func(context.Context) (chatPath string, home string, err error)
 	IsPlanTurn       bool
+	// Clock times the retries of requests the agent does not answer
+	// (AgentAnswerTimeout). Nil means a real clock.
+	Clock quartz.Clock
 }
 
 type WriteFileArgs struct {
@@ -22,13 +26,19 @@ type WriteFileArgs struct {
 
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
+		WriteFileToolName,
 		"Create a file in the workspace or overwrite an existing one with the given content. "+
 			"Use edit_files for targeted changes to an existing file. "+
 			"During plan turns, only the chat-specific plan file path is writable.",
 		func(ctx context.Context, args WriteFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			id, hasID := ToolCallIdentityFromContext(ctx)
+			// The interrupt run skips the checks that depend on the
+			// chat's state, which may have changed since the request was
+			// first sent: the agent answers a replay with the recorded
+			// response and refuses a first request after the cancel.
+			interrupt := hasID && id.Cause == ToolCallCauseInterrupt
 			var planPath string
-			if options.IsPlanTurn {
+			if options.IsPlanTurn && !interrupt {
 				args.Path = strings.TrimSpace(args.Path)
 				resolvedPlanPath, err := resolvePlanTurnPath(ctx, options.ResolvePlanPath)
 				if err != nil {
@@ -44,6 +54,11 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
+				if hasID {
+					if text, ok := fileConnErrorText(err, writeFileWords(id)); ok {
+						return fantasy.NewTextErrorResponse(text), nil
+					}
+				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			if planPath != "" {
@@ -51,7 +66,11 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 			}
-			return executeWriteFileTool(ctx, conn, args, options.ResolvePlanPath)
+			resolvePlanPath := options.ResolvePlanPath
+			if interrupt {
+				resolvePlanPath = nil
+			}
+			return executeWriteFileTool(ctx, conn, options.Clock, args, resolvePlanPath)
 		},
 	)
 }
@@ -59,6 +78,7 @@ func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 func executeWriteFileTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
 	args WriteFileArgs,
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
@@ -81,8 +101,25 @@ func executeWriteFileTool(
 		}
 	}
 
-	if err := conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content)); err != nil {
+	var err error
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		err = RequestUntilAnswered(workspacesdk.WithToolCall(ctx, id.AgentToolCall()), clock, func(ctx context.Context) error {
+			// Every send streams the content from the start.
+			return conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))
+		})
+		if text, ok := ToolCallErrorText(err, writeFileWords(id)); ok {
+			return fantasy.NewTextErrorResponse(text), nil
+		}
+	} else {
+		err = conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))
+	}
+	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 	return toolResponse(map[string]any{"ok": true}), nil
+}
+
+// writeFileWords are the words write_file uses in tool call results.
+func writeFileWords(id ToolCallIdentity) ToolCallWords {
+	return fileToolWords("write", id)
 }
