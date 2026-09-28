@@ -308,6 +308,75 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 	})
 }
 
+// queuedRowBehavior returns the delivery mode stored on the queued row
+// that a busy send creates. Interrupt rows are stored as steer rows so
+// they jump the queue at the next promotion point.
+func queuedRowBehavior(b BusyBehavior) database.ChatBusyBehavior {
+	if b == BusyBehaviorQueue {
+		return database.ChatBusyBehaviorQueue
+	}
+	return database.ChatBusyBehaviorSteer
+}
+
+// steerRows returns the steer rows of queued, keeping position order.
+func steerRows(queued []database.ChatQueuedMessage) []database.ChatQueuedMessage {
+	var rows []database.ChatQueuedMessage
+	for _, q := range queued {
+		if q.BusyBehavior == database.ChatBusyBehaviorSteer {
+			rows = append(rows, q)
+		}
+	}
+	return rows
+}
+
+// nextPromotedRows returns the queued rows that the next promotion
+// moves into history: every steer row in position order when any
+// exist, otherwise the queue head.
+func (tx *Tx) nextPromotedRows() ([]database.ChatQueuedMessage, error) {
+	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	if err != nil {
+		return nil, xerrors.Errorf("get queued messages: %w", err)
+	}
+	if rows := steerRows(queued); len(rows) > 0 {
+		return rows, nil
+	}
+	if len(queued) == 0 {
+		return nil, nil
+	}
+	return queued[:1], nil
+}
+
+// insertPromotedRows inserts before, the messages of rows, and after
+// into history as one batch, then deletes rows from the queue. It
+// returns every inserted message in insertion order.
+func (tx *Tx) insertPromotedRows(
+	chat database.Chat,
+	before []Message,
+	rows []database.ChatQueuedMessage,
+	after []Message,
+) ([]database.ChatMessage, error) {
+	messages := make([]Message, 0, len(before)+len(rows)+len(after))
+	messages = append(messages, before...)
+	for _, row := range rows {
+		m, err := tx.messageFromQueuedRow(chat, row)
+		if err != nil {
+			return nil, xerrors.Errorf("resolve queued message %d: %w", row.ID, err)
+		}
+		messages = append(messages, m)
+	}
+	messages = append(messages, after...)
+	inserted, err := tx.insertMessages(messages)
+	if err != nil {
+		return nil, xerrors.Errorf("insert promoted messages: %w", err)
+	}
+	for _, row := range rows {
+		if err := tx.deletePromotedQueuedMessage(row.ID); err != nil {
+			return nil, xerrors.Errorf("delete promoted queued message: %w", err)
+		}
+	}
+	return inserted, nil
+}
+
 func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
 	modelConfigID, err := tx.resolveQueuedMessageModelConfigID(chat, queued)
 	if err != nil {
@@ -416,12 +485,18 @@ func (tx *Tx) SetArchived(input SetArchivedInput) (SetArchivedResult, error) {
 }
 
 // BusyBehavior controls how SendMessage behaves when the chat is
-// currently busy (R*/I*/A*). From idle/error states the two behaviors
-// are equivalent.
+// currently busy (R*/I*/A*) or errored with a queue (E1). From idle
+// states every behavior inserts the message directly.
 type BusyBehavior string
 
 const (
-	BusyBehaviorQueue     BusyBehavior = "queue"
+	// BusyBehaviorQueue stores the message until the current turn ends.
+	BusyBehaviorQueue BusyBehavior = "queue"
+	// BusyBehaviorSteer stores the message until the next assistant
+	// model call of the current turn.
+	BusyBehaviorSteer BusyBehavior = "steer"
+	// BusyBehaviorInterrupt stores the message as a steer row and
+	// interrupts the active run.
 	BusyBehaviorInterrupt BusyBehavior = "interrupt"
 )
 
@@ -455,13 +530,13 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 		)
 	}
 	switch input.BusyBehavior {
-	case BusyBehaviorQueue, BusyBehaviorInterrupt:
+	case BusyBehaviorQueue, BusyBehaviorSteer, BusyBehaviorInterrupt:
 		// ok
 	default:
 		// Reject unknown / empty BusyBehavior up front so an invalid
 		// value cannot fall through to the queue path on busy states
 		// or be silently ignored on idle states. The callers in chatd
-		// default empty to queue; chatstate is the lower-level API
+		// default empty to steer; chatstate is the lower-level API
 		// and refuses to guess.
 		return SendMessageResult{}, newTransitionError(
 			TransitionSendMessage, from,
@@ -474,31 +549,28 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateW, StateE0:
 		return tx.sendMessageDirect(chat, input)
 
-	// Error-with-queue: append to tail, promote previous head into
-	// history, clear last_error.
+	// Error-with-queue: steer inserts the pending steer rows and the
+	// new message; queue and interrupt append to the tail and promote
+	// the next rows. Both clear last_error.
 	case StateE1:
+		if input.BusyBehavior == BusyBehaviorSteer {
+			return tx.sendMessageSteerE1(chat, input)
+		}
 		return tx.sendMessageE1(chat, input)
 
-	// Running with no queue.
-	case StateR0:
+	// Running: interrupt also sets interrupting.
+	case StateR0, StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Running with queue.
-	case StateR1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
-		}
-		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
-
-	// Interrupting: queue regardless of busy behavior.
+	// Interrupting: store the row and keep interrupting.
 	case StateI0, StateI1:
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
-	// Requires-action: queue keeps A*; interrupt cancels pending
-	// dynamic calls and resumes in running.
+	// Requires-action: queue and steer keep A*; interrupt cancels
+	// pending dynamic calls and resumes in running.
 	case StateA0, StateA1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
 			return tx.sendMessageInterruptRequiresAction(chat, input)
@@ -537,25 +609,51 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	rows, err := tx.nextPromotedRows()
 	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("get queue head: %w", err)
+		return SendMessageResult{}, err
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	promoted, err := tx.messageFromQueuedRow(chat, head)
+	inserted, err := tx.insertPromotedRows(chat, cancels, rows, nil)
 	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("resolve promoted queued head: %w", err)
+		return SendMessageResult{}, err
 	}
-	inserted, err := tx.insertMessages(append(cancels, promoted))
+	if err := tx.setRunningClearError(chat); err != nil {
+		return SendMessageResult{}, err
+	}
+	return SendMessageResult{
+		InsertedMessages: inserted,
+		QueuedMessage:    &queued,
+	}, nil
+}
+
+// sendMessageSteerE1 inserts the pending steer rows and then the new
+// message into history. Queue rows stay queued.
+func (tx *Tx) sendMessageSteerE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
 	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
+		return SendMessageResult{}, xerrors.Errorf("get queued messages: %w", err)
 	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by new user message", false)
+	if err != nil {
+		return SendMessageResult{}, err
 	}
+	inserted, err := tx.insertPromotedRows(chat, cancels, steerRows(queued), []Message{input.Message})
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	if err := tx.setRunningClearError(chat); err != nil {
+		return SendMessageResult{}, err
+	}
+	return SendMessageResult{
+		InsertedMessages: inserted,
+	}, nil
+}
+
+func (tx *Tx) setRunningClearError(chat database.Chat) error {
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
 		Archived:                 false,
@@ -564,12 +662,9 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 		LastError:                pqtype.NullRawMessage{},
 		RequiresActionDeadlineAt: sql.NullTime{},
 	}); err != nil {
-		return SendMessageResult{}, xerrors.Errorf("set running: %w", err)
+		return xerrors.Errorf("set running: %w", err)
 	}
-	return SendMessageResult{
-		InsertedMessages: inserted,
-		QueuedMessage:    &queued,
-	}, nil
+	return nil
 }
 
 func (tx *Tx) sendMessageQueueAndSetStatus(
@@ -579,7 +674,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, database.ChatBusyBehaviorQueue, input.MaxQueueSize)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, queuedRowBehavior(input.BusyBehavior), input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -1251,6 +1346,52 @@ func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGen
 	}, nil
 }
 
+// DeliverSteerMessagesInput is intentionally empty.
+type DeliverSteerMessagesInput struct{}
+
+// DeliverSteerMessagesResult is returned by [Tx.DeliverSteerMessages].
+type DeliverSteerMessagesResult struct {
+	// DeliveredMessages holds the steer messages moved into history,
+	// in position order. It is empty when the queue has no steer rows.
+	DeliveredMessages []database.ChatMessage
+}
+
+// DeliverSteerMessages moves every steer row into history in position
+// order at a step boundary of a running turn. Queue rows stay queued
+// and the status does not change.
+func (tx *Tx) DeliverSteerMessages(_ DeliverSteerMessagesInput) (DeliverSteerMessagesResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionDeliverSteerMessages)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	if from == StateR0 {
+		return DeliverSteerMessagesResult{}, nil
+	}
+	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	rows := steerRows(queued)
+	if len(rows) == 0 {
+		return DeliverSteerMessagesResult{}, nil
+	}
+	pending, err := pendingAllToolCallIDs(tx.ctx, tx.store, chat)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	if len(pending) > 0 {
+		return DeliverSteerMessagesResult{}, newTransitionError(
+			TransitionDeliverSteerMessages, from,
+			"outstanding tool calls block steer delivery",
+		)
+	}
+	delivered, err := tx.insertPromotedRows(chat, nil, rows, nil)
+	if err != nil {
+		return DeliverSteerMessagesResult{}, err
+	}
+	return DeliverSteerMessagesResult{DeliveredMessages: delivered}, nil
+}
+
 // RecordRetryStateInput configures [Tx.RecordRetryState].
 type RecordRetryStateInput struct {
 	RetryState pqtype.NullRawMessage
@@ -1398,12 +1539,14 @@ type FinishInterruptionInput struct {
 // FinishInterruptionResult is returned by [Tx.FinishInterruption].
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
-	PromotedMessage  *database.ChatMessage
+	// PromotedMessages holds the queued messages moved into history,
+	// in insertion order.
+	PromotedMessages []database.ChatMessage
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
-// and lands the chat in waiting (I0) or running with the next queued
-// message promoted (I1).
+// and lands the chat in waiting (I0) or running (I1). From I1 it
+// promotes every steer row when any exist, otherwise the queue head.
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
 	if err != nil {
@@ -1440,21 +1583,14 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 		}, nil
 	}
 
-	// I1: promote queue head into history.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	// I1: promote the steer rows, or the queue head, into history.
+	rows, err := tx.nextPromotedRows()
 	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
+		return FinishInterruptionResult{}, err
 	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	promoted, err := tx.insertPromotedRows(chat, nil, rows, nil)
 	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
-	}
-	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
-	if err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
-	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return FinishInterruptionResult{}, xerrors.Errorf("delete promoted head: %w", err)
+		return FinishInterruptionResult{}, err
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
@@ -1466,14 +1602,9 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}); err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("set running: %w", err)
 	}
-	insertedPartial = append(insertedPartial, insertedHead...)
-	var promoted *database.ChatMessage
-	if len(insertedHead) == 1 {
-		promoted = &insertedHead[0]
-	}
 	return FinishInterruptionResult{
-		InsertedMessages: insertedPartial,
-		PromotedMessage:  promoted,
+		InsertedMessages: append(insertedPartial, promoted...),
+		PromotedMessages: promoted,
 	}, nil
 }
 
@@ -1482,11 +1613,14 @@ type FinishTurnInput struct{}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
 type FinishTurnResult struct {
-	Chat            database.Chat
-	PromotedMessage *database.ChatMessage
+	Chat database.Chat
+	// PromotedMessages holds the queued messages moved into history,
+	// in insertion order.
+	PromotedMessages []database.ChatMessage
 }
 
-// FinishTurn completes a running turn.
+// FinishTurn completes a running turn. From R1 it starts a new turn
+// with every steer row when any exist, otherwise with the queue head.
 func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionFinishTurn)
 	if err != nil {
@@ -1507,24 +1641,17 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		return FinishTurnResult{Chat: updated}, nil
 	}
 	// R1.
-	head, err := tx.store.GetChatQueuedMessageHead(tx.ctx, tx.chatID)
+	rows, err := tx.nextPromotedRows()
 	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("get queue head: %w", err)
+		return FinishTurnResult{}, err
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by queued message promotion", false)
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	inserted, err := tx.insertPromotedRows(chat, cancels, rows, nil)
 	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
-	}
-	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
-	if err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
-	}
-	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
-		return FinishTurnResult{}, xerrors.Errorf("delete promoted head: %w", err)
+		return FinishTurnResult{}, err
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   database.ChatStatusRunning,
@@ -1537,13 +1664,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("set running: %w", err)
 	}
-	var promoted *database.ChatMessage
-	if len(inserted) > 0 {
-		promoted = &inserted[len(inserted)-1]
-	}
 	return FinishTurnResult{
-		Chat:            updated,
-		PromotedMessage: promoted,
+		Chat:             updated,
+		PromotedMessages: inserted[len(cancels):],
 	}, nil
 }
 

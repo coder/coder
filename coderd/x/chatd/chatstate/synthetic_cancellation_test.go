@@ -412,8 +412,8 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 		finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	}))
-	require.NotNil(t, finish.PromotedMessage)
-	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
+	require.Len(t, finish.PromotedMessages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessages[0].Role)
 
 	afterIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 	require.Equal(t, len(beforeIDs)+2, len(afterIDs),
@@ -424,10 +424,10 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 	cancel, err := f.DB.GetChatMessageByID(ctx, newIDs[0])
 	require.NoError(t, err)
 	assertToolResultForCall(t, cancel, callID)
-	require.Equal(t, finish.PromotedMessage.ID, newIDs[1])
+	require.Equal(t, finish.PromotedMessages[0].ID, newIDs[1])
 	require.False(t, cancel.QueuedMessageID.Valid,
 		"synthetic cancellations are not promoted from the queue")
-	requireQueuedMessageLink(t, *finish.PromotedMessage, queued.QueuedMessage.ID)
+	requireQueuedMessageLink(t, finish.PromotedMessages[0], queued.QueuedMessage.ID)
 }
 
 func TestSyntheticCancellation_FinishInterruption(t *testing.T) {
@@ -471,8 +471,8 @@ func testFinishInterruptionI1PromotesQueueHead(t *testing.T) {
 		finish, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
 		return err
 	}))
-	require.NotNil(t, finish.PromotedMessage)
-	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
+	require.Len(t, finish.PromotedMessages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessages[0].Role)
 
 	afterIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 	require.Equal(t, len(beforeIDs)+1, len(afterIDs))

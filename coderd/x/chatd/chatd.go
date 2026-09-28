@@ -1115,6 +1115,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
+	// SendMessageBusyBehaviorSteer delivers the message before the
+	// next assistant model call of the active turn. It is the default.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 	// SendMessageBusyBehaviorInterrupt queues the message and
 	// interrupts the active run. The queued message is
 	// auto-promoted after the interrupted assistant response is
@@ -1462,10 +1465,10 @@ func (p *Server) SendMessage(
 
 	busyBehavior := opts.BusyBehavior
 	if busyBehavior == "" {
-		busyBehavior = SendMessageBusyBehaviorQueue
+		busyBehavior = SendMessageBusyBehaviorSteer
 	}
 	switch busyBehavior {
-	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorInterrupt:
+	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer, SendMessageBusyBehaviorInterrupt:
 	default:
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}

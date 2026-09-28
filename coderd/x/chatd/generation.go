@@ -729,9 +729,12 @@ func (s *taskStarter) generateAssistant(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 ) error {
-	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
+	attempt, delivered, err := s.beginAssistantAttempt(ctx, machine, input)
 	if err != nil {
-		return xerrors.Errorf("begin generation attempt: %w", err)
+		return xerrors.Errorf("begin assistant attempt: %w", err)
+	}
+	if delivered {
+		return nil
 	}
 	defer attempt.closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
@@ -1172,20 +1175,82 @@ func (s *taskStarter) beginGenerationAttempt(
 		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
-		if err != nil {
-			return xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
-		}
-		attempt = result.GenerationAttempt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load committed chat: %w", err)
-		}
-		return nil
+		var err error
+		attempt, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
 	})
 	if err != nil {
 		return generationAttempt{}, normalizeTaskTransitionError(err, "record generation attempt")
 	}
+	return s.openGenerationAttempt(ctx, input, committed, attempt)
+}
+
+// beginAssistantAttempt starts the next assistant model call. When the
+// queue holds steer rows, it delivers them into history in the same
+// transaction instead and reports delivered. The caller must then
+// return: the history change starts a new generation task.
+func (s *taskStarter) beginAssistantAttempt(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+) (attempt generationAttempt, delivered bool, err error) {
+	var number int64
+	var committed database.Chat
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		result, err := tx.DeliverSteerMessages(chatstate.DeliverSteerMessagesInput{})
+		if err != nil {
+			return xerrors.Errorf("tx.DeliverSteerMessages: %w", err)
+		}
+		if len(result.DeliveredMessages) > 0 {
+			delivered = true
+			committed, err = store.GetChatByID(ctx, input.ChatID)
+			if err != nil {
+				return xerrors.Errorf("load committed chat: %w", err)
+			}
+			return nil
+		}
+		number, committed, err = recordGenerationAttempt(ctx, tx, store, input.ChatID)
+		return err
+	})
+	if err != nil {
+		return generationAttempt{}, false, normalizeTaskTransitionError(err, "begin assistant attempt")
+	}
+	if delivered {
+		s.routeStateHint(ctx, stateUpdateFromChat(committed))
+		return generationAttempt{}, true, nil
+	}
+	attempt, err = s.openGenerationAttempt(ctx, input, committed, number)
+	return attempt, false, err
+}
+
+func recordGenerationAttempt(
+	ctx context.Context,
+	tx *chatstate.Tx,
+	store database.Store,
+	chatID uuid.UUID,
+) (int64, database.Chat, error) {
+	result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
+	if err != nil {
+		return 0, database.Chat{}, xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
+	}
+	committed, err := store.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, database.Chat{}, xerrors.Errorf("load committed chat: %w", err)
+	}
+	return result.GenerationAttempt, committed, nil
+}
+
+// openGenerationAttempt creates the message part buffer episode for a
+// recorded generation attempt.
+func (s *taskStarter) openGenerationAttempt(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	committed database.Chat,
+	attempt int64,
+) (generationAttempt, error) {
 	key := messagepartbuffer.Key{
 		ChatID:            input.ChatID,
 		HistoryVersion:    committed.HistoryVersion,

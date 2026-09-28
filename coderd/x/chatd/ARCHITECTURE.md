@@ -114,6 +114,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 ### Transitions used by the HTTP endpoints
 
+<!-- TODO: document SendMessage(steer), steer rows stored for internal interrupt sends, and the steer jump rule on E1 -->
+
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
@@ -127,6 +129,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
 
 ### Transitions used by the chat worker
+
+<!-- TODO: document DeliverSteerMessages and the steer jump rule in FinishTurn and FinishInterruption -->
 
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
@@ -143,6 +147,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Execution state transition diagram
+
+<!-- TODO: add SendMessage(steer), DeliverSteerMessages, and the steer jump rule edges -->
 
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
@@ -872,6 +878,8 @@ Retriable conditions include, but are not limited to:
 - LLM API request error, with the exception of hitting the generation attempt limit, which is considered to be a successful completion of the operation the goroutine was meant to perform.
 
 #### Generation goroutine
+
+<!-- TODO: document steer delivery before each assistant model call (not before compaction or local tool execution) -->
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
