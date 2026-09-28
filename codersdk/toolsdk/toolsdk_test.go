@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // setupWorkspaceForAgent creates a workspace setup exactly like main SSH tests
@@ -510,6 +511,54 @@ func TestTools(t *testing.T) {
 		require.Equal(t, before.LatestBuild.Resources[0].Agents[0].ID, *result.AgentID)
 		require.False(t, result.WaitExpired)
 		require.NotEmpty(t, result.Reason)
+
+		// Poll the real server so related-field selection must preserve build status.
+		require.Equal(t, "pending", result.State)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clock := quartz.NewMock(t)
+		poll := clock.Trap().NewTicker("readinessPoll")
+		defer poll.Close()
+		type readinessResult struct {
+			response toolsdk.WorkspaceReadinessResponse
+			err      error
+		}
+		done := make(chan readinessResult, 1)
+		go func() {
+			response, err := toolsdk.ObserveWorkspaceReadinessForTest(ctx, tb, toolsdk.WorkspaceReadinessArgs{
+				Workspace: observation.Workspace.ID.String(),
+				WaitMs:    2500,
+			}, clock)
+			done <- readinessResult{response, err}
+		}()
+
+		// The initial snapshot is fetched before the polling ticker starts.
+		tick := poll.MustWait(ctx)
+		// nolint:gocritic // Set connection state without starting a live agent.
+		systemCtx := dbauthz.AsSystemRestricted(ctx)
+		now := time.Now()
+		observedAgentID := before.LatestBuild.Resources[0].Agents[0].ID
+		require.NoError(t, store.UpdateWorkspaceAgentConnectionByID(systemCtx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:                     observedAgentID,
+			FirstConnectedAt:       sql.NullTime{Time: now, Valid: true},
+			LastConnectedAt:        sql.NullTime{Time: now, Valid: true},
+			LastConnectedReplicaID: uuid.NullUUID{},
+			DisconnectedAt:         sql.NullTime{},
+			UpdatedAt:              now,
+		}))
+		require.NoError(t, store.UpdateWorkspaceAgentLifecycleStateByID(systemCtx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             observedAgentID,
+			LifecycleState: database.WorkspaceAgentLifecycleStateReady,
+			StartedAt:      sql.NullTime{Time: now, Valid: true},
+			ReadyAt:        sql.NullTime{Time: now, Valid: true},
+		}))
+		tick.MustRelease(ctx)
+		clock.Advance(time.Second).MustWait(ctx)
+		observed := testutil.RequireReceive(ctx, t, done)
+		require.NoError(t, observed.err)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, observed.response.BuildStatus)
+		require.Equal(t, "ready", observed.response.State)
+		require.True(t, observed.response.Ready)
+		require.False(t, observed.response.WaitExpired)
 	})
 
 	t.Run("GetWorkspace_ByUUIDLikeName", func(t *testing.T) {

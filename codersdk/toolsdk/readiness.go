@@ -123,6 +123,7 @@ func observeWorkspaceReadiness(ctx context.Context, deps Deps, args WorkspaceRea
 			workspace, err = deps.coderClient.Workspace(waitCtx, workspace.ID, codersdk.WorkspaceOptions{
 				IncludeRelated: &wsrelated.Config{
 					LatestBuild: &wsrelated.LatestBuild{
+						Job:       &wsrelated.Job{},
 						Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{}},
 					},
 				},

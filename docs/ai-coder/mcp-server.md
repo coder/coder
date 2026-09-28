@@ -224,6 +224,7 @@ current list, since the available tools can change between releases.
 ### Observe workspace readiness
 
 Call `coder_workspace_readiness` before execution to check the workspace build and workspace agent startup state.
+It's available in the standard and workspace toolsets and the authenticated CLI MCP server.
 The tool doesn't start the workspace, connect to its workspace agent, or extend workspace activity.
 Tools that read workspace files, list directories or apps, or get port URLs can start a stopped workspace and advertise that side effect.
 
@@ -251,7 +252,7 @@ It doesn't probe connectivity or guarantee that a subsequent operation succeeds.
 
 ## Available Prompts
 
-The MCP server also exposes
+The standard toolset also exposes
 [prompts](https://modelcontextprotocol.io/specification/2026-07-28/server/prompts)
 for common Coder Agents chat workflows. Clients that support prompts surface
 them for you to invoke, for example as slash commands:
