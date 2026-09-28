@@ -18,6 +18,7 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore } from "./chatStore";
 import {
+	buildEditModelOverrides,
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
 	submitChatTurn,
@@ -76,6 +77,43 @@ const buildParams = (
 		...overrides,
 	};
 };
+
+describe("buildEditModelOverrides", () => {
+	it.each([
+		{
+			name: "omits the effort until the user changes it",
+			isReasoningEffortDirty: false,
+			want: { model_config_id: pickerModel.id, reasoning_effort: undefined },
+		},
+		{
+			name: "sends the effort once the user changed it",
+			isReasoningEffortDirty: true,
+			want: { model_config_id: pickerModel.id, reasoning_effort: "high" },
+		},
+	])("$name", ({ isReasoningEffortDirty, want }) => {
+		expect(
+			buildEditModelOverrides({
+				pickerModelConfigID: pickerModel.id,
+				originalModelConfigID: "stale-model",
+				modelOptions: [pickerModel],
+				reasoningEffort: "high",
+				isReasoningEffortDirty,
+			}),
+		).toEqual(want);
+	});
+
+	it("omits the model when the backend keeps a selectable original", () => {
+		expect(
+			buildEditModelOverrides({
+				pickerModelConfigID: originalModel.id,
+				originalModelConfigID: originalModel.id,
+				modelOptions: [originalModel],
+				reasoningEffort: "high",
+				isReasoningEffortDirty: false,
+			}),
+		).toEqual({ model_config_id: undefined, reasoning_effort: undefined });
+	});
+});
 
 describe("resolveEditModelConfigID", () => {
 	it("uses the picker when the original model is no longer available", () => {
