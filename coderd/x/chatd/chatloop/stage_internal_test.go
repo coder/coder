@@ -255,6 +255,9 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		count, sum := histogramTotals(t, fixture.registry, "coderd_chatd_ttft_seconds")
 		require.Equal(t, uint64(1), count)
 		require.InDelta(t, 0.25, sum, 1e-9)
+		// Without a tracer the stage window is not observed.
+		_, ok := stageSeries(t, fixture.registry, "coderd_chatd_stage_duration_seconds", StageTimeToFirstToken)
+		require.False(t, ok)
 	})
 
 	t.Run("OpenFailureEndsSpanWithoutObservation", func(t *testing.T) {
@@ -461,7 +464,9 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 		})
 		require.ErrorContains(t, err, openErr.Error())
 
-		require.Equal(t, codes.Error, endedSpan(t, fixture.spans, StageStream).Status().Code)
+		stream := endedSpan(t, fixture.spans, StageStream)
+		require.Equal(t, codes.Error, stream.Status().Code)
+		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
 		require.Equal(t, codes.Error, endedSpan(t, fixture.spans, StageTimeToFirstToken).Status().Code)
 		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
 		requireStreamObserved(t, fixture)
@@ -490,11 +495,11 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			{Type: fantasy.StreamPartTypeTextDelta, Delta: "hi"},
 			{Type: fantasy.StreamPartTypeError, Error: streamErr},
 		})
-		require.Error(t, err)
+		require.ErrorContains(t, err, streamErr.Error())
 
 		stream := endedSpan(t, fixture.spans, StageStream)
 		require.Equal(t, codes.Error, stream.Status().Code)
-		require.Equal(t, streamErr.Error(), recordedErrorMessage(t, stream))
+		require.Equal(t, err.Error(), recordedErrorMessage(t, stream))
 		requireStreamObserved(t, fixture)
 	})
 
