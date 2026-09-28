@@ -173,18 +173,17 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			// In verbose mode, write debug logs to the sinks as before. Otherwise
-			// run at Info so normal operation stays quiet and keep a rolling
-			// in-memory history of the debug entries via a flight recorder. The
-			// history is flushed on a connection failure (see agent.runLoop) so the
-			// detail leading up to the failure is emitted without logging debug all
-			// the time.
-			logger := inv.Logger.AppendSinks(sinks...)
+			// Run at Info (Debug with -v) and always attach a flight recorder.
+			// Below-level (debug) entries are kept in a rolling in-memory history and
+			// emitted when an error is logged (see agent.runLoop), so the detail
+			// leading up to a failure is available without logging debug during
+			// normal operation. At Debug the recorder has nothing to buffer. Driving
+			// this off the level keeps working if a log-level flag is added later.
+			level := slog.LevelInfo
 			if r.verbose {
-				logger = logger.Leveled(slog.LevelDebug)
-			} else {
-				logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(logBufferSize))
+				level = slog.LevelDebug
 			}
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(level).FlightRecorder(int(logBufferSize))
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
