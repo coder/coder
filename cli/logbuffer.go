@@ -23,7 +23,7 @@ const (
 	// entries a session command keeps in memory and writes to its log file on a
 	// connection failure.
 	defaultCLILogBufferSize = 1000
-	maxCLILogBufferSize = 10000
+	maxCLILogBufferSize     = 10000
 	// keepSessionLogFiles is the number of session log files retained per log
 	// directory; older files are pruned when a new session starts.
 	keepSessionLogFiles = 50
@@ -36,11 +36,24 @@ func logBufferSizeOption(value *int64) serpent.Option {
 		Flag:    "log-buffer-size",
 		Env:     "CODER_LOG_BUFFER_SIZE",
 		Default: strconv.Itoa(defaultCLILogBufferSize),
-		Description: "Number of debug log entries to keep in memory and write to the " +
-			"session log file if the command fails. Set to 0 to disable buffering. " +
-			"Ignored with --verbose, which writes debug logs unconditionally.",
+		Description: "Number of log entries below the current log level to keep " +
+			"in memory and emit on errors. Set to 0 to disable buffering.",
 		Value: serpent.Int64Of(value),
 	}
+}
+
+// bufferedLogger returns logger writing to sink at the current display level
+// (Info by default, Debug under --verbose) with a flight recorder attached. The
+// recorder buffers entries below the current level and emits them when an error
+// is logged, so the detail leading up to a failure is captured without logging
+// it during normal operation. The recorder is always attached so buffering keeps
+// working if the level changes; at Debug it simply has nothing to buffer.
+func (r *RootCmd) bufferedLogger(logger slog.Logger, sink slog.Sink, bufferSize int64) slog.Logger {
+	level := slog.LevelInfo
+	if r.verbose {
+		level = slog.LevelDebug
+	}
+	return logger.AppendSinks(sink).Leveled(level).FlightRecorder(int(clampLogBufferSize(bufferSize)))
 }
 
 // logDirOption returns the --log-dir option for a session command. The env
@@ -140,11 +153,6 @@ func (r *RootCmd) newSessionLogger(inv *serpent.Invocation, cmdName, logDir stri
 	}
 	dc := cliutil.DiscardAfterClose(logFile)
 
-	logger := inv.Logger.AppendSinks(sloghuman.Sink(dc))
-	if r.verbose {
-		logger = logger.Leveled(slog.LevelDebug)
-	} else {
-		logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(clampLogBufferSize(bufferSize)))
-	}
+	logger := r.bufferedLogger(inv.Logger, sloghuman.Sink(dc), bufferSize)
 	return logger, func() { _ = dc.Close() }, nil
 }

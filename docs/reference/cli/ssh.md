@@ -135,7 +135,7 @@ Specify the directory containing SSH diagnostic log files.
 | Environment | <code>$CODER_LOG_BUFFER_SIZE</code> |
 | Default     | <code>1000</code>                   |
 
-Number of debug log entries to keep in memory and write to the session log file if the command fails. Set to 0 to disable buffering. Ignored with --verbose, which writes debug logs unconditionally.
+Number of log entries below the current log level to keep in memory and emit on errors. Set to 0 to disable buffering.
 
 ### -R, --remote-forward
 

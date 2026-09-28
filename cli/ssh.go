@@ -314,16 +314,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
-				// Run at Info with a flight recorder so debug detail leading up to a
-				// connection failure is written to the log file (on the deferred error
-				// log above) without logging debug during normal operation. Verbose
-				// writes debug unconditionally.
-				logger = logger.AppendSinks(sloghuman.Sink(dc))
-				if r.verbose {
-					logger = logger.Leveled(slog.LevelDebug)
-				} else {
-					logger = logger.Leveled(slog.LevelInfo).FlightRecorder(int(clampLogBufferSize(logBufferSize)))
-				}
+				// Buffer debug detail in memory and write it to the log file only
+				// when the command logs an error (via the deferred error log above),
+				// so normal operation stays quiet. Verbose writes debug directly.
+				logger = r.bufferedLogger(logger, sloghuman.Sink(dc), logBufferSize)
 
 				// log HTTP requests
 				client.SetLogger(logger)
