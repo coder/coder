@@ -152,6 +152,17 @@ export const TogglesSendShortcut: Story = {
 	},
 };
 
+export const CollapseAssistantStepsEnabled: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: { ...preferencesData, collapse_assistant_steps: true },
+			},
+		],
+	},
+};
+
 export const CollapseAssistantStepsLoadError: Story = {
 	// Drop the seeded preferences so the component fetches and hits the error.
 	parameters: { queries: [] },

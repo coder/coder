@@ -3579,6 +3579,30 @@ export const DetailQueryError: Story = {
 	},
 };
 
+// The preference request never settles, so the capture shows the chat error
+// taking precedence over the preference gate.
+export const DetailQueryErrorWhilePreferenceLoads: Story = {
+	parameters: {
+		queries: withoutQuery(
+			withoutQuery(
+				buildQueries(mockErrorChat, {
+					messages: [],
+					queued_messages: [],
+					has_more: false,
+				}),
+				chatEntityKey(CHAT_ID),
+			),
+			preferenceSettingsKey,
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockRejectedValue(mockServerError);
+		spyOn(API, "getUserPreferenceSettings").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+};
+
 export const ErrorRetryRecovers: Story = {
 	parameters: {
 		queries: withoutQuery(
