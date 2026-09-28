@@ -1585,7 +1585,7 @@ func turnStatusLabelStateContext(status database.ChatStatus) string {
 	case database.ChatStatusError:
 		return "The chat ended with an error."
 	case database.ChatStatusPaused:
-		return "The turn finished and the chat is paused."
+		return "The turn finished; the user is editing their next queued message before it is sent."
 	default:
 		return "The chat state is unknown."
 	}
