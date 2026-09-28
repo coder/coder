@@ -144,6 +144,7 @@ const renderChatPageInput = (
 			onMCPSelectionChange={vi.fn()}
 			onMCPAuthComplete={vi.fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 			{...overrides}
 		/>,
 	);
