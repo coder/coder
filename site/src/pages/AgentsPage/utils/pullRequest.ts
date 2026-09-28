@@ -1,3 +1,5 @@
+import type { ChatDiffStatus } from "#/api/typesGenerated";
+
 const repoContentRoutePattern =
 	/\/(?:tree|blob|compare|commit|commits|branches|releases|tags|wiki)\//;
 
@@ -46,3 +48,7 @@ export const parsePullRequestUrl = (
 		return null;
 	}
 };
+
+/** Legacy rows predate the pr_number column, so their number comes from the URL. */
+export const prNumber = (status: ChatDiffStatus): string | undefined =>
+	status.pr_number?.toString() ?? parsePullRequestUrl(status.url)?.number;

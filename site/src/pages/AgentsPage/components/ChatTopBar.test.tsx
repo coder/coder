@@ -457,11 +457,11 @@ describe("ChatTopBar PR chip", () => {
 			url: "https://github.com/coder/other-project/pull/123",
 		};
 		renderTopBar({
-			...MockChat,
+			...chat,
 			diff_statuses: [MockChatDiffStatus, forked],
 		});
 
-		await user.click(screen.getByRole("button", { name: /2 PRs/ }));
+		await user.click(await screen.findByRole("button", { name: /2 PRs/ }));
 		const menu = await screen.findByRole("menu");
 
 		expect(
