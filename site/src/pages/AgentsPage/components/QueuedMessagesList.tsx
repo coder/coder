@@ -27,7 +27,7 @@ type QueuedMessagesListProps = {
 	onEndEdit?: (id: number) => Promise<void> | void;
 	// While paused, Edit is disabled on rows other than the one under edit and
 	// the Cancel edit tooltip says the row is sent.
-	chatPaused?: boolean;
+	isChatPaused?: boolean;
 	// The queued row shown as under edit, or null for none.
 	queuedMessageUnderEditID: number | null;
 	showEnterToSendHint?: boolean;
@@ -134,7 +134,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onPromote,
 	onEdit,
 	onEndEdit,
-	chatPaused = false,
+	isChatPaused = false,
 	queuedMessageUnderEditID,
 	showEnterToSendHint,
 	className,
@@ -352,7 +352,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									<QueuedMessageActionButton
 										label="Cancel edit"
 										tooltip={
-											chatPaused
+											isChatPaused
 												? "Cancel edit and send unchanged"
 												: "Cancel edit"
 										}
@@ -371,7 +371,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 										busy={isRowPending && pendingAction.action === "edit"}
 										disabled={isBusy}
 										disabledReason={
-											chatPaused && !item.isUnderEdit
+											isChatPaused && !item.isUnderEdit
 												? "Finish the current edit first."
 												: undefined
 										}
