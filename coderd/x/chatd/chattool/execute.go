@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -25,6 +27,11 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// agentOutputWaitCap is the longest the agent holds a blocking
+	// output request before it answers with the process still running
+	// (maxWaitDuration in agent/agentproc).
+	agentOutputWaitCap = 5 * time.Minute
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -98,6 +105,9 @@ type ExecuteOptions struct {
 	// AGENT_BROWSER_SESSION so agent-browser CLI invocations land in a
 	// browser session scoped to this chat instead of a shared default.
 	AgentBrowserSession string
+	// Clock times the retries of requests the agent does not answer
+	// (AgentAnswerTimeout). Nil means a real clock.
+	Clock quartz.Clock
 }
 
 // ProcessToolOptions configures a process management tool
@@ -131,6 +141,13 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
+				// An earlier attempt of this tool call may have started
+				// the command, unless no workspace agent exists to run it.
+				if id, ok := ToolCallIdentityFromContext(ctx); ok {
+					if text, ok := ConnErrorText(err, executeWords(id)); ok {
+						return errorResult(text), nil
+					}
+				}
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 			return executeTool(ctx, conn, args, options), nil
@@ -175,10 +192,236 @@ func executeTool(
 		workDir = *args.WorkDir
 	}
 
+	if id, ok := ToolCallIdentityFromContext(ctx); ok {
+		if background {
+			return executeBackgroundToolCall(ctx, conn, options.Clock, id, args.Command, workDir, env)
+		}
+		return executeForegroundToolCall(ctx, conn, options.Clock, id, args, options.DefaultTimeout, workDir, env)
+	}
 	if background {
 		return executeBackground(ctx, conn, args.Command, workDir, env)
 	}
 	return executeForeground(ctx, conn, args, options.DefaultTimeout, workDir, env)
+}
+
+// foregroundTimeout returns the execute timeout for a foreground
+// command: the timeout argument, else optTimeout, else defaultTimeout.
+func foregroundTimeout(args ExecuteArgs, optTimeout time.Duration) (time.Duration, error) {
+	timeout := optTimeout
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
+	if args.Timeout != nil {
+		parsed, err := time.ParseDuration(*args.Timeout)
+		if err != nil {
+			return 0, xerrors.Errorf("invalid timeout %q: %v", *args.Timeout, err)
+		}
+		timeout = parsed
+	}
+	return timeout, nil
+}
+
+// executeWords are the words execute uses in tool call results.
+func executeWords(id ToolCallIdentity) ToolCallWords {
+	return ToolCallWords{
+		NotRun:       "command not run",
+		Effect:       "the command may have run",
+		Check:        fmt.Sprintf("Check it with process_output using process ID %s.", id.UUID()),
+		UnknownCheck: "Check the workspace state before running it again.",
+	}
+}
+
+// startToolCallProcess sends req with the tool call headers of id until
+// the agent answers or AgentAnswerTimeout ends.
+func startToolCallProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
+	id ToolCallIdentity,
+	req workspacesdk.StartProcessRequest,
+) (resp workspacesdk.StartProcessResponse, err error) {
+	ctx = workspacesdk.WithToolCall(ctx, id.AgentToolCall())
+	err = RequestUntilAnswered(ctx, clock, func(ctx context.Context) error {
+		resp, err = conn.StartProcess(ctx, req)
+		return err
+	})
+	return resp, err
+}
+
+// toolCallStartErrorResult converts the error of a start request with
+// tool call headers into a result.
+func toolCallStartErrorResult(id ToolCallIdentity, action string, err error) fantasy.ToolResponse {
+	if text, ok := ToolCallErrorText(err, executeWords(id)); ok {
+		return errorResult(text)
+	}
+	return errorResult(enrichStartError(fmt.Sprintf("%s: %v", action, err)))
+}
+
+// executeBackgroundToolCall starts a background process for the tool
+// call id and returns its process ID.
+func executeBackgroundToolCall(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
+	id ToolCallIdentity,
+	command string,
+	workDir string,
+	env map[string]string,
+) fantasy.ToolResponse {
+	resp, err := startToolCallProcess(ctx, conn, clock, id, workspacesdk.StartProcessRequest{
+		Command:    command,
+		WorkDir:    workDir,
+		Env:        env,
+		Background: true,
+	})
+	if err != nil {
+		return toolCallStartErrorResult(id, "start background process", err)
+	}
+	return marshalResult(ExecuteResult{
+		Success:             true,
+		BackgroundProcessID: resp.ID,
+		Backgrounded:        true,
+	})
+}
+
+// executeForegroundToolCall starts a foreground process for the tool
+// call id with the execute timeout, and waits until the agent reports
+// that it exited or passed its execute deadline. The agent keeps the
+// deadline of the first start, so a task retry or ownership change
+// continues the same wait.
+func executeForegroundToolCall(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
+	id ToolCallIdentity,
+	args ExecuteArgs,
+	optTimeout time.Duration,
+	workDir string,
+	env map[string]string,
+) fantasy.ToolResponse {
+	timeout, err := foregroundTimeout(args, optTimeout)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+
+	resp, err := startToolCallProcess(ctx, conn, clock, id, workspacesdk.StartProcessRequest{
+		Command: args.Command,
+		WorkDir: workDir,
+		Env:     env,
+		// Zero means no deadline to the agent, so a zero or negative
+		// timeout is sent as the shortest one.
+		TimeoutMs: max(timeout.Milliseconds(), 1),
+	})
+	if err != nil {
+		return toolCallStartErrorResult(id, "start process", err)
+	}
+
+	result := waitForToolCallProcess(ctx, conn, clock, resp.ID, timeout)
+	if note := detectFileDump(args.Command); note != "" {
+		result.Note = note
+	}
+	return marshalResult(result)
+}
+
+// waitForToolCallProcess waits on the output of a process started with
+// an execute deadline until the agent reports that it exited or timed
+// out. A read the agent does not answer is sent again until the agent's
+// wait cap plus AgentAnswerTimeout ends.
+func waitForToolCallProcess(
+	ctx context.Context,
+	conn workspacesdk.AgentConn,
+	clock quartz.Clock,
+	processID string,
+	timeout time.Duration,
+) ExecuteResult {
+	for {
+		var resp workspacesdk.ProcessOutputResponse
+		err := requestUntilAnsweredWithin(ctx, clock, agentOutputWaitCap+AgentAnswerTimeout, func(ctx context.Context) error {
+			var err error
+			resp, err = conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{Wait: true})
+			return err
+		})
+		if err != nil {
+			// The command may have exited or passed its deadline, so
+			// neither is claimed.
+			return ExecuteResult{
+				Success:  false,
+				ExitCode: -1,
+				Error: UnknownOutcome(fmt.Sprintf("the command's result could not be read (%v)", err),
+					"the command may still be running or may have finished",
+					fmt.Sprintf("Check it with process_output using process ID %s.", processID)),
+				BackgroundProcessID: processID,
+			}
+		}
+		var result ExecuteResult
+		switch {
+		case !resp.Running && resp.Canceled:
+			result = canceledResult(resp)
+		case !resp.Running:
+			result = completedResult(resp)
+		case resp.TimedOut:
+			result = timedOutRunningResult(resp, timeout, processID)
+		default:
+			// The agent's wait cap ended before the deadline.
+			continue
+		}
+		result.WallDurationMs = resp.DurationMs
+		return result
+	}
+}
+
+// completedResult builds the result for an exited process, treating a
+// missing exit code as success.
+func completedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    truncateOutput(resp.Output),
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
+	}
+}
+
+// canceledResult builds the result for a process a cancel killed, with
+// its partial output.
+func canceledResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := -1
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	return ExecuteResult{
+		Success:   false,
+		Output:    truncateOutput(resp.Output),
+		ExitCode:  exitCode,
+		Error:     fmt.Sprintf("command canceled by the user after %s", time.Duration(resp.DurationMs)*time.Millisecond),
+		Truncated: resp.Truncated,
+	}
+}
+
+// timedOutRunningResult reports partial output plus the process ID of a
+// process still running past its execute deadline, so the model can
+// re-attach or poll.
+func timedOutRunningResult(resp workspacesdk.ProcessOutputResponse, timeout time.Duration, processID string) ExecuteResult {
+	return ExecuteResult{
+		Success:             false,
+		Output:              truncateOutput(resp.Output),
+		ExitCode:            -1,
+		Error:               fmt.Sprintf("command timed out after %s", timeout),
+		Truncated:           resp.Truncated,
+		BackgroundProcessID: processID,
+	}
+}
+
+// marshalResult returns result as a JSON text response.
+func marshalResult(result ExecuteResult) fantasy.ToolResponse {
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
+	}
+	return fantasy.NewTextResponse(string(data))
 }
 
 // executeBackground starts a process in the background and
@@ -222,18 +465,9 @@ func executeForeground(
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
-	if timeout <= 0 {
-		timeout = defaultTimeout
-	}
-	if args.Timeout != nil {
-		parsed, err := time.ParseDuration(*args.Timeout)
-		if err != nil {
-			return fantasy.NewTextErrorResponse(
-				fmt.Sprintf("invalid timeout %q: %v", *args.Timeout, err),
-			)
-		}
-		timeout = parsed
+	timeout, err := foregroundTimeout(args, optTimeout)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(err.Error())
 	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)

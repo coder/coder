@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -1009,6 +1010,7 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		chattool.ToolCallIdentity{},
 	)
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
@@ -1081,6 +1083,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		chattool.ToolCallIdentity{},
 	)
 
 	require.Equal(t, 1, notifications, "each called observer is notified once per step")
@@ -1159,6 +1162,7 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		chattool.ToolCallIdentity{},
 	)
 
 	require.True(t, notified)
@@ -1227,6 +1231,7 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		chattool.ToolCallIdentity{},
 	)
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
@@ -1316,6 +1321,7 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
+			chattool.ToolCallIdentity{},
 		)
 	}()
 

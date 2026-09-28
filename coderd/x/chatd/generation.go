@@ -79,6 +79,9 @@ type generationPrepared struct {
 
 	MaxSteps   int
 	Compaction *generationCompaction
+	// IsCapableAgent reports whether the chat's workspace agent handles
+	// tool call headers. Nil means it does not.
+	IsCapableAgent func(context.Context) bool
 	// Cleanup is always non-nil when prepareGeneration succeeds.
 	Cleanup func()
 
@@ -151,6 +154,9 @@ type generationDecision struct {
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
 	forced bool
+	// toolCallMessage is the assistant message containing
+	// localToolCalls.
+	toolCallMessage toolCallMessage
 }
 
 type generationRetryDecision struct {
@@ -203,7 +209,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if input.maxSteps < 1 {
 		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
 	}
-	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
+	toolCallMsg, localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
 	}
@@ -217,7 +223,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 				})
 			}
 		}
-		return generationDecision{kind: generationActionExecuteLocalTools, localToolCalls: localCalls}, nil
+		return generationDecision{
+			kind:            generationActionExecuteLocalTools,
+			localToolCalls:  localCalls,
+			toolCallMessage: toolCallMsg,
+		}, nil
 	}
 	if len(dynamicCalls) > 0 {
 		return generationDecision{kind: generationActionEnterRequiresAction}, nil
@@ -291,23 +301,32 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	return compaction.Options.ContextLimit
 }
 
+// toolCallMessage identifies the assistant message whose tool calls
+// unresolvedToolCallsFromHistory returns.
+type toolCallMessage struct {
+	id int64
+}
+
+// unresolvedToolCallsFromHistory returns the tool calls without a result
+// in the latest assistant message, split into local and dynamic calls,
+// and that message.
 func unresolvedToolCallsFromHistory(
 	messages []database.ChatMessage,
 	dynamicToolNames map[string]bool,
-) ([]fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
+) (toolCallMessage, []fantasy.ToolCallContent, []pendingDynamicToolCall, error) {
 	assistantIndex := lastMessageIndex(messages, func(msg database.ChatMessage) bool {
 		return msg.Role == database.ChatMessageRoleAssistant
 	})
 	if assistantIndex == -1 {
-		return nil, nil, nil
+		return toolCallMessage{}, nil, nil, nil
 	}
 	assistantParts, err := chatprompt.ParseContent(messages[assistantIndex])
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse assistant message: %w", err)
+		return toolCallMessage{}, nil, nil, xerrors.Errorf("parse assistant message: %w", err)
 	}
 	handled, err := handledToolCallIDs(messages[assistantIndex+1:])
 	if err != nil {
-		return nil, nil, err
+		return toolCallMessage{}, nil, nil, err
 	}
 	localCalls := make([]fantasy.ToolCallContent, 0)
 	dynamicCalls := make([]pendingDynamicToolCall, 0)
@@ -330,7 +349,18 @@ func unresolvedToolCallsFromHistory(
 			ProviderExecuted: part.ProviderExecuted,
 		})
 	}
-	return localCalls, dynamicCalls, nil
+	return toolCallMessage{id: messages[assistantIndex].ID}, localCalls, dynamicCalls, nil
+}
+
+// sendsToolCallIdentity reports whether any of calls is for a tool that
+// sends tool call headers.
+func sendsToolCallIdentity(calls []fantasy.ToolCallContent) bool {
+	for _, call := range calls {
+		if chattool.SendsToolCallIdentity(call.ToolName) {
+			return true
+		}
+	}
+	return false
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -897,6 +927,16 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
+		// Tools see an identity only for a capable agent; for any other
+		// agent they send the requests they sent before tool call
+		// headers existed.
+		var identity chattool.ToolCallIdentity
+		if sendsToolCallIdentity(allowed) && prepared.IsCapableAgent != nil && prepared.IsCapableAgent(ctx) {
+			identity = chattool.ToolCallIdentity{
+				ChatID:    input.ChatID,
+				MessageID: decision.toolCallMessage.id,
+			}
+		}
 		var billingRecorder chatloop.ToolBillingRecorder
 		if !exclusiveRejected {
 			billingRecorder = &bufferToolBillingRecorder{
@@ -916,6 +956,7 @@ func (s *taskStarter) executeLocalTools(
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
+			ToolCallIdentity:   identity,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,

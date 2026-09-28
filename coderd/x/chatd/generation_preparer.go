@@ -558,26 +558,22 @@ func (server *Server) prepareGeneration(
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
+	toolCallTools := chattool.NewToolCallTools(chattool.ToolCallToolsOptions{
+		GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
+		ResolvePlanPath:     resolvePlanPathForTools,
+		IsPlanTurn:          isPlanModeTurn,
+		AgentBrowserSession: chat.ID.String(),
+		Clock:               server.clock,
+	})
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
+		toolCallTools.WriteFile,
+		toolCallTools.EditFiles,
 		chattool.AttachFile(chattool.AttachFileOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 			StoreFile:        storeChatAttachment,
 		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn:    workspaceCtx.getWorkspaceConn,
-			AgentBrowserSession: chat.ID.String(),
-		}),
+		toolCallTools.Execute,
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -862,6 +858,7 @@ func (server *Server) prepareGeneration(
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
 		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
+		IsCapableAgent:       workspaceCtx.isCapableAgent,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
