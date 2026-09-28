@@ -855,8 +855,8 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
 					ActorHeaderNames: map[string]string{
-						"id":       intercept.ActorIDHeader(),
-						"username": intercept.ActorMetadataHeader("Username"),
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
 					},
 				}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
@@ -864,8 +864,8 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
 					ActorHeaderNames: map[string]string{
-						"id":       intercept.ActorIDHeader(),
-						"username": intercept.ActorMetadataHeader("Username"),
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
 					},
 				}, nil),
 			}

@@ -2850,8 +2850,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2865,8 +2865,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2880,8 +2880,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2895,8 +2895,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2910,8 +2910,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
@@ -2925,8 +2925,8 @@ func TestActorHeaders(t *testing.T) {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
 				cfg.ActorHeaderNames = map[string]string{
-					"id":       headers.ActorIDHeader(),
-					"username": headers.ActorMetadataHeader("Username"),
+					"id":       aibheaders.ActorIDHeader(),
+					"username": aibheaders.ActorMetadataHeader("Username"),
 				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
