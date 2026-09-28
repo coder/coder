@@ -11,4 +11,13 @@ DROP INDEX chat_queued_messages_one_editing_per_chat;
 ALTER TABLE chat_queued_messages DROP COLUMN editing_since;
 
 -- `paused` stays in the enum. Dropping a value requires recreating the type.
-UPDATE chats SET status = 'waiting' WHERE status = 'paused';
+-- A paused chat has queued rows. Waiting with queued rows is not a valid
+-- state for the older code, error with queued rows is, and a send
+-- continues from it.
+UPDATE chats
+SET status = 'error',
+    last_error = jsonb_build_object(
+        'message', 'Queued message editing was removed by a downgrade.',
+        'kind', 'generic'
+    )
+WHERE status = 'paused';
