@@ -193,9 +193,8 @@ export const updateInfiniteChatsCache = (
  * in the cache, but only if the chat doesn't already exist in any
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
- * runs independently on each page. Lists whose archived filter
- * conflicts with the chat's archive state are skipped, so an active
- * chat is never inserted into an archived-only list.
+ * runs independently on each page. Lists whose archive or status
+ * filters exclude the chat are skipped.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
@@ -207,6 +206,24 @@ export const prependToInfiniteChatsCache = (
 	for (const [queryKey] of queries) {
 		const archivedFilter = archivedFilterForChatListKey(queryKey);
 		if (archivedFilter !== undefined && archivedFilter !== chat.archived) {
+			continue;
+		}
+		const params = queryKey[chatListFamilyKey.length];
+		const statuses =
+			queryKey.length === chatListFamilyKey.length + 1 &&
+			params !== null &&
+			typeof params === "object" &&
+			"statuses" in params &&
+			Array.isArray(params.statuses)
+				? canonicalizeChatListStatuses(params.statuses)
+				: [];
+		if (
+			statuses.length > 0 &&
+			statuses.length < CHAT_STATUS_FILTER_ORDER.length &&
+			!statuses.includes(
+				chat.status === "interrupting" ? "running" : chat.status,
+			)
+		) {
 			continue;
 		}
 		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
