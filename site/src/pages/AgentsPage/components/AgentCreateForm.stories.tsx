@@ -2254,7 +2254,12 @@ export const ForbiddenNoOrganizationAccess: Story = {
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
-		).toBeInTheDocument();
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/agents/getting-started#control-who-can-use-coder-agents",
+			),
+		);
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),
 		).not.toBeInTheDocument();
