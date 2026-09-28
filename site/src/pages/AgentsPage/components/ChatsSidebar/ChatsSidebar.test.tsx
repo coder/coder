@@ -381,19 +381,20 @@ describe("ChatsSidebar filters", () => {
 		});
 	});
 
-	it("keeps one chat status and one source selected", async () => {
+	it("resets a filter subset when its last option is cleared", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
+		const sidebarFilters: AgentSidebarFilters = {
+			...defaultSidebarFilters,
+			chatStatuses: ["running"],
+			sources: ["shared_with_me"],
+		};
 
 		render(
 			<Wrapper>
 				<ChatsSidebar
 					{...defaultProps}
-					sidebarFilters={{
-						...defaultSidebarFilters,
-						chatStatuses: ["running"],
-						sources: ["shared_with_me"],
-					}}
+					sidebarFilters={sidebarFilters}
 					onSidebarFiltersChange={onSidebarFiltersChange}
 				/>
 			</Wrapper>,
@@ -402,7 +403,14 @@ describe("ChatsSidebar filters", () => {
 		await toggleSubmenuOption(user, "Status", "Working");
 		await toggleSubmenuOption(user, /Source/, "Shared with me");
 
-		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
+			...sidebarFilters,
+			chatStatuses: defaultSidebarFilters.chatStatuses,
+		});
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(2, {
+			...sidebarFilters,
+			sources: defaultSidebarFilters.sources,
+		});
 	});
 
 	it("applies the unread checkbox", async () => {
