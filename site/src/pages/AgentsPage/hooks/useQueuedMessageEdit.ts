@@ -1,4 +1,4 @@
-import type * as TypesGen from "#/api/typesGenerated";
+import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import {
 	type ChatStore,
 	useChatSelector,
@@ -16,12 +16,7 @@ export type ComposerMode = EditingTarget | "draft" | "follow";
 /** The latest marker request's state, as reported by its useMutation. */
 export type MarkerRequest = {
 	isPending: boolean;
-	variables:
-		| {
-				queuedMessageId: number;
-				req: TypesGen.EditChatQueuedMessageRequest;
-		  }
-		| undefined;
+	variables: EditChatQueuedMessageVariables | undefined;
 };
 
 const beginRequestedOn = (marker: MarkerRequest, id: number): boolean =>
@@ -91,11 +86,7 @@ export function useQueuedMessageEdit(deps: {
 	setComposerMode: (mode: ComposerMode) => void;
 	isOwner: boolean;
 	marker: MarkerRequest;
-	patchQueuedMessage: (
-		id: number,
-		req: TypesGen.EditChatQueuedMessageRequest,
-		failureMessage: string,
-	) => Promise<void>;
+	setQueuedMessageEditing: (id: number, editing: boolean) => Promise<void>;
 }): {
 	serverMarkedID: number | null;
 	queuedMessageUnderEditID: number | null;
@@ -126,21 +117,11 @@ export function useQueuedMessageEdit(deps: {
 			return;
 		}
 		setComposerMode({ kind: "queued", id });
-		void deps
-			.patchQueuedMessage(
-				id,
-				{ editing: true },
-				"Failed to start editing the queued message.",
-			)
-			.catch(() => undefined);
+		void deps.setQueuedMessageEditing(id, true).catch(() => undefined);
 	};
 
 	const handleEndQueuedMessageEdit = (id: number) =>
-		deps.patchQueuedMessage(
-			id,
-			{ editing: false },
-			"Failed to cancel the edit.",
-		);
+		deps.setQueuedMessageEditing(id, false);
 
 	return {
 		serverMarkedID,

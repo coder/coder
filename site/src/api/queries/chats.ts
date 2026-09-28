@@ -2201,25 +2201,24 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
+export type EditChatQueuedMessageVariables = {
+	queuedMessageId: number;
+	req: TypesGen.EditChatQueuedMessageRequest;
+};
+
 export const editChatQueuedMessage = (
 	queryClient: QueryClient,
 	chatId: string,
 ) => ({
-	mutationFn: ({
-		queuedMessageId,
-		req,
-	}: {
-		queuedMessageId: number;
-		req: TypesGen.EditChatQueuedMessageRequest;
-	}) => API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
+	mutationFn: ({ queuedMessageId, req }: EditChatQueuedMessageVariables) =>
+		API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
 	// Same-scope mutations run serially, also across useMutation instances, so
 	// an end or save never runs before its begin.
 	scope: { id: `chat-queued-messages-${chatId}` },
-	// A 404 means the local queue is stale, so invalidation runs on every
-	// outcome.
+	// Ending an edit can resume a paused chat. The queue itself arrives by
+	// queue_update.
 	onSettled: () => {
 		void invalidateChatEntity(queryClient, chatId);
-		void invalidateChatMessages(queryClient, chatId);
 	},
 });
 
