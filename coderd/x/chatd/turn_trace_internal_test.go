@@ -531,7 +531,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		require.NotEqual(t, first, second)
 		turn.Complete(first)
 		turn.Settle(first)
-		// Only the rotated first turn has closed.
 		require.Len(t, turnSpansByStart(t, recorder), 1)
 		require.Equal(t, second, turn.OpenToken(t.Context()))
 
