@@ -215,7 +215,7 @@ func TestExperimentRuleAudit(t *testing.T) {
 func TestExperimentRuleRedaction(t *testing.T) {
 	t.Parallel()
 	// Enterprise servers always export audit entries to the server log.
-	f := newExperimentRulesFixture(t, func(logger slog.Logger) entaudit.Backend { return backends.NewSlog(logger) })
+	f := newExperimentRulesFixture(t, backends.NewSlog)
 	memberClient, _ := coderdtest.CreateAnotherUser(t, f.owner, f.orgID)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	sentinel := "redaction-sentinel-" + uuid.NewString()
@@ -287,14 +287,14 @@ func TestExperimentRuleRedaction(t *testing.T) {
 // such as audit diffs, are rendered as text.
 func logText(entry slog.SinkEntry) string {
 	var b strings.Builder
-	b.WriteString(entry.Message)
+	_, _ = b.WriteString(entry.Message)
 	for _, field := range entry.Fields {
-		b.WriteString(" ")
+		_, _ = b.WriteString(" ")
 		switch v := field.Value.(type) {
 		case json.RawMessage:
-			b.Write(v)
+			_, _ = b.Write(v)
 		case []byte:
-			b.Write(v)
+			_, _ = b.Write(v)
 		default:
 			_, _ = fmt.Fprintf(&b, "%+v", v)
 		}
