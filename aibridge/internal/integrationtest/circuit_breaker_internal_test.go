@@ -136,7 +136,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(defaultActorID, nil),
 			)
 
 			doRequest := func() int {
@@ -293,7 +293,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(defaultActorID, nil),
 			)
 
 			doRequest := func() int {
@@ -441,7 +441,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(defaultActorID, nil),
 			)
 
 			doRequest := func() int {
@@ -560,7 +560,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 			CircuitBreaker: cbConfig,
 		}, nil)),
 		withMetrics(m),
-		withActor("test-user-id", nil),
+		withActor(defaultActorID, nil),
 	)
 
 	doRequest := func(model string) int {
