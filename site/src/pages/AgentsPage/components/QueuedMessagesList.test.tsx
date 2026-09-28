@@ -230,7 +230,7 @@ describe("QueuedMessagesList", () => {
 				| "onPromote"
 				| "onEdit"
 				| "onEndEdit"
-				| "chatPaused"
+				| "isChatPaused"
 				| "queuedMessageUnderEditID"
 			>
 		> = {},
@@ -331,7 +331,7 @@ describe("QueuedMessagesList", () => {
 				{ ...MockChatQueuedMessageUnderEdit, id: 9 },
 				{ ...MockChatQueuedMessage, id: 10 },
 			],
-			{ chatPaused: true, queuedMessageUnderEditID: 9 },
+			{ isChatPaused: true, queuedMessageUnderEditID: 9 },
 		);
 
 		const [editUnderEdit, editBehind] = screen.getAllByRole("button", {

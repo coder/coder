@@ -1376,7 +1376,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
-					chatPaused={isChatPaused}
+					isChatPaused={isChatPaused}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
