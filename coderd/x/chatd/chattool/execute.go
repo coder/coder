@@ -294,7 +294,7 @@ func waitForProcess(
 	// canceled.
 	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
 		Wait:               true,
-		StopAtStartTimeout: true,
+		TimeoutFromExecute: true,
 	})
 	if err != nil {
 		origErr := err

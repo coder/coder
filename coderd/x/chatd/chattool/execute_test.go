@@ -423,25 +423,25 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "partial output", result.Output)
 	})
 
-	t.Run("StopsAtAgentStartTimeout", func(t *testing.T) {
+	t.Run("StopsAtAgentExecuteTimeout", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-		// The fake agent keeps the timeout from the first start and ends
-		// only waits that ask to stop there. On a retry that timeout
+		// The fake agent keeps the execute timeout from the first start
+		// and ends only waits that ask for it. On a retry that timeout
 		// passes long before chatd's own.
-		var startTimeout time.Duration
+		var executeTimeout time.Duration
 		mockConn.EXPECT().
 			StartProcess(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
-				startTimeout = time.Duration(req.TimeoutMs) * time.Millisecond
+				executeTimeout = time.Duration(req.TimeoutMs) * time.Millisecond
 				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
 			})
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
-				if startTimeout == 10*time.Minute && opts != nil && opts.StopAtStartTimeout {
+				if executeTimeout == 10*time.Minute && opts != nil && opts.TimeoutFromExecute {
 					return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
 				}
 				<-ctx.Done()
