@@ -112,8 +112,9 @@ Coder enforces PKCE in compliance with the OAuth 2.1 specification, for both pub
    ```
 
    Send the access token in the `Authorization` header.
-   Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires, and answers HTTP 401.
-   Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string).
+   Coder ignores an OAuth2 access token in the URL query string, as OAuth 2.1 section 5.1 requires.
+   This endpoint requires a signed-in user, so it answers HTTP 401.
+   Refer to [HTTP 401 for an access token in the query string](./troubleshooting.md#http-401-for-an-access-token-in-the-query-string) for endpoints that behave differently.
 
 ## Discovery endpoints
 
