@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -185,7 +185,7 @@ type AgentCreateFormProps = {
 	prefill?: AgentCreatePrefill;
 };
 
-export const AgentCreateForm: FC<AgentCreateFormProps> = ({
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
@@ -434,12 +434,17 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// keeps its loading state instead of flashing the provisional organization's
 	// catalog before permissions resolve.
 	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
-	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
-		modelOptions,
-		isModelDataPending,
-		hasConfiguredModels,
-		modelCatalog,
-	);
+	const isForbidden = !canCreateChat || noPermittedOrgs;
+	// A forbidden user may have no organization to read models from, and the
+	// catalog-based placeholder would then wrongly report that none exist.
+	const modelSelectorPlaceholder = isForbidden
+		? "Select model"
+		: getModelSelectorPlaceholder(
+				modelOptions,
+				isModelDataPending,
+				hasConfiguredModels,
+				modelCatalog,
+			);
 	const modelSelectorHelp = getModelSelectorHelp({
 		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
@@ -491,8 +496,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
 	};
-
-	const isForbidden = !canCreateChat || noPermittedOrgs;
 
 	// Filter workspaces by the selected organization. We use
 	// client-side filtering of the full "owner:me" fetch rather

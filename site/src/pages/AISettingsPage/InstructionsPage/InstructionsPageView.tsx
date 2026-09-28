@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
@@ -36,7 +35,7 @@ export type InstructionsPageViewProps = {
 	isSavePlanModeInstructionsError: boolean;
 };
 
-export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
+export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
 	...formProps
@@ -75,7 +74,7 @@ type InstructionsFormProps = {
 	isSavePlanModeInstructionsError: boolean;
 };
 
-const InstructionsForm: FC<InstructionsFormProps> = ({
+const InstructionsForm: React.FC<InstructionsFormProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
 	onSaveSystemPrompt,

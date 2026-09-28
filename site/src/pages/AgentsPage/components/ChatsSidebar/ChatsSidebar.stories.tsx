@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import {
@@ -122,7 +121,7 @@ export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
 
 const ChatsSidebarWithKeybindings = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
@@ -147,7 +146,7 @@ const ChatsSidebarWithKeybindings = (
 };
 
 const ChatsSidebarWithDeferredModels = (
-	args: ComponentProps<typeof ChatsSidebar>,
+	args: React.ComponentProps<typeof ChatsSidebar>,
 ) => {
 	const [modelsResolved, setModelsResolved] = useState(false);
 
@@ -245,11 +244,8 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
-/**
- * The active row normally swaps its timestamp for the actions trigger, but
- * another user's shared chat has no owner actions, so the timestamp stays.
- */
-export const ActiveSharedChatViewerHasNoActions: Story = {
+/** Shared chats expose the copy menu without owner-only actions. */
+export const ActiveSharedChatViewerHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -273,8 +269,8 @@ export const ActiveSharedChatViewerHasNoActions: Story = {
 	},
 };
 
-/** Viewers keep the subagents toggle, the touch path for expanding a row. */
-export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+/** Viewers can expand subagents and copy chat details without managing the chat. */
+export const SharedChatViewerMenuWithSubagents: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2086,7 +2082,7 @@ export const SubagentsMenuToggle: Story = {
 	},
 };
 
-export const ArchivedChildChatRowHasNoActionsMenu: Story = {
+export const ArchivedChildChatRowHasCopyMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2117,12 +2113,13 @@ export const ArchivedChildChatRowHasNoActionsMenu: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Right-click the archived child row: it has no menu actions, so a
-		// correct render leaves the row undisturbed for the capture. An
-		// erroneous menu would appear in the screenshot.
 		fireEvent.contextMenu(
 			canvas.getByTestId("agents-tree-node-child-archived"),
 		);
+		await userEvent.click(
+			await within(document.body).findByRole("menuitem", { name: "Copy" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Copy ID" });
 	},
 };
 

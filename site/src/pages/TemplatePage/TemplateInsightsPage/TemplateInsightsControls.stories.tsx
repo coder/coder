@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { userEvent, within } from "storybook/test";
 import { TemplateInsightsControls } from "./TemplateInsightsPage";
 
@@ -11,7 +10,9 @@ const meta: Meta<typeof TemplateInsightsControls> = {
 export default meta;
 type Story = StoryObj<typeof TemplateInsightsControls>;
 
-const defaultArgs: Partial<ComponentProps<typeof TemplateInsightsControls>> = {
+const defaultArgs: Partial<
+	React.ComponentProps<typeof TemplateInsightsControls>
+> = {
 	dateRange: {
 		startDate: new Date("2025-08-05"),
 		endDate: new Date("2025-08-07"),

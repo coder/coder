@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DropdownMenu,
@@ -10,7 +9,7 @@ import { UserDropdownContent } from "#/modules/dashboard/Navbar/UserDropdown/Use
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { UsageIndicator } from "../../UsageIndicator";
 
-export const UserSidebarFooter: FC = () => {
+export const UserSidebarFooter: React.FC = () => {
 	const { user, signOut } = useAuthenticated();
 	const { appearance, buildInfo } = useDashboard();
 

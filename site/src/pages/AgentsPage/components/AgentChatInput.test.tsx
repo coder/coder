@@ -6,7 +6,7 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ComponentProps, createRef, type ReactNode } from "react";
+import { createRef } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
@@ -64,7 +64,7 @@ const inputProps = {
 	modelSelectorPlaceholder: "Select model",
 	hasModelOptions: true,
 	canConfigureAgentSetup: false,
-} satisfies ComponentProps<typeof AgentChatInput>;
+} satisfies React.ComponentProps<typeof AgentChatInput>;
 
 const mockSentryMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
@@ -108,7 +108,7 @@ const mockNotionMCP: TypesGen.MCPServerConfig = {
 const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
-const renderInput = (children: ReactNode) => {
+const renderInput = (children: React.ReactNode) => {
 	return render(<AppProviders>{children}</AppProviders>);
 };
 

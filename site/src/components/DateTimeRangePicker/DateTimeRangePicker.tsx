@@ -6,7 +6,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, CheckIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button, type ButtonProps } from "#/components/Button/Button";
@@ -112,7 +112,7 @@ const defaultTimeFields = (): TimeFieldsState => ({
 	toTouched: false,
 });
 
-export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
+export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	value,
 	onChange,
 	now,
@@ -175,7 +175,9 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	};
 
 	// Roving focus for the quick-pick radiogroup.
-	const handleQuickPickKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+	const handleQuickPickKeyDown = (
+		event: React.KeyboardEvent<HTMLDivElement>,
+	) => {
 		const isNext = event.key === "ArrowDown" || event.key === "ArrowRight";
 		const isPrevious = event.key === "ArrowUp" || event.key === "ArrowLeft";
 		if (!isNext && !isPrevious) {
@@ -416,7 +418,7 @@ type QuickPickButtonProps = {
 	onClick: () => void;
 };
 
-const QuickPickButton: FC<QuickPickButtonProps> = ({
+const QuickPickButton: React.FC<QuickPickButtonProps> = ({
 	label,
 	selected,
 	tabIndex,
@@ -453,7 +455,7 @@ type TimeRowProps = {
 	onMeridiemChange: (meridiem: Meridiem) => void;
 };
 
-const TimeRow: FC<TimeRowProps> = ({
+const TimeRow: React.FC<TimeRowProps> = ({
 	id,
 	label,
 	time,

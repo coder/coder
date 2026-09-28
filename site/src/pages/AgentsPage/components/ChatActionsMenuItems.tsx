@@ -12,7 +12,7 @@ import {
 	SquarePenIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useId } from "react";
+import { useId } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
@@ -110,7 +110,7 @@ type ChatActionsMenuItemsProps = {
 	readonly SubContent: SubContentComponent;
 };
 
-export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
+export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	canManage,
 	hasWorkspace,

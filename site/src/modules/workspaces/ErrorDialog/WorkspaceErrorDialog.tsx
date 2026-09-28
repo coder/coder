@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
@@ -22,7 +21,7 @@ type WorkspaceErrorDialogProps = {
 	isDeleting: boolean;
 };
 
-export const WorkspaceErrorDialog: FC<WorkspaceErrorDialogProps> = ({
+export const WorkspaceErrorDialog: React.FC<WorkspaceErrorDialogProps> = ({
 	open,
 	error,
 	onClose,

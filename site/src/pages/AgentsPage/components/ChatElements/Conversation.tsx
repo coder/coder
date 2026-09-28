@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import type { ComponentProps } from "react";
 
-type ConversationProps = ComponentProps<"div">;
+type ConversationProps = React.ComponentProps<"div">;
 
 export const Conversation = ({
 	className,
@@ -17,7 +16,7 @@ export const Conversation = ({
 	);
 };
 
-type ConversationItemProps = Omit<ComponentProps<"div">, "role"> & {
+type ConversationItemProps = Omit<React.ComponentProps<"div">, "role"> & {
 	role: "user" | "assistant";
 };
 

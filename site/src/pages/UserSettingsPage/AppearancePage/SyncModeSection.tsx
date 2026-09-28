@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { MoonIcon, SunIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import type { ConcreteThemeName } from "#/theme";
 import { ThemePreview } from "./ThemePreview";
@@ -15,7 +15,7 @@ type SyncModeSectionProps = {
 	onSelect: (scheme: "light" | "dark", theme: ConcreteThemeName) => void;
 };
 
-export const SyncModeSection: FC<SyncModeSectionProps> = ({
+export const SyncModeSection: React.FC<SyncModeSectionProps> = ({
 	light,
 	dark,
 	activeScheme,
@@ -52,7 +52,7 @@ type SyncCardProps = {
 	onSelect: (theme: ConcreteThemeName) => void;
 };
 
-const SyncCard: FC<SyncCardProps> = ({
+const SyncCard: React.FC<SyncCardProps> = ({
 	scheme,
 	selected,
 	active,

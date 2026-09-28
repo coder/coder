@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
@@ -61,7 +61,7 @@ type ChatsSidebarProps = {
 	currentUserId: string;
 };
 
-export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
+export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const {
 		chats,
 		chatErrorReasons,

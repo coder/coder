@@ -1,5 +1,4 @@
 import { EditIcon, ExternalLinkIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,7 +28,9 @@ export type TemplateVersionPageViewProps = {
 	baseFiles: TemplateVersionFiles | undefined;
 };
 
-export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
+export const TemplateVersionPageView: React.FC<
+	TemplateVersionPageViewProps
+> = ({
 	organizationName,
 	templateName,
 	versionName,

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -36,7 +35,7 @@ type SpendPageViewProps = {
 	reportQuery: SpendReportQuery;
 };
 
-export const SpendPageView: FC<SpendPageViewProps> = ({
+export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	...contentProps
@@ -76,7 +75,7 @@ type SpendPageContentProps = Omit<
 	"isEntitled" | "isEnabled"
 >;
 
-const SpendPageContent: FC<SpendPageContentProps> = ({
+const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	now,
 	organizations,
 	organization,

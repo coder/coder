@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -7,7 +6,7 @@ import { getErrorDetail } from "#/api/errors";
 import { pageTitle } from "#/utils/page";
 import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
-const AddNewLicensePage: FC = () => {
+const AddNewLicensePage: React.FC = () => {
 	const navigate = useNavigate();
 
 	const {

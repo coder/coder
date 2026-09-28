@@ -1,11 +1,9 @@
-import type { ReactNode } from "react";
-
 export type FilterOption = {
 	label: string;
 	/** Label used once the option is applied; defaults to `label`. */
 	appliedLabel?: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/**
 	 * Explicit chip token committed when this option is selected, overriding the
@@ -20,7 +18,7 @@ export type FilterCategory = {
 	key: string;
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
 	/** Fixed text at the end of the category row instead of an options sample. */
@@ -38,7 +36,7 @@ export type FilterCategory = {
 export type SearchResult = {
 	label: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	/** Renders an avatar when `startIcon` is not provided. */
 	imageUrl?: string;
 	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */

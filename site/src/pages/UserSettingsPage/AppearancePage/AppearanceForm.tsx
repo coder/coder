@@ -1,4 +1,4 @@
-import { type FC, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -56,7 +56,7 @@ type AppearanceFormProps = {
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => void;
 };
 
-export const AppearanceForm: FC<AppearanceFormProps> = ({
+export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	isUpdating,
 	error,
 	onSubmit,

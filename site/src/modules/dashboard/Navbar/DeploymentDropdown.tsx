@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import {
@@ -13,7 +12,7 @@ import {
 
 type AdminSettingsDropdownProps = { permissions: AdminSettingsPermissions };
 
-export const AdminSettingsDropdown: FC<AdminSettingsDropdownProps> = ({
+export const AdminSettingsDropdown: React.FC<AdminSettingsDropdownProps> = ({
 	permissions,
 }) => {
 	return (
