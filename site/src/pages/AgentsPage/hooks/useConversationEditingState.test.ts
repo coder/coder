@@ -14,6 +14,10 @@ import {
 } from "./useQueuedMessageEdit";
 
 const idleMarker: MarkerRequest = { isPending: false, variables: undefined };
+const pendingBegin = (id: number): MarkerRequest => ({
+	isPending: true,
+	variables: { queuedMessageId: id, req: { editing: true } },
+});
 
 const textContent = (
 	text: string,
@@ -154,7 +158,30 @@ describe("useConversationEditingState", () => {
 			hook.rerender({ serverMarkedID: id, marker });
 		};
 
-		return { ...hook, onSend, inputValueRef, beginEdit, markOnServer };
+		// Sets the content a row loads with, without marking it.
+		const setRowContent = (target: EditingTarget, text: string) => {
+			contents.set(contentKey(target), textContent(text));
+		};
+		// Edit on another row as the page does it: the begin request is
+		// pending while the server still marks the previous row.
+		const openEditWhileBeginPending = (
+			id: number,
+			text: string,
+			serverMarkedID: number | null,
+		) => {
+			setRowContent({ kind: "queued", id }, text);
+			hook.rerender({ serverMarkedID, marker: pendingBegin(id) });
+			act(() => hook.result.current.setComposerMode({ kind: "queued", id }));
+		};
+
+		return {
+			...hook,
+			onSend,
+			inputValueRef,
+			beginEdit,
+			markOnServer,
+			openEditWhileBeginPending,
+		};
 	};
 
 	it("persists and removes drafts via handleContentChange", () => {
@@ -918,6 +945,146 @@ describe("useConversationEditingState", () => {
 			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.inputValueRef.current).toBe("hi");
 			unmount();
+		});
+
+		describe("edit sessions", () => {
+			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
+				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+				act(() => {
+					result.current.handleContentChange("my draft", "my draft", false);
+					beginEdit({ kind: "history", id: 7 }, "old message");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"old message!",
+						"old message!",
+						false,
+					);
+				});
+				markOnServer(5, "queued text");
+
+				act(() => {
+					result.current.handleCancelEdit({ kind: "queued", id: 5 });
+				});
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
+				expect(result.current.editorInitialValue).toBe("queued text");
+
+				markOnServer(null);
+				expect(result.current.editingTarget).toBeNull();
+				expect(result.current.editorInitialValue).toBe("my draft");
+				unmount();
+			});
+
+			it("Cancel after switching to another row gives the draft from before the first edit back", () => {
+				const { result, unmount, beginEdit, openEditWhileBeginPending } =
+					renderEditing();
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				openEditWhileBeginPending(6, "other row", 42);
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
+
+				act(() => {
+					result.current.handleCancelEdit();
+				});
+				expect(result.current.editorInitialValue).toBe("draft");
+				expect(result.current.inputValueRef.current).toBe("draft");
+				unmount();
+			});
+
+			it("an edit opened while a save is in flight keeps its row after the save, and Cancel gives the draft back", async () => {
+				const {
+					result,
+					unmount,
+					onSend,
+					beginEdit,
+					openEditWhileBeginPending,
+				} = renderEditing();
+				let resolveSave: () => void = () => undefined;
+				onSend.mockImplementationOnce(
+					() =>
+						new Promise<void>((resolve) => {
+							resolveSave = resolve;
+						}),
+				);
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				let save: Promise<void> = Promise.resolve();
+				act(() => {
+					save = result.current.handleSendFromInput({ message: "queued edit" });
+				});
+				openEditWhileBeginPending(6, "other row", 42);
+				await act(async () => {
+					resolveSave();
+					await save;
+				});
+
+				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
+				expect(result.current.editorInitialValue).toBe("other row");
+
+				act(() => {
+					result.current.handleCancelEdit();
+				});
+				expect(result.current.editorInitialValue).toBe("draft");
+				unmount();
+			});
+
+			it("a save that fails after the row was dropped keeps the text as a new-message draft", async () => {
+				const { result, unmount, onSend, beginEdit, markOnServer } =
+					renderEditing();
+				let rejectSave: (error: Error) => void = () => undefined;
+				onSend.mockImplementationOnce(
+					() =>
+						new Promise<void>((_, reject) => {
+							rejectSave = reject;
+						}),
+				);
+				act(() => {
+					result.current.handleContentChange("draft", "draft", false);
+					beginEdit({ kind: "queued", id: 42 }, "queued text");
+				});
+				act(() => {
+					result.current.handleContentChange(
+						"queued edit",
+						"queued edit",
+						false,
+					);
+				});
+
+				let save: Promise<void> = Promise.resolve();
+				act(() => {
+					save = result.current.handleSendFromInput({ message: "queued edit" });
+				});
+				markOnServer(null);
+				await act(async () => {
+					rejectSave(new Error("gone"));
+					await save.catch(() => undefined);
+				});
+
+				expect(result.current.editingTarget).toBeNull();
+				expect(result.current.composerMode).toBe("draft");
+				expect(result.current.inputValueRef.current).toBe("queued edit");
+				unmount();
+			});
 		});
 
 		it("Cancel restores the draft from before the edit and leaves the composer in draft mode", () => {

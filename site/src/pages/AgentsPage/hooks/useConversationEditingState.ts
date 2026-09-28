@@ -85,6 +85,9 @@ export function useConversationEditingState(deps: {
 	}, [editorInitialValue, inputValueRef]);
 
 	const [loadedTarget, setLoadedTarget] = useState<LoadedTarget | null>(null);
+	// Counts target loads, so code that resumes after an await can tell
+	// whether another edit opened in the meantime.
+	const targetLoadCountRef = useRef(0);
 	// The draft the user had before an edit opened; restored when the edit
 	// ends without sending.
 	const [draftBeforeEdit, setDraftBeforeEdit] = useState<ParsedDraft | null>(
@@ -123,13 +126,13 @@ export function useConversationEditingState(deps: {
 		setDraftBeforeEdit(null);
 	};
 
-	// Loads the editor for a target change. The editor is uncontrolled, Lexical
-	// behind inputValueRef, so loading it is imperative work that belongs in a
-	// layout effect; it runs before paint. User actions that leave a target
-	// set loadedTarget themselves, so only server-driven changes reach the
-	// leave branch: dirty text stays as a new-message draft; clean text gives
-	// the draft back and the composer counts as untouched again, so it follows
-	// the row the server marks now.
+	// Brings the editor in line with the target whenever the target and the
+	// loaded target differ. The editor is uncontrolled, Lexical behind
+	// inputValueRef, so loading it is imperative work that belongs in a layout
+	// effect; it runs before paint. When the target goes away, modified text
+	// stays as a new-message draft; unmodified text gives the draft back and
+	// the composer counts as untouched again, so it follows the row the server
+	// marks now. The draft from before the edit is captured once per session.
 	const loadTargetIntoEditor = useEffectEvent(() => {
 		if (isEqual(target, loadedTarget?.target ?? null)) {
 			return;
@@ -149,7 +152,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 		const { text, fileBlocks } = getEditableContentPayload(targetContent);
-		if (loadedTarget === null) {
+		if (draftBeforeEdit === null) {
 			// localStorage holds the serialized state handleContentChange
 			// persisted; the initialEditorState React state is stale.
 			setDraftBeforeEdit({
@@ -158,22 +161,20 @@ export function useConversationEditingState(deps: {
 					? parseStoredDraft(localStorage.getItem(draftStorageKey)).editorState
 					: undefined,
 			});
-		} else if (textModified) {
-			setDraftBeforeEdit({
-				text: inputValueRef.current,
-				editorState: serializedEditorStateRef.current,
-			});
 		}
 		loadEditorText(text, undefined);
 		setLoadedTarget({ target, text, fileBlocks: fileBlocks ?? noFileBlocks });
+		targetLoadCountRef.current++;
 	});
 	useLayoutEffect(() => {
 		loadTargetIntoEditor();
-	}, [target]);
+	}, [target, loadedTarget]);
 
-	const handleCancelEdit = () => {
+	// Ends the edit and gives the draft from before it back. next is the
+	// composer mode afterwards; a target there opens that edit.
+	const handleCancelEdit = (next: ComposerMode = "draft") => {
 		restoreDraftBeforeEdit();
-		setComposerMode("draft");
+		setComposerMode(next);
 	};
 
 	// Clears the composer for an in-flight edit and returns a rollback
@@ -221,6 +222,7 @@ export function useConversationEditingState(deps: {
 		workspaceUploads,
 	}: SendChatMessageOptions) => {
 		const sendTarget = target ?? undefined;
+		const targetLoadCount = targetLoadCountRef.current;
 		const sendPromise = onSend({
 			message,
 			attachments,
@@ -245,8 +247,11 @@ export function useConversationEditingState(deps: {
 
 		if (sendTarget?.kind === "queued") {
 			// A saved queued row does not start a turn; the pre-edit draft
-			// is restored.
-			restoreDraftBeforeEdit();
+			// is restored. An edit opened during the save keeps the editor
+			// and the pre-edit draft.
+			if (targetLoadCountRef.current === targetLoadCount) {
+				restoreDraftBeforeEdit();
+			}
 			if (!isMobileViewport()) {
 				chatInputRef.current?.focus();
 			}

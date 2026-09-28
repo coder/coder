@@ -692,7 +692,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			serverMarkedID !== null
 		) {
 			isEditReasoningEffortDirtyRef.current = false;
-			setComposerMode({ kind: "queued", id: serverMarkedID });
+			editing.handleCancelEdit({ kind: "queued", id: serverMarkedID });
 			return;
 		}
 		editing.handleCancelEdit();
