@@ -46,9 +46,9 @@ export const deriveQueuedMessageUnderEditID = (
 
 /**
  * The row the composer edits. An untouched composer follows the owner's
- * marked row. A queued choice holds while the server marks that row or its
- * begin is in flight, and is null once the server no longer marks it. The
- * composer decides what a closed edit leaves behind (see
+ * marked row. A queued choice stays in effect while the server marks that
+ * row or its begin is in flight, and is null once the server no longer
+ * marks it. The composer decides what a closed edit leaves behind (see
  * useConversationEditingState).
  */
 export const deriveComposerTarget = (

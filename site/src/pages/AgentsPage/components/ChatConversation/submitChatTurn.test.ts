@@ -345,7 +345,7 @@ describe("submitChatTurn", () => {
 		);
 	});
 
-	it("saves a queued row with the marker cleared and sends nothing", async () => {
+	it("saves a queued row with the marker cleared and makes no chat send", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		store.setQueuedMessages([
