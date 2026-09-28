@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -877,10 +876,8 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
-		{name: "ExecuteCanceled", toolName: "execute", cancel: saved(http.StatusOK, `{"id":"p","started":true}`), output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"error":"canceled by the user","exit_code":-1,"output":"partial","success":false,"wall_duration_ms":0}`},
 		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true,"wall_duration_ms":0}`},
 		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
-		{name: "WriteApplied", toolName: "write_file", cancel: saved(http.StatusOK, `{"message":"ok"}`), want: `{"ok":true}`},
 		{name: "AgentWithoutCancelRoute", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
 	}
 
@@ -933,44 +930,6 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(got), tc.want, tc.name)
 	}
-}
-
-func TestExecuteLocalTools_AttachesToolCallID(t *testing.T) {
-	t.Parallel()
-
-	f := newTaskTestFixture(t)
-	callID := "call_" + uuid.NewString()
-	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
-		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: callID, ToolName: "probe", Args: json.RawMessage(`{}`)},
-	})
-	ctx := testutil.Context(t, testutil.WaitLong)
-	chat, err := f.db.GetChatByID(ctx, batch.chat.ID)
-	require.NoError(t, err)
-	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
-	require.NoError(t, err)
-	decision, err := decideGenerationAction(generationDecisionInput{chat: chat, messages: messages, maxSteps: 100})
-	require.NoError(t, err)
-
-	var got uuid.UUID
-	probe := fantasy.NewAgentTool("probe", "records its tool call ID",
-		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			got, _ = workspacesdk.ToolCallIDFromContext(ctx)
-			return fantasy.NewTextResponse("{}"), nil
-		})
-	require.NoError(t, batch.starter.executeLocalTools(ctx, chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatWorkerTaskStartInput{
-		ChatID:            chat.ID,
-		WorkerID:          batch.workerID,
-		RunnerID:          batch.runnerID,
-		HistoryVersion:    chat.HistoryVersion,
-		GenerationAttempt: chat.GenerationAttempt,
-		Status:            database.ChatStatusRunning,
-	}, generationPrepared{
-		Chat:          chat,
-		Tools:         []fantasy.AgentTool{probe},
-		ActiveTools:   []string{"probe"},
-		ModelConfigID: f.model.ID,
-	}, decision))
-	require.Equal(t, chattool.ToolCallID(chat.ID, messages[len(messages)-1].ID, callID), got)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {

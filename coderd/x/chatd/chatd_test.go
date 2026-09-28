@@ -13930,6 +13930,114 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		"plan-file-path block should be part of the main system prompt, not a standalone message")
 }
 
+// TestInterruptChatCancelsToolCallsOnAgent interrupts a step whose
+// write_file call has finished and whose execute call is still running on
+// a real agent. The interrupt must commit the agent's own write result and
+// kill the running command, which works only when the tool calls reached
+// the agent with the tool call IDs the interrupt cancels.
+func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	dir := t.TempDir()
+	writtenPath := filepath.Join(dir, "written.txt")
+	startedPath := filepath.Join(dir, "started")
+	writeArgs, err := json.Marshal(map[string]string{"path": writtenPath, "content": "hello"})
+	require.NoError(t, err)
+	// The timeout keeps execute running until the interrupt; the default
+	// would end its wait first.
+	executeArgs, err := json.Marshal(map[string]string{
+		"command": "touch started && sleep 300",
+		"workdir": dir,
+		"timeout": "10m",
+	})
+	require.NoError(t, err)
+
+	var streamedCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamedCalls.Add(1) > 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+		chunk := chattest.OpenAIToolCallChunk("write_file", string(writeArgs))
+		executeCall := chattest.OpenAIToolCallChunk("execute", string(executeArgs)).Choices[0].ToolCalls[0]
+		executeCall.Index = 1
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, executeCall)
+		return chattest.OpenAIStreamingResponse(chunk)
+	})
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+
+	workspaceID := workspace.ID
+	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: user.OrganizationID,
+		WorkspaceID:    &workspaceID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "Write the file and run the command.",
+		}},
+	})
+	require.NoError(t, err)
+
+	// Both files exist once write_file has written and execute's command
+	// has started. The command then sleeps, so execute is still running.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		for _, path := range []string{writtenPath, startedPath} {
+			if _, err := os.Stat(path); err != nil {
+				return false
+			}
+		}
+		return true
+	}, testutil.IntervalFast, "write_file and execute should act on the agent")
+
+	_, err = expClient.InterruptChat(ctx, chat.ID)
+	require.NoError(t, err)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		got, err := expClient.GetChat(ctx, chat.ID)
+		return err == nil && got.Status == codersdk.ChatStatusWaiting
+	}, testutil.IntervalFast, "chat should wait after the interrupt")
+
+	messages, err := expClient.GetChatMessages(ctx, chat.ID, nil)
+	require.NoError(t, err)
+	results := make(map[string]codersdk.ChatMessagePart)
+	for _, message := range messages.Messages {
+		for _, part := range message.Content {
+			if part.Type == codersdk.ChatMessagePartTypeToolResult {
+				results[part.ToolName] = part
+			}
+		}
+	}
+	require.Len(t, results, 2, "want one result per tool call")
+
+	writeResult := results["write_file"]
+	require.False(t, writeResult.IsError, "write_file result: %s", writeResult.Result)
+	require.JSONEq(t, `{"ok":true}`, string(writeResult.Result))
+	require.Contains(t, string(results["execute"].Result), "canceled by the user")
+}
+
 // TestEditMessageWithModelConfigOverride verifies that callers can
 // change the model when editing a previous user message. The
 // replacement message must persist with the new model and the chat's
