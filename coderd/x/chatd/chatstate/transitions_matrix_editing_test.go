@@ -172,6 +172,24 @@ func editingCase(tr chatstate.Transition, from, want chatstate.ExecutionState, s
 	}
 }
 
+// withPromotedRow extends an editing case whose transition promotes the
+// queued row at idx: the only new active history message is that row,
+// linked to its queue entry, and the entry is gone.
+func withPromotedRow(spec transitionCaseSpec, idx int) transitionCaseSpec {
+	assertCase := spec.assert
+	spec.assert = func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+		assertCase(ctx, t, f, seeded, base, result)
+		newIDs := newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID))
+		require.Len(t, newIDs, 1, "the promotion inserts one history message")
+		promoted := requireChatMessageByID(ctx, t, f, newIDs[0])
+		require.Equal(t, database.ChatMessageRoleUser, promoted.Role)
+		assertChatMessageText(t, promoted, seeded.queuedMessageBodies[idx])
+		requireQueuedMessageLink(t, promoted, seeded.queuedMessageIDs[idx])
+		requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, seeded.queuedMessageIDs[idx])
+	}
+	return spec
+}
+
 func allRows(s seededChat) []int64  { return s.queuedMessageIDs }
 func tailRows(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[1:]...) }
 func noRows(seededChat) []int64     { return []int64{} }
@@ -205,21 +223,21 @@ func editingQueueMatrixCases() []transitionCaseSpec {
 		sendBehindEditingCase(chatstate.StateP, seedP(0), scenarioInterrupt, applySendMessageInterrupt),
 		// P: content edit keeps the pause; ending the head's edit resumes.
 		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioContentEdit, seedP(0), applyContentEdit, allRows, 0),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applySetEditing(0, false), noRows, -1),
-		editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applySetEditing(0, false), tailRows, -1),
+		withPromotedRow(editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR0, scenarioEndEdit, seedP(0), applySetEditing(0, false), noRows, -1), 0),
+		withPromotedRow(editingCase(chatstate.TransitionEditQueuedMessage, chatstate.StateP, chatstate.StateR1, scenarioEndEdit, seedP(1), applySetEditing(0, false), tailRows, -1), 0),
 		// P: deleting the head resumes with the next row, or sets W when the
 		// queue empties; deleting a row behind the head keeps the pause.
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateW, "", seedP(0), applyDeleteQueuedMessage, noRows, -1),
-		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(1), applyDeleteQueuedMessage, noRows, -1),
-		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(2), applyDeleteQueuedMessage,
-			func(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[2:]...) }, -1),
+		withPromotedRow(editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(1), applyDeleteQueuedMessage, noRows, -1), 1),
+		withPromotedRow(editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(2), applyDeleteQueuedMessage,
+			func(s seededChat) []int64 { return append([]int64{}, s.queuedMessageIDs[2:]...) }, -1), 1),
 		editingCase(chatstate.TransitionDeleteQueuedMessage, chatstate.StateP, chatstate.StateP, scenarioTargetBehindHead, seedP(1), applyDeleteQueuedMessageAt(1), headOnly, 0),
 		// P: promoting the blocked head ends its edit and sends it; promoting
 		// the row behind it sends that row and leaves the head blocked, so
 		// the resumed turn runs as R1P.
-		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(0), applyPromoteQueuedMessage, noRows, -1),
-		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(1), applyPromoteQueuedMessage, tailRows, -1),
-		editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1P, scenarioTargetBehindHead, seedP(1), applyPromoteQueuedMessageAt(1), headOnly, 0),
+		withPromotedRow(editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR0, "", seedP(0), applyPromoteQueuedMessage, noRows, -1), 0),
+		withPromotedRow(editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1, "", seedP(1), applyPromoteQueuedMessage, tailRows, -1), 0),
+		withPromotedRow(editingCase(chatstate.TransitionPromoteQueuedMessage, chatstate.StateP, chatstate.StateR1P, scenarioTargetBehindHead, seedP(1), applyPromoteQueuedMessageAt(1), headOnly, 0), 1),
 		// P: a history edit clears the queue.
 		editingCase(chatstate.TransitionEditMessage, chatstate.StateP, chatstate.StateR0, "", seedP(1), applyEditMessage, noRows, -1),
 	}
