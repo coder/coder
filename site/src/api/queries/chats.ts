@@ -591,8 +591,9 @@ const diffStatusEqual = (
 };
 
 /**
- * Merges event-scoped chat fields into a cached summary, using updated_at
- * as a stale guard while still adopting the latest DB-backed model config.
+ * Merges event-scoped chat fields into a cached summary. Row fields,
+ * including the model config, are ordered by updated_at. Title fields come
+ * only from title_change events and are ordered by title_updated_at.
  */
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
@@ -609,12 +610,13 @@ export const mergeWatchedChatSummary = (
 		cachedChat.updated_at,
 		watchedChat.updated_at,
 	);
+	const isFreshEnough = updatedAtComparison <= 0;
 	// A title event's row can be newer than a status_change that has not
 	// arrived yet, so a title event changes only the title fields, ordered
 	// by title_updated_at because title writes do not change updated_at.
-	const isFreshEnough = !isTitleEvent && updatedAtComparison <= 0;
+	const adoptsRowFields = !isTitleEvent && isFreshEnough;
 	const nextStatus =
-		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+		adoptsRowFields && isStatusEvent ? watchedChat.status : cachedChat.status;
 	// Servers from before title_updated_at existed omit it; apply their
 	// title events unordered.
 	const hasNewerTitle =
@@ -650,18 +652,19 @@ export const mergeWatchedChatSummary = (
 		isStatusEvent && nextStatus !== "running"
 			? false
 			: (cachedChat.queued_for_capacity ?? false);
-	const nextWorkspaceId = isFreshEnough
+	const nextWorkspaceId = adoptsRowFields
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
 	// Single-chat reads repair agent/build bindings response-only, so watch
 	// events can replay stale DB pairs. Adopting build_id with a mismatched
 	// agent would split the repaired pair because merge never adopts agent_id.
 	const nextBuildId =
-		isFreshEnough && watchedChat.agent_id === cachedChat.agent_id
+		adoptsRowFields && watchedChat.agent_id === cachedChat.agent_id
 			? (watchedChat.build_id ?? cachedChat.build_id)
 			: cachedChat.build_id;
-	// All event types carry the current model config from the DB.
-	const nextLastModelConfigId = isFreshEnough
+	// Every event's row includes the model config, so it is ordered like the
+	// other row fields instead of being scoped to one event kind.
+	const nextLastModelConfigId = adoptsRowFields
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
 	// The summary writes (UpdateChatLastTurnSummary, UpdateChatSummary) never
@@ -676,10 +679,10 @@ export const mergeWatchedChatSummary = (
 		? watchedChat.summary
 		: cachedChat.summary;
 	const nextHasUnread =
-		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+		adoptsRowFields && isStatusEvent && watchedChat.id !== activeChatId
 			? true
 			: cachedChat.has_unread;
-	const nextUpdatedAt = isFreshEnough
+	const nextUpdatedAt = adoptsRowFields
 		? watchedChat.updated_at
 		: cachedChat.updated_at;
 
