@@ -124,7 +124,7 @@ func (s *Server) RegisterWorkspaceTools(client *codersdk.Client, opts ...func(*t
 			toolsdk.ToolNameWorkspaceWriteFile, toolsdk.ToolNameWorkspaceEditFile,
 			toolsdk.ToolNameWorkspaceEditFiles, toolsdk.ToolNameWorkspacePortForward,
 			toolsdk.ToolNameWorkspaceListApps:
-			RegisterSDKTool(s.mcpServer, tool, deps)
+			registerSDKTool(s.mcpServer, tool, deps, true)
 		}
 	}
 	return nil
@@ -164,6 +164,10 @@ func (s *Server) RegisterChatGPTTools(client *codersdk.Client, opts ...func(*too
 
 // RegisterSDKTool registers a [toolsdk.GenericTool] with an MCP server.
 func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps) {
+	registerSDKTool(srv, sdkTool, tb, false)
+}
+
+func registerSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.Deps, structured bool) {
 	if sdkTool.Schema.Properties == nil {
 		panic("developer error: schema properties cannot be nil")
 	}
@@ -211,9 +215,11 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{&mcp.TextContent{Text: string(result)}},
 		}
-		var object map[string]json.RawMessage
-		if err := json.Unmarshal(result, &object); err == nil && object != nil {
-			response.StructuredContent = object
+		if structured {
+			var object map[string]json.RawMessage
+			if err := json.Unmarshal(result, &object); err == nil && object != nil {
+				response.StructuredContent = object
+			}
 		}
 		return response, nil
 	})

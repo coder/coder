@@ -1232,6 +1232,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	searchResult, err := mcpClient.CallTool(ctx, searchReq)
 	require.NoError(t, err)
 	require.NotEmpty(t, searchResult.Content)
+	require.Nil(t, searchResult.StructuredContent)
 
 	// Verify the search result contains our template
 	assert.Len(t, searchResult.Content, 1)
@@ -1263,6 +1264,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	fetchResult, err := mcpClient.CallTool(ctx, fetchReq)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchResult.Content)
+	require.Nil(t, fetchResult.StructuredContent)
 
 	// Verify the fetch result contains template details
 	assert.Len(t, fetchResult.Content, 1)
@@ -1314,37 +1316,36 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	)
 
 	for _, toolset := range []string{"standard", "workspace"} {
-		// Connect with the template-admin user.
-		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=" + toolset
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		t.Run(toolset, func(t *testing.T) {
+			// Connect with the template-admin user.
+			mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=" + toolset
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
-			"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
-		})
-		require.NoError(t, err)
-		defer func() {
-			_ = mcpClient.Close()
-		}()
+			mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
+				"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, mcpClient.Close()) })
 
-		// Calling a workspace tool that requires an agent connection
-		// should fail because the template-admin user lacks ActionSSH.
-		// Use owner/workspace format so the lookup resolves to the
-		// admin's workspace rather than defaulting to "me".
-		workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
-		toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
-			Name: toolsdk.ToolNameWorkspaceReadFile,
-			Arguments: map[string]any{
-				"workspace": workspaceIdent,
-				"path":      "/tmp/secret.txt",
-			},
+			// Calling a workspace tool that requires an agent connection
+			// should fail because the template-admin user lacks ActionSSH.
+			// Use owner/workspace format so the lookup resolves to the
+			// admin's workspace rather than defaulting to "me".
+			workspaceIdent := coderdtest.FirstUserParams.Username + "/" + r.Workspace.Name
+			toolResult, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+				Name: toolsdk.ToolNameWorkspaceReadFile,
+				Arguments: map[string]any{
+					"workspace": workspaceIdent,
+					"path":      "/tmp/secret.txt",
+				},
+			})
+			require.NoError(t, err)
+			require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
+			require.Len(t, toolResult.Content, 1)
+			textContent, ok := toolResult.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
 		})
-		require.NoError(t, err)
-		require.True(t, toolResult.IsError, "expected tool call to fail for user without SSH access")
-		require.Len(t, toolResult.Content, 1)
-		textContent, ok := toolResult.Content[0].(*mcp.TextContent)
-		require.True(t, ok)
-		assert.Equal(t, "failed to dial agent: unauthorized: you do not have SSH access to this workspace", textContent.Text)
 	}
 }
 
