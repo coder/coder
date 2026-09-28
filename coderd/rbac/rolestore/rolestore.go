@@ -314,8 +314,10 @@ const AgentsAccessDefaultRoleBackfilledKey = "agents_access_default_role_backfil
 // deployment. It runs at startup because release branches cannot add
 // migrations. After the marker is written, an organization without
 // agents-access in its defaults reflects an admin choice and is left alone.
-func BackfillAgentsAccessDefaultRole(ctx context.Context, db database.Store) error {
-	return db.InTx(func(tx database.Store) error {
+func BackfillAgentsAccessDefaultRole(ctx context.Context, log slog.Logger, db database.Store) error {
+	var applied bool
+	err := db.InTx(func(tx database.Store) error {
+		applied = false
 		err := tx.AcquireLock(ctx, database.LockIDReconcileSystemRoles)
 		if err != nil {
 			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
@@ -340,8 +342,16 @@ func BackfillAgentsAccessDefaultRole(ctx context.Context, db database.Store) err
 		if err != nil {
 			return xerrors.Errorf("set agents-access backfill marker: %w", err)
 		}
+		applied = true
 		return nil
 	}, nil)
+	if err != nil {
+		return err
+	}
+	if applied {
+		log.Info(ctx, "added agents-access to organization default member roles where missing and deleted custom roles named agents-access")
+	}
+	return nil
 }
 
 // ReconcileSystemRole compares the given role's permissions against
