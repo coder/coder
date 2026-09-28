@@ -325,7 +325,7 @@ func chatStatusBusy(status codersdk.ChatStatus) bool {
 var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameAwaitChat,
-		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, and requires_action all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
+		Description: `Block until a Coder Agents chat stops generating or the wait times out. Waiting, error, requires_action, and paused all end the wait. If timed_out is true, chat holds the last status observed inside the wait window; call this tool again to continue waiting.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"chat_id": map[string]any{
