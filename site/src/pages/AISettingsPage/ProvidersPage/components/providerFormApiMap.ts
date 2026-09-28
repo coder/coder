@@ -71,9 +71,14 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
-// Claude Platform is only valid on `anthropic`; the server rejects the
-// settings on any other type.
-export const isClaudePlatformProvider = (provider: AIProvider): boolean => {
+export const isClaudePlatformProvider = (
+	provider: AIProvider,
+): provider is AIProvider & {
+	type: "anthropic";
+	settings: SettingsWire & {
+		_type: typeof AIProviderSettingsTypeClaudePlatformAWS;
+	};
+} => {
 	if (provider.type !== "anthropic") {
 		return false;
 	}
@@ -339,7 +344,7 @@ export const aiProviderToFormValues = (
 	}
 
 	if (isClaudePlatformProvider(provider)) {
-		const s = (provider.settings as SettingsWire | null) ?? {};
+		const s = provider.settings;
 		return {
 			type: "anthropic",
 			authMethod: "claude_platform_aws",

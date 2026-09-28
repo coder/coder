@@ -270,13 +270,30 @@ describe("isClaudePlatformProvider", () => {
 		);
 	});
 
-	it("rejects a plain Anthropic provider", () => {
+	it("rejects a plain Anthropic provider with null settings", () => {
 		expect(isClaudePlatformProvider(MockAIProviderAnthropic)).toBe(false);
+		expect(aiProviderToFormValues(MockAIProviderAnthropic).type).toBe(
+			"anthropic",
+		);
 	});
 
 	it("rejects a Bedrock provider", () => {
 		expect(isClaudePlatformProvider(MockAIProviderBedrock)).toBe(false);
 		expect(isBedrockProvider(MockAIProviderClaudePlatformAWS)).toBe(false);
+	});
+
+	it("recognises discriminator-only settings", () => {
+		const provider: AIProvider = {
+			...MockAIProviderClaudePlatformAWS,
+			settings: { _type: "claude_platform_aws" },
+		};
+		expect(isClaudePlatformProvider(provider)).toBe(true);
+		expect(aiProviderToFormValues(provider)).toEqual(
+			expect.objectContaining({
+				claudePlatformRegion: "",
+				claudePlatformWorkspaceId: "",
+			}),
+		);
 	});
 
 	it("rejects the settings on a non-Anthropic type", () => {
