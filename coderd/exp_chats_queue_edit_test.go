@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func queuedTextContent(t *testing.T, text string) json.RawMessage {
@@ -52,6 +53,9 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		})
 		head := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "original"), modelConfig.ID)
 		next := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedTextContent(t, "next"), modelConfig.ID)
+		watch, err := client.Dial(ctx, "/api/v2/chats/watch", nil)
+		require.NoError(t, err)
+		defer watch.Close(websocket.StatusNormalClosure, "done")
 
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)}))
 		listed, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -67,12 +71,15 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		require.Len(t, listed.QueuedMessages, 2, "ending the edit on an errored chat does not promote")
 		require.Nil(t, listed.QueuedMessages[0].EditingSince)
 		require.Equal(t, "edited", listed.QueuedMessages[0].Content[0].Text)
+		fetched, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ChatStatusError, fetched.Status, "saving the edit keeps the chat errored")
 
 		// Pause the chat at the head and resume it: the head is sent.
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)}))
 		_, err = db.UpdateChatStatus(sysCtx, database.UpdateChatStatusParams{ID: chat.ID, Status: database.ChatStatusPaused})
 		require.NoError(t, err)
-		fetched, err := client.GetChat(ctx, chat.ID)
+		fetched, err = client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ChatStatusPaused, fetched.Status, "paused is visible on the chat itself")
 		// Beginning an edit on another row while paused is refused, and
@@ -89,6 +96,8 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		refreshed, err := db.GetChatByID(sysCtx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusRunning, refreshed.Status)
+		require.Equal(t, codersdk.ChatStatusRunning, waitForChatWatchStatusChangeEvent(ctx, t, watch, chat.ID).Chat.Status,
+			"resuming publishes the running status to watchers")
 
 		// Beginning an edit on a row that was already sent is a 404.
 		err = client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
@@ -105,6 +114,8 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		refreshed, err = db.GetChatByID(sysCtx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
+		require.Equal(t, codersdk.ChatStatusWaiting, waitForChatWatchStatusChangeEvent(ctx, t, watch, chat.ID).Chat.Status,
+			"deleting the paused head publishes the waiting status to watchers")
 	})
 
 	// Overrides sent with content are stored; a later content-only edit
