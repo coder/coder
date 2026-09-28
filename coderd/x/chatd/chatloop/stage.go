@@ -427,7 +427,7 @@ func (t *StageTracer) Record(
 	span.End(trace.WithTimestamp(end))
 	t.observe(stage, scope, chatKind, model, end.Sub(start))
 	if scope == ScopeTurn {
-		categorizeRecordedStage(ctx, stage, end.Sub(start))
+		categorizeRecordedStage(ctx, stage, start, end.Sub(start))
 	}
 }
 

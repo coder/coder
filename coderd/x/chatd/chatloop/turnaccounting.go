@@ -89,14 +89,16 @@ func stageNodeFromContext(ctx context.Context) *stageNode {
 	return node
 }
 
-// TurnAccumulator sums one turn's category times for emission when the
-// turn closes. It is safe for concurrent use: parallel tool calls set
+// TurnAccumulator sums one turn's category times until the turn is
+// emitted. It is safe for concurrent use: parallel tool calls set
 // the turn's model from their own goroutines, and a canceled task's
 // step can end while another goroutine closes the turn.
 type TurnAccumulator struct {
 	mu         sync.Mutex
 	categories map[TurnCategory]time.Duration
 	stageModel StageModel
+	// endAt is the turn's end time once SetEnd fixes it; zero until then.
+	endAt time.Time
 }
 
 // NewTurnAccumulator returns an empty accumulator for one turn.
@@ -104,6 +106,30 @@ func NewTurnAccumulator() *TurnAccumulator {
 	return &TurnAccumulator{
 		categories: map[TurnCategory]time.Duration{},
 	}
+}
+
+// SetEnd fixes the turn's end time. A stage reported afterwards counts
+// only the part of its window before end, and nothing when it started
+// at or after end.
+func (a *TurnAccumulator) SetEnd(end time.Time) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.endAt = end
+}
+
+// clamp returns the part of the window of length elapsed starting at
+// start that falls before the turn's end time, or elapsed when no end
+// time is set.
+func (a *TurnAccumulator) clamp(start time.Time, elapsed time.Duration) time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.endAt.IsZero() {
+		return elapsed
+	}
+	return max(min(elapsed, a.endAt.Sub(start)), 0)
 }
 
 func (a *TurnAccumulator) addCategory(category TurnCategory, elapsed time.Duration) {
@@ -209,11 +235,13 @@ func (n *stageNode) category(state nodeState, err error) TurnCategory {
 }
 
 // report adds the stage's own time to its category and its duration
-// to its parent; a negative own time is dropped.
+// to its parent, both limited to the turn's end time; a negative own
+// time is dropped.
 func (s *StageSpan) report(elapsed time.Duration, err error) {
 	if s.acc == nil || s.node == nil {
 		return
 	}
+	elapsed = s.acc.clamp(s.start, elapsed)
 	state := s.node.state()
 	s.acc.addCategory(s.node.category(state, err), elapsed-state.childTotal)
 	s.node.parent.addChild(elapsed)
@@ -246,15 +274,17 @@ func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	s.tracer.emitTurnAccounting(categories, s.chatKind, outcome)
 }
 
-// categorizeRecordedStage adds the full duration of a stage built from
-// timestamps to the turn on ctx, and takes it out of the own time of the
-// attributing stage on ctx, if any, so the categories stay disjoint.
-func categorizeRecordedStage(ctx context.Context, stage Stage, elapsed time.Duration) {
+// categorizeRecordedStage adds the duration of a stage built from
+// timestamps, limited to the turn's end time, to the turn on ctx, and
+// takes it out of the own time of the attributing stage on ctx, if
+// any, so the categories stay disjoint.
+func categorizeRecordedStage(ctx context.Context, stage Stage, start time.Time, elapsed time.Duration) {
 	category, ok := recordedStageCategories[stage]
 	acc := turnAccumulatorFromContext(ctx)
 	if !ok || acc == nil {
 		return
 	}
+	elapsed = acc.clamp(start, elapsed)
 	acc.addCategory(category, elapsed)
 	stageNodeFromContext(ctx).addChild(elapsed)
 }

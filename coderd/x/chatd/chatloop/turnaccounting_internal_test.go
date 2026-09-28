@@ -169,7 +169,7 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	// Time between steps belongs to no stage.
 	f.clock.Advance(5 * time.Second)
 
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 	return f.clock.Now().Sub(turnStart)
 }
 
@@ -234,7 +234,7 @@ func TestTurnAccountingEmitsEveryOutcome(t *testing.T) {
 			if outcome != TurnOutcomeCompleted {
 				err = xerrors.New("turn stopped")
 			}
-			turnSpan.EndTurn(outcome, err)
+			turnSpan.EndTurn(outcome, err, turnSpan.tracer.Now())
 
 			require.Equal(t, map[TurnOutcome]float64{outcome: 1}, turnOutcomes(t, fixture.registry))
 			categories := turnCategories(t, fixture.registry)
@@ -296,7 +296,7 @@ func TestTurnAccountingStreamWithoutFirstToken(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			turnSpan.EndTurn(outcome, err)
+			turnSpan.EndTurn(outcome, err, turnSpan.tracer.Now())
 
 			categories := turnCategories(t, fixture.registry)
 			require.InDelta(t, 2, categories[TurnCategoryProviderError], 0.001)
@@ -335,7 +335,7 @@ func TestTurnAccountingStreamFailsAfterFirstToken(t *testing.T) {
 		Stages:   fixture.tracer,
 	})
 	require.Error(t, err)
-	turnSpan.EndTurn(TurnOutcomeError, err)
+	turnSpan.EndTurn(TurnOutcomeError, err, turnSpan.tracer.Now())
 
 	// The first-token window closed with an output part; the rest of the
 	// failed stream is provider error.
@@ -401,7 +401,7 @@ func TestTurnAccountingCanceledStream(t *testing.T) {
 				Stages:   fixture.tracer,
 			})
 			require.ErrorIs(t, err, context.Canceled)
-			turnSpan.EndTurn(TurnOutcomeInterrupted, nil)
+			turnSpan.EndTurn(TurnOutcomeInterrupted, nil, turnSpan.tracer.Now())
 
 			categories := turnCategories(t, fixture.registry)
 			for _, category := range []TurnCategory{TurnCategoryTimeToFirstToken, TurnCategoryStreaming, TurnCategoryProviderError} {
@@ -436,7 +436,7 @@ func TestTurnAccountingNilTracerStream(t *testing.T) {
 	fixture.clock.Advance(time.Second)
 	attempt.release()
 	compaction.End(nil)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 4.0, categories[TurnCategoryCompaction])
@@ -456,7 +456,7 @@ func TestTurnAccountingSchedulingIsAcquisitionOnly(t *testing.T) {
 	fixture.tracer.Record(turnCtx, StageQueueWait, StageModel{},
 		turnStart, turnStart.Add(2*time.Second), nil)
 	fixture.clock.Advance(6 * time.Second)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 5.0, categories[TurnCategoryScheduling])
@@ -477,7 +477,7 @@ func TestTurnAccountingRecordedStageUnderStep(t *testing.T) {
 	fixture.tracer.Record(stepCtx, StageAcquisition, StageModel{},
 		fixture.clock.Now().Add(-2*time.Second), fixture.clock.Now(), nil)
 	step.End(nil)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 2.0, categories[TurnCategoryScheduling])
@@ -508,7 +508,7 @@ func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
 		fixture.clock.Now().Add(-time.Second), fixture.clock.Now(), nil)
 
 	step.End(nil)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	categories := turnCategories(t, fixture.registry)
 	require.Zero(t, categories[TurnCategoryStreaming])
@@ -538,7 +538,7 @@ func TestTurnAccountingNonAttributingStages(t *testing.T) {
 	second.End(nil)
 	fixture.clock.Advance(time.Second)
 	step.End(nil)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 5.0, categories[TurnCategoryToolExecution])
@@ -573,7 +573,7 @@ func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
 	}
 	wg.Wait()
 	wg.Go(func() { step.End(nil) })
-	wg.Go(func() { turnSpan.EndTurn(TurnOutcomeInterrupted, nil) })
+	wg.Go(func() { turnSpan.EndTurn(TurnOutcomeInterrupted, nil, turnSpan.tracer.Now()) })
 	wg.Wait()
 
 	// The step's own time is chatd_overhead when it ends first and
@@ -606,7 +606,7 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 		fixture.clock.Advance(4 * time.Second)
 		first.End(nil)
 		second.End(nil)
-		turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+		turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 		categories := turnCategories(t, fixture.registry)
 		require.Equal(t, 8.0, categories[TurnCategoryChatdOverhead], "categories are emitted as measured")
@@ -620,7 +620,7 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 		_, turnSpan, _ := fixture.startTurn(t)
-		turnSpan.EndTurn(TurnOutcomeInterrupted, nil)
+		turnSpan.EndTurn(TurnOutcomeInterrupted, nil, turnSpan.tracer.Now())
 
 		require.Empty(t, turnCategories(t, fixture.registry))
 		require.Equal(t, map[TurnOutcome]float64{TurnOutcomeInterrupted: 1}, turnOutcomes(t, fixture.registry))
@@ -643,7 +643,7 @@ func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	second.SetModel(StageModel{Model: "gpt-5-mini"})
 	fixture.clock.Advance(time.Second)
 	second.End(nil)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil, turnSpan.tracer.Now())
 
 	turn := endedSpan(t, fixture.spans, StageChatTurn)
 	require.Contains(t, turn.Attributes(), attribute.String(AttrProviderType, model.ProviderType))
@@ -691,4 +691,63 @@ func TestTurnMetricsEnabled(t *testing.T) {
 			require.Equal(t, map[TurnOutcome]float64{TurnOutcomeCompleted: 1, TurnOutcomeError: 1}, turnOutcomes(t, registry))
 		})
 	}
+}
+
+// TestTurnAccountingClampsToTurnEnd ends stages after their turn's end
+// time was fixed. Each counts only its window before the end time, and
+// the partition sums to the turn.
+func TestTurnAccountingClampsToTurnEnd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("LiveStages", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(ContextWithChatKind(t.Context(), ChatKindRoot), acc)
+		turnStart := fixture.clock.Now()
+		turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, turnStart)
+
+		stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
+		step.SetGenerationAction(GenerationActionExecuteLocalTools)
+		fixture.clock.Advance(time.Second)
+		_, prepare := fixture.tracer.Start(stepCtx, StagePrepare)
+		fixture.clock.Advance(time.Second)
+		prepare.End(nil)
+		fixture.clock.Advance(3 * time.Second)
+		turnEnd := fixture.clock.Now()
+		acc.SetEnd(turnEnd)
+		// The step is still running and its commit starts after the end.
+		fixture.clock.Advance(time.Second)
+		_, commit := fixture.tracer.Start(stepCtx, StageCommit)
+		fixture.clock.Advance(time.Second)
+		commit.End(nil)
+		fixture.clock.Advance(3 * time.Second)
+		step.End(nil)
+		turnSpan.EndTurn(TurnOutcomeInterrupted, nil, turnEnd)
+
+		categories := turnCategories(t, fixture.registry)
+		require.Equal(t, 1.0, categories[TurnCategoryPreparation])
+		require.Equal(t, 4.0, categories[TurnCategoryToolExecution])
+		require.Zero(t, categories[TurnCategoryPersistence])
+		require.Zero(t, categories[TurnCategoryUnattributed])
+		require.Equal(t, turnEnd.Sub(turnStart).Seconds(), categoryTotal(categories))
+		require.Zero(t, stageAnomalies(t, fixture.registry)[StageAnomalyOverattributed])
+	})
+
+	t.Run("RecordedStage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		acc := NewTurnAccumulator()
+		ctx := ContextWithTurnAccumulator(ContextWithChatKind(t.Context(), ChatKindRoot), acc)
+		turnStart := fixture.clock.Now()
+		turnCtx, turnSpan := fixture.tracer.StartRootAt(ctx, StageChatTurn, turnStart)
+		turnEnd := turnStart.Add(time.Second)
+		acc.SetEnd(turnEnd)
+		fixture.tracer.Record(turnCtx, StageAcquisition, StageModel{}, turnStart, turnStart.Add(3*time.Second), nil)
+		turnSpan.EndTurn(TurnOutcomeAbandoned, nil, turnEnd)
+
+		categories := turnCategories(t, fixture.registry)
+		require.Equal(t, 1.0, categories[TurnCategoryScheduling])
+		require.Equal(t, 1.0, categoryTotal(categories))
+	})
 }

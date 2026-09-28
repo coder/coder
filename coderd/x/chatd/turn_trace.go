@@ -267,6 +267,11 @@ func (t *runnerTurnSpan) pendingLocked() []*turnState {
 	return turns
 }
 
+// closeLocked fixes the turn's end time at now, which also limits the
+// time its stages report from then on, and emits it if no task holds
+// it. A closed turn is no longer current. err is the error the
+// span ends with when no outcome is recorded. Closing a closed turn
+// does nothing.
 func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	if turn.closed {
 		return
@@ -274,6 +279,7 @@ func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	turn.closed = true
 	turn.endAt = t.stages.Now()
 	turn.closeErr = err
+	turn.acc.SetEnd(turn.endAt)
 	if t.current == turn.token {
 		t.current = 0
 	}
