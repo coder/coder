@@ -147,17 +147,17 @@ describe("Claude Platform provider form", () => {
 				onSubmit={onSubmit}
 			/>,
 		);
-		await user.clear(screen.getByRole("textbox", { name: /^Region/ }));
+		const region = screen.getByRole("textbox", { name: /^Region/ });
+		const workspace = screen.getByRole("textbox", { name: /workspace id/i });
 		await user.click(screen.getByRole("button", { name: "Add provider" }));
 		expect(onSubmit).not.toHaveBeenCalled();
-		await user.type(
-			screen.getByRole("textbox", { name: /^Region/ }),
-			"us-east-1",
-		);
-		await user.type(
-			screen.getByRole("textbox", { name: /workspace id/i }),
-			"wrkspc_test",
-		);
+		await user.type(workspace, "wrkspc_test");
+
+		await user.clear(region);
+		await user.click(screen.getByRole("button", { name: "Add provider" }));
+		expect(onSubmit).not.toHaveBeenCalled();
+		await user.type(region, "us-east-1");
+
 		await user.click(screen.getByRole("button", { name: "Add provider" }));
 		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
 	});

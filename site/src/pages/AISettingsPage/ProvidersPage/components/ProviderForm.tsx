@@ -32,6 +32,7 @@ import {
 	AnthropicAuthMethodField,
 	ClaudePlatformFields,
 } from "./AnthropicAuthFields";
+import { addableProviders } from "./addableProviderTypes";
 import { CredentialField } from "./CredentialField";
 import {
 	CLAUDE_PLATFORM_DEFAULT_REGION,
@@ -314,24 +315,21 @@ const getProviderFormSchema = (editing: boolean) =>
 	Yup.lazy(
 		(
 			value:
-				| { type?: AIProviderType; authMethod?: AnthropicAuthMethod }
+				| Partial<Pick<ProviderFormValues, "type" | "authMethod">>
 				| undefined,
 		) => {
-			if (
-				value?.type === "anthropic" &&
-				value.authMethod === "claude_platform_aws"
-			) {
-				return makeClaudePlatformSchema(editing);
-			}
 			switch (value?.type) {
 				case "openai":
-				case "anthropic":
 				case "azure":
 				case "google":
 				case "openai-compat":
 				case "openrouter":
 				case "vercel":
 					return makeOpenAiAnthropicSchema(editing);
+				case "anthropic":
+					return value.authMethod === "claude_platform_aws"
+						? makeClaudePlatformSchema(editing)
+						: makeOpenAiAnthropicSchema(editing);
 				case "bedrock":
 					return makeBedrockSchema(editing);
 				case "copilot":
@@ -339,17 +337,7 @@ const getProviderFormSchema = (editing: boolean) =>
 				default:
 					return Yup.object({
 						type: Yup.string()
-							.oneOf([
-								"openai",
-								"anthropic",
-								"bedrock",
-								"azure",
-								"copilot",
-								"google",
-								"openai-compat",
-								"openrouter",
-								"vercel",
-							])
+							.oneOf(addableProviders.map(({ value: type }) => type))
 							.required(),
 					});
 			}
