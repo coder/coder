@@ -156,6 +156,7 @@ const runBuiltInChatCommand = async ({
 			// Set running before awaiting so the worker's streamed waiting status
 			// cannot be overwritten if it arrives before the POST resolves.
 			const previousSnapshot = store.getSnapshot();
+			const baselineFence = store.getQueueConvergenceFence();
 			clearChatErrorReason(agentId);
 			store.clearStreamError();
 			store.clearStreamState();
@@ -163,7 +164,11 @@ const runBuiltInChatCommand = async ({
 			try {
 				await compact();
 			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
@@ -350,6 +355,7 @@ export async function submitChatTurn(
 				})
 			: undefined;
 		const previousSnapshot = store.getSnapshot();
+		const baselineFence = store.getQueueConvergenceFence();
 		clearChatErrorReason(agentId);
 		store.clearStreamError();
 		store.batch(() => {
@@ -365,7 +371,11 @@ export async function submitChatTurn(
 				req: request,
 			},
 			onError: (error) => {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				onRequestError(error);
 				// Hook dispatch failures can park an idle chat in error before
 				// returning the request error.
