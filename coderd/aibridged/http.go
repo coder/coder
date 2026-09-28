@@ -180,12 +180,15 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// Rewire request context to include actor.
 	//
-	// [NOTE]
-	// The metadata provided here must NOT be sensitive as it could be included
-	// in requests to upstream services.
-	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
+	// Actor metadata comes from the authenticated account. Upstream forwarding
+	// is controlled separately by the configured actor header destinations.
+	metadata := recorder.Metadata{
 		"Username": resp.GetUsername(),
-	}))
+	}
+	if email := resp.GetEmail(); email != "" {
+		metadata["Email"] = email
+	}
+	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), metadata))
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,

@@ -585,32 +585,38 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 		config       string
 		wantID       string
 		wantUsername string
+		wantEmail    string
 	}{
 		{
 			name:         "defaults",
 			wantID:       "X-AI-Bridge-Actor-ID",
 			wantUsername: "X-AI-Bridge-Actor-Metadata-Username",
+			wantEmail:    "",
 		},
 		{
 			name:         "flags",
-			args:         []string{"--ai-gateway-actor-header-id", "X-User-ID", "--ai-gateway-actor-header-username", "X-Username"},
+			args:         []string{"--ai-gateway-actor-header-id", "X-User-ID", "--ai-gateway-actor-header-username", "X-Username", "--ai-gateway-actor-header-email", "X-Email"},
 			wantID:       "X-User-ID",
 			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
 		},
 		{
 			name: "environment",
 			environ: serpent.Environ{
 				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_ID", Value: "X-User-ID"},
 				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", Value: "X-Username"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", Value: "X-Email"},
 			},
 			wantID:       "X-User-ID",
 			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
 		},
 		{
 			name:         "YAML",
-			config:       "ai_gateway:\n  actor_header_id: X-User-ID\n  actor_header_username: X-Username\n",
+			config:       "ai_gateway:\n  actor_header_id: X-User-ID\n  actor_header_username: X-Username\n  actor_header_email: X-Email\n",
 			wantID:       "X-User-ID",
 			wantUsername: "X-Username",
+			wantEmail:    "X-Email",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -624,6 +630,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 					called = true
 					require.Equal(t, tc.wantID, dv.AI.BridgeConfig.ActorHeaderID.Value())
 					require.Equal(t, tc.wantUsername, dv.AI.BridgeConfig.ActorHeaderUsername.Value())
+					require.Equal(t, tc.wantEmail, dv.AI.BridgeConfig.ActorHeaderEmail.Value())
 					return dv.Validate()
 				},
 			}
@@ -645,6 +652,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 		cfg := codersdk.AIBridgeConfig{
 			ActorHeaderID:       serpent.String("X-User-ID"),
 			ActorHeaderUsername: serpent.String("X-Username"),
+			ActorHeaderEmail:    serpent.String("X-Email"),
 		}
 		encoded, err := json.Marshal(cfg)
 		require.NoError(t, err)
@@ -652,6 +660,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 		require.NoError(t, json.Unmarshal(encoded, &fields))
 		require.JSONEq(t, `"X-User-ID"`, string(fields["actor_header_id"]))
 		require.JSONEq(t, `"X-Username"`, string(fields["actor_header_username"]))
+		require.JSONEq(t, `"X-Email"`, string(fields["actor_header_email"]))
 		require.NotContains(t, fields, "actor_header_names")
 		require.NotContains(t, fields, "actor_header_meta_username")
 	})
@@ -663,14 +672,17 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			name     string
 			id       string
 			username string
+			email    string
 			wantErr  string
 		}{
 			{name: "both empty"},
 			{name: "ID only", id: "X-User-ID"},
 			{name: "username only", username: "X-Username"},
-			{name: "custom names", id: "X-User-ID", username: "X-Username"},
+			{name: "email only", email: "X-Email"},
+			{name: "custom names", id: "X-User-ID", username: "X-Username", email: "X-Email"},
 			{name: "invalid", username: "Bad: Header", wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
-			{name: "duplicate", id: "X-User", username: "x-user", wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_ID and CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
+			{name: "email standard exception", email: "x-ai-bridge-actor-metadata-email"},
+			{name: "email collision", username: "X-User", email: "x-user", wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME and CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -678,6 +690,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 				cfg := codersdk.AIBridgeConfig{
 					ActorHeaderID:       serpent.String(tc.id),
 					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
 				}
 				err := cfg.ValidateActorHeaderNames()
 				if tc.wantErr != "" {
@@ -696,6 +709,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			name     string
 			id       string
 			username string
+			email    string
 			reserved string
 		}{
 			{name: "own standard names", id: "x-aI-bRiDgE-aCtOr-iD", username: "x-aI-bRiDgE-aCtOr-mEtAdAtA-uSeRnAmE"},
@@ -711,6 +725,7 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 				cfg := codersdk.AIBridgeConfig{
 					ActorHeaderID:       serpent.String(tc.id),
 					ActorHeaderUsername: serpent.String(tc.username),
+					ActorHeaderEmail:    serpent.String(tc.email),
 				}
 				err := cfg.ValidateActorHeaderNames()
 				if tc.reserved != "" {

@@ -132,6 +132,11 @@ AI GATEWAY OPTIONS:
           named after the provider. Sensitive headers are redacted. Leave empty
           to disable.
 
+      --ai-gateway-actor-header-email string, $CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL
+          Header name for the authenticated user's email address. Empty disables
+          this header. Requires AI Gateway actor headers to be enabled. Email is
+          personal information; opt in only for trusted upstream providers.
+
       --ai-gateway-actor-header-id string, $CODER_AI_GATEWAY_ACTOR_HEADER_ID (default: X-AI-Bridge-Actor-ID)
           Header name for the authenticated user's ID. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
@@ -179,8 +184,8 @@ AI GATEWAY OPTIONS:
           Add configured headers identifying the authenticated user to
           intercepted upstream requests. Use this when a proxy between AI
           Gateway and an upstream AI provider needs user identity. When enabled,
-          removes client-supplied headers at the standard ID and username names
-          and any configured actor-header destinations before adding
+          removes client-supplied headers at the standard ID, username, and
+          email names and any configured actor-header destinations before adding
           authenticated values.
 
       --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)

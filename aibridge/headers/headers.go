@@ -21,6 +21,8 @@ const (
 	ActorAttributeID = "id"
 	// ActorAttributeUsername is the actor-header mapping key for the username.
 	ActorAttributeUsername = "username"
+	// ActorAttributeEmail is the actor-header mapping key for the email address.
+	ActorAttributeEmail = "email"
 
 	// ActorHeaderPrefix prefixes every AI Bridge actor header.
 	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
@@ -116,12 +118,14 @@ func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]strin
 	if name := actorHeaderNames[ActorAttributeID]; name != "" {
 		headers[name] = actor.ID
 	}
-	name := actorHeaderNames[ActorAttributeUsername]
-	if name == "" {
-		return headers
-	}
-	if username, ok := actor.Metadata["Username"].(string); ok && username != "" {
-		headers[name] = username
+	for attribute, key := range map[string]string{ActorAttributeUsername: "Username", ActorAttributeEmail: "Email"} {
+		name := actorHeaderNames[attribute]
+		if name == "" {
+			continue
+		}
+		if value, ok := actor.Metadata[key].(string); ok && value != "" {
+			headers[name] = value
+		}
 	}
 
 	return headers
@@ -231,7 +235,7 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	if actorHeaderNames == nil {
 		return headers
 	}
-	for _, name := range []string{ActorIDHeader, ActorMetadataHeader("Username")} {
+	for _, name := range []string{ActorIDHeader, ActorMetadataHeader("Username"), ActorMetadataHeader("Email")} {
 		headers.Del(name)
 	}
 	for _, name := range actorHeaderNames {
