@@ -85,8 +85,6 @@ func labelsOf(t *testing.T, registry *prometheus.Registry, family, label, value 
 	return nil
 }
 
-// startTurn opens a root chat_turn span at the fixture's current time
-// with a fresh accumulator on its context.
 func (f stageMetricsFixture) startTurn(t *testing.T) (context.Context, *StageSpan, time.Time) {
 	t.Helper()
 	ctx := ContextWithChatKind(t.Context(), ChatKindRoot)
@@ -145,22 +143,21 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	toolCommit.End(nil)
 	toolStep.End(nil)
 
-	// A failed step: the stream never produced a first part, and the
-	// retry delay that follows it is its own category. The failed
-	// first-token window is provider error; the stream ends without an
-	// error, so the rest of it is streaming.
-	failedStepCtx, failedStep := f.tracer.Start(turnCtx, StageGenerationStep)
-	failedStep.SetGenerationAction("generate_assistant")
-	failedStreamCtx, failedStream := f.tracer.Start(failedStepCtx, StageStream)
-	_, failedTTFT := f.tracer.Start(failedStreamCtx, StageTimeToFirstToken)
+	// A retried step: its failed first-token window is provider_error,
+	// and the rest of its stream, which ends without an error, is
+	// streaming.
+	retriedStepCtx, retriedStep := f.tracer.Start(turnCtx, StageGenerationStep)
+	retriedStep.SetGenerationAction("generate_assistant")
+	noTokenStreamCtx, noTokenStream := f.tracer.Start(retriedStepCtx, StageStream)
+	_, failedTTFT := f.tracer.Start(noTokenStreamCtx, StageTimeToFirstToken)
 	f.clock.Advance(2 * time.Second)
 	failedTTFT.EndWithoutObservation(xerrors.New("stream ended before the first token"))
 	f.clock.Advance(time.Second)
-	failedStream.End(nil)
-	_, backoff := f.tracer.Start(failedStepCtx, StageRetryBackoff)
+	noTokenStream.End(nil)
+	_, backoff := f.tracer.Start(retriedStepCtx, StageRetryBackoff)
 	f.clock.Advance(6 * time.Second)
 	backoff.End(nil)
-	failedStep.End(nil)
+	retriedStep.End(nil)
 
 	compactionStepCtx, compactionStep := f.tracer.Start(turnCtx, StageGenerationStep)
 	compactionStep.SetGenerationAction("compact")
@@ -203,6 +200,7 @@ func TestTurnAccountingPartition(t *testing.T) {
 	require.InDelta(t, turnDuration.Seconds(), stageTurn, 0.001)
 	require.Equal(t, map[TurnOutcome]float64{TurnOutcomeCompleted: 1}, turnOutcomes(t, fixture.registry))
 	require.Empty(t, stageAnomalies(t, fixture.registry))
+	require.Contains(t, endedSpan(t, fixture.spans, StageChatTurn).Attributes(), attribute.Bool(AttrOverattributed, false))
 
 	labels := labelsOf(t, fixture.registry, "coderd_chatd_turn_time_seconds_total", "category", string(TurnCategoryStreaming))
 	require.Equal(t, map[string]string{
@@ -348,6 +346,105 @@ func TestTurnAccountingStreamFailsAfterFirstToken(t *testing.T) {
 	require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
 }
 
+// TestTurnAccountingCanceledStream covers a stream canceled with its
+// context, as when the chat is stopped: neither its first-token window
+// nor the rest of it is provider error.
+func TestTurnAccountingCanceledStream(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		firstPart bool
+		want      map[TurnCategory]float64
+	}{
+		{
+			name: "BeforeFirstToken",
+			want: map[TurnCategory]float64{TurnCategoryTimeToFirstToken: 4},
+		},
+		{
+			name:      "AfterFirstToken",
+			firstPart: true,
+			want:      map[TurnCategory]float64{TurnCategoryTimeToFirstToken: 2, TurnCategoryStreaming: 2},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newStageMetricsFixture(t)
+			turnCtx, turnSpan, turnStart := fixture.startTurn(t)
+			streamCtx, cancel := context.WithCancel(turnCtx)
+			defer cancel()
+
+			model := &chattest.FakeModel{
+				ProviderName: "google",
+				ModelName:    "test-model",
+				StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return func(yield func(fantasy.StreamPart) bool) {
+						if tc.firstPart {
+							fixture.clock.Advance(2 * time.Second)
+							if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"}) {
+								return
+							}
+							fixture.clock.Advance(2 * time.Second)
+						} else {
+							fixture.clock.Advance(4 * time.Second)
+						}
+						cancel()
+						yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeError, Error: ctx.Err()})
+					}, nil
+				},
+			}
+			_, err := GenerateAssistant(streamCtx, GenerateAssistantOptions{
+				Model:    model,
+				Messages: []fantasy.Message{},
+				Clock:    fixture.clock,
+				Metrics:  NewMetrics(prometheus.NewRegistry()),
+				Stages:   fixture.tracer,
+			})
+			require.ErrorIs(t, err, context.Canceled)
+			turnSpan.EndTurn(TurnOutcomeInterrupted, nil)
+
+			categories := turnCategories(t, fixture.registry)
+			for _, category := range []TurnCategory{TurnCategoryTimeToFirstToken, TurnCategoryStreaming, TurnCategoryProviderError} {
+				require.InDelta(t, tc.want[category], categories[category], 0.001, category)
+			}
+			require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
+		})
+	}
+}
+
+// TestTurnAccountingNilTracerStream runs a stream without a tracer, as
+// the compaction summary does, inside a compaction stage. Its
+// first-token window is not reported to the turn, so all of the time is
+// compaction.
+func TestTurnAccountingNilTracerStream(t *testing.T) {
+	t.Parallel()
+	fixture := newStageMetricsFixture(t)
+	turnCtx, turnSpan, turnStart := fixture.startTurn(t)
+
+	compactionCtx, compaction := fixture.tracer.Start(turnCtx, StageCompaction)
+	attempt, err := guardedStream(compactionCtx, "anthropic", "claude", fixture.clock, time.Minute,
+		func(context.Context) (fantasy.StreamResponse, error) {
+			return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
+				fixture.clock.Advance(3 * time.Second)
+				yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "summary"})
+			}), nil
+		},
+		NopMetrics(), nil, StageModel{},
+	)
+	require.NoError(t, err)
+	drainStream(attempt.stream)
+	fixture.clock.Advance(time.Second)
+	attempt.release()
+	compaction.End(nil)
+	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+
+	categories := turnCategories(t, fixture.registry)
+	require.Equal(t, 4.0, categories[TurnCategoryCompaction])
+	require.Zero(t, categories[TurnCategoryTimeToFirstToken])
+	require.Zero(t, categories[TurnCategoryProviderError])
+	require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
+}
+
 func TestTurnAccountingSchedulingIsAcquisitionOnly(t *testing.T) {
 	t.Parallel()
 	fixture := newStageMetricsFixture(t)
@@ -449,47 +546,42 @@ func TestTurnAccountingNonAttributingStages(t *testing.T) {
 	require.Empty(t, stageAnomalies(t, fixture.registry))
 }
 
+// TestTurnAccountingConcurrentStageEnds runs the turn's concurrent
+// writers: parallel tool calls set the turn's model on their own
+// goroutines, and a stale step ends while the turn closes on another
+// goroutine.
 func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
 	t.Parallel()
 	fixture := newStageMetricsFixture(t)
 	turnCtx, turnSpan, _ := fixture.startTurn(t)
 
-	// Parallel mcp_connect stages end, and provider attempts set the
-	// turn's model, on separate goroutines.
 	stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
 	step.SetGenerationAction("generate_assistant")
-	prepareCtx, prepare := fixture.tracer.Start(stepCtx, StagePrepare)
 	const workers = 16
-	connects := make([]*StageSpan, workers)
-	attempts := make([]*StageSpan, workers)
+	toolCalls := make([]*StageSpan, workers)
 	for i := range workers {
-		_, connects[i] = fixture.tracer.Start(prepareCtx, StageMCPConnect)
-		_, attempts[i] = fixture.tracer.Start(prepareCtx, StageProviderAttempt)
+		_, toolCalls[i] = fixture.tracer.Start(stepCtx, StageToolCall)
 	}
-	fixture.clock.Advance(time.Second)
+	fixture.clock.Advance(2 * time.Second)
 
 	var wg sync.WaitGroup
 	for i := range workers {
 		wg.Go(func() {
-			attempts[i].SetModel(StageModel{Model: fmt.Sprintf("model-%d", i)})
-			attempts[i].End(nil)
-			connects[i].End(nil)
+			toolCalls[i].SetModel(StageModel{Model: fmt.Sprintf("model-%d", i)})
+			toolCalls[i].End(nil)
 		})
 	}
 	wg.Wait()
-	prepare.End(nil)
-	step.End(nil)
-	// The connects overlap, so the turn runs long enough for their
-	// summed time to fit inside it.
-	fixture.clock.Advance((workers - 1) * time.Second)
-	turnSpan.EndTurn(TurnOutcomeCompleted, nil)
+	wg.Go(func() { step.End(nil) })
+	wg.Go(func() { turnSpan.EndTurn(TurnOutcomeInterrupted, nil) })
+	wg.Wait()
 
-	// A lost update under the concurrent ends would show as less
-	// preparation and a positive unattributed remainder.
+	// The step's own time is chatd_overhead when it ends first and
+	// unattributed when the turn closes first; the partition sums to the
+	// turn either way.
 	categories := turnCategories(t, fixture.registry)
-	require.Equal(t, float64(workers), categories[TurnCategoryPreparation])
-	require.Zero(t, categories[TurnCategoryUnattributed])
-	require.Equal(t, float64(workers), categoryTotal(categories))
+	require.Equal(t, 2.0, categories[TurnCategoryChatdOverhead]+categories[TurnCategoryUnattributed])
+	require.Equal(t, 2.0, categoryTotal(categories))
 	require.Empty(t, stageAnomalies(t, fixture.registry))
 	var turnModel string
 	for _, attr := range endedSpan(t, fixture.spans, StageChatTurn).Attributes() {
@@ -521,6 +613,7 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 		require.Contains(t, categories, TurnCategoryUnattributed, "the unattributed series is recorded at zero")
 		require.Equal(t, 0.0, categories[TurnCategoryUnattributed])
 		require.Equal(t, 1.0, stageAnomalies(t, fixture.registry)[StageAnomalyOverattributed])
+		require.Contains(t, endedSpan(t, fixture.spans, StageChatTurn).Attributes(), attribute.Bool(AttrOverattributed, true))
 	})
 
 	t.Run("NonPositiveTurn", func(t *testing.T) {

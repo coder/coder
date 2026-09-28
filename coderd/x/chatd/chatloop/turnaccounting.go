@@ -2,6 +2,7 @@ package chatloop
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"sync"
 	"time"
@@ -89,8 +90,9 @@ func stageNodeFromContext(ctx context.Context) *stageNode {
 }
 
 // TurnAccumulator sums one turn's category times for emission when the
-// turn closes. It is safe for concurrent use: stages of one turn, such
-// as parallel mcp_connect stages, end on different goroutines.
+// turn closes. It is safe for concurrent use: parallel tool calls set
+// the turn's model from their own goroutines, and a canceled task's
+// step can end while another goroutine closes the turn.
 type TurnAccumulator struct {
 	mu         sync.Mutex
 	categories map[TurnCategory]time.Duration
@@ -135,8 +137,6 @@ func (a *TurnAccumulator) model() StageModel {
 	return a.stageModel
 }
 
-// snapshot returns a copy of the category totals; it is empty for a nil
-// accumulator.
 func (a *TurnAccumulator) snapshot() map[TurnCategory]time.Duration {
 	if a == nil {
 		return map[TurnCategory]time.Duration{}
@@ -199,16 +199,17 @@ func (n *stageNode) category(state nodeState, err error) TurnCategory {
 	switch {
 	case n.stage == StageGenerationStep && state.action == GenerationActionExecuteLocalTools:
 		return TurnCategoryToolExecution
-	case (n.stage == StageStream || n.stage == StageTimeToFirstToken) && err != nil:
+	// A stream canceled with its context, as when a chat is stopped or
+	// coderd shuts down, keeps the stage's category.
+	case (n.stage == StageStream || n.stage == StageTimeToFirstToken) && err != nil && !errors.Is(err, context.Canceled):
 		return TurnCategoryProviderError
 	default:
 		return attributingStages[n.stage]
 	}
 }
 
-// report adds the stage's own time, elapsed minus the time of its
-// attributing children, to its category, and elapsed to its parent's
-// child time. A negative own time is dropped.
+// report adds the stage's own time to its category and its duration
+// to its parent; a negative own time is dropped.
 func (s *StageSpan) report(elapsed time.Duration, err error) {
 	if s.acc == nil || s.node == nil {
 		return
@@ -218,21 +219,31 @@ func (s *StageSpan) report(elapsed time.Duration, err error) {
 	s.node.parent.addChild(elapsed)
 }
 
-// EndTurn closes a chat_turn span at end, sets its turn_outcome
-// attribute, counts the outcome, and emits the turn's category
-// partition labeled with it. Only a completed turn is observed on the
-// stage histogram. Calls after the first are ignored.
+// EndTurn closes a chat_turn span at end, sets its turn_outcome and
+// overattributed attributes, counts the outcome, and emits the turn's
+// category partition labeled with it. Only a completed turn is
+// observed on the stage histogram. Calls after the first are ignored.
 func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	if s == nil || s.ended {
 		return
 	}
-	s.span.SetAttributes(attribute.String(AttrTurnOutcome, string(outcome)))
-	s.adoptTurnModel()
-	elapsed := s.closeSpanAt(err, end)
+	elapsed := end.Sub(s.start)
+	categories, overattributed := turnPartition(s.acc, elapsed)
+	s.span.SetAttributes(
+		attribute.String(AttrTurnOutcome, string(outcome)),
+		attribute.Bool(AttrOverattributed, overattributed),
+	)
+	if model := s.acc.model(); model.Model != "" {
+		s.SetModel(model)
+	}
+	s.closeSpanAt(err, end)
 	if outcome == TurnOutcomeCompleted {
 		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
 	}
-	s.tracer.emitTurnAccounting(s.acc, s.chatKind, outcome, elapsed)
+	if overattributed {
+		s.tracer.RecordAnomaly(StageAnomalyOverattributed)
+	}
+	s.tracer.emitTurnAccounting(categories, s.chatKind, outcome)
 }
 
 // categorizeRecordedStage adds the full duration of a stage built from
@@ -248,17 +259,13 @@ func categorizeRecordedStage(ctx context.Context, stage Stage, elapsed time.Dura
 	stageNodeFromContext(ctx).addChild(elapsed)
 }
 
-// emitTurnAccounting counts a closed turn's outcome and records its
-// category partition. turnDuration is the chat_turn span's wall time; a
-// non-positive one records no partition.
-func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind ChatKind, outcome TurnOutcome, turnDuration time.Duration) {
-	if t == nil || t.metrics == nil {
-		return
-	}
-	t.metrics.RecordTurnOutcome(outcome, chatKind)
+// turnPartition returns a turn's category times with unattributed set
+// to the remainder of turnDuration, and whether the categories summed
+// to more than turnDuration. It returns nil for a non-positive
+// turnDuration.
+func turnPartition(acc *TurnAccumulator, turnDuration time.Duration) (map[TurnCategory]time.Duration, bool) {
 	if turnDuration <= 0 {
-		t.RecordAnomaly(StageAnomalyNonPositiveTurn)
-		return
+		return nil, false
 	}
 	categories := acc.snapshot()
 	var attributed time.Duration
@@ -266,12 +273,23 @@ func (t *StageTracer) emitTurnAccounting(acc *TurnAccumulator, chatKind ChatKind
 		attributed += categories[category]
 	}
 	unattributed := turnDuration - attributed
-	if unattributed < 0 {
-		unattributed = 0
-		t.RecordAnomaly(StageAnomalyOverattributed)
+	categories[TurnCategoryUnattributed] = max(unattributed, 0)
+	return categories, unattributed < 0
+}
+
+// emitTurnAccounting records a closed turn's category partition, then
+// counts its outcome, so a counted outcome implies its partition is
+// recorded. A nil partition is counted as a nonpositive_turn anomaly.
+func (t *StageTracer) emitTurnAccounting(categories map[TurnCategory]time.Duration, chatKind ChatKind, outcome TurnOutcome) {
+	if t == nil || t.metrics == nil {
+		return
 	}
-	categories[TurnCategoryUnattributed] = unattributed
-	for _, category := range turnTimeCategories {
-		t.metrics.RecordTurnCategory(category, chatKind, outcome, categories[category])
+	if categories == nil {
+		t.RecordAnomaly(StageAnomalyNonPositiveTurn)
+	} else {
+		for _, category := range turnTimeCategories {
+			t.metrics.RecordTurnCategory(category, chatKind, outcome, categories[category])
+		}
 	}
+	t.metrics.RecordTurnOutcome(outcome, chatKind)
 }

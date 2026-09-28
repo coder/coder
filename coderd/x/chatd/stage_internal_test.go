@@ -278,7 +278,6 @@ func TestWaitGenerationRetryStage(t *testing.T) {
 				ended := stageSpansByStart(t, recorder, chatloop.StageRetryBackoff)
 				require.Len(t, ended, 1)
 				require.Equal(t, codes.Unset, ended[0].Status().Code)
-				// The wait is the turn's retry_backoff time.
 				turn.End(nil)
 				require.Equal(t, 60.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryRetryBackoff, chatloop.TurnOutcomeAbandoned))
 			})

@@ -807,11 +807,15 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
-	// A nil tracer still times the window for TTFTSeconds.
+	// A nil tracer still times the window TTFTSeconds observes. Its stage
+	// starts on a context with no turn accumulator, so the window is not
+	// reported to a turn on parent.
+	ttftCtx := parent
 	if stages == nil {
 		stages = NewStageTracer(nil, nil, WithClock(clock))
+		ttftCtx = ContextWithTurnAccumulator(parent, nil)
 	}
-	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
+	_, ttftSpan := stages.Start(ttftCtx, StageTimeToFirstToken)
 	ttftSpan.SetModel(stageModel)
 	var ttftOnce sync.Once
 	// A silence guard cancellation surfaces as a context error, so it is

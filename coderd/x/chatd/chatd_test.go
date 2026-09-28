@@ -14975,8 +14975,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrProvider), chatd.SpanAttr(t, toolCall, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, execute, chatloop.AttrModel), chatd.SpanAttr(t, toolCall, chatloop.AttrModel))
 
-		// The turn's partition is emitted after its span ends. The
-		// execute_local_tools step's own time is tool execution.
+		// The partition is emitted after the turn span ends.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		testutil.Eventually(ctx, t, func(context.Context) bool {
 			return chatd.TurnOutcomeCount(t, h.registry, chatloop.TurnOutcomeCompleted) == 1

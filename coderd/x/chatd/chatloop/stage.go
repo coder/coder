@@ -56,6 +56,7 @@ const (
 	AttrCompactionSource    = "compaction_source"
 	AttrScope               = "scope"
 	AttrTurnOutcome         = "turn_outcome"
+	AttrOverattributed      = "overattributed"
 	AttrMCPServersConnected = "mcp_servers_connected"
 	AttrMCPServersFailed    = "mcp_servers_failed"
 )
@@ -174,7 +175,8 @@ func (m StageModel) attributes() []attribute.KeyValue {
 // StageSpan is an in-flight stage. Close it with End, which records
 // the duration, or EndWithoutObservation, which does not; calls after
 // the first are ignored. Both report a turn-scoped stage's time to its
-// turn's accounting. A StageSpan is not safe for concurrent use.
+// turn's accounting. Close a chat_turn span with EndTurn. A StageSpan
+// is not safe for concurrent use.
 type StageSpan struct {
 	tracer   *StageTracer
 	stage    Stage
@@ -364,17 +366,6 @@ func (s *StageSpan) End(err error) time.Duration {
 func (s *StageSpan) EndWithoutObservation(err error) {
 	if elapsed, ok := s.closeSpan(err); ok {
 		s.report(elapsed, err)
-	}
-}
-
-// adoptTurnModel stamps the first model the turn resolved on the
-// chat_turn span when the root itself never received one.
-func (s *StageSpan) adoptTurnModel() {
-	if s == nil || s.stage != StageChatTurn || s.model.Model != "" {
-		return
-	}
-	if model := s.acc.model(); model.Model != "" {
-		s.SetModel(model)
 	}
 }
 
