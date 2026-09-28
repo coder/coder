@@ -164,14 +164,14 @@ func TestHeadTailBuffer_LongLineTruncation(t *testing.T) {
 func TestHeadTailBuffer_LongLineInTail(t *testing.T) {
 	t.Parallel()
 
-	// Use small buffers so we can force data into the tail.
-	buf := agentproc.NewHeadTailBufferSized(20, 5000)
+	// Split the long line across contiguous head and tail buffers.
+	buf := agentproc.NewHeadTailBufferSized(2000, 5000)
 
-	// Fill head with short data.
+	// Start with a complete short line.
 	_, err := buf.Write([]byte("head data goes here\n"))
 	require.NoError(t, err)
 
-	// Now write a very long line into the tail.
+	// The long line crosses the head/tail boundary.
 	longLine := strings.Repeat("T", agentproc.MaxLineLength+100)
 	_, err = buf.Write([]byte(longLine + "\n"))
 	require.NoError(t, err)

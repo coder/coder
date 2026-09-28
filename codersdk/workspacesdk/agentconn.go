@@ -961,8 +961,10 @@ type ProcessTruncation struct {
 	// RetainedBytes includes formatting markers in the returned output.
 	RetainedBytes int `json:"retained_bytes"`
 	// OmittedBytes counts source bytes removed by buffer and line limits.
-	OmittedBytes int    `json:"omitted_bytes"`
-	Strategy     string `json:"strategy"`
+	OmittedBytes int `json:"omitted_bytes"`
+	// Strategy is "lines" for line limits alone, or "head_tail" when the
+	// buffer omitted middle bytes, possibly in addition to line limits.
+	Strategy string `json:"strategy"`
 }
 
 // SignalProcessRequest is the request body for signaling a
