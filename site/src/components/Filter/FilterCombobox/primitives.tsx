@@ -187,9 +187,8 @@ type FilterComboboxItemProps = React.ComponentProps<
 >;
 
 /**
- * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
- * row's behavior (open a category, add a chip, navigate to a result). cmdk
- * calls `onSelect` on click and on Enter for the highlighted row.
+ * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
+ * click and on Enter for the highlighted row.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,

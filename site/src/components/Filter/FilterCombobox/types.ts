@@ -31,14 +31,3 @@ export type FilterCategory = {
 	 */
 	chipKeys?: readonly string[];
 };
-
-/** Live resource preview row shown while typing free-text search. */
-export type SearchResult = {
-	label: string;
-	value: string;
-	startIcon?: React.ReactNode;
-	/** Renders an avatar when `startIcon` is not provided. */
-	imageUrl?: string;
-	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
-	href?: string;
-};
