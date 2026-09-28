@@ -24,8 +24,6 @@ describe("DashboardProvider", () => {
 		expect(onRender).toHaveBeenLastCalledWith(MockExperiments);
 		const rendersBeforeRefetch = onRender.mock.calls.length;
 
-		// Experiments refetch in the background. A failed refetch must keep
-		// the last list instead of replacing the dashboard with an error.
 		server.use(
 			http.get("/api/v2/experiments", () =>
 				HttpResponse.json({ message: "unavailable" }, { status: 500 }),
@@ -37,8 +35,6 @@ describe("DashboardProvider", () => {
 			expect(queryClient.getQueryState(key)?.status).toBe("error"),
 		);
 
-		// The consumer stayed mounted and kept receiving the last list
-		// while the query was in error.
 		await waitFor(() =>
 			expect(onRender.mock.calls.length).toBeGreaterThan(rendersBeforeRefetch),
 		);
