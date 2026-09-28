@@ -148,8 +148,9 @@ Create, update, delete, and share permissions control their corresponding action
 
 Members with model share permission can let members and groups in the selected organization use the model.
 
-Model access lists control who can use Coder Agents.
-All organization members except service accounts hold chat permissions, but a member without read access to at least one model in the organization can't use the feature.
+Model access lists control which models a member can use in Coder Agents.
+Chat permissions come from the **Coder Agents User** role, which every member except service accounts holds by default; see [Control who can use Coder Agents](./getting-started.md#control-who-can-use-coder-agents).
+A member without read access to at least one model in the organization can't use the feature.
 New models grant read access to the whole organization by default.
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
