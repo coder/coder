@@ -1,5 +1,4 @@
 import { cva } from "class-variance-authority";
-import type { FC } from "react";
 import { columnHue } from "./boardLabels";
 
 const tag = cva(
@@ -24,6 +23,6 @@ type ColumnTagProps = {
 };
 
 /** Small tinted tag naming a chat's board column, used on sidebar rows. */
-export const ColumnTag: FC<ColumnTagProps> = ({ name }) => (
+export const ColumnTag: React.FC<ColumnTagProps> = ({ name }) => (
 	<span className={tag({ hue: columnHue(name) })}>{name}</span>
 );

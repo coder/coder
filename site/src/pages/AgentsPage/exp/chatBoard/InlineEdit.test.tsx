@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { InlineEdit } from "./InlineEdit";
@@ -58,7 +58,7 @@ describe("InlineEdit", () => {
 	it("saves nothing when Escape unmounts the focused field", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();
-		const Parent: FC = () => {
+		const Parent: React.FC = () => {
 			const [editing, setEditing] = useState(true);
 			if (!editing) return <span>Before</span>;
 			return (

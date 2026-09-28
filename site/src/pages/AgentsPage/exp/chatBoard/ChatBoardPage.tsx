@@ -10,7 +10,7 @@ import {
 	useSensors,
 } from "@dnd-kit/core";
 import { cn } from "cn";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	keepPreviousData,
 	useInfiniteQuery,
@@ -88,7 +88,7 @@ type PendingPreview =
 	| { kind: "open"; chatId: string; anchor: DOMRect }
 	| { kind: "close" };
 
-const ChatBoardPage: FC = () => {
+const ChatBoardPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
@@ -276,7 +276,7 @@ const ChatBoardPage: FC = () => {
 	// The board is replaced only while a query has nothing to show. A failed
 	// refetch keeps its data, and the board with it, so open note editors
 	// are not unmounted by a background request; the failure is shown inline.
-	let body: ReactNode;
+	let body: React.ReactNode;
 	if (chatsQuery.data === undefined) {
 		body = chatsQuery.isError ? (
 			<ErrorAlert error={chatsQuery.error} />

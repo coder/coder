@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import {
 	QueryClient,
 	QueryClientProvider,
@@ -72,7 +71,7 @@ const renderDeps = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: { mutations: { retry: false } },
 	});
-	const wrapper = ({ children }: PropsWithChildren) => (
+	const wrapper = ({ children }: React.PropsWithChildren) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	const updateStorage = vi.fn();

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Markdown } from "#/components/Markdown/Markdown";
 
 type CompactMarkdownProps = {
@@ -8,7 +7,7 @@ type CompactMarkdownProps = {
 };
 
 /** Markdown with block spacing tightened for small text inside a card or popover. */
-export const CompactMarkdown: FC<CompactMarkdownProps> = ({
+export const CompactMarkdown: React.FC<CompactMarkdownProps> = ({
 	className,
 	children,
 }) => (

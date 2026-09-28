@@ -6,7 +6,7 @@ import {
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
@@ -30,7 +30,7 @@ type NotesSectionProps = {
 };
 
 /** Card notes keep the operator's context beside the chats instead of inside them. */
-export const NotesSection: FC<NotesSectionProps> = ({
+export const NotesSection: React.FC<NotesSectionProps> = ({
 	card,
 	noteDrop,
 	onAdd,
@@ -87,7 +87,13 @@ const noteKeys = (notes: readonly BoardNote[]): string[] => {
 	});
 };
 
-const Note: FC<NoteProps> = ({ card, note, dropSide, onEdit, onRemove }) => {
+const Note: React.FC<NoteProps> = ({
+	card,
+	note,
+	dropSide,
+	onEdit,
+	onRemove,
+}) => {
 	const [editing, setEditing] = useState(false);
 	const dragData: DragData = { type: "note", card, note };
 	const dropData: DropData = { type: "note", card, note };
@@ -177,7 +183,7 @@ type DeleteNoteButtonProps = {
 	readonly onConfirm: () => void;
 };
 
-const DeleteNoteButton: FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
+const DeleteNoteButton: React.FC<DeleteNoteButtonProps> = ({ onConfirm }) => {
 	const [open, setOpen] = useState(false);
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -223,7 +229,7 @@ type NoteEditorProps = {
 // Same keys as every other inline edit on the board: Enter saves, Escape
 // cancels, leaving the field saves. Shift+Enter inserts a newline. Editing
 // looks exactly like composing: the text stays in place, no box appears.
-const NoteEditor: FC<NoteEditorProps> = ({
+const NoteEditor: React.FC<NoteEditorProps> = ({
 	initial,
 	ariaLabel,
 	placeholder,

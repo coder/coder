@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useState } from "react";
+import { useState } from "react";
 
 type InlineEditProps = {
 	readonly value: string;
@@ -15,7 +15,7 @@ type InlineEditProps = {
  * Edits text where it stands: no box, the same font, sized by its content.
  * Enter or blur saves a changed non-empty value, Escape cancels.
  */
-export const InlineEdit: FC<InlineEditProps> = ({
+export const InlineEdit: React.FC<InlineEditProps> = ({
 	value,
 	onSave,
 	onDone,

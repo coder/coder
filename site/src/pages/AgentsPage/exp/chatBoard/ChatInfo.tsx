@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { InfoIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatCost, chat as chatQuery } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
@@ -33,7 +33,7 @@ const HOVER_CLOSE_MS = 200;
  * own open toggle stays out of it; Radix still keeps a click on the trigger
  * from counting as an outside interaction.
  */
-export const ChatInfoPopover: FC<ChatInfoPopoverProps> = ({ chat }) => {
+export const ChatInfoPopover: React.FC<ChatInfoPopoverProps> = ({ chat }) => {
 	const [state, setState] = useState<"closed" | "hover" | "pinned">("closed");
 	// The hover transition waiting for its delay. Pointer moves replace it,
 	// so crossing the icon never opens and a quick return never closes.
@@ -110,7 +110,7 @@ type ChatInfoBodyProps = {
 };
 
 /** Fetches only while mounted, so closed popovers cost nothing. */
-const ChatInfoBody: FC<ChatInfoBodyProps> = ({ chat }) => {
+const ChatInfoBody: React.FC<ChatInfoBodyProps> = ({ chat }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const detail = useQuery(chatQuery(chat.id)).data;
 	const costQuery = useQuery({

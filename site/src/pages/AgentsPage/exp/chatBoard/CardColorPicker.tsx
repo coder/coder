@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -20,7 +20,7 @@ type CardColorPickerProps = {
  * stripe is where you change it. The swatches float beside it rather than
  * reflowing the header.
  */
-export const CardColorPicker: FC<CardColorPickerProps> = ({
+export const CardColorPicker: React.FC<CardColorPickerProps> = ({
 	title,
 	value,
 	onChange,
@@ -76,7 +76,12 @@ type SwatchProps = {
 	readonly onClick: () => void;
 };
 
-const Swatch: FC<SwatchProps> = ({ label, selected, className, onClick }) => (
+const Swatch: React.FC<SwatchProps> = ({
+	label,
+	selected,
+	className,
+	onClick,
+}) => (
 	<button
 		type="button"
 		aria-label={label}

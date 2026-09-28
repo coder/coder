@@ -1,6 +1,5 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -30,7 +29,7 @@ const renderCard = (chats: readonly Chat[]) => {
 		onAddNote: vi.fn(),
 		onEditNote: vi.fn(),
 		onRemoveNote: vi.fn(),
-	} satisfies Partial<ComponentProps<typeof BoardCard>>;
+	} satisfies Partial<React.ComponentProps<typeof BoardCard>>;
 	// No DndContext: its default sensors have no activation distance, so a
 	// pointerdown on the header would start a drag and swallow the click.
 	// Outside a context the dnd-kit hooks are inert, like a click that stays

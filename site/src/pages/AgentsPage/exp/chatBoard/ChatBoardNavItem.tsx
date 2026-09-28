@@ -1,5 +1,4 @@
 import { LayoutDashboardIcon } from "lucide-react";
-import type { FC } from "react";
 import { useLocation } from "react-router";
 import { SettingsNavItem } from "../../components/ChatsSidebar/settings/SettingsNavItem";
 import { CHAT_BOARD_PATH, useChatBoardEnabled } from "./chatBoardFlag";
@@ -10,7 +9,7 @@ type ChatBoardNavItemProps = {
 };
 
 /** The sidebar's "Board" entry. Renders nothing while the board is off. */
-export const ChatBoardNavItem: FC<ChatBoardNavItemProps> = ({
+export const ChatBoardNavItem: React.FC<ChatBoardNavItemProps> = ({
 	locationSearch,
 }) => {
 	const enabled = useChatBoardEnabled();

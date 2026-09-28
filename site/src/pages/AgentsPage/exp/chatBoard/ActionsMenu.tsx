@@ -4,7 +4,6 @@ import {
 	EllipsisVerticalIcon,
 	type LucideIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -30,7 +29,7 @@ type ActionsMenuProps = {
 };
 
 /** The menu for actions that have no in-place gesture. */
-export const ActionsMenu: FC<ActionsMenuProps> = ({
+export const ActionsMenu: React.FC<ActionsMenuProps> = ({
 	label,
 	items,
 	permanent = false,

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { DragData } from "./BoardCard";
 import { cardAccent } from "./cardColor";
 
@@ -8,7 +7,7 @@ type DragGhostProps = {
 };
 
 /** Compact stand-in rendered in the DragOverlay while a card, chat, column, or note moves. */
-export const DragGhost: FC<DragGhostProps> = ({ drag }) => {
+export const DragGhost: React.FC<DragGhostProps> = ({ drag }) => {
 	if (drag.type === "note") {
 		return (
 			<div className="w-[276px] cursor-grabbing truncate rounded-md border border-content-link bg-surface-primary px-3 py-1.5 text-xs text-content-primary shadow-lg">

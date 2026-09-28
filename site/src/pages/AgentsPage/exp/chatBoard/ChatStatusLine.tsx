@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
 
@@ -8,7 +7,7 @@ type ChatStatusLineProps = {
 };
 
 /** PR chip, line stats, and last turn text; shared by single cards and group rows. */
-export const ChatStatusLine: FC<ChatStatusLineProps> = ({ chat }) => {
+export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({ chat }) => {
 	const display = getChatDisplayConfig(chat);
 	const pr = display.diffStatus;
 	const hasLineStats =

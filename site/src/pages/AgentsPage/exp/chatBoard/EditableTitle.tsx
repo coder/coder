@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { InlineEdit } from "./InlineEdit";
 
 type EditableTitleProps = {
@@ -14,7 +13,7 @@ type EditableTitleProps = {
 };
 
 /** Two-line title; clicking the text (only the text) edits it in place. */
-export const EditableTitle: FC<EditableTitleProps> = ({
+export const EditableTitle: React.FC<EditableTitleProps> = ({
 	value,
 	renaming,
 	open,

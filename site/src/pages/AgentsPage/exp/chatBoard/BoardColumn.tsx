@@ -2,7 +2,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { Trash2Icon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { ActionsMenu } from "./ActionsMenu";
 import {
@@ -59,7 +59,7 @@ type BoardColumnProps = ChatOpenHandlers & {
 	readonly onRemoveNote: (card: BoardCardModel, index: number) => void;
 };
 
-export const BoardColumn: FC<BoardColumnProps> = ({
+export const BoardColumn: React.FC<BoardColumnProps> = ({
 	column,
 	openChatIds,
 	dropTarget,
@@ -231,7 +231,7 @@ type InsertionLineProps = {
 };
 
 // Occupies the gap between cards, so showing it does not shift layout.
-const InsertionLine: FC<InsertionLineProps> = ({ visible }) => (
+const InsertionLine: React.FC<InsertionLineProps> = ({ visible }) => (
 	<div className="flex h-2.5 items-center">
 		<div
 			className={cn(
@@ -248,7 +248,7 @@ type NewColumnProps = {
 };
 
 /** A column shell with its title in edit mode, so creating looks like renaming. */
-export const NewColumn: FC<NewColumnProps> = ({ onCreate, onCancel }) => (
+export const NewColumn: React.FC<NewColumnProps> = ({ onCreate, onCancel }) => (
 	<section
 		aria-label="New column"
 		className={columnShell({ className: "min-h-24" })}

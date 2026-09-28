@@ -1,15 +1,6 @@
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import {
-	type FC,
-	lazy,
-	type KeyboardEvent as ReactKeyboardEvent,
-	type PointerEvent as ReactPointerEvent,
-	Suspense,
-	useEffect,
-	useEffectEvent,
-	useState,
-} from "react";
+import { lazy, Suspense, useEffect, useEffectEvent, useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
@@ -76,7 +67,7 @@ type FloatingChatProps = {
  * board does not re-render per pixel; meanwhile only this window follows
  * the pointer.
  */
-export const FloatingChat: FC<FloatingChatProps> = ({
+export const FloatingChat: React.FC<FloatingChatProps> = ({
 	window: win,
 	chat,
 	color,
@@ -131,7 +122,7 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 	}, [gesture]);
 
 	// preventDefault stops text selection from starting under the handle.
-	const start = (kind: Gesture["kind"]) => (e: ReactPointerEvent) => {
+	const start = (kind: Gesture["kind"]) => (e: React.PointerEvent) => {
 		if (e.button !== 0) return;
 		e.preventDefault();
 		setGesture({ kind, startX: e.clientX, startY: e.clientY, origin: win });
@@ -139,7 +130,7 @@ export const FloatingChat: FC<FloatingChatProps> = ({
 
 	// Arrows move, Shift+arrows resize, one step per press; the same clamp
 	// and minimum size as a pointer gesture from a zero origin.
-	const onKeyDown = (e: ReactKeyboardEvent) => {
+	const onKeyDown = (e: React.KeyboardEvent) => {
 		const delta = ARROW_DELTAS[e.key];
 		if (!delta) return;
 		e.preventDefault();

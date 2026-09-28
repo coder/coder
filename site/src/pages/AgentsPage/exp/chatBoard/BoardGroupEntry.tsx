@@ -1,5 +1,4 @@
 import { CopyIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { ChatTreeNode } from "../../components/ChatsSidebar/tree/ChatTreeNode";
 import { type BoardGroups, isBoardGroupMember } from "./boardGroups";
@@ -16,7 +15,10 @@ type BoardGroupEntryProps = {
  * followed by its members. Members stay top-level nodes, so nothing
  * collapses them.
  */
-export const BoardGroupEntry: FC<BoardGroupEntryProps> = ({ chat, groups }) => {
+export const BoardGroupEntry: React.FC<BoardGroupEntryProps> = ({
+	chat,
+	groups,
+}) => {
 	const members = groups.get(chat.id);
 	if (!members || members.length === 0) {
 		return <ChatTreeNode chat={chat} />;
@@ -54,7 +56,10 @@ type BoardColumnTagProps = {
  * The trailing slot of a sidebar row: the chat's column. A group box names
  * the column once in its header, so its primary and members carry none.
  */
-export const BoardColumnTag: FC<BoardColumnTagProps> = ({ chat, groups }) => {
+export const BoardColumnTag: React.FC<BoardColumnTagProps> = ({
+	chat,
+	groups,
+}) => {
 	const column = getColumnLabel(chat);
 	if (
 		column === INBOX_COLUMN ||

@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
@@ -17,7 +17,7 @@ type BoardWindowsProps = {
 	readonly onDismissTop: () => void;
 };
 
-export const BoardWindows: FC<BoardWindowsProps> = ({
+export const BoardWindows: React.FC<BoardWindowsProps> = ({
 	windows,
 	chatsById,
 	colorByChatId,

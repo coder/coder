@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { Switch } from "#/components/Switch/Switch";
 import { saveChatBoardEnabled, useChatBoardEnabled } from "./chatBoardFlag";
 
 /** Opt-in switch for the chat board, listed under Experiments in settings. */
-export const ChatBoardSettings: FC = () => {
+export const ChatBoardSettings: React.FC = () => {
 	const enabled = useChatBoardEnabled();
 
 	return (

@@ -45,7 +45,10 @@ type ChatTreeNodeProps = {
 
 const CHILD_INDENT_PX = 26;
 
-export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({ chat, depth = 0 }) => {
+export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
+	chat,
+	depth = 0,
+}) => {
 	const location = useLocation();
 	const locationSearch = normalizeLocationSearch(location.search);
 	const {

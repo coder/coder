@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { ChatOpenHandlers } from "./BoardCard";
 import { BoardColumn, NewColumn } from "./BoardColumn";
@@ -45,7 +45,7 @@ const keepNote = (text: string) =>
 		closeButton: true,
 	});
 
-export const BoardColumns: FC<BoardColumnsProps> = ({
+export const BoardColumns: React.FC<BoardColumnsProps> = ({
 	columns,
 	board,
 	run,

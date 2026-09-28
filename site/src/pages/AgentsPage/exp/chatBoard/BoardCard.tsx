@@ -7,7 +7,7 @@ import {
 	PencilIcon,
 	UngroupIcon,
 } from "lucide-react";
-import { type FC, type RefObject, useState } from "react";
+import { useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../../components/ChatsSidebar/tree/statusConfig";
@@ -53,7 +53,7 @@ type ChatOpeners = {
 
 // dnd-kit fills the node ref on mount; before that there is nothing to
 // place a window beside.
-const rectOf = (node: RefObject<HTMLElement | null>) =>
+const rectOf = (node: React.RefObject<HTMLElement | null>) =>
 	node.current?.getBoundingClientRect() ?? new DOMRect();
 
 type BoardCardProps = ChatOpenHandlers & {
@@ -72,7 +72,7 @@ type BoardCardProps = ChatOpenHandlers & {
 	readonly onRemoveNote: (index: number) => void;
 };
 
-export const BoardCard: FC<BoardCardProps> = ({
+export const BoardCard: React.FC<BoardCardProps> = ({
 	card,
 	openChatIds,
 	isDropTarget,
@@ -242,7 +242,7 @@ export const BoardCard: FC<BoardCardProps> = ({
 	);
 };
 
-const UnreadDot: FC = () => (
+const UnreadDot: React.FC = () => (
 	<span
 		role="img"
 		className="size-[7px] shrink-0 rounded-full bg-content-link"
@@ -254,7 +254,7 @@ type AgeProps = {
 	readonly at: string;
 };
 
-const Age: FC<AgeProps> = ({ at }) => (
+const Age: React.FC<AgeProps> = ({ at }) => (
 	<span className="text-[11px] tabular-nums text-content-secondary/70">
 		{shortRelativeTime(at)}
 	</span>
@@ -271,7 +271,7 @@ type OpenChatSurfaceProps = {
  * control opens the chat. Controls that keep their own click sit above it
  * with `relative z-[1]`.
  */
-const OpenChatSurface: FC<OpenChatSurfaceProps> = ({
+const OpenChatSurface: React.FC<OpenChatSurfaceProps> = ({
 	chat,
 	isDragging,
 	onOpen,
@@ -299,7 +299,7 @@ type ChatOpenerProps = ChatOpeners & {
 };
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
-const ChatOpener: FC<ChatOpenerProps> = ({
+const ChatOpener: React.FC<ChatOpenerProps> = ({
 	chat,
 	onOpen,
 	onPreview,
@@ -329,7 +329,7 @@ type ChatRowProps = ChatOpenHandlers & {
 
 // Any member can leave, the primary included: the mutation hands the card
 // to the next member, so nothing here needs to know who is primary.
-const ChatRow: FC<ChatRowProps> = ({
+const ChatRow: React.FC<ChatRowProps> = ({
 	chat,
 	card,
 	open: isOpen,

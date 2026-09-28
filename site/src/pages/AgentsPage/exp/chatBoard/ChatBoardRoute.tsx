@@ -1,4 +1,4 @@
-import { type FC, lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Navigate } from "react-router";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import { useChatBoardEnabled } from "./chatBoardFlag";
@@ -8,7 +8,7 @@ import { useChatBoardEnabled } from "./chatBoardFlag";
 const ChatBoardPage = lazy(() => import("./ChatBoardPage"));
 
 /** Route element for the board: renders it when enabled, else leaves. */
-const ChatBoardRoute: FC = () => {
+const ChatBoardRoute: React.FC = () => {
 	const enabled = useChatBoardEnabled();
 	if (!enabled) {
 		return <Navigate to="/agents" replace />;

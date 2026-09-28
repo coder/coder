@@ -1,5 +1,4 @@
 import { ChevronLeftIcon, SearchIcon } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 
 type BoardHeaderProps = {
@@ -13,7 +12,7 @@ type BoardHeaderProps = {
 	readonly onExit: () => void;
 };
 
-export const BoardHeader: FC<BoardHeaderProps> = ({
+export const BoardHeader: React.FC<BoardHeaderProps> = ({
 	chatCount,
 	cardCount,
 	visibleCount,

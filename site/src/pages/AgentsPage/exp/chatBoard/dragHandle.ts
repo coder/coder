@@ -1,5 +1,4 @@
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
-import type { PointerEvent as ReactPointerEvent } from "react";
 
 /**
  * dnd-kit listeners for a drag handle. After dnd-kit has seen the pointerdown
@@ -11,7 +10,7 @@ export const dragHandleListeners = (
 	listeners: DraggableSyntheticListeners | undefined,
 ) => ({
 	...listeners,
-	onPointerDown: (event: ReactPointerEvent) => {
+	onPointerDown: (event: React.PointerEvent) => {
 		listeners?.onPointerDown?.(event);
 		event.preventDefault();
 	},
