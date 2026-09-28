@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 
@@ -8,7 +7,7 @@ type MCPServerIconStackProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
 };
 
-export const MCPServerIconStack: FC<MCPServerIconStackProps> = ({
+export const MCPServerIconStack: React.FC<MCPServerIconStackProps> = ({
 	servers,
 }) => {
 	return (

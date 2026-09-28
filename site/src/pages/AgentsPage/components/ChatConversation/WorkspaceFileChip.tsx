@@ -1,6 +1,5 @@
 import { HardDriveIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +13,7 @@ import {
  * absolute path the agent can read. The trigger is a button so the
  * path is reachable from the keyboard, not only on hover.
  */
-export const WorkspaceFileChip: FC<{
+export const WorkspaceFileChip: React.FC<{
 	name: string;
 	path: string;
 	size: number;
