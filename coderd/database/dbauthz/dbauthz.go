@@ -3872,14 +3872,6 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
-func (q *querier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return nil, err
-	}
-	return q.db.GetChatQueuedMessagesByPosition(ctx, chatID)
-}
-
 func (q *querier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	// Chat retention is a deployment-wide config read by dbpurge.
 	// Only requires a valid actor in context.
