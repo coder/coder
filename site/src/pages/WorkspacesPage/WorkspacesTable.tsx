@@ -25,6 +25,7 @@ import { templateVersion } from "#/api/queries/templates";
 import {
 	cancelBuild,
 	deleteWorkspace,
+	setOptimisticWorkspaceListBuildStatus,
 	startWorkspace,
 	stopWorkspace,
 } from "#/api/queries/workspaces";
@@ -86,11 +87,12 @@ import { getDisplayWorkspaceTemplateName } from "#/utils/workspace";
 import { WorkspaceSharingIndicator } from "./WorkspaceSharingIndicator";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
-interface WorkspacesTableProps {
+type WorkspacesTableProps = {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	error?: unknown;
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
@@ -98,12 +100,13 @@ interface WorkspacesTableProps {
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
 	chatsByWorkspace?: Record<string, string>;
-}
+};
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	workspaces,
 	checkedWorkspaces,
 	isUsingFilter,
+	onClearFilter,
 	onCheckChange,
 	templates,
 	canCreateTemplate,
@@ -169,6 +172,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 							<WorkspacesEmpty
 								templates={templates}
 								isUsingFilter={isUsingFilter}
+								onClearFilter={onClearFilter}
 								canCreateTemplate={canCreateTemplate}
 								canCreateWorkspace={canCreateWorkspace}
 							/>
@@ -180,10 +184,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 					const activeOrg = dashboard.organizations.find(
 						(o) => o.id === workspace.organization_id,
 					);
+					const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 
 					return (
 						<WorkspacesRow
 							workspace={workspace}
+							workspacePageLink={workspacePageLink}
 							key={workspace.id}
 							checked={checked}
 						>
@@ -212,9 +218,12 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 									<AvatarData
 										title={
 											<div className="flex items-center gap-1">
-												<span className="whitespace-nowrap">
+												<Link
+													to={workspacePageLink}
+													className="whitespace-nowrap select-none"
+												>
 													{workspace.name}
-												</span>
+												</Link>
 												{workspace.favorite && (
 													<StarIcon className="size-icon-xs" />
 												)}
@@ -303,20 +312,21 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 	);
 };
 
-interface WorkspacesRowProps {
+type WorkspacesRowProps = {
 	workspace: Workspace;
+	workspacePageLink: string;
 	children?: ReactNode;
 	checked: boolean;
-}
+};
 
 const WorkspacesRow: FC<WorkspacesRowProps> = ({
 	workspace,
+	workspacePageLink,
 	children,
 	checked,
 }) => {
 	const navigate = useNavigate();
 
-	const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
 	const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 	const { role, hover, ...clickableProps } = useClickableTableRow({
 		onMiddleClick: openLinkInNewTab,
@@ -421,6 +431,34 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 		onError: onActionError,
 	});
 
+	const restartWorkspaceMutation = useMutation({
+		mutationFn: API.restartWorkspace,
+		// restartWorkspace resolves only after the full stop/start sequence and
+		// the list has no live updates, so optimistically show the row as
+		// stopping. This reflects the restart immediately and flips the list to
+		// its fast poll interval, which then tracks the real build statuses.
+		onMutate: async () => {
+			await queryClient.cancelQueries({
+				queryKey: ["workspaces"],
+			});
+			return {
+				rollback: setOptimisticWorkspaceListBuildStatus(
+					queryClient,
+					workspace.id,
+					"stopping",
+					"stop",
+				),
+			};
+		},
+		onSuccess: async () => {
+			await onActionSuccess();
+		},
+		onError: (error, _variables, context) => {
+			context?.rollback?.();
+			onActionError(error);
+		},
+	});
+
 	const cancelJobOptions = cancelBuild(workspace, queryClient);
 	const cancelBuildMutation = useMutation({
 		...cancelJobOptions,
@@ -453,6 +491,7 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 	});
 
 	const [isStopConfirmOpen, setIsStopConfirmOpen] = useState(false);
+	const [isRestartConfirmOpen, setIsRestartConfirmOpen] = useState(false);
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
 	const isRetrying =
@@ -580,6 +619,12 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 							: undefined
 					}
 					isStopping={stopWorkspaceMutation.isPending}
+					onRestart={
+						abilities.actions.includes("restart")
+							? () => setIsRestartConfirmOpen(true)
+							: undefined
+					}
+					isRestarting={restartWorkspaceMutation.isPending}
 					onActionSuccess={onActionSuccess}
 				/>
 			</div>
@@ -595,6 +640,20 @@ const WorkspaceActionsCell: FC<WorkspaceActionsCellProps> = ({
 					setIsStopConfirmOpen(false);
 				}}
 				type="delete"
+			/>
+
+			{/* Restart workspace confirmation dialog */}
+			<ConfirmDialog
+				open={isRestartConfirmOpen}
+				title="Restart workspace"
+				description={`Are you sure you want to restart the workspace "${workspace.name}"? This will stop all running processes and delete non-persistent data.`}
+				confirmText="Restart"
+				onClose={() => setIsRestartConfirmOpen(false)}
+				onConfirm={() => {
+					restartWorkspaceMutation.mutate({ workspace });
+					setIsRestartConfirmOpen(false);
+				}}
+				type="info"
 			/>
 
 			<WorkspaceBuildCancelDialog

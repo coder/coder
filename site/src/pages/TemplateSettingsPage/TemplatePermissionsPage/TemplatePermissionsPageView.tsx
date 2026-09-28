@@ -131,11 +131,11 @@ const AddTemplateUserOrGroup: FC<AddTemplateUserOrGroupProps> = ({
 	);
 };
 
-interface RoleSelectProps {
+type RoleSelectProps = {
 	value: TemplateRole;
 	disabled?: boolean;
 	onValueChange: (value: TemplateRole) => void;
-}
+};
 
 const RoleSelect: FC<RoleSelectProps> = ({
 	value,
@@ -175,7 +175,7 @@ const RoleSelect: FC<RoleSelectProps> = ({
 	);
 };
 
-interface TemplatePermissionsPageViewProps {
+type TemplatePermissionsPageViewProps = {
 	templateACL: TemplateACL | undefined;
 	templateID: string;
 	canUpdatePermissions: boolean;
@@ -199,7 +199,7 @@ interface TemplatePermissionsPageViewProps {
 	onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
 	updatingGroupId?: TemplateGroup["id"] | undefined;
 	onRemoveGroup: (group: Group) => void;
-}
+};
 
 export const TemplatePermissionsPageView: FC<
 	TemplatePermissionsPageViewProps
@@ -261,7 +261,7 @@ export const TemplatePermissionsPageView: FC<
 	);
 };
 
-interface MembersTableBodyProps {
+type MembersTableBodyProps = {
 	templateACL: TemplateACL | undefined;
 	canUpdatePermissions: boolean;
 	updatingUserId: TemplateUser["id"] | undefined;
@@ -270,7 +270,7 @@ interface MembersTableBodyProps {
 	onRemoveUser: (user: TemplateUser) => void;
 	onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
 	onRemoveGroup: (group: Group) => void;
-}
+};
 
 const MembersTableBody: FC<MembersTableBodyProps> = ({
 	templateACL,

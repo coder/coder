@@ -1,4 +1,3 @@
-import { MessageScroller } from "@shadcn/react/message-scroller";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
@@ -9,7 +8,12 @@ import {
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatCompactionMessage,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
@@ -20,6 +24,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
@@ -96,7 +101,8 @@ const mockCompactionModels: readonly TypesGen.ChatModel[] = [
 const StoryChatPageInput: FC<{
 	store: ReturnType<typeof createChatStore>;
 	onInterrupt?: () => void;
-}> = ({ store, onInterrupt }) => (
+	contextLimit?: number;
+}> = ({ store, onInterrupt, contextLimit }) => (
 	<div className="mx-auto w-full max-w-3xl p-4">
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
@@ -118,6 +124,7 @@ const StoryChatPageInput: FC<{
 					provider: "openai",
 					model: "gpt-4o",
 					displayName: "GPT-4o",
+					contextLimit,
 				},
 			]}
 			modelSelectorPlaceholder="Select model"
@@ -127,6 +134,38 @@ const StoryChatPageInput: FC<{
 		/>
 	</div>
 );
+
+export const ContextUsageAfterCompaction: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([MockChatCompactionMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
+
+export const UncommittedCompactionKeepsContextUsage: Story = {
+	render: () => {
+		const store = createChatStore();
+		const previousMessage: TypesGen.ChatMessage = {
+			...MockChatMessage,
+			usage: { input_tokens: 90000, context_limit: 200000 },
+		};
+		store.replaceMessages([previousMessage]);
+		store.setChatStatus("waiting");
+		return <StoryChatPageInput store={store} contextLimit={200000} />;
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", { name: /context usage/i }),
+		);
+	},
+};
 
 const buildMessage = (
 	id: number,
@@ -208,6 +247,48 @@ export const DurableUnresolvedWorkspaceToolRuns: Story = {
 				<StoryChatPageTimeline store={store} />
 			</ChatWorkspaceContext>
 		);
+	},
+};
+
+// The advisor streams its reasoning and advice after its assistant message
+// is already durable. Both must land on that message's card, with no second
+// live card for the same call.
+export const StreamedAdvisorResultOverlaysDurableCall: Story = {
+	render: () => {
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [
+				{ type: "text", text: "Should the advisor be on by default?" },
+			]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "advisor-call",
+					tool_name: "advisor",
+					args: {
+						question: "on or off by default?",
+						model_intent: "Checking the default",
+					},
+				},
+			]),
+		]);
+		store.setChatStatus("running");
+		store.applyMessageParts([
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				reasoning_delta: "Weighing the default against the rollout risk.",
+			},
+			{
+				type: "tool-result",
+				tool_call_id: "advisor-call",
+				tool_name: "advisor",
+				result_delta: "Keep it off by default and let teams opt in.",
+			},
+		]);
+
+		return <StoryChatPageTimeline store={store} />;
 	},
 };
 
@@ -321,7 +402,7 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Send" })).toBeNull();
+		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 

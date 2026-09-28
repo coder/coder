@@ -5,12 +5,12 @@ import { CommentableDiffViewer } from "../DiffViewer/CommentableDiffViewer";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { parseDiffString } from "../DiffViewer/parseDiff";
 
-interface LocalDiffPanelProps {
+type LocalDiffPanelProps = {
 	repo: WorkspaceAgentRepoChanges;
 	isExpanded?: boolean;
 	diffStyle: DiffStyle;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
-}
+};
 
 export const LocalDiffPanel: FC<LocalDiffPanelProps> = ({
 	repo,

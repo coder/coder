@@ -8,11 +8,11 @@ const concurrencyDocsUrl = docs(
 	"/ai-coder/agents/platform-controls#concurrent-agents",
 );
 
-interface QueuedForCapacityCalloutProps {
+type QueuedForCapacityCalloutProps = {
 	hasLicense: boolean;
 	canManageLicenses: boolean;
 	agentHoursHardLimit?: number;
-}
+};
 
 export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 	hasLicense,

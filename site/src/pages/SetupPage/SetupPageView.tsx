@@ -60,12 +60,12 @@ const validationSchema = Yup.object({
 	}),
 });
 
-interface SetupPageViewProps {
+type SetupPageViewProps = {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
 	isLoading?: boolean;
 	authMethods: TypesGen.AuthMethods | undefined;
-}
+};
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,

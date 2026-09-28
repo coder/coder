@@ -1,9 +1,7 @@
 package autostart
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"sort"
 	"time"
 
@@ -90,104 +88,6 @@ func percentile(sorted []time.Duration, p float64) time.Duration {
 		index = len(sorted) - 1
 	}
 	return sorted[index]
-}
-
-// PrintText writes the results in a human-readable text format.
-func (r RunResults) PrintText(w io.Writer) {
-	_, _ = fmt.Fprintf(w, "Autostart Scale Test Results\n")
-	_, _ = fmt.Fprintf(w, "=============================\n\n")
-
-	_, _ = fmt.Fprintf(w, "Total Runs:      %d\n", r.TotalRuns)
-	_, _ = fmt.Fprintf(w, "Successful:      %d\n", r.SuccessfulRuns)
-	_, _ = fmt.Fprintf(w, "Failed:          %d\n\n", r.FailedRuns)
-
-	if r.SuccessfulRuns > 0 {
-		_, _ = fmt.Fprintf(w, "End-to-End Latency (Config → Completion)\n")
-		_, _ = fmt.Fprintf(w, "-----------------------------------------\n")
-		_, _ = fmt.Fprintf(w, "P50: %v\n", r.EndToEndLatencyP50.Round(time.Millisecond))
-		_, _ = fmt.Fprintf(w, "P95: %v\n", r.EndToEndLatencyP95.Round(time.Millisecond))
-		_, _ = fmt.Fprintf(w, "P99: %v\n\n", r.EndToEndLatencyP99.Round(time.Millisecond))
-
-		_, _ = fmt.Fprintf(w, "Trigger to Completion Latency (Scheduled Time → Completion)\n")
-		_, _ = fmt.Fprintf(w, "------------------------------------------------------------\n")
-		_, _ = fmt.Fprintf(w, "P50: %v\n", r.TriggerToCompletionP50.Round(time.Millisecond))
-		_, _ = fmt.Fprintf(w, "P95: %v\n", r.TriggerToCompletionP95.Round(time.Millisecond))
-		_, _ = fmt.Fprintf(w, "P99: %v\n\n", r.TriggerToCompletionP99.Round(time.Millisecond))
-	}
-
-	if r.FailedRuns > 0 {
-		_, _ = fmt.Fprintf(w, "Failed Runs\n")
-		_, _ = fmt.Fprintf(w, "-----------\n")
-		for _, run := range r.Runs {
-			if !run.Success {
-				_, _ = fmt.Fprintf(w, "- %s (%s): %s\n", run.WorkspaceName, run.WorkspaceID, run.Error)
-			}
-		}
-	}
-}
-
-// MarshalJSON implements json.Marshaler to provide custom JSON output.
-func (r RunResults) MarshalJSON() ([]byte, error) {
-	// Convert durations to milliseconds for JSON output.
-	type jsonResults struct {
-		TotalRuns      int `json:"total_runs"`
-		SuccessfulRuns int `json:"successful_runs"`
-		FailedRuns     int `json:"failed_runs"`
-
-		EndToEndLatencyP50MS int64 `json:"end_to_end_latency_p50_ms"`
-		EndToEndLatencyP95MS int64 `json:"end_to_end_latency_p95_ms"`
-		EndToEndLatencyP99MS int64 `json:"end_to_end_latency_p99_ms"`
-
-		TriggerToCompletionP50MS int64 `json:"trigger_to_completion_p50_ms"`
-		TriggerToCompletionP95MS int64 `json:"trigger_to_completion_p95_ms"`
-		TriggerToCompletionP99MS int64 `json:"trigger_to_completion_p99_ms"`
-
-		Runs []struct {
-			WorkspaceID   string `json:"workspace_id"`
-			WorkspaceName string `json:"workspace_name"`
-			Success       bool   `json:"success"`
-			Error         string `json:"error,omitempty"`
-
-			EndToEndLatencyMS     int64 `json:"end_to_end_latency_ms"`
-			TriggerToCompletionMS int64 `json:"trigger_to_completion_ms"`
-		} `json:"runs"`
-	}
-
-	jr := jsonResults{
-		TotalRuns:      r.TotalRuns,
-		SuccessfulRuns: r.SuccessfulRuns,
-		FailedRuns:     r.FailedRuns,
-
-		EndToEndLatencyP50MS: r.EndToEndLatencyP50.Milliseconds(),
-		EndToEndLatencyP95MS: r.EndToEndLatencyP95.Milliseconds(),
-		EndToEndLatencyP99MS: r.EndToEndLatencyP99.Milliseconds(),
-
-		TriggerToCompletionP50MS: r.TriggerToCompletionP50.Milliseconds(),
-		TriggerToCompletionP95MS: r.TriggerToCompletionP95.Milliseconds(),
-		TriggerToCompletionP99MS: r.TriggerToCompletionP99.Milliseconds(),
-	}
-
-	for _, run := range r.Runs {
-		jr.Runs = append(jr.Runs, struct {
-			WorkspaceID   string `json:"workspace_id"`
-			WorkspaceName string `json:"workspace_name"`
-			Success       bool   `json:"success"`
-			Error         string `json:"error,omitempty"`
-
-			EndToEndLatencyMS     int64 `json:"end_to_end_latency_ms"`
-			TriggerToCompletionMS int64 `json:"trigger_to_completion_ms"`
-		}{
-			WorkspaceID:   run.WorkspaceID.String(),
-			WorkspaceName: run.WorkspaceName,
-			Success:       run.Success,
-			Error:         run.Error,
-
-			EndToEndLatencyMS:     run.EndToEndLatency().Milliseconds(),
-			TriggerToCompletionMS: run.TriggerToCompletionLatency().Milliseconds(),
-		})
-	}
-
-	return json.Marshal(jr)
 }
 
 // ToHarnessResults converts autostart-specific results into the standard

@@ -2,13 +2,13 @@ import { cn } from "cn";
 import type { CSSProperties, FC } from "react";
 import { baseModeFor, type ConcreteThemeName } from "#/theme";
 
-interface ThemePreviewProps {
+type ThemePreviewProps = {
 	theme: ConcreteThemeName;
 	size?: "sm" | "lg";
 	label?: string;
 	className?: string;
 	style?: CSSProperties;
-}
+};
 
 /**
  * Mini mockup of the Coder UI under a given theme.

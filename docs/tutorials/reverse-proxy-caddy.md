@@ -106,6 +106,10 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      This is optional and can be removed.
    - `email@example.com`: Email to request certificates from LetsEncrypt/ZeroSSL
      (does not have to be Coder admin email)
+   - `ask http://example.com`: Change this to a URL you control that
+     validates the requested hostname before Caddy requests a certificate for
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
+     for a reference implementation.
 
 4. Start Coder. Set `CODER_ACCESS_URL` and `CODER_WILDCARD_ACCESS_URL` to the
    domain you're using in your Caddyfile.
@@ -147,8 +151,10 @@ certificates, you'll need a domain name that resolves to your Caddy server.
      is optional and can be removed.
    - `localhost:3000`: Address Coder is running on. Modify this if you changed
      `CODER_HTTP_ADDRESS` in the Coder configuration.
-   - _DO NOT CHANGE the `ask http://example.com` line! Doing so will result in
-     your certs potentially not being generated._
+   - `ask http://example.com`: Change this to a URL you control that
+     validates the requested hostname before Caddy requests a certificate for
+     it. See [this discussion](https://github.com/coder/coder/discussions/29079#discussioncomment-18462842)
+     for a reference implementation.
 
 4. [Configure Coder](../admin/setup/index.md) and change the following values:
 

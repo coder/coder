@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, type HTMLAttributes, Suspense } from "react";
+import { type ComponentProps, type FC, Suspense } from "react";
 import { Outlet } from "react-router";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -63,7 +63,7 @@ export const DashboardLayout: FC = () => {
 	);
 };
 
-export const DashboardFullPage: FC<HTMLAttributes<HTMLDivElement>> = ({
+export const DashboardFullPage: FC<ComponentProps<"div">> = ({
 	children,
 	...attrs
 }) => {

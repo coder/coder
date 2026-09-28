@@ -1,11 +1,12 @@
 import type { FC, ReactNode } from "react";
+import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 
 const EMPTY_VALUE = "-";
 
-interface ChatSummaryProps {
+type ChatSummaryProps = {
 	summary: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -18,7 +19,7 @@ interface ChatSummaryProps {
 	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
 	isSubagent?: boolean;
-}
+};
 
 export const ChatSummary: FC<ChatSummaryProps> = ({
 	summary,
@@ -40,9 +41,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	return (
 		<div className="flex flex-col gap-4">
 			{trimmedSummary ? (
-				<p className="m-0 font-sans text-pretty text-sm font-normal leading-6 text-content-primary">
-					{trimmedSummary}
-				</p>
+				<ChatSummaryBody summary={trimmedSummary} />
 			) : (
 				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
 					{isSubagent ? "Summary pending agent completion." : "No summary yet."}
@@ -88,10 +87,41 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	);
 };
 
-interface ChatSummaryRowProps {
+type ChatSummaryBodyProps = {
+	summary: string;
+};
+
+const ChatSummaryBody: FC<ChatSummaryBodyProps> = ({ summary }) => (
+	<div className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary wrap-anywhere">
+		<InlineMarkdown
+			allowedElements={["ul", "ol", "li"]}
+			components={{
+				p: ({ children }) => <p className="m-0 text-pretty">{children}</p>,
+				ul: ({ children }) => (
+					<ul className="my-2 flex list-disc flex-col gap-1 pl-5">
+						{children}
+					</ul>
+				),
+				ol: ({ children }) => (
+					<ol className="my-2 flex list-decimal flex-col gap-1 pl-5">
+						{children}
+					</ol>
+				),
+				li: ({ children }) => <li className="m-0 text-pretty">{children}</li>,
+				// A summary describes the chat rather than linking out of it, so
+				// model-authored URLs render as plain text.
+				a: ({ children }) => children,
+			}}
+		>
+			{summary}
+		</InlineMarkdown>
+	</div>
+);
+
+type ChatSummaryRowProps = {
 	label: string;
 	children: ReactNode;
-}
+};
 
 const ChatSummaryRow: FC<ChatSummaryRowProps> = ({ label, children }) => (
 	<div className="grid grid-cols-[65px_minmax(0,1fr)] gap-x-2 text-sm leading-6">

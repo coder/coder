@@ -7,13 +7,13 @@ export const PINNED_SECTION_KEY = "Pinned";
 export const getSectionToggleTestId = (sectionKey: string) =>
 	`agents-section-toggle-${sectionKey.replaceAll(" ", "-")}`;
 
-interface ChatSectionHeaderProps {
+type ChatSectionHeaderProps = {
 	readonly label: string;
 	readonly count: number;
 	readonly expanded: boolean;
 	readonly onToggle: () => void;
 	readonly testId: string;
-}
+};
 
 export const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
 	label,

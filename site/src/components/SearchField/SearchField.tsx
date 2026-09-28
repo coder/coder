@@ -19,7 +19,6 @@ export type SearchFieldProps = {
 	placeholder?: string;
 	className?: string;
 	autoFocus?: boolean;
-	onFocus?: () => void;
 	onBlur?: () => void;
 	ref?: Ref<HTMLInputElement>;
 	"aria-label"?: string;
@@ -33,7 +32,6 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 	placeholder = "Search...",
 	className,
 	autoFocus = false,
-	onFocus,
 	onBlur,
 	ref,
 	...ariaProps
@@ -75,7 +73,6 @@ export const SearchField: React.FC<SearchFieldProps> = ({
 				className="flex-1 h-10"
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
-				onFocus={onFocus}
 				onBlur={onBlur}
 				placeholder={placeholder}
 				{...ariaProps}

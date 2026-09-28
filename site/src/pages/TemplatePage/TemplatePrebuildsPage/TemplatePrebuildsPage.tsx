@@ -20,9 +20,9 @@ const TemplatePrebuildsPage: FC = () => {
 	);
 };
 
-interface TemplatePrebuildsPageViewProps {
+type TemplatePrebuildsPageViewProps = {
 	templateId: string;
-}
+};
 
 export const TemplatePrebuildsPageView: FC<TemplatePrebuildsPageViewProps> = ({
 	templateId,

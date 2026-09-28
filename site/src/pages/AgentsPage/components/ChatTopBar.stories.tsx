@@ -72,6 +72,7 @@ const defaultProps = {
 const meta: Meta<typeof ChatTopBar> = {
 	title: "pages/AgentsPage/ChatTopBar",
 	component: ChatTopBar,
+	decorators: [withAuthProvider],
 	beforeEach: () => {
 		requestArchiveAgent.mockClear();
 		requestArchiveAndDeleteWorkspace.mockClear();
@@ -85,6 +86,7 @@ const meta: Meta<typeof ChatTopBar> = {
 	},
 	parameters: {
 		layout: "fullscreen",
+		user: MockUserOwner,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/chat-1" },
 			routing: [
@@ -107,6 +109,19 @@ export const SharedChat: Story = {
 	args: {
 		chat: {
 			...MockChat,
+			shared: true,
+		},
+	},
+};
+
+/** Viewers of another user's chat get no owner actions menu. */
+export const SharedChatViewer: Story = {
+	args: {
+		chat: {
+			...MockChat,
+			owner_id: "sharing-user",
+			owner_username: "sharing-user",
+			owner_name: "Sharing User",
 			shared: true,
 		},
 	},
@@ -570,7 +585,7 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 };
 
 export const ShareChatButton: Story = {
-	decorators: [withAuthProvider, withDashboardProvider],
+	decorators: [withDashboardProvider],
 	args: {
 		chat: {
 			...MockChat,
@@ -578,7 +593,6 @@ export const ShareChatButton: Story = {
 		},
 	},
 	parameters: {
-		user: MockUserOwner,
 		queries: [
 			{
 				key: getAuthorizationKey({

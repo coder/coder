@@ -17,11 +17,6 @@
 # Re-allow paths the dogfood Dockerfile.base files consume.
 !dogfood
 !dogfood/coder
-!dogfood/coder/ubuntu-22.04
-!dogfood/coder/ubuntu-22.04/Dockerfile.base
-!dogfood/coder/ubuntu-22.04/configure-chrome-flags.sh
-!dogfood/coder/ubuntu-22.04/files
-!dogfood/coder/ubuntu-22.04/files/**
 !dogfood/coder/ubuntu-26.04
 !dogfood/coder/ubuntu-26.04/Dockerfile.base
 !dogfood/coder/ubuntu-26.04/files

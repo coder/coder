@@ -60,9 +60,17 @@ export const EditOAuth2AppPageView: FC = () => {
 		...oauth2.getApp(appId ?? ""),
 		enabled: Boolean(appId),
 	});
+	// Public clients have no secret, so this page hides the secrets UI.
+	const isPublicClient = appQuery.data?.client_type === "public";
 	const secretsQuery = useQuery({
 		...oauth2.getAppSecrets(appId ?? ""),
-		enabled: Boolean(appId) && permissions.viewOAuth2AppSecrets,
+		// Wait for the app to load. isPublicClient is false until then, so
+		// without isSuccess the request goes out before the type is known.
+		enabled:
+			Boolean(appId) &&
+			permissions.viewOAuth2AppSecrets &&
+			appQuery.isSuccess &&
+			!isPublicClient,
 	});
 
 	const putAppMutation = useMutation(oauth2.putApp(queryClient));
@@ -183,6 +191,12 @@ export const EditOAuth2AppPageView: FC = () => {
 						value={app.endpoints.authorization}
 					/>
 					<EndpointField label="Token URL" value={app.endpoints.token} />
+					<div className="flex items-center gap-2">
+						<dt className="text-sm">Registration</dt>
+						<dd className="m-0 text-sm text-content-secondary">
+							{app.dynamically_registered ? "Self-registered" : "Admin-created"}
+						</dd>
+					</div>
 				</dl>
 
 				{secretsQuery.error ? (
@@ -194,6 +208,7 @@ export const EditOAuth2AppPageView: FC = () => {
 					<OAuth2AppForm
 						key={app.id}
 						app={app}
+						clientType={app.client_type}
 						onSubmit={async (req) => {
 							try {
 								const updated = await putAppMutation.mutateAsync({
@@ -224,83 +239,93 @@ export const EditOAuth2AppPageView: FC = () => {
 					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
 						<div className="flex flex-row gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
-							<Button
-								disabled={postSecretMutation.isPending || isMutating}
-								type="button"
-								onClick={() => {
-									postSecretMutation.mutate(appId, {
-										onSuccess: (secret) => {
-											setFullNewSecret(secret);
-											toast.success(
-												"Successfully generated OAuth2 client secret.",
-											);
-										},
-										onError: (error) => {
-											toast.error(
-												getErrorMessage(
-													error,
-													"Failed to generate OAuth2 client secret.",
-												),
-												{ description: getErrorDetail(error) },
-											);
-										},
-									});
-								}}
-							>
-								<Spinner loading={postSecretMutation.isPending} />
-								Generate secret
-							</Button>
+							{!isPublicClient && (
+								<Button
+									disabled={postSecretMutation.isPending || isMutating}
+									type="button"
+									onClick={() => {
+										postSecretMutation.mutate(appId, {
+											onSuccess: (secret) => {
+												setFullNewSecret(secret);
+												toast.success(
+													"Successfully generated OAuth2 client secret.",
+												);
+											},
+											onError: (error) => {
+												toast.error(
+													getErrorMessage(
+														error,
+														"Failed to generate OAuth2 client secret.",
+													),
+													{ description: getErrorDetail(error) },
+												);
+											},
+										});
+									}}
+								>
+									<Spinner loading={postSecretMutation.isPending} />
+									Generate secret
+								</Button>
+							)}
 						</div>
 
-						<Table aria-label="OAuth2 client secrets">
-							<TableHeader>
-								<TableRow>
-									<TableHead className="w-[80%]">Secret</TableHead>
-									<TableHead className="w-[20%]">Last used</TableHead>
-									<TableHead className="w-[1%]" />
-								</TableRow>
-							</TableHeader>
-							<TableBody size="lg">
-								{secretsQuery.isLoading && <TableLoader />}
-								{!secretsQuery.isLoading &&
-									!secretsQuery.error &&
-									(!secretsQuery.data || secretsQuery.data.length === 0) && (
-										<TableEmpty message="No client secrets have been generated." />
-									)}
-								{!secretsQuery.isLoading &&
-									secretsQuery.data?.map((secret) => (
-										<OAuth2SecretRow
-											key={secret.id}
-											secret={secret}
-											isDeleting={deleteSecretMutation.isPending}
-											onDelete={(secretId) => {
-												deleteSecretMutation.mutate(
-													{ appId, secretId },
-													{
-														onSuccess: () => {
-															if (fullNewSecret?.id === secretId) {
-																setFullNewSecret(undefined);
-															}
-															toast.success(
-																"Successfully deleted an OAuth2 client secret.",
-															);
+						{isPublicClient ? (
+							<Alert severity="info">
+								This is a public client. It authenticates with PKCE and has no
+								client secret; its type is fixed at registration. If you need a
+								confidential client instead, register a new application.
+							</Alert>
+						) : (
+							<Table aria-label="OAuth2 client secrets">
+								<TableHeader>
+									<TableRow>
+										<TableHead className="w-[80%]">Secret</TableHead>
+										<TableHead className="w-[20%]">Last used</TableHead>
+										<TableHead className="w-[1%]" />
+									</TableRow>
+								</TableHeader>
+								<TableBody size="lg">
+									{secretsQuery.isLoading && <TableLoader />}
+									{!secretsQuery.isLoading &&
+										!secretsQuery.error &&
+										(!secretsQuery.data || secretsQuery.data.length === 0) && (
+											<TableEmpty message="No client secrets have been generated." />
+										)}
+									{!secretsQuery.isLoading &&
+										secretsQuery.data?.map((secret) => (
+											<OAuth2SecretRow
+												key={secret.id}
+												secret={secret}
+												isDeleting={deleteSecretMutation.isPending}
+												onDelete={(secretId) => {
+													deleteSecretMutation.mutate(
+														{ appId, secretId },
+														{
+															onSuccess: () => {
+																if (fullNewSecret?.id === secretId) {
+																	setFullNewSecret(undefined);
+																}
+																toast.success(
+																	"Successfully deleted an OAuth2 client secret.",
+																);
+															},
+															onError: (error) => {
+																toast.error(
+																	getErrorMessage(
+																		error,
+																		"Failed to delete OAuth2 client secret.",
+																	),
+																	{ description: getErrorDetail(error) },
+																);
+															},
 														},
-														onError: (error) => {
-															toast.error(
-																getErrorMessage(
-																	error,
-																	"Failed to delete OAuth2 client secret.",
-																),
-																{ description: getErrorDetail(error) },
-															);
-														},
-													},
-												);
-											}}
-										/>
-									))}
-							</TableBody>
-						</Table>
+													);
+												}}
+											/>
+										))}
+								</TableBody>
+							</Table>
+						)}
 					</div>
 				)}
 			</div>

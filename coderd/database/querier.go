@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -121,6 +120,14 @@ type sqlcQuerier interface {
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
+	// Returns sql.ErrNoRows when the delete removed nothing, so a caller can make
+	// this the arbiter of single use. A prior read cannot arbitrate: its result is
+	// stale the moment it returns.
+	//
+	// Concurrent deletes are arbitrated at READ COMMITTED, the default isolation
+	// level: the second transaction waits for the first, then removes nothing.
+	// SERIALIZABLE would abort and retry it instead.
+	DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error)
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
@@ -134,12 +141,6 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
-	// Deletes cached Terraform module archives ingested in the given time range and
-	// clears the template version references to them. created_by and mimetype
-	// identify a provisionerd-written module archive, matching the checks in
-	// provisionerdserver, so user-uploaded template tarballs are never removed.
-	// Only archives referenced by a template version are considered.
-	DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error)
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.
@@ -154,6 +155,7 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
+	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -238,7 +240,6 @@ type sqlcQuerier interface {
 	DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg DeleteStaleWorkspaceAgentContextResourcesParams) error
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
-	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
 	DeleteUnlinkedChatFilesByIDs(ctx context.Context, arg DeleteUnlinkedChatFilesByIDsParams) (int64, error)
 	DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error
@@ -354,6 +355,11 @@ type sqlcQuerier interface {
 	// between validation and writing the model config reference.
 	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	// Returns the display metadata AI Gateway session viewers need to filter
+	// interceptions by provider_name. Soft-deleted and disabled rows are
+	// included because interceptions keep referencing them. When a name has
+	// been reused, the live row wins so current metadata is shown.
+	GetAIProviderFilterOptions(ctx context.Context) ([]GetAIProviderFilterOptionsRow, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns the provider IDs that have at least one provider-scoped key.
 	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)
@@ -478,6 +484,8 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error)
+	GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatMCPServer, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -707,6 +715,7 @@ type sqlcQuerier interface {
 	// RFC 7591/7592 Dynamic Client Registration queries
 	GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error)
@@ -824,29 +833,8 @@ type sqlcQuerier interface {
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindingsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerBindingsBatchRow, error)
 	GetTailnetTunnelPeerIDsBatch(ctx context.Context, ids []uuid.UUID) ([]GetTailnetTunnelPeerIDsBatchRow, error)
-	GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error)
-	GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error)
-	GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error)
-	GetTaskSnapshot(ctx context.Context, taskID uuid.UUID) (TaskSnapshot, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
 	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
-	// Returns all data needed to build task lifecycle events for telemetry
-	// in a single round-trip. For each task whose workspace is in the
-	// given set, fetches:
-	//   - the latest workspace app binding (task_workspace_apps)
-	//   - the most recent stop and start builds (workspace_builds)
-	//   - the last "working" app status (workspace_app_statuses)
-	//   - the first app status after resume, for active workspaces
-	//
-	// Assumptions:
-	// - 1:1 relationship between tasks and workspaces. All builds on the
-	//   workspace are considered task-related.
-	// - Idle duration approximation: If the agent reports "working", does
-	//   work, then reports "done", we miss that working time.
-	// - lws and active_dur join across all historical app IDs for the task,
-	//   because each resume cycle provisions a new app ID. This ensures
-	//   pre-pause statuses contribute to idle duration and active duration.
-	GetTelemetryTaskEvents(ctx context.Context, arg GetTelemetryTaskEventsParams) ([]GetTelemetryTaskEventsRow, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -861,6 +849,8 @@ type sqlcQuerier interface {
 	// workspaces in a given timeframe. The template IDs, active users, and
 	// usage_seconds all reflect any usage in the template, including apps.
 	//
+	// Session usage comes out per app name; callers group the names into families.
+	//
 	// When combining data from multiple templates, we must make a guess at
 	// how the user behaved for the 30 minute interval. In this case we make
 	// the assumption that if the user used two workspaces for 15 minutes,
@@ -874,6 +864,9 @@ type sqlcQuerier interface {
 	GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error)
 	// GetTemplateInsightsByTemplate is used for Prometheus metrics. Keep
 	// in sync with GetTemplateInsights and UpsertTemplateUsageStats.
+	//
+	// Session usage comes out per app name, as in GetTemplateInsights, so either
+	// query reports the same family totals once the names are grouped.
 	GetTemplateInsightsByTemplate(ctx context.Context, arg GetTemplateInsightsByTemplateParams) ([]GetTemplateInsightsByTemplateRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
@@ -968,6 +961,7 @@ type sqlcQuerier interface {
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
@@ -1212,7 +1206,6 @@ type sqlcQuerier interface {
 	InsertProvisionerJobTimings(ctx context.Context, arg InsertProvisionerJobTimingsParams) ([]ProvisionerJobTiming, error)
 	InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
-	InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error)
 	InsertTelemetryItemIfNotExists(ctx context.Context, arg InsertTelemetryItemIfNotExistsParams) error
 	// Inserts a new lock row into the telemetry_locks table. Replicas should call
 	// this function prior to attempting to generate or publish a heartbeat event to
@@ -1313,32 +1306,6 @@ type sqlcQuerier interface {
 	// interception reads every log to the end of the session and throws
 	// most of them away.
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
-	// AI spend overview queries. They share one aggregation contract:
-	//   * A request is a finished interception (ended_at IS NOT NULL) whose
-	//     started_at falls in the closed-open [start_date, end_date) window.
-	//   * A finished request without token usage (for example one that failed
-	//     upstream) still counts as a request: request and session counts come
-	//     from aibridge_interceptions alone and usage sums are joined afterwards.
-	//   * total_cost_micros sums every priced usage regardless of
-	//     effective_group_id, matching the CSV export. unpriced_request_count
-	//     is the number of requests with at least one usage whose cost_micros
-	//     is NULL.
-	//   * A session is a distinct (initiator_id, session_id) pair.
-	//     Client is COALESCE(client, 'Unknown').
-	//   * A zero user_id includes every user in rollup and session queries.
-	//   * Empty provider_name, model, and client match every request; a
-	//     non-empty value keeps only requests with that exact dimension, with
-	//     client compared after the same 'Unknown' coalesce.
-	//
-	// Requests, usage sums, and unpriced requests are aggregated in separate
-	// CTEs that go straight from the base tables to the output grain, so the
-	// shared filters are repeated per CTE on purpose. Grouping by interception
-	// first and then by user or dimension forces sorted passes over every usage
-	// row, which is several times slower on large deployments.
-	ListAIBridgeSpendPerUser(ctx context.Context, arg ListAIBridgeSpendPerUserParams) ([]ListAIBridgeSpendPerUserRow, error)
-	ListAIBridgeSpendRollups(ctx context.Context, arg ListAIBridgeSpendRollupsParams) ([]ListAIBridgeSpendRollupsRow, error)
-	// A session can span clients, so the total dedupes the pairs again.
-	ListAIBridgeSpendSessionCounts(ctx context.Context, arg ListAIBridgeSpendSessionCountsParams) ([]ListAIBridgeSpendSessionCountsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
@@ -1350,9 +1317,14 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// Returns one page of per-user AI spend for @organization_id over the
+	// [period_start, period_end) window, most expensive first, together with the
+	// providers, clients, and models each user spent through and the count and
+	// totals over every matching user. It must keep the same joins and predicates as
+	// ExportOrganizationAISpend so both report the same token usage.
+	ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
-	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
 	// Used by the usage generator to find missing heartbeat buckets.
 	ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
@@ -1582,6 +1554,7 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
@@ -1617,8 +1590,6 @@ type sqlcQuerier interface {
 	UpdateProvisionerJobWithCompleteWithStartedAtByID(ctx context.Context, arg UpdateProvisionerJobWithCompleteWithStartedAtByIDParams) error
 	UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error)
 	UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg UpdateTailnetPeerStatusByCoordinatorParams) ([]uuid.UUID, error)
-	UpdateTaskPrompt(ctx context.Context, arg UpdateTaskPromptParams) (TaskTable, error)
-	UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error)
 	UpdateTemplateACLByID(ctx context.Context, arg UpdateTemplateACLByIDParams) error
 	UpdateTemplateAccessControlByID(ctx context.Context, arg UpdateTemplateAccessControlByIDParams) error
 	UpdateTemplateActiveVersionByID(ctx context.Context, arg UpdateTemplateActiveVersionByIDParams) error
@@ -1636,7 +1607,9 @@ type sqlcQuerier interface {
 	UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error)
 	UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error)
 	UpdateUserCodeDiffDisplayMode(ctx context.Context, arg UpdateUserCodeDiffDisplayModeParams) (string, error)
+	UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error)
 	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
+	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error)
 	UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error
 	UpdateUserHashedOneTimePasscode(ctx context.Context, arg UpdateUserHashedOneTimePasscodeParams) error
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
@@ -1732,6 +1705,7 @@ type sqlcQuerier interface {
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
@@ -1762,14 +1736,19 @@ type sqlcQuerier interface {
 	UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (TailnetCoordinator, error)
 	UpsertTailnetPeer(ctx context.Context, arg UpsertTailnetPeerParams) (TailnetPeer, error)
 	UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetTunnelParams) (TailnetTunnel, error)
-	UpsertTaskSnapshot(ctx context.Context, arg UpsertTaskSnapshotParams) error
-	UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error)
 	UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error
 	// This query aggregates the workspace_agent_stats and workspace_app_stats data
 	// into a single table for efficient storage and querying. Half-hour buckets are
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
-	UpsertTemplateUsageStats(ctx context.Context, appFamilies json.RawMessage) error
+	//
+	// Session usage is stored per app name in the child table, so the main row
+	// carries no session columns at all. Every recomputed bucket rewrites its own
+	// child rows: app names that disappeared are deleted, the rest are upserted.
+	// The keys come from the computed set rather than from the main upsert,
+	// because the no-op guard below suppresses main rows whose columns did not
+	// change while their session usage still has to be corrected.
+	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and

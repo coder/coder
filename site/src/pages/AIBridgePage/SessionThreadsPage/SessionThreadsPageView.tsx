@@ -42,7 +42,7 @@ const SessionSummaryTooltip: FC<PropsWithChildren> = ({ children }) => (
 	</TooltipProvider>
 );
 
-interface SessionThreadsPageViewProps {
+type SessionThreadsPageViewProps = {
 	session: AIBridgeSessionThreadsResponse | undefined;
 	threads: readonly AIBridgeThread[];
 	loading: boolean;
@@ -52,7 +52,7 @@ interface SessionThreadsPageViewProps {
 	isAISessionsEnabled: boolean;
 	isAISessionsEntitled: boolean;
 	onBackClicked: () => void;
-}
+};
 
 export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	session,

@@ -1,8 +1,12 @@
-import dayjs from "dayjs";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
-import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { Loader } from "#/components/Loader/Loader";
+import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -10,80 +14,39 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { RetentionNotice } from "./components/RetentionNotice";
-import { SpendDrillInView } from "./components/SpendDrillInView";
-import { type SpendDimensions, SpendFilters } from "./components/SpendFilters";
-import { SpendSectionHeader } from "./components/SpendSectionHeader";
-import { SpendSummaryView } from "./components/SpendSummaryView";
-import { SpendUsersTable } from "./components/SpendUsersTable";
+import { SpendFilters } from "./components/SpendFilters";
+import {
+	type SpendReportQuery,
+	SpendUsersTable,
+} from "./components/SpendUsersTable";
 
-export type SpendUsersQuery = PaginationResult & {
-	data: TypesGen.AIGatewaySpendUsersResponse | undefined;
-	isLoading: boolean;
-	isFetching: boolean;
-	error: unknown;
-	refetch: () => unknown;
-};
-
-// DateRangePicker emits an exclusive end boundary at midnight of the following
-// day but labels its button with the raw end date, so the displayed range is
-// pulled back by 1 ms to land on the day the user actually selected. A sub-day
-// boundary (today, rounded up to the next hour) already sits on the right day.
-const toInclusiveDateRange = (range: DateRangeValue): DateRangeValue => {
-	const end = dayjs(range.endDate);
-	return end.isSame(end.startOf("day"))
-		? { startDate: range.startDate, endDate: new Date(end.valueOf() - 1) }
-		: range;
-};
-
-interface SpendPageViewProps {
+type SpendPageViewProps = {
 	isEntitled: boolean;
 	isEnabled: boolean;
-	now?: Date;
-	dateRange: DateRangeValue;
-	onDateRangeChange: (value: DateRangeValue) => void;
-	dimensions: SpendDimensions;
+	now: Date | undefined;
+	organizations: readonly TypesGen.Organization[];
+	organization: TypesGen.Organization | undefined;
+	onOrganizationChange: (organization: TypesGen.Organization) => void;
+	isOrganizationsLoading: boolean;
+	organizationsError: unknown;
+	period: DateTimeRangeValue;
+	minDate: Date | undefined;
+	onPeriodChange: (value: DateTimeRangeValue) => void;
+	canFilterDimensions: boolean;
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
-	searchFilter: string;
-	usersQuery: SpendUsersQuery;
-	drillInUserId: string | null;
-	drillInUser: TypesGen.User | null;
-	isDrillInUserLoading: boolean;
-	drillInUserError: unknown;
-	onDrillInUserRetry: () => void;
-	onClearSelectedUser: () => void;
-	summaryData: TypesGen.AIGatewaySpendUserSummary | undefined;
-	isSummaryLoading: boolean;
-	summaryError: unknown;
-	onSummaryRetry: () => void;
-}
+	filterError: string | undefined;
+	reportQuery: SpendReportQuery;
+};
 
 export const SpendPageView: FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
-	now,
-	dateRange,
-	onDateRangeChange,
-	dimensions,
-	filterQuery,
-	onFilterQueryChange,
-	searchFilter,
-	usersQuery,
-	drillInUserId,
-	drillInUser,
-	isDrillInUserLoading,
-	drillInUserError,
-	onDrillInUserRetry,
-	onClearSelectedUser,
-	summaryData,
-	isSummaryLoading,
-	summaryError,
-	onSummaryRetry,
+	...contentProps
 }) => {
 	if (!isEntitled) {
 		return (
-			<PremiumPaywallAIGovernance variant="governance" source="ai_spend" />
+			<PremiumPaywallAIGovernance variant="governance" source="ai_governance" />
 		);
 	}
 
@@ -91,70 +54,106 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 		return <AIBridgeSetupAlert />;
 	}
 
-	const displayDateRange = toInclusiveDateRange(dateRange);
-	const filterProps = {
-		filterQuery,
-		onFilterQueryChange,
-		now,
-		dateRange: displayDateRange,
-		onDateRangeChange,
-	};
+	return (
+		<div className="flex max-w-[1100px] flex-col gap-4">
+			<SettingsHeader>
+				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
+					User spend
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Monitor total and per-user AI Gateway spend for the selected
+					organization.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<Alert severity="warning">
+				This page is experimental. Reports may load slowly on large deployments,
+				and the page may change or be removed.
+			</Alert>
+			<SpendPageContent {...contentProps} />
+		</div>
+	);
+};
 
-	if (drillInUserId) {
-		return (
-			<SpendDrillInView
-				selectedUser={drillInUser}
-				isLoading={isDrillInUserLoading}
-				error={drillInUserError}
-				onRetry={onDrillInUserRetry}
-				onBack={onClearSelectedUser}
-				filters={<SpendFilters {...filterProps} />}
-				dimensions={dimensions}
-				queryDateRange={dateRange}
-				summaryData={summaryData}
-				isSummaryLoading={isSummaryLoading}
-				summaryError={summaryError}
-				onSummaryRetry={onSummaryRetry}
+type SpendPageContentProps = Omit<
+	SpendPageViewProps,
+	"isEntitled" | "isEnabled"
+>;
+
+const SpendPageContent: FC<SpendPageContentProps> = ({
+	now,
+	organizations,
+	organization,
+	onOrganizationChange,
+	isOrganizationsLoading,
+	organizationsError,
+	period,
+	minDate,
+	onPeriodChange,
+	canFilterDimensions,
+	filterQuery,
+	onFilterQueryChange,
+	filterError,
+	reportQuery,
+}) => {
+	if (isOrganizationsLoading) {
+		return <Loader />;
+	}
+
+	if (organizations.length === 0) {
+		return organizationsError != null ? (
+			<ErrorAlert error={organizationsError} />
+		) : (
+			<EmptyState
+				isCompact
+				message="You don't have access to any organization's AI spend."
 			/>
 		);
 	}
 
+	const refetchErrorAlert = organizationsError != null && (
+		<ErrorAlert error={organizationsError} />
+	);
+
+	if (organization === undefined) {
+		return (
+			<>
+				{refetchErrorAlert}
+				<OrganizationAutocomplete
+					value={null}
+					options={organizations}
+					required
+					triggerClassName="w-60"
+					optionsTabbable
+					onChange={(next) => {
+						if (next) {
+							onOrganizationChange(next);
+						}
+					}}
+				/>
+				<Alert severity="warning">
+					This organization is unavailable, or you don't have access to it.
+				</Alert>
+			</>
+		);
+	}
+
 	return (
-		<div className="flex max-w-[1100px] flex-col gap-8">
-			<div>
-				<SettingsHeader>
-					<SettingsHeaderTitle>AI spend</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Monitor AI Gateway spend across your deployment.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
-				<div className="flex flex-col gap-4">
-					<SpendFilters {...filterProps} />
-					<SpendUsersTable
-						displayDateRange={displayDateRange}
-						searchFilter={searchFilter}
-						usersQuery={usersQuery}
-					/>
-				</div>
-			</div>
-			<section className="space-y-6">
-				<SpendSectionHeader
-					title="Deployment spend"
-					description="Totals and breakdowns across all users for the selected period and filters, independent of the user search above."
-				/>
-				{summaryData && (
-					<RetentionNotice
-						requestedStart={dateRange.startDate}
-						applied={summaryData}
-					/>
-				)}
-				<SpendSummaryView
-					summary={summaryData}
-					isLoading={isSummaryLoading}
-					error={summaryError}
-					onRetry={onSummaryRetry}
-				/>
-			</section>
-		</div>
+		<>
+			{refetchErrorAlert}
+			<SpendFilters
+				organizations={organizations}
+				organization={organization}
+				onOrganizationChange={onOrganizationChange}
+				canFilterDimensions={canFilterDimensions}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				filterError={filterError}
+				now={now}
+				period={period}
+				minDate={minDate}
+				onPeriodChange={onPeriodChange}
+			/>
+			<SpendUsersTable reportQuery={reportQuery} />
+		</>
 	);
 };

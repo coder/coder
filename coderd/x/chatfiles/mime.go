@@ -71,15 +71,39 @@ func IsAllowedPromptInputMediaType(mediaType string) bool {
 }
 
 // IsInlineRenderableStoredMediaType reports whether a stored chat file may be
-// served with Content-Disposition: inline. PDFs remain storable but
-// download-only because browser PDF viewers have a broader active-content
-// attack surface than the other media types we allow inline.
+// served with Content-Disposition: inline. PDF and SVG remain storable but
+// download-only because browsers execute them as top-level documents (PDF
+// viewers, SVG script).
 func IsInlineRenderableStoredMediaType(mediaType string) bool {
 	mediaType = BaseMediaType(mediaType)
 	if !IsAllowedPromptInputMediaType(mediaType) {
 		return false
 	}
-	return mediaType != "application/pdf"
+	return mediaType != string(codersdk.ChatAttachmentMediaTypeApplicationPDF) &&
+		mediaType != string(codersdk.ChatAttachmentMediaTypeImageSVG)
+}
+
+// IsTextAttachmentMediaType reports whether the media type is an allowlisted
+// attachment type whose bytes are UTF-8 source the model reads directly. This
+// includes SVG, whose image/ prefix does not make it a picture.
+func IsTextAttachmentMediaType(mediaType string) bool {
+	switch codersdk.ChatAttachmentMediaType(BaseMediaType(mediaType)) {
+	case codersdk.ChatAttachmentMediaTypeApplicationJSON,
+		codersdk.ChatAttachmentMediaTypeImageSVG,
+		codersdk.ChatAttachmentMediaTypeTextCSV,
+		codersdk.ChatAttachmentMediaTypeTextMarkdown,
+		codersdk.ChatAttachmentMediaTypeTextPlain:
+		return true
+	}
+	return false
+}
+
+// IsRasterImageMediaType reports whether the media type is a picture that may
+// be drawn or sent to the model as a native image part. Unknown image/
+// subtypes from tool output keep prefix semantics; only allowlisted text
+// types such as SVG are excluded.
+func IsRasterImageMediaType(mediaType string) bool {
+	return strings.HasPrefix(BaseMediaType(mediaType), "image/") && !IsTextAttachmentMediaType(mediaType)
 }
 
 // NormalizeStoredFileName trims surrounding whitespace, strips control
@@ -136,7 +160,7 @@ func PrepareRecordingArtifact(name, expectedMediaType string, data []byte) (stor
 // application/octet-stream are treated as "unknown", so the classified bytes
 // decide the stored type. The compatibility table also covers explicit
 // refinements like text/plain uploads that safely store as richer text
-// subtypes.
+// types, including SVG source, which stays download-only once stored.
 func IsCompatibleUploadMediaType(declaredMediaType, storedMediaType string) bool {
 	declaredMediaType = BaseMediaType(declaredMediaType)
 	storedMediaType = BaseMediaType(storedMediaType)
@@ -144,16 +168,7 @@ func IsCompatibleUploadMediaType(declaredMediaType, storedMediaType string) bool
 	if declaredMediaType == storedMediaType || declaredMediaType == "application/octet-stream" {
 		return true
 	}
-	if declaredMediaType != "text/plain" {
-		return false
-	}
-
-	switch storedMediaType {
-	case "text/markdown", "text/csv", "application/json":
-		return true
-	default:
-		return false
-	}
+	return declaredMediaType == "text/plain" && IsTextAttachmentMediaType(storedMediaType)
 }
 
 // HasSVGRootElement reports whether the provided file bytes decode to an SVG

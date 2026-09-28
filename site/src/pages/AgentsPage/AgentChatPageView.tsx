@@ -42,7 +42,7 @@ import {
 
 import { QueuedForCapacityCallout } from "./components/ChatConversation/QueuedForCapacityCallout";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
-import type { PendingAttachment } from "./components/ChatPageContent";
+import type { SendChatMessageOptions } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatSummaryPanel } from "./components/ChatSummaryPanel";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
@@ -83,7 +83,7 @@ import {
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-interface EditingState {
+type EditingState = {
 	chatInputRef: RefObject<ChatMessageInputRef | null>;
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
@@ -96,18 +96,15 @@ interface EditingState {
 		fileBlocks?: readonly ChatMessagePart[],
 	) => void;
 	handleCancelHistoryEdit: () => void;
-	handleSendFromInput: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => void;
+	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
-}
+};
 
-interface AgentChatPageViewProps {
+type AgentChatPageViewProps = {
 	chat: TypesGen.Chat;
 	persistedError: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -190,7 +187,7 @@ interface AgentChatPageViewProps {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-}
+};
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
@@ -198,7 +195,7 @@ const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
 	</div>
 );
 
-interface UserTabContentProps {
+type UserTabContentProps = {
 	tab: UserRightPanelTab;
 	chatId: string;
 	workspace: TypesGen.Workspace | undefined;
@@ -208,7 +205,7 @@ interface UserTabContentProps {
 	isActive: boolean;
 	isPending: boolean;
 	onTerminalReady: (tabId: string) => void;
-}
+};
 
 const UserTabContent: FC<UserTabContentProps> = ({
 	tab,
@@ -839,12 +836,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
 			<ChatWorkspaceContext
-				value={{ workspaceId: workspace?.id, buildId: chat.build_id }}
+				value={{
+					workspaceId: workspace?.id,
+					buildId: chat.build_id,
+					agentId: chat.agent_id,
+				}}
 			>
 				<DesktopPanelContext value={desktopPanelCtx}>
 					<div
 						className={cn(
-							"relative flex min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
+							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
 							shouldShowSidebar && !visualExpanded && "flex-row",
 						)}
 					>
@@ -1041,7 +1042,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 };
 
-interface AgentChatPageLoadingViewProps {
+type AgentChatPageLoadingViewProps = {
 	inputRef: RefObject<ChatMessageInputRef | null>;
 	initialValue: string;
 	initialEditorState: string | undefined;
@@ -1061,7 +1062,7 @@ interface AgentChatPageLoadingViewProps {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	showRightPanel: boolean;
-}
+};
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	inputRef,

@@ -10,12 +10,12 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-interface TerminalCommandConsentDialogProps {
+type TerminalCommandConsentDialogProps = {
 	open: boolean;
 	command: string;
 	onConfirm: () => void;
 	onDeny: () => void;
-}
+};
 
 export const TerminalCommandConsentDialog: FC<
 	TerminalCommandConsentDialogProps

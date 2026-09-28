@@ -10,16 +10,16 @@ import {
 	type MessagePart,
 } from "./debugPanelUtils";
 
-interface MessageRowProps {
+type MessageRowProps = {
 	msg: MessagePart;
 	clamp: boolean;
-}
+};
 
-interface ToolPayloadDisclosureProps {
+type ToolPayloadDisclosureProps = {
 	label: string;
 	code?: string;
 	copyLabel: string;
-}
+};
 
 export const ToolPayloadDisclosure: FC<ToolPayloadDisclosureProps> = ({
 	label,
@@ -49,13 +49,13 @@ export const ToolBadge: FC<{ label: string }> = ({ label }) => {
 	);
 };
 
-interface ToolEventCardProps {
+type ToolEventCardProps = {
 	badgeLabel: string;
 	toolCallId?: string;
 	payloadLabel?: string;
 	payload?: string;
 	copyLabel?: string;
-}
+};
 
 export const ToolEventCard: FC<ToolEventCardProps> = ({
 	badgeLabel,
@@ -138,7 +138,7 @@ const TranscriptTextRow: FC<MessageRowProps> = ({ msg, clamp }) => {
 				<>
 					<p
 						className={cn(
-							"whitespace-pre-wrap text-xs leading-5 text-content-primary",
+							"wrap-anywhere whitespace-pre-wrap text-xs leading-5 text-content-primary",
 							showClamped && "line-clamp-3",
 						)}
 					>

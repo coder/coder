@@ -33,12 +33,12 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
 	return featuredExamples;
 };
 
-interface EmptyTemplatesProps {
+type EmptyTemplatesProps = {
 	canCreateTemplates: boolean;
 	templateBuilderEnabled: boolean;
 	examples: TemplateExample[];
 	isUsingFilter: boolean;
-}
+};
 
 export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 	canCreateTemplates,

@@ -57,13 +57,13 @@ const BranchCopyButton: FC<{ branch: string }> = ({ branch }) => {
 // Main component
 // -------------------------------------------------------------------
 
-interface RemoteDiffPanelProps {
+type RemoteDiffPanelProps = {
 	chatId: string;
 	isExpanded?: boolean;
 	chatInputRef?: RefObject<ChatMessageInputRef | null>;
 	diffStyle: DiffStyle;
 	diffStatus?: TypesGen.ChatDiffStatus;
-}
+};
 
 export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 	chatId,

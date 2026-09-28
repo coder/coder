@@ -1,7 +1,3 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
 import { cn } from "cn";
 import {
 	ChevronLeftIcon,
@@ -20,6 +16,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -182,6 +179,12 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
+		const canEditUserMessage =
+			isUser && messageId !== undefined && Boolean(onEditUserMessage);
+		const canJumpBetweenUserMessages =
+			isUser &&
+			Boolean(onJumpToUserMessage) &&
+			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -281,7 +284,8 @@ const ChatMessageItem = memo<{
 				{displayState &&
 					!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						canEditUserMessage ||
+						canJumpBetweenUserMessages) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -297,7 +301,7 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{isUser && messageId !== undefined && onEditUserMessage && (
+							{canEditUserMessage && messageId !== undefined && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -308,7 +312,7 @@ const ChatMessageItem = memo<{
 											onClick={() => {
 												const { text, fileBlocks } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage(messageId, text, fileBlocks);
+												onEditUserMessage?.(messageId, text, fileBlocks);
 											}}
 										>
 											<PencilIcon />
@@ -397,7 +401,7 @@ const ChatMessageItem = memo<{
 	},
 );
 
-interface ConversationTimelineProps {
+type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
@@ -422,7 +426,7 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-}
+};
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({

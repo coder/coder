@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -124,12 +123,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
 	defer streamCancel(xerrors.New("deferred"))
 
-	// TODO(ssncferreira): inject actor headers directly in the client-header
-	//   middleware instead of using SDK options.
 	var opts []option.RequestOption
-	if actor := aibcontext.ActorFromContext(ctx); actor != nil && i.cfg.SendActorHeaders {
-		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
-	}
 
 	svc, err := i.newMessagesService(streamCtx, opts...)
 	if err != nil {

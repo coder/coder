@@ -22,6 +22,65 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+type modelClientRequest struct {
+	Chat         database.Chat
+	ModelName    string
+	UserAgent    string
+	ExtraHeaders map[string]string
+	CallConfig   codersdk.ChatModelCallConfig
+}
+
+type modelBuildOptions struct {
+	ActiveAPIKeyID string
+	RecordHTTP     bool
+}
+
+func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {
+	provider, err := p.db.GetAIProviderByID(ctx, providerID)
+	if err != nil {
+		return database.AIProvider{}, xerrors.Errorf("get AI provider: %w", err)
+	}
+	if !provider.Enabled {
+		return database.AIProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
+	}
+	return provider, nil
+}
+
+func newLanguageModel(
+	providerHint string,
+	modelName string,
+	providerKeys chatprovider.ProviderAPIKeys,
+	userAgent string,
+	extraHeaders map[string]string,
+	httpClient *http.Client,
+	callConfig *codersdk.ChatModelCallConfig,
+) (chatprovider.Model, error) {
+	model, err := chatprovider.ModelFromConfig(
+		providerHint,
+		modelName,
+		providerKeys,
+		userAgent,
+		extraHeaders,
+		httpClient,
+		callConfig,
+	)
+	if err != nil {
+		return chatprovider.Model{}, err
+	}
+	if !model.Valid() {
+		provider, resolvedModel, resolveErr := chatprovider.ResolveModelWithProviderHint(modelName, providerHint)
+		if resolveErr != nil {
+			return chatprovider.Model{}, resolveErr
+		}
+		return chatprovider.Model{}, xerrors.Errorf(
+			"create model for %s/%s returned nil",
+			provider,
+			resolvedModel,
+		)
+	}
+	return model, nil
+}
+
 const (
 	aibridgeLocalBaseURL = "http://coder-aibridge"
 	// aibridgePlaceholderAPIKey satisfies fantasy clients that require a
@@ -70,11 +129,12 @@ const (
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
 	apiKeyID     string
+	attribution  aibridge.Attribution
 	providerAuth aiGatewayProviderAuth
 }
 
 func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID)
+	ctx := aibridge.WithDelegatedAttribution(aibridge.WithDelegatedAPIKeyID(req.Context(), t.apiKeyID), t.attribution)
 	cloned := req.Clone(ctx)
 	for name, value := range t.providerAuth.Headers {
 		cloned.Header.Set(name, value)
@@ -144,6 +204,12 @@ func (p *Server) newModel(
 		)
 	}
 
+	// Use the trusted workspace binding already persisted on the chat.
+	attr := aibridge.Attribution{}
+	if req.Chat.WorkspaceID.Valid {
+		attr.WorkspaceID = req.Chat.WorkspaceID.UUID
+	}
+
 	factoryPtr := p.aibridgeTransportFactory
 	if factoryPtr == nil {
 		return chatprovider.Model{}, xerrors.New("AI Gateway transport factory is not configured")
@@ -159,6 +225,7 @@ func (p *Server) newModel(
 	baseRT := http.RoundTripper(&aiGatewayRoundTripper{
 		base:         rt,
 		apiKeyID:     opts.ActiveAPIKeyID,
+		attribution:  attr,
 		providerAuth: route.ProviderAuth,
 	})
 	if opts.RecordHTTP {
@@ -178,6 +245,8 @@ func (p *Server) newModel(
 		openAIConfig.UseResponsesAPI = &force
 	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
+	callConfig := req.CallConfig
+	callConfig.OpenAIConfig = openAIConfig
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -185,8 +254,27 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		openAIConfig,
+		&callConfig,
 	)
+}
+
+func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
+	if providerType != database.AIProviderTypeBedrock || bedrockIsAnthropicModel(model) ||
+		callConfig.ProviderOptions == nil || callConfig.ProviderOptions.OpenAI == nil ||
+		callConfig.ProviderOptions.OpenAI.ReasoningSummary == nil ||
+		*callConfig.ProviderOptions.OpenAI.ReasoningSummary == "auto" {
+		return callConfig
+	}
+
+	// Mantle rejects concise/detailed with HTTP 400 and only accepts auto.
+	// Coercing rather than dropping keeps configs portable to direct OpenAI
+	// and allows summaries if AWS adds support later.
+	providerOptions := *callConfig.ProviderOptions
+	openAI := *providerOptions.OpenAI
+	openAI.ReasoningSummary = new("auto")
+	providerOptions.OpenAI = &openAI
+	callConfig.ProviderOptions = &providerOptions
+	return callConfig
 }
 
 func parseModelConfigOptions(configOptions json.RawMessage) (codersdk.ChatModelCallConfig, error) {

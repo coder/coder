@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
@@ -360,7 +361,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "- Keep the title to 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 			require.Contains(t, prompt, "same language as the user's messages")
@@ -591,7 +592,6 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 			model:    chatprovider.NewModel(model, nil),
 			dbConfig: database.ChatModelConfig{Model: "test-model"},
 		},
-		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -631,7 +631,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		ModelName:    "gpt-4o-mini",
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.NotNil(t, call.MaxOutputTokens)
-			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			require.Equal(t, titleMaxOutputTokens, *call.MaxOutputTokens)
 			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
 			require.NotNil(t, providerOptions.ReasoningEffort)
@@ -643,7 +643,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
@@ -665,7 +664,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
-		modelBuildOptions{},
 		&generatedChatTitle{},
 		logger,
 		nil,
@@ -675,7 +673,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Keep the title to 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
 	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
@@ -809,6 +807,19 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
+	})
+
+	t.Run("matches dated snapshots of a preferred model", func(t *testing.T) {
+		t.Parallel()
+
+		for _, model := range []string{"claude-haiku-4-5-20251001", "Claude-Haiku-4-5-2025-10-01"} {
+			got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{
+				{ChatModelConfig: database.ChatModelConfig{Model: "claude-haiku-4-5-preview"}, Provider: "anthropic"},
+				{ChatModelConfig: database.ChatModelConfig{Model: model}, Provider: "anthropic"},
+			})
+			require.True(t, ok, model)
+			require.Equal(t, model, got.Model)
+		}
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
@@ -970,6 +981,101 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	require.Equal(t, "Failed workspace logs", title)
 	require.Equal(t, []bool{true, false}, sawTemperature,
 		"generation should retry without temperature after the model rejects it")
+}
+
+// Mirrors Claude Opus 5.5, which rejects both the forced tool_choice of
+// tool-mode object generation and the temperature parameter.
+func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(t *testing.T) {
+	t.Parallel()
+
+	var textCallTemperatures []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    `tool_choice: type "tool" and "any" are not supported for this model.`,
+				StatusCode: http.StatusBadRequest,
+			}
+		},
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			textCallTemperatures = append(textCallTemperatures, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{fantasy.TextContent{Text: `{"title":"Failed workspace logs"}`}},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleObjectCall(resolvedModelCall{}),
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, textCallTemperatures,
+		"text-mode generation should also retry without a rejected temperature")
+}
+
+// Budget thinking would reject the forced tool_choice of tool-mode generation,
+// so no configured effort may turn it on for older Claude quickgen models.
+func TestQuickgenCallsKeepBudgetThinkingOff(t *testing.T) {
+	t.Parallel()
+
+	calls := map[string]func(resolvedModelCall) fantasy.ObjectCall{
+		"title":   titleObjectCall,
+		"summary": summaryObjectCall,
+		"label":   turnStatusLabelObjectCall,
+	}
+	efforts := []fantasyanthropic.Effort{
+		fantasyanthropic.EffortMinimal,
+		fantasyanthropic.EffortLow,
+		fantasyanthropic.EffortMedium,
+		fantasyanthropic.EffortHigh,
+		fantasyanthropic.EffortXHigh,
+		fantasyanthropic.EffortMax,
+	}
+	for name, newCall := range calls {
+		for _, effort := range efforts {
+			t.Run(name+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				requests := make(chan *chattest.AnthropicRequest, 1)
+				serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					select {
+					case requests <- req:
+					default:
+					}
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "request captured",
+					}}
+				})
+				client, err := fantasyanthropic.New(
+					fantasyanthropic.WithAPIKey("test-key"),
+					fantasyanthropic.WithBaseURL(serverURL),
+				)
+				require.NoError(t, err)
+				model, err := client.LanguageModel(t.Context(), "claude-haiku-4-5")
+				require.NoError(t, err)
+
+				call := newCall(resolvedModelCall{providerOptions: fantasy.ProviderOptions{
+					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{Effort: &effort},
+				}})
+				call.Prompt = fantasy.Prompt{fantasy.NewUserMessage("fix the login bug")}
+				_, err = generateObject[generatedTitle](t.Context(), model, call)
+				require.Error(t, err)
+
+				req := testutil.RequireReceive(t.Context(), t, requests)
+				require.Empty(t, req.Thinking, "max_tokens %d enabled budget thinking", req.MaxTokens)
+			})
+		}
+	}
 }
 
 func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
@@ -1246,6 +1352,31 @@ func TestIsTemperatureRejectedError(t *testing.T) {
 			require.Equal(t, tt.want, isTemperatureRejectedError(tt.err))
 		})
 	}
+}
+
+// Test_titleInput_DefaultTitleReplaceable verifies that the
+// DefaultChatTitle placeholder is always replaceable. Chats created
+// without an initial message keep the placeholder until their first
+// message, whose text does not match the placeholder's fallback
+// truncation.
+func Test_titleInput_DefaultTitleReplaceable(t *testing.T) {
+	t.Parallel()
+
+	message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("investigate flaky tests"),
+	)
+	messages := []database.ChatMessage{message}
+
+	text, ok := titleInput(database.Chat{Title: chatprompt.DefaultChatTitle}, messages, nil)
+	require.True(t, ok, "default placeholder title must be replaceable")
+	require.Equal(t, "investigate flaky tests", text)
+
+	_, ok = titleInput(database.Chat{Title: "custom title"}, messages, nil)
+	require.False(t, ok, "user-set titles must not be replaced")
+
+	text, ok = titleInput(database.Chat{Title: chatprompt.FallbackTitle("investigate flaky tests")}, messages, nil)
+	require.True(t, ok, "fallback truncation title remains replaceable")
+	require.Equal(t, "investigate flaky tests", text)
 }
 
 func mustChatMessage(

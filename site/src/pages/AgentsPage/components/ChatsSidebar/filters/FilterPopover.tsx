@@ -121,10 +121,10 @@ const OptionRow: FC<{ readonly children: ReactNode }> = ({ children }) => (
 	<div className="flex h-6 items-center gap-2 rounded-sm">{children}</div>
 );
 
-interface FilterPopoverProps {
+type FilterPopoverProps = {
 	readonly filters: AgentSidebarFilters;
 	readonly onFiltersChange: (filters: AgentSidebarFilters) => void;
-}
+};
 
 const haveSameSelections = <T extends string>(
 	left: readonly T[],

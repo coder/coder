@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -456,15 +455,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 
 			coderdConfig, err := client.SSHConfiguration(ctx)
 			if err != nil {
-				// If the error is 404, this deployment does not support
-				// this endpoint yet. Do not error, just assume defaults.
-				// TODO: Remove this in 2 months (May 31, 2023). Just return the error
-				// 	and remove this 404 check.
-				var sdkErr *codersdk.Error
-				if !xerrors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
-					return xerrors.Errorf("fetch coderd config failed: %w", err)
-				}
-				coderdConfig.HostnamePrefix = "coder."
+				return xerrors.Errorf("fetch coderd config failed: %w", err)
 			}
 
 			configOptions, err := mergeSSHOptions(sshConfigOpts, coderdConfig, string(root), coderBinary)

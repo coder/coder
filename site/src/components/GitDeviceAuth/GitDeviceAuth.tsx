@@ -9,10 +9,10 @@ import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "../Spinner/Spinner";
 
-interface GitDeviceAuthProps {
+type GitDeviceAuthProps = {
 	externalAuthDevice?: ExternalAuthDevice;
 	deviceExchangeError?: ApiErrorResponse;
-}
+};
 
 const DeviceExchangeError = {
 	AuthorizationPending: "authorization_pending",

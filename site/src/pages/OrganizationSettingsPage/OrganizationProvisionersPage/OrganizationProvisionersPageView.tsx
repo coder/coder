@@ -36,7 +36,7 @@ type ProvisionersFilter = {
 	offline: boolean;
 };
 
-interface OrganizationProvisionersPageViewProps {
+type OrganizationProvisionersPageViewProps = {
 	showPaywall: boolean | undefined;
 	provisioners: readonly ProvisionerDaemon[] | undefined;
 	buildVersion: string | undefined;
@@ -45,7 +45,7 @@ interface OrganizationProvisionersPageViewProps {
 	permissions: Permissions;
 	onRetry: () => void;
 	onFilterChange: (filter: ProvisionersFilter) => void;
-}
+};
 
 export const OrganizationProvisionersPageView: FC<
 	OrganizationProvisionersPageViewProps

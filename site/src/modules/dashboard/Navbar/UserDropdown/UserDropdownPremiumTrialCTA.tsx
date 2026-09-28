@@ -70,9 +70,9 @@ const trialCtaLabel = (cta: TrialCta): string => {
 	}
 };
 
-interface UserDropdownPremiumTrialCTAProps {
+type UserDropdownPremiumTrialCTAProps = {
 	canViewLicenses: boolean;
-}
+};
 
 /**
  * Offers a premium trial, or counts down an active one. Renders under

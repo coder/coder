@@ -17,10 +17,10 @@ import {
 } from "./Option";
 import { optionValue } from "./optionValue";
 
-interface OptionsTableProps {
+type OptionsTableProps = {
 	options: readonly SerpentOption[];
 	additionalValues?: readonly string[];
-}
+};
 
 const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
 	if (options.length === 0) {

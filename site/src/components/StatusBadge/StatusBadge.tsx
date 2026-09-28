@@ -29,11 +29,11 @@ function themeRoleToBadgeVariant(
 	}
 }
 
-interface StatusBadgeProps {
+type StatusBadgeProps = {
 	code: number;
 	isHttpCode: boolean;
 	label?: string;
-}
+};
 
 export const StatusBadge: FC<StatusBadgeProps> = ({
 	code,

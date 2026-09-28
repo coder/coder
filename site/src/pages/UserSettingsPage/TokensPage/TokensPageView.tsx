@@ -23,7 +23,7 @@ const lastUsedOrNever = (lastUsed: string) => {
 	return t.valueOf() > 0 ? t.fromNow() : "Never";
 };
 
-interface TokensPageViewProps {
+type TokensPageViewProps = {
 	tokens?: APIKeyWithOwner[];
 	getTokensError?: unknown;
 	isLoading: boolean;
@@ -31,7 +31,7 @@ interface TokensPageViewProps {
 	onDelete: (token: APIKeyWithOwner) => void;
 	deleteTokenError?: unknown;
 	children?: ReactNode;
-}
+};
 
 export const TokensPageView: FC<TokensPageViewProps> = ({
 	tokens,
@@ -70,12 +70,12 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 	);
 };
 
-interface TokensTableBodyProps {
+type TokensTableBodyProps = {
 	tokens?: APIKeyWithOwner[];
 	isLoading: boolean;
 	hasLoaded: boolean;
 	onDelete: (token: APIKeyWithOwner) => void;
-}
+};
 
 const TokensTableBody: FC<TokensTableBodyProps> = ({
 	tokens,

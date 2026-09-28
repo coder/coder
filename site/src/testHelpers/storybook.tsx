@@ -36,6 +36,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		buildInfo = {},
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -63,6 +64,7 @@ export const withDashboardProvider = (
 				buildInfo: {
 					...MockBuildInfo,
 					version: "v0.0.0-test",
+					...buildInfo,
 				},
 				organizations,
 				showOrganizations,

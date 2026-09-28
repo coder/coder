@@ -7,7 +7,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
-interface LoginPageViewProps {
+type LoginPageViewProps = {
 	authMethods: AuthMethods | undefined;
 	error: unknown;
 	isLoading: boolean;
@@ -15,7 +15,7 @@ interface LoginPageViewProps {
 	isSigningIn: boolean;
 	onSignIn: (credentials: { email: string; password: string }) => void;
 	redirectTo: string;
-}
+};
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
 	authMethods,

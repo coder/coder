@@ -34,7 +34,7 @@ import (
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Populate the title field with the result. " +
-	"Return only the title text in 2-8 words. " +
+	"Keep the title to 2-8 words. " +
 	"Do not answer the user or describe the title-writing task. " +
 	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
 	"If the message is short or vague, stay close to the user's wording instead of inventing context. " +
@@ -75,12 +75,12 @@ func generateQuickgenObject[T any](
 	var result *fantasy.ObjectResult[T]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[T](retryCtx, model, call)
+		result, genErr = generateObject[T](retryCtx, model, call)
 		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
 			// The model rejects the temperature parameter. Drop it
 			// for this and any later retry attempts.
 			call.Temperature = nil
-			result, genErr = object.Generate[T](retryCtx, model, call)
+			result, genErr = generateObject[T](retryCtx, model, call)
 		}
 		return genErr
 	}, nil)
@@ -104,6 +104,49 @@ func isTemperatureRejectedError(err error) bool {
 	}
 	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	return strings.Contains(text, "temperature")
+}
+
+// generateObject generates a structured object, falling back to
+// text-mode generation when the provider rejects the forced tool_choice
+// that tool-mode generation sends. Some models, such as Claude Opus 5.5,
+// return a bad request for tool_choice "tool" and "any", and gateway
+// model aliases cannot be matched by name.
+func generateObject[T any](
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	call fantasy.ObjectCall,
+) (*fantasy.ObjectResult[T], error) {
+	result, err := object.Generate[T](ctx, model, call)
+	if isToolChoiceRejectedError(err) {
+		return object.Generate[T](ctx, textObjectModel{LanguageModel: model}, call)
+	}
+	return result, err
+}
+
+// textObjectModel generates objects by parsing a JSON text response
+// instead of forcing a tool call.
+type textObjectModel struct {
+	fantasy.LanguageModel
+}
+
+func (m textObjectModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return object.GenerateWithText(ctx, m.LanguageModel, call)
+}
+
+// isToolChoiceRejectedError reports whether a provider rejected the
+// request because the model does not accept a forced tool_choice, for
+// example Anthropic's "tool_choice: type \"tool\" and \"any\" are not
+// supported for this model.".
+func isToolChoiceRejectedError(err error) bool {
+	var providerErr *fantasy.ProviderError
+	if !errors.As(err, &providerErr) {
+		return false
+	}
+	if providerErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
+	return strings.Contains(text, "tool_choice")
 }
 
 const (
@@ -143,6 +186,11 @@ type shortTextCandidate struct {
 	resolved resolvedModelCall
 }
 
+// modelSnapshotSuffix matches a dated snapshot suffix on a model ID, such as
+// claude-haiku-4-5-20251001 or gpt-4o-mini-2024-07-18, which admins commonly
+// configure in place of the alias.
+var modelSnapshotSuffix = regexp.MustCompile(`-(\d{8}|\d{4}-\d{2}-\d{2})$`)
+
 func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.GetEnabledChatModelConfigsByOrganizationRow,
 ) (database.ChatModelConfig, bool) {
@@ -151,13 +199,127 @@ func selectPreferredConfiguredShortTextModelConfig(
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
 				continue
 			}
-			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
+			model := strings.TrimSpace(config.ChatModelConfig.Model)
+			if !strings.EqualFold(model, preferred.model) &&
+				!strings.EqualFold(modelSnapshotSuffix.ReplaceAllString(model, ""), preferred.model) {
 				continue
 			}
 			return config.ChatModelConfig, true
 		}
 	}
 	return database.ChatModelConfig{}, false
+}
+
+// resolveQuickgenModel resolves the model for a quickgen side call (title,
+// turn status label, chat summary). It prefers the organization's title
+// generation model override, then an enabled preferred small model, and uses
+// the chat's own model only as a last resort, so side calls avoid chat models
+// that cannot serve structured generations. A configured but unusable
+// override is a hard error. purpose labels resolver logs only.
+func (p *Server) resolveQuickgenModel(
+	ctx context.Context,
+	purpose string,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (resolvedModelCall, error) {
+	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         titleGenerationOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeHard,
+		providerFailure: modelOverrideFailureModeHard,
+	})
+	if overrideErr != nil {
+		if override.Set {
+			return resolvedModelCall{}, xerrors.Errorf(
+				"resolve title generation model override for %s: %w",
+				purpose,
+				overrideErr,
+			)
+		}
+		p.logger.Debug(ctx, "failed to resolve title generation model override",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.Error(overrideErr),
+		)
+	} else if override.Set {
+		resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+			purpose:          purpose,
+			chat:             chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     modelOpts,
+		})
+		if err != nil {
+			return resolvedModelCall{}, xerrors.Errorf(
+				"resolve title generation model override for %s: %w",
+				purpose,
+				err,
+			)
+		}
+		return resolved, nil
+	}
+
+	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if err != nil {
+		return resolvedModelCall{}, err
+	}
+	configs, err := enabledChatModelConfigsForOrganization(modelCtx, p.db, chat.OrganizationID)
+	if err != nil {
+		p.logger.Debug(ctx, "failed to list quickgen model configs",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+
+	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
+	if !ok {
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:        purpose,
+		chat:           chat,
+		explicitConfig: &config,
+		buildOptions:   modelOpts,
+	})
+	if err != nil {
+		p.logger.Debug(ctx, "preferred quickgen model unavailable",
+			slog.F("purpose", purpose),
+			slog.F("chat_id", chat.ID),
+			slog.F("model", config.Model),
+			slog.Error(err),
+		)
+		return p.resolveQuickgenChatModelFallback(ctx, purpose, chat, modelOpts)
+	}
+	return resolved, nil
+}
+
+// resolveQuickgenChatModelFallback resolves the chat's own model as the last
+// resort for a quickgen side call.
+func (p *Server) resolveQuickgenChatModelFallback(
+	ctx context.Context,
+	purpose string,
+	chat database.Chat,
+	modelOpts modelBuildOptions,
+) (resolvedModelCall, error) {
+	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+		purpose:      purpose,
+		chat:         chat,
+		buildOptions: modelOpts,
+	})
+	if err != nil {
+		return resolvedModelCall{}, xerrors.Errorf(
+			"resolve fallback chat model for %s: %w",
+			purpose,
+			err,
+		)
+	}
+	return resolved, nil
 }
 
 func normalizeShortTextOutput(text string) string {
@@ -187,10 +349,10 @@ type generatedTurnStatusLabel struct {
 // request but bound to the server: it neither blocks the HTTP response
 // nor is canceled when the request completes, and Close cancels it
 // instead of blocking on the title timeout while a provider is
-// unreachable. It resolves the chat's model and provider keys, then
-// delegates to maybeGenerateChatTitle, which only acts on the first user
-// turn (see titleInput) and is otherwise a no-op. Errors are logged and
-// swallowed.
+// unreachable. It resolves the title generation model (see
+// resolveQuickgenModel), then delegates to maybeGenerateChatTitle, which
+// only acts on the first user turn (see titleInput) and is otherwise a
+// no-op. Errors are logged and swallowed.
 func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat) {
 	logger := p.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -207,6 +369,20 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		)
 		return
 	}
+	p.GenerateChatTitleForMessagesAsync(ctx, chat, messages)
+}
+
+// GenerateChatTitleForMessagesAsync is GenerateChatTitleAsync for
+// callers that already hold a message snapshot taken before any worker
+// could reply. The first-message endpoint publishes the ownership hint
+// during the send, before it can schedule title generation, so a fresh
+// history read there may already contain the assistant reply and would
+// wrongly disqualify the first-user-turn eligibility check.
+func (p *Server) GenerateChatTitleForMessagesAsync(ctx context.Context, chat database.Chat, messages []database.ChatMessage) {
+	logger := p.logger.With(
+		slog.F("chat_id", chat.ID),
+		slog.F("owner_id", chat.OwnerID),
+	)
 	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		logger.Debug(ctx, "failed to load pasted-text attachments for automatic title generation",
@@ -227,25 +403,19 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			return
 		}
 		modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
-		turnCtx := titleCtx
-		fallback, err := p.resolveModelCall(turnCtx, modelCallSpec{
-			purpose:      "title",
-			chat:         chat,
-			buildOptions: modelOpts,
-		})
+		resolved, err := p.resolveQuickgenModel(titleCtx, "title", chat, modelOpts)
 		if err != nil {
-			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+			logger.Warn(titleCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return
 		}
 		p.maybeGenerateChatTitle(
-			turnCtx,
+			titleCtx,
 			chat,
 			messages,
 			pasteText,
-			fallback,
-			modelOpts,
+			resolved,
 			&generatedChatTitle{},
 			logger,
 			p.existingDebugService(),
@@ -262,18 +432,15 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
-// current title is either empty or still the fallback truncation).
-// It uses the configured title generation model override when set.
-// Otherwise, it tries cheap, fast models first and falls back to the
-// user's chat model. It is a best-effort operation that logs and
-// swallows errors.
+// current title is either empty or still the fallback truncation) using
+// the resolved title generation model (see resolveQuickgenModel). It is a
+// best-effort operation that logs and swallows errors.
 func (p *Server) maybeGenerateChatTitle(
 	ctx context.Context,
 	chat database.Chat,
 	messages []database.ChatMessage,
 	pasteText map[uuid.UUID]string,
-	fallback resolvedModelCall,
-	modelOpts modelBuildOptions,
+	resolved resolvedModelCall,
 	generatedTitle *generatedChatTitle,
 	logger slog.Logger,
 	debugSvc *chatdebug.Service,
@@ -287,35 +454,10 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		titleCtx,
-		chat,
-		modelOpts,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
-				slog.F("chat_id", chat.ID),
-				slog.F("override_context", titleGenerationOverrideContext),
-				slog.Error(overrideErr),
-			)
-			return
-		}
-		logger.Debug(ctx, "failed to resolve title generation model override",
-			slog.F("chat_id", chat.ID),
-			slog.F("override_context", titleGenerationOverrideContext),
-			slog.Error(overrideErr),
-		)
-	}
-
-	selected := fallback
-	if overrideSet {
-		selected = overrideResolved
-	}
 	candidate := shortTextCandidate{
-		provider: string(selected.route.Provider.Type),
-		model:    selected.dbConfig.Model,
-		resolved: selected,
+		provider: string(resolved.route.Provider.Type),
+		model:    resolved.dbConfig.Model,
+		resolved: resolved,
 	}
 
 	var historyTipMessageID int64
@@ -357,20 +499,12 @@ func (p *Server) maybeGenerateChatTitle(
 	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
 	finishDebugRun(err)
 	if err != nil {
-		if overrideSet {
-			logger.Warn(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.F("override_context", titleGenerationOverrideContext),
-				slog.F("provider", candidate.provider),
-				slog.F("model", candidate.model),
-				slog.Error(err),
-			)
-		} else {
-			logger.Debug(ctx, "title model candidate failed",
-				slog.F("chat_id", chat.ID),
-				slog.Error(err),
-			)
-		}
+		logger.Warn(ctx, "title model candidate failed",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
+			slog.Error(err),
+		)
 		return
 	}
 	if title == "" || title == chat.Title {
@@ -393,7 +527,13 @@ func (p *Server) maybeGenerateChatTitle(
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
 }
 
-const titleMaxOutputTokens = int64(256)
+// Quickgen caps leave room for adaptive thinking, which counts toward the cap
+// on models that think by default (Claude 5+). Keep them at or below 1024:
+// for older Claude models with a configured effort, fantasy derives a
+// budget_tokens thinking budget from the cap and enables thinking once it
+// reaches 1024, and Anthropic rejects thinking with tool-mode generation's
+// forced tool_choice.
+const titleMaxOutputTokens = int64(1024)
 
 func titleObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_title", "Propose a short chat title.", titleMaxOutputTokens)
@@ -592,7 +732,7 @@ func titleInput(
 	}
 
 	currentTitle := strings.TrimSpace(chat.Title)
-	if currentTitle == "" {
+	if currentTitle == "" || currentTitle == chatprompt.DefaultChatTitle {
 		return firstUserText, true
 	}
 
@@ -828,7 +968,7 @@ func renderManualTitlePrompt(
 	}
 
 	write("\n\nRequirements:\n")
-	write("- Return only the title text in 2-8 words.\n")
+	write("- Keep the title to 2-8 words.\n")
 	write("- Populate the title field only.\n")
 	write("- Do not answer the user or describe the title-writing task.\n")
 	write("- Preserve specific identifiers (PR numbers, repo names, file paths, function names, error messages).\n")
@@ -913,12 +1053,22 @@ func generateManualTitle(
 	return title, nil
 }
 
-const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick-reference popover. " +
-	"Populate the summary field with 1 to 3 plain sentences describing what the conversation is about and what was accomplished or attempted. " +
-	"Write about the conversation in the third person. " +
-	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
-	"Do not address the user, give instructions, or continue the task. " +
-	"No markdown, lists, headings, code fences, or surrounding quotes."
+const chatSummaryGenerationPrompt = `Summarize an AI coding chat for a quick-reference popover.
+
+Populate the headline field with one sentence of 20 words or fewer, present
+tense, starting with the capability or behavior - "Defines how...",
+"Controls...", "Configures...", "Changes...". Use "Investigates..." if nothing
+was resolved.
+
+Populate the bullets field with 2-4 bullets in the same declarative present
+tense, each a single line. Leave the bullets field empty when the headline
+already covers the whole chat, rather than padding it with filler.
+
+Preserve identifiers verbatim, wrapped in backticks: PR numbers, repos, file
+paths with line numbers, function and constant names, error messages.
+
+Never mention the user or assistant or narrate the exchange. No headings, code
+fences, tables, or nested lists.`
 
 const (
 	// Bound the transcript so the summary call stays cheap and within context;
@@ -926,15 +1076,24 @@ const (
 	summaryTranscriptMaxRunes = 16000
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
-	summaryMaxOutputTokens              = 512
-	// Reject pathologically long or verbose summaries, with slack over the
-	// 1-3 sentence target.
-	summaryMaxRunes     = 1000
-	summaryMaxSentences = 6
+	// Includes thinking headroom; see titleMaxOutputTokens.
+	summaryMaxOutputTokens = 1024
+	// Reject pathologically long or verbose summaries.
+	summaryMaxRunes             = 750
+	summaryHeadlineMaxRunes     = 200
+	summaryHeadlineMaxSentences = 2
+	// The prompt asks for a headline of 20 words or fewer; enforce it so a
+	// rambling headline cannot pass on rune count alone.
+	summaryHeadlineMaxWords = 20
+	summaryBulletMaxRunes   = 160
+	// Upper bound only; requiring bullets would pad trivial chats with
+	// filler or reject them, leaving the panel empty.
+	summaryMaxBullets = 4
 )
 
 type generatedChatSummary struct {
-	Summary string `json:"summary" description:"1-3 sentence summary of the whole chat"`
+	Headline string   `json:"headline" description:"One sentence of 20 words or fewer, present tense, starting with the capability or behavior"`
+	Bullets  []string `json:"bullets" description:"2-4 declarative present-tense bullets, each one line; empty when the headline already covers the whole chat"`
 }
 
 // renderChatSummaryTranscript renders chat history as plain text for summary
@@ -1034,12 +1193,16 @@ func boundTranscriptHeadTail(lines []string, maxRunes int) string {
 }
 
 func summaryObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
-	return resolved.newObjectCall("chat_summary", "Summarize the whole chat in 1-3 sentences.", summaryMaxOutputTokens)
+	return resolved.newObjectCall(
+		"chat_summary",
+		"Summarize the whole chat as a one-sentence headline plus up to 4 short bullets.",
+		summaryMaxOutputTokens,
+	)
 }
 
-// generateChatSummary generates a 1-3 sentence whole-chat summary from a
-// transcript. A blank or invalid result returns an error so callers preserve
-// any existing summary rather than clearing it.
+// generateChatSummary generates a headline-plus-bullets summary from a
+// transcript, serialized to markdown. A blank or invalid result returns an
+// error so callers preserve any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1055,7 +1218,7 @@ func generateChatSummary(
 	var result *fantasy.ObjectResult[generatedChatSummary]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
+		result, genErr = generateObject[generatedChatSummary](retryCtx, model, call)
 		return genErr
 	}, nil)
 	if err != nil {
@@ -1066,22 +1229,76 @@ func generateChatSummary(
 		return "", usage, xerrors.Errorf("generate chat summary: %w", err)
 	}
 
-	summary := normalizeShortTextOutput(result.Object.Summary)
+	summary := generatedChatSummary{
+		Headline: normalizeSummaryField(result.Object.Headline),
+		Bullets:  normalizeSummaryBullets(result.Object.Bullets),
+	}
 	if err := validateGeneratedChatSummary(summary); err != nil {
 		return "", result.Usage, err
 	}
-	return summary, result.Usage, nil
+	return formatChatSummaryMarkdown(summary.Headline, summary.Bullets), result.Usage, nil
 }
 
-func validateGeneratedChatSummary(summary string) error {
-	if summary == "" {
-		return xerrors.New("generated chat summary was empty")
+// normalizeSummaryField collapses a field onto one line. Unlike
+// normalizeShortTextOutput it preserves backticks, keeping inline code spans
+// balanced.
+func normalizeSummaryField(text string) string {
+	text = strings.Trim(strings.TrimSpace(text), "\"'")
+	return strings.Join(strings.Fields(text), " ")
+}
+
+func normalizeSummaryBullets(bullets []string) []string {
+	normalized := make([]string, 0, len(bullets))
+	for _, bullet := range bullets {
+		if bullet = normalizeSummaryField(bullet); bullet != "" {
+			normalized = append(normalized, bullet)
+		}
 	}
-	if len([]rune(summary)) > summaryMaxRunes {
+	return normalized
+}
+
+// formatChatSummaryMarkdown renders a headline paragraph plus an optional
+// bullet list. Bullets must already be normalized: no blanks, no newlines.
+func formatChatSummaryMarkdown(headline string, bullets []string) string {
+	headline = strings.TrimSpace(headline)
+	if len(bullets) == 0 {
+		return headline
+	}
+	return strings.TrimSpace(headline + "\n\n- " + strings.Join(bullets, "\n- "))
+}
+
+// validateGeneratedChatSummary checks the structured fields rather than the
+// rendered markdown: bullets omit trailing punctuation, so a sentence count
+// over the serialized string would pass almost anything.
+func validateGeneratedChatSummary(summary generatedChatSummary) error {
+	if summary.Headline == "" {
+		return xerrors.New("generated chat summary headline was empty")
+	}
+	if len([]rune(summary.Headline)) > summaryHeadlineMaxRunes {
+		return xerrors.Errorf("generated chat summary headline exceeded %d runes", summaryHeadlineMaxRunes)
+	}
+	if countSentenceTerminators(summary.Headline) > summaryHeadlineMaxSentences {
+		return xerrors.Errorf("generated chat summary headline exceeded %d sentences", summaryHeadlineMaxSentences)
+	}
+	if words := len(strings.Fields(summary.Headline)); words > summaryHeadlineMaxWords {
+		return xerrors.Errorf(
+			"generated chat summary headline had %d words, want at most %d",
+			words, summaryHeadlineMaxWords,
+		)
+	}
+	if len(summary.Bullets) > summaryMaxBullets {
+		return xerrors.Errorf(
+			"generated chat summary had %d bullets, want at most %d",
+			len(summary.Bullets), summaryMaxBullets,
+		)
+	}
+	for _, bullet := range summary.Bullets {
+		if len([]rune(bullet)) > summaryBulletMaxRunes {
+			return xerrors.Errorf("generated chat summary bullet exceeded %d runes", summaryBulletMaxRunes)
+		}
+	}
+	if rendered := formatChatSummaryMarkdown(summary.Headline, summary.Bullets); len([]rune(rendered)) > summaryMaxRunes {
 		return xerrors.Errorf("generated chat summary exceeded %d runes", summaryMaxRunes)
-	}
-	if countSentenceTerminators(summary) > summaryMaxSentences {
-		return xerrors.Errorf("generated chat summary exceeded %d sentences", summaryMaxSentences)
 	}
 	return nil
 }
@@ -1251,7 +1468,8 @@ const turnStatusLabelPrompt = "You write compact chat status labels for a sideba
 	"Prefer short action or state phrases such as Finished, Submitted, Fixed, Testing, Still working, or Waiting for. " +
 	"No quotes, emoji, markdown, or trailing punctuation."
 
-const turnStatusLabelMaxOutputTokens = int64(64)
+// Includes thinking headroom; see titleMaxOutputTokens.
+const turnStatusLabelMaxOutputTokens = int64(1024)
 
 func turnStatusLabelObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	return resolved.newObjectCall("propose_turn_status_label", "Propose a compact chat status label.", turnStatusLabelMaxOutputTokens)
@@ -1312,7 +1530,9 @@ func generateTurnStatusLabel(
 	)
 	finishDebugRun(err)
 	if err != nil {
-		logger.Debug(ctx, "turn status label model candidate failed",
+		logger.Warn(ctx, "turn status label model candidate failed",
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
 			slog.Error(err),
 		)
 		return ""

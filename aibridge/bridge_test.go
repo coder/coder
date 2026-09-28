@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -22,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -86,6 +89,62 @@ func TestRequestBridgeShutdownAdmissionRace(t *testing.T) {
 	_ = codertestutil.TryReceive(ctx, t, req1)
 	_ = codertestutil.TryReceive(ctx, t, req2)
 	_ = codertestutil.TryReceive(ctx, t, shutdown)
+
+	// New requests are refused after graceful shutdown.
+	rejected := httptest.NewRecorder()
+	bridge.ServeHTTP(rejected, httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	require.Equal(t, http.StatusServiceUnavailable, rejected.Code)
+	require.Equal(t, "AI Gateway is shutting down\n", rejected.Body.String())
+}
+
+// TestRequestBridgeShutdownDeadlineCancels verifies that deadline cancellation
+// lets an in-flight proxy request finish without releasing the upstream manually.
+func TestRequestBridgeShutdownDeadlineCancels(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Set up an upstream that waits for cancellation or test cleanup.
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started <- struct{}{}
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Cleanup(func() { close(release) })
+
+	// Send a request through the bridge to exercise upstream cancellation.
+	rec := testutil.MockRecorder{}
+	prov := aibridge.NewOpenAIProvider(config.OpenAI{BaseURL: upstream.URL})
+	bridge, err := aibridge.NewRequestBridge(ctx, []provider.Provider{prov}, &rec, nil, logger, nil, bridgeTestTracer)
+	require.NoError(t, err)
+
+	reqDone := make(chan struct{})
+	go func() {
+		defer close(reqDone)
+		bridge.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/openai/v1/conversations", nil))
+	}()
+
+	// Wait until the request is in flight in the upstream.
+	_ = codertestutil.TryReceive(ctx, t, started)
+	require.EqualValues(t, 1, bridge.InflightRequests())
+
+	// Shut down with an already-expired context to cancel the blocked request.
+	deadlineCtx, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancelDeadline()
+	require.ErrorIs(t, bridge.Shutdown(deadlineCtx), context.DeadlineExceeded)
+
+	// The request finishes after cancellation while release remains open.
+	// Completion need not precede Shutdown returning.
+	_ = codertestutil.TryReceive(ctx, t, reqDone)
+	require.Zero(t, bridge.InflightRequests())
 }
 
 func TestValidateProviders(t *testing.T) {
@@ -248,21 +307,13 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			expectPath: "/v1/models",
 		},
 		{
-			name:        "copilot_ping",
-			requestPath: "/copilot/_ping",
-			provider: func(_ *testing.T, baseURL string) provider.Provider {
-				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
-			},
-			expectPath: "/_ping",
-		},
-		{
-			name:          "copilot_auto",
+			name:          "copilot_unknown_route",
 			requestMethod: http.MethodPost,
-			requestPath:   "/copilot/auto",
+			requestPath:   "/copilot/future/endpoint",
 			provider: func(_ *testing.T, baseURL string) provider.Provider {
 				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
 			},
-			expectPath: "/auto",
+			expectPath: "/future/endpoint",
 		},
 	}
 
@@ -292,6 +343,46 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
 		})
 	}
+}
+
+func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {
+	t.Parallel()
+
+	upstreamCalled := false
+	interceptorCalled := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	// Given: a provider with a bridged route and a passthrough catch-all.
+	prov := &testutil.MockProvider{
+		NameStr:     "test",
+		URL:         upstream.URL,
+		Bridged:     []string{"/responses"},
+		Passthrough: []string{"/"},
+		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
+			interceptorCalled = true
+			return nil, xerrors.New("test interceptor error")
+		},
+	}
+	bridge, err := aibridge.NewRequestBridge(
+		t.Context(),
+		[]provider.Provider{prov},
+		nil, nil, slogtest.Make(t, nil), nil, bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	// When: a request targets the bridged route.
+	req := httptest.NewRequest(http.MethodPost, "/test/responses", nil)
+	resp := httptest.NewRecorder()
+	bridge.ServeHTTP(resp, req)
+
+	// Then: the interceptor handles it, not the passthrough upstream.
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.True(t, interceptorCalled)
+	assert.False(t, upstreamCalled)
 }
 
 func TestWebSocketUpgradeRejected(t *testing.T) {
@@ -440,7 +531,7 @@ func TestDisabledProviderHandler(t *testing.T) {
 			bridge.ServeHTTP(resp, req)
 
 			assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
-			assert.Contains(t, resp.Body.String(), aibridge.ErrorCodeProviderDisabled)
+			assert.Contains(t, resp.Body.String(), routing.ErrorCodeProviderDisabled)
 			assert.Contains(t, resp.Body.String(), "disabled-openai")
 		})
 	}

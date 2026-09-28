@@ -15,9 +15,11 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
-func (i *responsesInterceptionBase) injectTools() {
+// injectTools adds the MCP proxy's tools to the request and reports whether
+// any were injected.
+func (i *responsesInterceptionBase) injectTools() bool {
 	if i.mcpProxy == nil || !i.hasInjectableTools() {
-		return
+		return false
 	}
 
 	i.disableParallelToolCalls()
@@ -54,9 +56,10 @@ func (i *responsesInterceptionBase) injectTools() {
 	updated, err := i.reqPayload.injectTools(injected)
 	if err != nil {
 		i.logger.Warn(context.Background(), "failed to inject tools", slog.Error(err))
-		return
+		return false
 	}
 	i.reqPayload = updated
+	return true
 }
 
 // disableParallelToolCalls disables parallel tool calls, to simplify the inner agentic loop.

@@ -28,7 +28,7 @@ import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
-interface DiffViewerProps {
+type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
 	isExpanded?: boolean;
 	isLoading?: boolean;
@@ -51,7 +51,7 @@ interface DiffViewerProps {
 	renderAnnotation?: (annotation: DiffLineAnnotation<string>) => ReactNode;
 	scrollToFile?: string | null;
 	onScrollToFileComplete?: () => void;
-}
+};
 
 export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";

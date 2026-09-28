@@ -25,7 +25,7 @@ import {
 	TRANSPORT_OPTIONS,
 } from "./mcpServerFormLogic";
 
-interface MCPServerFormFieldsProps {
+type MCPServerFormFieldsProps = {
 	form: FormikContextType<MCPServerFormValues>;
 	isSaving: boolean;
 	isDisabled: boolean;
@@ -40,7 +40,7 @@ interface MCPServerFormFieldsProps {
 	setShowAuth: (open: boolean) => void;
 	showBehavior: boolean;
 	setShowBehavior: (open: boolean) => void;
-}
+};
 
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	form,

@@ -99,9 +99,10 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			<Table aria-label="User secrets">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-9"></TableHead>
+						{/* Empty headers align with the toggle and row actions columns. */}
+						<TableHead></TableHead>
 						<TableHead>Name</TableHead>
-						<TableHead>Env var</TableHead>
+						<TableHead className="whitespace-nowrap">Env var</TableHead>
 						<TableHead className="whitespace-nowrap">File path</TableHead>
 						<TableHead>Type</TableHead>
 						<TableHead className="w-full">Description</TableHead>
@@ -116,7 +117,10 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 							message="No secrets yet"
 							description="Create a secret to inject it into workspaces you own."
 							cta={
-								<Button onClick={(event) => onAddSecret(event.currentTarget)}>
+								<Button
+									variant="outline"
+									onClick={(event) => onAddSecret(event.currentTarget)}
+								>
 									Add secret
 								</Button>
 							}

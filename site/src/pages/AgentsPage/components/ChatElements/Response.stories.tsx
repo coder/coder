@@ -1,3 +1,4 @@
+import { preloadHighlighter } from "@pierre/diffs";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Response } from "./Response";
@@ -42,6 +43,18 @@ const meta: Meta<typeof Response> = {
 	args: {
 		children: sampleMarkdown,
 	},
+	// Without the app's worker pool a cold in-page highlighter loses its
+	// first render under StrictMode, so code blocks that mount after the
+	// initial story render (such as the Mermaid error fallback) stay
+	// blank. Warming the themes first makes that render synchronous.
+	loaders: [
+		async () => {
+			await preloadHighlighter({
+				themes: ["github-dark-high-contrast", "github-light"],
+				langs: [],
+			});
+		},
+	],
 };
 
 export default meta;
@@ -202,6 +215,126 @@ export const StreamingExternalImageConsentGate: Story = {
 export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
+		streaming: true,
+	},
+};
+
+const mermaidFlowchart = [
+	"```mermaid",
+	"flowchart TB",
+	'  subgraph Leadership["Product leadership"]',
+	"    BP[VP Product<br/>strategy, themes, PRD sign-off]",
+	"    BG[Staff PM<br/>owns PDLC, roadmap health]",
+	"    BP --> BG",
+	"  end",
+	'  subgraph Pods["Thematic pods"]',
+	"    direction LR",
+	'    A["Coder Agents"]',
+	'    B["AI Governance"]',
+	'    C["Enterprise Experience"]',
+	"  end",
+	'  subgraph Linear["Linear teams"]',
+	"    L1[CODAGT]; L2[AIGOV]; L3[ENT]",
+	"  end",
+	"  Leadership --> Pods",
+	"  A --> L1; B --> L2; C --> L3",
+	"```",
+	"",
+].join("\n");
+
+const mermaidSequence = [
+	"The agent talks to the workspace like this:",
+	"",
+	"```mermaid",
+	"sequenceDiagram",
+	"  participant U as User",
+	"  participant C as coderd",
+	"  participant W as Workspace agent",
+	"  U->>C: POST /api/v2/chats",
+	"  C->>W: Start task",
+	"  W-->>C: Stream tool output",
+	"  C-->>U: Render response",
+	"```",
+	"",
+	"Each hop is authenticated separately.",
+].join("\n");
+
+const waitForDiagram = (canvasElement: HTMLElement) =>
+	within(canvasElement).findByRole(
+		"button",
+		{ name: "View diagram full size" },
+		{ timeout: 10_000 },
+	);
+
+// Mermaid renders asynchronously after its chunk loads, so these
+// stories wait for the rendered diagram before the capture.
+export const MermaidFlowchart: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+export const MermaidFlowchartLight: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	globals: {
+		theme: "light",
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+export const MermaidSequenceInProse: Story = {
+	args: {
+		children: mermaidSequence,
+	},
+	play: async ({ canvasElement }) => {
+		await waitForDiagram(canvasElement);
+	},
+};
+
+// Clicking a rendered diagram opens it at natural size in a lightbox,
+// the same affordance chat images have.
+export const MermaidLightbox: Story = {
+	args: {
+		children: mermaidFlowchart,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(await waitForDiagram(canvasElement));
+		await within(document.body).findByRole("dialog", {
+			name: "Diagram preview",
+		});
+	},
+};
+
+// A parse error shows the Mermaid message and keeps the source
+// visible as a regular code block underneath.
+export const MermaidSyntaxError: Story = {
+	args: {
+		children: [
+			"```mermaid",
+			'flowchart TBsubgraph Leadership["Product leadership"]',
+			"  BP --> BG",
+			"end",
+			"```",
+		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("alert", {}, { timeout: 10_000 });
+	},
+};
+
+// While the fence is still open the diagram is not rendered, so the
+// viewer sees a stable placeholder instead of a stream of parse
+// errors from half-written source.
+export const StreamingMermaidFence: Story = {
+	args: {
+		children: "```mermaid\nflowchart LR\n  A[Start] --> B[Sec",
 		streaming: true,
 	},
 };

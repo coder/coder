@@ -12,14 +12,14 @@ import {
 } from "#/components/Dialog/Dialog";
 import { RoleSelector } from "#/modules/roles/RoleSelector";
 
-interface DefaultRolesDialogProps {
+type DefaultRolesDialogProps = {
 	open: boolean;
 	currentRoles: readonly string[];
 	availableRoles?: AssignableRoles[];
 	onCancel: () => void;
 	onConfirm: (roles: string[]) => Promise<void>;
 	isUpdating: boolean;
-}
+};
 
 export const DefaultRolesDialog: FC<DefaultRolesDialogProps> = ({
 	open,
@@ -44,13 +44,13 @@ export const DefaultRolesDialog: FC<DefaultRolesDialogProps> = ({
 	);
 };
 
-interface ActiveProps {
+type ActiveProps = {
 	currentRoles: readonly string[];
 	availableRoles: AssignableRoles[];
 	onCancel: () => void;
 	onConfirm: (roles: string[]) => Promise<void>;
 	isUpdating: boolean;
-}
+};
 
 const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 	currentRoles,
@@ -79,7 +79,8 @@ const ActiveDefaultRolesDialog: FC<ActiveProps> = ({
 						These roles are granted to every member of this organization,
 						current and future. Removing a role removes it from all members that
 						are not assigned that role directly. Without Organization Workspace
-						Access, members cannot create or use workspaces.
+						Access, members cannot create or use workspaces. Without Coder
+						Agents User, members cannot use Coder Agents.
 					</DialogDescription>
 				</DialogHeader>
 				<RoleSelector

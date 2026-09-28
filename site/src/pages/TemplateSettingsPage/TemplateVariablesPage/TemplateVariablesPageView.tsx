@@ -13,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
-interface TemplateVariablesPageViewProps {
+type TemplateVariablesPageViewProps = {
 	templateVersion?: TemplateVersion;
 	templateVariables?: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -32,7 +32,7 @@ interface TemplateVariablesPageViewProps {
 	initialTouched?: ComponentProps<
 		typeof TemplateVariablesForm
 	>["initialTouched"];
-}
+};
 
 export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 	templateVersion,

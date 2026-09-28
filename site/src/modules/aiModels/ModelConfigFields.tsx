@@ -413,11 +413,11 @@ const JSONField: FC<
 
 // ── Schema-driven field renderer ───────────────────────────────
 
-interface SchemaFieldProps extends FieldRenderContext {
+type SchemaFieldProps = FieldRenderContext & {
 	field: FieldSchema;
 	fieldKey: string;
 	errorKey: string;
-}
+};
 
 /**
  * Render a single field from the schema using the appropriate
@@ -511,13 +511,13 @@ const colSpanClass: Record<1 | 3, string | undefined> = {
 	3: "sm:col-span-full",
 };
 
-interface ModelConfigFieldsProps {
+type ModelConfigFieldsProps = {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
 	fieldErrors: ModelConfigFormBuildResult["fieldErrors"];
 	disabled: boolean;
 	children?: ReactNode;
-}
+};
 
 /**
  * Provider-specific fields (reasoning, tool calls, etc.) that
@@ -641,10 +641,19 @@ export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					.join(".");
 				const fieldKey = `config.${camelName}`;
 
+				// The tri-state switch cannot shrink below its three labels, so in
+				// the two-column phone layout adjacent switches collide; give each
+				// one the full row there.
+				const isSegmented =
+					field.input_type === "select" && field.type === "boolean";
 				return (
 					<div
 						key={fieldKey}
-						className={cn("min-w-0", colSpanClass[colSpan(field)])}
+						className={cn(
+							"min-w-0",
+							colSpanClass[colSpan(field)],
+							isSegmented && "col-span-2 sm:col-span-1",
+						)}
 					>
 						<SchemaField
 							{...ctx}

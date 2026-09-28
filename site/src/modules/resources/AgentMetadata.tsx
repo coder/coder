@@ -1,8 +1,8 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import {
+	type ComponentProps,
 	type FC,
-	type HTMLAttributes,
 	useEffect,
 	useLayoutEffect,
 	useRef,
@@ -25,9 +25,9 @@ import type { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 
 type ItemStatus = "stale" | "valid" | "loading";
 
-interface AgentMetadataViewProps {
+type AgentMetadataViewProps = {
 	metadata: WorkspaceAgentMetadata[];
-}
+};
 
 export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 	if (metadata.length === 0) {
@@ -42,10 +42,10 @@ export const AgentMetadataView: FC<AgentMetadataViewProps> = ({ metadata }) => {
 	);
 };
 
-interface AgentMetadataProps {
+type AgentMetadataProps = {
 	agent: WorkspaceAgent;
 	initialMetadata?: WorkspaceAgentMetadata[];
-}
+};
 
 const maxSocketErrorRetryCount = 3;
 
@@ -157,9 +157,9 @@ const AgentMetadataSkeleton: FC = () => {
 	);
 };
 
-interface MetadataItemProps {
+type MetadataItemProps = {
 	item: WorkspaceAgentMetadata;
-}
+};
 
 const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	const staleThreshold = Math.max(
@@ -220,7 +220,7 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 	);
 };
 
-const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
+const StaticWidth: FC<Omit<ComponentProps<"div">, "ref">> = ({
 	children,
 	...attrs
 }) => {

@@ -19,7 +19,7 @@ export const SensitiveVariableHelperText: FC = () => {
 	);
 };
 
-interface TemplateVariableFieldProps {
+type TemplateVariableFieldProps = {
 	templateVersionVariable: TemplateVersionVariable;
 	initialValue: string;
 	disabled: boolean;
@@ -28,7 +28,7 @@ interface TemplateVariableFieldProps {
 	helperText?: ReactNode;
 	name?: string;
 	onBlur?: FocusEventHandler<HTMLInputElement | HTMLTextAreaElement>;
-}
+};
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
 	templateVersionVariable,

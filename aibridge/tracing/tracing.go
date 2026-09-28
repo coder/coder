@@ -77,12 +77,3 @@ func InterceptionAttributesFromContext(ctx context.Context) []attribute.KeyValue
 func WithRequestBridgeAttributesInContext(ctx context.Context, traceAttrs []attribute.KeyValue) context.Context {
 	return context.WithValue(ctx, traceRequestBridgeAttrsContextKey{}, traceAttrs)
 }
-
-func RequestBridgeAttributesFromContext(ctx context.Context) []attribute.KeyValue {
-	attrs, ok := ctx.Value(traceRequestBridgeAttrsContextKey{}).([]attribute.KeyValue)
-	if !ok {
-		return nil
-	}
-
-	return attrs
-}

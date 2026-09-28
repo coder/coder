@@ -21,7 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -248,6 +248,7 @@ export const MockBuildInfo: TypesGen.BuildInfoResponse = {
 	deployment_id: "510d407f-e521-4180-b559-eab4a6d802b8",
 	webpush_public_key: "fake-public-key",
 	telemetry: true,
+	oauth2_provider: true,
 };
 
 export const MockSupportLinks: TypesGen.LinkConfig[] = [
@@ -370,6 +371,18 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	display_name: "Organization Auditor",
 	assignable: true,
 	built_in: false,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
+export const MockAgentsAccessRole: TypesGen.AssignableRoles = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	assignable: true,
+	built_in: true,
 	site_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
@@ -509,6 +522,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter",
 };
 
@@ -662,7 +676,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockAIGatewayEnabled: boolean = true;
+export const MockAIGatewayEnabled = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,
@@ -976,6 +990,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	module_cache_disabled_by_deployment: false,
 	allow_workspace_renames: false,
 };
 
@@ -1428,10 +1443,11 @@ export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
 	],
 };
 
-const _MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
 	...MockWorkspaceResource,
 	id: "test-workspace-resource-hidden",
 	name: "workspace-resource-hidden",
+	agents: [],
 	hide: true,
 };
 
@@ -1564,7 +1580,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,
@@ -3865,10 +3881,41 @@ export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	collected_at: "2023-03-06T19:12:55.211625Z",
 	next_update_at: "2023-03-06T19:20:55.211625Z",
 	session_count: {
-		vscode: 128,
+		vscode: 152,
 		jetbrains: 5,
 		ssh: 32,
 		reconnecting_pty: 15,
+		apps: {
+			cursor: {
+				count: 24,
+				display_name: "Cursor",
+				icon: "/icon/cursor.svg",
+				family: "vscode",
+			},
+			vscode: {
+				count: 128,
+				display_name: "VS Code",
+				icon: "/icon/code.svg",
+				family: "vscode",
+			},
+			jetbrains: {
+				count: 5,
+				display_name: "JetBrains",
+				icon: "/icon/jetbrains.svg",
+				family: "jetbrains",
+			},
+			ssh: {
+				count: 32,
+				display_name: "SSH",
+				icon: "/icon/terminal.svg",
+				family: "ssh",
+			},
+			reconnecting_pty: {
+				count: 15,
+				display_name: "Web Terminal",
+				family: "reconnecting_pty",
+			},
+		},
 	},
 	workspaces: {
 		building: 15,
@@ -4971,8 +5018,12 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
+		redirect_uris: ["http://127.0.0.1:3001"],
 		callback_url: "http://127.0.0.1:3001",
 		icon: "/icon/github.svg",
+		scope: "",
+		client_type: "confidential",
+		dynamically_registered: false,
 		endpoints: {
 			authorization: "http://127.0.0.1:3001/oauth2/authorize",
 			token: "http://127.0.0.1:3001/oauth2/token",
@@ -4982,8 +5033,44 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	},
 ];
 
+export const MockOAuth2ProviderAppPublic: TypesGen.OAuth2ProviderApp = {
+	id: "2",
+	name: "bar (public)",
+	redirect_uris: ["http://127.0.0.1:3002"],
+	callback_url: "http://127.0.0.1:3002",
+	icon: "/icon/github.svg",
+	scope: "",
+	client_type: "public",
+	dynamically_registered: false,
+	endpoints: {
+		authorization: "http://127.0.0.1:3002/oauth2/authorize",
+		token: "http://127.0.0.1:3002/oauth2/token",
+		device_authorization: "",
+		token_revoke: "http://127.0.0.1:3002/oauth2/revoke",
+	},
+};
+
+export const MockOAuth2ProviderAppDynamic: TypesGen.OAuth2ProviderApp = {
+	...MockOAuth2ProviderApps[0],
+	dynamically_registered: true,
+};
+
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {
 	dynamic_client_registration_enabled: false,
+};
+
+// Sorted, matching the endpoint's order.
+export const MockExternalAPIKeyScopes: TypesGen.ExternalAPIKeyScopes = {
+	external: [
+		"api_key:read",
+		"coder:all",
+		"coder:application_connect",
+		"coder:workspaces.access",
+		"coder:workspaces.create",
+		"template:read",
+		"workspace:read",
+		"workspace:ssh",
+	],
 };
 
 export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
@@ -5405,9 +5492,16 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		cache_write_input_tokens: 140,
 		metadata: {},
 	},
+	attribution: {
+		workspace_id: "workspace-1",
+	},
 	agentic_actions: [
 		{
+			interception_id: "interception-1",
 			model: "claude-opus-4-6",
+			attribution: {
+				workspace_id: "workspace-1",
+			},
 			token_usage: {
 				input_tokens: 620,
 				output_tokens: 160,
@@ -5432,113 +5526,6 @@ export const MockAIBridgeThread: TypesGen.AIBridgeThread = {
 		},
 	],
 };
-
-export const MockAIGatewaySpendUser: TypesGen.AIGatewaySpendUser = {
-	id: "59da0bfe-9c99-47fa-a563-f9fdb18449d0",
-	username: "bob",
-	name: "The Builder, Bob",
-	avatar_url:
-		"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQeDqc5b7Ny5bJOKxDeFvy17kBQ2_ZmBE8vKw&s",
-	total_cost_micros: 2_500_000,
-	request_count: 42,
-	unpriced_request_count: 0,
-	session_count: 5,
-	input_tokens: 200_000,
-	output_tokens: 300_000,
-	cache_read_input_tokens: 10_000,
-	cache_write_input_tokens: 5_000,
-};
-
-export const MockAIGatewaySpendUserSummary: TypesGen.AIGatewaySpendUserSummary =
-	{
-		start_date: "2026-02-10T00:00:00Z",
-		end_date: "2026-03-12T00:00:00Z",
-		total_cost_micros: 2_500_000,
-		request_count: 42,
-		unpriced_request_count: 0,
-		session_count: 5,
-		input_tokens: 200_000,
-		output_tokens: 300_000,
-		cache_read_input_tokens: 10_000,
-		cache_write_input_tokens: 5_000,
-		model_count: 2,
-		client_count: 2,
-		provider_count: 2,
-		by_provider: [
-			{
-				provider: "anthropic",
-				provider_name: "anthropic-main",
-				total_cost_micros: 2_000_000,
-				request_count: 30,
-				unpriced_request_count: 0,
-				input_tokens: 150_000,
-				output_tokens: 250_000,
-				cache_read_input_tokens: 8_000,
-				cache_write_input_tokens: 4_000,
-			},
-			{
-				provider: "openai",
-				provider_name: "openai-main",
-				total_cost_micros: 500_000,
-				request_count: 12,
-				unpriced_request_count: 0,
-				input_tokens: 50_000,
-				output_tokens: 50_000,
-				cache_read_input_tokens: 2_000,
-				cache_write_input_tokens: 1_000,
-			},
-		],
-		by_model: [
-			{
-				provider: "anthropic",
-				provider_name: "anthropic-main",
-				model: "claude-opus-4-6",
-				total_cost_micros: 2_000_000,
-				request_count: 30,
-				unpriced_request_count: 0,
-				input_tokens: 150_000,
-				output_tokens: 250_000,
-				cache_read_input_tokens: 8_000,
-				cache_write_input_tokens: 4_000,
-			},
-			{
-				provider: "openai",
-				provider_name: "openai-main",
-				model: "gpt-5.4",
-				total_cost_micros: 500_000,
-				request_count: 12,
-				unpriced_request_count: 0,
-				input_tokens: 50_000,
-				output_tokens: 50_000,
-				cache_read_input_tokens: 2_000,
-				cache_write_input_tokens: 1_000,
-			},
-		],
-		by_client: [
-			{
-				client: "Claude Code",
-				total_cost_micros: 1_800_000,
-				request_count: 25,
-				unpriced_request_count: 0,
-				session_count: 3,
-				input_tokens: 120_000,
-				output_tokens: 200_000,
-				cache_read_input_tokens: 7_000,
-				cache_write_input_tokens: 3_500,
-			},
-			{
-				client: "Cursor",
-				total_cost_micros: 700_000,
-				request_count: 17,
-				unpriced_request_count: 0,
-				session_count: 2,
-				input_tokens: 80_000,
-				output_tokens: 100_000,
-				cache_read_input_tokens: 3_000,
-				cache_write_input_tokens: 1_500,
-			},
-		],
-	};
 
 export const MockAIBridgeSessionNetworkCalls: readonly TypesGen.AgentFirewallLog[] =
 	[
@@ -5661,6 +5648,41 @@ export const MockAIProviderCopilot: TypesGen.AIProvider = {
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
+
+export const MockOrganizationAISpendUser: TypesGen.OrganizationAISpendUser = {
+	user_id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: "Test User",
+	avatar_url: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+	cost_micros: 2_500_000,
+	unpriced_usage_count: 0,
+	providers: ["anthropic", "openai"],
+	clients: ["Claude Code", "Cursor"],
+	models: ["claude-opus-4-6", "gpt-5.4"],
+};
+
+export const MockOrganizationAISpendReport: TypesGen.OrganizationAISpendReport =
+	{
+		period_start: "2026-02-10T00:00:00Z",
+		period_end: "2026-03-12T00:00:00Z",
+		retention_start: "2026-01-11T15:30:00Z",
+		count: 2,
+		totals: { cost_micros: 3_500_000, unpriced_usage_count: 0 },
+		users: [
+			MockOrganizationAISpendUser,
+			{
+				...MockOrganizationAISpendUser,
+				user_id: "5e1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+				username: "alice",
+				name: "Alice Liddell",
+				avatar_url: "",
+				cost_micros: 1_000_000,
+				providers: ["anthropic"],
+				clients: ["Unknown"],
+				models: ["claude-opus-4-6"],
+			},
+		],
+	};
 
 export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderOpenAI,

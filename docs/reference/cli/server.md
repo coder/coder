@@ -461,6 +461,17 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 
 Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 
+### --oauth2-provider-enable
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OAUTH2_PROVIDER_ENABLE</code> |
+| YAML        | <code>oauth2.provider.enable</code>        |
+| Default     | <code>false</code>                         |
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
 ### --oidc-allow-signups
 
 |             |                                        |
@@ -825,6 +836,17 @@ Deprecated and ignored.
 | Default     | <code>10m0s</code>                                    |
 
 Time to force cancel provisioning tasks that are stuck.
+
+### --provisioner-disable-module-cache
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>bool</code>                                    |
+| Environment | <code>$CODER_PROVISIONER_DISABLE_MODULE_CACHE</code> |
+| YAML        | <code>provisioning.disableModuleCache</code>         |
+| Default     | <code>false</code>                                   |
+
+Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.
 
 ### --provisioner-daemon-psk
 
@@ -1226,6 +1248,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-chat-caller-supplied-tools
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>bool</code>                                      |
+| Environment | <code>$CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS</code> |
+| YAML        | <code>disableChatCallerSuppliedTools</code>            |
+
+Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
+
 ### --disable-workspace-agent-context-sync
 
 |             |                                                          |
@@ -1315,7 +1347,7 @@ These SSH config options will override the default SSH config options. Provide o
 | Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
 | YAML        | <code>client.cliUpgradeMessage</code>   |
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
 ### --write-config
 
@@ -1767,6 +1799,17 @@ How often to reconcile workspace prebuilds state.
 | Default     | <code>false</code>                             |
 
 Force chat debug logging on for every chat, bypassing the runtime admin and user opt-in settings.
+
+### --chat-stream-silence-timeout
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>duration</code>                           |
+| Environment | <code>$CODER_CHAT_STREAM_SILENCE_TIMEOUT</code> |
+| YAML        | <code>chat.streamSilenceTimeout</code>          |
+| Default     | <code>10m0s</code>                              |
+
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
 
 ### --ai-gateway-enabled
 

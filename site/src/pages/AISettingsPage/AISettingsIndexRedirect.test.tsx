@@ -64,14 +64,23 @@ it("redirects a deployment administrator to Coder Agents", async () => {
 	expect(router.state.location.pathname).toBe("/ai/settings/coder-agents");
 });
 
-it("redirects a spend-only viewer to Spend", async () => {
-	permissions = { ...MockNoPermissions, viewAnyAIBridgeInterception: true };
+it("redirects an organization group member reader to Spend", async () => {
 	entitlements = {
 		...MockEntitlements,
 		features: withDefaultFeatures({
 			aibridge: { enabled: true, entitlement: "entitled" },
 		}),
 	};
+	vi.spyOn(API.experimental, "getChatModels").mockRejectedValue({
+		isAxiosError: true,
+		response: { status: 403 },
+	});
+	vi.spyOn(API, "getOrganizations").mockResolvedValue([
+		MockDefaultOrganization,
+	]);
+	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+		[MockDefaultOrganization.id]: true,
+	});
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});

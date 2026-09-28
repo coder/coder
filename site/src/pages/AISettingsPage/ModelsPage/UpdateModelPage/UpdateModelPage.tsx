@@ -3,7 +3,7 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatModel,
 	chatModels,
@@ -111,7 +111,9 @@ const UpdateModelPage: FC = () => {
 					);
 					await navigate(modelsPath);
 				} catch (error) {
-					toast.error(getErrorMessage(error, "Failed to update model."));
+					toast.error(getErrorMessage(error, "Failed to update model."), {
+						description: getErrorDetail(error),
+					});
 				}
 			}}
 			onDeleteModel={async (id) => {

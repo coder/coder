@@ -32,7 +32,7 @@ import {
 
 dayjs.extend(utc);
 
-interface CreateTokenFormProps {
+type CreateTokenFormProps = {
 	form: FormikContextType<CreateTokenData>;
 	maxTokenLifetime?: number;
 	formError: unknown;
@@ -40,7 +40,7 @@ interface CreateTokenFormProps {
 	isCreating: boolean;
 	creationFailed: boolean;
 	now?: Date;
-}
+};
 
 export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	form,

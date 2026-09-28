@@ -5,25 +5,25 @@ import { ROSTER } from "./roster";
 // Types
 // ---------------------------------------------------------------------------
 
-interface Point {
+type Point = {
 	x: number;
 	y: number;
-}
+};
 
-interface LandingPad {
+type LandingPad = {
 	x: number;
 	width: number;
 	y: number;
 	multiplier: number;
 	isStation: boolean;
-}
+};
 
-interface Terrain {
+type Terrain = {
 	points: Point[];
 	pads: LandingPad[];
-}
+};
 
-interface ExplosionParticle {
+type ExplosionParticle = {
 	x: number;
 	y: number;
 	vx: number;
@@ -31,9 +31,9 @@ interface ExplosionParticle {
 	len: number;
 	angle: number;
 	spin: number;
-}
+};
 
-interface Codernaut {
+type Codernaut = {
 	x: number;
 	padIdx: number;
 	dir: 1 | -1;
@@ -50,9 +50,9 @@ interface Codernaut {
 	// "It's me" jump animation triggered from sidebar click.
 	spotlight: number; // > 0 means active (countdown in seconds)
 	spotlightPhase: number;
-}
+};
 
-interface DisembarkAnim {
+type DisembarkAnim = {
 	name: string;
 	x: number;
 	targetX: number;
@@ -62,7 +62,7 @@ interface DisembarkAnim {
 	waveTimer: number;
 	wavePhase: number;
 	done: boolean;
-}
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -302,10 +302,10 @@ function createCodernauts(
 
 	// Determine capacity of each non-station pad based on its
 	// relative width: wide >= 0.05 -> 5, mid >= 0.03 -> 3-4, small -> 2.
-	interface PadSlot {
+	type PadSlot = {
 		pi: number;
 		cap: number;
-	}
+	};
 	const slots: PadSlot[] = [];
 	for (let pi = 0; pi < pads.length; pi++) {
 		const pad = pads[pi];
@@ -702,12 +702,12 @@ const DASHBOARD_H = 84;
 // Width reserved for the roster sidebar on the right.
 const SIDEBAR_W = 200;
 
-interface DashboardState {
+type DashboardState = {
 	velocity: number;
 	yaw: number;
 	altitude: number;
 	fuel: number;
-}
+};
 
 // --- 7-segment digit renderer -----------------------------------------------
 //
@@ -1654,9 +1654,9 @@ function truncateText(
 	return ellipsis;
 }
 
-interface SidebarState {
+type SidebarState = {
 	scrollOffset: number;
-}
+};
 
 function drawSidebar(
 	ctx: CanvasRenderingContext2D,

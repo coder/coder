@@ -284,12 +284,18 @@ const AgentEmbedPage: FC = () => {
 		embedSessionMutation.reset();
 	};
 
-	if (auth.isSignedIn) {
+	// DashboardProvider requires permissions. They arrive with the user
+	// when the server embeds metadata, but load separately behind a dev
+	// proxy or when metadata is missing, so wait for both.
+	if (auth.isSignedIn && auth.permissions) {
 		return (
 			<EmbedContext value={{ isEmbedded: true }}>
 				<DashboardProvider>
 					<ProxyProvider>
-						<Outlet context={outletContext} />
+						{/* Match AgentsPageLayout's flex column so the chat stays bounded under block-level #root. */}
+						<div className="flex h-full min-h-0 min-w-0 flex-col">
+							<Outlet context={outletContext} />
+						</div>
 					</ProxyProvider>
 				</DashboardProvider>
 			</EmbedContext>

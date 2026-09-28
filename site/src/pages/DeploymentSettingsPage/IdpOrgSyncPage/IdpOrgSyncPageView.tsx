@@ -25,12 +25,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverText,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
@@ -49,19 +44,20 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { IdpUnseenClaimWarning } from "#/modules/idpSync/IdpUnseenClaimWarning";
 import { docs } from "#/utils/docs";
 import { isUUID } from "#/utils/uuid";
 import { OrganizationPills } from "./OrganizationPills";
 
-interface IdpSyncPageViewProps {
+type IdpSyncPageViewProps = {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
 	error?: unknown;
-}
+};
 
 const validationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -387,10 +383,10 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	);
 };
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	isEmpty: boolean;
 	children: React.ReactNode;
-}
+};
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	return (
@@ -421,12 +417,12 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	);
 };
 
-interface OrganizationRowProps {
+type OrganizationRowProps = {
 	idpOrg: string;
 	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
-}
+};
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,
@@ -463,14 +459,11 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 
 const AssignDefaultOrgHelpPopover: FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverText>
-					Disabling will remove all users from the default organization if a
-					mapping for the default organization is not defined.
-				</HelpPopoverText>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipMessage>
+				Disabling will remove all users from the default organization if a
+				mapping for the default organization is not defined.
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };

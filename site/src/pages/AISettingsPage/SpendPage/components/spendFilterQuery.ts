@@ -1,22 +1,22 @@
+import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
 import {
 	composeFilterQuery,
 	extractFreeText,
 	parseChipToken,
 	queryToChips,
 } from "#/components/Filter/FilterCombobox/filterQuery";
-import type { SpendDimensions } from "./SpendFilters";
+export type SpendDimensions = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "client" | "model"
+>;
 
-// Query keys shared by the spend API and the AI Sessions filter. Keeping them
-// identical lets the drill-in hand its dimensions to the sessions link as-is.
 const SPEND_CHIP_KEYS = [
 	"provider_name",
 	"client",
 	"model",
 ] as const satisfies readonly (keyof SpendDimensions)[];
 
-// Serializes the discrete spend params (the canonical URL state) into the single
-// query string the FilterCombobox consumes: one chip per dimension plus the user
-// search as trailing free text.
+/** Combines URL dimensions with local free text for the combobox. */
 export const spendFilterToQuery = (
 	dimensions: SpendDimensions,
 	search: string,
@@ -31,8 +31,7 @@ export const spendFilterToQuery = (
 	return composeFilterQuery(tokens, SPEND_CHIP_KEYS, search);
 };
 
-// Round-trip partner of spendFilterToQuery: parses a combobox query back into
-// the discrete dimensions and the free-text user search.
+/** Separates supported API dimensions from free text for validation. */
 export const queryToSpendFilter = (
 	query: string,
 ): { dimensions: SpendDimensions; search: string } => {

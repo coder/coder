@@ -4,9 +4,9 @@ import type {
 	FilterCategory,
 	FilterOption,
 } from "#/components/Filter/FilterCombobox/types";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeModelIcon } from "#/pages/AIBridgePage/icons/AIBridgeModelIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 
 const OPTIONS_LIMIT = 25;
 
@@ -18,9 +18,7 @@ const matches = (query: string, ...fields: readonly string[]): boolean => {
 	return fields.some((field) => field.toLowerCase().includes(normalized));
 };
 
-// Provider/client/model categories for the spend filter combobox. The chip keys
-// (provider_name, client, model) match the spend API and the AI Sessions filter
-// so a drill-in's filters hand off to the sessions link unchanged.
+/** Dimension options loaded by the combobox's React Query integration. */
 export const spendFilterCategories: readonly FilterCategory[] = [
 	{
 		key: "provider_name",
@@ -28,7 +26,7 @@ export const spendFilterCategories: readonly FilterCategory[] = [
 		aliases: ["provider"],
 		icon: <ServerIcon />,
 		getOptions: async (query): Promise<FilterOption[]> => {
-			const providers = await API.experimental.listAIProviders();
+			const providers = await API.getAIBridgeProviders();
 			return providers
 				.filter((provider) =>
 					matches(query, provider.display_name || provider.name, provider.name),
@@ -37,8 +35,9 @@ export const spendFilterCategories: readonly FilterCategory[] = [
 					label: provider.display_name || provider.name,
 					value: provider.name,
 					startIcon: (
-						<AIBridgeProviderIcon
+						<ProviderIcon
 							provider={provider.type}
+							icon={provider.icon}
 							className="size-icon-sm"
 						/>
 					),
@@ -69,7 +68,7 @@ export const spendFilterCategories: readonly FilterCategory[] = [
 		icon: <SparklesIcon />,
 		getOptions: async (query): Promise<FilterOption[]> => {
 			const models = await API.getAIBridgeModels({
-				q: query,
+				model: query,
 				limit: OPTIONS_LIMIT,
 			});
 			return models.map((model) => ({

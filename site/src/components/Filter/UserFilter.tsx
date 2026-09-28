@@ -82,11 +82,11 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-interface UserMenuProps {
+type UserMenuProps = {
 	menu: UserFilterMenu;
 	placeholder?: string;
 	width?: number;
-}
+};
 
 export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
 	return (

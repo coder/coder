@@ -12,7 +12,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { MCPServerIcon } from "./MCPServerIcon";
+import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 
 const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	return (
@@ -25,7 +25,7 @@ const MCPServerFormBackLink: FC<{ to: string }> = ({ to }) => {
 	);
 };
 
-interface MCPServerFormHeaderProps {
+type MCPServerFormHeaderProps = {
 	server?: TypesGen.MCPServerConfig;
 	title: string;
 	iconUrl: string;
@@ -35,7 +35,7 @@ interface MCPServerFormHeaderProps {
 	onRequestDelete?: () => void;
 	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
-}
+};
 
 export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	server,
@@ -82,9 +82,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 				)}
 			</div>
 			<div className="flex items-center gap-4 pt-6 min-w-0">
-				{isEditing && (
-					<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
-				)}
+				{isEditing && <MCPServerIcon iconUrl={iconUrl} className="size-12" />}
 				<SettingsHeaderTitle>
 					<span
 						className={cn(

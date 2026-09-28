@@ -34,7 +34,7 @@ import { timeZones } from "#/utils/timeZones";
 // Need dayjs.tz functions for timezone validation
 dayjs.extend(timezone);
 
-export interface WorkspaceScheduleFormProps {
+export type WorkspaceScheduleFormProps = {
 	template: Template;
 	error?: unknown;
 	initialValues: WorkspaceScheduleFormValues;
@@ -44,9 +44,9 @@ export interface WorkspaceScheduleFormProps {
 	// for storybook
 	initialTouched?: FormikTouched<WorkspaceScheduleFormValues>;
 	defaultTTL: number;
-}
+};
 
-export interface WorkspaceScheduleFormValues {
+export type WorkspaceScheduleFormValues = {
 	autostartEnabled: boolean;
 	sunday: boolean;
 	monday: boolean;
@@ -59,7 +59,7 @@ export interface WorkspaceScheduleFormValues {
 	timezone: string;
 	autostopEnabled: boolean;
 	ttl: number;
-}
+};
 
 export const validationSchema = Yup.object({
 	sunday: Yup.boolean(),

@@ -38,7 +38,7 @@ export type PersonalSkillErrorDisplay = {
 	detail?: string;
 };
 
-interface PersonalSkillEditorProps {
+type PersonalSkillEditorProps = {
 	open: boolean;
 	mode: "create" | "edit";
 	initialValues: PersonalSkillFormValues;
@@ -47,7 +47,7 @@ interface PersonalSkillEditorProps {
 	isSubmitting: boolean;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: PersonalSkillFormValues, content: string) => void;
-}
+};
 
 type ImportStatus = {
 	kind: "success" | "error";

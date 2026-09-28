@@ -27,7 +27,7 @@ Before starting Coder:
 3. Inspect the changed files and relevant tests.
 4. Summarize what behavior changed.
 5. Decide what must be validated through UI, API, SQL, logs, browser automation, desktop automation, or computer use.
-6. Ask for clarification if the target PR, base PR, stack order, or required credentials are ambiguous.
+6. Resolve the target PR, base PR, stack order, and required access from conversation context, Git state, PR metadata, and available local configuration. Ask only if essential target or access information remains unavailable, and continue validation that does not depend on it. Never expose credential values while investigating.
 
 ## Start the dogfood instance
 

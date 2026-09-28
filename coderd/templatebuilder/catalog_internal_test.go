@@ -128,136 +128,115 @@ func TestParseModulesFromFS(t *testing.T) {
 		require.Empty(t, modules)
 	})
 
-	t.Run("RejectsDirWithoutManifest", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/nomod/readme.txt": &fstest.MapFile{Data: []byte("hi")},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "read nomod/module.json")
-	})
-
-	t.Run("RejectsEmptyID", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{"id": "", "pinned_version": "1.0.0"}`),
+	rejects := []struct {
+		name    string
+		fsys    fstest.MapFS
+		wantErr string
+	}{
+		{
+			name: "RejectsDirWithoutManifest",
+			fsys: fstest.MapFS{
+				"modules/nomod/readme.txt": &fstest.MapFile{Data: []byte("hi")},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "empty id")
-	})
-
-	t.Run("RejectsEmptyPinnedVersion", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "pinned_version": ""}`),
+			wantErr: "read nomod/module.json",
+		},
+		{
+			name: "RejectsEmptyID",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{"id": "", "pinned_version": "1.0.0"}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "empty pinned_version")
-	})
-
-	t.Run("RejectsDuplicateID", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/a/module.json": &fstest.MapFile{
-				Data: []byte(`{"id": "dupe", "pinned_version": "1.0.0"}`),
+			wantErr: "empty id",
+		},
+		{
+			name: "RejectsEmptyPinnedVersion",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "pinned_version": ""}`),
+				},
 			},
-			"modules/b/module.json": &fstest.MapFile{
-				Data: []byte(`{"id": "dupe", "pinned_version": "2.0.0"}`),
+			wantErr: "empty pinned_version",
+		},
+		{
+			name: "RejectsDuplicateID",
+			fsys: fstest.MapFS{
+				"modules/a/module.json": &fstest.MapFile{
+					Data: []byte(`{"id": "dupe", "pinned_version": "1.0.0"}`),
+				},
+				"modules/b/module.json": &fstest.MapFile{
+					Data: []byte(`{"id": "dupe", "pinned_version": "2.0.0"}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "duplicate module id")
-	})
-
-	t.Run("RejectsUnknownVariableType", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{
-					"id": "bad",
-					"pinned_version": "1.0.0",
-					"variables": [{"name": "x", "type": "list"}]
-				}`),
+			wantErr: "duplicate module id",
+		},
+		{
+			name: "RejectsUnknownVariableType",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{
+						"id": "bad",
+						"pinned_version": "1.0.0",
+						"variables": [{"name": "x", "type": "list"}]
+					}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, `unknown type "list"`)
-	})
-
-	t.Run("RejectsUnknownField", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{"id": "bad", "pinned_version": "1.0.0", "dispaly_name": "typo"}`),
+			wantErr: `unknown type "list"`,
+		},
+		{
+			name: "RejectsUnknownField",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{"id": "bad", "pinned_version": "1.0.0", "dispaly_name": "typo"}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "decode")
-	})
-
-	t.Run("RejectsEmptyVariableName", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{
-					"id": "bad",
-					"pinned_version": "1.0.0",
-					"variables": [{"name": "", "type": "string"}]
-				}`),
+			wantErr: "decode",
+		},
+		{
+			name: "RejectsEmptyVariableName",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{
+						"id": "bad",
+						"pinned_version": "1.0.0",
+						"variables": [{"name": "", "type": "string"}]
+					}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "empty name")
-	})
-
-	t.Run("RejectsDuplicateVariableName", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{
-					"id": "bad",
-					"pinned_version": "1.0.0",
-					"variables": [
-						{"name": "x", "type": "string"},
-						{"name": "x", "type": "number"}
-					]
-				}`),
+			wantErr: "empty name",
+		},
+		{
+			name: "RejectsDuplicateVariableName",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{
+						"id": "bad",
+						"pinned_version": "1.0.0",
+						"variables": [
+							{"name": "x", "type": "string"},
+							{"name": "x", "type": "number"}
+						]
+					}`),
+				},
 			},
-		}
-
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "duplicate variable name")
-	})
-
-	t.Run("RejectsInvalidJSON", func(t *testing.T) {
-		t.Parallel()
-
-		fsys := fstest.MapFS{
-			"modules/bad/module.json": &fstest.MapFile{
-				Data: []byte(`{not json`),
+			wantErr: "duplicate variable name",
+		},
+		{
+			name: "RejectsInvalidJSON",
+			fsys: fstest.MapFS{
+				"modules/bad/module.json": &fstest.MapFile{
+					Data: []byte(`{not json`),
+				},
 			},
-		}
+			wantErr: "decode",
+		},
+	}
+	for _, tc := range rejects {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		_, err := parseModulesFromFS(fsys)
-		require.ErrorContains(t, err, "decode")
-	})
+			_, err := parseModulesFromFS(tc.fsys)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }

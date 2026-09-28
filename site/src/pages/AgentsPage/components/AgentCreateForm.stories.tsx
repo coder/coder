@@ -28,20 +28,28 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
+	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspace,
 	MockOrganization2,
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
+import {
+	debugWorkspaceBuildLogsFileName,
+	debugWorkspaceBuildPrompt,
+	formatWorkspaceBuildLogsForDebug,
+} from "../utils/workspaceBuildDebug";
 import {
 	AgentCreateForm,
 	emptyInputStorageKey,
@@ -206,24 +214,8 @@ const buildRootPersonalModelOverride = (
 const buildPersonalModelOverridesResponse = (
 	root = buildRootPersonalModelOverride({ is_set: false }),
 ): TypesGen.UserChatPersonalModelOverridesResponse => ({
-	enabled: true,
+	...MockUnsetUserChatPersonalModelOverrides,
 	root,
-	general: {
-		context: "general",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	explore: {
-		context: "explore",
-		mode: "deployment_default",
-		model_config_id: "",
-		is_set: false,
-	},
-	deployment_defaults: {
-		general: { context: "general", model_config_id: "" },
-		explore: { context: "explore", model_config_id: "" },
-	},
 });
 
 const mock403Error = Object.assign(
@@ -245,6 +237,28 @@ const mock403Error = Object.assign(
 	},
 );
 
+// Stories that replace parameters.queries must re-seed these entries or the
+// form fetches them, gets a 404 from the story sandbox, and never enables
+// send.
+const defaultQueries = [
+	{
+		key: organizationChatModelsKey(MockDefaultOrganization.id),
+		data: defaultModelCatalog,
+	},
+	{
+		key: userChatProviderConfigsKey,
+		data: defaultUserProviderConfigs,
+	},
+	{
+		key: userChatPersonalModelOverrides(MockDefaultOrganization.id).queryKey,
+		data: buildPersonalModelOverridesResponse(),
+	},
+	{
+		key: preferenceSettingsKey,
+		data: MockUserPreferenceSettings,
+	},
+];
+
 const meta: Meta<typeof AgentCreateForm> = {
 	title: "pages/AgentsPage/AgentCreateForm",
 	component: AgentCreateForm,
@@ -260,25 +274,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isWorkspacesLoading: false,
 	},
 	parameters: {
-		queries: [
-			{
-				key: organizationChatModelsKey(MockDefaultOrganization.id),
-				data: defaultModelCatalog,
-			},
-			{
-				key: userChatProviderConfigsKey,
-				data: defaultUserProviderConfigs,
-			},
-			{
-				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
-					.queryKey,
-				data: buildPersonalModelOverridesResponse(),
-			},
-			{
-				key: preferenceSettingsKey,
-				data: MockUserPreferenceSettings,
-			},
-		],
+		queries: defaultQueries,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -478,25 +474,24 @@ export const RootOverrideMissingFromCatalog: Story = {
 	},
 };
 
-export const LastUsedModelFallbackWithoutRootOverride: Story = {
+export const OrganizationDefaultModelWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem("agents.last-model-config-id", claudeModelConfigID);
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+			canvas.getByRole("combobox", { name: "GPT-4o" }),
 		).toBeInTheDocument();
-		await submitMessage(canvasElement, "create with last used model");
+		await submitMessage(canvasElement, "create with the default model");
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(claudeModelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -1358,7 +1353,7 @@ export const WithOrganizationPicker: Story = {
 	},
 };
 
-export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
+export const DelayedAuthorizationResolvesPermittedOrganization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
@@ -1379,10 +1374,6 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		localStorage.setItem(
-			"agents.last-model-config-id",
-			organization2ModelConfig.id,
-		);
 		mockPermittedOrganizations(
 			{
 				[MockDefaultOrganization.id]: false,
@@ -2181,5 +2172,126 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
 			exact: true,
 		});
+	},
+};
+
+const workspaceBuildDebugPrefill = {
+	message: debugWorkspaceBuildPrompt(MockFailedWorkspace.latest_build),
+	attachment: {
+		name: debugWorkspaceBuildLogsFileName(MockFailedWorkspace.latest_build),
+		text: formatWorkspaceBuildLogsForDebug(
+			MockFailedWorkspace.latest_build,
+			MockWorkspaceBuildLogs,
+		),
+	},
+};
+
+export const PrefilledWorkspaceBuildDebug: Story = {
+	args: {
+		...defaultArgs,
+		prefill: workspaceBuildDebugPrefill,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "workspace-build-logs-file",
+		});
+	},
+};
+
+// Deferred workspace uploads: with a workspace selected, files that
+// cannot ride the attachment pipeline (e.g. zips) queue locally and
+// upload during submit, after the chat is created. Behavior is covered
+// in AgentCreateForm.test.tsx; these stories capture the visual states.
+
+const attachZipFile = async (canvasElement: HTMLElement) => {
+	// The hidden input has no role or accessible name.
+	const fileInput = within(canvasElement).getByTestId(
+		"chat-attachment-file-input",
+	);
+	const zip = new File([new Uint8Array([0x50, 0x4b, 3, 4])], "bundle.zip", {
+		type: "application/zip",
+	});
+	await userEvent.upload(fileInput, zip);
+};
+
+export const WorkspaceFileQueuedForDeferredUpload: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement).findByText("Uploads when sent");
+	},
+};
+
+export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"This file type is uploaded into the chat's workspace. Select a running workspace, then try again.",
+		);
+	},
+};
+
+export const WorkspaceFileSubmissionLocksScopeControls: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	args: {
+		onCreateChat: fn(() => new Promise<void>(() => {})),
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		await attachZipFile(canvasElement);
+		await submitMessage(canvasElement, "inspect this archive");
+	},
+};
+
+export const DetachingWorkspaceDropsQueuedFiles: Story = {
+	args: {
+		workspaceOptions: mockWorkspaces,
+		workspaceCount: mockWorkspaces.length,
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem("agents.selected-workspace-id", "ws-1");
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await attachZipFile(canvasElement);
+		await canvas.findByText("bundle.zip");
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Remove workspace my-project" }),
+		);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Removed 1 file that uploads to the workspace",
+		);
 	},
 };

@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -62,10 +63,10 @@ import (
 const (
 	// DefaultPendingChatAcquireInterval is the default time between attempts to
 	// acquire pending chats.
-	DefaultPendingChatAcquireInterval = time.Second
+	DefaultPendingChatAcquireInterval = 30 * time.Second
 	// DefaultInFlightChatStaleAfter is the default age after which a running
 	// chat is considered stale and should be recovered.
-	DefaultInFlightChatStaleAfter = 5 * time.Minute
+	DefaultInFlightChatStaleAfter = 30 * time.Second
 
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
@@ -80,7 +81,7 @@ const (
 	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
-	DefaultChatHeartbeatInterval = 30 * time.Second
+	DefaultChatHeartbeatInterval = 9 * time.Second
 	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
@@ -120,6 +121,7 @@ const (
 
 var (
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
+	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
 	errChatAgentDisconnected   = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
@@ -184,6 +186,7 @@ type Server struct {
 	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
+	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
@@ -206,8 +209,13 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 
+	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
+	// model that accepted Anthropic's thinking drop_block control.
+	thinkingDropBlock sync.Map
+
 	// Configuration
 	inFlightChatStaleAfter time.Duration
+	streamSilenceTimeout   time.Duration
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -245,11 +253,6 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-const advisorOverrideContext = "advisor"
-
-// resolveAdvisorModelOverride resolves the advisor model override for the
-// chat's organization. Missing or unusable overrides fall back to the chat
-// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -257,78 +260,37 @@ func (p *Server) resolveAdvisorModelOverride(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
-	override, err := p.db.GetChatOrganizationModelOverride(
-		dbauthz.AsChatd(ctx),
-		database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: chat.OrganizationID,
-			Context:        advisorOverrideContext,
-		},
-	)
+	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         advisorOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeSoft,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeHard,
+	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to load advisor model override, continuing with chat model",
-			slog.F("organization_id", chat.OrganizationID),
-			slog.Error(err),
-		)
-		return resolvedModelCall{}, false, nil
+		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 	}
-
-	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if modelCtxErr != nil {
-		logger.Warn(
-			ctx,
-			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(modelCtxErr),
-		)
-		return resolvedModelCall{}, false, nil
-	}
-	// Re-read the model row for every runtime so disabled models or providers
-	// stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(
-				ctx,
-				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(err),
-		)
+	if !override.Set {
 		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
-		explicitConfig:  &overrideConfig,
-		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
+		explicitConfig:  &override.Config,
+		requestedEffort: override.ReasoningEffort,
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		var parseErr modelCallConfigParseError
-		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+		if override.Config.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
-		logger.Warn(
-			ctx,
+		logger.Warn(ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
+			slog.F("model_config_id", override.Config.ID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -397,10 +359,11 @@ func (p *Server) newAdvisorRuntime(
 	}
 
 	rt, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
-		Model:           advisor.model.LanguageModel(),
-		CallTemplate:    advisor.newCall(),
-		MaxUsesPerRun:   maxUsesPerRun,
-		MaxOutputTokens: maxOutputTokens,
+		Model:                advisor.model.LanguageModel(),
+		CallTemplate:         advisor.newCall(),
+		MaxUsesPerRun:        maxUsesPerRun,
+		MaxOutputTokens:      maxOutputTokens,
+		StreamSilenceTimeout: p.streamSilenceTimeout,
 	})
 	if err != nil {
 		logger.Warn(
@@ -447,7 +410,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
+	return chattool.NewWorkspaceMCPTools(infos, getConn), nil
 }
 
 type turnWorkspaceContext struct {
@@ -623,7 +586,26 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 		}
 
 		if !chatSnapshot.WorkspaceID.Valid {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("no workspace is associated with this chat. Use the create_workspace tool to create one")
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
+		}
+
+		// A soft-deleted workspace keeps its agent rows, so the bound agent
+		// would otherwise be dialed and fail as merely unreachable.
+		ws, err := c.server.db.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+		if err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
+				"load workspace: %w. %s", err, chattool.WorkspaceUnavailableHint,
+			)
+		}
+		if ws.Deleted {
+			// A concurrent create_workspace may have rebound the chat
+			// while the row was read; resolve the replacement instead.
+			latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
+			if !workspaceMatches {
+				chatSnapshot = latestChat
+				continue
+			}
+			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
 		if chatSnapshot.AgentID.Valid {
@@ -977,8 +959,8 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			}
 			// Surface the dial timeout sentinel only when the
 			// parent context is still alive. If the parent was
-			// canceled (e.g. ErrInterrupted), its error must
-			// propagate unchanged so the chatloop can detect it.
+			// canceled, its error must propagate unchanged so
+			// the runner can recognize cancellation.
 			if ctx.Err() == nil && errors.Is(context.Cause(dialCtx), errChatDialTimeout) {
 				c.clearCachedWorkspaceState()
 				return nil, c.latestWorkspaceAgentRecoveryError(ctx, chatSnapshot.WorkspaceID.UUID)
@@ -1106,8 +1088,10 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
-	OrganizationID          uuid.UUID
-	OwnerID                 uuid.UUID
+	OrganizationID uuid.UUID
+	OwnerID        uuid.UUID
+	// CreatedBy attributes the initial user message; defaults to OwnerID.
+	CreatedBy               uuid.UUID
 	WorkspaceID             uuid.NullUUID
 	BuildID                 uuid.NullUUID
 	AgentID                 uuid.NullUUID
@@ -1121,10 +1105,14 @@ type CreateOptions struct {
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
 	SystemPrompt            string
-	InitialUserContent      []codersdk.ChatMessagePart
-	MCPServerIDs            []uuid.UUID
-	Labels                  database.StringMap
-	DynamicTools            json.RawMessage
+	// InitialUserContent is the first user message. When empty, the
+	// chat is created idle (`waiting`) with system messages only and
+	// no worker processes it until the first SendMessage.
+	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
+	InlineMCPServers   []codersdk.InlineMCPServerRequest
+	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1150,6 +1138,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// InlineMCPServers replaces the inline MCP servers. nil: no change.
+	InlineMCPServers *[]codersdk.InlineMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1162,6 +1152,11 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// FirstUserTurn reports that the send inserted the first
+	// user-visible message into a chat still carrying
+	// chatprompt.DefaultChatTitle. The send already persisted the
+	// fallback title, so callers only schedule the async title upgrade.
+	FirstUserTurn bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1279,8 +1274,10 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 }
 
 // CreateChat creates a chat with its initial history through
-// chatstate.CreateChat. The new chat starts in `running` status per
-// the chat execution state model. Ownership hints wake chat workers.
+// chatstate.CreateChat. With initial user content the new chat starts
+// in `running` status and ownership hints wake chat workers. Without
+// initial user content the chat is created idle in `waiting` status
+// with system messages only; the first SendMessage starts generation.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -1291,8 +1288,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
-	if len(opts.InitialUserContent) == 0 {
-		return database.Chat{}, xerrors.New("initial user content is required")
+	initialStatus := database.ChatStatusWaiting
+	if len(opts.InitialUserContent) > 0 {
+		initialStatus = database.ChatStatusRunning
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
@@ -1333,7 +1331,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	if p.hooks.Enabled() {
+	// The prompt-submit hook fires with the first SendMessage when the
+	// chat is created without an initial user message.
+	if p.hooks.Enabled() && len(contentParts) > 0 {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
@@ -1374,11 +1374,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
-	}
-
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {
 		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1399,7 +1394,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, opts.OwnerID, opts.ReasoningEffort))
+	if len(contentParts) > 0 {
+		userContent, marshalErr := chatprompt.MarshalParts(contentParts)
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	}
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1414,6 +1415,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
+		InlineMCPServers:  opts.InlineMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1425,6 +1427,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
+		InitialStatus:   initialStatus,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1554,9 +1557,27 @@ func (p *Server) SendMessage(
 			return err
 		}
 
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
+		}
+
 		messageCreatedBy := opts.CreatedBy
 		if messageCreatedBy == uuid.Nil {
 			messageCreatedBy = lockedChat.OwnerID
+		}
+
+		firstUserTurn := false
+		if lockedChat.Title == chatprompt.DefaultChatTitle {
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+				ChatID:   opts.ChatID,
+				LimitVal: 1,
+			})
+			if err != nil {
+				return xerrors.Errorf("probe visible chat messages: %w", err)
+			}
+			firstUserTurn = len(visible) == 0
 		}
 
 		// Queue capacity is enforced inside tx.SendMessage; this
@@ -1588,6 +1609,24 @@ func (p *Server) SendMessage(
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
 			return err
 		}
+		if firstUserTurn && !result.Queued {
+			result.FirstUserTurn = true
+			// Persist the fallback title with the message so a failed
+			// async title call cannot leave the placeholder forever.
+			firstMessage := []database.ChatMessage{result.Message}
+			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			if err != nil {
+				return err
+			}
+			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
+				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					ID:    opts.ChatID,
+					Title: chatprompt.FallbackTitle(titleText),
+				}); err != nil {
+					return xerrors.Errorf("update fallback chat title: %w", err)
+				}
+			}
+		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
 		// reflect the snapshot bump and status change produced by
@@ -1606,6 +1645,9 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	}
 	return result, nil
 }
 
@@ -2621,7 +2663,7 @@ func (p *Server) ProposeChatTitle(
 ) (string, error) {
 	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.generateManualTitleCandidate(chatdCtx, p.db, chat)
+	return p.generateManualTitleCandidate(chatdCtx, chat)
 }
 
 // generateManualTitleCandidate generates a title candidate from the chat's
@@ -2629,10 +2671,9 @@ func (p *Server) ProposeChatTitle(
 // Endpoint-specific commit paths decide whether to persist the title.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
-	store database.Store,
 	chat database.Chat,
 ) (string, error) {
-	headMessages, err := store.GetChatMessagesByChatIDAscPaginated(
+	headMessages, err := p.db.GetChatMessagesByChatIDAscPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDAscPaginatedParams{
 			ChatID:   chat.ID,
@@ -2643,7 +2684,7 @@ func (p *Server) generateManualTitleCandidate(
 	if err != nil {
 		return "", xerrors.Errorf("get head chat messages: %w", err)
 	}
-	tailMessages, err := store.GetChatMessagesByChatIDDescPaginated(
+	tailMessages, err := p.db.GetChatMessagesByChatIDDescPaginated(
 		ctx,
 		database.GetChatMessagesByChatIDDescPaginatedParams{
 			ChatID:   chat.ID,
@@ -2658,7 +2699,7 @@ func (p *Server) generateManualTitleCandidate(
 	if len(messages) == 0 {
 		return "", nil
 	}
-	pasteText, err := titlePasteText(ctx, store, messages)
+	pasteText, err := titlePasteText(ctx, p.db, messages)
 	if err != nil {
 		return "", xerrors.Errorf("get pasted-text attachments for manual title: %w", err)
 	}
@@ -2668,7 +2709,7 @@ func (p *Server) generateManualTitleCandidate(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	resolved, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	resolved, err := p.resolveQuickgenModel(ctx, "title", chat, modelOpts)
 	if err != nil {
 		return "", err
 	}
@@ -2827,94 +2868,6 @@ func deriveChatDebugSeed(messages []database.ChatMessage) (
 	return triggerMessageID, historyTipMessageID, triggerLabel
 }
 
-func (p *Server) resolveManualTitleModel(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		chat,
-		modelOpts,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			return resolvedModelCall{}, xerrors.Errorf(
-				"resolve manual title generation model override: %w",
-				overrideErr,
-			)
-		}
-		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(overrideErr),
-		)
-	} else if overrideSet {
-		return overrideResolved, nil
-	}
-
-	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if err != nil {
-		return resolvedModelCall{}, err
-	}
-	configs, err := enabledChatModelConfigsForOrganization(modelCtx, store, chat.OrganizationID)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to list manual title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-	return resolved, nil
-}
-
-func (p *Server) resolveFallbackManualTitleModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	config, err := p.resolveModelConfig(ctx, chat)
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"resolve fallback manual title model config: %w",
-			err,
-		)
-	}
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"create fallback manual title model: %w",
-			err,
-		)
-	}
-	return resolved, nil
-}
-
 func mergeManualTitleMessages(
 	headMessages []database.ChatMessage,
 	tailMessagesDesc []database.ChatMessage,
@@ -2949,6 +2902,7 @@ type Config struct {
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
 	ChatHeartbeatInterval          time.Duration
+	StreamSilenceTimeout           time.Duration
 	AgentConn                      AgentConnFunc
 	AgentInactiveDisconnectTimeout time.Duration
 	CreateWorkspace                chattool.CreateWorkspaceFn
@@ -2958,6 +2912,7 @@ type Config struct {
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
 	AlwaysEnableDebugLogs          bool
+	DisableCallerSuppliedTools     bool
 	WebpushDispatcher              webpush.Dispatcher
 	HookDispatcher                 *dispatch.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
@@ -3003,6 +2958,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	chatHeartbeatInterval := cfg.ChatHeartbeatInterval
 	if chatHeartbeatInterval == 0 {
 		chatHeartbeatInterval = DefaultChatHeartbeatInterval
+	}
+
+	streamSilenceTimeout := cfg.StreamSilenceTimeout
+	if streamSilenceTimeout == 0 {
+		streamSilenceTimeout = chatloop.DefaultStreamSilenceTimeout
 	}
 
 	clk := cfg.Clock
@@ -3055,6 +3015,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
+		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
@@ -3074,6 +3035,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
+		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
 		clock:                    clk,
 		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
@@ -3311,7 +3273,7 @@ func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
-				strings.HasPrefix(f.Mimetype, "image/") &&
+				chatfiles.IsRasterImageMediaType(f.Mimetype) &&
 				len(f.Data) >= imageCap {
 				err := xerrors.Errorf(
 					"image attachment %q is %d bytes; %s inline image limit is %d bytes",
@@ -3411,6 +3373,36 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+// filterMCPServersForTurn returns the external MCP servers visible on the
+// current turn and the set of their IDs. Outside plan mode every server is
+// visible and the set is nil. Plan-mode subagents see none: their trust
+// boundary is narrower than the root chat's. Root plan-mode chats see the
+// servers whose policy allows plan mode.
+func filterMCPServersForTurn[T any](
+	servers []T,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	policy func(T) (id uuid.UUID, allowInPlanMode bool),
+) ([]T, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return servers, nil
+	}
+	approved := map[uuid.UUID]struct{}{}
+	if parentChatID.Valid {
+		return nil, approved
+	}
+	filtered := make([]T, 0, len(servers))
+	for _, srv := range servers {
+		id, allowInPlanMode := policy(srv)
+		if !allowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, srv)
+		approved[id] = struct{}{}
+	}
+	return filtered, approved
+}
+
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -3419,25 +3411,9 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return configs, nil
-	}
-	if parentChatID.Valid {
-		// Plan-mode subagents do not receive external MCP tools because
-		// their trust boundary is narrower than the root chat's.
-		return nil, map[uuid.UUID]struct{}{}
-	}
-
-	filtered := make([]database.MCPServerConfig, 0, len(configs))
-	approvedIDs := make(map[uuid.UUID]struct{})
-	for _, cfg := range configs {
-		if !cfg.AllowInPlanMode {
-			continue
-		}
-		filtered = append(filtered, cfg)
-		approvedIDs[cfg.ID] = struct{}{}
-	}
-	return filtered, approvedIDs
+	return filterMCPServersForTurn(configs, mode, parentChatID, func(cfg database.MCPServerConfig) (uuid.UUID, bool) {
+		return cfg.ID, cfg.AllowInPlanMode
+	})
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
@@ -3547,11 +3523,12 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. They were snapshot-filtered
-		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
-		// implement MCPToolIdentifier, so workspace tools are excluded
-		// here too, in addition to the structural exclusion in runChat
-		// tool assembly.
+		// External MCP tools pass through here. Org tools were
+		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+		// tools come only from root chat servers with allow_in_subagents.
+		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+		// workspace tools are excluded here too, in addition to the
+		// structural exclusion in runChat tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}
@@ -4157,6 +4134,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	return keys, nil
 }
 
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
+
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -4660,7 +4639,7 @@ const (
 	// Subagent summaries reuse the final report instead of generating
 	// text, so their work timeout only covers two database round trips.
 	subagentReportSummaryTimeout = 15 * time.Second
-	// Bound the extracted report snippet near the 1-3 sentence
+	// Bound the extracted report snippet near the headline of the
 	// generated summaries that root chats get, so subagent and parent
 	// summary panels read the same.
 	subagentReportSummaryMaxRunes     = 300
@@ -4751,8 +4730,12 @@ func (p *Server) generateAndStoreChatSummary(
 	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
 
 	if genErr != nil {
-		logger.Debug(ctx, "failed to generate chat summary",
-			slog.F("chat_id", chat.ID), slog.Error(genErr))
+		logger.Warn(ctx, "failed to generate chat summary",
+			slog.F("chat_id", chat.ID),
+			slog.F("provider", resolved.resolvedProvider),
+			slog.F("model", resolved.resolvedModel),
+			slog.Error(genErr),
+		)
 		return
 	}
 
@@ -4765,13 +4748,9 @@ func (p *Server) resolveChatSummaryModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool) {
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "chat_summary",
-		chat:         chat,
-		buildOptions: modelOpts,
-	})
+	resolved, err := p.resolveQuickgenModel(ctx, "chat_summary", chat, modelOpts)
 	if err != nil {
-		logger.Debug(ctx, "failed to resolve chat model for summary",
+		logger.Warn(ctx, "failed to resolve model for chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return resolvedModelCall{}, false
 	}

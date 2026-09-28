@@ -1,7 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { API } from "#/api/api";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -15,6 +23,7 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	withDashboardProvider,
 	withProxyProvider,
@@ -23,6 +32,7 @@ import {
 import {
 	AgentChatInput,
 	type AgentContextUsage,
+	type AttachedWorkspaceInfo,
 	type UploadState,
 } from "./AgentChatInput";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
@@ -217,44 +227,17 @@ export const ModifierEnterSendsWhenRequired: Story = {
 	},
 };
 
-/**
- * CODAGT-210: On mobile viewports, Enter must insert a newline rather
- * than submit the message, because Shift+Enter is cumbersome on
- * on-screen keyboards. Users submit via the send button instead.
- */
 export const MobileEnterInsertsNewline: Story = {
-	args: {
-		onSend: fn(),
-		initialValue: "Line one",
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
 	},
-	play: async ({ canvasElement, args }) => {
-		const originalMatchMedia = window.matchMedia;
-		window.matchMedia = (query: string) =>
-			({
-				matches: query === "(max-width: 639px)",
-				media: query,
-				onchange: null,
-				addEventListener: () => undefined,
-				removeEventListener: () => undefined,
-				dispatchEvent: () => true,
-				addListener: () => undefined,
-				removeListener: () => undefined,
-			}) as MediaQueryList;
-
-		try {
-			const canvas = within(canvasElement);
-			const editor = canvas.getByTestId("chat-message-input");
-			await waitFor(() => {
-				expect(editor.textContent).toBe("Line one");
-			});
-
-			await userEvent.click(editor);
-			await userEvent.keyboard("{Enter}");
-
-			expect(args.onSend).not.toHaveBeenCalled();
-		} finally {
-			window.matchMedia = originalMatchMedia;
-		}
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+	play: async ({ canvasElement }) => {
+		const editor = within(canvasElement).getByRole("textbox", {
+			name: "Chat message",
+		});
+		await userEvent.click(editor);
+		await userEvent.keyboard("Line one{Enter}Line two");
 	},
 };
 
@@ -327,6 +310,13 @@ export const StreamingInterruptPending: Story = {
 		initialValue: "",
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingInterruptPendingWithDraft: Story = {
+	args: {
+		...StreamingInterruptPending.args,
+		initialValue: "Also update the docs",
 	},
 };
 
@@ -657,6 +647,16 @@ const notionMCPConnected = buildMCPServer({
 	enabled: true,
 });
 
+const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
+	id: "mcp-slack",
+	display_name: "Slack",
+	slug: "slack",
+	availability: "force_on",
+	auth_type: "oauth2",
+	auth_connected: false,
+	enabled: true,
+});
+
 const mcpDefaults = {
 	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
@@ -687,12 +687,78 @@ const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
 
 // ── MCP stories ────────────────────────────────────────────────
 
-/** Input with multiple MCP servers selected — shows icon stack in toolbar. */
+/** Three selected servers collapse into a single "3 MCPs" pill. */
 export const WithMCPServers: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+export const WithTwoMCPServers: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+/** The pill lists only its active servers; Notion stays in the plus menu. */
+export const MCPGroupPopoverOpen: Story = {
+	args: {
+		...WithMCPServers.args,
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected, notionMCPConnected],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
+		);
+		await screen.findByRole("dialog");
+	},
+};
+
+export const MCPGroupDisabled: Story = {
+	args: {
+		...WithMCPServers.args,
+		isDisabled: true,
+	},
+	play: MCPGroupPopoverOpen.play,
+};
+
+const mockLongNameMCP = buildMCPServer({
+	id: "mcp-long-name",
+	display_name: "Coder Internal Documentation Search Server",
+	slug: "internal-docs",
+	availability: "default_on",
+	auth_type: "api_key",
+	enabled: true,
+});
+
+/** A long server name truncates inside the popover instead of pushing its X out of view. */
+export const MCPGroupPopoverLongName: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [sentryMCP, linearMCP, mockLongNameMCP],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, mockLongNameMCP.id],
+	},
+	play: MCPGroupPopoverOpen.play,
+};
+
+export const PlusMenuAlwaysOnNeedingAuth: Story = {
+	args: {
+		...WithMCPServers.args,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			mockSlackMCPAlwaysOnNeedingAuth,
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
 	},
 };
 
@@ -1277,26 +1343,58 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
-// Wide badges that cannot fit force into +N overflow.
-const confluenceWideMCP = buildMCPServer({
-	id: "mcp-confluence-wide",
-	display_name: "Confluence Cloud Enterprise Wiki",
-	slug: "confluence-wide",
-	availability: "default_on",
-	auth_type: "none",
-	enabled: true,
-});
+const mockOverflowAttachedWorkspace = {
+	id: MockWorkspace.id,
+	name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline",
+	route: "/@admin/attached",
+	statusIcon: <MonitorDotIcon className="size-3" />,
+	statusLabel: "Workspace running",
+} satisfies AttachedWorkspaceInfo;
 
-const datadogWideMCP = buildMCPServer({
-	id: "mcp-datadog-wide",
-	display_name: "Datadog Infrastructure Monitoring",
-	slug: "datadog-wide",
-	availability: "default_on",
-	auth_type: "none",
-	enabled: true,
-});
+export const MCPGroupMoreThanThree: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [
+			sentryMCP,
+			linearMCP,
+			githubMCPConnected,
+			notionMCPConnected,
+			confluenceMCP,
+		],
+		selectedMCPServerIds: [
+			sentryMCP.id,
+			linearMCP.id,
+			githubMCPConnected.id,
+			notionMCPConnected.id,
+			confluenceMCP.id,
+		],
+	},
+};
 
-/** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
+export const MCPGroupInOverflow: Story = {
+	args: {
+		...WithMCPServers.args,
+		attachedWorkspace: mockOverflowAttachedWorkspace,
+		onWorkspaceChange: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", { name: /more item/ }),
+		);
+		const overflow = await screen.findByRole("dialog");
+		await userEvent.click(
+			within(overflow).getByRole("button", { name: "3 MCPs" }),
+		);
+		// The group popover is a second dialog, so wait for one of its pills.
+		await screen.findByRole("button", { name: "Remove Linear" });
+	},
+};
+
+/** A long attached workspace keeps the grouped tools in the "+N" overflow. */
 export const OverflowBadges: Story = {
 	args: {
 		...mcpDefaults,
@@ -1316,31 +1414,8 @@ export const OverflowBadges: Story = {
 			datadogMCP.id,
 			pagerdutyMCP.id,
 		],
-		workspaceOptions: [
-			{
-				id: "ws-1",
-				name: "my-long-workspace-name",
-				owner_name: "admin",
-				organization_id: "org-1",
-			},
-		],
-		selectedWorkspaceId: "ws-1",
+		attachedWorkspace: mockOverflowAttachedWorkspace,
 		onWorkspaceChange: fn(),
-		attachedWorkspace: {
-			id: "ws-1",
-			name: "my-long-workspace-name",
-			route: "/@admin/my-long-workspace-name",
-			statusIcon: <MonitorDotIcon className="size-3" />,
-			statusLabel: "Workspace running",
-		},
-		workspace: {
-			...MockWorkspace,
-			id: "ws-1",
-			name: "my-long-workspace-name",
-			owner_name: "admin",
-		},
-		workspaceAgent: MockWorkspaceAgent,
-		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1376,6 +1451,23 @@ const baseContextUsage: AgentContextUsage = {
 export const WithContextUsage: Story = {
 	args: {
 		contextUsage: baseContextUsage,
+	},
+};
+
+/** Streaming on a phone with a draft. */
+export const StreamingWithDraftMobile: Story = {
+	args: {
+		isStreaming: true,
+		onInterrupt: fn(),
+		isInterruptPending: false,
+		initialValue: "Also update the docs",
+		contextUsage: baseContextUsage,
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 
@@ -1552,8 +1644,9 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 				displayName: "Claude Sonnet 4.5",
 			},
 		],
-		mcpServers: [confluenceWideMCP, datadogWideMCP],
-		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+		mcpServers: [confluenceMCP, datadogMCP],
+		selectedMCPServerIds: [confluenceMCP.id, datadogMCP.id],
+		attachedWorkspace: mockOverflowAttachedWorkspace,
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1610,5 +1703,54 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 		)) {
 			expect(el).not.toBeVisible();
 		}
+	},
+};
+
+export const DeferredErrorChipKeepsSendEnabled: Story = {
+	args: {
+		workspaceUploads: {
+			uploads: [
+				{
+					id: "wf-err",
+					file: createMockFile("dataset.zip", "application/zip"),
+					status: "error",
+					error: "upload failed",
+				},
+			],
+			onAttach: fn(),
+			onRemove: fn(),
+			deferred: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Deferred submits re-upload failed entries, so a failed chip
+		// alone must keep the retry path available.
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: "Send" })).toBeEnabled();
+		});
+	},
+};
+
+export const ErrorChipAloneKeepsSendDisabled: Story = {
+	args: {
+		workspaceUploads: {
+			uploads: [
+				{
+					id: "wf-err",
+					file: createMockFile("dataset.zip", "application/zip"),
+					status: "error",
+					error: "upload failed",
+				},
+			],
+			onAttach: fn(),
+			onRemove: fn(),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Outside deferred mode a failed upload is not retried by
+		// sending, so it contributes no sendable content.
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };

@@ -1,9 +1,9 @@
 import type { FC } from "react";
 import { Link } from "#/components/Link/Link";
 
-interface TermsOfServiceLinkProps {
+type TermsOfServiceLinkProps = {
 	url?: string;
-}
+};
 
 export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({ url }) => {
 	return (

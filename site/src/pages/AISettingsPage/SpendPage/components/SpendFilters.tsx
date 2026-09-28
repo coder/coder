@@ -1,61 +1,79 @@
 import type { FC } from "react";
-import type { AIGatewaySpendFilter } from "#/api/typesGenerated";
-import {
-	DateRangePicker,
-	type DateRangeValue,
-} from "#/components/DateRangePicker/DateRangePicker";
+import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
+import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
-import type { FilterCategory } from "#/components/Filter/FilterCombobox/types";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { spendQuickPresets } from "../spendPeriod";
 import { spendFilterCategories } from "./spendFilterCategories";
 
-// The chip keys match both the spend API query parameters and the sessions
-// page filter keys, so a drill-in can hand its filters to the sessions link
-// unchanged.
-export type SpendDimensions = Pick<
-	AIGatewaySpendFilter,
-	"provider_name" | "client" | "model"
->;
-
-interface SpendFiltersProps {
-	// The combobox is query-string driven, like the workspaces filter: chips for
-	// provider/client/model plus free text for the user search.
+type SpendFiltersProps = {
+	organizations: readonly Organization[];
+	organization: Organization;
+	onOrganizationChange: (organization: Organization) => void;
+	canFilterDimensions: boolean;
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
-	categories?: readonly FilterCategory[];
-	now?: Date;
-	dateRange: DateRangeValue;
-	onDateRangeChange: (value: DateRangeValue) => void;
-	errorMessage?: string;
-}
+	filterError: string | undefined;
+	now: Date | undefined;
+	period: DateTimeRangeValue;
+	minDate: Date | undefined;
+	onPeriodChange: (value: DateTimeRangeValue) => void;
+};
 
 export const SpendFilters: FC<SpendFiltersProps> = ({
+	organizations,
+	organization,
+	onOrganizationChange,
+	canFilterDimensions,
 	filterQuery,
 	onFilterQueryChange,
-	categories = spendFilterCategories,
+	filterError,
 	now,
-	dateRange,
-	onDateRangeChange,
-	errorMessage,
+	period,
+	minDate,
+	onPeriodChange,
 }) => {
-	// The FilterCombobox renders its popover in-flow (disablePortal), so no
-	// ancestor here may establish CSS containment: a `container-type` (e.g.
-	// Tailwind's `@container`) would become the popover's containing block and
-	// misposition it to the top-left. Plain flex-wrap keeps the combobox and date
-	// picker on one line when there is room and stacks them when cramped.
 	return (
 		<div className="flex flex-wrap items-start gap-2">
-			<FilterCombobox
-				value={filterQuery}
-				onChange={onFilterQueryChange}
-				categories={categories}
-				placeholder="Search and filter spend…"
-				className="w-full min-w-60 flex-1 md:max-w-lg"
-				errorMessage={errorMessage}
-			/>
-			<DateRangePicker
+			{organizations.length > 1 && (
+				<OrganizationAutocomplete
+					value={organization}
+					ariaLabel={`Organization ${getOrganizationLabel(
+						organization,
+						organizations,
+					)}`}
+					options={organizations}
+					triggerClassName="basis-[150px] grow"
+					optionsTabbable
+					onChange={(next) => {
+						if (next) {
+							onOrganizationChange(next);
+						}
+					}}
+				/>
+			)}
+			{canFilterDimensions && (
+				<div className="min-w-60 flex-1">
+					<FilterCombobox
+						value={filterQuery}
+						onChange={onFilterQueryChange}
+						categories={spendFilterCategories}
+						placeholder="Filter by provider, client, or model…"
+						errorMessage={filterError}
+					/>
+				</div>
+			)}
+			<DateTimeRangePicker
 				now={now}
-				value={dateRange}
-				onChange={onDateRangeChange}
+				value={period}
+				onChange={onPeriodChange}
+				presets={spendQuickPresets}
+				maxDays={MaxAISpendPeriodDays}
+				minDate={minDate}
 				size="lg"
 			/>
 		</div>

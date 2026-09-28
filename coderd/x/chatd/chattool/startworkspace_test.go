@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -941,6 +942,110 @@ func TestStartWorkspace(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, resp.Content, "workspace was deleted")
 	})
+
+	// Dormancy auto-delete leaves dormant_at set, which switches the row's
+	// RBAC object to workspace_dormant. The chatd actor must still read it
+	// so the deleted-workspace guidance is reached instead of a permission
+	// failure.
+	t.Run("DormantDeletedWorkspace", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		wsResp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Deleted:        true,
+			DormantAt:      sql.NullTime{Time: time.Now(), Valid: true},
+		}).Seed(database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionDelete,
+		}).Do()
+		ws := wsResp.Workspace
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-dormant-deleted-workspace",
+		})
+
+		authzDB := dbauthz.New(
+			db,
+			rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+			slogtest.Make(t, nil),
+			testAccessControlStorePointer(),
+		)
+		tool := chattool.StartWorkspace(authzDB, chat.ID, chattool.StartWorkspaceOptions{
+			OwnerID: user.ID,
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn should not be called for deleted workspace")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(
+			dbauthz.AsChatd(ctx),
+			fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"},
+		)
+		require.NoError(t, err)
+		require.Contains(t, resp.Content, "workspace was deleted")
+		require.Contains(t, resp.Content, "create_workspace")
+		require.NotContains(t, resp.Content, "forbidden")
+	})
+
+	t.Run("LoadWorkspaceErrorGuidance", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+
+		user := dbgen.User(t, db, database.User{})
+		modelCfg := seedModelConfig(t, db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		ws := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+		}).Do().Workspace
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+			LastModelConfigID: modelCfg.ID,
+			Title:             "test-load-workspace-error",
+		})
+
+		tool := chattool.StartWorkspace(&failingWorkspaceStore{Store: db}, chat.ID, chattool.StartWorkspaceOptions{
+			StartFn: func(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ codersdk.CreateWorkspaceBuildRequest) (codersdk.WorkspaceBuild, error) {
+				t.Fatal("StartFn should not be called when the workspace cannot be loaded")
+				return codersdk.WorkspaceBuild{}, nil
+			},
+			WorkspaceMu: &sync.Mutex{},
+		})
+
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: "start_workspace", Input: "{}"})
+		require.NoError(t, err)
+		require.True(t, resp.IsError)
+		require.Contains(t, resp.Content, "load workspace: workspace store offline")
+		require.Contains(t, resp.Content, chattool.WorkspaceUnavailableHint)
+	})
+}
+
+// failingWorkspaceStore fails every workspace lookup so tests can observe
+// the recovery guidance attached to load errors.
+type failingWorkspaceStore struct {
+	database.Store
+}
+
+func (*failingWorkspaceStore) GetWorkspaceByID(context.Context, uuid.UUID) (database.Workspace, error) {
+	return database.Workspace{}, xerrors.New("workspace store offline")
 }
 
 // seedModelConfig inserts a provider and model config for testing.

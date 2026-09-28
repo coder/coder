@@ -684,9 +684,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get owner: %s", err))
 		}
 
-		// Fetch the file id of the cached module files if it exists.
+		// Fetch the file id of the cached module files if it exists. Modules
+		// stay cached for parameter rendering even when the cache is
+		// disabled; they are only withheld from the build.
 		versionModulesFile := ""
-		if !template.DisableModuleCache {
+		if !codersdk.ModuleCacheDisabled(s.DeploymentValues, template.DisableModuleCache) {
 			tfvals, err := s.Database.GetTemplateVersionTerraformValues(ctx, templateVersion.ID)
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				// Older templates (before dynamic parameters) will not have cached module files.
@@ -3133,6 +3135,28 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 func WorkspaceSessionTokenName(ownerID, workspaceID uuid.UUID) string {
 	return fmt.Sprintf("%s_%s_session_token", ownerID, workspaceID)
+}
+
+func ParseWorkspaceSessionTokenName(token string) (ownerID, workspaceID uuid.UUID, ok bool) {
+	prefix, ok := strings.CutSuffix(token, "_session_token")
+	if !ok {
+		return uuid.Nil, uuid.Nil, false
+	}
+	parts := strings.Split(prefix, "_")
+	if len(parts) != 2 {
+		return uuid.Nil, uuid.Nil, false
+	}
+	if id, err := uuid.Parse(parts[0]); err != nil {
+		return uuid.Nil, uuid.Nil, false
+	} else { // nolint:revive // author preference
+		ownerID = id
+	}
+	if id, err := uuid.Parse(parts[1]); err != nil {
+		return uuid.Nil, uuid.Nil, false
+	} else { // nolint:revive // author preference
+		workspaceID = id
+	}
+	return ownerID, workspaceID, true
 }
 
 func (s *server) regenerateSessionToken(ctx context.Context, user database.User, workspace database.Workspace) (string, error) {

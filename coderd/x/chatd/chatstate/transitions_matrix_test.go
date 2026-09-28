@@ -989,6 +989,8 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
 				require.Equal(t, seeded.chatID, inserted.ChatID)
 				assertChatMessageText(t, inserted, "sm-queue")
+				require.False(t, inserted.QueuedMessageID.Valid,
+					"SendMessage(queue) into W/E0 is a direct send, not a promotion")
 				require.False(t, after.LastError.Valid,
 					"SendMessage(queue) clears last_error when transitioning out of an error state")
 				require.Equal(t, database.ChatStatusRunning, after.Status,
@@ -1022,6 +1024,9 @@ func sendMessageQueueCase(from, want chatstate.ExecutionState, directInsert bool
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
+				require.NotEqual(t, newQueued.ID, promoted.QueuedMessageID.Int64,
+					"the promoted old head must not link to the new tail")
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
 						": queue must end with only the new tail")
@@ -1099,6 +1104,8 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				inserted := assertFetchedUserMessage(ctx, t, f, result.sendMessage.InsertedMessages[0])
 				require.Equal(t, seeded.chatID, inserted.ChatID)
 				assertChatMessageText(t, inserted, "sm-interrupt")
+				require.False(t, inserted.QueuedMessageID.Valid,
+					"SendMessage(interrupt) into W/E0 is a direct send, not a promotion")
 				require.False(t, after.LastError.Valid,
 					"SendMessage(interrupt) into W/E0 clears last_error")
 				require.Equal(t, database.ChatStatusRunning, after.Status,
@@ -1129,6 +1136,9 @@ func sendMessageInterruptCase(from, want chatstate.ExecutionState) transitionCas
 				require.NotEmpty(t, base.queueIDs,
 					chatstate.StateE1.String()+" seed must have a queue head")
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
+				require.NotEqual(t, newQueued.ID, promoted.QueuedMessageID.Int64,
+					"the promoted old head must not link to the new tail")
 				require.Equal(t, []int64{newQueued.ID}, afterQueueIDs,
 					chatstate.StateE1.String()+" -> "+chatstate.StateR1.String()+
 						" interrupt: queue must end with only the new tail")
@@ -1380,6 +1390,7 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				require.NotEmpty(t, seeded.queuedMessageBodies,
 					"E1/A1 seed must record queued message bodies")
 				assertChatMessageText(t, inserted, seeded.queuedMessageBodies[targetIdx])
+				requireQueuedMessageLink(t, inserted, targetID)
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, targetID)
 				wantRemaining := remainingExcluding(base.queueIDs, targetIdx)
 				require.Equal(t, wantRemaining, afterQueueIDs,
@@ -1848,6 +1859,7 @@ func finishInterruptionCase(from, want chatstate.ExecutionState, shape queueShap
 					"I1 seed must record queued message bodies")
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				require.NotEmpty(t, base.queueIDs)
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
 				require.Equal(t, wantRemaining, afterQueueIDs,
@@ -1901,6 +1913,7 @@ func finishTurnCase(from, want chatstate.ExecutionState, shape queueShape) trans
 					"R1 seed must record queued message bodies")
 				assertChatMessageText(t, promoted, seeded.queuedMessageBodies[0])
 				require.NotEmpty(t, base.queueIDs)
+				requireQueuedMessageLink(t, promoted, base.queueIDs[0])
 				requireQueuedMessageDeleted(ctx, t, f, seeded.chatID, base.queueIDs[0])
 				wantRemaining := append([]int64{}, base.queueIDs[1:]...)
 				require.Equal(t, wantRemaining, afterQueueIDs,

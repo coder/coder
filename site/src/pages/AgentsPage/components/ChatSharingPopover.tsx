@@ -1,4 +1,9 @@
-import { EllipsisVerticalIcon, Share2Icon, UserPlusIcon } from "lucide-react";
+import {
+	EllipsisVerticalIcon,
+	LinkIcon,
+	Share2Icon,
+	UserPlusIcon,
+} from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -9,6 +14,7 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
@@ -34,6 +40,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useClipboard } from "#/hooks/useClipboard";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
 import {
 	UserOrGroupAutocomplete,
@@ -143,6 +150,32 @@ const MemberIdentity: FC<MemberIdentityProps> = (props) => {
 			subtitle={user.name}
 			src={user.avatar_url}
 		/>
+	);
+};
+
+type CopyChatLinkButtonProps = {
+	chatId: string;
+};
+
+/**
+ * Copies the absolute chat URL so it can be shared from contexts without an
+ * address bar, such as an installed PWA.
+ */
+const CopyChatLinkButton: FC<CopyChatLinkButtonProps> = ({ chatId }) => {
+	const { copyToClipboard, showCopiedSuccess } = useClipboard();
+	const chatLink = new URL(`/agents/${chatId}`, window.location.origin).href;
+
+	return (
+		<Button
+			size="sm"
+			variant="outline"
+			onClick={() => {
+				void copyToClipboard(chatLink);
+			}}
+		>
+			{showCopiedSuccess ? <CheckIcon /> : <LinkIcon />}
+			{showCopiedSuccess ? "Copied" : "Copy link"}
+		</Button>
 	);
 };
 
@@ -281,8 +314,9 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 			align="end"
 			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
 		>
-			<div className="flex items-center gap-2 mb-4">
+			<div className="flex items-center justify-between gap-2 mb-4">
 				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
+				<CopyChatLinkButton chatId={chatId} />
 			</div>
 
 			<div className="flex flex-col gap-4">

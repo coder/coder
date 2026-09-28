@@ -11,7 +11,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-interface EphemeralParametersDialogProps {
+type EphemeralParametersDialogProps = {
 	open: boolean;
 	onClose: () => void;
 	onContinue: () => void;
@@ -19,7 +19,7 @@ interface EphemeralParametersDialogProps {
 	workspaceOwner: string;
 	workspaceName: string;
 	templateVersionId: string;
-}
+};
 
 export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 	open,

@@ -4,9 +4,9 @@ import type { ConnectionLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { connectionTypeToFriendlyName } from "#/utils/connection";
 
-interface ConnectionLogDescriptionProps {
+type ConnectionLogDescriptionProps = {
 	connectionLog: ConnectionLog;
-}
+};
 
 export const ConnectionLogDescription: FC<ConnectionLogDescriptionProps> = ({
 	connectionLog,

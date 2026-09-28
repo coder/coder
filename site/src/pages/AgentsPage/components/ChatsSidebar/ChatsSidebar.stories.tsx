@@ -243,6 +243,80 @@ export const SharedUnreadChat: Story = {
 	},
 };
 
+/**
+ * The active row normally swaps its timestamp for the actions trigger, but
+ * another user's shared chat has no owner actions, so the timestamp stays.
+ */
+export const ActiveSharedChatViewerHasNoActions: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-active",
+				title: "Shared active chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/shared-active",
+				pathParams: { agentId: "shared-active" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
+/** Viewers keep the subagents toggle, the touch path for expanding a row. */
+export const SharedChatViewerMenuOnlyTogglesSubagents: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-parent",
+				title: "Shared parent chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				children: [
+					buildChat({
+						id: "shared-child",
+						title: "Shared child chat",
+						owner_id: "sharing-user",
+						owner_name: "Sharing User",
+						owner_username: "sharing-user",
+						parent_chat_id: "shared-parent",
+						root_chat_id: "shared-parent",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/shared-parent",
+				pathParams: { agentId: "shared-parent" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open actions for Shared parent chat",
+			}),
+		);
+		await within(document.body).findByRole("menuitem", {
+			name: "Show subagents (1)",
+		});
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [
@@ -680,6 +754,18 @@ export const SidebarFilterMenu: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
+	},
+};
+
+export const SectionSwitcherMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Agents" }),
+		);
+		await within(document.body).findByRole("menuitem", { name: "Agents" });
 	},
 };
 
@@ -1666,6 +1752,33 @@ export const ActiveChatKebabPersistent: Story = {
 	},
 };
 
+export const ActiveChatContextMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-context-menu",
+				title: "Active context menu chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-context-menu",
+				pathParams: { agentId: "active-context-menu" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId("agents-tree-node-active-context-menu"),
+		);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
 export const WithUnreadChats: Story = {
 	args: {
 		chats: [
@@ -1758,6 +1871,33 @@ export const AgentWithWorkspaceMenuFull: Story = {
 			"Open actions for Agent with workspace",
 		);
 		await userEvent.click(trigger);
+		await within(document.body).findByText("Pin agent");
+	},
+};
+
+export const AgentWithWorkspaceContextMenuFull: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-with-context-menu",
+				title: "Agent with context menu",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		fireEvent.contextMenu(
+			within(canvasElement).getByTestId(
+				"agents-tree-node-chat-with-context-menu",
+			),
+		);
 		await within(document.body).findByText("Pin agent");
 	},
 };

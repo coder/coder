@@ -21,7 +21,7 @@ type Metrics struct {
 	ProvidersLastReloadTimestampSeconds prometheus.Gauge
 
 	// ProvidersLastReloadSuccessTimestampSeconds is the unix timestamp
-	// of the last reload that successfully refreshed the pool. A gap
+	// of the last reload that successfully refreshed the providers. A gap
 	// against ProvidersLastReloadTimestampSeconds means the loop is
 	// firing but the refresh function is failing.
 	ProvidersLastReloadSuccessTimestampSeconds prometheus.Gauge
@@ -46,7 +46,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		ProvidersLastReloadSuccessTimestampSeconds: factory.NewGauge(prometheus.GaugeOpts{
 			Name: "providers_last_reload_success_timestamp_seconds",
-			Help: "Unix timestamp of the last provider reload that successfully refreshed the pool. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.",
+			Help: "Unix timestamp of the last provider reload that successfully refreshed the providers. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.",
 		}),
 	}
 }

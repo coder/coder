@@ -1,4 +1,4 @@
-import { PackageIcon, SearchIcon } from "lucide-react";
+import { SearchIcon } from "lucide-react";
 import { type FC, type PropsWithChildren, useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -24,14 +24,14 @@ import {
 	type SelectedModuleMeta,
 } from "./wizardState";
 
-interface ModuleSelectStepProps {
+type ModuleSelectStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	onChangeModules: (
 		modules: TemplateBuilderComposeModule[],
 		meta: SelectedModuleMeta[],
 	) => void;
-}
+};
 
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
@@ -47,10 +47,10 @@ function moduleDetailsUrl(moduleId: string): string {
 	return `https://registry.coder.com/modules/${moduleId}`;
 }
 
-interface ModuleConflict {
+type ModuleConflict = {
 	moduleA: TemplateBuilderModule;
 	moduleB: TemplateBuilderModule;
-}
+};
 
 const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -225,7 +225,6 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				<TabsList ref={containerRef}>
 					{visibleFilterTabs.map((tab) => (
 						<TabsTrigger key={tab.value} value={tab.value}>
-							<PackageIcon className="size-icon-sm" />
 							{tab.value} ({tab.count})
 						</TabsTrigger>
 					))}

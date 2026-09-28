@@ -5,11 +5,11 @@ import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDeleteToken } from "./hooks";
 
-interface ConfirmDeleteDialogProps {
+type ConfirmDeleteDialogProps = {
 	queryKey: (string | boolean)[];
 	token: APIKeyWithOwner | undefined;
 	setToken: (arg: APIKeyWithOwner | undefined) => void;
-}
+};
 
 export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 	queryKey,

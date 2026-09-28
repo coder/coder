@@ -17,7 +17,6 @@ const (
 	PremiumFunnelSourceAIBridgeSessions       PremiumFunnelSource = "aibridge_sessions"
 	PremiumFunnelSourceAIGatewayKeys          PremiumFunnelSource = "ai_gateway_keys"
 	PremiumFunnelSourceAIGovernance           PremiumFunnelSource = "ai_governance"
-	PremiumFunnelSourceAISpend                PremiumFunnelSource = "ai_spend"
 	PremiumFunnelSourceAppearance             PremiumFunnelSource = "appearance"
 	PremiumFunnelSourceAuditLog               PremiumFunnelSource = "audit_log"
 	PremiumFunnelSourceBrowserOnly            PremiumFunnelSource = "browser_only"
@@ -46,7 +45,6 @@ func PremiumFunnelSources() []PremiumFunnelSource {
 		PremiumFunnelSourceAIBridgeSessions,
 		PremiumFunnelSourceAIGatewayKeys,
 		PremiumFunnelSourceAIGovernance,
-		PremiumFunnelSourceAISpend,
 		PremiumFunnelSourceAppearance,
 		PremiumFunnelSourceAuditLog,
 		PremiumFunnelSourceBrowserOnly,

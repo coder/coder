@@ -90,10 +90,10 @@ export type OrganizationsFilterMenu = ReturnType<
 	typeof useOrganizationsFilterMenu
 >;
 
-interface OrganizationsMenuProps {
+type OrganizationsMenuProps = {
 	menu: OrganizationsFilterMenu;
 	width?: number;
-}
+};
 
 export const OrganizationsMenu: FC<OrganizationsMenuProps> = ({
 	menu,

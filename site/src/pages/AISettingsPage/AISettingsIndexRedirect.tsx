@@ -1,4 +1,6 @@
+import { useQuery } from "react-query";
 import { Navigate } from "react-router";
+import { aiSpendOrganizations } from "#/api/queries/aiBridge";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -6,6 +8,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
+import { canViewAISpend } from "./SpendPage/spendAccess";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
@@ -15,6 +18,12 @@ export const AISettingsIndexRedirect = () => {
 		organizations,
 		{ enabled: !permissions.editDeploymentConfig },
 	);
+	const spendOrganizationsQuery = useQuery({
+		...aiSpendOrganizations(),
+		enabled:
+			entitlements.features.aibridge.enabled &&
+			!permissions.editDeploymentConfig,
+	});
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
@@ -44,13 +53,6 @@ export const AISettingsIndexRedirect = () => {
 		return <Navigate to="/ai/settings/templates" replace />;
 	}
 
-	if (
-		entitlements.features.aibridge.enabled &&
-		permissions.viewAnyAIBridgeInterception
-	) {
-		return <Navigate to="/ai/settings/spend" replace />;
-	}
-
 	if (accessibleOrgsQuery.isLoading) {
 		return <Loader fullscreen />;
 	}
@@ -77,6 +79,18 @@ export const AISettingsIndexRedirect = () => {
 
 	if (permissions.editDeploymentConfig) {
 		return <Navigate to="/ai/settings/coder-agents" replace />;
+	}
+
+	if (spendOrganizationsQuery.isLoading) {
+		return <Loader fullscreen />;
+	}
+
+	if (spendOrganizationsQuery.error !== null) {
+		return <ErrorAlert error={spendOrganizationsQuery.error} />;
+	}
+
+	if (canViewAISpend(entitlements, spendOrganizationsQuery.data)) {
+		return <Navigate to="/ai/settings/spend" replace />;
 	}
 
 	return <Navigate to="/ai/settings/providers" replace />;

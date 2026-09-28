@@ -21,9 +21,10 @@ export const CreateOAuth2AppPageView: FC = () => {
 	const queryClient = useQueryClient();
 	const postAppMutation = useMutation(postApp(queryClient));
 
+	const callbackURL = searchParams.get("callback_url");
 	const defaultValues = {
 		name: searchParams.get("name") ?? "",
-		callback_url: searchParams.get("callback_url") ?? "",
+		redirect_uris: callbackURL ? [callbackURL] : [],
 		icon: searchParams.get("icon") ?? "",
 	};
 	const [icon, setIcon] = useState(defaultValues.icon);
@@ -50,6 +51,9 @@ export const CreateOAuth2AppPageView: FC = () => {
 
 				<div className="border border-solid p-6 rounded-lg">
 					<OAuth2AppForm
+						// Apps created here are confidential. Public clients only come
+						// from dynamic client registration.
+						clientType="confidential"
 						onSubmit={async (req) => {
 							try {
 								const app = await postAppMutation.mutateAsync(req);

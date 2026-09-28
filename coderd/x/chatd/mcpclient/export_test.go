@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/safedial"
 )
 
@@ -23,7 +22,7 @@ var ConvertCallResultForTest = convertCallResult
 func ConnectAllForTest(
 	ctx context.Context,
 	logger slog.Logger,
-	configs []database.MCPServerConfig,
+	servers []Server,
 	timeout time.Duration,
 	reaperDone func(),
 ) ([]fantasy.AgentTool, []ConnectSummary, func()) {
@@ -34,10 +33,47 @@ func ConnectAllForTest(
 		netip.MustParsePrefix("::1/128"),
 	))
 	return connectAllWithHooks(
-		ctx, logger, configs, nil, uuid.Nil, nil, nil, httpClient,
-		timeout, connectHooks{reaperDone: reaperDone},
+		ctx, logger, servers, nil, uuid.Nil, nil, nil,
+		connectOptions{
+			httpClient: httpClient,
+			timeout:    timeout,
+			hooks:      connectHooks{reaperDone: reaperDone},
+			kind:       connectionKindOrg,
+		},
 	)
 }
+
+// ConnectInlineForTest exposes the inline connect path
+// with an injectable connect timeout and a loopback-permitting client.
+func ConnectInlineForTest(
+	ctx context.Context,
+	logger slog.Logger,
+	servers []Server,
+	coderHeaders map[string]string,
+	timeout time.Duration,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	httpClient := NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	))
+	return connectAllWithHooks(
+		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
+		connectOptions{
+			httpClient: inlineHTTPClient(httpClient),
+			timeout:    timeout,
+			kind:       connectionKindInline,
+		},
+	)
+}
+
+// ToolCallIDMetaKeyForTest exposes the _meta key for external tests.
+const ToolCallIDMetaKeyForTest = toolCallIDMetaKey
+
+// MaxInlineToolResultBytesForTest exposes the result cap.
+const MaxInlineToolResultBytesForTest = maxInlineToolResultBytes
+
+// MaxInlineHTTPResponseBytesForTest exposes the body cap.
+const MaxInlineHTTPResponseBytesForTest = maxInlineHTTPResponseBytes
 
 // BuildAuthHeadersForTest exposes buildAuthHeaders for external
 // tests.

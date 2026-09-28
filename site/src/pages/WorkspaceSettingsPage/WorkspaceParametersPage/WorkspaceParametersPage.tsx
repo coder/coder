@@ -1,4 +1,3 @@
-import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
@@ -13,6 +12,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -20,12 +20,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -281,26 +276,22 @@ const WorkspaceParametersPage: FC = () => {
 			<SettingsHeader>
 				<SettingsHeaderTitle
 					tooltip={
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<CircleHelpIcon className="size-icon-xs text-content-secondary" />
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs text-sm">
-									Dynamic Parameters enhances Coder's existing parameter system
-									with real-time validation, conditional parameter behavior, and
-									richer input types.
-									<br />
-									<Link
-										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
-										)}
-									>
-										View docs
-									</Link>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<InfoTooltip>
+							<TooltipMessage>
+								Dynamic Parameters enhances Coder's existing parameter system
+								with real-time validation, conditional parameter behavior, and
+								richer input types.
+								<br />
+								<Link
+									size="sm"
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+								>
+									View docs
+								</Link>
+							</TooltipMessage>
+						</InfoTooltip>
 					}
 				>
 					Parameters

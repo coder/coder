@@ -64,6 +64,21 @@ export const Apps: Story = {
 	},
 };
 
+export const AppWithMultipleRedirectURIs: Story = {
+	args: {
+		isLoadingApps: false,
+		apps: [
+			{
+				...MockOAuth2ProviderApps[0],
+				redirect_uris: [
+					MockOAuth2ProviderApps[0].callback_url,
+					"https://example.com/callback",
+				],
+			},
+		],
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		isLoadingApps: false,

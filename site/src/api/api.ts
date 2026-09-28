@@ -377,6 +377,16 @@ export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
 const mcpServerOAuth2DisconnectPath = (id: string) =>
 	`/api/v2/mcp/servers/${encodeURIComponent(id)}/oauth2/disconnect`;
 
+// Headers for chat file upload endpoints that stream the raw File as
+// the request body. The filename travels in Content-Disposition using
+// RFC 5987 encoding to support non-ASCII characters; placing the raw
+// name directly in the header causes XMLHttpRequest to throw because
+// HTTP headers only allow ISO-8859-1 code points.
+const chatFileUploadHeaders = (file: File) => ({
+	"Content-Type": file.type || "application/octet-stream",
+	"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+});
+
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
@@ -422,6 +432,9 @@ export class ParameterValidationError extends Error {
 		super("Parameters are not valid for new template version");
 	}
 }
+
+type OrganizationAISpendParams = TypesGen.OrganizationAISpendFilter &
+	TypesGen.OrganizationAISpendPage;
 
 export type GetProvisionerJobsParams = {
 	status?: string;
@@ -521,6 +534,15 @@ class ApiMethods {
 
 		return response.data;
 	};
+
+	getExternalAPIKeyScopes =
+		async (): Promise<TypesGen.ExternalAPIKeyScopes> => {
+			const response = await this.axios.get<TypesGen.ExternalAPIKeyScopes>(
+				"/api/v2/auth/scopes",
+			);
+
+			return response.data;
+		};
 
 	getUserLoginType = async (): Promise<TypesGen.UserLoginType> => {
 		const response = await this.axios.get<TypesGen.UserLoginType>(
@@ -1306,6 +1328,26 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getWorkspaceBuild = async (
+		buildId: string,
+	): Promise<TypesGen.WorkspaceBuild> => {
+		const response = await this.axios.get<TypesGen.WorkspaceBuild>(
+			`/api/v2/workspacebuilds/${buildId}`,
+		);
+
+		return response.data;
+	};
+
+	reportWorkspaceBuildDebugClick = async (
+		buildId: string,
+		req: TypesGen.WorkspaceBuildDebugEventRequest,
+	): Promise<void> => {
+		await this.axios.post(
+			`/api/v2/workspacebuilds/${buildId}/debug-events`,
+			req,
+		);
+	};
+
 	waitForBuild = (build: TypesGen.WorkspaceBuild) => {
 		return new Promise<TypesGen.ProvisionerJob | undefined>((res, reject) => {
 			void (async () => {
@@ -1502,7 +1544,7 @@ class ApiMethods {
 	};
 
 	createUser = async (
-		user: TypesGen.CreateUserRequestWithOrgs,
+		user: TypesGen.CreateUserRequest,
 	): Promise<TypesGen.User> => {
 		const response = await this.axios.post<TypesGen.User>(
 			"/api/v2/users",
@@ -2902,49 +2944,42 @@ class ApiMethods {
 		templateId: string,
 		req: TypesGen.UpdateNotificationTemplateMethod,
 	) => {
-		const res = await this.axios.put<void>(
+		await this.axios.put(
 			`/api/v2/notifications/templates/${templateId}/method`,
 			req,
 		);
-		return res.data;
 	};
 
 	postTestNotification = async () => {
-		await this.axios.post<void>("/api/v2/notifications/test");
+		await this.axios.post("/api/v2/notifications/test");
 	};
 
 	createWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.WebpushSubscription,
 	) => {
-		await this.axios.post<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			req,
-		);
+		await this.axios.post(`/api/v2/users/${userId}/webpush/subscription`, req);
 	};
 
 	deleteWebPushSubscription = async (
 		userId: string,
 		req: TypesGen.DeleteWebpushSubscription,
 	) => {
-		await this.axios.delete<void>(
-			`/api/v2/users/${userId}/webpush/subscription`,
-			{
-				data: req,
-			},
-		);
+		await this.axios.delete(`/api/v2/users/${userId}/webpush/subscription`, {
+			data: req,
+		});
 	};
 
 	requestOneTimePassword = async (
 		req: TypesGen.RequestOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/request", req);
+		await this.axios.post("/api/v2/users/otp/request", req);
 	};
 
 	changePasswordWithOTP = async (
 		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
 	) => {
-		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+		await this.axios.post("/api/v2/users/otp/change-password", req);
 	};
 
 	workspaceBuildTimings = async (workspaceBuildId: string) => {
@@ -3050,10 +3085,12 @@ class ApiMethods {
 	};
 
 	markAllInboxNotificationsAsRead = async () => {
-		await this.axios.put<void>("/api/v2/notifications/inbox/mark-all-as-read");
+		await this.axios.put("/api/v2/notifications/inbox/mark-all-as-read");
 	};
 
-	getAIBridgeModels = async (options: SearchParamOptions) => {
+	getAIBridgeModels = async (
+		options: TypesGen.Pagination & { model?: string },
+	) => {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);
@@ -3064,6 +3101,13 @@ class ApiMethods {
 		const url = getURLWithSearchParams(`${aiGatewayPath}/clients`, options);
 
 		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getAIBridgeProviders = async () => {
+		const response = await this.axios.get<TypesGen.AIBridgeProvider[]>(
+			`${aiGatewayPath}/providers`,
+		);
 		return response.data;
 	};
 
@@ -3084,40 +3128,6 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
-		return response.data;
-	};
-
-	getAIGatewaySpendUsers = async (
-		params: TypesGen.AIGatewaySpendUsersFilter,
-	): Promise<TypesGen.AIGatewaySpendUsersResponse> => {
-		const url = getURLWithSearchParams(`${aiGatewayPath}/spend/users`, params);
-		const response =
-			await this.axios.get<TypesGen.AIGatewaySpendUsersResponse>(url);
-		return response.data;
-	};
-
-	getAIGatewaySpendSummary = async (
-		params: TypesGen.AIGatewaySpendFilter,
-	): Promise<TypesGen.AIGatewaySpendUserSummary> => {
-		const url = getURLWithSearchParams(
-			`${aiGatewayPath}/spend/summary`,
-			params,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIGatewaySpendUserSummary>(url);
-		return response.data;
-	};
-
-	getAIGatewaySpendUserSummary = async (
-		user: string,
-		params: TypesGen.AIGatewaySpendFilter,
-	): Promise<TypesGen.AIGatewaySpendUserSummary> => {
-		const url = getURLWithSearchParams(
-			`${aiGatewayPath}/spend/users/${encodeURIComponent(user)}/summary`,
-			params,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIGatewaySpendUserSummary>(url);
 		return response.data;
 	};
 
@@ -3217,6 +3227,22 @@ class ExperimentalApiMethods {
 		return res.data;
 	};
 
+	uploadChatWorkspaceFile = async (
+		chatId: string,
+		file: File,
+		signal?: AbortSignal,
+	): Promise<TypesGen.UploadChatWorkspaceFileResponse> => {
+		const response = await this.axios.post(
+			`/api/v2/chats/${chatId}/workspace-files`,
+			file,
+			{
+				headers: chatFileUploadHeaders(file),
+				signal,
+			},
+		);
+		return response.data;
+	};
+
 	uploadChatFile = async (
 		file: File,
 		organizationId: string,
@@ -3225,14 +3251,7 @@ class ExperimentalApiMethods {
 			`/api/v2/chats/files?organization=${organizationId}`,
 			file,
 			{
-				headers: {
-					"Content-Type": file.type || "application/octet-stream",
-					// Use RFC 5987 encoding for the filename to support
-					// non-ASCII characters. Placing the raw name directly in
-					// the header causes XMLHttpRequest to throw because HTTP
-					// headers only allow ISO-8859-1 code points.
-					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-				},
+				headers: chatFileUploadHeaders(file),
 			},
 		);
 		return response.data;
@@ -3418,6 +3437,25 @@ class ExperimentalApiMethods {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
 		);
+		return response.data;
+	};
+
+	getOrganizationAISpendUsers = async (
+		organizationId: string,
+		{ limit, offset, ...filter }: OrganizationAISpendParams,
+	): Promise<TypesGen.OrganizationAISpendReport> => {
+		// Like the Go SDK, a zero page value means the server default; the
+		// endpoint rejects an explicit limit=0.
+		const url = getURLWithSearchParams(
+			`/api/experimental/organizations/${organizationId}/ai/spend/users`,
+			{
+				...filter,
+				limit: limit !== undefined && limit > 0 ? limit : undefined,
+				offset: offset !== undefined && offset > 0 ? offset : undefined,
+			},
+		);
+		const response =
+			await this.axios.get<TypesGen.OrganizationAISpendReport>(url);
 		return response.data;
 	};
 
@@ -4059,13 +4097,13 @@ function createWebSocket(
 }
 
 // Other non-API methods defined here to make it a little easier to find them.
-interface ClientApi extends ApiMethods {
+type ClientApi = ApiMethods & {
 	getCsrfToken: () => string;
 	setSessionToken: (token: string) => void;
 	getSessionToken: () => string | undefined;
 	setHost: (host: string | undefined) => void;
 	getAxiosInstance: () => AxiosInstance;
-}
+};
 
 /** @public Exported for use by external consumers (e.g., VS Code extension). */
 export class Api extends ApiMethods implements ClientApi {

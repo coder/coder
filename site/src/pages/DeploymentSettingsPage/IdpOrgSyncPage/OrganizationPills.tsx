@@ -7,9 +7,9 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { isUUID } from "#/utils/uuid";
 
-interface OrganizationPillsProps {
+type OrganizationPillsProps = {
 	organizations: readonly string[];
-}
+};
 
 export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	organizations,
@@ -37,9 +37,9 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	);
 };
 
-interface OverflowPillProps {
+type OverflowPillProps = {
 	organizations: { name: string; isUUID: boolean }[];
-}
+};
 
 const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 	return (
