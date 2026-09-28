@@ -35,6 +35,7 @@ import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
@@ -346,7 +347,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className={prMenuContentClassName}>
-						<PRMenuLinks prStatuses={prStatuses} />
+						<PRMenuLinks prStatuses={prStatuses} Item={DropdownMenuItem} />
 					</DropdownMenuContent>
 				</DropdownMenu>
 			) : (

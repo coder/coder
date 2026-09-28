@@ -1425,7 +1425,7 @@ describe("ChatsSidebar load-more behavior", () => {
 	});
 });
 
-describe("ChatsSidebar PR icon", () => {
+describe("ChatsSidebar pull requests", () => {
 	const mockMultiPRChat = buildChat({
 		id: "multi-pr",
 		title: "Multiple pull requests",
@@ -1451,9 +1451,6 @@ describe("ChatsSidebar PR icon", () => {
 		],
 	});
 
-	// The popover contents are visual state, covered by the
-	// WithMultiplePRs story screenshot. Assert what screen readers
-	// announce.
 	it("announces the pull request state when the chat tracks one pull request", () => {
 		render(
 			<Wrapper>
@@ -1507,7 +1504,7 @@ describe("ChatsSidebar PR icon", () => {
 		expect(link).not.toHaveAccessibleName(/2 pull requests.*2 pull requests/);
 	});
 
-	it("lists every pull request when the multi-PR chat link has keyboard focus", async () => {
+	it("links every pull request from the actions menu of a multi-PR chat", async () => {
 		const user = userEvent.setup();
 
 		render(
@@ -1516,26 +1513,101 @@ describe("ChatsSidebar PR icon", () => {
 			</Wrapper>,
 		);
 
-		const link = screen.getByRole("link", {
-			name: /multiple pull requests/i,
-		});
-		await user.tab();
-		while (!link.matches(":focus")) {
-			await user.tab();
-		}
-		expect(link).toHaveFocus();
-
-		// The link is the tooltip trigger, so Radix exposes the
-		// per-PR list through the link's describedby relation.
-		const tooltip = await screen.findByRole("tooltip");
-		expect(link).toHaveAttribute(
-			"aria-describedby",
-			tooltip.getAttribute("id") ?? "",
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Multiple pull requests",
+			}),
 		);
-		expect(link).toHaveAccessibleDescription(/Pull request open/);
-		expect(link).toHaveAccessibleDescription(/PR #1/);
-		expect(link).toHaveAccessibleDescription(/Pull request merged/);
-		expect(link).toHaveAccessibleDescription(/PR #2/);
+		await user.click(await screen.findByRole("menuitem", { name: "2 PRs" }));
+
+		const links = await screen.findAllByRole("menuitem", { name: /PR #/ });
+		expect(links.map((link) => link.getAttribute("href"))).toEqual([
+			"https://github.com/coder/coder/pull/1",
+			"https://github.com/coder/coder/pull/2",
+		]);
+		expect(links[1]).toHaveAccessibleName(/Pull request merged/);
+	});
+
+	it("leaves pull requests without a URL out of the actions menu", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unlinked-pr",
+							title: "Unlinked pull request",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/one",
+									url: "https://github.com/coder/coder/pull/1",
+									pr_number: 1,
+								},
+								{
+									...MockChatDiffStatus,
+									chat_id: "unlinked-pr",
+									git_branch: "feat/two",
+									url: "",
+									pr_number: 2,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Unlinked pull request",
+			}),
+		);
+
+		// One linkable PR is left, so the menu links it directly.
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #1/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/1");
+	});
+
+	it("links the pull request for viewers of a shared chat", async () => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "shared-pr",
+							title: "Shared pull request",
+							owner_id: "sharing-user",
+							diff_statuses: [
+								{
+									...MockChatDiffStatus,
+									chat_id: "shared-pr",
+									url: "https://github.com/coder/coder/pull/7",
+									pr_number: 7,
+								},
+							],
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: "Open actions for Shared pull request",
+			}),
+		);
+
+		expect(
+			await screen.findByRole("menuitem", { name: /PR #7/ }),
+		).toHaveAttribute("href", "https://github.com/coder/coder/pull/7");
 	});
 });
 

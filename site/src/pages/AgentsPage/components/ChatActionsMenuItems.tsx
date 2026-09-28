@@ -55,6 +55,7 @@ import { clearPersistedRightPanelState } from "../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import { ArchiveAndDeleteWorkspaceDialog } from "./ArchiveAndDeleteWorkspaceDialog";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
+import { ChatPRMenuItems } from "./ChatsSidebar/tree/ChatPRMenuItems";
 
 // Backend chatstate permits archive only from W, E0, and E1. Unknown status
 // stays fail-open so the server conflict response remains the backstop.
@@ -108,8 +109,8 @@ export const canManageChat = (
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
 	/**
-	 * See {@link canManageChat}. When false, only the subagents toggle and the
-	 * copy actions render.
+	 * See {@link canManageChat}. When false, only the subagents toggle, the
+	 * copy actions and the PR links render.
 	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
@@ -129,6 +130,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
+	/** When omitted or empty, no PR links render. */
+	readonly prStatuses?: readonly TypesGen.ChatDiffStatus[];
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
 	readonly Sub: SubComponent;
@@ -316,6 +319,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
+	prStatuses,
 	Item,
 	Separator,
 	Sub,
@@ -412,6 +416,18 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		) : (
 			copyItems
 		);
+	const prLinks = prStatuses && prStatuses.length > 0 && (
+		<>
+			<Separator />
+			<ChatPRMenuItems
+				prStatuses={prStatuses}
+				Item={Item}
+				Sub={Sub}
+				SubTrigger={SubTrigger}
+				SubContent={SubContent}
+			/>
+		</>
+	);
 
 	if (!canManage) {
 		return (
@@ -419,6 +435,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				{subagentToggle}
 				{hasActionsAboveCopy && <Separator />}
 				{copyActions}
+				{prLinks}
 			</>
 		);
 	}
@@ -465,6 +482,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			)}
 			{hasActionsAboveCopy && <Separator />}
 			{copyActions}
+			{prLinks}
 			{showArchiveActions && (
 				<>
 					<Separator />

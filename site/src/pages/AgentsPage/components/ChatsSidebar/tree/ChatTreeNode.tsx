@@ -24,7 +24,6 @@ import {
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Tooltip, TooltipTrigger } from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
 import { clearPersistedRightPanelState } from "../../../utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "../../../utils/sidebarTabStorage";
@@ -36,7 +35,6 @@ import {
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { ChatDiffStats } from "../../ChatDiffStats";
 import { normalizeLocationSearch } from "../locationSearch";
-import { PRListTooltipContent } from "./ChatNodePRIcon";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -236,60 +234,15 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onOpenRenameDialog: onOpenRenameDialog
 			? () => onOpenRenameDialog(chat)
 			: undefined,
+		prStatuses: prStatuses.filter((status) => status.url),
 	};
-
-	// The tooltip lists every tracked PR, so it belongs to the whole
-	// row: link focus opens it for keyboard users, and no focusable
-	// descendant nests inside the anchor.
-	const chatLink = (
-		<NavLink
-			to={{
-				pathname: `/agents/${chat.id}`,
-				search: locationSearch,
-			}}
-			className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-		>
-			{({ isActive }) => (
-				<div className="min-w-0 flex-1 overflow-hidden text-left">
-					<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-						<span
-							className={cn(
-								"block flex-1 truncate text-[13px] text-content-primary",
-								!isActive &&
-									"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
-							)}
-						>
-							{chat.title}
-						</span>
-						{chat.has_unread && !isActiveChat && (
-							<span className="sr-only">(unread)</span>
-						)}
-					</div>
-					<div className="flex min-w-0 items-center gap-1.5">
-						<ChatDiffStats chat={chat} />
-						<div
-							className={cn(
-								"min-w-0 overflow-hidden text-[13px] leading-4",
-								errorReason
-									? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-									: "truncate text-content-secondary",
-							)}
-							title={subtitle}
-						>
-							{subtitle}
-						</div>
-					</div>
-				</div>
-			)}
-		</NavLink>
-	);
 
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
 			<ChatActionsMenu
 				{...sharedMenuItemProps}
 				variant="context"
-				contentClassName="[&_[role=menuitem]]:text-[13px]"
+				contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
 			>
 				<div
 					data-testid={`agents-tree-node-${chat.id}`}
@@ -344,14 +297,46 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							</Button>
 						)}
 					</div>
-					{prStatuses.length > 1 ? (
-						<Tooltip>
-							<TooltipTrigger asChild>{chatLink}</TooltipTrigger>
-							<PRListTooltipContent prStatuses={prStatuses} />
-						</Tooltip>
-					) : (
-						chatLink
-					)}
+					<NavLink
+						to={{
+							pathname: `/agents/${chat.id}`,
+							search: locationSearch,
+						}}
+						className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+					>
+						{({ isActive }) => (
+							<div className="min-w-0 flex-1 overflow-hidden text-left">
+								<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+									<span
+										className={cn(
+											"block flex-1 truncate text-[13px] text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+										)}
+									>
+										{chat.title}
+									</span>
+									{chat.has_unread && !isActiveChat && (
+										<span className="sr-only">(unread)</span>
+									)}
+								</div>
+								<div className="flex min-w-0 items-center gap-1.5">
+									<ChatDiffStats chat={chat} />
+									<div
+										className={cn(
+											"min-w-0 overflow-hidden text-[13px] leading-4",
+											errorReason
+												? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+												: "truncate text-content-secondary",
+										)}
+										title={subtitle}
+									>
+										{subtitle}
+									</div>
+								</div>
+							</div>
+						)}
+					</NavLink>
 					<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
 						<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 							{isArchivingThisChat ? (
@@ -400,7 +385,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						{!isArchivingThisChat && (
 							<ChatActionsMenu
 								{...sharedMenuItemProps}
-								contentClassName="[&_[role=menuitem]]:text-[13px]"
+								contentClassName="max-w-72 [&_[role=menuitem]]:text-[13px]"
 							>
 								<Button
 									size="icon"
