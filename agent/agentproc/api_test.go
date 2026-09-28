@@ -294,6 +294,22 @@ func TestStartProcess(t *testing.T) {
 		require.Contains(t, resp.Message, "Command is required")
 	})
 
+	t.Run("BackgroundWithTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		handler := newTestAPI(t)
+		w := postStart(t, handler, workspacesdk.StartProcessRequest{
+			Command:    "echo background",
+			Background: true,
+			TimeoutMs:  1000,
+		})
+		require.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+		require.Contains(t, resp.Message, "cannot have an execute timeout")
+	})
+
 	t.Run("MalformedJSON", func(t *testing.T) {
 		t.Parallel()
 

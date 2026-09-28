@@ -4668,20 +4668,66 @@ func TestAgent_ToolCall(t *testing.T) {
 	}
 }
 
-func TestAgent_ToolCallCancelKillsProcess(t *testing.T) {
+func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
 
-	id := uuid.New()
-	_, err := conn.StartProcess(workspacesdk.WithToolCallID(ctx, id), workspacesdk.StartProcessRequest{Command: "sleep 300", Background: true})
-	require.NoError(t, err)
-	_, err = conn.CancelToolCall(ctx, id)
-	require.NoError(t, err)
-	out, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
-	require.NoError(t, err)
-	require.False(t, out.Running)
-	require.True(t, out.Canceled)
+	// Each case starts "sleep 300" with a 1 ms execute timeout. It has
+	// passed by the time a wait could use it, so no case depends on how
+	// long a step takes.
+	tests := []struct {
+		name string
+		opts workspacesdk.ProcessOutputOptions
+		// cancel cancels the tool call after the wait is sent.
+		cancel bool
+		want   workspacesdk.ProcessOutputResponse
+	}{
+		{
+			// The execute tool's own wait ends at the execute timeout,
+			// and the process keeps running.
+			name: "ExecuteWait",
+			opts: workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromExecute: true},
+			want: workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
+		},
+		{
+			// Other waits, such as process_output's, ignore the execute
+			// timeout and end when the process exits: here, killed by
+			// the cancel.
+			name:   "PlainWait",
+			opts:   workspacesdk.ProcessOutputOptions{Wait: true},
+			cancel: true,
+			want:   workspacesdk.ProcessOutputResponse{Canceled: true},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			id := uuid.New()
+			_, err := conn.StartProcess(workspacesdk.WithToolCallID(ctx, id), workspacesdk.StartProcessRequest{Command: "sleep 300", TimeoutMs: 1})
+			require.NoError(t, err)
+
+			type result struct {
+				resp workspacesdk.ProcessOutputResponse
+				err  error
+			}
+			waited := make(chan result, 1)
+			go func() {
+				resp, err := conn.ProcessOutput(ctx, id.String(), &tc.opts)
+				waited <- result{resp, err}
+			}()
+			if tc.cancel {
+				_, err := conn.CancelToolCall(ctx, id)
+				require.NoError(t, err)
+			}
+
+			got := testutil.RequireReceive(ctx, t, waited)
+			require.NoError(t, got.err)
+			require.Equal(t, tc.want.Running, got.resp.Running)
+			require.Equal(t, tc.want.TimedOut, got.resp.TimedOut)
+			require.Equal(t, tc.want.Canceled, got.resp.Canceled)
+		})
+	}
 }
