@@ -13,9 +13,29 @@ import (
 var claudeCodePattern = regexp.MustCompile(`_session_(.+)$`) // Legacy format: save compilation on each call.
 
 // GuessSessionID attempts to retrieve a session ID which may have been sent by
-// the client. We only attempt to retrieve sessions using methods recognized for
-// the given client.
+// the client. If Claude Code has no usable session header, it reads and restores
+// r.Body to inspect the payload. Other clients use only request headers.
 func GuessSessionID(client Type, r *http.Request) *string {
+	sessionID := GuessSessionIDFromPayload(client, r, nil)
+	if sessionID != nil || client != ClaudeCode || r.Body == nil {
+		return sessionID
+	}
+
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil
+	}
+	_ = r.Body.Close()
+
+	// Restore the request body for the interceptor.
+	r.Body = io.NopCloser(bytes.NewReader(payload))
+	return GuessSessionIDFromPayload(client, r, payload)
+}
+
+// GuessSessionIDFromPayload retrieves a session ID from recognized request
+// headers and a pre-read payload, without reading, closing, or replacing r.Body.
+// A nil or empty payload permits only header-based lookup.
+func GuessSessionIDFromPayload(client Type, r *http.Request, payload []byte) *string {
 	switch client {
 	case ClaudeCode:
 		// Prefer the dedicated header (added in Claude Code v2.1.86+).
@@ -26,14 +46,6 @@ func GuessSessionID(client Type, r *http.Request) *string {
 		// Fall back to extracting from the metadata.user_id field in the JSON body.
 		// Newer format:  JSON-encoded object with a "session_id" field.
 		// Legacy format: "user_{sha256}_account_{id}_session_{uuid}"
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			return nil
-		}
-		_ = r.Body.Close()
-
-		// Restore the request body.
-		r.Body = io.NopCloser(bytes.NewReader(payload))
 		userID := gjson.GetBytes(payload, "metadata.user_id")
 		if userID.Type != gjson.String {
 			return nil
