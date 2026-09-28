@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -21,10 +20,6 @@ import (
 // that has since been replaced cannot finish or invalidate the
 // replacement.
 type turnToken uint64
-
-// errChatInterrupted is the error an interrupted chat_turn span ends
-// with.
-var errChatInterrupted = xerrors.New("chat interrupted")
 
 // runnerTurnSpan owns the chat_turn span of one runner. The span opens
 // on the first Ensure call, not at construction, and one instance runs
@@ -203,8 +198,8 @@ func (t *runnerTurnSpan) Complete(token turnToken) {
 }
 
 // Invalidate records outcome and err against the turn identified by
-// token. outcome is one of chatloop.TurnOutcomeInterrupted,
-// TurnOutcomeError, or TurnOutcomeAbandoned. The first call is kept and
+// token. outcome is chatloop.TurnOutcomeInterrupted or
+// TurnOutcomeError. The first call is kept and
 // later ones are ignored, as is a call after Complete: the finishing
 // transition has committed by then, so a later failure does not undo
 // the turn. The span stays open; when it closes it ends with err and
@@ -243,14 +238,15 @@ func (t *runnerTurnSpan) ownsLocked(token turnToken) bool {
 }
 
 // OpenToken returns the token of the open turn, or the zero token when
-// no turn is open.
-func (t *runnerTurnSpan) OpenToken() turnToken {
+// no turn is open. Like Ensure, it returns the zero token when ctx is
+// done, so a canceled task cannot act on whichever turn is open.
+func (t *runnerTurnSpan) OpenToken(ctx context.Context) turnToken {
 	if t == nil {
 		return 0
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.open || t.ended {
+	if !t.open || t.ended || ctx.Err() != nil {
 		return 0
 	}
 	return t.token
@@ -275,8 +271,7 @@ func (t *runnerTurnSpan) End(err error) {
 // An outcome recorded by Invalidate wins, and its error replaces err
 // so the root span reports the failure that stopped the turn. Without
 // one, a turn Complete marked finished is completed and any other open
-// turn is abandoned. Only a completed turn is observed on the stage
-// histogram; any other outcome ends the span without an observation.
+// turn is abandoned.
 func (t *runnerTurnSpan) closeLocked(err error) {
 	outcome := t.outcome
 	switch {
@@ -288,6 +283,8 @@ func (t *runnerTurnSpan) closeLocked(err error) {
 		outcome = chatloop.TurnOutcomeAbandoned
 	}
 	t.span.SetAttributes(attribute.String(chatloop.AttrTurnOutcome, string(outcome)))
+	// Only completed turns are observed, so the chat_turn histogram
+	// measures reply latency.
 	if outcome == chatloop.TurnOutcomeCompleted {
 		t.span.End(err)
 	} else {

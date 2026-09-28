@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -522,8 +521,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		require.Equal(t, chatloop.TurnOutcomeCompleted, outcome(t, span))
 	})
 
-	// A task holding the token of a replaced turn cannot finish or close
-	// the turn that replaced it.
 	t.Run("StaleTokenCannotCloseReplacement", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
@@ -536,7 +533,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		turn.Settle(first)
 		// Only the rotated first turn has closed.
 		require.Len(t, turnSpansByStart(t, recorder), 1)
-		require.Equal(t, second, turn.OpenToken())
+		require.Equal(t, second, turn.OpenToken(t.Context()))
 
 		turn.End(nil)
 		turns := turnSpansByStart(t, recorder)
@@ -565,7 +562,7 @@ func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 	require.False(t, trace.SpanContextFromContext(canceledCtx).IsValid())
 	turn.Invalidate(stale, chatloop.TurnOutcomeError, xerrors.New("canceled"))
 	turn.Settle(stale)
-	require.Equal(t, second, turn.OpenToken())
+	require.Equal(t, second, turn.OpenToken(t.Context()))
 
 	_, again := turn.Ensure(t.Context(), chat, secondTrigger)
 	require.Equal(t, second, again)
@@ -579,6 +576,34 @@ func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 		value, _ := spanAttribute(t, turns[i], chatloop.AttrTurnOutcome)
 		require.Equal(t, want, chatloop.TurnOutcome(value.AsString()))
 		require.Equal(t, codes.Unset, turns[i].Status().Code)
+	}
+}
+
+// TestRunnerTurnSpanCanceledOpenToken runs a canceled interrupt task's
+// OpenToken after an edited prompt opened a new turn. The canceled task
+// gets no token, so the edited turn completes and the stopped turn
+// closes as abandoned.
+func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
+	t.Parallel()
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	chat := database.Chat{ID: uuid.New()}
+
+	turn.Ensure(t.Context(), chat, time.Now().Add(-time.Minute))
+	interruptCtx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, edited := turn.Ensure(t.Context(), chat, time.Now().Add(-time.Second))
+	stopped := turn.OpenToken(interruptCtx)
+	require.Zero(t, stopped)
+	turn.Invalidate(stopped, chatloop.TurnOutcomeInterrupted, nil)
+	turn.Complete(edited)
+	turn.Settle(edited)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 2)
+	for i, want := range []chatloop.TurnOutcome{chatloop.TurnOutcomeAbandoned, chatloop.TurnOutcomeCompleted} {
+		value, _ := spanAttribute(t, turns[i], chatloop.AttrTurnOutcome)
+		require.Equal(t, want, chatloop.TurnOutcome(value.AsString()))
 	}
 }
 
@@ -630,44 +655,11 @@ func stageObservationCount(t *testing.T, registry *prometheus.Registry, stage ch
 	return count
 }
 
-func TestStepAbandonsTurn(t *testing.T) {
-	t.Parallel()
-
-	canceled, cancel := context.WithCancel(t.Context())
-	cancel()
-	timedOut, cancelTimeout := context.WithCancelCause(t.Context())
-	cancelTimeout(errTaskTimeout)
-	expectedExit := errors.Join(errTaskExpectedExit, xerrors.New("generation fence mismatch"))
-
-	for _, tc := range []struct {
-		name string
-		ctx  context.Context
-		err  error
-		want bool
-	}{
-		{name: "NoError", ctx: t.Context(), err: nil, want: false},
-		{name: "ExpectedExit", ctx: t.Context(), err: expectedExit, want: true},
-		{name: "RetryableExpectedExit", ctx: t.Context(), err: taskRetryableError{err: expectedExit}, want: false},
-		{name: "Retryable", ctx: t.Context(), err: taskRetryableError{err: xerrors.New("transient")}, want: false},
-		// The task runner retries a transition error that is neither
-		// retryable nor an expected exit.
-		{name: "TransitionError", ctx: t.Context(), err: normalizeTaskTransitionError(chatstate.ErrTransitionNotAllowed, "finish generation turn"), want: false},
-		{name: "Error", ctx: t.Context(), err: xerrors.New("provider refused"), want: false},
-		{name: "Canceled", ctx: canceled, err: errors.Join(errTaskExpectedExit, context.Canceled), want: false},
-		{name: "TimedOut", ctx: timedOut, err: errors.Join(errTaskExpectedExit, context.Canceled), want: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tc.want, stepAbandonsTurn(tc.ctx, tc.err))
-		})
-	}
-}
-
-// TestFinishGenerationErrorIgnoresCanceledContext cancels the task
+// TestFinishGenerationErrorOutcomeSurvivesCommitCancel cancels the task
 // context as soon as the finishing commit publishes its state change.
 // The turn still closes as an error, because the committed FinishError
 // decides the outcome.
-func TestFinishGenerationErrorIgnoresCanceledContext(t *testing.T) {
+func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	t.Parallel()
 	f := newTaskTestFixture(t)
 	chat := f.createRunningChat(t)
@@ -745,7 +737,50 @@ func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	require.Len(t, turns, 1)
 	outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
 	require.Equal(t, chatloop.TurnOutcomeInterrupted, chatloop.TurnOutcome(outcome.AsString()))
-	require.Equal(t, codes.Error, turns[0].Status().Code)
-	require.Equal(t, errChatInterrupted.Error(), turns[0].Status().Description)
-	require.Zero(t, turn.OpenToken())
+	require.Equal(t, codes.Unset, turns[0].Status().Code)
+	require.Zero(t, turn.OpenToken(t.Context()))
+}
+
+// TestInterruptTaskMarksTurnBeforeCommit opens a newer turn while the
+// interrupt task's FinishInterruption commit publishes, as a promoted
+// prompt's task can. The stopped turn was marked before the commit, so
+// the newer turn closes it as interrupted.
+func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
+	t.Parallel()
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID, runnerID := uuid.New(), uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	tracer, recorder := newStageTestTracer(t)
+	turn := newRunnerTurnSpan(tracer, nil, false)
+	_, token := turn.Ensure(t.Context(), acquired, acquired.CreatedAt)
+	require.NotZero(t, token)
+
+	interrupting := f.interruptChat(t, chat.ID)
+	var promoted turnToken
+	f.pubsub.mu.Lock()
+	f.pubsub.onPublish = func(channel string) {
+		if channel == coderdpubsub.ChatStateUpdateChannel(chat.ID) && promoted == 0 {
+			_, promoted = turn.Ensure(t.Context(), acquired, acquired.CreatedAt.Add(time.Minute))
+		}
+	}
+	f.pubsub.mu.Unlock()
+	require.NoError(t, starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+		TurnSpan:          turn,
+	}))
+	require.NotZero(t, promoted)
+	require.NotEqual(t, token, promoted)
+
+	turns := turnSpansByStart(t, recorder)
+	require.Len(t, turns, 1)
+	outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
+	require.Equal(t, chatloop.TurnOutcomeInterrupted, chatloop.TurnOutcome(outcome.AsString()))
+	require.Equal(t, promoted, turn.OpenToken(t.Context()))
 }

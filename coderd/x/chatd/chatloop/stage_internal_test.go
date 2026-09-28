@@ -608,4 +608,42 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 		require.Equal(t, codes.Error, toolCall.Status().Code)
 		require.Contains(t, recordedErrorMessage(t, toolCall), "boom")
 	})
+
+	t.Run("RejectedCallsRecordNoStage", func(t *testing.T) {
+		t.Parallel()
+		fixture := newStageMetricsFixture(t)
+		tool := fantasy.NewAgentTool("read_file", "reads a file",
+			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				return fantasy.NewTextResponse("ok"), nil
+			})
+
+		result, err := ExecuteLocalTools(ContextWithScope(t.Context(), ScopeTurn), ExecuteLocalToolsOptions{
+			Tools:       []fantasy.AgentTool{tool},
+			ActiveTools: []string{"missing"},
+			ToolCalls: []fantasy.ToolCallContent{
+				// read_file exists but is inactive; missing is active but
+				// has no tool.
+				{ToolCallID: "call-1", ToolName: "read_file", Input: "{}"},
+				{ToolCallID: "call-2", ToolName: "missing", Input: "{}"},
+			},
+			ModelProvider: "openai",
+			ModelName:     "gpt-test",
+			Stages:        fixture.tracer,
+			StageModel:    stageModel,
+			Clock:         fixture.clock,
+		})
+		require.NoError(t, err)
+
+		require.Len(t, result.Content, 2)
+		for _, content := range result.Content {
+			toolResult, ok := content.(fantasy.ToolResultContent)
+			require.True(t, ok)
+			require.IsType(t, fantasy.ToolResultOutputContentError{}, toolResult.Result)
+		}
+		for _, span := range fixture.spans.Ended() {
+			require.NotEqual(t, string(StageToolCall), span.Name())
+		}
+		_, ok := stageSampleCount(t, fixture.registry, StageToolCall)
+		require.False(t, ok)
+	})
 }

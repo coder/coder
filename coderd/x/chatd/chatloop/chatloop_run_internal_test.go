@@ -1410,6 +1410,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			nil,
 			defaultToolResultBytes,
 			nil,
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1460,6 +1461,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			nil,
 			defaultToolResultBytes,
 			nil,
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1504,6 +1506,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]struct{}{},
 			nil,
 			defaultToolResultBytes,
+			nil,
 			nil,
 		)
 
@@ -1555,6 +1558,7 @@ func TestExecuteSingleTool_NormalizesMedia(t *testing.T) {
 				map[string]struct{}{},
 				nil,
 				defaultToolResultBytes,
+				nil,
 				nil,
 			)
 
@@ -1611,6 +1615,7 @@ func TestExecuteSingleTool_ResolvesToolNameAlias(t *testing.T) {
 		nil,
 		defaultToolResultBytes,
 		map[string]string{"close_agent": "interrupt_agent"},
+		nil,
 	)
 
 	textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)
@@ -1652,6 +1657,7 @@ func TestExecuteSingleTool_UnknownAliasFallsThrough(t *testing.T) {
 		nil,
 		defaultToolResultBytes,
 		nil,
+		nil,
 	)
 
 	errOutput, ok := result.Result.(fantasy.ToolResultOutputContentError)
@@ -1681,6 +1687,7 @@ func TestExecuteSingleTool_AllowsDeferredDirectCall(t *testing.T) {
 		map[string]struct{}{},
 		nil,
 		defaultToolResultBytes,
+		nil,
 		nil,
 	)
 	text, ok := result.Result.(fantasy.ToolResultOutputContentText)
