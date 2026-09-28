@@ -6,11 +6,6 @@ import type { RuntimeHtmlMetadata } from "#/hooks/useEmbeddedMetadata";
 export const experimentsKey = (userId: string) =>
 	["experiments", userId] as const;
 
-// Experiments are decided per user and can change at runtime. Backend
-// gates stay authoritative; this only bounds how long the UI shows an
-// outdated list.
-const experimentsStaleTime = 60_000;
-
 export const experiments = (
 	userId: string,
 	metadata: Pick<RuntimeHtmlMetadata, "user" | "experiments">,
@@ -27,7 +22,10 @@ export const experiments = (
 		queryFn: () => API.getExperiments(),
 		initialData: useEmbedded ? metadata.experiments.value : undefined,
 		initialDataUpdatedAt: useEmbedded ? performance.timeOrigin : undefined,
-		staleTime: experimentsStaleTime,
+		// Experiments are decided per user and can change at runtime. Backend
+		// gates stay authoritative; this only bounds how long the UI shows an
+		// outdated list.
+		staleTime: 60_000,
 		refetchOnMount: true,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
