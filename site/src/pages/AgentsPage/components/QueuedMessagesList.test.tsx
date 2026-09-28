@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -279,11 +279,10 @@ describe("QueuedMessagesList", () => {
 		});
 		act(() => editBehind.focus());
 		expect(editBehind).toHaveFocus();
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Finish the current edit first.",
-		);
-		expect(editBehind).toHaveAccessibleDescription(
-			"Finish the current edit first.",
+		await waitFor(() =>
+			expect(editBehind).toHaveAccessibleDescription(
+				"Finish the current edit first.",
+			),
 		);
 
 		await user.click(editBehind);

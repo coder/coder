@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, useState } from "react";
 import { QueryClient, QueryClientProvider, useMutation } from "react-query";
 import { describe, expect, it } from "vitest";
@@ -171,7 +171,7 @@ const setup = (options?: {
 				setQueuedMessageEditing: (id, editing) =>
 					marker.mutateAsync({ queuedMessageId: id, req: { editing } }),
 			});
-			return { ...edit, composerMode };
+			return { ...edit, composerMode, markerStatus: marker.status };
 		},
 		{
 			wrapper: ({ children }: { children: React.ReactNode }) =>
@@ -180,21 +180,19 @@ const setup = (options?: {
 	);
 	const result = () => hook.result.current;
 	// react-query starts the mutationFn and notifies observers on later
-	// ticks, so every request-related step waits for them.
-	const flush = () =>
-		act(() => new Promise<void>((resolve) => setTimeout(resolve, 20)));
+	// ticks, so each step waits for what it changes.
 	const beginEdit = async (id: number) => {
 		act(() => result().handleEditQueuedMessage(id));
-		await flush();
+		await waitFor(() => expect(result().queuedMessageUnderEditID).toBe(id));
 	};
-	const settle = async (patch: Patch, outcome: "resolve" | "reject") => {
-		if (outcome === "resolve") {
-			patch.resolve();
-		} else {
-			patch.reject(new Error("request failed"));
-		}
-		await flush();
-	};
+	const settle = (patch: Patch, outcome: "resolve" | "reject") =>
+		act(() => {
+			if (outcome === "resolve") {
+				patch.resolve();
+			} else {
+				patch.reject(new Error("request failed"));
+			}
+		});
 	return { store, patches, result, beginEdit, settle };
 };
 
@@ -212,14 +210,15 @@ describe("useQueuedMessageEdit", () => {
 		const t = setup({ storeQueue: [row5] });
 
 		await t.beginEdit(5);
+		await waitFor(() => expect(t.patches).toHaveLength(1));
 		expect(t.patches.map(({ id, req }) => ({ id, req }))).toEqual([
 			{ id: 5, req: { editing: true } },
 		]);
 		expect(t.result().composerTarget).toEqual(queued(5));
-		expect(t.result().queuedMessageUnderEditID).toBe(5);
 
 		act(() => t.store.setQueuedMessages([row5Marked]));
 		await t.settle(t.patches[0], "resolve");
+		await waitFor(() => expect(t.result().markerStatus).toBe("success"));
 		expect(t.result().composerTarget).toEqual(queued(5));
 	});
 
@@ -228,8 +227,9 @@ describe("useQueuedMessageEdit", () => {
 		await t.beginEdit(5);
 		expect(t.result().composerTarget).toEqual(queued(5));
 
+		await waitFor(() => expect(t.patches).toHaveLength(1));
 		await t.settle(t.patches[0], "reject");
-		expect(t.result().composerTarget).toBeNull();
+		await waitFor(() => expect(t.result().composerTarget).toBeNull());
 	});
 
 	it("the failure of a begin that a later begin superseded does not affect the composer", async () => {
@@ -238,11 +238,14 @@ describe("useQueuedMessageEdit", () => {
 		await t.beginEdit(6);
 		expect(t.result().composerTarget).toEqual(queued(6));
 
+		// The begin for row 6 runs once the one for row 5 settles.
+		await waitFor(() => expect(t.patches).toHaveLength(1));
 		await t.settle(t.patches[0], "reject");
+		await waitFor(() => expect(t.patches).toHaveLength(2));
 		expect(t.result().composerTarget).toEqual(queued(6));
 		expect(t.result().queuedMessageUnderEditID).toBe(6);
 
 		await t.settle(t.patches[1], "reject");
-		expect(t.result().composerTarget).toBeNull();
+		await waitFor(() => expect(t.result().composerTarget).toBeNull());
 	});
 });

@@ -286,8 +286,7 @@ export const WaitingBehindHeadUnderEdit: Story = {
 };
 
 // The queue head is under edit on a paused chat, so the Enter-to-send hint is
-// hidden, Cancel edit sends the head, and the row behind it shows Edit
-// disabled with a reason.
+// hidden, and the Cancel edit tooltip says cancelling sends the head.
 export const HeadUnderEdit: Story = {
 	args: {
 		queuedMessageUnderEditID: 1,
