@@ -302,12 +302,15 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 					if !errors.Is(err, ErrNoPresetFound) {
 						return xerrors.Errorf("unable to resolve preset: %w", err)
 					}
-					// If no preset found, prompt the user to choose a preset
+					// If no preset found, prompt the user to choose a preset.
+					// A nil preset means the user chose "None".
 					if preset, err = promptPresetSelection(inv, tvPresets); err != nil {
 						return xerrors.Errorf("unable to prompt user for preset: %w", err)
 					}
 				}
+			}
 
+			if preset != nil {
 				// Convert preset parameters into workspace build parameters
 				presetParameters = presetParameterAsWorkspaceBuildParameters(preset.Parameters)
 				// Inform the user which preset was applied and its parameters
@@ -516,11 +519,16 @@ func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Pres
 	return nil, ErrNoPresetFound
 }
 
-// promptPresetSelection shows a CLI selection menu of the presets defined in the template version.
-// Returns the selected preset
+// presetNoneOption is the selection menu label for creating a workspace
+// without a preset, matching the dashboard's "None" option.
+const presetNoneOption = "None"
+
+// promptPresetSelection shows a CLI selection menu of the presets defined in the template version,
+// preceded by a "None" option.
+// Returns the selected preset, or nil if the user selected "None".
 func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
 	presetMap := make(map[string]*codersdk.Preset)
-	var presetOptions []string
+	presetOptions := []string{presetNoneOption}
 
 	for _, preset := range presets {
 		var option string
@@ -543,6 +551,9 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 		return nil, xerrors.Errorf("failed to select preset: %w", err)
 	}
 
+	if selected == presetNoneOption {
+		return nil, nil //nolint:nilnil // A nil preset means no preset is applied.
+	}
 	return presetMap[selected], nil
 }
 
