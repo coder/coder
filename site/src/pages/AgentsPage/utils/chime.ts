@@ -131,7 +131,6 @@ export function maybePlayChime(
 		return;
 	}
 
-	// Only chime when transitioning from the active state.
 	if (prevStatus !== "running") {
 		return;
 	}
