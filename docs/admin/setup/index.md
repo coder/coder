@@ -122,7 +122,12 @@ Coder connects to. If unset, PostgreSQL binaries will be downloaded from Maven
 (<https://repo1.maven.org/maven2>) and store all data in the config root.
 
 > [!NOTE]
-> Postgres 13 is the minimum supported version.
+> For an external database, PostgreSQL 13 is the minimum version Coder
+> connects to, but PostgreSQL 13 is end-of-life and Coder reports
+> [EDB03](../monitoring/health-check.md#edb03) for any version below 14.
+> New built-in databases use PostgreSQL 16. A built-in database created on
+> PostgreSQL 13 stays on 13 until you
+> [migrate it](./builtin-postgres-migration.md).
 
 If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
 the PostgreSQL interactive terminal), output the connection URL with the
@@ -133,20 +138,10 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+### Migrate the built-in database
 
-To migrate from the built-in database to an external database, follow these
-steps:
-
-1. Stop your Coder deployment.
-1. Run `coder server postgres-builtin-serve` in a background terminal.
-1. Run `coder server postgres-builtin-url` and copy its output command.
-1. Run `pg_dump <built-in-connection-string> > coder.sql` to dump the internal
-   database to a file.
-1. Restore that content to an external database with
-   `psql <external-connection-string> < coder.sql`.
-1. Start your Coder deployment with
-   `CODER_PG_CONNECTION_URL=<external-connection-string>`.
+To upgrade the built-in database to PostgreSQL 16 or move to an external database, follow the [built-in PostgreSQL migration guide](./builtin-postgres-migration.md).
+Both options cover stopping Coder, exporting and restoring the database, and verifying the deployment before decommissioning the original data.
 
 ## Configuring Coder behind a proxy
 

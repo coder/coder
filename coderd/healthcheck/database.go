@@ -21,6 +21,12 @@ type DatabaseReportOptions struct {
 	Threshold time.Duration
 
 	Dismissed bool
+	// ServerVersionNum is the PostgreSQL server_version_num reported by the
+	// connected server, if known (0 otherwise). A positive value below
+	// 140000 (major version < 14) triggers an end-of-life warning.
+	ServerVersionNum int
+	// Builtin indicates whether Coder manages the PostgreSQL server.
+	Builtin bool
 }
 
 func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
@@ -57,6 +63,17 @@ func (r *DatabaseReport) Run(ctx context.Context, opts *DatabaseReportOptions) {
 	if r.LatencyMS >= r.ThresholdMS {
 		r.Severity = health.SeverityWarning
 		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDatabasePingSlow, "median database ping above threshold"))
+	}
+	// The connected PostgreSQL server is running an end-of-life major version.
+	// This is a warning, not an error: Coder still works, but the database no
+	// longer receives upstream fixes.
+	if opts.ServerVersionNum > 0 && opts.ServerVersionNum < 140000 {
+		r.Severity = health.SeverityWarning
+		message := "PostgreSQL version is end-of-life; upgrade your PostgreSQL server to a supported version (14+)."
+		if opts.Builtin {
+			message = "Built-in PostgreSQL version is end-of-life; migrate to an external PostgreSQL database using the migration guide linked in the EDB03 documentation."
+		}
+		r.Warnings = append(r.Warnings, health.Messagef(health.CodeDatabasePostgresVersionEOL, "%s", message))
 	}
 	r.Healthy = true
 	r.Reachable = true
