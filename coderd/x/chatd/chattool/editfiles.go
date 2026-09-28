@@ -118,13 +118,18 @@ func executeEditFilesTool(
 		Files:       args.Files,
 		IncludeDiff: true,
 	})
+	return editFilesResponse(resp, err), nil
+}
+
+// editFilesResponse builds the edit_files result of an EditFiles call.
+func editFilesResponse(resp workspacesdk.FileEditResponse, err error) fantasy.ToolResponse {
 	if err != nil {
-		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err)), nil
+		return fantasy.NewTextErrorResponse(agentAPIErrorMessage(err))
 	}
 	return toolResponse(map[string]any{
 		"ok":    true,
 		"files": resp.Files,
-	}), nil
+	})
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

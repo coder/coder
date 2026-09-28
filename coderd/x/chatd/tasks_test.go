@@ -6,17 +6,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -25,8 +30,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -842,6 +850,118 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.False(t, execRow.RuntimeMs.Valid)
 	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
+}
+
+func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	saved := func(status int, body string) workspacesdk.CancelToolCallResponse {
+		return workspacesdk.CancelToolCallResponse{Received: true, Status: status, ContentType: "application/json", Body: []byte(body)}
+	}
+	exitCode := 0
+	tests := []struct {
+		name      string
+		toolName  string
+		cancel    workspacesdk.CancelToolCallResponse
+		cancelErr error
+		output    *workspacesdk.ProcessOutputResponse
+		wantError bool
+		want      string
+	}{
+		{name: "ExecuteNotReceived", toolName: "execute", want: `"error":"not run: canceled before the agent received it"`},
+		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
+		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
+		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
+		{name: "ExecuteCanceled", toolName: "execute", cancel: saved(http.StatusOK, `{"id":"p","started":true}`), output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"error":"canceled by the user","exit_code":-1,"output":"partial","success":false,"wall_duration_ms":0}`},
+		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true,"wall_duration_ms":0}`},
+		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
+		{name: "WriteApplied", toolName: "write_file", cancel: saved(http.StatusOK, `{"message":"ok"}`), want: `{"ok":true}`},
+		{name: "AgentWithoutCancelRoute", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+	}
+
+	f := newTaskTestFixture(t)
+	calls := make([]codersdk.ChatMessagePart, 0, len(tests))
+	for _, tc := range tests {
+		calls = append(calls, codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + tc.name, ToolName: tc.toolName, Args: json.RawMessage(`{}`)})
+	}
+	batch := interruptedBatchFixture(t, f, calls)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+	_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          batch.chat.ID,
+		WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+	})
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: batch.chat.ID})
+	require.NoError(t, err)
+	assistantID := messages[len(messages)-1].ID
+
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {batch.chat.ID.String()}})
+	for _, tc := range tests {
+		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
+		conn.EXPECT().CancelToolCall(gomock.Any(), id).Return(tc.cancel, tc.cancelErr)
+		if tc.output != nil {
+			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Nil()).Return(*tc.output, nil)
+		}
+	}
+	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		return conn, func() {}, nil
+	}
+
+	messages = batch.interrupt(t, f)
+	for _, tc := range tests {
+		parts, err := chatprompt.ParseContent(findToolResultMessage(t, messages, "call_"+tc.name))
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		assert.Equal(t, tc.wantError, parts[0].IsError, tc.name)
+		// Compact the stored JSON with sorted keys.
+		var result any
+		require.NoError(t, json.Unmarshal(parts[0].Result, &result))
+		got, err := json.Marshal(result)
+		require.NoError(t, err)
+		assert.Contains(t, string(got), tc.want, tc.name)
+	}
+}
+
+func TestExecuteLocalTools_AttachesToolCallID(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	callID := "call_" + uuid.NewString()
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: callID, ToolName: "probe", Args: json.RawMessage(`{}`)},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	chat, err := f.db.GetChatByID(ctx, batch.chat.ID)
+	require.NoError(t, err)
+	messages, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	decision, err := decideGenerationAction(generationDecisionInput{chat: chat, messages: messages, maxSteps: 100})
+	require.NoError(t, err)
+
+	var got uuid.UUID
+	probe := fantasy.NewAgentTool("probe", "records its tool call ID",
+		func(ctx context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			got, _ = workspacesdk.ToolCallIDFromContext(ctx)
+			return fantasy.NewTextResponse("{}"), nil
+		})
+	require.NoError(t, batch.starter.executeLocalTools(ctx, chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          batch.workerID,
+		RunnerID:          batch.runnerID,
+		HistoryVersion:    chat.HistoryVersion,
+		GenerationAttempt: chat.GenerationAttempt,
+		Status:            database.ChatStatusRunning,
+	}, generationPrepared{
+		Chat:          chat,
+		Tools:         []fantasy.AgentTool{probe},
+		ActiveTools:   []string{"probe"},
+		ModelConfigID: f.model.ID,
+	}, decision))
+	require.Equal(t, chattool.ToolCallID(chat.ID, messages[len(messages)-1].ID, callID), got)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {

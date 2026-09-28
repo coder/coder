@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -18,8 +20,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -27,6 +31,9 @@ const (
 	postCommitWatchPublishTimeout = 10 * time.Second
 	defaultTaskTimeout            = 15 * time.Minute
 	taskTimeoutMargin             = 5 * time.Minute
+	// interruptCancelTimeout bounds the agent dial and all tool call
+	// cancels of one interrupt, which wait for running edits to finish.
+	interruptCancelTimeout = 10 * time.Second
 )
 
 var (
@@ -304,6 +311,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("convert buffered parts: %w", err)
 	}
 
+	canceled := s.cancelUnresolvedToolCalls(ctx, chat)
+
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
@@ -313,7 +322,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions, canceled)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
@@ -693,12 +702,47 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
+// cancelUnresolvedToolCalls cancels the chat's unresolved tool calls on
+// its agent and returns the results the agent's answers give, by provider
+// tool call ID. Calls without a result keep the generic interrupted
+// result.
+func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat) map[string]fantasy.ToolResponse {
+	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
+		return nil
+	}
+	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	if err != nil {
+		return nil
+	}
+	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	if err != nil || len(calls) == 0 {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, interruptCancelTimeout)
+	defer cancel()
+	conn, release, err := s.server.agentConnFn(ctx, chat.AgentID.UUID)
+	if err != nil {
+		return nil
+	}
+	defer release()
+	// The agent keys tool call IDs by chat.
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
+	results := make(map[string]fantasy.ToolResponse, len(calls))
+	for _, call := range calls {
+		if resp, ok := chattool.CancelToolCall(ctx, conn, chattool.ToolCallID(chat.ID, messageID, call.ToolCallID), call.ToolName); ok {
+			results[call.ToolCallID] = resp
+		}
+	}
+	return results
+}
+
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
 	toolCompletions map[int]messagepartbuffer.ToolCompletion,
+	canceled map[string]fantasy.ToolResponse,
 ) ([]chatstate.Message, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -707,7 +751,7 @@ func committedPendingLocalToolCancellationMessages(
 	if err != nil {
 		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	localCalls, _, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		return nil, err
 	}
@@ -717,11 +761,17 @@ func committedPendingLocalToolCancellationMessages(
 	var intervals []chatloop.BilledInterval
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
-		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
-		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+		resp, ok := canceled[call.ToolCallID]
+		if !ok {
+			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)
 		}
-		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
+		payload := json.RawMessage(resp.Content)
+		if resp.IsError {
+			if payload, err = json.Marshal(map[string]string{"error": resp.Content}); err != nil {
+				return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+			}
+		}
+		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, resp.IsError, false)
 		if !interruptedAt.IsZero() {
 			part.CreatedAt = &interruptedAt
 		}

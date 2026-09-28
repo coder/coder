@@ -897,6 +897,8 @@ Since the runner doesn't wait for goroutines to finish when it cancels them, and
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
 
+TODO (CODAGT-757): each local tool call's context now carries a tool call ID (UUIDv5 of chat ID, assistant message ID, and provider tool call ID), sent as the `Coder-Tool-Call-Id` header on `execute` start, `edit_files`, and `write_file` requests, so the agent runs each such call once while it keeps running and a retry gets the first result. The interrupt task cancels unresolved `execute`, `edit_files`, and `write_file` calls on the agent before committing and records what the agent did; a foreground `execute` retry waits only for the rest of its timeout. Rewrite the two paragraphs above.
+
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
 The generation goroutine supports:

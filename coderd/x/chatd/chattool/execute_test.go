@@ -388,7 +388,8 @@ func TestExecuteTool(t *testing.T) {
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 
 		// First call (blocking wait) returns context error
-		// because the 50ms timeout expires.
+		// because the 50ms timeout expires. An old agent ignores
+		// timeout_ms, so chatd's own timeout ends the wait.
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
@@ -419,6 +420,39 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, -1, result.ExitCode)
 		assert.Contains(t, result.Error, "timed out")
 		assert.Equal(t, "partial output", result.Output)
+	})
+
+	t.Run("RetryReturnsAtAgentTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.Equal(t, int64(600_000), req.TimeoutMs)
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		// A retry gets the first attempt's process, and the agent's
+		// wait returns at that attempt's deadline, long before chatd's.
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"make test","timeout":"10m"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.Equal(t, "command timed out after 10m0s", result.Error)
+		assert.Equal(t, "partial output", result.Output)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 	})
 
 	t.Run("StartProcessError", func(t *testing.T) {
