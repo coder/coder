@@ -323,18 +323,39 @@ func (s *StageSpan) EndWithoutObservation(err error) {
 	s.closeSpan(err)
 }
 
+// EndTurn closes a chat_turn span at end and sets its turn_outcome.
+// Only a completed turn is observed on the stage histogram, so the
+// chat_turn histogram measures reply latency. Calls after the first
+// are ignored.
+func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
+	if s == nil || s.ended {
+		return
+	}
+	s.span.SetAttributes(attribute.String(AttrTurnOutcome, string(outcome)))
+	elapsed := s.closeSpanAt(err, end)
+	if outcome == TurnOutcomeCompleted {
+		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+	}
+}
+
+// closeSpan ends the span now and returns its window; ok is false for
+// a nil span and for calls after the first.
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
 		return 0, false
 	}
+	return s.closeSpanAt(err, s.tracer.Now()), true
+}
+
+// closeSpanAt ends an open span at end and returns its window.
+func (s *StageSpan) closeSpanAt(err error, end time.Time) time.Duration {
 	s.ended = true
-	end := s.tracer.Now()
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
 	}
 	s.span.End(trace.WithTimestamp(end))
-	return end.Sub(s.start), true
+	return end.Sub(s.start)
 }
 
 // Record emits a finished stage span with explicit timestamps. Windows

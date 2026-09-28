@@ -389,7 +389,7 @@ func TestWorkerRunnerTurnSpan(t *testing.T) {
 
 			call := starter.waitCall(t, taskKindGeneration, chat.ID)
 			require.NotNil(t, call.input.TurnSpan)
-			call.input.TurnSpan.Ensure(ctx, chat, chat.CreatedAt)
+			call.input.TurnSpan.Ensure(ctx, call.input.TaskID, chat, chat.CreatedAt)
 			require.NoError(t, worker.Close())
 
 			turns := turnSpansByStart(t, recorder)
@@ -399,4 +399,35 @@ func TestWorkerRunnerTurnSpan(t *testing.T) {
 			require.Len(t, stageSpansByStart(t, recorder, chatloop.StageAcquisition), tt.wantAcquisitions)
 		})
 	}
+}
+
+// TestWorkerRunnerReleasesTurnOnTaskExit settles a turn from inside a
+// generation task. The turn is emitted only after the task returns.
+func TestWorkerRunnerReleasesTurnOnTaskExit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	tracer, recorder := newStageTestTracer(t)
+	server := newUnstartedServer(t, f.pubsub, f.db)
+	server.stages = tracer
+	starter := newBlockingTaskStarter(false)
+	worker, err := newChatWorker(server, testOptions(t, f, starter))
+	require.NoError(t, err)
+	require.NoError(t, worker.Start(context.Background()))
+	t.Cleanup(func() { _ = worker.Close() })
+
+	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	_, token := call.input.TurnSpan.Ensure(ctx, call.input.TaskID, chat, chat.CreatedAt)
+	require.NotZero(t, token)
+	call.input.TurnSpan.Complete(token)
+	call.input.TurnSpan.Settle(token)
+	require.Empty(t, turnSpansByStart(t, recorder))
+
+	starter.release(t, 0)
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return len(turnSpansByStart(t, recorder)) == 1
+	}, testutil.IntervalFast)
+	outcome, _ := spanAttribute(t, turnSpansByStart(t, recorder)[0], chatloop.AttrTurnOutcome)
+	require.Equal(t, chatloop.TurnOutcomeCompleted, chatloop.TurnOutcome(outcome.AsString()))
 }
