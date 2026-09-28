@@ -200,9 +200,11 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout, and return at waitUntil.
+		// client-supplied timeout. The execute tool's own wait
+		// also returns at waitUntil; other waits keep their own
+		// timeout.
 		wait := maxWaitDuration
-		if !proc.waitUntil.IsZero() {
+		if r.URL.Query().Get("stop_at_start_timeout") == "true" && !proc.waitUntil.IsZero() {
 			wait = min(wait, api.manager.clock.Until(proc.waitUntil))
 		}
 		waitCtx, waitCancel := context.WithCancel(ctx)

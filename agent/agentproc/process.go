@@ -43,9 +43,9 @@ type process struct {
 	logger     slog.Logger
 	running    bool
 	canceled   atomic.Bool // killed by a tool call cancel
-	// waitUntil bounds how long a blocking output wait blocks: the
-	// execute timeout. The process keeps running after it. Zero for
-	// none.
+	// waitUntil is when the execute timeout passes: output waits that
+	// ask to stop at the start timeout return then. The process keeps
+	// running after it. Zero for none.
 	waitUntil time.Time
 	exitCode  *int
 	startedAt int64

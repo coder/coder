@@ -913,10 +913,10 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
-	// TimeoutMs is the execute timeout: it limits how long a blocking
-	// output wait blocks, counted from the first start of a tool call; a
-	// repeat start does not move it. The process keeps running after it.
-	// 0 means none.
+	// TimeoutMs is the execute timeout, counted from the first start of a
+	// tool call; a repeat start does not move it. A blocking output wait
+	// with ProcessOutputOptions.StopAtStartTimeout returns when it passes.
+	// The process keeps running after it. 0 means none.
 	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
@@ -964,6 +964,11 @@ type ProcessOutputOptions struct {
 	// Wait enables blocking mode. When true, the request
 	// blocks until the process exits or the context expires.
 	Wait bool
+	// StopAtStartTimeout also ends a blocking wait when the timeout set
+	// by StartProcessRequest.TimeoutMs passes. The execute tool's own
+	// wait uses it; other waits, such as process_output's, keep their
+	// own timeout.
+	StopAtStartTimeout bool
 }
 
 // ProcessTruncation describes how process output was truncated.
@@ -1473,11 +1478,14 @@ func (c *agentConn) CallMCPTool(ctx context.Context, req CallMCPToolRequest) (Ca
 func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessOutputOptions) (ProcessOutputResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	path := "/api/v0/processes/" + id + "/output"
+	query := neturl.Values{}
 	if opts != nil && opts.Wait {
-		path += "?wait=true"
+		query.Set("wait", "true")
+		if opts.StopAtStartTimeout {
+			query.Set("stop_at_start_timeout", "true")
+		}
 	}
-	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/processes/"+id+"/output", query), nil)
 	if err != nil {
 		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
 	}
