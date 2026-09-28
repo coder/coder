@@ -129,8 +129,8 @@ func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID)
 // P only with a blocked head: P's transitions do not re-read the head,
 // so paused with a ready head or an empty queue is invalid, like
 // waiting with rows. Anything outside the valid set (archived busy
-// states, waiting with a non-empty queue, paused without a blocked
-// head, future enum values) falls through to [StateInvalid].
+// states, waiting with a non-empty queue, future enum values) falls
+// through to [StateInvalid].
 //
 //nolint:revive // exists is a simple classifier input.
 func ClassifyExecutionState(chat database.Chat, queue QueueState, exists bool) ExecutionState {
