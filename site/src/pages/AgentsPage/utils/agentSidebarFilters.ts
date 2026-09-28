@@ -99,8 +99,6 @@ const writeSidebarFilters = (
 export const getAgentSidebarFilters = (
 	searchParams: URLSearchParams,
 	setSearchParams: SetURLSearchParams,
-	// The current entry's history state, kept when filters rewrite the URL so
-	// a deep link's composer prefill survives.
 	locationState: unknown,
 ): AgentSidebarFiltersResult => {
 	const prStatuses = canonicalizeChatListPRStatuses(

@@ -524,9 +524,7 @@ const AgentsPageLayout: React.FC = () => {
 		// A composer prefilled from a prompt link shows the link's text,
 		// not the draft, so the draft is preserved there too. A debug link
 		// can fall back to the draft-backed composer, so it is not exempt.
-		const showsPromptLink =
-			readDeepLinkState(location.state).prompt !== undefined;
-		if (!agentId && !showsPromptLink) {
+		if (!agentId && readDeepLinkState(location.state).prompt === undefined) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
