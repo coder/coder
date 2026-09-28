@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
@@ -197,8 +198,15 @@ func (m *ChatMachine) Update(
 			}
 			return xerrors.Errorf("lock chat and bump snapshot: %w", err)
 		}
+		// The bump returned the authoritative locked row. Cache its RBAC
+		// object on the transaction context so dbauthz authorizes the
+		// callback's writes without re-reading the chat under the lock.
+		txCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(bumped.Chat))
+		if err != nil {
+			return xerrors.Errorf("cache chat rbac: %w", err)
+		}
 		tx := &Tx{
-			ctx:    ctx,
+			ctx:    txCtx,
 			store:  store,
 			chatID: m.chatID,
 			seed:   &txSeed{chat: bumped.Chat, hasQueued: bumped.HasQueued},
@@ -208,7 +216,7 @@ func (m *ChatMachine) Update(
 		}
 		// One lean read after the callback captures trigger-driven
 		// version changes and the ownership lease in a single round trip.
-		state, err := store.GetChatTransitionState(ctx, database.GetChatTransitionStateParams{
+		state, err := store.GetChatTransitionState(txCtx, database.GetChatTransitionStateParams{
 			ID:           m.chatID,
 			StaleSeconds: HeartbeatStaleSeconds,
 		})

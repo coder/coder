@@ -7889,3 +7889,116 @@ func TestAsExternalAuthChecker(t *testing.T) {
 		}
 	})
 }
+
+func TestChatWriteAuthorization_FastPath(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	chat := database.Chat{ID: uuid.New(), OwnerID: ownerID, OrganizationID: orgID}
+	bumped := database.LockChatAndBumpSnapshotVersionRow{Chat: chat}
+
+	actor := rbac.Subject{
+		ID:     ownerID.String(),
+		Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+		Groups: []string{orgID.String()},
+		Scope:  rbac.ScopeAll,
+	}
+	authorizer := &coderdtest.RecordingAuthorizer{
+		Wrapped: (&coderdtest.FakeAuthorizer{}).AlwaysReturn(nil),
+	}
+
+	t.Run("WithChatRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(chat))
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		// No GetChatByID expectation: the cached object must satisfy
+		// authorization for every chat-scoped write.
+		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(chat, nil)
+		dbm.EXPECT().Wrappers().Return([]string{})
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		got, err := q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, bumped, got)
+		_, err = q.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: chat.ID})
+		require.NoError(t, err)
+	})
+
+	t.Run("WithChatRBACForDifferentChatUsesSlowPath", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		other := database.Chat{ID: uuid.New(), OwnerID: ownerID, OrganizationID: orgID}
+		ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(other))
+		require.NoError(t, err)
+
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		// A cached object for another chat must never authorize this one.
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().Wrappers().Return([]string{})
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err = q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("WithoutChatRBAC", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := dbauthz.As(context.Background(), actor)
+		ctrl := gomock.NewController(t)
+		dbm := dbmock.NewMockStore(ctrl)
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
+		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().Wrappers().Return([]string{})
+		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+
+		_, err := q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		require.NoError(t, err)
+	})
+}
+
+func TestWithChatRBAC(t *testing.T) {
+	t.Parallel()
+
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), OrganizationID: uuid.New()}
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		ctx, err := dbauthz.WithChatRBAC(context.Background(), dbauthz.CacheableChatRBAC(chat))
+		require.NoError(t, err)
+		got, ok := dbauthz.ChatRBACFromContext(ctx)
+		require.True(t, ok)
+		require.Equal(t, chat.ID.String(), got.ID)
+	})
+
+	t.Run("RejectsWrongType", func(t *testing.T) {
+		t.Parallel()
+		_, err := dbauthz.WithChatRBAC(context.Background(), rbac.ResourceWorkspace.WithID(chat.ID).WithOwner(chat.OwnerID.String()).InOrg(chat.OrganizationID))
+		require.Error(t, err)
+	})
+
+	t.Run("RejectsEmptyOwner", func(t *testing.T) {
+		t.Parallel()
+		_, err := dbauthz.WithChatRBAC(context.Background(), rbac.ResourceChat.WithID(chat.ID).InOrg(chat.OrganizationID))
+		require.Error(t, err)
+	})
+
+	t.Run("RejectsACLs", func(t *testing.T) {
+		t.Parallel()
+		obj := dbauthz.CacheableChatRBAC(chat).WithACLUserList(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead},
+		})
+		_, err := dbauthz.WithChatRBAC(context.Background(), obj)
+		require.Error(t, err)
+	})
+}

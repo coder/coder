@@ -3,12 +3,17 @@ package chatstate_test
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -168,4 +173,68 @@ func TestCurrentDoesNotConsumeSeed(t *testing.T) {
 
 	require.Zero(t, counts.getChatByID)
 	require.Zero(t, counts.countQueued)
+}
+
+// newAuthzStore wraps store in the dbauthz layer so tests exercise the same
+// authorization pre-reads production does.
+func newAuthzStore(t *testing.T, store database.Store) database.Store {
+	t.Helper()
+	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var s dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	acs.Store(&s)
+	return dbauthz.New(store, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), acs)
+}
+
+// TestUpdateThroughDBAuthzAuthorizesWritesFromCachedRBAC runs a transition
+// through the dbauthz layer, as production does. Without the cached RBAC
+// object every write's authorization re-read the chat under the lock; with
+// it, only the bump's own pre-lock authorization reads the chat.
+func TestUpdateThroughDBAuthzAuthorizesWritesFromCachedRBAC(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	created := createTestChat(t, f)
+
+	counts := &roundTripCounts{}
+	authz := newAuthzStore(t, &countingStore{Store: f.DB, counts: counts})
+	ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitShort))
+	m := chatstate.NewChatMachine(authz, f.Pub, created.Chat.ID)
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	require.Equal(t, 1, counts.bump)
+	require.Equal(t, 1, counts.transitionState)
+	require.Equal(t, 1, counts.getChatByID,
+		"only the bump's pre-lock authorization reads the chat; the callback's write must not")
+	require.Zero(t, counts.countQueued)
+	require.Zero(t, counts.heartbeatStale)
+}
+
+// TestUpdateThroughDBAuthzWithCallerCachedRBACReadsNothing shows that a
+// caller which already holds the chat (HTTP middleware, the worker runner)
+// can cache its RBAC object up front so even the bump authorizes without a
+// read: the transition then touches the chat row only through the bump and
+// the lean post-callback read.
+func TestUpdateThroughDBAuthzWithCallerCachedRBACReadsNothing(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	created := createTestChat(t, f)
+
+	counts := &roundTripCounts{}
+	authz := newAuthzStore(t, &countingStore{Store: f.DB, counts: counts})
+	ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitShort))
+	ctx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(created.Chat))
+	require.NoError(t, err)
+	m := chatstate.NewChatMachine(authz, f.Pub, created.Chat.ID)
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+
+	require.Equal(t, 1, counts.bump)
+	require.Equal(t, 1, counts.transitionState)
+	require.Zero(t, counts.getChatByID, "no chat read at all when the caller cached the RBAC object")
 }
