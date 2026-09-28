@@ -692,7 +692,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		});
 	};
 
-	// A failed chat load shows its error without waiting on the preference.
 	const isWaitingForPreferences =
 		preferencesQuery.isLoading &&
 		!chatQuery.isLoadingError &&
