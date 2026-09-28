@@ -77,7 +77,7 @@ func withEditingRow(seed seederFn, idx int) seederFn {
 // asserts no queued row is under edit.
 func assertQueueEditMarkers(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, wantEditingID int64) {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
 	for _, row := range rows {
 		require.Equal(t, row.ID == wantEditingID, row.EditingSince.Valid,
@@ -896,7 +896,7 @@ func assertQueuedMessageContent(t *testing.T, content json.RawMessage, want stri
 // finish-interruption.
 func assertQueueBodiesInOrder(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, want []string) {
 	t.Helper()
-	rows, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+	rows, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 	require.NoError(t, err)
 	require.Len(t, rows, len(want), "queue length must match expected bodies")
 	for i, r := range rows {

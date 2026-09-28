@@ -204,7 +204,7 @@ func (tx *Tx) nextPromotableQueueHead() (database.ChatQueuedMessage, bool, error
 	if !head.AutomationID.Valid {
 		return head, true, nil
 	}
-	queue, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
+	queue, err := tx.store.GetChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return database.ChatQueuedMessage{}, false, xerrors.Errorf("get queued messages: %w", err)
 	}

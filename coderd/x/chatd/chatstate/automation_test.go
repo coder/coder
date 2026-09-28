@@ -852,7 +852,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 	// already queued on the chat.
 	admit := func(own database.ChatAutomation) chatstate.AdmitFunc {
 		return func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
-			queue, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
+			queue, err := store.GetChatQueuedMessages(ctx, chatID)
 			if err != nil {
 				return chatstate.AutomationProvenance{}, err
 			}
@@ -931,7 +931,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for range rounds {
-				queue, err := f.DB.GetChatQueuedMessagesByPosition(ctx, chatID)
+				queue, err := f.DB.GetChatQueuedMessages(ctx, chatID)
 				if err != nil || len(queue) == 0 {
 					record(err)
 					continue
