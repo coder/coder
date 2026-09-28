@@ -119,6 +119,37 @@ func TestQueuedMessagePromotionRequiresSingleDelete(t *testing.T) {
 		"failed promotion inserts no message")
 }
 
+// TestQueuedMessagePausedResumeRequiresSingleDelete verifies that
+// ending the edit of a paused chat's head, which promotes the head,
+// fails and rolls back when the queue-row delete does not remove
+// exactly one row.
+func TestQueuedMessagePausedResumeRequiresSingleDelete(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedPaused(t, f, 0)
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
+	head := seeded.queuedMessageIDs[0]
+	historyBefore := historyMessageIDs(ctx, t, f, seeded.chatID)
+
+	guarded := chatstate.NewChatMachine(&queueDeleteCountStore{Store: f.DB}, f.Pub, seeded.chatID)
+	err := guarded.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		editing := false
+		_, err := tx.EditQueuedMessage(chatstate.EditQueuedMessageInput{
+			QueuedMessageID: head,
+			Editing:         &editing,
+		})
+		return err
+	})
+	require.ErrorContains(t, err, "deleted 0 rows")
+
+	require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
+	row := requireQueuedMessageByID(ctx, t, f, seeded.chatID, head)
+	require.True(t, row.EditingSince.Valid, "the rolled-back edit end leaves the head under edit")
+	require.Equal(t, historyBefore, historyMessageIDs(ctx, t, f, seeded.chatID),
+		"failed promotion inserts no message")
+}
+
 // queueDeleteCountStore reports that queue-row deletes affected no rows,
 // simulating a broken delete invariant inside the real transaction.
 type queueDeleteCountStore struct {
