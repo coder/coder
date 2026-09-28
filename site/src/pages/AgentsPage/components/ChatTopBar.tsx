@@ -329,7 +329,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						</button>
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className={prMenuContentClassName}>
-						<PRMenuLinks prStatuses={prStatuses} />
+						<PRMenuLinks prStatuses={prStatuses} Item={DropdownMenuItem} />
 					</DropdownMenuContent>
 				</DropdownMenu>
 			) : (

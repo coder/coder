@@ -85,7 +85,10 @@ export const chatHasMenuActions = (
 
 type ChatActionsMenuItemsProps = {
 	readonly chat: TypesGen.Chat;
-	/** See {@link canManageChat}. When false, only the subagents toggle renders. */
+	/**
+	 * See {@link canManageChat}. When false, only the subagents toggle and
+	 * `pullRequestItems` render.
+	 */
 	readonly canManage: boolean;
 	readonly hasWorkspace: boolean;
 	readonly isArchiving?: boolean;
@@ -103,6 +106,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
+	/** Leave falsy when the chat has no PRs, or the menu gets stray separators. */
+	readonly pullRequestItems?: React.ReactNode;
 	readonly Item: ItemComponent;
 	readonly Separator: SeparatorComponent;
 };
@@ -124,6 +129,7 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
+	pullRequestItems,
 	Item,
 	Separator,
 }) => {
@@ -135,6 +141,11 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const showPinAction =
 		!isArchived && !isChildChat && Boolean(onPinAgent && onUnpinAgent);
 	const showArchiveActions = !isArchived && !isChildChat;
+	const hasActionsAbovePRs =
+		showPinAction ||
+		Boolean(onOpenRenameDialog) ||
+		showSubagentsToggle ||
+		showReadToggle;
 	const archiveBlockedHintId = useId();
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -166,7 +177,13 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	) : null;
 
 	if (!canManage) {
-		return subagentToggle;
+		return (
+			<>
+				{subagentToggle}
+				{showSubagentsToggle && pullRequestItems && <Separator />}
+				{pullRequestItems}
+			</>
+		);
 	}
 
 	return (
@@ -187,16 +204,20 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 				</Item>
 			)}
 			{isArchived ? (
-				!isChildChat && (
-					<>
-						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
-							<ArchiveRestoreIcon className="size-3.5" />
-							Unarchive agent
-						</Item>
-						{subagentToggle}
-						{readToggle}
-					</>
-				)
+				<>
+					{!isChildChat && (
+						<>
+							<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+								<ArchiveRestoreIcon className="size-3.5" />
+								Unarchive agent
+							</Item>
+							{subagentToggle}
+							{readToggle}
+						</>
+					)}
+					{!isChildChat && pullRequestItems && <Separator />}
+					{pullRequestItems}
+				</>
 			) : (
 				<>
 					{onOpenRenameDialog && (
@@ -207,12 +228,11 @@ export const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 					)}
 					{subagentToggle}
 					{readToggle}
+					{hasActionsAbovePRs && pullRequestItems && <Separator />}
+					{pullRequestItems}
 					{showArchiveActions && (
 						<>
-							{(onOpenRenameDialog ||
-								showPinAction ||
-								showSubagentsToggle ||
-								showReadToggle) && <Separator />}
+							{(hasActionsAbovePRs || pullRequestItems) && <Separator />}
 							<Item
 								className="text-content-destructive focus:text-content-destructive"
 								aria-describedby={archiveBlockedDescribedBy}

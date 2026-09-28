@@ -14,6 +14,9 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuSeparator,
+	ContextMenuSub,
+	ContextMenuSubContent,
+	ContextMenuSubTrigger,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
 import {
@@ -21,10 +24,12 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Tooltip, TooltipTrigger } from "#/components/Tooltip/Tooltip";
 import { shortRelativeTime } from "#/utils/time";
 import {
 	ChatActionsMenuItems,
@@ -34,7 +39,8 @@ import {
 } from "../../ChatActionsMenuItems";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { normalizeLocationSearch } from "../locationSearch";
-import { ChatNodePRIcon, PRListTooltipContent } from "./ChatNodePRIcon";
+import { ChatNodePRIcon } from "./ChatNodePRIcon";
+import { ChatPRMenuItems } from "./ChatPRMenuItems";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -160,10 +166,15 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const isExpanded = normalizedSearch ? true : (expandedById[chatID] ?? false);
 
 	const canManage = canManageChat(chat, currentUserId);
-	const hasMenuActions = chatHasMenuActions(chat, {
+	const hasChatActions = chatHasMenuActions(chat, {
 		canManage,
 		hasSubagentsToggle: hasChildren,
 	});
+	const prStatusesWithURL = prStatuses.filter((status) => status.url);
+	const hasPRs = prStatusesWithURL.length > 0;
+	// PR links need no permission, so viewers of a shared chat get
+	// the menu when the chat has PRs.
+	const hasMenuActions = hasChatActions || hasPRs;
 	const trailing = renderTrailing?.(chat);
 
 	const sharedMenuItemProps = {
@@ -192,65 +203,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 			? () => onOpenRenameDialog(chat)
 			: undefined,
 	};
-
-	// The tooltip lists every tracked PR, so it belongs to the whole
-	// row: link focus opens it for keyboard users, and no focusable
-	// descendant nests inside the anchor.
-	const chatLink = (
-		<NavLink
-			to={{
-				pathname: `/agents/${chat.id}`,
-				search: locationSearch,
-			}}
-			className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
-		>
-			{({ isActive }) => (
-				<div className="min-w-0 flex-1 overflow-hidden text-left">
-					<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-						<span
-							className={cn(
-								"block flex-1 truncate text-[13px] text-content-primary",
-								!isActive &&
-									"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
-							)}
-						>
-							{chat.title}
-						</span>
-						{chat.has_unread && !isActiveChat && (
-							<span className="sr-only">(unread)</span>
-						)}
-					</div>
-					<div className="flex min-w-0 items-center gap-1.5">
-						{prStatuses.length > 0 && (
-							<ChatNodePRIcon prStatuses={prStatuses} />
-						)}
-						{prStatuses.length === 1 && hasLinkedDiffStatus && hasLineStats && (
-							<span
-								className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-								title={`${filesChangedLabel}, +${additions} -${deletions}`}
-							>
-								<span className="text-git-added-bright">+{additions}</span>
-								<span className="text-git-deleted-bright">
-									&minus;{deletions}
-								</span>
-							</span>
-						)}
-						<div
-							className={cn(
-								"min-w-0 overflow-hidden text-[13px] leading-4",
-								errorReason
-									? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
-									: "truncate text-content-secondary",
-							)}
-							title={subtitle}
-						>
-							{subtitle}
-						</div>
-					</div>
-				</div>
-			)}
-		</NavLink>
-	);
 
 	return (
 		<div className="flex min-w-0 flex-col gap-0.5">
@@ -309,14 +261,59 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 								</Button>
 							)}
 						</div>
-						{prStatuses.length > 1 ? (
-							<Tooltip>
-								<TooltipTrigger asChild>{chatLink}</TooltipTrigger>
-								<PRListTooltipContent prStatuses={prStatuses} />
-							</Tooltip>
-						) : (
-							chatLink
-						)}
+						<NavLink
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: locationSearch,
+							}}
+							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
+						>
+							{({ isActive }) => (
+								<div className="min-w-0 flex-1 overflow-hidden text-left">
+									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+										<span
+											className={cn(
+												"block flex-1 truncate text-[13px] text-content-primary",
+												!isActive &&
+													"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+											)}
+										>
+											{chat.title}
+										</span>
+										{chat.has_unread && !isActiveChat && (
+											<span className="sr-only">(unread)</span>
+										)}
+									</div>
+									<div className="flex min-w-0 items-center gap-1.5">
+										<ChatNodePRIcon prStatuses={prStatuses} />
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
+											>
+												<span className="text-git-added-bright">
+													+{additions}
+												</span>
+												<span className="text-git-deleted-bright">
+													&minus;{deletions}
+												</span>
+											</span>
+										)}
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-secondary wrap-anywhere"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
+										</div>
+									</div>
+								</div>
+							)}
+						</NavLink>
 						<div
 							className={cn(
 								"relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch",
@@ -407,7 +404,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="[&_[role=menuitem]]:text-[13px]"
+										className="max-w-72 [&_[role=menuitem]]:text-[13px]"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -419,6 +416,17 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									>
 										<ChatActionsMenuItems
 											{...sharedMenuItemProps}
+											pullRequestItems={
+												hasPRs && (
+													<ChatPRMenuItems
+														prStatuses={prStatusesWithURL}
+														Item={DropdownMenuItem}
+														Sub={DropdownMenuSub}
+														SubTrigger={DropdownMenuSubTrigger}
+														SubContent={DropdownMenuSubContent}
+													/>
+												)
+											}
 											Item={DropdownMenuItem}
 											Separator={DropdownMenuSeparator}
 										/>
@@ -428,9 +436,20 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="max-w-72 [&_[role=menuitem]]:text-[13px]">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
+						pullRequestItems={
+							hasPRs && (
+								<ChatPRMenuItems
+									prStatuses={prStatusesWithURL}
+									Item={ContextMenuItem}
+									Sub={ContextMenuSub}
+									SubTrigger={ContextMenuSubTrigger}
+									SubContent={ContextMenuSubContent}
+								/>
+							)
+						}
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 					/>

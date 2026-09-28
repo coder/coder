@@ -1826,20 +1826,94 @@ export const WithMultiplePRs: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Hover so Pixel captures the PR list popover. The tooltip
-		// portals to the body, outside the story canvas.
-		await userEvent.hover(
-			canvas.getByRole("link", {
-				name: /agent with three pull requests/i,
-			}),
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with three pull requests"),
 		);
-		await within(document.body).findByRole("tooltip");
+		// The menus portal to the body, outside the story canvas.
+		const body = within(document.body);
+		await userEvent.click(await body.findByRole("menuitem", { name: "3 PRs" }));
+		await body.findByRole("menuitem", { name: /PR #201/ });
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
 		}),
+	},
+};
+
+// Enough PRs to show the submenu's height limit.
+export const WithManyPRs: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "many-prs",
+				title: "Agent with fifteen pull requests",
+				updated_at: recentTimestamp,
+				diff_statuses: Array.from({ length: 15 }, (_, index) => ({
+					...MockChatDiffStatus,
+					chat_id: "many-prs",
+					git_branch: `refactor/agents-${index + 1}`,
+					url: `https://github.com/coder/coder/pull/${29901 + index}`,
+					pr_number: 29901 + index,
+					pull_request_title: `refactor(site): split the agents page into smaller parts, step ${index + 1}`,
+				})),
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText(
+				"Open actions for Agent with fifteen pull requests",
+			),
+		);
+		const body = within(document.body);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "15 PRs" }),
+		);
+		await body.findByRole("menuitem", { name: /PR #29901/ });
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
+export const WithOnePRMenuOpen: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "one-pr-menu",
+				title: "Agent with one pull request",
+				updated_at: recentTimestamp,
+				diff_statuses: [
+					{
+						...MockChatDiffStatus,
+						chat_id: "one-pr-menu",
+						pr_number: 301,
+						url: "https://github.com/coder/coder/pull/301",
+						pull_request_title:
+							"fix(site/src/pages/AgentsPage): keep the session alive when the workspace restarts",
+					},
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Agent with one pull request"),
+		);
+		await within(document.body).findByRole("menuitem", { name: /PR #301/ });
 	},
 };
 
