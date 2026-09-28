@@ -641,6 +641,42 @@ func TestEditQueuedMessageUserPromptSubmitHook(t *testing.T) {
 	})
 }
 
+// TestEditQueuedMessageUserPromptSubmitDispatchFailure: the hook
+// consumer removes the edited row and idles the chat before failing, so
+// the chat is waiting when the dispatch error returns. The failed edit
+// must not move that chat to error.
+func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
+	t.Parallel()
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, db.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
+			ID: queued.ID, ChatID: chat.ID,
+		}))
+		_, err := db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(consumer.Close)
+	server := newHookTestServer(t, db, ps, consumer)
+
+	err := server.EditQueuedMessage(ctx, chatd.EditQueuedMessageOptions{
+		ChatID:          chat.ID,
+		QueuedMessageID: queued.ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	var dispatchErr *dispatch.Error
+	require.ErrorAs(t, err, &dispatchErr)
+	updated, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, updated.Status)
+	require.False(t, updated.LastError.Valid)
+}
+
 func TestEditMessageInvalidTargetSkipsHooks(t *testing.T) {
 	t.Parallel()
 	db, ps := dbtestutil.NewDB(t)
