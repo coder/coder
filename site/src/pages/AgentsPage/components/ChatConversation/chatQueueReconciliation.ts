@@ -43,17 +43,22 @@ export const restoreOptimisticRequestSnapshot = (
  * actual user message is delivered via SSE or the messages REST endpoint.
  * Suppress the promoted ID so the transient reordered queue published by
  * the running-case backend does not flash the message back into the
- * visible queue. Roll back queue, status, and suppression on API error.
- *
- * @internal Exported for testing.
+ * visible queue. On API error, status, stream and suppression are rolled
+ * back. The queue is restored from the snapshot when no queue update
+ * arrived during the request. Otherwise it is refetched and written to the
+ * store and the messages cache: that update was filtered through the
+ * suppression, so both lack the promoted row the server still holds. If
+ * the refetch fails, the snapshot is written instead.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
 	store: Pick<
 		ChatStore,
+		| "applyAuthoritativeQueuedMessages"
 		| "batch"
 		| "clearStreamError"
 		| "clearStreamState"
+		| "getActiveChatID"
 		| "getQueueConvergenceFence"
 		| "getSnapshot"
 		| "setChatStatus"
@@ -64,7 +69,13 @@ export const runPromoteQueuedMessage = async (params: {
 		| "unsuppressQueuedMessageID"
 	>;
 	promoteQueuedMessage: (id: number) => Promise<void>;
-	agentId: string | undefined;
+	fetchQueueConvergence: (
+		chatID: string,
+	) => Promise<TypesGen.ChatMessagesResponse>;
+	setCacheQueuedMessages: (
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	) => void;
+	agentId: string;
 	clearChatErrorReason: (chatID: string) => void;
 	onError: (error: unknown) => void;
 }): Promise<void> => {
@@ -72,6 +83,8 @@ export const runPromoteQueuedMessage = async (params: {
 		id,
 		store,
 		promoteQueuedMessage,
+		fetchQueueConvergence,
+		setCacheQueuedMessages,
 		agentId,
 		clearChatErrorReason,
 		onError,
@@ -86,15 +99,39 @@ export const runPromoteQueuedMessage = async (params: {
 		store.clearStreamError();
 		store.setChatStatus("running");
 	});
-	if (agentId) {
-		clearChatErrorReason(agentId);
-	}
+	const baselineFence = store.getQueueConvergenceFence();
+	clearChatErrorReason(agentId);
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {
 		store.unsuppressQueuedMessageID(id);
-		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+		restoreOptimisticRequestSnapshot(store, previousSnapshot, baselineFence);
 		onError(error);
+		if (
+			store.getActiveChatID() === agentId &&
+			store.getQueueConvergenceFence() !== baselineFence
+		) {
+			const refetchFence = store.getQueueConvergenceFence();
+			let queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined;
+			try {
+				queuedMessages =
+					(await fetchQueueConvergence(agentId)).queued_messages ?? [];
+			} catch {
+				queuedMessages = undefined;
+			}
+			// A queue update or chat switch during the refetch is newer.
+			if (
+				store.getActiveChatID() === agentId &&
+				store.getQueueConvergenceFence() === refetchFence
+			) {
+				if (queuedMessages) {
+					store.applyAuthoritativeQueuedMessages(queuedMessages);
+				} else {
+					store.setQueuedMessages(previousSnapshot.queuedMessages);
+				}
+				setCacheQueuedMessages(store.getSnapshot().queuedMessages);
+			}
+		}
 		throw error;
 	}
 };
