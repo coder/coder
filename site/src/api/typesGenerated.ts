@@ -3645,6 +3645,11 @@ export interface ChatQueuedMessage {
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
 	/**
+	 * ReasoningEffort is the message's reasoning effort override, when
+	 * one is set.
+	 */
+	readonly reasoning_effort?: string;
+	/**
 	 * EditingSince is set while the owner edits the message. A message
 	 * under edit and every message behind it wait until the edit ends; a
 	 * turn that ends at a message under edit pauses the chat.
@@ -5583,14 +5588,17 @@ export interface EditChatQueuedMessageRequest {
 	 */
 	readonly content?: readonly ChatInputPart[];
 	/**
-	 * ModelConfigID and ReasoningEffort apply only together with Content.
+	 * ModelConfigID and ReasoningEffort require Content; sending either
+	 * without it returns 400. Omitted values keep the stored ones.
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
 	/**
 	 * Editing begins (true) or ends (false) an edit of the message. A
 	 * chat has at most one message under edit; beginning another ends the
-	 * first. Ending the edit of a paused chat's head sends it.
+	 * first. While the chat is paused, beginning an edit on another
+	 * message returns 409. Ending the edit of a paused chat's head sends
+	 * it.
 	 */
 	readonly editing?: boolean;
 }

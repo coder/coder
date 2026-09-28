@@ -1760,7 +1760,7 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		parts = nil
 	}
 
-	return codersdk.ChatQueuedMessage{
+	queued := codersdk.ChatQueuedMessage{
 		ID:            message.ID,
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
@@ -1768,6 +1768,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		CreatedAt:     message.CreatedAt,
 		EditingSince:  nullTimePtr(message.EditingSince),
 	}
+	if message.ReasoningEffort.Valid {
+		effort := string(message.ReasoningEffort.ChatReasoningEffort)
+		queued.ReasoningEffort = &effort
+	}
+	return queued
 }
 
 // ChatQueuedMessages converts a slice of database queued messages
