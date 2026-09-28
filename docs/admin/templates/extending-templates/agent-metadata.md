@@ -123,7 +123,9 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
 ```
 
-## Managing the database load
+<a id="managing-the-database-load"></a>
+
+## Manage the database load
 
 Agent metadata can generate a significant write load and overwhelm your Coder
 database if you're not careful. The approximate writes per second can be

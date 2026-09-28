@@ -91,7 +91,9 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
 
-## Testing and Publishing Coder Templates in CI/CD
+<a id="testing-and-publishing-coder-templates-in-cicd"></a>
+
+## Test and publish Coder templates in CI/CD
 
 See our [testing templates](../../../tutorials/testing-templates.md) tutorial
 for an example of how to test and publish Coder templates in a CI/CD pipeline.

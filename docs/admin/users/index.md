@@ -7,7 +7,9 @@ deployments, we recommend using an SSO authentication provider with multi-factor
 authentication (MFA). It is your responsibility to ensure the auth provider
 enforces MFA correctly.
 
-## Configuring SSO
+<a id="configuring-sso"></a>
+
+## Configure SSO
 
 - [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
@@ -169,7 +171,9 @@ coder reset-password <username>
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
-### Resetting a password on Kubernetes
+<a id="resetting-a-password-on-kubernetes"></a>
+
+### Reset a password on Kubernetes
 
 ```sh
 kubectl exec -it deployment/coder -n coder -- /bin/bash

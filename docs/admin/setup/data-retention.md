@@ -174,7 +174,7 @@ Common compliance frameworks have varying retention requirements:
 If you use an external log aggregation system (Splunk, Datadog, etc.), you can
 configure shorter retention periods in Coder since logs are preserved
 externally. See
-[Capturing/Exporting Audit Logs](../security/audit-logs.md#capturingexporting-audit-logs)
+[Capture and export audit logs](../security/audit-logs.md#capture-and-export-audit-logs)
 for details on exporting logs.
 
 ### Database Maintenance
@@ -184,7 +184,9 @@ your PostgreSQL database to reclaim disk space. See
 [Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table)
 for guidance.
 
-## Keeping Data Indefinitely
+<a id="keeping-data-indefinitely"></a>
+
+## Keep data indefinitely
 
 To keep data indefinitely for any data type, set its retention value to `0`:
 

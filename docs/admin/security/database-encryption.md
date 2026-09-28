@@ -49,11 +49,13 @@ have a null `revoked_key_id` column, and revoked keys have a non-null
 `revoked_key_id` column. You cannot revoke a key until you have rotated all
 values using that key to a new key.
 
-## Enabling encryption
+<a id="enabling-encryption"></a>
+
+## Turn on encryption
 
 > [!NOTE]
 > Enabling encryption does not encrypt all existing data. To encrypt
-> existing data, see [rotating keys](#rotating-keys) below.
+> existing data, see [rotating keys](#rotate-keys) below.
 
 - Ensure you have a valid backup of your database. **Do not skip this step.** If
   you are using the built-in PostgreSQL database, you can run
@@ -90,7 +92,9 @@ coder:
 - Restart the control plane. It will now encrypt all new data with the provided
   key.
 
-## Rotating keys
+<a id="rotating-keys"></a>
+
+## Rotate keys
 
 We recommend only having one active encryption key at a time normally. However,
 if you need to rotate keys, you can perform the following procedure:
@@ -133,7 +137,9 @@ data:
   from Coder's configuration and restart Coder once more. You can now safely
   delete the old key from your secret store.
 
-## Disabling encryption
+<a id="disabling-encryption"></a>
+
+## Turn off encryption
 
 To disable encryption, perform the following actions:
 
@@ -160,7 +166,9 @@ To disable encryption, perform the following actions:
 - Start `coderd`. You can now safely delete the encryption keys from your secret
   store.
 
-## Deleting Encrypted Data
+<a id="deleting-encrypted-data"></a>
+
+## Delete encrypted data
 
 > [!CAUTION]
 > This is a destructive operation.

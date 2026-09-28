@@ -125,7 +125,9 @@ API key scopes allow you to limit the permissions of a token to specific operati
 
 Scopes follow the format `resource:action`, where `resource` is the type of object (like `workspace`, `template`, or `user`) and `action` is the operation (like `read`, `create`, `update`, or `delete`). You can also use wildcards like `workspace:*` to grant all permissions for a specific resource type.
 
-### Creating tokens with scopes
+<a id="creating-tokens-with-scopes"></a>
+
+### Create tokens with scopes
 
 You can specify scopes when creating a token using the `--scope` flag:
 

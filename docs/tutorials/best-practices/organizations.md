@@ -122,7 +122,9 @@ We’re interested in identifying new use cases for custom roles. Please
 [create a GitHub issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+request+here)
 with your suggestion or request.
 
-## Managing Organizations at Scale
+<a id="managing-organizations-at-scale"></a>
+
+## Manage organizations at scale
 
 Using ClickOps to onboard new organizations, set quotas, and SSO sync can be
 cumbersome, especially if you want to "seed" organizations with provisioners and

@@ -171,7 +171,12 @@ Refer to [Architecture](../install/plan/architecture.md).
 The Go SDK that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
+<!-- "Coding" is an adjective in this glossary term, not a task verb. -->
+<!-- vale Coder.GerundHeading = NO -->
+
 ### Coding agent
+
+<!-- vale Coder.GerundHeading = YES -->
 
 An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).

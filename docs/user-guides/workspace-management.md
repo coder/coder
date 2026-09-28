@@ -10,7 +10,9 @@ A developer creates a workspace from a
 environments that are identically configured and provisioned with the same
 resources.
 
-## Creating workspaces
+<a id="creating-workspaces"></a>
+
+## Create workspaces
 
 You can create a workspace in the UI. Log in to your Coder instance, go to the
 **Templates** tab, find the template you need, and select **Create Workspace**.
@@ -82,7 +84,9 @@ The following filters are supported:
   `include_agent_metadata:cpu_usage`. Repeat the key to request multiple
   metadata items. Keys match case-insensitively.
 
-## Updating workspaces
+<a id="updating-workspaces"></a>
+
+## Update workspaces
 
 After updating the default version of the template that a workspace was created
 from, you can update the workspace.
@@ -92,7 +96,9 @@ from, you can update the workspace.
 If the workspace is running, Coder stops it, updates it, then starts the
 workspace again.
 
-### Updating via the CLI
+<a id="updating-via-the-cli"></a>
+
+### Update with the CLI
 
 Update a workspace through the command line:
 
@@ -127,7 +133,9 @@ for confirmation before any action is taken.
 
 ![Bulk workspace actions](../images/user-guides/workspace-bulk-actions.png)
 
-## Starting and stopping workspaces
+<a id="starting-and-stopping-workspaces"></a>
+
+## Start and stop workspaces
 
 By default, you manually start and stop workspaces as you need. You can also
 schedule a workspace to start and stop automatically.
@@ -138,7 +146,7 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](../admin/templates/managing-templates/index.md#updating-templates)
+[template update](../admin/templates/managing-templates/index.md#update-templates)
 available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
@@ -154,7 +162,9 @@ Resources are often destroyed and re-created when a workspace is restarted,
 though the exact behavior depends on the template. For more information, see
 [Resource Persistence](../admin/templates/extending-templates/resource-persistence.md).
 
-## Repairing workspaces
+<a id="repairing-workspaces"></a>
+
+## Repair workspaces
 
 Use the following command to re-enter template input variables in an existing
 workspace. This command is useful when a workspace fails to build because its

@@ -25,7 +25,9 @@ boundary version is tied to your Coder version.
 
 ## Compatibility with Older Versions
 
-### Using Coder Before v2.30.0 with Claude Code Module v4.7.0+
+<a id="using-coder-before-v2300-with-claude-code-module-v470"></a>
+
+### Coder before v2.30.0 with Claude Code module v4.7.0+
 
 If you're using Coder before v2.30.0 with Claude Code module v4.7.0 or newer,
 the `coder agent-firewall` subcommand isn't available in your Coder installation. In
@@ -47,7 +49,9 @@ module "claude-code" {
 }
 ```
 
-### Using Claude Code Module Before v4.7.0
+<a id="using-claude-code-module-before-v470"></a>
+
+### Claude Code module before v4.7.0
 
 If you're using Claude Code module before v4.7.0, the module expects to use
 Agent Firewall directly. You need to explicitly set `boundary_version` in your

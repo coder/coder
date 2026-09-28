@@ -309,7 +309,9 @@ configuring
 to maintain a pool of ready-to-use workspaces. The agent gets assigned an
 already-running workspace instead of provisioning from scratch.
 
-## Providing feedback
+<a id="providing-feedback"></a>
+
+## Provide feedback
 
 Report bugs and feature requests as [GitHub issues](https://github.com/coder/coder/issues/new/choose).
 For deployment-specific problems, such as provider configuration or performance in your environment, use your usual Coder support channel.

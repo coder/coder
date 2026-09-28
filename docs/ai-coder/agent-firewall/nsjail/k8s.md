@@ -118,7 +118,9 @@ EOT
 
 This ensures Boundary can create user namespaces with nsjail.
 
-### Running without user namespaces
+<a id="running-without-user-namespaces"></a>
+
+### Run without user namespaces
 
 If the environment is restricted and you cannot enable user namespaces (e.g.
 Bottlerocket in EKS auto-mode), you can run Boundary with the

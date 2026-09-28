@@ -47,7 +47,9 @@ pre-installed.
 
 ![Coder Workspace and IDE in GCP VM](../../../images/platforms/aws/workspace.png)
 
-## Configuring the control plane
+<a id="configuring-the-control-plane"></a>
+
+## Configure the control plane
 
 Coder is primarily configured by server-side flags and environment variables.
 Given you created or added key-pairs when launching the instance, you can

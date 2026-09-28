@@ -106,15 +106,17 @@ bundle before sharing it. Learn more about
 There are multiple ways to add extensions to VS Code Desktop:
 
 1. Using the
-   [public extensions marketplaces](#using-the-public-extensions-marketplaces)
+   [public extensions marketplaces](#use-the-public-extensions-marketplaces)
    with Code Web (code-server)
-1. Adding [extensions to custom images](#adding-extensions-to-custom-images)
+1. Adding [extensions to custom images](#add-extensions-to-custom-images)
 1. Installing extensions
-   [using its `vsix` file at the command line](#installing-extensions-using-its-vsix-file-at-the-command-line)
+   [using its `vsix` file at the command line](#install-extensions-using-a-vsix-file-at-the-command-line)
 1. Installing extensions
-   [from a marketplace using the command line](#installing-from-a-marketplace-at-the-command-line)
+   [from a marketplace using the command line](#install-from-a-marketplace-at-the-command-line)
 
-### Using the public extensions marketplaces
+<a id="using-the-public-extensions-marketplaces"></a>
+
+### Use the public extensions marketplaces
 
 You can manually add an extension while you're working in the Code Web IDE. The
 extensions can be from Coder's public marketplace, Eclipse Open VSX's public
@@ -126,7 +128,9 @@ marketplace, or the Eclipse Open VSX _local_ marketplace.
 > Microsoft does not allow any unofficial VS Code IDE to connect to the
 > extension marketplace.
 
-### Adding extensions to custom images
+<a id="adding-extensions-to-custom-images"></a>
+
+### Add extensions to custom images
 
 You can add extensions to a custom image and install them either through Code
 Web or using the workspace's terminal.
@@ -195,7 +199,9 @@ Web or using the workspace's terminal.
 
 You will now have access to the extension in your workspace.
 
-### Installing extensions using its `vsix` file at the command line
+<a id="installing-extensions-using-its-vsix-file-at-the-command-line"></a>
+
+### Install extensions using a `vsix` file at the command line
 
 Using the workspace's terminal or the terminal available inside `code-server`,
 you can install an extension whose files you've downloaded from a marketplace:
@@ -204,7 +210,9 @@ you can install an extension whose files you've downloaded from a marketplace:
 /path/to/code-server --install-extension /vsix/GitHub.copilot.vsix
 ```
 
-### Installing from a marketplace at the command line
+<a id="installing-from-a-marketplace-at-the-command-line"></a>
+
+### Install from a marketplace at the command line
 
 Using the workspace's terminal or the terminal available inside Code Web (code
 server), run the following to install an extension (be sure to update the
@@ -220,7 +228,9 @@ Alternatively, you can install an extension from Open VSX's public marketplace:
 SERVICE_URL=https://open-vsx.org/vscode/gallery ITEM_URL=https://open-vsx.org/vscode/item /path/to/code-server --install-extension GitHub.copilot
 ```
 
-### Using VS Code Desktop
+<a id="using-vs-code-desktop"></a>
+
+### Use VS Code Desktop
 
 For your local VS Code to pickup extension files in your Coder workspace,
 include this command in your `startup_script`, or run in manually in your
