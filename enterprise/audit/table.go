@@ -571,7 +571,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"id":         ActionIgnore, // Derived from the experiment name.
 		"experiment": ActionTrack,
 		"mode":       ActionTrack,
-		"condition":  ActionSecret, // Conditions can name users; read the text through the rules API.
+		"condition":  ActionTrack,
 		"revision":   ActionTrack,
 	},
 	&database.UserSecret{}: {

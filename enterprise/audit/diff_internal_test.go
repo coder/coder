@@ -392,13 +392,12 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
-			// Experiment rule conditions can name users, so audit diffs
-			// record that the condition changed without its text.
-			name: "ConditionMasked",
+			name: "ConditionTracked",
 			left: database.ExperimentRule{
 				ID:         uuid.UUID{1},
 				Experiment: "example",
-				Mode:       "on",
+				Mode:       "condition",
+				Condition:  `"coder/beta" in user.groups`,
 				Revision:   1,
 			},
 			right: database.ExperimentRule{
@@ -409,8 +408,7 @@ func Test_diff(t *testing.T) {
 				Revision:   2,
 			},
 			exp: audit.Map{
-				"mode":      audit.OldNew{Old: "on", New: "condition"},
-				"condition": audit.OldNew{Old: "", New: "", Secret: true},
+				"condition": audit.OldNew{Old: `"coder/beta" in user.groups`, New: `user.email == "alice@example.com"`},
 				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
 			},
 		},
