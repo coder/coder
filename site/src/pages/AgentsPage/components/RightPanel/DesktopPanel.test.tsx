@@ -4,7 +4,6 @@ import {
 	waitFor,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,7 +51,7 @@ const mockWatchChatDesktop = vi.mocked(watchChatDesktop);
 
 // A bare query client keeps `rerender` inside the same provider so prop
 // changes reach the mounted panel instead of remounting it.
-const render = (element: ReactNode) => {
+const render = (element: React.ReactNode) => {
 	const queryClient = createTestQueryClient();
 	return testingLibraryRender(element, {
 		wrapper: ({ children }) => (

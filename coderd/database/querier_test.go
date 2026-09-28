@@ -3758,7 +3758,7 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 // every member's effective roles include the org's defaults, and changes
 // to the column propagate on the next request. The union applies to
 // regular users and to service accounts; the SQL array_cats the column
-// for both code paths.
+// for both code paths (minus agents-access for service accounts).
 func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	t.Parallel()
 
@@ -3807,6 +3807,44 @@ func TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles(t *testing.T) {
 	shrunkSA, err := db.GetAuthorizationUserRoles(ctx, saUser.ID)
 	require.NoError(t, err)
 	require.NotContains(t, shrunkSA.Roles, wantWorkspaceAccess)
+}
+
+// TestGetAuthorizationUserRolesServiceAccountAgentsAccess verifies service
+// accounts do not inherit agents-access from the org defaults but keep an
+// explicit grant.
+func TestGetAuthorizationUserRolesServiceAccountAgentsAccess(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	require.Contains(t, org.DefaultOrgMemberRoles, rbac.RoleAgentsAccess())
+	user := dbgen.User(t, db, database.User{})
+	sa := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	grantedSA := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: org.ID, UserID: sa.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         grantedSA.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	wantAgentsAccess := rbac.ScopedRoleAgentsAccess(org.ID).String()
+	wantWorkspaceAccess := rbac.ScopedRoleOrgWorkspaceAccess(org.ID).String()
+
+	userRoles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.Contains(t, userRoles.Roles, wantAgentsAccess)
+
+	saRoles, err := db.GetAuthorizationUserRoles(ctx, sa.ID)
+	require.NoError(t, err)
+	require.NotContains(t, saRoles.Roles, wantAgentsAccess)
+	require.Contains(t, saRoles.Roles, wantWorkspaceAccess)
+
+	grantedRoles, err := db.GetAuthorizationUserRoles(ctx, grantedSA.ID)
+	require.NoError(t, err)
+	require.Contains(t, grantedRoles.Roles, wantAgentsAccess)
 }
 
 func TestUpdateOrganizationWorkspaceSharingSettings(t *testing.T) {
@@ -4753,6 +4791,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4791,6 +4830,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4814,6 +4854,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4855,6 +4896,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
 			}
 		}
 
@@ -4914,6 +4956,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4936,6 +4979,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -4973,6 +5017,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{connID},
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
+				ClientSessionID:  []string{""},
 			}
 		}
 
@@ -4993,18 +5038,98 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"code should not be overwritten")
 	})
 
-	t.Run("ConnectAfterDisconnectIsNoOp", func(t *testing.T) {
+	t.Run("ClientSessionIDIsWriteOnce", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
 		ws := createWorkspace(t, db)
 		connID := uuid.New()
-		disconnectTime := dbtime.Now()
+		connectTime := dbtime.Now()
 
-		// Insert disconnect first.
+		mkParams := func(id string) database.BatchUpsertConnectionLogsParams {
+			return database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{connectTime},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{0},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{""},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{""},
+				ConnectionID:     []uuid.UUID{connID},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{id},
+			}
+		}
+
+		err := db.BatchUpsertConnectionLogs(ctx, mkParams("0123456789abcdef0123456789abcdef"))
+		require.NoError(t, err)
+
+		err = db.BatchUpsertConnectionLogs(ctx, mkParams(""))
+		require.NoError(t, err)
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		row := rows[0].ConnectionLog
+		require.Equal(t, "0123456789abcdef0123456789abcdef", row.ClientSessionID.String,
+			"client_session_id should not be overwritten")
+	})
+	t.Run("NullConnectionIDEvents", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+		now := dbtime.Now()
+
+		// Insert two web events with NULL connection_id (uuid.Nil →
+		// NULL via NULLIF) for the same workspace/agent.
+		for i := range 2 {
+			err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
+				ID:               []uuid.UUID{uuid.New()},
+				ConnectTime:      []time.Time{now.Add(time.Duration(i) * time.Second)},
+				OrganizationID:   []uuid.UUID{ws.OrganizationID},
+				WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
+				WorkspaceID:      []uuid.UUID{ws.ID},
+				WorkspaceName:    []string{ws.Name},
+				AgentName:        []string{"agent"},
+				Type:             []database.ConnectionType{database.ConnectionTypeSsh},
+				Code:             []int32{200},
+				CodeValid:        []bool{true},
+				Ip:               []pqtype.Inet{defaultIP},
+				UserAgent:        []string{"Mozilla/5.0"},
+				UserID:           []uuid.UUID{uuid.Nil},
+				SlugOrPort:       []string{"web-terminal"},
+				ConnectionID:     []uuid.UUID{uuid.Nil},
+				DisconnectReason: []string{""},
+				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
+			})
+			require.NoError(t, err)
+		}
+
+		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
+		require.NoError(t, err)
+		require.Len(t, rows, 2,
+			"NULL connection_id rows should not conflict with each other")
+	})
+
+	t.Run("InvalidClientSessionID", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := context.Background()
+		ws := createWorkspace(t, db)
+
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
 			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{disconnectTime},
+			ConnectTime:      []time.Time{dbtime.Now()},
 			OrganizationID:   []uuid.UUID{ws.OrganizationID},
 			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
 			WorkspaceID:      []uuid.UUID{ws.ID},
@@ -5017,51 +5142,13 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			UserAgent:        []string{""},
 			UserID:           []uuid.UUID{uuid.Nil},
 			SlugOrPort:       []string{""},
-			ConnectionID:     []uuid.UUID{connID},
-			DisconnectReason: []string{"server shutdown"},
-			DisconnectTime:   []time.Time{disconnectTime},
-		})
-		require.NoError(t, err)
-
-		rows1, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows1, 1)
-		require.True(t, rows1[0].ConnectionLog.DisconnectTime.Valid)
-		require.Equal(t, "server shutdown", rows1[0].ConnectionLog.DisconnectReason.String)
-		require.Equal(t, int32(42), rows1[0].ConnectionLog.Code.Int32)
-
-		// Insert connect for same connection_id.
-		err = db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
-			ID:               []uuid.UUID{uuid.New()},
-			ConnectTime:      []time.Time{disconnectTime.Add(time.Second)},
-			OrganizationID:   []uuid.UUID{ws.OrganizationID},
-			WorkspaceOwnerID: []uuid.UUID{ws.OwnerID},
-			WorkspaceID:      []uuid.UUID{ws.ID},
-			WorkspaceName:    []string{ws.Name},
-			AgentName:        []string{"agent"},
-			Type:             []database.ConnectionType{database.ConnectionTypeSsh},
-			Code:             []int32{0},
-			CodeValid:        []bool{false},
-			Ip:               []pqtype.Inet{defaultIP},
-			UserAgent:        []string{""},
-			UserID:           []uuid.UUID{uuid.Nil},
-			SlugOrPort:       []string{""},
-			ConnectionID:     []uuid.UUID{connID},
+			ConnectionID:     []uuid.UUID{uuid.New()},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{"invalid"},
 		})
-		require.NoError(t, err)
-
-		rows2, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
-		require.NoError(t, err)
-		require.Len(t, rows2, 1)
-		row := rows2[0].ConnectionLog
-		require.True(t, row.DisconnectTime.Valid,
-			"disconnect_time should not be cleared by a later connect")
-		require.Equal(t, "server shutdown", row.DisconnectReason.String,
-			"disconnect_reason should not be cleared")
-		require.Equal(t, int32(42), row.Code.Int32,
-			"code should not be cleared")
+		require.Error(t, err)
+		require.ErrorContains(t, err, "violates check constraint")
 	})
 
 	t.Run("CodeZeroPreserved", func(t *testing.T) {
@@ -5090,6 +5177,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{"normal"},
 			DisconnectTime:   []time.Time{now},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5127,6 +5215,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     []uuid.UUID{connID},
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
+			ClientSessionID:  []string{""},
 		})
 		require.NoError(t, err)
 
@@ -5165,6 +5254,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				ConnectionID:     []uuid.UUID{uuid.Nil},
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
+				ClientSessionID:  []string{""},
 			})
 			require.NoError(t, err)
 		}
@@ -5200,6 +5290,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connIDs := make([]uuid.UUID, n)
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
+		clientSessionIDs := make([]string, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5219,6 +5310,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			connIDs[i] = uuid.New()
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
+			clientSessionIDs[i] = ""
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5239,6 +5331,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			ConnectionID:     connIDs,
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
+			ClientSessionID:  clientSessionIDs,
 		})
 		require.NoError(t, err)
 
@@ -17397,7 +17490,7 @@ func TestGetChatsFilter(t *testing.T) {
 		require.NoError(t, err)
 		err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 			ID:                chatID,
-			LastReadMessageID: lastMsg.ID,
+			LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -17900,7 +17993,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	require.False(t, getHasUnread(), "chat should not be unread after marking as read")
@@ -17918,7 +18011,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	insertMsg(database.ChatMessageRoleUser, "user msg")
@@ -19201,9 +19294,9 @@ func TestUpsertTemplateUsageStatsStoresReportedAppNames(t *testing.T) {
 
 func sessionFamilyCounts(t *testing.T, data json.RawMessage) map[codersdk.AppFamilyName]int64 {
 	t.Helper()
-	counts, err := codersdk.SessionCountsByFamilyJSON(data)
+	counts, err := codersdk.DecodeAppMap[int64](data)
 	require.NoError(t, err)
-	return counts
+	return codersdk.SumByFamily(counts)
 }
 
 func TestUpdateUserEmail(t *testing.T) {
@@ -19286,6 +19379,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	secondGroup := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	otherOrg := dbgen.Organization(t, db, database.Organization{})
 	otherGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
 
@@ -19314,7 +19408,7 @@ func TestListOrganizationAISpendUsers(t *testing.T) {
 	for _, u := range []usage{
 		// alice: 1500 priced plus one unpriced usage without a recorded client.
 		{user: alice, group: inGroup, at: start, providerName: "anthropic-prod", model: "claude", client: vscode, cost: priced(1000)},
-		{user: alice, group: inGroup, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
+		{user: alice, group: uuid.NullUUID{UUID: secondGroup.ID, Valid: true}, at: start.Add(time.Hour), providerName: "openai-prod", model: "gpt-4", cost: priced(500)},
 		{user: alice, group: inGroup, at: start.Add(2 * time.Hour), providerName: "openai-prod", model: "gpt-4o"},
 		// bob: the most expensive user.
 		{user: bob, group: inGroup, at: start.Add(time.Hour), providerName: "anthropic-prod", model: "claude", client: cursor, cost: priced(3000)},

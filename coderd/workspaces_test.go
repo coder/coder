@@ -1094,57 +1094,49 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	defer cancel()
 	require.NoError(t, client.FavoriteWorkspace(ctx, wsbF.Workspace.ID)) // need to do this via API call for now
 
+	// the correct sorting order is:
+	// 1. Favorited workspaces you own
+	// 2. Workspaces you own
+	// 2. Running workspaces
+	// 3. Sort by usernames
+	// 4. Sort by workspace names
+	var (
+		expectedOrderForFirstUser = []string{
+			wsbF.Workspace.Name, // favorited
+			wsbA.Workspace.Name, // running
+			wsbC.Workspace.Name, // running
+			wsbB.Workspace.Name, // stopped, testuser < zzz
+			wsbD.Workspace.Name, // stopped, zzz > testuser
+			wsbE.Workspace.Name, // stopped, zzz > testuser
+		}
+		expectedOrderForSecondUser = []string{
+			wsbD.Workspace.Name, // stopped, but owned by me
+			wsbE.Workspace.Name, // stopped, but owned by me
+			wsbA.Workspace.Name, // running
+			wsbC.Workspace.Name, // running
+			wsbB.Workspace.Name, // stopped, testuser < zzz
+			wsbF.Workspace.Name, // stopped, testuser < zzz, favorited but owned by someone else
+		}
+	)
+
+	// List workspaces as `firstUser`
 	workspacesResponse, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err, "(first) fetch workspaces")
-	workspaces := workspacesResponse.Workspaces
-
-	expectedNames := []string{
-		wsbF.Workspace.Name, // favorite
-		wsbA.Workspace.Name, // running
-		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, testuser < zzz
-		wsbD.Workspace.Name, // stopped, zzz > testuser
-		wsbE.Workspace.Name, // stopped, zzz > testuser
-	}
-
-	actualNames := make([]string, 0, len(expectedNames))
-	for _, w := range workspaces {
+	require.NoError(t, err, "(firstUser) fetch workspaces")
+	actualNames := make([]string, 0, len(expectedOrderForFirstUser))
+	for _, w := range workspacesResponse.Workspaces {
 		actualNames = append(actualNames, w.Name)
 	}
 
-	// the correct sorting order is:
-	// 1. Favorite workspaces (we have one, workspace-f)
-	// 2. Running workspaces
-	// 3. Sort by usernames
-	// 4. Sort by workspace names
-	assert.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedOrderForFirstUser, actualNames)
 
-	// Once again but this time as a different user. This time we do not expect to see another
-	// user's favorites first.
+	// List workspaces as `secondUser`
 	workspacesResponse, err = secondUserClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
-	require.NoError(t, err, "(second) fetch workspaces")
-	workspaces = workspacesResponse.Workspaces
-
-	expectedNames = []string{
-		wsbA.Workspace.Name, // running
-		wsbC.Workspace.Name, // running
-		wsbB.Workspace.Name, // stopped, testuser < zzz
-		wsbF.Workspace.Name, // stopped, testuser < zzz
-		wsbD.Workspace.Name, // stopped, zzz > testuser
-		wsbE.Workspace.Name, // stopped, zzz > testuser
-	}
-
-	actualNames = make([]string, 0, len(expectedNames))
-	for _, w := range workspaces {
+	require.NoError(t, err, "(secondUser) fetch workspaces")
+	actualNames = make([]string, 0, len(expectedOrderForSecondUser))
+	for _, w := range workspacesResponse.Workspaces {
 		actualNames = append(actualNames, w.Name)
 	}
-
-	// the correct sorting order is:
-	// 1. Favorite workspaces (we have none this time)
-	// 2. Running workspaces
-	// 3. Sort by usernames
-	// 4. Sort by workspace names
-	assert.Equal(t, expectedNames, actualNames)
+	assert.Equal(t, expectedOrderForSecondUser, actualNames)
 }
 
 func TestPostWorkspacesByOrganization(t *testing.T) {
@@ -5948,8 +5940,10 @@ func TestWorkspaceSharingDisabled(t *testing.T) {
 	})
 
 	t.Run("NoAccessWhenDisabled", func(t *testing.T) {
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
 		t.Cleanup(func() {
 			rbac.ReloadBuiltinRoles(nil)
+			rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled)
 		})
 
 		var (
@@ -6566,5 +6560,77 @@ func TestWorkspaceIncludeRelated(t *testing.T) {
 		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
 		require.Equal(t, uuid.Nil, w.LatestBuild.Job.ID)
 		require.NotEmpty(t, w.LatestBuild.Resources)
+	})
+}
+
+// TestWorkspaceByOwnerAndNameIncludeRelated verifies the include_related query
+// parameter on GET /users/{user}/workspace/{workspacename}: omitting it returns
+// everything, while a path list narrows the related data loaded, and an invalid
+// value is rejected.
+func TestWorkspaceByOwnerAndNameIncludeRelated(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	get := func(ctx context.Context, t *testing.T, includeRelated string) (codersdk.Workspace, int) {
+		t.Helper()
+		resp, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/v2/users/me/workspace/%s", workspace.Name), nil,
+			codersdk.WithQueryParam("include_related", includeRelated))
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return codersdk.Workspace{}, resp.StatusCode
+		}
+		var w codersdk.Workspace
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&w))
+		return w, resp.StatusCode
+	}
+
+	t.Run("Full", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Without the parameter, the build and template are both returned.
+		full, err := client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.ID, full.LatestBuild.ID)
+		require.Equal(t, version.ID, full.TemplateActiveVersionID)
+	})
+
+	t.Run("TemplateOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w, code := get(ctx, t, "template")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.ID, w.ID)
+		// The build was not requested, so it is omitted (zero value).
+		require.Equal(t, uuid.Nil, w.LatestBuild.ID)
+		// The template was requested, so template-derived fields are populated.
+		require.Equal(t, version.ID, w.TemplateActiveVersionID)
+	})
+
+	t.Run("LatestBuildOnly", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		w, code := get(ctx, t, "latest_build.*")
+		require.Equal(t, http.StatusOK, code)
+		require.Equal(t, workspace.ID, w.ID)
+		// The build was requested, so it is populated.
+		require.Equal(t, workspace.LatestBuild.ID, w.LatestBuild.ID)
+		// The template was not requested, so template-derived fields are zero.
+		require.Equal(t, uuid.Nil, w.TemplateActiveVersionID)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, code := get(ctx, t, "bogus")
+		require.Equal(t, http.StatusBadRequest, code)
 	})
 }

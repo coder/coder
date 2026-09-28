@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
@@ -133,7 +132,7 @@ export type DesktopPopoutPageViewProps = Omit<
 	onReleaseControl: () => void;
 };
 
-export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
+export const DesktopPopoutPageView: React.FC<DesktopPopoutPageViewProps> = ({
 	status,
 	workspace,
 	workspaceError,

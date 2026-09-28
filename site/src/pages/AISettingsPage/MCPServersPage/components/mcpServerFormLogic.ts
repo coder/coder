@@ -65,6 +65,8 @@ export type MCPServerFormValues = {
 	modelIntent: boolean;
 	allowInPlanMode: boolean;
 	forwardCoderHeaders: boolean;
+	signingSecret: string;
+	signingSecretTouched: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -104,6 +106,8 @@ export const buildInitialMCPServerFormValues = (
 	modelIntent: server?.model_intent ?? false,
 	allowInPlanMode: server?.allow_in_plan_mode ?? false,
 	forwardCoderHeaders: server?.forward_coder_headers ?? false,
+	signingSecret: server?.has_signing_secret ? SECRET_PLACEHOLDER : "",
+	signingSecretTouched: false,
 	toolAllowList: server?.tool_allow_list.join(", ") ?? "",
 	toolDenyList: server?.tool_deny_list.join(", ") ?? "",
 	customHeaders: [],
@@ -144,6 +148,10 @@ export const buildCreateMCPServerConfigRequest = (
 		model_intent: values.modelIntent,
 		allow_in_plan_mode: values.allowInPlanMode,
 		forward_coder_headers: values.forwardCoderHeaders,
+		signing_secret:
+			values.signingSecretTouched && values.signingSecret !== SECRET_PLACEHOLDER
+				? values.signingSecret || undefined
+				: undefined,
 		tool_allow_list: toolAllowList,
 		tool_deny_list: toolDenyList,
 	};

@@ -62,14 +62,11 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0
       '@pierre/diffs':
-        specifier: 1.4.0
-        version: 1.4.0(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: 1.5.1
+        version: 1.5.1(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@pierre/trees':
         specifier: 1.0.0-beta.6
         version: 1.0.0-beta.6(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.4.3)
-      '@shadcn/react':
-        specifier: 0.3.0
-        version: 0.3.0(@types/react@19.2.18)(react@19.2.8)
       '@tanstack/react-query-devtools':
         specifier: 5.82.0
         version: 5.82.0(@tanstack/react-query@5.82.0(react@19.2.8))(react@19.2.8)
@@ -1598,8 +1595,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pierre/diffs@1.4.0':
-    resolution: {integrity: sha512-eSYnNDjRdgx01O16t8yxVW5M96ppgUMKbMyRE7/cyeJa+dMQrS/s0ed3n0KK9a2Or7SXon6cYbBLhAiAggD6ZQ==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.4.0.tgz}
+  '@pierre/diffs@1.5.1':
+    resolution: {integrity: sha512-+EXNfz4ZXI6FHr7P6ToWEORwyYiPVfAmzhA70xF+0y/oNvj7gbNTLJJ6jNzkBjuMbRlu564TAmgYZLc5OyHURA==, tarball: https://registry.npmjs.org/@pierre/diffs/-/diffs-1.5.1.tgz}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
@@ -2679,17 +2676,6 @@ packages:
       rollup: ^1.20.0||^2.0.0||^3.0.0||^4.0.0
     peerDependenciesMeta:
       rollup:
-        optional: true
-
-  '@shadcn/react@0.3.0':
-    resolution: {integrity: sha512-iKN0NuYe850VDHlxEfvppFrpa7CMV3zArTHusXlaSmeFeQhohGbIqclv6WwPTs/44I8EkXQpcuRt6sXEVKkWqQ==, tarball: https://registry.npmjs.org/@shadcn/react/-/react-0.3.0.tgz}
-    peerDependencies:
-      '@types/react': '>=19'
-      react: '>=19'
-    peerDependenciesMeta:
-      '@types/react':
-        optional: true
-      react:
         optional: true
 
   '@shikijs/core@4.4.3':
@@ -7745,7 +7731,7 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.80.0':
     optional: true
 
-  '@pierre/diffs@1.4.0(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@pierre/diffs@1.5.1(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@pierre/theme': 2.0.0
       '@pierre/theming': 1.0.1(@pierre/theme@2.0.0)(@shikijs/themes@4.4.3)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(shiki@4.4.3)
@@ -8769,11 +8755,6 @@ snapshots:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
       picomatch: 4.0.7
-
-  '@shadcn/react@0.3.0(@types/react@19.2.18)(react@19.2.8)':
-    optionalDependencies:
-      '@types/react': 19.2.18
-      react: 19.2.8
 
   '@shikijs/core@4.4.3':
     dependencies:

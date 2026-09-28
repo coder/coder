@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, type ReactNode, useMemo } from "react";
+import { useMemo } from "react";
 import type { UseQueryResult } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { Template } from "#/api/typesGenerated";
@@ -22,12 +22,12 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 type TemplatesQuery = UseQueryResult<Template[]>;
 
 type WorkspacesButtonProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	templatesFetchStatus: TemplatesQuery["status"];
 	templates: TemplatesQuery["data"];
 };
 
-export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
+export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 	children,
 	templatesFetchStatus,
 	templates,

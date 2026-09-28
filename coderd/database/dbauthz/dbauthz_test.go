@@ -735,6 +735,37 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("GetChatMCPServersByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		servers := []database.ChatMCPServer{testutil.Fake(s.T(), faker, database.ChatMCPServer{ChatID: chat.ID})}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatMCPServersByChatID(gomock.Any(), chat.ID).Return(servers, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(servers)
+	}))
+	s.Run("UpsertChatMCPServer", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		server := testutil.Fake(s.T(), faker, database.ChatMCPServer{ChatID: chat.ID})
+		arg := database.UpsertChatMCPServerParams{
+			ID:      server.ID,
+			ChatID:  chat.ID,
+			Slug:    server.Slug,
+			Url:     server.Url,
+			Headers: server.Headers,
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpsertChatMCPServer(gomock.Any(), arg).Return(server, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(server)
+	}))
+	s.Run("DeleteChatMCPServersByChatIDExcludingSlugs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.DeleteChatMCPServersByChatIDExcludingSlugsParams{
+			ChatID: chat.ID,
+			Slugs:  []string{"keep"},
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatMCPServersByChatIDExcludingSlugs(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("ListChatContextResourcesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		rows := []database.ChatContextResource{testutil.Fake(s.T(), faker, database.ChatContextResource{ChatID: chat.ID})}
@@ -2022,7 +2053,7 @@ func (s *MethodTestSuite) TestChats() {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatLastReadMessageIDParams{
 			ID:                chat.ID,
-			LastReadMessageID: 42,
+			LastReadMessageID: sql.NullInt64{Int64: 42, Valid: true},
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastReadMessageID(gomock.Any(), arg).Return(nil).AnyTimes()
@@ -3400,6 +3431,19 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserCodeDiffDisplayMode(gomock.Any(), arg).Return("always_collapsed", nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("always_collapsed")
+	}))
+	s.Run("GetUserCollapseAssistantSteps", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserCollapseAssistantSteps(gomock.Any(), u.ID).Return(false, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(false)
+	}))
+	s.Run("UpdateUserCollapseAssistantSteps", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserCollapseAssistantStepsParams{UserID: u.ID, CollapseAssistantSteps: true}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserCollapseAssistantSteps(gomock.Any(), arg).Return(true, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(true)
 	}))
 	s.Run("GetUserAgentChatSendShortcut", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -4918,6 +4962,25 @@ func (s *MethodTestSuite) TestDBCrypt() {
 			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
 			Returns()
 	}))
+	s.Run("GetChatMCPServersByChatOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		servers := []database.ChatMCPServer{testutil.Fake(s.T(), faker, database.ChatMCPServer{})}
+		dbm.EXPECT().GetChatMCPServersByChatOwnerID(gomock.Any(), ownerID).Return(servers, nil).AnyTimes()
+		check.Args(ownerID).
+			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Returns(servers)
+	}))
+	s.Run("UpdateEncryptedChatMCPServerHeaders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		server := testutil.Fake(s.T(), faker, database.ChatMCPServer{})
+		arg := database.UpdateEncryptedChatMCPServerHeadersParams{
+			ID:      server.ID,
+			Headers: "encrypted-headers",
+		}
+		dbm.EXPECT().UpdateEncryptedChatMCPServerHeaders(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
+			Returns()
+	}))
 }
 
 func (s *MethodTestSuite) TestCryptoKeys() {
@@ -6001,6 +6064,10 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args().Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(apps)
 	}))
 	s.Run("GetOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
+	}))
+	s.Run("GetOAuth2ProviderAppByIDForUpdate", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))

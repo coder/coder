@@ -78,9 +78,19 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
+		if clientSecretInQuery(r.URL.Query()) {
+			logger.Warn(ctx, "oauth2 revocation refused: client_secret in the URL query string",
+				append(requestSource(r),
+					slog.F("app_id", app.ID),
+					slog.F("client_id", app.ID.String()),
+					slog.F("app_name", app.Name))...)
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgClientSecretInQuery)
+			return
+		}
+
 		req, err := extractRevocationRequest(r)
 		if errors.Is(err, errConflictingClientAuth) {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, "Conflicting client credentials between Authorization header and request body")
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, errMsgConflictingClientAuth)
 			return
 		}
 		if err != nil {
@@ -92,7 +102,7 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 				httpapi.WriteOAuth2RequestTooLarge(ctx, rw, maxBytesErr.Limit)
 				return
 			}
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			writeRefusal(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 

@@ -117,7 +117,6 @@ Do not require plan approval for routine implementation that the user has alread
 
 Use the conversation, available tools, skills, MCPs, and template metadata when they are sufficient for planning.
 If no workspace is attached, root chats should create one when missing tools, skills, or context block planning, when the plan requires inspecting, editing, or running workspace files, or before writing the required plan artifact if no other valid plan path is available. Delegated chats must report workspace needs to the parent agent. Use the workspace's available context and capabilities to continue planning.
-In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them.
 Once a workspace is available:
 ` + defaultSystemPromptPlanningGuidance + `
 2. Use write_file to create a Markdown plan file at the absolute
@@ -147,7 +146,6 @@ If the plan file already exists, read it first with read_file before replacing o
 Use write_file to create the plan file and edit_files to refine it.
 Use ask_user_question for structured clarification instead of freeform questions.
 When the plan is ready, call propose_plan with the plan file path.
-After a successful propose_plan call, stop immediately. Do not produce follow-up output.
 ` + defaultSystemPromptPlanPathBlockPlaceholder
 
 // PlanningOverlayPrompt returns the plan-mode-only instructions appended

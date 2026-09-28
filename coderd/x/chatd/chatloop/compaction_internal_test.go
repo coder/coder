@@ -42,7 +42,7 @@ func summaryTextStream() fantasy.StreamResponse {
 		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
 		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
 		fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
-		fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, ID: "msg_summary", FinishReason: fantasy.FinishReasonStop},
 	)
 }
 
@@ -221,7 +221,7 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 	})
 
 	require.PanicsWithValue(t, "compaction model crash", func() {
-		_, _ = generateCompactionSummary(parentCtx, model,
+		_, _, _ = generateCompactionSummary(parentCtx, model,
 			[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 			CompactionOptions{
 				DebugSvc:      svc,
@@ -273,7 +273,7 @@ func TestGenerateCompactionSummaryPreservesCallOptions(t *testing.T) {
 	}
 
 	toolChoice := fantasy.ToolChoiceNone
-	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+	summary, _, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
 		SummaryPrompt: "summarize",
 		SummaryCall: fantasy.Call{
 			Temperature:      &temperature,
@@ -329,7 +329,7 @@ func TestGenerateCompactionSummaryUsesToolDefinitions(t *testing.T) {
 	}
 
 	toolChoice := fantasy.ToolChoiceNone
-	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+	summary, _, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
 		SummaryPrompt:   "summarize",
 		SummaryCall:     fantasy.Call{ToolChoice: &toolChoice},
 		ToolDefinitions: toolDefinitions,
@@ -362,7 +362,7 @@ func TestGenerateCompactionSummaryAppliesAnthropicPromptCaching(t *testing.T) {
 		},
 	}
 
-	_, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+	_, _, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
 		SummaryPrompt: "summarize",
 	})
 	require.NoError(t, err)
@@ -404,7 +404,7 @@ func TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge(t *test
 		},
 	}
 
-	summary, err := generateCompactionSummary(context.Background(), model,
+	summary, responseID, err := generateCompactionSummary(context.Background(), model,
 		[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 		CompactionOptions{
 			SummaryPrompt:   "summarize",
@@ -414,6 +414,7 @@ func TestGenerateCompactionSummaryRetriesWithoutToolsWhenContextTooLarge(t *test
 	)
 	require.NoError(t, err)
 	require.Equal(t, "summary", summary)
+	require.Equal(t, "msg_summary", responseID)
 	require.Len(t, calls, 2)
 	require.Equal(t, toolDefinitions, calls[0].Tools)
 	require.Nil(t, calls[1].Tools)
@@ -473,7 +474,7 @@ func TestGenerateCompactionSummaryDoesNotRetryOtherFailures(t *testing.T) {
 				},
 			}
 
-			_, err := generateCompactionSummary(context.Background(), model,
+			_, _, err := generateCompactionSummary(context.Background(), model,
 				[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 				CompactionOptions{
 					SummaryPrompt:   "summarize",
@@ -603,7 +604,7 @@ func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
 		},
 	}
 
-	summary, err := generateCompactionSummary(testCtx, model,
+	summary, _, err := generateCompactionSummary(testCtx, model,
 		[]fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
 		CompactionOptions{SummaryPrompt: "summarize"},
 	)
@@ -641,7 +642,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 			},
 		}
 
-		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		summary, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
 		require.NoError(t, err)
 		require.Equal(t, "first second", summary)
 	})
@@ -661,7 +662,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 			},
 		}
 
-		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		summary, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
 		require.Empty(t, summary)
 		require.EqualError(t, err, "compaction summary was truncated at the output token cap")
 	})
@@ -679,7 +680,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 			},
 		}
 
-		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
+		summary, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{})
 		require.Empty(t, summary)
 		require.EqualError(t, err, "compaction summary stream ended without a finish part")
 	})
@@ -694,7 +695,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 			},
 		}
 
-		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+		summary, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
 			ResolvedProvider: "fake",
 		})
 		require.Empty(t, summary)
@@ -716,7 +717,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 			},
 		}
 
-		summary, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+		summary, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
 			ResolvedProvider: "fake",
 		})
 		require.Empty(t, summary)
@@ -744,7 +745,7 @@ func TestGenerateCompactionSummary_Stream(t *testing.T) {
 
 		done := make(chan error, 1)
 		go func() {
-			_, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
+			_, _, err := generateCompactionSummary(context.Background(), model, nil, CompactionOptions{
 				ResolvedProvider:     "openai",
 				Clock:                clock,
 				StreamSilenceTimeout: 5 * time.Millisecond,

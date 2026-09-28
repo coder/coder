@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -8,7 +7,7 @@ import { useWorkspaceSettings } from "./useWorkspaceSettings";
 import type { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
-const WorkspaceSettingsPage: FC = () => {
+const WorkspaceSettingsPage: React.FC = () => {
 	const params = useParams() as {
 		workspace: string;
 		username: string;

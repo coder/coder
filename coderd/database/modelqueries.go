@@ -732,6 +732,7 @@ func (q *sqlQuerier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg 
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.ClientSessionID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -1323,6 +1324,8 @@ func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organiza
 			&i.OrganizationID,
 			&i.GroupACL,
 			&i.UserACL,
+			&i.SigningSecret,
+			&i.SigningSecretKeyID,
 		); err != nil {
 			return nil, err
 		}

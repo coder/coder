@@ -79,6 +79,8 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mcpServerConfigACL,
 	mcpServerConfigACLAvailable,
 	mcpServerConfigACLAvailableKey,
@@ -347,30 +349,60 @@ describe("chat model query factories", () => {
 
 	it("scopes update variables and invalidation to the organization", async () => {
 		const queryClient = createTestQueryClient();
-		queryClient.setQueryData(organizationChatModelsKey(organizationId), {});
+		const mockPreviousDefaultModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "previous-default",
+			is_default: true,
+		};
+		const mockCatalog: TypesGen.OrganizationChatModelsResponse = {
+			models: [mockPreviousDefaultModel, MockChatModel],
+			providers: [],
+			unsupported_providers: [],
+		};
+		queryClient.setQueryData(
+			organizationChatModelsKey(organizationId),
+			mockCatalog,
+		);
 		queryClient.setQueryData(
 			organizationChatModelsKey(otherOrganizationId),
-			{},
+			mockCatalog,
 		);
+		const mockPromotedModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			is_default: true,
+		};
 		vi.mocked(API.experimental.updateChatModel).mockResolvedValue(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		const variables = {
 			organizationId,
 			modelId,
-			req: { enabled: true },
+			req: { is_default: true },
 		};
 		const mutation = updateChatModel(queryClient);
 
 		await expect(mutation.mutationFn(variables)).resolves.toEqual(
-			MockChatModel,
+			mockPromotedModel,
 		);
 		expect(API.experimental.updateChatModel).toHaveBeenCalledWith(
 			organizationId,
 			modelId,
 			variables.req,
 		);
-		await mutation.onSuccess(MockChatModel, variables);
+		await mutation.onSuccess(mockPromotedModel, variables);
+		expect(
+			queryClient
+				.getQueryData<TypesGen.OrganizationChatModelsResponse>(
+					organizationChatModelsKey(organizationId),
+				)
+				?.models.map((model) => [model.id, model.is_default]),
+		).toEqual([
+			[mockPreviousDefaultModel.id, false],
+			[modelId, true],
+		]);
+		expect(
+			queryClient.getQueryData(organizationChatModelsKey(otherOrganizationId)),
+		).toBe(mockCatalog);
 		expect(
 			queryClient.getQueryState(organizationChatModelsKey(organizationId))
 				?.isInvalidated,
@@ -653,6 +685,61 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
+	});
+});
+
+describe("markChatRead and markChatUnread cache updates", () => {
+	it("drops the chat from a list whose read-status filter it no longer matches", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { has_unread: true }),
+			makeChat("chat-2", { has_unread: true }),
+		]);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		await markChatRead(queryClient).onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
+				(c) => c.id,
+			),
+		).toEqual([]);
+		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+	});
+
+	it("patches a nested subagent chat without dropping its root", async () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		seedInfiniteChats(queryClient, [
+			makeChat("root-1", {
+				children: [makeChat(childId, { has_unread: false })],
+			}),
+		]);
+
+		await markChatUnread(queryClient).onMutate(childId);
+
+		const roots = readInfiniteChats(queryClient);
+		expect(roots?.map((c) => c.id)).toEqual(["root-1"]);
+		expect(roots?.[0].children[0].has_unread).toBe(true);
+	});
+
+	it("restores the list cache when the mutation fails", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		const mutation = markChatRead(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		const restored = readInfiniteChats(queryClient, { chatStatus: "unread" });
+		expect(restored?.map((c) => c.id)).toEqual([chatId]);
+		expect(restored?.[0].has_unread).toBe(true);
 	});
 });
 

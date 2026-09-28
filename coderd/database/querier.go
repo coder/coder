@@ -155,6 +155,7 @@ type sqlcQuerier interface {
 	// window (for example, after an unarchive races with a pending
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
+	DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
@@ -483,6 +484,8 @@ type sqlcQuerier interface {
 	// When the toggle is unset, a non-empty custom prompt implies false;
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
+	GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error)
+	GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatMCPServer, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
 	// Aggregates message-level metrics per chat for messages created
 	// after the given timestamp. Uses message created_at so that
@@ -712,6 +715,7 @@ type sqlcQuerier interface {
 	// RFC 7591/7592 Dynamic Client Registration queries
 	GetOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
+	GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error)
 	GetOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppCodeByPrefix(ctx context.Context, secretPrefix []byte) (OAuth2ProviderAppCode, error)
 	GetOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppSecret, error)
@@ -957,6 +961,7 @@ type sqlcQuerier interface {
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
 	// spend to when no override or budgeted group applies. Prefers the default org,
@@ -1514,7 +1519,8 @@ type sqlcQuerier interface {
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
-	// which messages the owner has seen, enabling unread indicators.
+	// which messages the owner has seen, enabling unread indicators. A NULL
+	// value clears the cursor, marking every message unread again.
 	UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error
 	// Updates the cached last completed turn summary for sidebar display.
 	// Empty or whitespace-only summaries are stored as NULL here so direct
@@ -1549,6 +1555,7 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// If a refresh lease is provided, the row is only updated if the lease matches.
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
@@ -1601,6 +1608,7 @@ type sqlcQuerier interface {
 	UpdateUserChatCompactionThreshold(ctx context.Context, arg UpdateUserChatCompactionThresholdParams) (UserConfig, error)
 	UpdateUserChatCustomPrompt(ctx context.Context, arg UpdateUserChatCustomPromptParams) (UserConfig, error)
 	UpdateUserCodeDiffDisplayMode(ctx context.Context, arg UpdateUserCodeDiffDisplayModeParams) (string, error)
+	UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error)
 	UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error
 	UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error)
 	UpdateUserGithubComUserID(ctx context.Context, arg UpdateUserGithubComUserIDParams) error
@@ -1698,6 +1706,7 @@ type sqlcQuerier interface {
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error)
 	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.

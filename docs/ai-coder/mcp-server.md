@@ -114,7 +114,7 @@ CODER_OAUTH2_PROVIDER_ENABLE=true
 CODER_EXPERIMENTS=mcp-server-http
 ```
 
-For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider.md#enable-oauth2-provider).
+For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
 That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server.md#--experiments) YAML key.
 
 ### MCP Registry
@@ -233,8 +233,8 @@ them for you to invoke, for example as slash commands:
 ### Connection timeouts
 
 - Verify your Coder deployment URL is correct and accessible
-- Check network connectivity between your MCP client and the Coder server
-- Review Coder server logs for any errors
+- Check network connectivity between your MCP client and the control plane
+- Review the logs from `coderd`, the process that runs the control plane, for any errors
 
 ### OAuth2 authentication not working
 

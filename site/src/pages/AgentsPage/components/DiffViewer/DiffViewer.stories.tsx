@@ -1,7 +1,7 @@
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { fn, userEvent, waitFor, within } from "storybook/test";
 import type { DiffStyle } from "../DiffViewer/DiffViewer";
 import { DiffViewer } from "../DiffViewer/DiffViewer";
@@ -446,7 +446,7 @@ const reparseSecondBody = [
 
 // FileDiff renders hunks synchronously enough for play tests; CodeView
 // virtualizes and never paints lines in this environment.
-const ReparseSamePath: FC = () => {
+const ReparseSamePath: React.FC = () => {
 	const [body, setBody] = useState(reparseFirstBody);
 	const file = parseDiffString(body)[0];
 	return (

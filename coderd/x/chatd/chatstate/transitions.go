@@ -1,6 +1,7 @@
 package chatstate
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -32,12 +33,19 @@ type CreateChatInput struct {
 	Mode              database.NullChatMode
 	PlanMode          database.NullChatPlanMode
 	MCPServerIDs      []uuid.UUID
+	InlineMCPServers  []codersdk.InlineMCPServerRequest
 	Labels            pqtype.NullRawMessage
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
+	// InitialStatus selects the chat's starting execution state:
+	// `running` (R0) when the initial history ends with a user turn
+	// the worker should process, or `waiting` (W) when the chat is
+	// created idle with no initial user message. Empty defaults to
+	// `running`.
+	InitialStatus database.ChatStatus
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -53,11 +61,13 @@ type CreateChatResult struct {
 //
 // Validation:
 //   - InitialMessages must be non-empty.
+//   - InitialStatus must be `waiting`, `running`, or empty (`running`).
 //
 // After commit CreateChat publishes a `chat:update` message describing
-// the new chat snapshot. Because the new chat has no worker assigned,
+// the new chat snapshot. When the new chat is runnable (`running`),
 // CreateChat also publishes an ownership hint so workers can race to
-// acquire the runnable chat.
+// acquire it. A `waiting` chat is idle, so no ownership hint is
+// published until a later transition makes it runnable.
 func CreateChat(
 	ctx context.Context,
 	store database.Store,
@@ -101,6 +111,13 @@ func insertChat(
 			"initial messages must include at least one message",
 		)
 	}
+	initialStatus := cmp.Or(input.InitialStatus, database.ChatStatusRunning)
+	if initialStatus != database.ChatStatusWaiting && initialStatus != database.ChatStatusRunning {
+		return CreateChatResult{}, newTransitionError(
+			TransitionCreateChat, StateN,
+			"initial status must be waiting or running",
+		)
+	}
 	var result CreateChatResult
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
@@ -118,7 +135,7 @@ func insertChat(
 			Title:             input.Title,
 			Mode:              input.Mode,
 			PlanMode:          input.PlanMode,
-			Status:            database.ChatStatusRunning,
+			Status:            initialStatus,
 			MCPServerIDs:      input.MCPServerIDs,
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
@@ -136,6 +153,11 @@ func insertChat(
 		}
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
 			return err
+		}
+		if len(input.InlineMCPServers) > 0 {
+			if err := ReplaceInlineMCPServers(ctx, store, chat.ID, input.InlineMCPServers); err != nil {
+				return err
+			}
 		}
 		refreshed, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
@@ -295,7 +317,27 @@ func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueue
 		ReasoningEffort: queued.ReasoningEffort,
 		CreatedBy:       uuid.NullUUID{UUID: queued.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
+		QueuedMessageID: sql.NullInt64{Int64: queued.ID, Valid: true},
 	}, nil
+}
+
+// deletePromotedQueuedMessage deletes the queue row a promotion just
+// copied into history. The row was read under the chat row lock, so any
+// count other than one means the queue changed underneath the lock; the
+// error rolls back the promotion instead of leaving a duplicate or a
+// message linked to a row that was never removed.
+func (tx *Tx) deletePromotedQueuedMessage(id int64) error {
+	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
+		ID:     id,
+		ChatID: tx.chatID,
+	})
+	if err != nil {
+		return err
+	}
+	if rows != 1 {
+		return xerrors.Errorf("promoted queued message %d: deleted %d rows, want 1", id, rows)
+	}
+	return nil
 }
 
 func (tx *Tx) resolveQueuedMessageModelConfigID(
@@ -504,10 +546,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -923,10 +962,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			len(cancels)+1, len(inserted),
 		)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     target.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if err := tx.deletePromotedQueuedMessage(target.ID); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1410,10 +1446,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1483,10 +1516,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if err := tx.deletePromotedQueuedMessage(head.ID); err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{

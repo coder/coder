@@ -37,10 +37,10 @@ Specifies whether all workspaces will be listed or not.
 
 ### --search
 
-|         |                       |
-|---------|-----------------------|
-| Type    | <code>string</code>   |
-| Default | <code>owner:me</code> |
+|         |                      |
+|---------|----------------------|
+| Type    | <code>string</code>  |
+| Default | <code>user:me</code> |
 
 Search for a workspace with a query.
 

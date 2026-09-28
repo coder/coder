@@ -1,28 +1,37 @@
-import { cn } from "cn";
-import { FilterIcon } from "lucide-react";
 import {
-	type ComponentProps,
-	type FC,
-	type ReactNode,
-	useId,
-	useState,
-} from "react";
+	CalendarIcon,
+	DotIcon,
+	FilterIcon,
+	GitMergeIcon,
+	GitPullRequestClosedIcon,
+	GitPullRequestDraftIcon,
+	GitPullRequestIcon,
+	type LucideIcon,
+	MailIcon,
+	MailOpenIcon,
+	MessagesSquareIcon,
+	UserIcon,
+	UsersIcon,
+} from "lucide-react";
 import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { SearchField } from "#/components/SearchField/SearchField";
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import {
-	AGENT_ARCHIVE_STATUS_ORDER,
 	AGENT_CHAT_STATUS_ORDER,
 	AGENT_PR_STATUS_ORDER,
 	AGENT_SOURCE_ORDER,
-	type AgentArchiveStatusFilter,
 	type AgentChatStatusFilter,
 	type AgentPRStatusFilter,
 	type AgentSidebarFilters,
@@ -32,18 +41,19 @@ import {
 } from "../../../utils/agentSidebarFilters";
 
 const PR_STATUS_LABELS: Record<AgentPRStatusFilter, string> = {
-	draft: "Draft",
-	open: "Open",
-	merged: "Merged",
-	closed: "Closed",
+	draft: "PR Draft",
+	open: "PR Open",
+	merged: "PR Merged",
+	closed: "PR Closed",
 };
 
 const GROUP_OPTIONS: readonly Readonly<{
 	value: AgentSidebarGroupBy;
 	label: string;
+	icon: LucideIcon;
 }>[] = [
-	{ value: "date", label: "Date" },
-	{ value: "chat_status", label: "Chat status" },
+	{ value: "date", label: "Date", icon: CalendarIcon },
+	{ value: "chat_status", label: "Chat status", icon: MessagesSquareIcon },
 ];
 
 const CHAT_STATUS_LABELS: Record<AgentChatStatusFilter, string> = {
@@ -51,75 +61,47 @@ const CHAT_STATUS_LABELS: Record<AgentChatStatusFilter, string> = {
 	read: "Read",
 };
 
-const ARCHIVE_STATUS_LABELS: Record<AgentArchiveStatusFilter, string> = {
-	active: "Active",
-	archived: "Archived",
-};
-
 const SOURCE_LABELS: Record<AgentSourceFilter, string> = {
 	created_by_me: "Created by me",
 	shared_with_me: "Shared with me",
 };
 
+const PR_STATUS_ICONS: Record<AgentPRStatusFilter, LucideIcon> = {
+	draft: GitPullRequestDraftIcon,
+	open: GitPullRequestIcon,
+	merged: GitMergeIcon,
+	closed: GitPullRequestClosedIcon,
+};
+
+const CHAT_STATUS_ICONS: Record<AgentChatStatusFilter, LucideIcon> = {
+	unread: MailIcon,
+	read: MailOpenIcon,
+};
+
+const SOURCE_ICONS: Record<AgentSourceFilter, LucideIcon> = {
+	created_by_me: UserIcon,
+	shared_with_me: UsersIcon,
+};
+
 const CHAT_STATUS_OPTIONS: readonly Readonly<{
 	value: AgentChatStatusFilter;
 	label: string;
+	icon: LucideIcon;
 }>[] = AGENT_CHAT_STATUS_ORDER.map((status) => ({
 	value: status,
 	label: CHAT_STATUS_LABELS[status],
-}));
-
-const ARCHIVE_OPTIONS: readonly Readonly<{
-	value: AgentArchiveStatusFilter;
-	label: string;
-}>[] = AGENT_ARCHIVE_STATUS_ORDER.map((status) => ({
-	value: status,
-	label: ARCHIVE_STATUS_LABELS[status],
+	icon: CHAT_STATUS_ICONS[status],
 }));
 
 const SOURCE_OPTIONS: readonly Readonly<{
 	value: AgentSourceFilter;
 	label: string;
+	icon: LucideIcon;
 }>[] = AGENT_SOURCE_ORDER.map((source) => ({
 	value: source,
 	label: SOURCE_LABELS[source],
+	icon: SOURCE_ICONS[source],
 }));
-
-const SectionHeading: FC<ComponentProps<"h2">> = ({
-	className,
-	children,
-	...props
-}) => (
-	<h2
-		className={cn(
-			"m-0 text-xs font-semibold leading-[18px] text-content-secondary",
-			className,
-		)}
-		{...props}
-	>
-		{children}
-	</h2>
-);
-
-const FilterGroupHeading: FC<ComponentProps<"h3">> = ({
-	className,
-	children,
-	...props
-}) => (
-	<h3
-		className={cn(
-			"m-0 text-sm font-normal leading-[18px] text-content-disabled",
-			className,
-		)}
-		{...props}
-	>
-		{children}
-	</h3>
-);
-
-const OptionRow: FC<{ readonly children: ReactNode }> = ({ children }) => (
-	<div className="flex h-6 items-center gap-2 rounded-sm">{children}</div>
-);
 
 type FilterPopoverProps = {
 	readonly filters: AgentSidebarFilters;
@@ -138,7 +120,6 @@ const haveSameSelections = <T extends string>(
 const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 	return (
 		filters.archiveStatus !== DEFAULT_AGENT_SIDEBAR_FILTERS.archiveStatus ||
-		filters.groupBy !== DEFAULT_AGENT_SIDEBAR_FILTERS.groupBy ||
 		filters.prStatuses.length > 0 ||
 		!haveSameSelections(
 			filters.chatStatuses,
@@ -148,72 +129,57 @@ const hasActiveFilters = (filters: AgentSidebarFilters): boolean => {
 	);
 };
 
-export const FilterPopover: FC<FilterPopoverProps> = ({
+// Selecting a value would otherwise dismiss the menu before the next toggle.
+const keepMenuOpen = (event: Event) => {
+	event.preventDefault();
+};
+
+const FilterSubmenu: React.FC<{
+	readonly label: string;
+	readonly summary?: boolean;
+	readonly children: React.ReactNode;
+}> = ({ label, summary, children }) => (
+	<DropdownMenuSub>
+		<DropdownMenuSubTrigger>
+			<span className="min-w-0 flex-1 truncate">{label}</span>
+			{summary ? (
+				<span className="max-w-36 truncate font-normal -mr-2">
+					<DotIcon />
+				</span>
+			) : null}
+		</DropdownMenuSubTrigger>
+		<DropdownMenuSubContent className="min-w-48">
+			{children}
+		</DropdownMenuSubContent>
+	</DropdownMenuSub>
+);
+
+export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
 }) => {
-	const id = useId();
-	const [open, setOpen] = useState(false);
-	const [stagedFilters, setStagedFilters] =
-		useState<AgentSidebarFilters>(filters);
-	const [optionSearch, setOptionSearch] = useState("");
-
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (nextOpen) {
-			setStagedFilters(filters);
-			setOptionSearch("");
-		}
-		setOpen(nextOpen);
-	};
-
-	const normalizedOptionSearch = optionSearch.trim().toLowerCase();
-	const matchesOption = (...labels: readonly string[]) =>
-		normalizedOptionSearch === "" ||
-		labels.some((label) =>
-			label.toLowerCase().includes(normalizedOptionSearch),
-		);
-
-	const visiblePRStatuses = AGENT_PR_STATUS_ORDER.filter((status) =>
-		matchesOption("PR status", PR_STATUS_LABELS[status]),
-	);
-	const visibleChatStatusOptions = CHAT_STATUS_OPTIONS.filter((option) =>
-		matchesOption("Chat status", option.label),
-	);
-	const visibleSourceOptions = SOURCE_OPTIONS.filter((option) =>
-		matchesOption("Source", option.label),
-	);
-	const visibleArchiveOptions = ARCHIVE_OPTIONS.filter((option) =>
-		matchesOption("Archive status", option.label),
-	);
-	const showFilterOptions =
-		visiblePRStatuses.length > 0 ||
-		visibleChatStatusOptions.length > 0 ||
-		visibleSourceOptions.length > 0 ||
-		visibleArchiveOptions.length > 0;
-
 	const setGroupBy = (value: string) => {
 		if (value !== "date" && value !== "chat_status") {
 			return;
 		}
-		const groupBy: AgentSidebarGroupBy = value;
-		setStagedFilters({ ...stagedFilters, groupBy });
+		onFiltersChange({ ...filters, groupBy: value });
 	};
 
 	const setPRStatus = (status: AgentPRStatusFilter, checked: boolean) => {
-		const selected = new Set(stagedFilters.prStatuses);
+		const selected = new Set(filters.prStatuses);
 		if (checked) {
 			selected.add(status);
 		} else {
 			selected.delete(status);
 		}
-		setStagedFilters({
-			...stagedFilters,
+		onFiltersChange({
+			...filters,
 			prStatuses: AGENT_PR_STATUS_ORDER.filter((value) => selected.has(value)),
 		});
 	};
 
 	const setChatStatus = (status: AgentChatStatusFilter, checked: boolean) => {
-		const selected = new Set(stagedFilters.chatStatuses);
+		const selected = new Set(filters.chatStatuses);
 		if (checked) {
 			selected.add(status);
 		} else {
@@ -222,272 +188,167 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 		if (selected.size === 0) {
 			return;
 		}
-		setStagedFilters({
-			...stagedFilters,
+		onFiltersChange({
+			...filters,
 			chatStatuses: AGENT_CHAT_STATUS_ORDER.filter((value) =>
 				selected.has(value),
 			),
 		});
 	};
 
-	const setArchiveStatus = (value: string) => {
-		if (value !== "active" && value !== "archived") {
-			return;
-		}
-		setStagedFilters({ ...stagedFilters, archiveStatus: value });
+	const setArchived = (checked: boolean) => {
+		onFiltersChange({
+			...filters,
+			archiveStatus: checked ? "archived" : "active",
+		});
 	};
 
 	const setSource = (source: AgentSourceFilter, checked: boolean) => {
 		const nextSources = checked
 			? AGENT_SOURCE_ORDER.filter(
-					(value) => value === source || stagedFilters.sources.includes(value),
+					(value) => value === source || filters.sources.includes(value),
 				)
-			: stagedFilters.sources.filter((value) => value !== source);
+			: filters.sources.filter((value) => value !== source);
 
 		if (nextSources.length === 0) {
 			return;
 		}
 
-		setStagedFilters({ ...stagedFilters, sources: nextSources });
+		onFiltersChange({ ...filters, sources: nextSources });
 	};
 
-	const applyFilters = () => {
-		onFiltersChange(stagedFilters);
-		setOpen(false);
-	};
-
-	const clearFilters = () => {
-		setStagedFilters(DEFAULT_AGENT_SIDEBAR_FILTERS);
-		setOptionSearch("");
-	};
+	const prSummary = !haveSameSelections(
+		filters.prStatuses,
+		DEFAULT_AGENT_SIDEBAR_FILTERS.prStatuses,
+	);
+	const chatSummary = !haveSameSelections(
+		filters.chatStatuses,
+		DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
+	);
+	const sourceSummary = !haveSameSelections(
+		filters.sources,
+		DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+	);
+	const filtersActive = hasActiveFilters(filters);
 
 	return (
-		<Popover open={open} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild>
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label="Filter agents"
-					className={cn(
-						"size-7 min-w-0 -mr-0.5 justify-end px-0 text-content-secondary hover:text-content-primary",
-						hasActiveFilters(filters) && "text-content-primary",
-					)}
-				>
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button variant="subtle" size="icon" aria-label="Filter agents">
 					<FilterIcon />
 				</Button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				align="start"
+				side="bottom"
 				aria-label="Filter agents"
-				role="dialog"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header w-64 overflow-hidden p-0 text-sm"
+				className="min-w-56"
 			>
-				<div className="border-0 border-b border-solid border-border px-3 py-2">
-					<section className="space-y-2">
-						<SectionHeading id={`${id}-group-heading`}>Group</SectionHeading>
-						<RadioGroup
-							aria-labelledby={`${id}-group-heading`}
-							value={stagedFilters.groupBy}
-							onValueChange={setGroupBy}
-							className="gap-2"
-						>
-							{GROUP_OPTIONS.map((option) => {
-								const optionId = `${id}-group-${option.value}`;
-								return (
-									<OptionRow key={option.value}>
-										<RadioGroupItem
-											id={optionId}
-											value={option.value}
-											className="m-0 my-1"
-										/>
-										<label
-											className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-											htmlFor={optionId}
-										>
-											{option.label}
-										</label>
-									</OptionRow>
-								);
-							})}
-						</RadioGroup>
-					</section>
-				</div>
+				<DropdownMenuLabel>Grouping</DropdownMenuLabel>
+				<DropdownMenuRadioGroup
+					value={filters.groupBy}
+					onValueChange={setGroupBy}
+				>
+					{GROUP_OPTIONS.map((option) => {
+						const Icon = option.icon;
+						return (
+							<DropdownMenuRadioItem
+								key={option.value}
+								value={option.value}
+								className="gap-2 [&>svg]:size-icon-sm"
+								onSelect={keepMenuOpen}
+							>
+								<Icon />
+								{option.label}
+							</DropdownMenuRadioItem>
+						);
+					})}
+				</DropdownMenuRadioGroup>
 
-				<div className="px-3 pt-2">
-					<section>
-						<SectionHeading>Filter by</SectionHeading>
-						<SearchField
-							value={optionSearch}
-							onChange={setOptionSearch}
-							placeholder="Search filters..."
-							aria-label="Search filters"
-							className="mt-2 h-9 [&_input]:h-9 [&_input]:text-xs [&_input]:font-normal [&_svg]:size-4"
-						/>
-						<ScrollArea
-							type="always"
-							className="mt-5 h-[240px] [&_[data-radix-scroll-area-viewport]>div]:block!"
-							scrollBarClassName="w-1.5"
-							viewportClassName="pr-3"
-						>
-							<div className="space-y-4">
-								{visiblePRStatuses.length > 0 && (
-									<div className="space-y-1.5">
-										<FilterGroupHeading>PR status</FilterGroupHeading>
-										<div className="space-y-2">
-											{visiblePRStatuses.map((status) => {
-												const checked =
-													stagedFilters.prStatuses.includes(status);
-												const checkboxId = `${id}-pr-${status}`;
-												return (
-													<OptionRow key={status}>
-														<Checkbox
-															id={checkboxId}
-															checked={checked}
-															onCheckedChange={(nextChecked) =>
-																setPRStatus(status, nextChecked === true)
-															}
-															className="m-0 my-[3px]"
-														/>
-														<label
-															htmlFor={checkboxId}
-															className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-														>
-															{PR_STATUS_LABELS[status]}
-														</label>
-													</OptionRow>
-												);
-											})}
-										</div>
-									</div>
-								)}
+				<DropdownMenuSeparator />
 
-								{visibleChatStatusOptions.length > 0 && (
-									<div className="space-y-1.5">
-										<FilterGroupHeading>Chat status</FilterGroupHeading>
-										<div className="space-y-2">
-											{visibleChatStatusOptions.map((option) => {
-												const optionId = `${id}-chat-status-${option.value}`;
-												return (
-													<OptionRow key={option.value}>
-														<Checkbox
-															id={optionId}
-															checked={stagedFilters.chatStatuses.includes(
-																option.value,
-															)}
-															onCheckedChange={(nextChecked) =>
-																setChatStatus(
-																	option.value,
-																	nextChecked === true,
-																)
-															}
-															className="m-0 my-[3px]"
-														/>
-														<label
-															htmlFor={optionId}
-															className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-														>
-															{option.label}
-														</label>
-													</OptionRow>
-												);
-											})}
-										</div>
-									</div>
-								)}
-
-								{visibleSourceOptions.length > 0 && (
-									<div className="space-y-1.5">
-										<FilterGroupHeading>Source</FilterGroupHeading>
-										<div className="space-y-2">
-											{visibleSourceOptions.map((option) => {
-												const optionId = `${id}-source-${option.value}`;
-												return (
-													<OptionRow key={option.value}>
-														<Checkbox
-															id={optionId}
-															checked={stagedFilters.sources.includes(
-																option.value,
-															)}
-															onCheckedChange={(nextChecked) =>
-																setSource(option.value, nextChecked === true)
-															}
-															className="m-0 my-[3px]"
-														/>
-														<label
-															htmlFor={optionId}
-															className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-														>
-															{option.label}
-														</label>
-													</OptionRow>
-												);
-											})}
-										</div>
-									</div>
-								)}
-
-								{visibleArchiveOptions.length > 0 && (
-									<div className="space-y-1.5">
-										<FilterGroupHeading id={`${id}-archive-heading`}>
-											Archive status
-										</FilterGroupHeading>
-										<RadioGroup
-											aria-labelledby={`${id}-archive-heading`}
-											value={stagedFilters.archiveStatus}
-											onValueChange={setArchiveStatus}
-											className="gap-2"
-										>
-											{visibleArchiveOptions.map((option) => {
-												const optionId = `${id}-archive-${option.value}`;
-												return (
-													<OptionRow key={option.value}>
-														<RadioGroupItem
-															id={optionId}
-															value={option.value}
-															className="m-0 my-1"
-														/>
-														<label
-															htmlFor={optionId}
-															className="flex flex-1 cursor-pointer items-center text-sm font-normal leading-5 text-content-primary"
-														>
-															{option.label}
-														</label>
-													</OptionRow>
-												);
-											})}
-										</RadioGroup>
-									</div>
-								)}
-
-								{!showFilterOptions && (
-									<p className="m-0 py-5 text-sm text-content-secondary">
-										No filters found
-									</p>
-								)}
-							</div>
-						</ScrollArea>
-					</section>
-				</div>
-
-				<div className="flex items-center justify-between gap-2 px-3 py-3">
-					<Button
-						variant="subtle"
-						size="sm"
-						onClick={clearFilters}
-						className="h-8 min-w-0 px-0 text-xs font-normal"
+				<DropdownMenuLabel className="flex items-center justify-between gap-2 pr-1">
+					<span>Filters</span>
+					<DropdownMenuItem
+						disabled={!filtersActive}
+						onSelect={(event) => {
+							keepMenuOpen(event);
+							onFiltersChange({
+								...DEFAULT_AGENT_SIDEBAR_FILTERS,
+								groupBy: filters.groupBy,
+							});
+						}}
+						className="px-1 py-0 text-xs font-medium text-content-secondary"
 					>
-						Clear all
-					</Button>
-					<Button
-						variant="default"
-						size="sm"
-						onClick={applyFilters}
-						className="h-8 min-w-[64px] px-3 text-xs font-normal"
-					>
-						Apply
-					</Button>
-				</div>
-			</PopoverContent>
-		</Popover>
+						Reset
+					</DropdownMenuItem>
+				</DropdownMenuLabel>
+				<FilterSubmenu label="PR" summary={prSummary}>
+					{AGENT_PR_STATUS_ORDER.map((status) => {
+						const Icon = PR_STATUS_ICONS[status];
+						return (
+							<DropdownMenuCheckboxItem
+								key={status}
+								checked={filters.prStatuses.includes(status)}
+								onCheckedChange={(checked) =>
+									setPRStatus(status, checked === true)
+								}
+								onSelect={keepMenuOpen}
+							>
+								<Icon />
+								{PR_STATUS_LABELS[status]}
+							</DropdownMenuCheckboxItem>
+						);
+					})}
+				</FilterSubmenu>
+
+				<FilterSubmenu label="Chat status" summary={chatSummary}>
+					{CHAT_STATUS_OPTIONS.map((option) => {
+						const Icon = option.icon;
+						return (
+							<DropdownMenuCheckboxItem
+								key={option.value}
+								checked={filters.chatStatuses.includes(option.value)}
+								onCheckedChange={(checked) =>
+									setChatStatus(option.value, checked === true)
+								}
+								onSelect={keepMenuOpen}
+							>
+								<Icon />
+								{option.label}
+							</DropdownMenuCheckboxItem>
+						);
+					})}
+				</FilterSubmenu>
+
+				<FilterSubmenu label="Source" summary={sourceSummary}>
+					{SOURCE_OPTIONS.map((option) => {
+						const Icon = option.icon;
+						return (
+							<DropdownMenuCheckboxItem
+								key={option.value}
+								checked={filters.sources.includes(option.value)}
+								onCheckedChange={(checked) =>
+									setSource(option.value, checked === true)
+								}
+								onSelect={keepMenuOpen}
+							>
+								<Icon />
+								{option.label}
+							</DropdownMenuCheckboxItem>
+						);
+					})}
+				</FilterSubmenu>
+
+				<DropdownMenuCheckboxItem
+					checked={filters.archiveStatus === "archived"}
+					onCheckedChange={(checked) => setArchived(checked === true)}
+					onSelect={keepMenuOpen}
+					className="[&>span]:right-3.5"
+				>
+					Archived
+				</DropdownMenuCheckboxItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };

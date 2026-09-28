@@ -1,10 +1,9 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 
 type AvatarDataProps = {
-	title: ReactNode;
-	subtitle?: ReactNode;
+	title: React.ReactNode;
+	subtitle?: React.ReactNode;
 	src?: string;
 	avatar?: React.ReactNode;
 
@@ -27,7 +26,7 @@ type AvatarDataProps = {
 	truncate?: boolean;
 };
 
-export const AvatarData: FC<AvatarDataProps> = ({
+export const AvatarData: React.FC<AvatarDataProps> = ({
 	title,
 	subtitle,
 	src,

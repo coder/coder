@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
-import type { PendingAttachment } from "../components/ChatPageContent";
+import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import {
 	draftInputStorageKeyPrefix,
 	type ParsedDraft,
@@ -11,14 +11,14 @@ import {
 
 export class BuiltInCommandPendingError extends Error {}
 
+export type SendChatTurnOptions = SendChatMessageOptions & {
+	editedMessageID?: number;
+};
+
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
+	onSend: (options: SendChatTurnOptions) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
 }) {
@@ -153,13 +153,19 @@ export function useConversationEditingState(deps: {
 	};
 
 	// Wraps the parent onSend to clear local input/editing state.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
+	const handleSendFromInput = async ({
+		message,
+		attachments,
+		workspaceUploads,
+	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend({
+			message,
+			attachments,
+			workspaceUploads,
+			editedMessageID,
+		});
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.

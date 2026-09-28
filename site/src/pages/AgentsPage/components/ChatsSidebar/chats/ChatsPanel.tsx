@@ -21,7 +21,7 @@ import {
 	SettingsIcon,
 	SquarePenIcon,
 } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -30,6 +30,11 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
@@ -57,6 +62,7 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
+import { SectionSwitcher } from "./SectionSwitcher";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
@@ -76,6 +82,8 @@ type ChatsPanelProps = {
 	) => void;
 	readonly onPinAgent: (chatId: string) => void;
 	readonly onUnpinAgent: (chatId: string) => void;
+	readonly onMarkChatRead: (chatId: string) => void;
+	readonly onMarkChatUnread: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
 	readonly onOpenSearchDialog?: () => void;
@@ -99,7 +107,7 @@ type ChatsPanelProps = {
 	readonly currentUserId: string;
 };
 
-export const ChatsPanel: FC<ChatsPanelProps> = ({
+export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -109,6 +117,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onArchiveAndDeleteWorkspace,
 	onPinAgent,
 	onUnpinAgent,
+	onMarkChatRead,
+	onMarkChatUnread,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
 	onOpenSearchDialog,
@@ -299,6 +309,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
+		currentUserId,
 		isArchiving,
 		archivingChatId,
 		toggleExpanded,
@@ -307,6 +318,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		onArchiveAndDeleteWorkspace,
 		onPinAgent,
 		onUnpinAgent,
+		onMarkChatRead,
+		onMarkChatUnread,
 		onOpenRenameDialog,
 	};
 
@@ -367,25 +380,37 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
+						<SectionSwitcher />
 					</div>
 					<div className="flex items-center gap-0.5 -mr-1.5">
-						<Button
-							asChild
-							variant="subtle"
-							size="icon"
-							aria-label="Settings"
-							className={cn(
-								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
-								isSettingsPanel && "text-content-primary",
-							)}
-						>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + locationSearch }}
-							>
-								<SettingsIcon />
-							</Link>
-						</Button>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									asChild
+									variant="subtle"
+									size="icon"
+									aria-label="Settings"
+									className={cn(
+										"size-7 min-w-0 text-content-secondary hover:text-content-primary",
+										isSettingsPanel && "text-content-primary",
+									)}
+								>
+									<Link
+										to="/agents/settings"
+										state={{ from: location.pathname + locationSearch }}
+									>
+										<SettingsIcon />
+									</Link>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" className="flex items-center gap-2">
+								Settings
+								<KbdGroup>
+									<Kbd>{getOSKey()}</Kbd>
+									<Kbd>,</Kbd>
+								</KbdGroup>
+							</TooltipContent>
+						</Tooltip>
 						{onCollapse && (
 							<Button
 								variant="subtle"
@@ -426,7 +451,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+					<div className="ml-2.5 flex h-7 items-center justify-between">
 						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
 							{chatsHeadingLabel}
 						</h2>

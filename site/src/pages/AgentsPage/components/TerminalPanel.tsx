@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { appearanceSettings } from "#/api/queries/users";
@@ -43,7 +43,7 @@ type TerminalPanelProps = {
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 };
 
-export const TerminalPanel: FC<TerminalPanelProps> = ({
+export const TerminalPanel: React.FC<TerminalPanelProps> = ({
 	chatId,
 	reconnectionToken = chatId,
 	initialCommand,

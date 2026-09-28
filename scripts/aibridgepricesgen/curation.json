@@ -17,6 +17,10 @@
 			"reasoningEffort": "high"
 		},
 		{
+			"modelIdentifier": "claude-opus-5-5",
+			"reasoningEffort": "high"
+		},
+		{
 			"modelIdentifier": "claude-opus-5",
 			"reasoningEffort": "high"
 		},
@@ -64,6 +68,9 @@
 			"modelIdentifier": "claude-mythos-5"
 		},
 		{
+			"modelIdentifier": "claude-opus-5-5"
+		},
+		{
 			"modelIdentifier": "claude-opus-5"
 		},
 		{
@@ -83,6 +90,12 @@
 		},
 		{
 			"modelIdentifier": "gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "gpt-6-luna"
 		},
 		{
 			"modelIdentifier": "gpt-5.6-sol"
@@ -117,6 +130,10 @@
 		{
 			"modelIdentifier": "anthropic.claude-sonnet-5",
 			"aliases": ["global.anthropic.claude-sonnet-5"]
+		},
+		{
+			"modelIdentifier": "anthropic.claude-opus-5-5",
+			"aliases": ["global.anthropic.claude-opus-5-5"]
 		},
 		{
 			"modelIdentifier": "anthropic.claude-opus-5",
@@ -172,6 +189,14 @@
 			"reasoningEffort": "medium"
 		},
 		{
+			"modelIdentifier": "gpt-6-sol",
+			"reasoningEffort": "medium"
+		},
+		{
+			"modelIdentifier": "gpt-6-luna",
+			"reasoningEffort": "medium"
+		},
+		{
 			"modelIdentifier": "gpt-5.6-sol",
 			"aliases": ["gpt-5.6"],
 			"reasoningEffort": "medium"
@@ -212,6 +237,12 @@
 			"modelIdentifier": "openai/gpt-6-astra"
 		},
 		{
+			"modelIdentifier": "openai/gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-luna"
+		},
+		{
 			"modelIdentifier": "openai/gpt-5.6-sol"
 		},
 		{
@@ -249,6 +280,9 @@
 		},
 		{
 			"modelIdentifier": "anthropic/claude-fable-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-opus-5.5"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-opus-5"
@@ -297,6 +331,9 @@
 			"modelIdentifier": "qwen/qwen3-coder-next"
 		},
 		{
+			"modelIdentifier": "x-ai/grok-4.7"
+		},
+		{
 			"modelIdentifier": "x-ai/grok-4.6"
 		},
 		{
@@ -306,6 +343,12 @@
 	"vercel": [
 		{
 			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-sol"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6-luna"
 		},
 		{
 			"modelIdentifier": "openai/gpt-5.6-sol"
@@ -347,6 +390,9 @@
 			"modelIdentifier": "anthropic/claude-fable-5"
 		},
 		{
+			"modelIdentifier": "anthropic/claude-opus-5.5"
+		},
+		{
 			"modelIdentifier": "anthropic/claude-opus-5"
 		},
 		{
@@ -383,7 +429,14 @@
 			"modelIdentifier": "deepseek/deepseek-v4-pro"
 		},
 		{
+			"modelIdentifier": "alibaba/qwen3.8-max-0902",
+			"displayName": "Qwen3.8 Max"
+		},
+		{
 			"modelIdentifier": "alibaba/qwen3.8-flash"
+		},
+		{
+			"modelIdentifier": "spacexai/grok-4.7"
 		},
 		{
 			"modelIdentifier": "spacexai/grok-4.6"

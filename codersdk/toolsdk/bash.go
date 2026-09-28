@@ -16,6 +16,7 @@ import (
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 )
 
 type WorkspaceBashArgs struct {
@@ -224,8 +225,16 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 			}
 		}
 
-		// Refresh workspace after build completes
-		workspace, err = client.Workspace(ctx, workspace.ID)
+		// Refresh workspace after build completes. Only the agent is read below.
+		workspace, err = client.Workspace(ctx, workspace.ID, codersdk.WorkspaceOptions{
+			IncludeRelated: &wsrelated.Config{
+				LatestBuild: &wsrelated.LatestBuild{
+					Resources: &wsrelated.Resources{
+						Agents: &wsrelated.Agents{},
+					},
+				},
+			},
+		})
 		if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 		}

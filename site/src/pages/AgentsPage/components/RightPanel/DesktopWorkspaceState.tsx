@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -43,7 +42,7 @@ export const isDesktopReachable = (
  * was a failed stop or delete, which must be retried from the workspace
  * page rather than started over.
  */
-export const getDesktopStartAction = (
+const getDesktopStartAction = (
 	workspace: Workspace,
 ): "start" | "retry" | "update" | undefined => {
 	const { status, transition } = workspace.latest_build;
@@ -71,7 +70,7 @@ export type DesktopWorkspaceStateProps = {
  * Callers gate on `isDesktopReachable` and fall through to the
  * connection status once it returns true.
  */
-export const DesktopWorkspaceState: FC<DesktopWorkspaceStateProps> = ({
+export const DesktopWorkspaceState: React.FC<DesktopWorkspaceStateProps> = ({
 	workspace,
 	onStartWorkspace,
 	isStartingWorkspace,

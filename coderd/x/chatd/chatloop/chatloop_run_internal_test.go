@@ -18,6 +18,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/prometheus/client_golang/prometheus"
 	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -174,6 +175,60 @@ func TestGenerateAssistant_ProviderContextSurvivesStreamError(t *testing.T) {
 	classified := chaterror.Classify(err)
 	require.Equal(t, "openai", classified.Provider)
 	require.Equal(t, "OpenAI returned an unexpected error.", classified.Message)
+}
+
+func TestGenerateAssistant_ProviderResponseID(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		finish fantasy.StreamPart
+		want   string
+	}{
+		{
+			name:   "anthropic message ID",
+			finish: fantasy.StreamPart{ID: "msg_anthropic"},
+			want:   "msg_anthropic",
+		},
+		{
+			name: "openai responses metadata",
+			finish: fantasy.StreamPart{ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyopenai.Name: &fantasyopenai.ResponsesProviderMetadata{ResponseID: "resp_openai"},
+			}},
+			want: "resp_openai",
+		},
+		{
+			name: "not reported",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			finish := tc.finish
+			finish.Type = fantasy.StreamPartTypeFinish
+			finish.FinishReason = fantasy.FinishReasonStop
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				ModelName:    "fake-model",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+						{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "hi"},
+						{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+						finish,
+					}), nil
+				},
+			}
+
+			outcome, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+				Model:    model,
+				Messages: []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, outcome.Step.ProviderResponseID)
+		})
+	}
 }
 
 func TestGenerateAssistant_ErrorProviderOverridesTransportLabel(t *testing.T) {

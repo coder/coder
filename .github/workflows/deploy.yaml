@@ -72,7 +72,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
           aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}

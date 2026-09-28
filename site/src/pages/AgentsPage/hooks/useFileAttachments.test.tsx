@@ -1,5 +1,5 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { type FC, Suspense } from "react";
+import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -103,7 +103,7 @@ describe("useFileAttachments org scoping", () => {
 		// intermediate commit between the org changing and the
 		// adoption effect running; that window must expose nothing.
 		const renderLog: { orgId: string; fileIds: string[] }[] = [];
-		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+		const Probe: React.FC<{ orgId: string }> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			renderLog.push({ orgId, fileIds: uploadedFileIds(result) });
 			return null;
@@ -130,7 +130,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const log: { adopted: boolean; fileIds: string[] }[] = [];
-		const Probe: FC<{ orgId: string }> = ({ orgId }) => {
+		const Probe: React.FC<{ orgId: string }> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			log.push({
 				adopted: result.organizationAdopted,
@@ -213,13 +213,49 @@ describe("useFileAttachments org scoping", () => {
 		});
 	});
 
+	it("drops an unpersisted upload when the org changes and leaves storage alone", async () => {
+		localStorage.setItem(
+			persistedAttachmentsStorageKey,
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "file-x",
+		});
+		const { result, rerender } = renderHook(
+			({ orgId }: { orgId: string }) =>
+				useFileAttachments(orgId, { persist: false }),
+			{ initialProps: { orgId: "org-a" } },
+		);
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		expect(result.current.attachments).toStrictEqual([]);
+
+		act(() => {
+			result.current.startUpload(new File(["x"], "x.txt"));
+		});
+		await waitFor(() => {
+			expect(uploadedFileIds(result.current)).toStrictEqual(["file-x"]);
+		});
+
+		rerender({ orgId: "org-b" });
+		expect(uploadedFileIds(result.current)).toStrictEqual([]);
+		await waitFor(() => {
+			expect(result.current.organizationAdopted).toBe(true);
+		});
+		expect(result.current.attachments).toStrictEqual([]);
+		expect(localStorage.getItem(persistedAttachmentsStorageKey)).toBe(
+			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
+		);
+	});
+
 	it("does not prune storage during a render that never commits", () => {
 		localStorage.setItem(
 			persistedAttachmentsStorageKey,
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Suspending after the hook runs simulates a render React abandons before commit.
-		const Suspender: FC<{ orgId: string }> = ({ orgId }) => {
+		const Suspender: React.FC<{ orgId: string }> = ({ orgId }) => {
 			useFileAttachments(orgId, { persist: true });
 			throw new Promise(() => {});
 		};

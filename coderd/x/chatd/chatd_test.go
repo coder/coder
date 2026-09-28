@@ -788,8 +788,9 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 			ChatMode: database.ChatModeExplore,
 			Valid:    true,
 		},
-		MCPServerIDs: []uuid.UUID{mcpConfig.ID},
-		ClientType:   database.ChatClientTypeApi,
+		MCPServerIDs:  []uuid.UUID{mcpConfig.ID},
+		ClientType:    database.ChatClientTypeApi,
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -1851,7 +1852,7 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(recorded[0], "You may use execute and process_output for exploration"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "approved external MCP tools when available"))
 	require.True(t, requestHasSystemSubstring(recorded[0], "Workspace MCP tools are not available in root plan mode"))
-	require.True(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
+	require.False(t, requestHasSystemSubstring(recorded[0], "After a successful propose_plan call, stop immediately"))
 	require.True(t, requestHasSystemSubstring(recorded[0], planModeInstructions))
 	for _, msg := range recorded[0].Messages {
 		if msg.Role != "system" {
@@ -1993,6 +1994,122 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.NotContains(t, workspaceContent, "start_workspace")
 		require.Contains(t, workspaceContent, "Use the workspace's available context and capabilities to continue the user's request")
 		require.NotContains(t, workspaceContent, "Do not create or start a workspace by default")
+	})
+}
+
+// TestCreateChatWithoutInitialUserContent verifies that chats created
+// without initial user content start idle in `waiting` with system
+// messages only, so no worker picks them up before the first message.
+// APIKeyID is not required because no user message is inserted.
+func TestCreateChatWithoutInitialUserContent(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "empty-create",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, chat.Status)
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, messages, "system messages are still inserted")
+	for _, msg := range messages {
+		require.Equal(t, database.ChatMessageRoleSystem, msg.Role, "no user message on an empty create")
+	}
+}
+
+// TestSendMessageFirstUserTurnFallbackTitle verifies that the first
+// message on a chat created without initial content persists the
+// fallback title in the send itself, independent of title generation.
+func TestSendMessageFirstUserTurnFallbackTitle(t *testing.T) {
+	t.Parallel()
+
+	const text = "investigate the flaky workspace upload tests today"
+
+	setup := func(t *testing.T, title string) (context.Context, database.Store, *chatd.Server, database.Chat) {
+		t.Helper()
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          title,
+			ModelConfigID:  model.ID,
+		})
+		require.NoError(t, err)
+		return ctx, db, server, chat
+	}
+	send := func(ctx context.Context, t *testing.T, server *chatd.Server, chatID uuid.UUID) chatd.SendMessageResult {
+		t.Helper()
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:  chatID,
+			Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+		})
+		require.NoError(t, err)
+		require.False(t, result.Queued)
+		return result
+	}
+
+	t.Run("PlaceholderTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		result := send(ctx, t, server, chat.ID)
+		require.True(t, result.FirstUserTurn)
+		require.Equal(t, chatprompt.FallbackTitle(text), result.Chat.Title)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.FallbackTitle(text), stored.Title)
+	})
+
+	t.Run("ExistingTitle", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, "custom title")
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "custom title", stored.Title)
+	})
+
+	t.Run("PriorVisibleMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx, db, server, chat := setup(t, chatprompt.DefaultChatTitle)
+
+		send(ctx, t, server, chat.ID)
+		// Reset to an idle chat that still carries the placeholder
+		// title but already has a user-visible message.
+		_, err := db.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+			ID:    chat.ID,
+			Title: chatprompt.DefaultChatTitle,
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusWaiting,
+		})
+		require.NoError(t, err)
+
+		result := send(ctx, t, server, chat.ID)
+		require.False(t, result.FirstUserTurn)
+
+		stored, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chatprompt.DefaultChatTitle, stored.Title)
 	})
 }
 
@@ -2561,6 +2678,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		Title:             "stale-requires-action",
 		DynamicTools:      nullRawMessage(dynamicToolsJSON),
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -2652,6 +2770,7 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		LastModelConfigID: model.ID,
 		Title:             "orphaned-chat",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			{
 				Role:           database.ChatMessageRoleUser,
@@ -3789,6 +3908,61 @@ func TestActiveServer_DynamicToolsAndStopAfterToolBehavior(t *testing.T) {
 		messages := chatMessages(ctx, t, db, chat.ID)
 		requireTextPart(t, messages[len(messages)-1], "tool failed, continue")
 	})
+}
+
+func TestCallerSuppliedToolsDisabledSkipsDynamicTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	var offeredDynamicTool atomic.Bool
+	var streamedCallCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		for _, tool := range req.Tools {
+			if tool.Function.Name == "my_dynamic_tool" {
+				offeredDynamicTool.Store(true)
+			}
+		}
+		switch streamedCallCount.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"query":"test"}`),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.DisableCallerSuppliedTools = true
+	})
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "dynamic-tools-disabled",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("call the dynamic tool"),
+		},
+		DynamicTools: dynamicToolJSON(t, "my_dynamic_tool"),
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.False(t, chatResult.RequiresActionDeadlineAt.Valid)
+	require.Equal(t, int32(2), streamedCallCount.Load(),
+		"unresolved call to a disabled dynamic tool should get a local error result and continue")
+	require.False(t, offeredDynamicTool.Load())
+
+	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
+	require.True(t, result.IsError)
+	require.JSONEq(t, `{"error":"Tool not active in this turn: my_dynamic_tool"}`, string(result.Result))
 }
 
 func TestDynamicToolCallPausesAndResumes(t *testing.T) {
@@ -5261,6 +5435,37 @@ func readFileResponseWithInputTokens(path string, inputTokens int) chattest.Anth
 		}
 	}
 	return chattest.AnthropicStreamingResponse(chunks...)
+}
+
+func TestActiveServer_PersistsAnthropicMessageID(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		chunks := chattest.AnthropicTextChunks("answer")
+		chunks[0].Message.ID = "msg_persisted"
+		return chattest.AnthropicStreamingResponse(chunks...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	responseIDs := make(map[database.ChatMessageRole]sql.NullString)
+	for _, message := range messages {
+		responseIDs[message.Role] = message.ProviderResponseID
+	}
+	require.Equal(t, sql.NullString{String: "msg_persisted", Valid: true}, responseIDs[database.ChatMessageRoleAssistant])
+	require.False(t, responseIDs[database.ChatMessageRoleUser].Valid)
 }
 
 func TestActiveServer_RoutingPreservesAPIKeyAfterCompaction(t *testing.T) {
@@ -6887,6 +7092,7 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			Title:             "provider-runner-replay-active",
 			MCPServerIDs:      []uuid.UUID{},
 			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				userMessageForTest(t, "use provider runner", model.ID, user.ID, apiKey.ID),
 				assistantMessageForTest(t, []codersdk.ChatMessagePart{computerCall}, model.ID),
@@ -13980,6 +14186,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	const advisorReply = "break the problem into smaller pieces first"
+	const advisorReasoning = "advisor-only reasoning: compare the refactoring risks"
 	advisorDeltas := []string{"break the problem ", "into smaller pieces first"}
 
 	var (
@@ -13994,13 +14201,16 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	// gate its completion on the live collector below having observed the
 	// streamed deltas.
 	var (
-		livePartsMu       sync.Mutex
-		liveAdvisorDeltas []string
+		livePartsMu            sync.Mutex
+		liveAdvisorDeltas      []string
+		liveAdvisorReasoning   []string
+		liveAssistantReasoning []string
 	)
 	liveDeltasCaptured := func() bool {
 		livePartsMu.Lock()
 		defer livePartsMu.Unlock()
-		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas) &&
+			slices.Equal([]string{advisorReasoning}, liveAdvisorReasoning)
 	}
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -14038,6 +14248,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 			chunks := make(chan chattest.OpenAIChunk)
 			go func() {
 				defer close(chunks)
+				chunks <- chattest.OpenAIChunk{Choices: []chattest.OpenAIChunkChoice{{ReasoningDelta: advisorReasoning}}}
 				for _, chunk := range chattest.OpenAITextChunks(advisorDeltas...) {
 					chunks <- chunk
 				}
@@ -14108,15 +14319,24 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 					continue
 				}
 				part := event.MessagePart.Part
+				livePartsMu.Lock()
+				if event.MessagePart.Role == codersdk.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeReasoning {
+					liveAssistantReasoning = append(liveAssistantReasoning, part.Text)
+				}
+				livePartsMu.Unlock()
 				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
 					part.Type != codersdk.ChatMessagePartTypeToolResult ||
 					part.ToolName != chatadvisor.ToolName ||
-					part.ToolCallID != "advisor-happy-path-call" ||
-					part.ResultDelta == "" {
+					part.ToolCallID != "advisor-happy-path-call" {
 					continue
 				}
 				livePartsMu.Lock()
-				liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				if part.ResultDelta != "" {
+					liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				}
+				if part.ReasoningDelta != "" {
+					liveAdvisorReasoning = append(liveAdvisorReasoning, part.ReasoningDelta)
+				}
 				livePartsMu.Unlock()
 			}
 		}
@@ -14170,9 +14390,9 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 
 	var parentSawAdvisorResult bool
 	for _, msg := range gotFinalMessages {
+		require.NotContains(t, msg.Content, advisorReasoning)
 		if msg.Role == "tool" && strings.Contains(msg.Content, advisorReply) {
 			parentSawAdvisorResult = true
-			break
 		}
 	}
 	require.True(t, parentSawAdvisorResult,
@@ -14188,16 +14408,22 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	<-liveCollectorDone
 	livePartsMu.Lock()
 	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	collectedAdvisorReasoning := append([]string(nil), liveAdvisorReasoning...)
+	collectedAssistantReasoning := append([]string(nil), liveAssistantReasoning...)
 	livePartsMu.Unlock()
 	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
 		"advisor nested text deltas must stream into the parent tool card")
 
+	require.Equal(t, []string{advisorReasoning}, collectedAdvisorReasoning)
+	require.Empty(t, collectedAssistantReasoning, "advisor reasoning must not become parent assistant reasoning")
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	require.NoError(t, err)
 	for _, msg := range persisted {
+		require.NotContains(t, string(msg.Content.RawMessage), "reasoning_delta")
+		require.NotContains(t, string(msg.Content.RawMessage), advisorReasoning)
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}

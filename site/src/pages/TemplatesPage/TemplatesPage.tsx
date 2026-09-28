@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -12,7 +11,7 @@ import { pageTitle } from "#/utils/page";
 import { useTemplatesFilter } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
-const TemplatesPage: FC = () => {
+const TemplatesPage: React.FC = () => {
 	const { permissions, user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 

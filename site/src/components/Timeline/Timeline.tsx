@@ -1,4 +1,4 @@
-import { Fragment, type JSX } from "react";
+import { Fragment } from "react";
 import { TimelineDateRow } from "#/components/Timeline/TimelineDateRow";
 
 type GetDateFn<TData> = (data: TData) => Date;
@@ -25,14 +25,14 @@ const groupByDate = <TData,>(
 type TimelineProps<TData> = {
 	items: readonly TData[];
 	getDate: GetDateFn<TData>;
-	row: (item: TData) => JSX.Element;
+	row: (item: TData) => React.JSX.Element;
 };
 
 export const Timeline = <TData,>({
 	items,
 	getDate,
 	row,
-}: TimelineProps<TData>): JSX.Element => {
+}: TimelineProps<TData>): React.JSX.Element => {
 	const itemsByDate = groupByDate(items, getDate);
 
 	return (

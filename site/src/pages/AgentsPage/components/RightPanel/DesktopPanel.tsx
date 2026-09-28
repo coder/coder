@@ -1,5 +1,4 @@
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useState } from "react";
 import type {
 	Workspace,
@@ -30,7 +29,7 @@ type DesktopPanelProps = {
 	isVisible?: boolean;
 };
 
-export const DesktopPanel: FC<DesktopPanelProps> = ({
+export const DesktopPanel: React.FC<DesktopPanelProps> = ({
 	chatId,
 	workspace,
 	workspaceAgent,
@@ -151,7 +150,7 @@ export type DesktopPanelViewProps = DesktopWorkspaceStateProps & {
 	onPopOut?: () => void;
 };
 
-export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
+export const DesktopPanelView: React.FC<DesktopPanelViewProps> = ({
 	status,
 	workspace,
 	agentStatus,

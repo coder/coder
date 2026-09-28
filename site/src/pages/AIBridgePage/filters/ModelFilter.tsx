@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
 import {
@@ -17,7 +16,7 @@ export const useModelFilterMenu = ({
 		id: "model",
 		getSelectedOption: async () => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: value,
+				model: value,
 				limit: 1,
 			});
 			const firstModel = modelsRes.at(0);
@@ -36,7 +35,7 @@ export const useModelFilterMenu = ({
 		},
 		getOptions: async (query) => {
 			const modelsRes = await API.getAIBridgeModels({
-				q: query,
+				model: query,
 				limit: 25,
 			});
 			return modelsRes.map((model) => ({
@@ -58,7 +57,7 @@ type ModelFilterProps = {
 	width?: number;
 };
 
-export const ModelFilter: FC<ModelFilterProps> = ({ menu, width }) => {
+export const ModelFilter: React.FC<ModelFilterProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
 			label="Select model"
