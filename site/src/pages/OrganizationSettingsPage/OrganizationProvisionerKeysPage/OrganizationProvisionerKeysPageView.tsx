@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	type ProvisionerKeyDaemons,
 	ProvisionerKeyIDBuiltIn,
@@ -42,7 +41,7 @@ type OrganizationProvisionerKeysPageViewProps = {
 	onRetry: () => void;
 };
 
-export const OrganizationProvisionerKeysPageView: FC<
+export const OrganizationProvisionerKeysPageView: React.FC<
 	OrganizationProvisionerKeysPageViewProps
 > = ({ showPaywall, provisionerKeyDaemons, error, permissions, onRetry }) => {
 	const filteredProvisionerKeyDaemons = provisionerKeyDaemons?.filter(

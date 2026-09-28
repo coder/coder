@@ -1,5 +1,5 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -60,7 +60,7 @@ const PROVIDER_PARAM = "provider";
 const SEARCH_PARAM = "search";
 const PAGE_PARAM = "page";
 
-const AddModelDropdown: FC<{
+const AddModelDropdown: React.FC<{
 	providerStates: readonly ProviderState[];
 	align?: "start" | "end";
 }> = ({ providerStates, align = "end" }) => {
@@ -116,7 +116,7 @@ type ModelsPageViewProps = {
 	canCreateModel: boolean;
 };
 
-const ModelsPageView: FC<ModelsPageViewProps> = ({
+const ModelsPageView: React.FC<ModelsPageViewProps> = ({
 	isLoading,
 	loadError,
 	refetchError,

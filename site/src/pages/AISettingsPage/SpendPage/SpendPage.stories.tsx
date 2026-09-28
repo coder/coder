@@ -72,7 +72,7 @@ const meta = {
 			[MockOrganization.id]: true,
 			[MockOrganization2.id]: true,
 		});
-		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => ({
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
@@ -111,7 +111,10 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("combobox", { name: /Filter by provider/ }),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /^Provider/ }),
 		);
 		await screen.findByRole("option", { name: /OpenAI/ });
 	},
@@ -132,7 +135,7 @@ export const FilteredByProvider: Story = {
 		}),
 	},
 	beforeEach: () => {
-		spyOn(API, "getOrganizationAISpendUsers").mockResolvedValue({
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockResolvedValue({
 			...MockOrganizationAISpendReport,
 			count: 3,
 			totals: { cost_micros: 27_000_000, unpriced_usage_count: 0 },
@@ -153,7 +156,7 @@ export const FilteredByProvider: Story = {
 export const RetentionLimitedPicker: Story = {
 	beforeEach: () => {
 		const retentionStart = fixedNow.subtract(10, "day").toISOString();
-		spyOn(API, "getOrganizationAISpendUsers").mockImplementation(
+		spyOn(API.experimental, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => ({
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? retentionStart,

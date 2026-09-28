@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import {
 	InfoTooltip,
 	type InfoTooltipType,
@@ -6,8 +5,8 @@ import {
 import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 
 /** A hover tooltip anchored to a status icon, styled per `kind`. */
-export const StatusIconTooltip: FC<{
-	message: ReactNode;
+export const StatusIconTooltip: React.FC<{
+	message: React.ReactNode;
 	kind?: InfoTooltipType;
 }> = ({ message, kind = "info" }) => (
 	<InfoTooltip type={kind} size="small">

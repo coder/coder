@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	Link as RouterLink,
 	useLocation,
@@ -54,14 +53,14 @@ import {
 } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
-const CollapsibleSection: FC<{
+const CollapsibleSection: React.FC<{
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	contentClassName?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	description,
@@ -97,7 +96,7 @@ const CollapsibleSection: FC<{
 	);
 };
 
-export const ModelFormFields: FC<{
+export const ModelFormFields: React.FC<{
 	form: FormikContextType<ModelFormValues>;
 	mode: "add" | "edit" | "duplicate";
 	providerStates: readonly ProviderState[];

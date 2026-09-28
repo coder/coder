@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { decodeDataURL } from "./dataUrls";
 
@@ -224,6 +225,21 @@ export const isChatAttachmentFile = (file: File): boolean => {
  */
 export const isRasterImageMediaType = (mediaType: string): boolean =>
 	mediaType.startsWith("image/") && mediaType !== "image/svg+xml";
+
+/**
+ * Returns true for files that should stream into the chat's workspace
+ * filesystem instead of the attachment pipeline: any file whose
+ * declared MIME type is not on the attachment allowlist. Files with an
+ * unknown type (empty or application/octet-stream) stay on the
+ * attachment path where the server classifies the bytes.
+ */
+export const shouldRouteFileToWorkspace = (file: File): boolean =>
+	!isChatAttachmentFile(file);
+
+export const isWorkspaceFileReferencePart = (
+	part: TypesGen.ChatMessagePart,
+): part is TypesGen.ChatWorkspaceFileReferencePart =>
+	part.type === "workspace-file-reference";
 
 // Matches characters that commonly cause trouble downstream: bracketing
 // punctuation, quotes, shell or URL or path metacharacters, path

@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ type CreateTokenPageProps = {
 	now?: Date;
 };
 
-const CreateTokenPage: FC<CreateTokenPageProps> = ({ now }) => {
+const CreateTokenPage: React.FC<CreateTokenPageProps> = ({ now }) => {
 	const navigate = useNavigate();
 
 	const {

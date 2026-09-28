@@ -11,6 +11,7 @@ Choose the one that matches the platform your team already operates, or intends 
 | [Rancher](./rancher.md)                     | Kubernetes clusters your team already manages through Rancher                |
 | [OpenShift](./openshift.md)                 | Red Hat OpenShift clusters, which need specific security context settings    |
 | [Docker](./docker.md)                       | A single machine, such as a proof of concept or a small team deployment      |
+| [RPM (RHEL family)](./rpm.md)               | A single Red Hat Enterprise Linux host, or another RHEL-family distribution  |
 | [Cloud providers](./cloud/index.md)         | A virtual machine on AWS, Google Cloud, or Azure, or a marketplace listing   |
 | [Community install methods](./community.md) | Platforms Coder doesn't package, where a community-contributed method exists |
 

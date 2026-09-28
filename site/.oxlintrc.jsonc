@@ -225,6 +225,28 @@
 						"name": "#/contexts/auth/AuthProvider",
 						"importNames": ["AuthContext"],
 						"message": "Use the useAuthContext() or useAuthenticated() hooks instead of the raw AuthContext."
+					},
+					// Keep in sync with the src/components override below.
+					{
+						"name": "react",
+						"importNames": [
+							"AnimationEvent",
+							"ClipboardEvent",
+							"CompositionEvent",
+							"DragEvent",
+							"FocusEvent",
+							"InputEvent",
+							"KeyboardEvent",
+							"MouseEvent",
+							"PointerEvent",
+							"SubmitEvent",
+							"ToggleEvent",
+							"TouchEvent",
+							"TransitionEvent",
+							"UIEvent",
+							"WheelEvent"
+						],
+						"message": "Use React.<Event> so it isn't confused with the DOM event of the same name."
 					}
 				],
 				"patterns": [
@@ -240,6 +262,47 @@
 			"error",
 			{
 				"types": {
+					"FC": "Use React.FC instead.",
+					"ComponentProps": "Use React.ComponentProps instead.",
+					"CSSProperties": "Use React.CSSProperties instead.",
+					"Dispatch": "Use React.Dispatch instead.",
+					"ElementType": "Use React.ElementType instead.",
+					"ForwardedRef": "Use React.ForwardedRef instead.",
+					"HTMLProps": "Use React.HTMLProps instead.",
+					"JSX.Element": "Use React.JSX.Element instead.",
+					"JSX.IntrinsicElements": "Use React.JSX.IntrinsicElements instead.",
+					"PropsWithChildren": "Use React.PropsWithChildren instead.",
+					"ReactElement": "Use React.ReactElement instead.",
+					"ReactNode": "Use React.ReactNode instead.",
+					"Ref": "Use React.Ref instead.",
+					"RefObject": "Use React.RefObject instead.",
+					"SetStateAction": "Use React.SetStateAction instead.",
+					// Event types that share a DOM name are covered by
+					// no-restricted-imports instead.
+					"BaseSyntheticEvent": "Use React.BaseSyntheticEvent instead.",
+					"ChangeEvent": "Use React.ChangeEvent instead.",
+					"FormEvent": "Use React.FormEvent instead.",
+					"InvalidEvent": "Use React.InvalidEvent instead.",
+					"SyntheticEvent": "Use React.SyntheticEvent instead.",
+					"AnimationEventHandler": "Use React.AnimationEventHandler instead.",
+					"ChangeEventHandler": "Use React.ChangeEventHandler instead.",
+					"ClipboardEventHandler": "Use React.ClipboardEventHandler instead.",
+					"CompositionEventHandler": "Use React.CompositionEventHandler instead.",
+					"DragEventHandler": "Use React.DragEventHandler instead.",
+					"EventHandler": "Use React.EventHandler instead.",
+					"FocusEventHandler": "Use React.FocusEventHandler instead.",
+					"FormEventHandler": "Use React.FormEventHandler instead.",
+					"InputEventHandler": "Use React.InputEventHandler instead.",
+					"KeyboardEventHandler": "Use React.KeyboardEventHandler instead.",
+					"MouseEventHandler": "Use React.MouseEventHandler instead.",
+					"PointerEventHandler": "Use React.PointerEventHandler instead.",
+					"ReactEventHandler": "Use React.ReactEventHandler instead.",
+					"SubmitEventHandler": "Use React.SubmitEventHandler instead.",
+					"ToggleEventHandler": "Use React.ToggleEventHandler instead.",
+					"TouchEventHandler": "Use React.TouchEventHandler instead.",
+					"TransitionEventHandler": "Use React.TransitionEventHandler instead.",
+					"UIEventHandler": "Use React.UIEventHandler instead.",
+					"WheelEventHandler": "Use React.WheelEventHandler instead.",
 					"ComponentPropsWithRef": {
 						"message": "Use ComponentProps instead. Under React 19 it already includes ref."
 					},
@@ -293,6 +356,31 @@
 				"no-restricted-imports": [
 					"error",
 					{
+						"paths": [
+							// Overrides replace the rule's options rather than merging
+							// them, so the React event types entry is repeated here.
+							{
+								"name": "react",
+								"importNames": [
+									"AnimationEvent",
+									"ClipboardEvent",
+									"CompositionEvent",
+									"DragEvent",
+									"FocusEvent",
+									"InputEvent",
+									"KeyboardEvent",
+									"MouseEvent",
+									"PointerEvent",
+									"SubmitEvent",
+									"ToggleEvent",
+									"TouchEvent",
+									"TransitionEvent",
+									"UIEvent",
+									"WheelEvent"
+								],
+								"message": "Use React.<Event> so it isn't confused with the DOM event of the same name."
+							}
+						],
 						"patterns": [
 							{
 								"group": ["**/pages", "**/pages/**"],

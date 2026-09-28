@@ -1,8 +1,7 @@
 import { cn } from "cn";
-import type { PropsWithChildren, ReactNode } from "react";
 
-type SectionProps = PropsWithChildren<{
-	title: ReactNode;
+type SectionProps = React.PropsWithChildren<{
+	title: React.ReactNode;
 	layout?: "fluid" | "fixed";
 	className?: string;
 }>;

@@ -9,7 +9,7 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -54,7 +54,7 @@ type ChatTopBarProps = {
 	panel: SidebarPanelState;
 };
 
-const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
+const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	chatId,
 	organizationId,
 }) => {
@@ -91,7 +91,7 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	);
 };
 
-export const ChatTopBar: FC<ChatTopBarProps> = ({
+export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	chat,
 	liveChatStatus,
 	panel,

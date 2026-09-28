@@ -7,7 +7,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Calendar } from "#/components/Calendar/Calendar";
@@ -127,7 +127,7 @@ function fromBoundary(value: DateRangeValue): DayPickerDateRange {
 	return { from, to };
 }
 
-export const DateRangePicker: FC<DateRangePickerProps> = ({
+export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 	value,
 	onChange,
 	now,

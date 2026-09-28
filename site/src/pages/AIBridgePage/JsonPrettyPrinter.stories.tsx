@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 
-const PreviewBlock: FC<{ input: string; tool?: string }> = ({
+const PreviewBlock: React.FC<{ input: string; tool?: string }> = ({
 	input,
 	tool,
 }) => (

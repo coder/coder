@@ -1,6 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { FC } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { render } from "#/testHelpers/renderHelpers";
@@ -12,7 +11,7 @@ afterEach(() => {
 
 const bedrockModel = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
 
-const ModelFilterHarness: FC<{ value?: string }> = ({ value }) => {
+const ModelFilterHarness: React.FC<{ value?: string }> = ({ value }) => {
 	const menu = useModelFilterMenu({ value, onChange: vi.fn(), enabled: true });
 	return <ModelFilter menu={menu} />;
 };

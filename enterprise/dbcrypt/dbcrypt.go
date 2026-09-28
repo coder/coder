@@ -927,6 +927,73 @@ func (db *dbCrypt) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, para
 	return tok, nil
 }
 
+// decryptChatMCPServer decrypts the headers of a single ChatMCPServer in
+// place.
+func (db *dbCrypt) decryptChatMCPServer(server *database.ChatMCPServer) error {
+	return db.decryptField(&server.Headers, server.HeadersKeyID)
+}
+
+// encryptChatMCPServerHeaders encrypts a headers JSON object in place. An
+// empty object is not a secret, so it is stored as plaintext "{}" with a NULL
+// key ID and stays out of key rotation.
+func (db *dbCrypt) encryptChatMCPServerHeaders(headers *string, keyID *sql.NullString) error {
+	trimmed := strings.TrimSpace(*headers)
+	if trimmed == "" || trimmed == "{}" {
+		*headers = "{}"
+		*keyID = sql.NullString{}
+		return nil
+	}
+	return db.encryptField(headers, keyID)
+}
+
+func (db *dbCrypt) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMCPServer, error) {
+	servers, err := db.Store.GetChatMCPServersByChatID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range servers {
+		if err := db.decryptChatMCPServer(&servers[i]); err != nil {
+			return nil, err
+		}
+	}
+	return servers, nil
+}
+
+func (db *dbCrypt) GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatMCPServer, error) {
+	servers, err := db.Store.GetChatMCPServersByChatOwnerID(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range servers {
+		if err := db.decryptChatMCPServer(&servers[i]); err != nil {
+			return nil, err
+		}
+	}
+	return servers, nil
+}
+
+func (db *dbCrypt) UpsertChatMCPServer(ctx context.Context, params database.UpsertChatMCPServerParams) (database.ChatMCPServer, error) {
+	if err := db.encryptChatMCPServerHeaders(&params.Headers, &params.HeadersKeyID); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+
+	server, err := db.Store.UpsertChatMCPServer(ctx, params)
+	if err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	if err := db.decryptChatMCPServer(&server); err != nil {
+		return database.ChatMCPServer{}, err
+	}
+	return server, nil
+}
+
+func (db *dbCrypt) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, params database.UpdateEncryptedChatMCPServerHeadersParams) error {
+	if err := db.encryptChatMCPServerHeaders(&params.Headers, &params.HeadersKeyID); err != nil {
+		return err
+	}
+	return db.Store.UpdateEncryptedChatMCPServerHeaders(ctx, params)
+}
+
 func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {
 	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
 		return database.UserSecret{}, err

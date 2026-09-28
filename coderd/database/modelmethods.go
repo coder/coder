@@ -1024,6 +1024,7 @@ type UpsertConnectionLogParams struct {
 	SlugOrPort       sql.NullString   `db:"slug_or_port" json:"slug_or_port"`
 	ConnectionID     uuid.NullUUID    `db:"connection_id" json:"connection_id"`
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
+	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
 }
