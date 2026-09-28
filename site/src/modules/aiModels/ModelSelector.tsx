@@ -374,8 +374,21 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 				max={selectableEfforts.length - 1}
 				step={1}
 			/>
-			<span className="shrink-0 rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary">
-				{formatReasoningEffort(value)}
+			{/* Rendering every label in one grid cell keeps this slot at the width
+			    of the longest label, so the slider does not resize while dragging.
+			    The badge itself hugs its text and sits at the right edge. */}
+			<span className="grid shrink-0 justify-items-end">
+				{selectableEfforts.map((effort, index) => (
+					<span
+						key={effort}
+						className={cn(
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							index !== effortIndex && "invisible",
+						)}
+					>
+						{formatReasoningEffort(effort)}
+					</span>
+				))}
 			</span>
 		</div>
 	);
