@@ -348,8 +348,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		opts.StageModel,
 	)
 	if streamErr != nil {
-		streamSpan.End(streamErr)
 		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		streamSpan.End(wrappedErr)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
@@ -358,21 +358,14 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 	}
 	// Releasing the attempt closes the time_to_first_token window, so it
 	// must happen before the stream stage ends: a window still open then
-	// would be counted outside the stream that contains it. The stream
-	// stage ends with the unwrapped stream error, or else the returned
-	// error.
-	var streamEndErr error
+	// would be counted outside the stream that contains it.
 	defer func() {
 		attempt.release()
-		if streamEndErr == nil {
-			streamEndErr = retErr
-		}
-		streamSpan.End(streamEndErr)
+		streamSpan.End(retErr)
 	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
-		streamEndErr = err
 		wrappedErr := wrapProviderStreamError(errorProvider, err)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
