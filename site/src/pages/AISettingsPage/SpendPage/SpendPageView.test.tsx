@@ -35,7 +35,10 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			}}
 			minDate={undefined}
 			onPeriodChange={vi.fn()}
-			filterMenus={undefined}
+			canFilterDimensions={false}
+			filterQuery=""
+			onFilterQueryChange={vi.fn()}
+			filterError={undefined}
 			reportQuery={pendingReportQuery}
 		/>,
 	);
