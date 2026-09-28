@@ -27,9 +27,9 @@ async function expectTooltip(
 	hasTroubleshootLink: boolean,
 ) {
 	const icon = screen.getByRole("status", { name: ariaLabel });
-	await userEvent.click(icon);
+	await userEvent.hover(icon);
 	await waitFor(() => {
-		const tooltip = screen.getByRole("dialog");
+		const tooltip = screen.getByRole("tooltip");
 		expect(tooltip).toHaveTextContent(title);
 		expect(tooltip).toHaveTextContent(detail);
 		if (hasTroubleshootLink) {

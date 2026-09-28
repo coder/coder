@@ -3,36 +3,32 @@ import { getEffectiveTabId } from "./getEffectiveTabId";
 
 describe("getEffectiveTabId", () => {
 	it("returns the active tab id when it matches a known tab", () => {
-		expect(
-			getEffectiveTabId(["git", "terminal", "debug"], "debug", undefined),
-		).toBe("debug");
+		expect(getEffectiveTabId(["git", "terminal", "debug"], "debug")).toBe(
+			"debug",
+		);
 	});
 
 	it("falls back to the first tab when the active id is unknown", () => {
-		expect(getEffectiveTabId(["git", "terminal"], "missing", undefined)).toBe(
-			"git",
-		);
+		expect(getEffectiveTabId(["git", "terminal"], "missing")).toBe("git");
 	});
 
 	it("falls back to the first tab when no active id is set", () => {
-		expect(getEffectiveTabId(["git", "terminal"], null, undefined)).toBe("git");
+		expect(getEffectiveTabId(["git", "terminal"], null)).toBe("git");
 	});
 
-	it("resolves to desktop when it is the active id and desktopChatId is set", () => {
-		expect(getEffectiveTabId(["git"], "desktop", "desktop-123")).toBe(
-			"desktop",
-		);
+	it("resolves to desktop when it is the active id and desktop is available", () => {
+		expect(getEffectiveTabId(["git", "desktop"], "desktop")).toBe("desktop");
 	});
 
-	it("returns desktop when the tab list is empty but desktop is available", () => {
-		expect(getEffectiveTabId([], null, "desktop-123")).toBe("desktop");
+	it("ignores a hidden singleton tab that is still the stored selection", () => {
+		expect(getEffectiveTabId(["summary", "git"], "desktop")).toBe("summary");
 	});
 
 	it("returns null when no tabs are available", () => {
-		expect(getEffectiveTabId([], null, undefined)).toBeNull();
+		expect(getEffectiveTabId([], null)).toBeNull();
 	});
 
-	it("ignores an unknown active id when only desktop is available", () => {
-		expect(getEffectiveTabId([], "git", "desktop-123")).toBe("desktop");
+	it("returns null when the active id has no matching tab", () => {
+		expect(getEffectiveTabId([], "git")).toBeNull();
 	});
 });

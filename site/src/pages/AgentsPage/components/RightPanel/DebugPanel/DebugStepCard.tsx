@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronDownIcon, WrenchIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatDebugStep } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -38,14 +38,14 @@ import {
 	TRANSCRIPT_PREVIEW_COUNT,
 } from "./debugPanelUtils";
 
-interface DebugStepCardProps {
+type DebugStepCardProps = {
 	step: ChatDebugStep;
 	defaultOpen?: boolean;
-}
+};
 
 type SectionKey = "tools" | "options" | "usage" | "policy";
 
-export const DebugStepCard: FC<DebugStepCardProps> = ({
+export const DebugStepCard: React.FC<DebugStepCardProps> = ({
 	step,
 	defaultOpen = false,
 }) => {
@@ -321,7 +321,7 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 								<div className="space-y-2">
 									{/* Primary response content: visually prominent. */}
 									{response.content ? (
-										<p className="max-h-112 overflow-auto whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
+										<p className="max-h-112 overflow-auto wrap-anywhere whitespace-pre-wrap text-sm font-medium leading-6 text-content-primary">
 											{response.content}
 										</p>
 									) : null}

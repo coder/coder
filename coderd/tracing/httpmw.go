@@ -202,12 +202,6 @@ func EndHTTPSpan(r *http.Request, status int, span trace.Span, serverName string
 
 type tracerNameKey struct{}
 
-// SetTracerName sets the tracer name that will be used by all spans created
-// from the context.
-func SetTracerName(ctx context.Context, tracerName string) context.Context {
-	return context.WithValue(ctx, tracerNameKey{}, tracerName)
-}
-
 // GetTracerName returns the tracer name from the context, or TracerName if none
 // is set.
 func GetTracerName(ctx context.Context) string {

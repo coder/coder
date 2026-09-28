@@ -1,7 +1,6 @@
 package chatstate_test
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -151,6 +150,7 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-cancel", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -184,6 +184,7 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))
@@ -258,6 +259,10 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 	require.Equal(t, database.ChatMessageRoleUser, edit.ReplacementMessage.Role)
 	require.Less(t, edit.CancellationMessages[0].ID, edit.ReplacementMessage.ID,
 		"cancellations are inserted before the replacement user message")
+	require.False(t, edit.CancellationMessages[0].QueuedMessageID.Valid,
+		"synthetic cancellations are not promoted from the queue")
+	require.False(t, edit.ReplacementMessage.QueuedMessageID.Valid,
+		"edit replacements are not promoted from the queue")
 }
 
 func TestSyntheticCancellation_PromoteQueuedMessage(t *testing.T) {
@@ -320,6 +325,9 @@ func testPromoteQueuedMessageE1SynthesizesToolCancellations(t *testing.T) {
 	require.Equal(t, database.ChatMessageRoleUser, promote.InsertedMessage.Role)
 	require.Less(t, promote.CancellationMessages[0].ID, promote.InsertedMessage.ID,
 		"cancel is inserted before the promoted user message")
+	require.False(t, promote.CancellationMessages[0].QueuedMessageID.Valid,
+		"synthetic cancellations are not promoted from the queue")
+	requireQueuedMessageLink(t, *promote.InsertedMessage, queued.QueuedMessage.ID)
 }
 
 // testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations
@@ -363,6 +371,9 @@ func testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations(t *testing.T)
 	assertToolResultForCall(t, promote.CancellationMessages[0], dynCallID)
 	require.NotNil(t, promote.InsertedMessage)
 	require.Equal(t, database.ChatMessageRoleUser, promote.InsertedMessage.Role)
+	require.False(t, promote.CancellationMessages[0].QueuedMessageID.Valid,
+		"synthetic cancellations are not promoted from the queue")
+	requireQueuedMessageLink(t, *promote.InsertedMessage, queued.QueuedMessage.ID)
 }
 
 func TestSyntheticCancellation_FinishTurn(t *testing.T) {
@@ -414,6 +425,9 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 	require.NoError(t, err)
 	assertToolResultForCall(t, cancel, callID)
 	require.Equal(t, finish.PromotedMessage.ID, newIDs[1])
+	require.False(t, cancel.QueuedMessageID.Valid,
+		"synthetic cancellations are not promoted from the queue")
+	requireQueuedMessageLink(t, *finish.PromotedMessage, queued.QueuedMessage.ID)
 }
 
 func TestSyntheticCancellation_FinishInterruption(t *testing.T) {
@@ -510,7 +524,3 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 	require.Equal(t, publishedBefore, len(f.Pub.channels),
 		"failed FinishInterruption publishes nothing")
 }
-
-// ensure unused imports don't break the build if any helper is
-// removed later.
-var _ = context.Background

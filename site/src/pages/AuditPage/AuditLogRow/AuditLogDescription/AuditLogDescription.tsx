@@ -1,14 +1,13 @@
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { BuildAuditDescription } from "./BuildAuditDescription";
 
-interface AuditLogDescriptionProps {
+type AuditLogDescriptionProps = {
 	auditLog: AuditLog;
-}
+};
 
-export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
+export const AuditLogDescription: React.FC<AuditLogDescriptionProps> = ({
 	auditLog,
 }) => {
 	if (auditLog.resource_type === "workspace_build") {

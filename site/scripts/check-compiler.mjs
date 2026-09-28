@@ -19,6 +19,7 @@ const siteDir = new URL("..", import.meta.url).pathname;
 // Directories opted in to React Compiler. Keep this list in sync with
 // the include filter in vite.config.mts.
 const targetDirs = [
+	"src/modules/aiModels",
 	"src/pages/AgentsPage",
 	"src/pages/AIBridgePage",
 	"src/pages/TemplateBuilder",

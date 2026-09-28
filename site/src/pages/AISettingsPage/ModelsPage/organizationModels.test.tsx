@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -10,6 +9,7 @@ import {
 } from "#/testHelpers/entities";
 import {
 	organizationAddModelPath,
+	organizationModelsPath,
 	selectModelOrganization,
 	useAccessibleModelOrganizations,
 } from "./organizationModels";
@@ -18,7 +18,7 @@ const createQueryWrapper = () => {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	const wrapper = ({ children }: PropsWithChildren) => (
+	const wrapper = ({ children }: React.PropsWithChildren) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	return { queryClient, wrapper };
@@ -65,6 +65,12 @@ describe("selectModelOrganization", () => {
 			organization: MockDefaultOrganization,
 			requestedOrganizationDenied: true,
 		});
+	});
+
+	it("builds an organization-scoped models path", () => {
+		expect(organizationModelsPath(MockOrganization2)).toBe(
+			`/ai/settings/models?org=${MockOrganization2.name}`,
+		);
 	});
 
 	it("preserves auxiliary parameters in organization model paths", () => {

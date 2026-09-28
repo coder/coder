@@ -1,3 +1,7 @@
+---
+toc_depth: 2
+---
+
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # Configuration reference
 
@@ -48,6 +52,14 @@ The default lifetime duration for API tokens. This value is used when creating a
 - CLI flag: [`--default-token-lifetime`](../../reference/cli/server.md#--default-token-lifetime)
 - YAML key: `defaultTokenLifetime`
 - Default value: `168h0m0s`
+
+### Disable chat caller-supplied tools
+
+Disable caller-supplied tools in chats. Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run without their dynamic tools and inline MCP servers.
+
+- Environment variable: `CODER_DISABLE_CHAT_CALLER_SUPPLIED_TOOLS`
+- CLI flag: [`--disable-chat-caller-supplied-tools`](../../reference/cli/server.md#--disable-chat-caller-supplied-tools)
+- YAML key: `disableChatCallerSuppliedTools`
 
 ### Disable chat sharing
 
@@ -313,86 +325,6 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - YAML key: `ai_gateway.structured_logging`
 - Default value: `false`
 
-### Anthropic base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the Anthropic API.
-
-- Environment variable: `CODER_AI_GATEWAY_ANTHROPIC_BASE_URL`
-- CLI flag: [`--ai-gateway-anthropic-base-url`](../../reference/cli/server.md#--ai-gateway-anthropic-base-url)
-- YAML key: `ai_gateway.anthropic_base_url`
-- Default value: `https://api.anthropic.com/`
-
-### Anthropic key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the Anthropic API.
-
-- Environment variable: `CODER_AI_GATEWAY_ANTHROPIC_KEY`
-- CLI flag: [`--ai-gateway-anthropic-key`](../../reference/cli/server.md#--ai-gateway-anthropic-key)
-
-### Bedrock access key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key to authenticate against the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY`
-- CLI flag: [`--ai-gateway-bedrock-access-key`](../../reference/cli/server.md#--ai-gateway-bedrock-access-key)
-
-### Bedrock access key secret
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key secret to use with the access key to authenticate against the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET`
-- CLI flag: [`--ai-gateway-bedrock-access-key-secret`](../../reference/cli/server.md#--ai-gateway-bedrock-access-key-secret)
-
-### Bedrock base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_BASE_URL`
-- CLI flag: [`--ai-gateway-bedrock-base-url`](../../reference/cli/server.md#--ai-gateway-bedrock-base-url)
-- YAML key: `ai_gateway.bedrock_base_url`
-
-### Bedrock model
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The model to use when making requests to the AWS Bedrock API.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_MODEL`
-- CLI flag: [`--ai-gateway-bedrock-model`](../../reference/cli/server.md#--ai-gateway-bedrock-model)
-- YAML key: `ai_gateway.bedrock_model`
-- Default value: `global.anthropic.claude-sonnet-4-5-20250929-v1:0`
-
-### Bedrock region
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of `https://bedrock-runtime.<region>.amazonaws.com`.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_REGION`
-- CLI flag: [`--ai-gateway-bedrock-region`](../../reference/cli/server.md#--ai-gateway-bedrock-region)
-- YAML key: `ai_gateway.bedrock_region`
-
-### Bedrock small fast model
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
-
-- Environment variable: `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL`
-- CLI flag: [`--ai-gateway-bedrock-small-fastmodel`](../../reference/cli/server.md#--ai-gateway-bedrock-small-fastmodel)
-- YAML key: `ai_gateway.bedrock_small_fast_model`
-- Default value: `global.anthropic.claude-haiku-4-5-20251001-v1:0`
-
-### OpenAI base URL
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the OpenAI API.
-
-- Environment variable: `CODER_AI_GATEWAY_OPENAI_BASE_URL`
-- CLI flag: [`--ai-gateway-openai-base-url`](../../reference/cli/server.md#--ai-gateway-openai-base-url)
-- YAML key: `ai_gateway.openai_base_url`
-- Default value: `https://api.openai.com/v1/`
-
-### OpenAI key
-
-**Deprecated**: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the OpenAI API.
-
-- Environment variable: `CODER_AI_GATEWAY_OPENAI_KEY`
-- CLI flag: [`--ai-gateway-openai-key`](../../reference/cli/server.md#--ai-gateway-openai-key)
-
 ## AI Gateway Proxy
 
 ### API dump directory
@@ -498,13 +430,76 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 - YAML key: `chat.debugLoggingEnabled`
 - Default value: `false`
 
+### Max attachments per chat
+
+Maximum number of files linked to a chat, including user uploads, files the agent attaches, and desktop recordings and their thumbnails. Linking a file beyond the limit permanently deletes the chat's earliest-uploaded files, and earlier messages show them as expired. A message that includes more files than the limit is rejected with HTTP 400. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`
+- CLI flag: [`--chat-max-attachments-per-chat`](../../reference/cli/server.md#--chat-max-attachments-per-chat)
+- YAML key: `chat.maxAttachmentsPerChat`
+- Default value: `50`
+
+### Max concurrent recording uploads
+
+Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`
+- CLI flag: [`--chat-max-concurrent-recording-uploads`](../../reference/cli/server.md#--chat-max-concurrent-recording-uploads)
+- YAML key: `chat.maxConcurrentRecordingUploads`
+- Default value: `25`
+
+### Max generation retries
+
+Maximum number of consecutive retries after a model generation fails with a transient error, such as a rate limit, an overloaded provider, or a stream that stops sending data. The count resets after each successful step. When the retries run out, the chat moves to the error state and shows the provider error. Advisor calls and the generation of chat titles, summaries, and turn status labels use the same limit. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_GENERATION_RETRIES`
+- CLI flag: [`--chat-max-generation-retries`](../../reference/cli/server.md#--chat-max-generation-retries)
+- YAML key: `chat.maxGenerationRetries`
+- Default value: `25`
+
+### Max prompt bytes
+
+Maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. Saving a longer prompt fails with HTTP 400. Lowering the limit does not affect prompts that are already saved. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_PROMPT_BYTES`
+- CLI flag: [`--chat-max-prompt-bytes`](../../reference/cli/server.md#--chat-max-prompt-bytes)
+- YAML key: `chat.maxPromptBytes`
+- Default value: `131072`
+
+### Max queued messages per chat
+
+Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`
+- CLI flag: [`--chat-max-queued-messages-per-chat`](../../reference/cli/server.md#--chat-max-queued-messages-per-chat)
+- YAML key: `chat.maxQueuedMessagesPerChat`
+- Default value: `20`
+
+### Max steps per turn
+
+Maximum number of steps in a chat turn. Each model response is one step; compaction summaries, advisor calls, and retried attempts do not count. A turn that reaches the limit runs the tools from the last response, then ends without an error. Must be at least 1.
+
+- Environment variable: `CODER_CHAT_MAX_STEPS_PER_TURN`
+- CLI flag: [`--chat-max-steps-per-turn`](../../reference/cli/server.md#--chat-max-steps-per-turn)
+- YAML key: `chat.maxStepsPerTurn`
+- Default value: `1200`
+
+### Stream silence timeout
+
+Maximum time to wait for the next streamed part from the chat model before the attempt is canceled and retried. This also bounds the time to first token. Set to 0 to disable. Must be no more than 24h.
+
+- Environment variable: `CODER_CHAT_STREAM_SILENCE_TIMEOUT`
+- CLI flag: [`--chat-stream-silence-timeout`](../../reference/cli/server.md#--chat-stream-silence-timeout)
+- YAML key: `chat.streamSilenceTimeout`
+- Default value: `10m0s`
+
 ## Client
 
 These options change the behavior of how clients interact with the Coder. Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 
 ### CLI upgrade message
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -fsSL https://coder.com/install.sh | sh'.
 
 - Environment variable: `CODER_CLI_UPGRADE_MESSAGE`
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server.md#--cli-upgrade-message)
@@ -1388,7 +1383,7 @@ The endpoint to which to send webhooks.
 
 ## OAuth2
 
-Configure login and user-provisioning with GitHub via oAuth2.
+Configure OAuth2: GitHub login and user-provisioning, and Coder's own OAuth 2.1 authorization server.
 
 ### GitHub
 
@@ -1464,6 +1459,17 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 - Environment variable: `CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL`
 - CLI flag: [`--oauth2-github-enterprise-base-url`](../../reference/cli/server.md#--oauth2-github-enterprise-base-url)
 - YAML key: `oauth2.github.enterpriseBaseURL`
+
+### Provider
+
+#### Enable
+
+Enable the OAuth 2.1 authorization server, which lets external applications (such as MCP clients) obtain tokens for Coder on behalf of users. Disabled by default. When disabled, the OAuth2 endpoints and discovery documents return 404.
+
+- Environment variable: `CODER_OAUTH2_PROVIDER_ENABLE`
+- CLI flag: [`--oauth2-provider-enable`](../../reference/cli/server.md#--oauth2-provider-enable)
+- YAML key: `oauth2.provider.enable`
+- Default value: `false`
 
 ## OIDC
 
@@ -1698,6 +1704,15 @@ OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
 
 Tune the behavior of the provisioner, which is responsible for creating, updating, and deleting workspace resources.
 
+### Disable Terraform module cache
+
+Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.
+
+- Environment variable: `CODER_PROVISIONER_DISABLE_MODULE_CACHE`
+- CLI flag: [`--provisioner-disable-module-cache`](../../reference/cli/server.md#--provisioner-disable-module-cache)
+- YAML key: `provisioning.disableModuleCache`
+- Default value: `false`
+
 ### Force cancel interval
 
 Time to force cancel provisioning tasks that are stuck.
@@ -1857,7 +1872,10 @@ How often to reconcile workspace prebuilds state.
 - YAML key: `workspace_prebuilds.reconciliation_interval`
 - Default value: `1m0s`
 
-## ⚠️ Dangerous
+## Dangerous
+
+> [!CAUTION]
+> These options can break your deployment or weaken its security. Change them only when you understand the consequences.
 
 ### Allow path app sharing
 

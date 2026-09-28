@@ -1,4 +1,6 @@
-# Resource persistence
+---
+title: Resource persistence
+---
 
 By default, all Coder resources are persistent, but production templates
 **must** use the practices laid out in this document to prevent accidental

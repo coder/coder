@@ -5,11 +5,10 @@ import {
 	MousePointer2Icon,
 	ScalingIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 export type ScaleMode = "native" | "fit";
 
-interface DesktopToolbarProps {
+type DesktopToolbarProps = {
 	scaleMode: ScaleMode;
 	onScaleModeChange: (mode: ScaleMode) => void;
 	isControlling: boolean;
@@ -17,9 +16,9 @@ interface DesktopToolbarProps {
 	onReleaseControl: () => void;
 	onPopOut?: () => void;
 	isPoppedOut?: boolean;
-}
+};
 
-export const DesktopToolbar: FC<DesktopToolbarProps> = ({
+export const DesktopToolbar: React.FC<DesktopToolbarProps> = ({
 	scaleMode,
 	onScaleModeChange,
 	isControlling,

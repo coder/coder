@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -28,11 +28,13 @@ export type UserAdminAction =
 type UserActionDialogsProps = {
 	action: UserAdminAction | undefined;
 	onClose: () => void;
+	onDeleted?: (user: User) => void;
 };
 
-export const UserActionDialogs: FC<UserActionDialogsProps> = ({
+export const UserActionDialogs: React.FC<UserActionDialogsProps> = ({
 	action,
 	onClose,
+	onDeleted,
 }) => {
 	const queryClient = useQueryClient();
 	const user = action?.user;
@@ -99,6 +101,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 							await deleteUserMutation.mutateAsync(user.id);
 							onClose();
 							toast.success(`User "${user.username}" deleted successfully.`);
+							onDeleted?.(user);
 						} catch (error) {
 							toast.error(
 								getErrorMessage(
@@ -215,7 +218,7 @@ export const UserActionDialogs: FC<UserActionDialogsProps> = ({
 	);
 };
 
-const ResetPasswordAction: FC<{
+const ResetPasswordAction: React.FC<{
 	user: User;
 	loading: boolean;
 	onClose: () => void;

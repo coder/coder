@@ -1,4 +1,3 @@
-import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
@@ -9,7 +8,7 @@ import {
 } from "#/components/PageHeader/PageHeader";
 import { docs } from "#/utils/docs";
 
-const AIBridgeSessionsLayout: FC<PropsWithChildren> = () => {
+const AIBridgeSessionsLayout: React.FC<React.PropsWithChildren> = () => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader>

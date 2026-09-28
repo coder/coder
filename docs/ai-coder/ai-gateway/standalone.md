@@ -1,4 +1,6 @@
-# Deploy AI Gateway as a standalone service
+---
+title: Deploy AI Gateway as a standalone service
+---
 
 > [!NOTE]
 > AI Gateway requires a [Premium](../ai-governance.md) license.
@@ -58,7 +60,6 @@ Set `CODER_AI_GATEWAY_HTTP_ADDRESS` to a routable address, as shown previously, 
 
 The standalone gateway fetches provider configuration from `coderd`.
 Configure at least one [AI provider](./providers.md) in Coder before sending provider traffic through the gateway.
-The standalone gateway does not use the deprecated [provider seed variables](./providers.md#database-management-of-providers).
 
 The listener uses HTTP by default.
 Set both `CODER_AI_GATEWAY_TLS_CERT_FILE` and `CODER_AI_GATEWAY_TLS_KEY_FILE` to terminate TLS in the process.
@@ -184,7 +185,7 @@ Configure AI Gateway Proxy and direct AI clients to send requests to the standal
 
 ### AI Gateway Proxy
 
-[AI Gateway Proxy](./ai-gateway-proxy/index.md) remains part of the `coder server` process.
+[AI Gateway Proxy](./ai-gateway-proxy/index.md) remains part of the `coderd` process.
 Configure its target to use the standalone Service, Ingress, `HTTPRoute`, or load balancer.
 
 If you installed the Helm chart, get the exact in-cluster Service URL from the chart notes:

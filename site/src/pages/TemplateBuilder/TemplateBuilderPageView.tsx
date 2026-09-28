@@ -1,11 +1,4 @@
-import {
-	type FC,
-	useCallback,
-	useEffect,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
@@ -59,7 +52,7 @@ import {
 	wizardReducer,
 } from "./wizardState";
 
-interface TemplateBuilderPageViewProps {
+type TemplateBuilderPageViewProps = {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
@@ -71,9 +64,11 @@ interface TemplateBuilderPageViewProps {
 	isCreating: boolean;
 	onClearCreateError?: () => void;
 	sessionId: string;
-}
+};
 
-export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
+export const TemplateBuilderPageView: React.FC<
+	TemplateBuilderPageViewProps
+> = ({
 	error,
 	basesData,
 	preselectedBase,
@@ -151,6 +146,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		moduleVarMap,
 	);
 
+	const [showContinueError, setShowContinueError] = useState(false);
+	const [errorStepId, setErrorStepId] = useState(currentStep.id);
+
+	// Hide the validation message once the step's requirements are satisfied
+	// or the user moves to a different step. Both are render-time state
+	// adjustments rather than effects.
+	if (errorStepId !== currentStep.id) {
+		setErrorStepId(currentStep.id);
+		setShowContinueError(false);
+	} else if (showContinueError && canContinue) {
+		setShowContinueError(false);
+	}
+
 	// Pushes a history entry so browser back/forward walks the steps.
 	const navigateToStep = useCallback(
 		(index: number) => {
@@ -170,6 +178,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
+		if (!canContinue) {
+			setShowContinueError(true);
+			return;
+		}
 		navigateToStep(nextIndex);
 	};
 
@@ -310,6 +322,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							onRemoveModule={handleDeselectModule}
 							registerModuleRef={registerModuleRef}
 							onCreate={handleCreate}
+							showValidationErrors={showContinueError}
 						/>
 					</div>
 
@@ -331,11 +344,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Create Template
 							</Button>
 						) : (
-							<Button onClick={handleNext} disabled={!canContinue}>
-								Continue
-							</Button>
+							<Button onClick={handleNext}>Continue</Button>
 						)}
 					</div>
+
+					{showContinueError && !canContinue && (
+						<p className="flex justify-end mt-2 mb-0 text-xs text-content-destructive">
+							{getContinueErrorMessage(currentStep.id)}
+						</p>
+					)}
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
 				</div>
@@ -367,7 +384,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 };
 
-interface StepContentProps {
+type StepContentProps = {
 	stepId: StepId;
 	state: TemplateBuilderWizardState;
 	dispatch: (action: WizardAction) => void;
@@ -377,9 +394,10 @@ interface StepContentProps {
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
 	onCreate: (values: CustomizationsFormValues) => void;
-}
+	showValidationErrors: boolean;
+};
 
-const StepContent: FC<StepContentProps> = ({
+const StepContent: React.FC<StepContentProps> = ({
 	stepId,
 	state,
 	dispatch,
@@ -389,6 +407,7 @@ const StepContent: FC<StepContentProps> = ({
 	onRemoveModule,
 	registerModuleRef,
 	onCreate,
+	showValidationErrors,
 }) => {
 	switch (stepId) {
 		case "base-infra":
@@ -407,6 +426,7 @@ const StepContent: FC<StepContentProps> = ({
 					onChangeValues={(values) =>
 						dispatch({ type: "SET_BASE_VARIABLES", values })
 					}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "module-select":
@@ -436,6 +456,7 @@ const StepContent: FC<StepContentProps> = ({
 					}
 					onRemoveModule={onRemoveModule}
 					registerModuleRef={registerModuleRef}
+					showErrors={showValidationErrors}
 				/>
 			);
 		case "customizations":
@@ -453,6 +474,23 @@ const StepContent: FC<StepContentProps> = ({
 			return null;
 	}
 };
+
+/**
+ * Human-readable reason a step's requirements are not yet met, shown in red
+ * when the user clicks Continue on an incomplete step.
+ */
+function getContinueErrorMessage(stepId: StepId): string {
+	switch (stepId) {
+		case "base-infra":
+			return "Select a base template to continue.";
+		case "base-parameters":
+			return "Fill in all required parameters to continue.";
+		case "module-settings":
+			return "Fill in all required module settings to continue.";
+		default:
+			return "Complete this step to continue.";
+	}
+}
 
 function computeCanContinue(
 	stepId: StepId,

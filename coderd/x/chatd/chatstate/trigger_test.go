@@ -25,7 +25,7 @@ type triggerFixture struct {
 
 func newTriggerFixture(t *testing.T) *triggerFixture {
 	t.Helper()
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -41,12 +41,11 @@ func newTriggerFixture(t *testing.T) *triggerFixture {
 		IsDefault: true,
 	})
 	f := &testFixture{
-		DB:     db,
-		PubSub: ps,
-		Pub:    newRecordingPubsub(),
-		User:   user,
-		Org:    org,
-		Model:  model,
+		DB:    db,
+		Pub:   newRecordingPubsub(),
+		User:  user,
+		Org:   org,
+		Model: model,
 	}
 	return &triggerFixture{f: f, sqlDB: sqlDB}
 }

@@ -3,6 +3,7 @@ package httpmw_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -126,4 +127,85 @@ func TestWorkspaceAppCors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCors(t *testing.T) {
+	t.Parallel()
+
+	const origin = "https://app.example.com"
+
+	handler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.WriteHeader(http.StatusNoContent)
+	})
+
+	// send returns the recorded response for a cross-origin request. An
+	// OPTIONS request is sent as a preflight for a POST.
+	send := func(t *testing.T, allowAll bool, method, path string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(method, path, nil)
+		r.Header.Set("Origin", origin)
+		if method == http.MethodOptions {
+			r.Header.Set("Access-Control-Request-Method", http.MethodPost)
+		}
+		rw := httptest.NewRecorder()
+		httpmw.Cors(allowAll)(handler).ServeHTTP(rw, r)
+		return rw
+	}
+
+	tests := []struct {
+		name       string
+		path       string
+		permissive bool
+	}{
+		{name: "Authorize", path: "/oauth2/authorize", permissive: false},
+		{name: "AuthorizeTrailingSlash", path: "/oauth2/authorize/", permissive: false},
+		{name: "AuthorizeSubpath", path: "/oauth2/authorize/extra", permissive: false},
+		{name: "AuthorizeRepeatedSlash", path: "/oauth2//authorize", permissive: false},
+		{name: "AuthorizeLeadingRepeatedSlash", path: "//oauth2/authorize", permissive: false},
+		{name: "Tokens", path: "/oauth2/tokens", permissive: true},
+		{name: "Revoke", path: "/oauth2/revoke", permissive: true},
+		{name: "Register", path: "/oauth2/register", permissive: true},
+		{name: "Clients", path: "/oauth2/clients/abc", permissive: true},
+		{name: "AuthorizationServerMetadata", path: "/.well-known/oauth-authorization-server", permissive: true},
+		{name: "ProtectedResourceMetadata", path: "/.well-known/oauth-protected-resource", permissive: true},
+		{name: "MCP", path: "/api/v2/mcp/http", permissive: true},
+		{name: "API", path: "/api/v2/users/me", permissive: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodOptions} {
+				rw := send(t, false, method, test.path)
+
+				if test.permissive {
+					require.Equal(t, "*", rw.Header().Get("Access-Control-Allow-Origin"), method)
+					if method == http.MethodOptions {
+						require.Equal(t, "86400", rw.Header().Get("Access-Control-Max-Age"))
+					}
+				} else {
+					for name := range rw.Header() {
+						require.False(t, strings.HasPrefix(name, "Access-Control-"), "%s %s sent %s", method, test.path, name)
+					}
+				}
+
+				// The middleware answers preflights itself with a 200.
+				if method == http.MethodOptions {
+					require.Equal(t, http.StatusOK, rw.Code)
+				} else {
+					require.Equal(t, http.StatusNoContent, rw.Code)
+				}
+			}
+		})
+	}
+
+	// With every origin allowed, the authorization endpoint behaves like the
+	// rest of the site.
+	t.Run("AllowAll", func(t *testing.T) {
+		t.Parallel()
+
+		rw := send(t, true, http.MethodGet, "/oauth2/authorize")
+		require.Equal(t, "*", rw.Header().Get("Access-Control-Allow-Origin"))
+	})
 }

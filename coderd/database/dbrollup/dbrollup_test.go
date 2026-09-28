@@ -75,7 +75,7 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 		CreatedAt:                 refTime.Add(-time.Minute),
 		ConnectionMedianLatencyMS: 1,
 		ConnectionCount:           1,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 
 	closeRolluper := func(rolluper *dbrollup.Rolluper, resume chan struct{}) {
@@ -135,7 +135,7 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 func TestRollupTemplateUsageStats(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 	anHourAgo := dbtime.Now().Add(-time.Hour).Truncate(time.Hour).UTC()
@@ -163,7 +163,7 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 		CreatedAt:                 anHourAndSixMonthsAgo.AddDate(0, 0, -1),
 		ConnectionMedianLatencyMS: 1,
 		ConnectionCount:           1,
-		SessionCountSSH:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"ssh": 1}),
 	})
 	_ = dbgen.WorkspaceAppStat(t, db, database.WorkspaceAppStat{
 		UserID:           user.ID,
@@ -176,24 +176,24 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 
 	// Stats inserted 6 months - 1 day ago, should be rolled up.
 	wags1 := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		TemplateID:                  tpl.ID,
-		WorkspaceID:                 ws.ID,
-		AgentID:                     agent.ID,
-		UserID:                      user.ID,
-		CreatedAt:                   anHourAndSixMonthsAgo.AddDate(0, 0, 1),
-		ConnectionMedianLatencyMS:   1,
-		ConnectionCount:             1,
-		SessionCountReconnectingPTY: 1,
+		TemplateID:                tpl.ID,
+		WorkspaceID:               ws.ID,
+		AgentID:                   agent.ID,
+		UserID:                    user.ID,
+		CreatedAt:                 anHourAndSixMonthsAgo.AddDate(0, 0, 1),
+		ConnectionMedianLatencyMS: 1,
+		ConnectionCount:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"reconnecting_pty": 1}),
 	})
 	wags2 := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-		TemplateID:                  tpl.ID,
-		WorkspaceID:                 ws.ID,
-		AgentID:                     agent.ID,
-		UserID:                      user.ID,
-		CreatedAt:                   wags1.CreatedAt.Add(time.Minute),
-		ConnectionMedianLatencyMS:   1,
-		ConnectionCount:             1,
-		SessionCountReconnectingPTY: 1,
+		TemplateID:                tpl.ID,
+		WorkspaceID:               ws.ID,
+		AgentID:                   agent.ID,
+		UserID:                    user.ID,
+		CreatedAt:                 wags1.CreatedAt.Add(time.Minute),
+		ConnectionMedianLatencyMS: 1,
+		ConnectionCount:           1,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{"reconnecting_pty": 1}),
 	})
 	// wags2 and waps1 overlap, so total usage is 4 - 1.
 	waps1 := dbgen.WorkspaceAppStat(t, db, database.WorkspaceAppStat{
@@ -244,15 +244,21 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	stats[0].StartTime = stats[0].StartTime.UTC()
 
 	require.Equal(t, database.TemplateUsageStat{
-		TemplateID:          tpl.ID,
-		UserID:              user.ID,
-		StartTime:           wags1.CreatedAt,
-		EndTime:             wags1.CreatedAt.Add(30 * time.Minute),
-		MedianLatencyMs:     sql.NullFloat64{Float64: 1, Valid: true},
-		UsageMins:           3,
-		ReconnectingPtyMins: 2,
+		TemplateID:      tpl.ID,
+		UserID:          user.ID,
+		StartTime:       wags1.CreatedAt,
+		EndTime:         wags1.CreatedAt.Add(30 * time.Minute),
+		MedianLatencyMs: sql.NullFloat64{Float64: 1, Valid: true},
+		UsageMins:       3,
 		AppUsageMins: database.StringMapOfInt{
 			app.Slug: 2,
 		},
 	}, stats[0])
+
+	// Session minutes live in the child table, keyed by app name.
+	var usageMins int64
+	err = sqlDB.QueryRowContext(ctx, "SELECT usage_mins FROM template_usage_stats_session_apps WHERE start_time = $1 AND template_id = $2 AND user_id = $3 AND app_name = $4",
+		wags1.CreatedAt, tpl.ID, user.ID, "reconnecting_pty").Scan(&usageMins)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, usageMins)
 }

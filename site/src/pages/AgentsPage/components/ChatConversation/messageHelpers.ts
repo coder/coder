@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { asRecord } from "../ChatElements/runtimeTypeUtils";
 import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type {
 	ParsedMessageContent,
@@ -11,13 +12,20 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type WorkspaceFileReferenceBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-file-reference" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
+	workspaceFileReferenceCount: number;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
+	hasWorkspaceFileReferences: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -39,6 +47,11 @@ const isUserInlineRenderBlock = (
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
+
+const isWorkspaceFileReferenceBlock = (
+	block: RenderBlock,
+): block is WorkspaceFileReferenceBlock =>
+	block.type === "workspace-file-reference";
 
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -62,8 +75,12 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 		}),
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
+	// Workspace file references render as chips from the display
+	// state, not as standalone timeline blocks.
 	const visibleBlocks = parsed.blocks.filter(
-		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+		(block) =>
+			block.type !== "workspace-file-reference" &&
+			(block.type !== "tool" || visibleToolIds.has(block.id)),
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
@@ -140,6 +157,11 @@ export const deriveMessageDisplayState = ({
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const workspaceFileBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
+		: [];
+	const workspaceFileReferenceCount = workspaceFileBlocks.length;
+	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
@@ -153,6 +175,7 @@ export const deriveMessageDisplayState = ({
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) &&
 		!hasFileAttachments &&
+		!hasWorkspaceFileReferences &&
 		(isUser || endsWithResponseBlock);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
@@ -165,8 +188,11 @@ export const deriveMessageDisplayState = ({
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
 		userFileBlocks,
+		workspaceFileBlocks,
+		workspaceFileReferenceCount,
 		hasUserMessageBody,
 		hasFileBlocks,
+		hasWorkspaceFileReferences,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};
@@ -263,4 +289,54 @@ export const buildDisplayMessages = (
 
 	flushReadFileEntries();
 	return grouped;
+};
+
+const NO_FILE_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Chat files a message part references, in the order the server linked
+ * them. A wait_agent result stores its recording before its thumbnail.
+ */
+const partFileIds = (part: TypesGen.ChatMessagePart): string[] => {
+	switch (part.type) {
+		case "file":
+			return part.file_id ? [part.file_id] : [];
+		case "tool-result": {
+			const result = asRecord(part.result);
+			return [result?.recording_file_id, result?.thumbnail_file_id].filter(
+				(fileId): fileId is string =>
+					typeof fileId === "string" && fileId.length > 0,
+			);
+		}
+		default:
+			return [];
+	}
+};
+
+/**
+ * Eviction removes a chat's oldest attachments first, and the chat record
+ * lists the attachments that remain. An attachment referenced before the
+ * newest remaining one but absent from the record has been evicted. Later
+ * references are newer than the record, so a message that lands before the
+ * next chat refetch is never mistaken for an evicted one.
+ */
+export const deriveEvictedFileIds = (
+	entries: readonly ParsedMessageEntry[],
+	chatFiles: readonly TypesGen.ChatFileMetadata[] | undefined,
+): ReadonlySet<string> => {
+	if (!chatFiles) {
+		return NO_FILE_IDS;
+	}
+	const linkedFileIds = new Set(chatFiles.map((file) => file.id));
+	const referencedFileIds = entries.flatMap(({ message }) =>
+		(message.content ?? []).flatMap(partFileIds),
+	);
+	const newestLinkedIndex = referencedFileIds.findLastIndex((fileId) =>
+		linkedFileIds.has(fileId),
+	);
+	return new Set(
+		referencedFileIds
+			.slice(0, Math.max(newestLinkedIndex, 0))
+			.filter((fileId) => !linkedFileIds.has(fileId)),
+	);
 };

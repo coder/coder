@@ -1,5 +1,5 @@
 import { ArrowLeftIcon, TrashIcon, UserPlusIcon } from "lucide-react";
-import { type ComponentProps, type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Link,
@@ -53,10 +53,10 @@ export type GroupPageOutletContext = {
 	organization: string;
 	groupQuery: ReturnType<typeof useQuery>;
 	membersQuery: PaginationResult;
-	filterProps: ComponentProps<typeof UsersFilter>;
+	filterProps: React.ComponentProps<typeof UsersFilter>;
 };
 
-const GroupPage: FC = () => {
+const GroupPage: React.FC = () => {
 	const { organization = "default", groupName } = useParams() as {
 		organization?: string;
 		groupName: string;
@@ -246,12 +246,12 @@ const GroupPage: FC = () => {
 	);
 };
 
-interface AddUsersDialogProps {
+type AddUsersDialogProps = {
 	onSubmit: (users: OrganizationMemberWithUserData[]) => Promise<void>;
 	organizationId: string;
-}
+};
 
-const AddUsersDialog: FC<AddUsersDialogProps> = ({
+const AddUsersDialog: React.FC<AddUsersDialogProps> = ({
 	onSubmit,
 	organizationId,
 }) => {

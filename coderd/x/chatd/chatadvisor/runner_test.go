@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"charm.land/fantasy"
@@ -41,6 +42,7 @@ func TestAdvisorRunAdvice(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: maxOutputTokens,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -83,6 +85,7 @@ func TestAdvisorRunTruncatesLongQuestion(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -114,6 +117,7 @@ func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -126,6 +130,54 @@ func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
 	require.Equal(t, []string{"Use ", "the smaller ", "diff."}, deltas)
 	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
 	require.Equal(t, "Use the smaller diff.", result.Advice)
+	require.Equal(t, 1, result.RemainingUses)
+}
+
+func TestAdvisorRunStreamsReasoningDeltasSeparatelyFromAdvice(t *testing.T) {
+	t.Parallel()
+
+	var (
+		adviceDeltas    []string
+		reasoningDeltas []string
+	)
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "checking "},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "tradeoffs"},
+					{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use "},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "the smaller diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   2,
+		MaxOutputTokens: 128,
+		MaxRetries:      1,
+	})
+	require.NoError(t, err)
+
+	result, err := runtime.RunAdvisor(t.Context(), "what should I do?", nil, &chatadvisor.RunAdvisorOptions{
+		OnAdviceDelta: func(delta string) {
+			adviceDeltas = append(adviceDeltas, delta)
+		},
+		OnReasoningDelta: func(delta string) {
+			reasoningDeltas = append(reasoningDeltas, delta)
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"checking ", "tradeoffs"}, reasoningDeltas)
+	require.Equal(t, []string{"Use ", "the smaller diff."}, adviceDeltas)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, "Use the smaller diff.", result.Advice)
+	require.NotContains(t, result.Advice, "checking")
 	require.Equal(t, 1, result.RemainingUses)
 }
 
@@ -159,6 +211,7 @@ func TestAdvisorRunResetsAdviceDeltasOnRetry(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -166,7 +219,7 @@ func TestAdvisorRunResetsAdviceDeltasOnRetry(t *testing.T) {
 		OnAdviceDelta: func(delta string) {
 			events = append(events, "delta:"+delta)
 		},
-		OnAdviceReset: func() {
+		OnLiveOutputReset: func() {
 			events = append(events, "reset")
 		},
 	})
@@ -194,6 +247,7 @@ func TestAdvisorRunErrorAfterPartialDelta(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -229,6 +283,7 @@ func TestAdvisorRunLimitReached(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -257,6 +312,7 @@ func TestAdvisorRunError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -292,6 +348,7 @@ func TestAdvisorRunError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -305,6 +362,39 @@ func TestAdvisorRunError(t *testing.T) {
 	require.Equal(t, chatadvisor.ResultTypeAdvice, retried.Type)
 	require.Equal(t, "recovered", retried.Advice)
 	require.Equal(t, 0, retried.RemainingUses)
+}
+
+func TestAdvisorRunStopsAtRetryLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, maxRetries := range []int{1, 2} {
+		t.Run(fmt.Sprintf("MaxRetries%d", maxRetries), func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+			runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+				Model: &chattest.FakeModel{
+					ProviderName: "test-provider",
+					ModelName:    "test-model",
+					StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+						calls.Add(1)
+						return nil, xerrors.New("received status 429 from upstream")
+					},
+				},
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+				MaxRetries:      maxRetries,
+			})
+			require.NoError(t, err)
+
+			result, err := runtime.RunAdvisor(t.Context(), "flaky?", nil, nil)
+			require.NoError(t, err)
+			require.EqualValues(t, maxRetries+1, calls.Load())
+			require.Equal(t, chatadvisor.ResultTypeError, result.Type)
+			require.Contains(t, result.Error, "429")
+			require.Equal(t, 1, result.RemainingUses)
+		})
+	}
 }
 
 func TestAdvisorRunTextlessOutcomeDiagnostics(t *testing.T) {
@@ -375,6 +465,7 @@ func TestAdvisorRunTextlessOutcomeDiagnostics(t *testing.T) {
 				},
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: 64,
+				MaxRetries:      1,
 			})
 			require.NoError(t, err)
 
@@ -402,7 +493,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 	}{
 		{
 			name:    "NilModel",
-			cfg:     chatadvisor.RuntimeConfig{MaxUsesPerRun: 1, MaxOutputTokens: 64},
+			cfg:     chatadvisor.RuntimeConfig{MaxUsesPerRun: 1, MaxOutputTokens: 64, MaxRetries: 1},
 			errText: "advisor model is required",
 		},
 		{
@@ -411,6 +502,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   0,
 				MaxOutputTokens: 64,
+				MaxRetries:      1,
 			},
 			errText: "advisor max uses per run must be positive",
 		},
@@ -420,8 +512,29 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: 0,
+				MaxRetries:      1,
 			},
 			errText: "advisor max output tokens must be positive",
+		},
+		{
+			name: "ZeroMaxRetries",
+			cfg: chatadvisor.RuntimeConfig{
+				Model:           model,
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+				MaxRetries:      0,
+			},
+			errText: "advisor max retries must be positive",
+		},
+		{
+			name: "NegativeMaxRetries",
+			cfg: chatadvisor.RuntimeConfig{
+				Model:           model,
+				MaxUsesPerRun:   1,
+				MaxOutputTokens: 64,
+				MaxRetries:      -1,
+			},
+			errText: "advisor max retries must be positive",
 		},
 		{
 			name: "MismatchedCallTemplateMaxOutputTokens",
@@ -429,6 +542,7 @@ func TestNewRuntimeValidation(t *testing.T) {
 				Model:           model,
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: matchingTokens,
+				MaxRetries:      1,
 				CallTemplate: fantasy.Call{
 					MaxOutputTokens: &mismatchedTokens,
 				},
@@ -475,6 +589,7 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -534,6 +649,7 @@ func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 

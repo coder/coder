@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, TrashIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { User } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -18,14 +17,16 @@ type UserMoreActionsProps = {
 	onAction: (action: UserAdminAction) => void;
 	canViewActivity?: boolean;
 	oidcRoleSyncEnabled?: boolean;
+	showEdit?: boolean;
 };
 
-export const UserMoreActions: FC<UserMoreActionsProps> = ({
+export const UserMoreActions: React.FC<UserMoreActionsProps> = ({
 	user,
 	me,
 	onAction,
 	canViewActivity,
 	oidcRoleSyncEnabled,
+	showEdit = true,
 }) => {
 	return (
 		<DropdownMenu>
@@ -58,9 +59,11 @@ export const UserMoreActions: FC<UserMoreActionsProps> = ({
 					</DropdownMenuItem>
 				)}
 
-				<DropdownMenuItem asChild>
-					<Link to={user.username}>Edit</Link>
-				</DropdownMenuItem>
+				{showEdit && (
+					<DropdownMenuItem asChild>
+						<Link to={user.username}>Edit</Link>
+					</DropdownMenuItem>
+				)}
 
 				<DropdownMenuItem
 					disabled={user.login_type === "oidc" && oidcRoleSyncEnabled}

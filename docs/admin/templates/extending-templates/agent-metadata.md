@@ -1,4 +1,6 @@
-# Agent metadata
+---
+title: Agent metadata
+---
 
 ![agent-metadata](../../../images/admin/templates/agent-metadata-ui.png)
 

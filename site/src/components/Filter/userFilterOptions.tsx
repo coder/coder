@@ -15,8 +15,9 @@ type UserIdentity = Readonly<{ username: string; avatar_url?: string }>;
 // sentinel rather than a static username.
 const selfUserOption = (me: UserIdentity): FilterOption => ({
 	label: `${me.username} (you)`,
+	appliedLabel: "me",
 	value: "me",
-	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="md" />,
+	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
 // Users who cannot list other users still filter by themselves, so the user
@@ -52,7 +53,7 @@ export const getUserFilterOptions = async (
 			label: user.username,
 			value: user.username,
 			startIcon: (
-				<Avatar fallback={user.username} src={user.avatar_url} size="md" />
+				<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
 			),
 		}));
 

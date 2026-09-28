@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
@@ -10,7 +10,7 @@ import { pageTitle } from "#/utils/page";
 import { sendDeploymentEvent } from "#/utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
 
-export const SetupPage: FC = () => {
+export const SetupPage: React.FC = () => {
 	const {
 		isLoading,
 		signIn,
@@ -23,7 +23,7 @@ export const SetupPage: FC = () => {
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const setupRequired = useRef(false);
+	const [setupRequired, setSetupRequired] = useState(false);
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -40,7 +40,7 @@ export const SetupPage: FC = () => {
 
 	// If the user is logged in, navigate to the app
 	if (isSignedIn) {
-		return setupRequired.current ? (
+		return setupRequired ? (
 			<Navigate to="/templates/new/builder" replace />
 		) : (
 			<Navigate to="/" state={{ isRedirect: true }} replace />
@@ -52,7 +52,9 @@ export const SetupPage: FC = () => {
 		return <Navigate to="/login" state={{ isRedirect: true }} replace />;
 	}
 
-	setupRequired.current = true;
+	if (!setupRequired) {
+		setSetupRequired(true);
+	}
 
 	return (
 		<>

@@ -1,4 +1,6 @@
-# Microsoft Entra ID authentication (OIDC)
+---
+title: Microsoft Entra ID authentication (OIDC)
+---
 
 This guide shows how to configure Coder to authenticate users with Microsoft Entra ID using OpenID Connect (OIDC)
 

@@ -2,9 +2,12 @@ import type {
 	AIModelPrice,
 	ChatModel,
 	ChatModelProviderDescriptor,
+	ChatPersonalModelOverride,
 	ChatProviderConfig,
+	UserChatPersonalModelOverridesResponse,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
+import { MockDefaultOrganization } from "./entities";
 
 export const MockChatModel: ChatModel = {
 	organization_id: "00000000-0000-0000-0000-000000000000",
@@ -18,6 +21,13 @@ export const MockChatModel: ChatModel = {
 	compression_threshold: 70,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
+};
+
+export const MockDefaultChatModel: ChatModel = {
+	...MockChatModel,
+	id: "model-config-1",
+	organization_id: MockDefaultOrganization.id,
+	is_default: true,
 };
 
 export const MockChatProviderConfig: ChatProviderConfig = {
@@ -48,6 +58,28 @@ export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
 	allow_user_api_key: false,
 	available: true,
 };
+
+const unsetChatPersonalModelOverride = (
+	context: ChatPersonalModelOverride["context"],
+): ChatPersonalModelOverride => ({
+	context,
+	// The API reports chat_default for an unset root override.
+	mode: context === "root" ? "chat_default" : "deployment_default",
+	model_config_id: "",
+	is_set: false,
+});
+
+export const MockUnsetUserChatPersonalModelOverrides: UserChatPersonalModelOverridesResponse =
+	{
+		enabled: true,
+		root: unsetChatPersonalModelOverride("root"),
+		general: unsetChatPersonalModelOverride("general"),
+		explore: unsetChatPersonalModelOverride("explore"),
+		deployment_defaults: {
+			general: { context: "general", model_config_id: "" },
+			explore: { context: "explore", model_config_id: "" },
+		},
+	};
 
 // Prices are micro-units per million tokens.
 export const MockGPT5ModelPrice: AIModelPrice = {

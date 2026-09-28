@@ -1,5 +1,5 @@
 import { Building2Icon, SlidersHorizontalIcon, UserIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import {
@@ -34,7 +34,7 @@ type TemplatesFilterProps = Readonly<{
 	error: unknown;
 }>;
 
-export const TemplatesFilter: FC<TemplatesFilterProps> = ({
+export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 	filter,
 	error,
 }) => {

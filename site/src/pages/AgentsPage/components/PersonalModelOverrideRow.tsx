@@ -1,10 +1,12 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import {
+	ModelSelector,
+	type ModelSelectorOption,
+} from "#/modules/aiModels/ModelSelector";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
-import { ModelSelector, type ModelSelectorOption } from "./ChatElements";
 import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 import { SectionHeader } from "./SectionHeader";
 
@@ -14,23 +16,23 @@ type PersonalOverride = TypesGen.ChatPersonalModelOverride;
 type UpdatePersonalOverrideRequest =
 	TypesGen.UpdateUserChatPersonalModelOverrideRequest;
 
-interface MutationCallbacks {
+type MutationCallbacks = {
 	onSuccess?: () => void;
 	onError?: () => void;
-}
+};
 
 export type SavePersonalOverride = (
 	req: UpdatePersonalOverrideRequest,
 	options?: MutationCallbacks,
 ) => void;
 
-interface PersonalOverrideFormValues {
+type PersonalOverrideFormValues = {
 	mode: PersonalOverrideMode;
 	model_config_id: string;
 	reasoning_effort: string;
-}
+};
 
-interface PersonalModelOverrideRowProps {
+type PersonalModelOverrideRowProps = {
 	context: PersonalOverrideContext;
 	title: string;
 	description: string;
@@ -45,7 +47,7 @@ interface PersonalModelOverrideRowProps {
 	isSaveError: boolean;
 	saveErrorMessage: string;
 	disabled: boolean;
-}
+};
 
 const getDefaultMode = (
 	context: PersonalOverrideContext,
@@ -154,7 +156,9 @@ const isDefaultModeOption = (
 	return value === "chat_default" || value === "deployment_default";
 };
 
-export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
+export const PersonalModelOverrideRow: React.FC<
+	PersonalModelOverrideRowProps
+> = ({
 	context,
 	title,
 	description,

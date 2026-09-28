@@ -67,7 +67,20 @@ func (api *API) patchOrganization(rw http.ResponseWriter, r *http.Request) {
 	// for every member of the org. A future change can extend this to
 	// custom org roles by routing through canAssignRoles in dbauthz.
 	if req.DefaultOrgMemberRoles != nil {
+		seen := make(map[string]struct{}, len(*req.DefaultOrgMemberRoles))
 		for _, name := range *req.DefaultOrgMemberRoles {
+			if _, ok := seen[name]; ok {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid default_org_member_roles entry.",
+					Detail:  fmt.Sprintf("%q is listed more than once.", name),
+					Validations: []codersdk.ValidationError{{
+						Field:  "default_org_member_roles",
+						Detail: fmt.Sprintf("%q is listed more than once.", name),
+					}},
+				})
+				return
+			}
+			seen[name] = struct{}{}
 			if _, err := rbac.RoleByName(rbac.RoleIdentifier{Name: name, OrganizationID: organization.ID}); err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Invalid default_org_member_roles entry.",

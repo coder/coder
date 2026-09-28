@@ -34,7 +34,7 @@ import { getAuthorizationKey } from "./authCheck";
 import { invalidateGroupMembersAISpend } from "./groups";
 import { cachedQuery } from "./util";
 
-const usersQueryKey = ["users"] as const;
+export const usersQueryKey = ["users"] as const;
 
 export function usersKey(req: UsersRequest) {
 	return [...usersQueryKey, req] as const;
@@ -403,12 +403,12 @@ export const updateAppearanceSettings = (
 	};
 };
 
-const myPreferencesKey = ["me", "preferences"];
+export const preferenceSettingsKey = ["me", "preferences"] as const;
 
 export const preferenceSettings =
 	(): UseQueryOptions<UserPreferenceSettings> => {
 		return {
-			queryKey: myPreferencesKey,
+			queryKey: preferenceSettingsKey,
 			queryFn: () => API.getUserPreferenceSettings(),
 		};
 	};
@@ -425,7 +425,7 @@ export const updatePreferenceSettings = (
 		mutationFn: (req) => API.updateUserPreferenceSettings(req),
 		onSuccess: async () =>
 			await queryClient.invalidateQueries({
-				queryKey: myPreferencesKey,
+				queryKey: preferenceSettingsKey,
 			}),
 	};
 };

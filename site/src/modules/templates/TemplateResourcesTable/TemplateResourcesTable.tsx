@@ -1,13 +1,12 @@
-import type { FC } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
 import { AgentRowPreview } from "#/modules/resources/AgentRowPreview";
 import { Resources } from "#/modules/resources/Resources";
 
-interface TemplateResourcesProps {
+type TemplateResourcesProps = {
 	resources: WorkspaceResource[];
-}
+};
 
-export const TemplateResourcesTable: FC<TemplateResourcesProps> = ({
+export const TemplateResourcesTable: React.FC<TemplateResourcesProps> = ({
 	resources,
 }) => {
 	return (

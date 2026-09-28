@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	Link as RouterLink,
 	useLocation,
@@ -32,18 +31,18 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { ProviderState } from "#/modules/aiModels/providerStates";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
 	PricingEstimateFields,
 	ReasoningEffortConfigFields,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelConfigFields";
-import { ModelIdentifierField } from "#/pages/AgentsPage/components/ChatModelAdminPanel/ModelIdentifierField";
+} from "#/modules/aiModels/ModelConfigFields";
+import { ModelIdentifierField } from "#/modules/aiModels/ModelIdentifierField";
 import type {
 	ModelConfigFormBuildResult,
 	ModelFormValues,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
+} from "#/modules/aiModels/modelConfigFormLogic";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
 import {
@@ -54,14 +53,14 @@ import {
 } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
-const CollapsibleSection: FC<{
+const CollapsibleSection: React.FC<{
 	title: string;
-	description: ReactNode;
+	description: React.ReactNode;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	contentClassName?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	description,
@@ -97,7 +96,7 @@ const CollapsibleSection: FC<{
 	);
 };
 
-export const ModelFormFields: FC<{
+export const ModelFormFields: React.FC<{
 	form: FormikContextType<ModelFormValues>;
 	mode: "add" | "edit" | "duplicate";
 	providerStates: readonly ProviderState[];

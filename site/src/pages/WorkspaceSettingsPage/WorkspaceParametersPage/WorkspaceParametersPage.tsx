@@ -1,5 +1,3 @@
-import { CircleHelpIcon } from "lucide-react";
-import type { FC } from "react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
@@ -13,6 +11,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -20,19 +19,14 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { TooltipMessage } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceParametersPageView } from "./WorkspaceParametersPageView";
 
-const WorkspaceParametersPage: FC = () => {
+const WorkspaceParametersPage: React.FC = () => {
 	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
@@ -60,6 +54,7 @@ const WorkspaceParametersPage: FC = () => {
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
+	const [isConnecting, setIsConnecting] = useState(false);
 	// The expected ID of the init message, so we can wait until the initial
 	// parameters have gone through before rendering the form.
 	const [initId, setInitId] = useState(Number.NaN);
@@ -133,6 +128,9 @@ const WorkspaceParametersPage: FC = () => {
 			workspace.owner_id,
 			{
 				onOpen: () => {
+					if (ws.current === socket) {
+						setIsConnecting(false);
+					}
 					// If we already have the build parameters, send them now.
 					sendInitialParameters();
 				},
@@ -145,11 +143,13 @@ const WorkspaceParametersPage: FC = () => {
 				},
 				onError: (error) => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(error);
 					}
 				},
 				onClose: () => {
 					if (ws.current === socket) {
+						setIsConnecting(false);
 						setWsError(
 							new DetailedError(
 								"Websocket connection for dynamic parameters unexpectedly closed.",
@@ -161,6 +161,7 @@ const WorkspaceParametersPage: FC = () => {
 			},
 		);
 
+		setIsConnecting(true);
 		ws.current = socket;
 
 		return () => {
@@ -256,7 +257,7 @@ const WorkspaceParametersPage: FC = () => {
 		!latestResponse ||
 		Number.isNaN(initId) ||
 		latestResponse.id < initId ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
+		isConnecting;
 
 	let submitLabel = "Update and start";
 	if (restartWithParameters.isPending) {
@@ -274,26 +275,22 @@ const WorkspaceParametersPage: FC = () => {
 			<SettingsHeader>
 				<SettingsHeaderTitle
 					tooltip={
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<CircleHelpIcon className="size-icon-xs text-content-secondary" />
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs text-sm">
-									Dynamic Parameters enhances Coder's existing parameter system
-									with real-time validation, conditional parameter behavior, and
-									richer input types.
-									<br />
-									<Link
-										href={docs(
-											"/admin/templates/extending-templates/dynamic-parameters",
-										)}
-									>
-										View docs
-									</Link>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<InfoTooltip>
+							<TooltipMessage>
+								Dynamic Parameters enhances Coder's existing parameter system
+								with real-time validation, conditional parameter behavior, and
+								richer input types.
+								<br />
+								<Link
+									size="sm"
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+								>
+									View docs
+								</Link>
+							</TooltipMessage>
+						</InfoTooltip>
 					}
 				>
 					Parameters

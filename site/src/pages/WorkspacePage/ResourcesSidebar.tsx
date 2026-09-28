@@ -1,5 +1,7 @@
-import type { FC } from "react";
+import { useState } from "react";
 import type { WorkspaceResource } from "#/api/typesGenerated";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Sidebar,
@@ -16,12 +18,18 @@ type ResourcesSidebarProps = {
 	isSelected: (resource: WorkspaceResource) => boolean;
 };
 
-export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
+export const ResourcesSidebar: React.FC<ResourcesSidebarProps> = ({
 	failed,
 	onChange,
 	isSelected,
 	resources,
 }) => {
+	const [showHiddenResources, setShowHiddenResources] = useState(false);
+	const hasHiddenResources = resources.some((r) => r.hide);
+	const displayedResources = resources.filter(
+		(r) => !r.hide || showHiddenResources || isSelected(r),
+	);
+
 	return (
 		<Sidebar>
 			<SidebarCaption>Resources</SidebarCaption>
@@ -38,7 +46,7 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 						<ResourceSidebarItemSkeleton />
 					</SidebarItem>
 				))}
-			{resources.map((r) => (
+			{displayedResources.map((r) => (
 				<SidebarItem
 					onClick={() => onChange(r)}
 					isActive={isSelected(r)}
@@ -58,11 +66,24 @@ export const ResourcesSidebar: FC<ResourcesSidebarProps> = ({
 					</div>
 				</SidebarItem>
 			))}
+			{hasHiddenResources && (
+				<div className="flex items-center justify-center mt-4 px-4">
+					<Button
+						variant="outline"
+						size="sm"
+						className="rounded-full w-full"
+						onClick={() => setShowHiddenResources((v) => !v)}
+					>
+						{showHiddenResources ? "Hide" : "Show hidden"} resources
+						<ChevronDownIcon open={showHiddenResources} className="ml-2" />
+					</Button>
+				</div>
+			)}
 		</Sidebar>
 	);
 };
 
-const ResourceSidebarItemSkeleton: FC = () => {
+const ResourceSidebarItemSkeleton: React.FC = () => {
 	return (
 		<div className="leading-normal flex items-center gap-3 pointer-events-none">
 			<Skeleton variant="circular" width={16} height={16} />

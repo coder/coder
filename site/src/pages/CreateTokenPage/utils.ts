@@ -1,14 +1,14 @@
 export const NANO_HOUR = 3600000000000;
 
-export interface CreateTokenData {
+export type CreateTokenData = {
 	name: string;
 	lifetime: number;
-}
+};
 
-export interface LifetimeDay {
+export type LifetimeDay = {
 	label: string;
 	value: number | string;
-}
+};
 
 export const lifetimeDayPresets: LifetimeDay[] = [
 	{

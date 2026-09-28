@@ -62,14 +62,12 @@ func TransportFor(provider, modelID string, override *bool) Transport {
 }
 
 // UsesResponsesAPI decides the wire format for an OpenAI model. override, when
-// non-nil, wins. Otherwise the provider SDK's known-model list decides, except
-// that GPT-6 Astra defaults to Responses: the pinned SDK predates the model and
-// Astra's function calling is Responses-only.
+// non-nil, wins. Otherwise the provider SDK's known-model list decides.
 func UsesResponsesAPI(modelID string, override *bool) bool {
 	if override != nil {
 		return *override
 	}
-	return fantasyopenai.IsResponsesModel(modelID) || IsGPT6Astra(modelID)
+	return fantasyopenai.IsResponsesModel(modelID)
 }
 
 // IsGPT6Astra matches gpt-6-astra and its dated snapshots.

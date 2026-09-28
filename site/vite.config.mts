@@ -20,6 +20,7 @@ compilerPreset.rolldown.filter = {
 	id: {
 		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
 		include: [
+			/src\/modules\/aiModels\//,
 			/src\/pages\/AgentsPage\//,
 			/src\/pages\/AIBridgePage\//,
 			/src\/pages\/TemplateBuilder\//,
@@ -162,7 +163,7 @@ export default defineConfig({
 						secure: process.env.NODE_ENV === "production",
 					},
 				},
-		allowedHosts: [".coder", ".dev.coder.com"],
+		allowedHosts: [".coder", ".dogfood.cdr.dev"],
 	},
 	// Pre-bundle deps that Vite tends to discover late. Without this, Vite
 	// re-optimizes mid-session which returns 504 "Outdated Optimize Dep" for

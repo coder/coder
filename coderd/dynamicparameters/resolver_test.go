@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -50,6 +51,7 @@ func TestResolveParameters(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+			database.WorkspaceTransitionStart,
 			[]database.WorkspaceBuildParameter{},        // No previous values
 			[]codersdk.WorkspaceBuildParameter{},        // No new build values
 			[]database.TemplateVersionPresetParameter{}, // No preset values
@@ -106,6 +108,7 @@ func TestResolveParameters(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+			database.WorkspaceTransitionStart,
 			[]database.WorkspaceBuildParameter{
 				{Name: "immutable", Value: "foo"}, // Previous value foo
 			},
@@ -185,6 +188,7 @@ func TestResolveParameters(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitShort)
 				_, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, tc.firstBuild,
+					database.WorkspaceTransitionStart,
 					previousValues,
 					[]codersdk.WorkspaceBuildParameter{
 						{Name: "param", Value: tc.cur},
@@ -204,4 +208,176 @@ func TestResolveParameters(t *testing.T) {
 			})
 		}
 	})
+
+	// A render that omits a parameter the workspace already has a value for must
+	// not discard that value on a stop or delete build. Only a start build may
+	// narrow the stored set. See https://github.com/coder/coder/issues/29099.
+	t.Run("UnmatchedValues", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			transition database.WorkspaceTransition
+			expect     map[string]string
+		}{
+			{
+				transition: database.WorkspaceTransitionStart,
+				expect:     map[string]string{"rendered": "foo"},
+			},
+			{
+				transition: database.WorkspaceTransitionStop,
+				expect:     map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				transition: database.WorkspaceTransitionDelete,
+				expect:     map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(string(tc.transition), func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				render := rendermock.NewMockRenderer(ctrl)
+
+				// The render only knows about "rendered". "unrendered" is absent,
+				// as it would be if it came from a module that failed to load.
+				render.EXPECT().
+					Render(gomock.Any(), gomock.Any(), gomock.Any()).
+					AnyTimes().
+					Return(&preview.Output{
+						Parameters: []previewtypes.Parameter{
+							{
+								ParameterData: previewtypes.ParameterData{
+									Name:     "rendered",
+									Type:     previewtypes.ParameterTypeString,
+									FormType: provider.ParameterFormTypeInput,
+									Mutable:  true,
+								},
+								Value:       previewtypes.StringLiteral("foo"),
+								Diagnostics: nil,
+							},
+						},
+					}, nil)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+					tc.transition,
+					[]database.WorkspaceBuildParameter{
+						{Name: "rendered", Value: "foo"},
+						{Name: "unrendered", Value: "1000Gi"},
+					},
+					[]codersdk.WorkspaceBuildParameter{},
+					[]database.TemplateVersionPresetParameter{},
+				)
+				require.NoError(t, err)
+				require.Equal(t, tc.expect, values)
+			})
+		}
+	})
+
+	// An incomplete render omits parameters the template still declares, so the
+	// values behind them must survive a start build.
+	// See https://github.com/coder/coder/issues/29099.
+	t.Run("IncompleteRender", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name     string
+			diags    hcl.Diagnostics
+			previous []database.WorkspaceBuildParameter
+			build    []codersdk.WorkspaceBuildParameter
+			expect   map[string]string
+		}{
+			{
+				// A complete render is authoritative, so the value is still dropped.
+				name: "complete render drops",
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo"},
+			},
+			{
+				name:  "module not loaded preserves previous",
+				diags: hcl.Diagnostics{moduleNotLoadedDiagnostic()},
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				// A value supplied with this build is user input too.
+				name:  "module not loaded preserves build value",
+				diags: hcl.Diagnostics{moduleNotLoadedDiagnostic()},
+				build: []codersdk.WorkspaceBuildParameter{
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo", "unrendered": "1000Gi"},
+			},
+			{
+				// Warnings that say nothing about completeness do not preserve.
+				name: "unrelated warning drops",
+				diags: hcl.Diagnostics{{
+					Severity: hcl.DiagWarning,
+					Summary:  "Some other warning",
+				}},
+				previous: []database.WorkspaceBuildParameter{
+					{Name: "rendered", Value: "foo"},
+					{Name: "unrendered", Value: "1000Gi"},
+				},
+				expect: map[string]string{"rendered": "foo"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctrl := gomock.NewController(t)
+				render := rendermock.NewMockRenderer(ctrl)
+
+				// "unrendered" is never reported by the render.
+				render.EXPECT().
+					Render(gomock.Any(), gomock.Any(), gomock.Any()).
+					AnyTimes().
+					Return(&preview.Output{
+						Parameters: []previewtypes.Parameter{
+							{
+								ParameterData: previewtypes.ParameterData{
+									Name:         "rendered",
+									Type:         previewtypes.ParameterTypeString,
+									FormType:     provider.ParameterFormTypeInput,
+									Mutable:      true,
+									DefaultValue: previewtypes.StringLiteral("foo"),
+								},
+								Value:       previewtypes.StringLiteral("foo"),
+								Diagnostics: nil,
+							},
+						},
+					}, tc.diags)
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				values, err := dynamicparameters.ResolveParameters(ctx, uuid.New(), render, false,
+					database.WorkspaceTransitionStart,
+					tc.previous,
+					tc.build,
+					[]database.TemplateVersionPresetParameter{},
+				)
+				require.NoError(t, err)
+				require.Equal(t, tc.expect, values)
+			})
+		}
+	})
+}
+
+// moduleNotLoadedDiagnostic is the warning preview emits when a module block
+// cannot be resolved, which is what a missing module cache looks like.
+func moduleNotLoadedDiagnostic() *hcl.Diagnostic {
+	return previewtypes.DiagnosticCode(&hcl.Diagnostic{
+		Severity: hcl.DiagWarning,
+		Summary:  "Module not loaded. Did you run `terraform init`?",
+		Detail:   "Module 'module \"jetbrains_gateway\"' cannot be resolved. This module will be ignored.",
+	}, previewtypes.DiagnosticModuleNotLoaded)
 }

@@ -1,16 +1,17 @@
-import { BanIcon, BotIcon, MonitorIcon, SparklesIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { BanIcon, BotIcon, MonitorIcon, TriangleAlertIcon } from "lucide-react";
 import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 
+export const CLASSIC_PARAMETER_FLOW_FILTER = "compatibility_mode:true";
+
 type AttributeDefinition = {
 	label: string;
 	value: string;
-	icon: ReactNode;
+	icon: React.ReactNode;
 };
 
-const attributeIcon = (icon: ReactNode): ReactNode => (
+const attributeIcon = (icon: React.ReactNode): React.ReactNode => (
 	<span className="flex size-[--avatar-default] shrink-0 items-center justify-center">
 		{icon}
 	</span>
@@ -23,9 +24,9 @@ const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 		icon: <BanIcon className="size-icon-sm" />,
 	},
 	{
-		label: "Has AI task",
-		value: "has-ai-task",
-		icon: <SparklesIcon className="size-icon-sm" />,
+		label: "Compatibility mode",
+		value: "compatibility_mode",
+		icon: <TriangleAlertIcon className="size-icon-sm" />,
 	},
 	{
 		label: "Agents allowed",

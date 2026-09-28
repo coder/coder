@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { RefreshCwIcon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WorkspaceAgent } from "#/api/typesGenerated";
 import {
 	Alert,
@@ -24,10 +24,14 @@ export const WorkspaceTerminalAlerts = ({
 	onAlertChange,
 }: WorkspaceTerminalAlertsProps) => {
 	const lifecycleState = agent?.lifecycle_state;
-	const prevLifecycleState = useRef(lifecycleState);
-	useEffect(() => {
-		prevLifecycleState.current = lifecycleState;
-	}, [lifecycleState]);
+	const [prevLifecycleState, setPrevLifecycleState] = useState(lifecycleState);
+	const [showLoadedScriptsAlert, setShowLoadedScriptsAlert] = useState(false);
+	if (prevLifecycleState !== lifecycleState) {
+		setShowLoadedScriptsAlert(
+			prevLifecycleState === "starting" && lifecycleState === "ready",
+		);
+		setPrevLifecycleState(lifecycleState);
+	}
 
 	// MutationObserver triggers onAlertChange after DOM updates so
 	// the terminal can refit once alert height changes.
@@ -52,15 +56,14 @@ export const WorkspaceTerminalAlerts = ({
 				<ErrorScriptAlert />
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
-			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			) : lifecycleState === "ready" && showLoadedScriptsAlert ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>
 	);
 };
 
-const ErrorScriptAlert: FC = () => {
+const ErrorScriptAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			severity="warning"
@@ -103,7 +106,7 @@ const ErrorScriptAlert: FC = () => {
 	);
 };
 
-const LoadingScriptsAlert: FC = () => {
+const LoadingScriptsAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			dismissible
@@ -127,7 +130,7 @@ const LoadingScriptsAlert: FC = () => {
 	);
 };
 
-const LoadedScriptsAlert: FC = () => {
+const LoadedScriptsAlert: React.FC = () => {
 	return (
 		<TerminalAlert
 			severity="success"
@@ -159,7 +162,7 @@ const severityBorderColors: Record<AlertColor, string> = {
 	error: "border-l-content-destructive",
 };
 
-const TerminalAlert: FC<AlertProps> = (props) => {
+const TerminalAlert: React.FC<AlertProps> = (props) => {
 	const severity = props.severity ?? "info";
 	return (
 		<Alert
@@ -174,7 +177,7 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 
 // Since the terminal connection is always trying to reconnect, we show this
 // alert to indicate that the terminal is trying to connect.
-const DisconnectedAlert: FC<AlertProps> = (props) => {
+const DisconnectedAlert: React.FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
 			{...props}
@@ -186,7 +189,7 @@ const DisconnectedAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-const RefreshSessionButton: FC = () => {
+const RefreshSessionButton: React.FC = () => {
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
 	return (

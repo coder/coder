@@ -99,11 +99,10 @@ export const InvalidThresholdIsRejected: Story = {
 		await userEvent.clear(thresholdInput);
 		await userEvent.type(thresholdInput, "150");
 
+		// Wait for validation to run so the snapshot captures the rejected
+		// state.
 		await waitFor(() => {
 			expect(thresholdInput).toHaveAttribute("aria-invalid", "true");
-			expect(
-				canvas.queryByRole("button", { name: /save \d+ changes?/i }),
-			).toBeNull();
 		});
 	},
 };

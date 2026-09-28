@@ -2,7 +2,7 @@ package chatprovider
 
 import (
 	"context"
-	"mime"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -17,11 +17,14 @@ import (
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3/option"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -110,14 +113,43 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// ToolResultMediaOmission reports media unsupported by the transport or upstream
+// provider. configuredProvider supplies vendor limits hidden by a shared
+// OpenAI-compatible transport.
+func ToolResultMediaOmission(transportProvider, configuredProvider, mediaType string, size int) (string, bool) {
+	provider := NormalizeProvider(transportProvider)
+	if provider == fantasyopenaicompat.Name {
+		provider = NormalizeProvider(configuredProvider)
+	}
+	baseType := chatfiles.BaseMediaType(mediaType)
+	isImage := strings.HasPrefix(baseType, "image/")
+	accepted := true
+	switch provider {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		accepted = slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasyopenai.Name, fantasyazure.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/gif", "image/webp"}, baseType)
+	case fantasygoogle.Name:
+		accepted = !isImage || slices.Contains([]string{"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}, baseType)
+	}
+	if !accepted {
+		return fmt.Sprintf("[%s content omitted: unsupported tool result media type]", mediaType), true
+	}
+	if imageCap, hasCap := InlineImageCapBytes(provider); hasCap && size >= imageCap {
+		return fmt.Sprintf("[image omitted: %d bytes exceeds the inline image limit of %d bytes]", size, imageCap), true
+	}
+	return "", false
+}
+
 // AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
 // file content part rather than silently dropping it. Callers replace rejected
 // parts with text, so a false negative costs fidelity while a false positive
 // loses the attachment entirely. Unknown providers therefore return false.
 func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
-	baseType := mediaType
-	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
-		baseType = parsed
+	baseType := chatfiles.BaseMediaType(mediaType)
+	// No provider accepts SVG as a native part; it is inlined as text.
+	if baseType == string(codersdk.ChatAttachmentMediaTypeImageSVG) {
+		return false
 	}
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
@@ -664,13 +696,36 @@ func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
 	return config.UseResponsesAPI
 }
 
+// effectiveOpenAIConfig fills the Responses API and reasoning-model overrides
+// a configured reasoning mode implies when the config leaves them unset,
+// because the SDK's known-model list cannot vouch for an alias it has never seen.
+func effectiveOpenAIConfig(callConfig *codersdk.ChatModelCallConfig) *codersdk.ChatModelOpenAIConfig {
+	if callConfig == nil {
+		return nil
+	}
+	if chatopenai.ReasoningMode(callConfig) == nil {
+		return callConfig.OpenAIConfig
+	}
+	var config codersdk.ChatModelOpenAIConfig
+	if callConfig.OpenAIConfig != nil {
+		config = *callConfig.OpenAIConfig
+	}
+	if config.UseResponsesAPI == nil {
+		config.UseResponsesAPI = ptr.Ref(true)
+	}
+	if config.ReasoningModel == nil {
+		config.ReasoningModel = ptr.Ref(true)
+	}
+	return &config
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
 // HTTP headers on every request. httpClient, when non-nil, is used for
-// all provider HTTP requests. openAIConfig carries the model's OpenAI client
-// settings, including the transport override applied here.
+// all provider HTTP requests. callConfig carries the model's client-scoped
+// OpenAI settings applied here: the transport override and reasoning mode.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -678,12 +733,17 @@ func ModelFromConfig(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-	openAIConfig *codersdk.ChatModelOpenAIConfig,
+	callConfig *codersdk.ChatModelCallConfig,
 ) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
 		return Model{}, err
 	}
+
+	if err := chatopenai.ValidateReasoningMode(provider, callConfig); err != nil {
+		return Model{}, err
+	}
+	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
@@ -779,6 +839,15 @@ func ModelFromConfig(
 		}
 		if httpClient != nil {
 			options = append(options, fantasyopenai.WithHTTPClient(httpClient))
+		}
+		if openAIConfig != nil && openAIConfig.ReasoningModel != nil {
+			reasoningModel := *openAIConfig.ReasoningModel
+			options = append(options, fantasyopenai.WithReasoningModelFunc(func(string) bool { return reasoningModel }))
+		}
+		// The pinned SDK reinterprets pre-serialization overlay keys as JSON paths.
+		// Escape the dot so its merge adds mode without replacing reasoning.
+		if mode := chatopenai.ReasoningMode(callConfig); mode != nil {
+			options = append(options, fantasyopenai.WithSDKOptions(option.WithJSONSet(`reasoning\.mode`, *mode)))
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:

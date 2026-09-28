@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -10,14 +9,12 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
-import {
-	type ConfigurationFieldDefinition,
-	ConfigurationFieldLabel,
-} from "./ConfigurationField";
+import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { defaultPlaceholder } from "./defaultPlaceholder";
 import { ModuleConfiguration } from "./ModuleConfiguration";
+import { getModuleFieldPlaceholder } from "./moduleFieldPlaceholders";
 
-interface ModuleSettingsStepProps {
+type ModuleSettingsStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	moduleVariables: Record<string, Record<string, string>>;
@@ -27,16 +24,18 @@ interface ModuleSettingsStepProps {
 	) => void;
 	onRemoveModule: (moduleId: string) => void;
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void;
-}
+	showErrors?: boolean;
+};
 
 function variableToField(
 	moduleId: string,
 	variable: TemplateBuilderModuleVariable,
 	value: string,
 	onChange: (name: string, value: string) => void,
+	error: boolean,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
-	const label = <ConfigurationFieldLabel variable={variable} />;
+	const label = variable.name;
 
 	if (variable.type === "bool") {
 		return {
@@ -58,15 +57,16 @@ function variableToField(
 		description: variable.description || undefined,
 		required: variable.required,
 		placeholder:
+			getModuleFieldPlaceholder(moduleId, variable.name) ??
 			defaultPlaceholder(variable.default) ??
-			(variable.required ? "Required" : "Optional"),
+			(variable.required ? "Required" : ""),
 		field: {
 			name: variable.name,
 			id,
 			value,
 			onChange: (e) => onChange(variable.name, e.target.value),
 			onBlur: () => {},
-			error: false,
+			error,
 		},
 	};
 }
@@ -103,13 +103,14 @@ export function moduleSettingsComplete(
 	return true;
 }
 
-export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
+export const ModuleSettingsStep: React.FC<ModuleSettingsStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	moduleVariables,
 	onChangeModuleVariables,
 	onRemoveModule,
 	registerModuleRef,
+	showErrors = false,
 }) => {
 	const { data } = useQuery(templateBuilderModules(baseId));
 	const modules = data?.modules ?? [];
@@ -126,9 +127,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	return (
 		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
-			<TemplateBuilderSubtitle>
-				Set values for module variables.
-			</TemplateBuilderSubtitle>
+			<TemplateBuilderSubtitle>Customise your modules.</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {
@@ -136,13 +135,20 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					const sensitiveVars = mod.variables.filter((v) => v.sensitive);
 					const vars = moduleVariables[mod.id] ?? {};
 
-					const toField = (v: TemplateBuilderModuleVariable) =>
-						variableToField(
+					const toField = (v: TemplateBuilderModuleVariable) => {
+						const rawValue = vars[v.name];
+						const hasError =
+							showErrors &&
+							v.required &&
+							(rawValue === undefined || rawValue === "");
+						return variableToField(
 							mod.id,
 							v,
 							vars[v.name] ?? defaultPlaceholder(v.default) ?? "",
 							(name, val) => handleChange(mod.id, name, val),
+							hasError,
 						);
+					};
 
 					const requiredVars = configurableVars.filter((v) => v.required);
 					const optionalVars = configurableVars.filter((v) => !v.required);

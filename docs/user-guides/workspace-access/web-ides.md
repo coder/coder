@@ -1,4 +1,6 @@
-# Web IDEs
+---
+title: Web IDEs
+---
 
 By default, Coder workspaces allow connections via:
 

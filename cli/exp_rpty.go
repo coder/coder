@@ -168,7 +168,7 @@ func handleRPTY(inv *serpent.Invocation, client *codersdk.Client, args handleRPT
 
 	closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, ws.ID, codersdk.PostWorkspaceUsageRequest{
 		AgentID: agt.ID,
-		AppName: codersdk.UsageAppNameReconnectingPty,
+		AppName: string(codersdk.UsageAppNameReconnectingPty),
 	})
 	defer closeUsage()
 

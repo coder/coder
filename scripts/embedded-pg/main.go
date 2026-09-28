@@ -86,6 +86,17 @@ func main() {
 		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
 		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
+		// Enable PostgreSQL's own log collector so the running server persists
+		// logs to <data>/log/postgresql.log. The embedded-postgres library only
+		// flushes server output to its logger while this process is alive, so
+		// once this program exits the ongoing logs would otherwise be lost. CI
+		// uploads this directory as an artifact on failure. logging_collector is
+		// a postmaster-level setting, so it takes effect on the restart below.
+		`ALTER SYSTEM SET logging_collector = 'on';`,
+		`ALTER SYSTEM SET log_directory = 'log';`,
+		`ALTER SYSTEM SET log_filename = 'postgresql.log';`,
+		`ALTER SYSTEM SET log_rotation_age = '0';`,
+		`ALTER SYSTEM SET log_rotation_size = '0';`,
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	if err != nil {

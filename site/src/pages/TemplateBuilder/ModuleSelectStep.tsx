@@ -1,5 +1,5 @@
-import { PackageIcon, SearchIcon } from "lucide-react";
-import { type FC, type PropsWithChildren, useMemo, useState } from "react";
+import { SearchIcon } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
@@ -24,14 +24,14 @@ import {
 	type SelectedModuleMeta,
 } from "./wizardState";
 
-interface ModuleSelectStepProps {
+type ModuleSelectStepProps = {
 	baseId: string;
 	selectedModuleIds: string[];
 	onChangeModules: (
 		modules: TemplateBuilderComposeModule[],
 		meta: SelectedModuleMeta[],
 	) => void;
-}
+};
 
 function toMeta(m: TemplateBuilderModule): SelectedModuleMeta {
 	return {
@@ -47,12 +47,12 @@ function moduleDetailsUrl(moduleId: string): string {
 	return `https://registry.coder.com/modules/${moduleId}`;
 }
 
-interface ModuleConflict {
+type ModuleConflict = {
 	moduleA: TemplateBuilderModule;
 	moduleB: TemplateBuilderModule;
-}
+};
 
-const ModuleName: FC<PropsWithChildren> = ({ children }) => {
+const ModuleName: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<code className="text-content-secondary bg-surface-tertiary mx-1 first:ml-0 px-1.5 py-1 rounded-sm">
 			{children}
@@ -60,7 +60,7 @@ const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
+const ConflictWarning: React.FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	return (
 		<div>
 			<ModuleName>{moduleA.display_name}</ModuleName> and{" "}
@@ -92,7 +92,7 @@ const MODULE_PRIORITY: readonly string[] = [
 	"kasmvnc",
 ];
 
-export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
+export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 	baseId,
 	selectedModuleIds,
 	onChangeModules,
@@ -225,36 +225,40 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				<TabsList ref={containerRef}>
 					{visibleFilterTabs.map((tab) => (
 						<TabsTrigger key={tab.value} value={tab.value}>
-							<PackageIcon className="size-icon-sm" />
 							{tab.value} ({tab.count})
 						</TabsTrigger>
 					))}
 				</TabsList>
 			</Tabs>
 
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-				{visibleModules.length ? (
-					visibleModules.map((m) => (
-						<ModuleCard
-							key={m.id}
-							name={m.display_name}
-							description={m.description}
-							iconUrl={m.icon}
-							detailsUrl={moduleDetailsUrl(m.id)}
-							selected={selectedSet.has(m.id)}
-							onSelect={() => handleToggle(m)}
-						/>
-					))
-				) : (
-					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
-						<SearchIcon />
-						<p className="m-0 text-xs font-normal">
-							{doesBaseTemplateHaveModules
-								? "No module matched your search"
-								: "No modules available for this base template"}
-						</p>
-					</div>
-				)}
+			{/* Show three rows of cards (sized to the common 214px card height plus
+			    the row gaps) and let any extra rows scroll, so the Continue button
+			    stays high and is easy to discover. */}
+			<div className="max-h-[682px] overflow-y-auto p-1 -m-1">
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{visibleModules.length ? (
+						visibleModules.map((m) => (
+							<ModuleCard
+								key={m.id}
+								name={m.display_name}
+								description={m.description}
+								iconUrl={m.icon}
+								detailsUrl={moduleDetailsUrl(m.id)}
+								selected={selectedSet.has(m.id)}
+								onSelect={() => handleToggle(m)}
+							/>
+						))
+					) : (
+						<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
+							<SearchIcon />
+							<p className="m-0 text-xs font-normal">
+								{doesBaseTemplateHaveModules
+									? "No module matched your search"
+									: "No modules available for this base template"}
+							</p>
+						</div>
+					)}
+				</div>
 			</div>
 
 			{conflicts.length > 0 && (

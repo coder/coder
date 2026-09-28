@@ -161,6 +161,16 @@ Output JSON logs to a given file.
 
 Output Stackdriver compatible logs to a given file.
 
+### --experiments
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string-array</code>       |
+| Environment | <code>$CODER_EXPERIMENTS</code> |
+| YAML        | <code>experiments</code>        |
+
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+
 ### -c, --config
 
 |             |                                 |

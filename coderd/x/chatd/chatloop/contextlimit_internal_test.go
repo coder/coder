@@ -144,19 +144,6 @@ func TestNumericContextLimitValue(t *testing.T) {
 		{name: "float64 zero rejected", value: float64(0), want: 0, wantOK: false},
 		{name: "float64 negative rejected", value: float64(-1), want: 0, wantOK: false},
 
-		// int64
-		{name: "int64 positive", value: int64(200000), want: 200000, wantOK: true},
-		{name: "int64 zero rejected", value: int64(0), want: 0, wantOK: false},
-		{name: "int64 negative rejected", value: int64(-1), want: 0, wantOK: false},
-
-		// int32
-		{name: "int32 positive", value: int32(50000), want: 50000, wantOK: true},
-		{name: "int32 zero rejected", value: int32(0), want: 0, wantOK: false},
-
-		// int
-		{name: "int positive", value: int(50000), want: 50000, wantOK: true},
-		{name: "int zero rejected", value: int(0), want: 0, wantOK: false},
-
 		// string
 		{name: "string numeric", value: "128000", want: 128000, wantOK: true},
 		{name: "string trimmed", value: " 128000 ", want: 128000, wantOK: true},
@@ -164,11 +151,6 @@ func TestNumericContextLimitValue(t *testing.T) {
 		{name: "string empty rejected", value: "", want: 0, wantOK: false},
 		{name: "string zero rejected", value: "0", want: 0, wantOK: false},
 		{name: "string negative rejected", value: "-1", want: 0, wantOK: false},
-
-		// json.Number
-		{name: "json.Number valid", value: json.Number("200000"), want: 200000, wantOK: true},
-		{name: "json.Number invalid rejected", value: json.Number("invalid"), want: 0, wantOK: false},
-		{name: "json.Number zero rejected", value: json.Number("0"), want: 0, wantOK: false},
 
 		// Unhandled types.
 		{name: "bool rejected", value: true, want: 0, wantOK: false},

@@ -2,7 +2,6 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MockServerSocket from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import type { FC } from "react";
 import type { MockInstance } from "vitest";
 import * as apiModule from "#/api/api";
 import type { Workspace } from "#/api/typesGenerated";
@@ -417,7 +416,7 @@ describe("WorkspacePage", () => {
 				</DashboardContext.Provider>
 			);
 
-			const MockWorkspacesPage: FC = () => {
+			const MockWorkspacesPage: React.FC = () => {
 				return <h1>Workspaces</h1>;
 			};
 

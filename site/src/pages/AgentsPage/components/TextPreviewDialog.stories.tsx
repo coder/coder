@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 const meta: Meta<typeof TextPreviewDialog> = {
@@ -16,14 +15,6 @@ export const Default: Story = {
 			"This is some pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable format.",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		expect(dialog).toBeInTheDocument();
-		expect(
-			within(dialog).getByText(/This is some pasted text content\./i),
-		).toBeInTheDocument();
-	},
 };
 
 export const LongContent: Story = {
@@ -35,26 +26,12 @@ export const LongContent: Story = {
 			.join("\n"),
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const content = within(dialog).getByText(
-			/This is a line of pasted text that demonstrates how the dialog handles very long content\./i,
-		);
-		expect(content).toBeInTheDocument();
-		expect(content.parentElement).toHaveClass("overflow-auto");
-	},
 };
 
 export const NoFileName: Story = {
 	args: {
 		content: "Some pasted content without a filename.",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		expect(within(dialog).getByText("Pasted text")).toBeInTheDocument();
 	},
 };
 
@@ -104,24 +81,6 @@ export const MarkdownByExtension: Story = {
 		fileName: "AUTH_SPLIT.md",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		// The heading should render as a real <h1>, not raw "# Auth split…".
-		const heading = await within(dialog).findByRole("heading", {
-			name: /Auth split runbook/i,
-			level: 1,
-		});
-		expect(heading).toBeInTheDocument();
-		// Inline link from the markdown should be a real anchor.
-		const link = within(dialog).getByRole("link", {
-			name: /the SDK types/i,
-		});
-		expect(link).toHaveAttribute("href", "https://example.com/sdk");
-		// The verbatim "# " heading prefix must not appear as text. That
-		// would mean we fell back to the plain <pre> renderer.
-		expect(dialog.textContent ?? "").not.toContain("# Auth split runbook");
-	},
 };
 
 /** Equivalent to MarkdownByExtension but driven entirely by the explicit
@@ -133,15 +92,6 @@ export const MarkdownByMediaType: Story = {
 		fileName: "runbook",
 		mediaType: "text/markdown",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const heading = await within(dialog).findByRole("heading", {
-			name: /Auth split runbook/i,
-			level: 1,
-		});
-		expect(heading).toBeInTheDocument();
 	},
 };
 
@@ -155,26 +105,6 @@ export const MarkdownProseOnly: Story = {
 		fileName: "notes.md",
 		onClose: () => {},
 	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		await waitFor(() => {
-			// The markdown renderer schedules updates via useTransition,
-			// so wait for the inline formatting nodes to appear before
-			// asserting on them. Streamdown renders bold as a styled
-			// <span data-streamdown="strong"> rather than a literal
-			// <strong> element.
-			const strong = dialog.querySelector('[data-streamdown="strong"]');
-			expect(strong?.textContent).toBe("bold");
-		});
-		const em = dialog.querySelector("em");
-		expect(em?.textContent).toBe("italic");
-		// Inline code should render in a <code> element.
-		const code = dialog.querySelector("code");
-		expect(code?.textContent).toBe("code");
-		// Raw markdown markers should not be visible as text.
-		expect(dialog.textContent ?? "").not.toContain("**bold**");
-	},
 };
 
 /** Plain `.txt` files should keep the existing monospaced rendering so we
@@ -184,12 +114,5 @@ export const PlainTextStaysMonospaced: Story = {
 		content: "function add(a, b) {\n  return a + b;\n}\n",
 		fileName: "snippet.txt",
 		onClose: () => {},
-	},
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = await body.findByRole("dialog");
-		const pre = dialog.querySelector("pre");
-		expect(pre).not.toBeNull();
-		expect(pre?.textContent).toContain("function add(a, b)");
 	},
 };

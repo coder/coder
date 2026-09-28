@@ -13,7 +13,7 @@ describe("getAttributeFilterOptions", () => {
 
 		expect(options.map((option) => option.token)).toEqual([
 			"deprecated:true",
-			"has-ai-task:true",
+			"compatibility_mode:true",
 			"agents-allowed:true",
 			"has_external_agent:true",
 		]);
@@ -24,10 +24,15 @@ describe("getAttributeFilterOptions", () => {
 			(await getAttributeFilterOptions("deprec")).map((option) => option.token),
 		).toEqual(["deprecated:true"]);
 		expect(
+			(await getAttributeFilterOptions("compatibility")).map(
+				(option) => option.token,
+			),
+		).toEqual(["compatibility_mode:true"]);
+		expect(
 			(await getAttributeFilterOptions("ai-task")).map(
 				(option) => option.token,
 			),
-		).toEqual(["has-ai-task:true"]);
+		).toEqual([]);
 	});
 });
 

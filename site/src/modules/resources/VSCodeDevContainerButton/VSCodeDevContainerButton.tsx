@@ -1,4 +1,4 @@
-import { type FC, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { DisplayApp } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -12,7 +12,7 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
 
-interface VSCodeDevContainerButtonProps {
+type VSCodeDevContainerButtonProps = {
 	userName: string;
 	workspaceName: string;
 	agentName?: string;
@@ -21,7 +21,7 @@ interface VSCodeDevContainerButtonProps {
 	localWorkspaceFolder: string;
 	localConfigFile: string;
 	displayApps: readonly DisplayApp[];
-}
+};
 
 type VSCodeVariant = "vscode" | "vscode-insiders";
 
@@ -31,9 +31,9 @@ const isVSCodeVariant = (value: string | null): value is VSCodeVariant => {
 	return value === "vscode" || value === "vscode-insiders";
 };
 
-export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
-	props,
-) => {
+export const VSCodeDevContainerButton: React.FC<
+	VSCodeDevContainerButtonProps
+> = (props) => {
 	const [isVariantMenuOpen, setIsVariantMenuOpen] = useState(false);
 	const [variant, setVariant] = useState<VSCodeVariant>(() => {
 		const previousVariant = localStorage.getItem(VARIANT_KEY);
@@ -41,6 +41,13 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	});
 	const menuAnchorRef = useRef<HTMLDivElement>(null);
 	const menuContentId = useId();
+	const [menuWidth, setMenuWidth] = useState<number | undefined>(undefined);
+
+	useLayoutEffect(() => {
+		if (isVariantMenuOpen) {
+			setMenuWidth(menuAnchorRef.current?.clientWidth);
+		}
+	}, [isVariantMenuOpen]);
 
 	const selectVariant = (nextVariant: VSCodeVariant) => {
 		localStorage.setItem(VARIANT_KEY, nextVariant);
@@ -76,7 +83,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 					id={menuContentId}
 					align="end"
 					collisionPadding={16}
-					style={{ width: menuAnchorRef.current?.clientWidth }}
+					style={{ width: menuWidth }}
 				>
 					<DropdownMenuItem
 						onClick={() => {
@@ -108,7 +115,7 @@ export const VSCodeDevContainerButton: FC<VSCodeDevContainerButtonProps> = (
 	) : null;
 };
 
-const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
+const VSCodeButton: React.FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,
@@ -156,7 +163,7 @@ const VSCodeButton: FC<VSCodeDevContainerButtonProps> = ({
 	);
 };
 
-const VSCodeInsidersButton: FC<VSCodeDevContainerButtonProps> = ({
+const VSCodeInsidersButton: React.FC<VSCodeDevContainerButtonProps> = ({
 	userName,
 	workspaceName,
 	agentName,

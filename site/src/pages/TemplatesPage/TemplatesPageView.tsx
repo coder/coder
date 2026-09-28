@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type {
@@ -17,15 +16,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import type { UseFilterResult } from "#/components/Filter/Filter";
-import {
-	HelpPopover,
-	HelpPopoverContent,
-	HelpPopoverIconTrigger,
-	HelpPopoverLink,
-	HelpPopoverLinksGroup,
-	HelpPopoverText,
-	HelpPopoverTitle,
-} from "#/components/HelpPopover/HelpPopover";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
@@ -46,6 +37,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
+import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
@@ -56,27 +48,51 @@ import {
 	formatTemplateBuildTime,
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
+import { CLASSIC_PARAMETER_FLOW_FILTER } from "./filter/categoryOptions";
 import { TemplatesFilter } from "./filter/TemplatesFilter";
 
-const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
-	templateCount,
+const CompatibilityModeAlert: React.FC<{ templates: readonly Template[] }> = ({
+	templates,
 }) => {
+	const singleTemplate = templates.length === 1 ? templates[0] : undefined;
+
 	return (
-		<Alert severity="warning" prominent className="mt-6">
+		<Alert
+			severity="warning"
+			className="mt-6"
+			actions={
+				<Button asChild variant="outline" size="sm">
+					<RouterLink
+						to={
+							singleTemplate
+								? `/templates/${singleTemplate.organization_name}/${singleTemplate.name}/settings/parameters`
+								: `/templates?filter=${encodeURIComponent(CLASSIC_PARAMETER_FLOW_FILTER)}`
+						}
+					>
+						{singleTemplate ? "Update template" : "Review templates"}
+					</RouterLink>
+				</Button>
+			}
+		>
 			<AlertTitle>
-				{templateCount === 1
-					? "1 template still uses classic parameters"
-					: `${templateCount} templates still use classic parameters`}
+				{singleTemplate
+					? "1 template is using parameter compatibility mode"
+					: `${templates.length} templates are using parameter compatibility mode`}
 			</AlertTitle>
 			<AlertDescription>
-				Classic parameters are deprecated. Switch to dynamic parameters for
-				real-time validation, conditional parameters, and richer input types.{" "}
+				Compatibility mode keeps{" "}
+				{singleTemplate ? "this template" : "these templates"} on the legacy
+				parameter flow, which will be removed in a future release. Switching to
+				dynamic parameters takes one click in the template&apos;s parameter
+				settings.{" "}
 				<Link
-					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
+					href={docs(
+						"/admin/templates/extending-templates/dynamic-parameters#upgrade-from-parameter-compatibility-mode",
+					)}
 					target="_blank"
 					rel="noreferrer"
 				>
-					View docs
+					How to upgrade
 					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			</AlertDescription>
@@ -84,33 +100,29 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 	);
 };
 
-const TemplateHelpPopover: FC = () => {
+const TemplateHelpPopover: React.FC = () => {
 	return (
-		<HelpPopover>
-			<HelpPopoverIconTrigger />
-			<HelpPopoverContent>
-				<HelpPopoverTitle>What is a template?</HelpPopoverTitle>
-				<HelpPopoverText>
-					With templates you can create a common configuration for your
-					workspaces using Terraform.
-				</HelpPopoverText>
-				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/admin/templates")}>
-						Manage templates
-					</HelpPopoverLink>
-				</HelpPopoverLinksGroup>
-			</HelpPopoverContent>
-		</HelpPopover>
+		<InfoTooltip>
+			<TooltipTitle>What is a template?</TooltipTitle>
+			<TooltipMessage>
+				With templates you can create a common configuration for your workspaces
+				using Terraform.
+				<br />
+				<Link size="sm" href={docs("/admin/templates")}>
+					Manage templates
+				</Link>
+			</TooltipMessage>
+		</InfoTooltip>
 	);
 };
 
-interface TemplateActionsProps {
+type TemplateActionsProps = {
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 	templatePageLink: string;
-}
+};
 
-const TemplateActions: FC<TemplateActionsProps> = ({
+const TemplateActions: React.FC<TemplateActionsProps> = ({
 	template,
 	workspacePermissions,
 	templatePageLink,
@@ -148,14 +160,14 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 	);
 };
 
-interface TemplateRowProps {
+type TemplateRowProps = {
 	canUpdateTemplate: boolean;
 	showOrganizations: boolean;
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
-const TemplateRow: FC<TemplateRowProps> = ({
+const TemplateRow: React.FC<TemplateRowProps> = ({
 	canUpdateTemplate,
 	showOrganizations,
 	template,
@@ -194,7 +206,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 									className="border-0 shadow-none"
 								>
 									<TriangleAlertIcon aria-hidden="true" />
-									Deprecated
+									Compatibility mode
 								</Badge>
 							)}
 						</span>
@@ -242,7 +254,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-interface TemplatesPageViewProps {
+type TemplatesPageViewProps = {
 	error?: unknown;
 	filter: UseFilterResult;
 	showOrganizations: boolean;
@@ -252,9 +264,9 @@ interface TemplatesPageViewProps {
 	templates: Template[] | undefined;
 	templateUpdatePermissions: AuthorizationResponse;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
-}
+};
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	error,
 	filter,
 	showOrganizations,
@@ -267,20 +279,20 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
 	const isLoading = !templates;
 	const isEmpty = !isLoading && templates.length === 0;
-	const classicParameterFlowTemplateCount =
+	const compatibilityModeTemplates =
 		templates?.filter(
 			(template) =>
 				template.use_classic_parameter_flow &&
 				templateUpdatePermissions[template.organization_id],
-		).length ?? 0;
-	const showClassicParameterFlow = classicParameterFlowTemplateCount > 0;
+		) ?? [];
+	const showCompatibilityModeAlert =
+		compatibilityModeTemplates.length > 0 &&
+		filter.values.compatibility_mode !== "true";
 
 	return (
 		<Margins className="pb-12">
-			{showClassicParameterFlow && (
-				<ClassicParameterFlowAlert
-					templateCount={classicParameterFlowTemplateCount}
-				/>
+			{showCompatibilityModeAlert && (
+				<CompatibilityModeAlert templates={compatibilityModeTemplates} />
 			)}
 
 			<PageHeader
@@ -359,7 +371,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	);
 };
 
-const TableLoader: FC = () => {
+const TableLoader: React.FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>

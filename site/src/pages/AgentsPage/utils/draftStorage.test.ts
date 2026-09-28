@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { parseStoredDraft } from "./draftStorage";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+	draftInputStorageKeyPrefix,
+	getPersistedDraftInputValue,
+	parseStoredDraft,
+} from "./draftStorage";
 
 describe("parseStoredDraft", () => {
 	it("returns empty text and no editorState for null input", () => {
@@ -163,5 +167,24 @@ describe("parseStoredDraft", () => {
 		const result = parseStoredDraft("{not valid json");
 		expect(result.text).toBe("{not valid json");
 		expect(result.editorState).toBeUndefined();
+	});
+});
+
+describe("getPersistedDraftInputValue", () => {
+	const chatID = "chat-abc-123";
+	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
+
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	it("reads the initial value from localStorage for a given chatID", () => {
+		localStorage.setItem(expectedKey, "saved draft");
+
+		expect(getPersistedDraftInputValue(chatID)).toBe("saved draft");
+	});
+
+	it("returns empty string when localStorage has no draft", () => {
+		expect(getPersistedDraftInputValue(chatID)).toBe("");
 	});
 });

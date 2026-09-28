@@ -72,7 +72,7 @@ export const SelectDeprecatedOption: Story = {
 			canvas.getByRole("button", { name: "Toggle filters" }),
 		);
 		await userEvent.click(
-			await body.findByRole("option", { name: "Attributes" }),
+			await body.findByRole("option", { name: /^Attributes/ }),
 		);
 		await userEvent.click(
 			await body.findByRole("option", { name: /deprecated/i }),
@@ -84,7 +84,7 @@ export const SelectDeprecatedOption: Story = {
 			),
 		);
 		await expect(
-			canvas.getByRole("button", { name: "Remove deprecated:true" }),
+			canvas.getByRole("button", { name: "Remove attributes:deprecated" }),
 		).toBeVisible();
 	},
 };
@@ -107,7 +107,12 @@ export const OrdinaryUserKeepsAuthorChip: Story = {
 			const names = body
 				.getAllByRole("option")
 				.map((option) => option.textContent?.trim());
-			expect(names).toEqual(expect.arrayContaining(["Attributes", "Author"]));
+			expect(names).toEqual(
+				expect.arrayContaining([
+					expect.stringMatching(/^Attributes/),
+					expect.stringMatching(/^Author/),
+				]),
+			);
 		});
 	},
 };

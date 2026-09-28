@@ -275,13 +275,9 @@ func contextResourcesToPrompt(
 			if decodedBody.GetName() == "" {
 				continue
 			}
-			// source is the skill directory. MetaFile is left empty so
-			// chattool falls back to DefaultSkillMetaFile ("SKILL.md").
-			// SkillMetaBody carries no meta file name, so a non-default
-			// CODER_AGENT_EXP_SKILL_META_FILE is not preserved on this
-			// path, unlike the per-turn discovery path. Meta carries the
-			// verbatim SKILL.md so read_skill serves the body from the
-			// pin instead of dialing the workspace.
+			// Source is the skill directory. Meta carries the verbatim
+			// SKILL.md so read_skill serves the pinned body without
+			// dialing the workspace.
 			skills = append(skills, chattool.SkillMeta{
 				Name:        decodedBody.GetName(),
 				Description: decodedBody.GetDescription(),

@@ -1,21 +1,20 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import type { ConcreteThemeName } from "#/theme";
 import { ThemePreview } from "./ThemePreview";
 import { DARK_THEMES, LIGHT_THEMES, THEME_COPY } from "./themeCopy";
 
-interface SingleModeSectionProps {
+type SingleModeSectionProps = {
 	selected: ConcreteThemeName;
 	name?: string;
 	onSelect: (theme: ConcreteThemeName) => void;
-}
+};
 
 const SINGLE_MODE_ORDER: ConcreteThemeName[] = [
 	...LIGHT_THEMES,
 	...DARK_THEMES,
 ];
 
-export const SingleModeSection: FC<SingleModeSectionProps> = ({
+export const SingleModeSection: React.FC<SingleModeSectionProps> = ({
 	selected,
 	name = "theme-single",
 	onSelect,
@@ -38,14 +37,14 @@ export const SingleModeSection: FC<SingleModeSectionProps> = ({
 	);
 };
 
-interface SingleTileProps {
+type SingleTileProps = {
 	name: string;
 	theme: ConcreteThemeName;
 	selected: boolean;
 	onSelect: () => void;
-}
+};
 
-const SingleTile: FC<SingleTileProps> = ({
+const SingleTile: React.FC<SingleTileProps> = ({
 	name,
 	theme,
 	selected,

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	Table,
@@ -10,13 +9,13 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { docs } from "#/utils/docs";
 
-interface IdpMappingTableProps {
+type IdpMappingTableProps = {
 	type: "Role" | "Group";
 	rowCount: number;
 	children: React.ReactNode;
-}
+};
 
-export const IdpMappingTable: FC<IdpMappingTableProps> = ({
+export const IdpMappingTable: React.FC<IdpMappingTableProps> = ({
 	type,
 	rowCount,
 	children,

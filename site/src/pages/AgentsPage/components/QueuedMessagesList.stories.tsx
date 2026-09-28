@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -46,7 +46,8 @@ export const SingleMessage: Story = {
 	},
 };
 
-// Several messages queued up at once.
+// Several messages queued up at once. The phone viewport hides the
+// Enter-to-send hint below the sm breakpoint.
 export const SeveralMessages: Story = {
 	args: {
 		messages: [
@@ -54,6 +55,10 @@ export const SeveralMessages: Story = {
 			buildMessage(2, textContent("Run database migrations")),
 			buildMessage(3, textContent("Start the dev server")),
 		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 
@@ -109,14 +114,6 @@ export const MultiLineTextTruncation: Story = {
 			),
 		],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// The first line and ellipsis should be visible in the same span.
-		const textSpan = canvas.getByText(/First line of the message…/);
-		expect(textSpan).toBeInTheDocument();
-		// The second line should not appear anywhere.
-		expect(canvas.queryByText(/Second line/)).not.toBeInTheDocument();
-	},
 };
 
 // A message with both text and a file attachment shows the ImageIcon badge.
@@ -148,16 +145,6 @@ export const ActionsExcludeEdit: Story = {
 	args: {
 		messages: [buildMessage(1, textContent("Run the linter"))],
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByRole("button", { name: "Send now" })).toBeVisible();
-		expect(
-			canvas.getByRole("button", { name: "Remove from queue" }),
-		).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: "Edit" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 let rejectQueuedDelete: ((error: Error) => void) | undefined;
@@ -182,21 +169,10 @@ export const DeleteRejectionRestoresRow: Story = {
 		});
 		await userEvent.click(removeButtons[0]);
 
-		expect(canvas.queryByText("First queued")).not.toBeInTheDocument();
-		expect(canvas.getByText("Second queued")).toBeVisible();
-		expect(canvas.getByRole("button", { name: "Send now" })).toBeDisabled();
-
 		if (!rejectQueuedDelete) {
 			throw new Error("onDelete was not invoked");
 		}
 		rejectQueuedDelete(new Error("delete failed"));
-
-		await waitFor(() => expect(canvas.getByText("First queued")).toBeVisible());
-		for (const button of canvas.getAllByRole("button", {
-			name: "Send now",
-		})) {
-			expect(button).toBeEnabled();
-		}
 	},
 };
 

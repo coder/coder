@@ -1,4 +1,6 @@
-# Resource monitoring
+---
+title: Resource monitoring
+---
 
 Use the
 [`resources_monitoring`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#resources_monitoring-1)

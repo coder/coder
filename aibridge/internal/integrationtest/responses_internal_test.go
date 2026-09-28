@@ -2,6 +2,7 @@ package integrationtest
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -20,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/sjson"
 
-	"github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -45,7 +46,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 		expectToolRecorded   *recorder.ToolUsageRecord
 		expectTokenUsage     *recorder.TokenUsageRecord
 		userAgent            string
-		expectedClient       aibridge.Client
+		expectedClient       aibclient.Type
 	}{
 		{
 			name:                 "blocking_simple",
@@ -63,7 +64,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "claude-cli/2.0.67 (external, cli)",
-			expectedClient: aibridge.ClientClaudeCode,
+			expectedClient: aibclient.ClaudeCode,
 		},
 		{
 			name:                 "blocking_builtin_tool",
@@ -88,7 +89,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_cached_input_tokens",
@@ -107,7 +108,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_custom_tool",
@@ -132,7 +133,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -160,7 +161,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_conversation",
@@ -177,7 +178,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "blocking_prev_response_id",
@@ -194,7 +195,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_simple",
@@ -213,7 +214,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "Zed/0.219.4+stable.119.abc123 (macos; aarch64)",
-			expectedClient: aibridge.ClientZed,
+			expectedClient: aibclient.Zed,
 		},
 		{
 			name:                 "streaming_codex",
@@ -232,7 +233,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
 			userAgent:      "codex_cli_rs/0.87.0 (Mac OS 26.2.0; arm64)",
-			expectedClient: aibridge.ClientCodex,
+			expectedClient: aibclient.Codex,
 		},
 		{
 			name:                 "streaming_builtin_tool",
@@ -258,7 +259,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_cached_tokens",
@@ -278,7 +279,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_custom_tool",
@@ -304,7 +305,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			// web_search_call is a hosted tool executed server-side by the
@@ -333,7 +334,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_conversation",
@@ -341,7 +342,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-4o-mini",
 			expectPromptRecorded: "explain why this is funny.",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_prev_response_id",
@@ -359,7 +360,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 				},
 				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 			},
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "stream_error",
@@ -367,7 +368,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_error",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 		{
 			name:                 "stream_failure",
@@ -375,7 +376,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_stream_failure",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 		},
 
 		// Original status code and body is kept even with wrong json format
@@ -383,7 +384,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			name:           "blocking_wrong_format",
 			fixture:        fixtures.OaiResponsesBlockingWrongResponseFormat,
 			expectModel:    "gpt-6.7",
-			expectedClient: aibridge.ClientUnknown,
+			expectedClient: aibclient.Unknown,
 		},
 		{
 			name:                 "streaming_wrong_format",
@@ -391,7 +392,7 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			streaming:            true,
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_wrong_format",
-			expectedClient:       aibridge.ClientUnknown,
+			expectedClient:       aibclient.Unknown,
 			expectTokenUsage: &recorder.TokenUsageRecord{
 				MsgID:  "resp_123",
 				Input:  11,
@@ -471,6 +472,65 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 	}
 }
 
+func TestResponsesReasoningModeForwarded(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		mode string
+	}{
+		{name: "default"},
+		{name: "standard", mode: "standard"},
+		{name: "pro", mode: "pro"},
+	} {
+		for i, streaming := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/streaming=%v", tc.name, streaming), func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+				fix := fixtures.Parse(t, [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple}[i])
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bridge := newBridgeTestServer(ctx, t, upstream.URL, withMCP(setupMCPForTest(t, defaultTracer)))
+
+				reasoning := map[string]any{"effort": "high", "summary": "detailed"}
+				if tc.mode != "" {
+					reasoning["mode"] = tc.mode
+				}
+				reqBody, err := json.Marshal(map[string]any{
+					"model":               "gpt-5.5",
+					"input":               "tell me a joke",
+					"stream":              streaming,
+					"reasoning":           reasoning,
+					"service_tier":        "priority",
+					"parallel_tool_calls": true,
+				})
+				require.NoError(t, err)
+
+				resp, err := bridge.makeRequest(t, http.MethodPost, pathOpenAIResponses, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+
+				received := upstream.ReceivedRequests()
+				require.Len(t, received, 1)
+				assert.Equal(t, http.MethodPost, received[0].Method)
+				assert.Equal(t, "/responses", received[0].Path)
+				var body map[string]any
+				require.NoError(t, json.Unmarshal(received[0].Body, &body))
+				assert.Equal(t, reasoning, body["reasoning"])
+				assert.Equal(t, "gpt-5.5", body["model"])
+				assert.Equal(t, "priority", body["service_tier"])
+				assert.Equal(t, streaming, body["stream"])
+				assert.Equal(t, false, body["parallel_tool_calls"])
+				assert.NotEmpty(t, body["tools"])
+			})
+		}
+	}
+}
+
 func TestResponsesBackgroundModeForbidden(t *testing.T) {
 	t.Parallel()
 
@@ -518,6 +578,95 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 			requireResponsesError(t, http.StatusNotImplemented, "background requests are currently not supported by AI Gateway", body)
 		})
 	}
+}
+
+// The default bridge test server carries an MCP proxy manager with no tools,
+// like a deployment where no user has injectable MCP tools. Events must still
+// reach the client while upstream is mid-stream instead of being buffered
+// until the response completes.
+func TestResponsesStreamingRelaysWithoutInjectedTools(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	fix := fixtures.Parse(t, fixtures.OaiResponsesStreamingSimple)
+	events := bytes.SplitAfter(fix.Streaming(), []byte("\n\n"))
+	require.Greater(t, len(events), 2)
+	head := bytes.Join(events[:2], nil)
+	tail := bytes.Join(events[2:], nil)
+
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseUpstream := func() { releaseOnce.Do(func() { close(release) }) }
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(head)
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+			return
+		}
+		_, _ = w.Write(tail)
+	}))
+	t.Cleanup(upstream.Close)
+	t.Cleanup(releaseUpstream)
+
+	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+	// Bound the wait with ctx: a buffered bridge never sends headers while
+	// upstream is held back.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, bridgeServer.URL+pathOpenAIResponses, bytes.NewReader(fix.Request()))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err, "bridge did not relay headers while upstream was mid-stream")
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	got := make([]byte, len(head))
+	_, err = io.ReadFull(resp.Body, got)
+	require.NoError(t, err)
+	require.Equal(t, string(head), string(got))
+
+	releaseUpstream()
+	rest, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, string(fix.Streaming()), string(got)+string(rest))
+}
+
+// Upstream accepts the stream but drops the connection before a complete
+// event arrives, so nothing has been relayed when the body read fails. The
+// client must get an explicit error instead of an empty 200.
+func TestResponsesStreamingUpstreamReadFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+	t.Cleanup(cancel)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler)
+	}))
+	t.Cleanup(upstream.Close)
+
+	bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+	resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathOpenAIResponses, responsesRequestBytes(t, true))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	requireResponsesError(t, http.StatusBadGateway, "failed to read response body", body)
 }
 
 func TestResponsesParallelToolsOverwritten(t *testing.T) {

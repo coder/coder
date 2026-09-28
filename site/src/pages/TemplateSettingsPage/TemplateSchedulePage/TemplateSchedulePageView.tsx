@@ -1,4 +1,3 @@
-import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
@@ -7,19 +6,21 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 
-interface TemplateSchedulePageViewProps {
+type TemplateSchedulePageViewProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
 	isSubmitting: boolean;
 	submitError?: unknown;
-	initialTouched?: ComponentProps<
+	initialTouched?: React.ComponentProps<
 		typeof TemplateScheduleForm
 	>["initialTouched"];
 	allowAdvancedScheduling: boolean;
-}
+};
 
-export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
+export const TemplateSchedulePageView: React.FC<
+	TemplateSchedulePageViewProps
+> = ({
 	template,
 	onCancel,
 	onSubmit,

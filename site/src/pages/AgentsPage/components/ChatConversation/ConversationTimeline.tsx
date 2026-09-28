@@ -1,7 +1,3 @@
-import {
-	MessageScroller,
-	useMessageScroller,
-} from "@shadcn/react/message-scroller";
 import { cn } from "cn";
 import {
 	ChevronLeftIcon,
@@ -9,7 +5,7 @@ import {
 	InfoIcon,
 	PencilIcon,
 } from "lucide-react";
-import { type FC, memo, type ReactNode, useState } from "react";
+import { memo, useState } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AlertTitle } from "#/components/Alert/Alert";
@@ -20,13 +16,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Response,
-} from "../ChatElements";
+import { ConversationItem } from "../ChatElements/Conversation";
+import { Message, MessageContent } from "../ChatElements/Message";
+import { Response } from "../ChatElements/Response";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
@@ -39,6 +33,7 @@ import {
 } from "./liveStatusModel";
 import {
 	buildDisplayMessages,
+	deriveEvictedFileIds,
 	deriveMessageDisplayState,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
@@ -70,7 +65,9 @@ const getChatMessageTextContent = (
 };
 
 // Avoid announcing historical hook notices as live alerts.
-const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
+const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
+	children,
+}) => (
 	<div
 		role="note"
 		className="relative my-1 w-full rounded-lg border border-solid border-border-default bg-surface-secondary p-4 text-left"
@@ -82,7 +79,7 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 	</div>
 );
 
-const LifecycleHookNotice: FC<{
+const LifecycleHookNotice: React.FC<{
 	children: string;
 	urlTransform?: UrlTransform;
 }> = ({ children, urlTransform }) => (
@@ -184,6 +181,12 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
+		const canEditUserMessage =
+			isUser && messageId !== undefined && Boolean(onEditUserMessage);
+		const canJumpBetweenUserMessages =
+			isUser &&
+			Boolean(onJumpToUserMessage) &&
+			(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined);
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -283,7 +286,8 @@ const ChatMessageItem = memo<{
 				{displayState &&
 					!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						canEditUserMessage ||
+						canJumpBetweenUserMessages) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -299,7 +303,7 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{isUser && messageId !== undefined && onEditUserMessage && (
+							{canEditUserMessage && messageId !== undefined && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -310,7 +314,7 @@ const ChatMessageItem = memo<{
 											onClick={() => {
 												const { text, fileBlocks } =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage(messageId, text, fileBlocks);
+												onEditUserMessage?.(messageId, text, fileBlocks);
 											}}
 										>
 											<PencilIcon />
@@ -399,9 +403,10 @@ const ChatMessageItem = memo<{
 	},
 );
 
-interface ConversationTimelineProps {
+type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
 	streamTools?: readonly MergedTool[];
@@ -423,12 +428,13 @@ interface ConversationTimelineProps {
 	showDesktopPreviews?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
-}
+};
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
 	({
 		organizationId,
 		parsedMessages,
+		chatFiles,
 		initialActiveTurnMaxMessageId,
 		streamState,
 		streamTools = [],
@@ -453,6 +459,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		};
 
 		const displayMessages = buildDisplayMessages(parsedMessages);
+		const evictedFileIds = deriveEvictedFileIds(parsedMessages, chatFiles);
 		const renderRows = assignTimelineRows(
 			displayMessages,
 			Boolean(liveStatus && shouldRenderLiveAssistant(liveStatus)),
@@ -554,7 +561,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<FileProbeProvider>
+			<FileProbeProvider evictedFileIds={evictedFileIds}>
 				{renderRows.map((row) => {
 					if (row.type === "live") {
 						// This row only exists when liveStatus is set.

@@ -29,6 +29,10 @@ GLOBAL OPTIONS:
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
+      --allow-redirects bool, $CODER_ALLOW_REDIRECTS
+          Follow HTTP redirects from the server instead of returning an error.
+          Following redirects may alter the request method and/or drop its body.
+
       --client-tls-ca-file string, $CODER_CLIENT_TLS_CA_FILE
           Path to a CA certificate file to trust for API and DERP connections.
 

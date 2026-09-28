@@ -14,11 +14,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -34,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -48,12 +52,14 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -61,12 +67,18 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
 const (
 	chatStreamBatchSize = 256
+
+	// maxChatRequestBodyBytes is the maximum JSON body size for chat
+	// creation and tool result requests.
+	maxChatRequestBodyBytes = 256 * 1024
 
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
@@ -75,7 +87,6 @@ const (
 	largeContextLimitTokens                 = int64(500_000)
 	minChatContextCompressionThreshold      = int32(0)
 	maxChatContextCompressionThreshold      = int32(100)
-	maxSystemPromptLenBytes                 = 131072 // 128 KiB
 )
 
 // defaultCompressionThresholdForContextLimit returns the compaction
@@ -402,7 +413,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
@@ -483,6 +494,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		DiffURL:             searchParams.DiffURL,
 		TitleQuery:          searchParams.TitleQuery,
 		HasUnread:           searchParams.HasUnread,
+		ChatStatuses:        searchParams.ChatStatuses,
 		PullRequestStatuses: searchParams.PullRequestStatuses,
 		PrNumber:            searchParams.PrNumber,
 		RepoQuery:           searchParams.RepoQuery,
@@ -963,14 +975,13 @@ func (api *API) getUserChatProviderAvailability(
 		}
 	}
 
-	fallbackKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
 	for _, configuredProvider := range configuredProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
 		if normalizedProvider == "" {
 			continue
 		}
 		_, providerStatus := chatprovider.ResolveUserProviderKeys(
-			fallbackKeys,
+			chatprovider.ProviderAPIKeys{},
 			[]chatprovider.ConfiguredProvider{configuredProvider},
 			userKeys,
 		)
@@ -1210,7 +1221,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Limit memory used to decode dynamic tool schemas.
 	var req codersdk.CreateChatRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 
@@ -1223,34 +1234,101 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	// Validate organization membership.
 	if req.OrganizationID == uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "organization_id is required.",
 		})
 		return
 	}
-	isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to validate organization membership.",
-			Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
-		})
-		return
+	ownerID := apiKey.UserID
+	if req.OwnerID != nil {
+		if *req.OwnerID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid owner_id: must be a user ID or omitted.",
+			})
+			return
+		}
+		ownerID = *req.OwnerID
 	}
-	if !isMember {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You are not a member of the specified organization.",
-		})
-		return
+	if ownerID == apiKey.UserID {
+		// Validate organization membership.
+		isMember, err := httpmw.UserAuthorization(ctx).HasOrganizationMembership(req.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to validate organization membership.",
+				Detail:  xerrors.Errorf("check organization membership: %w", err).Error(),
+			})
+			return
+		}
+		if !isMember {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "You are not a member of the specified organization.",
+			})
+			return
+		}
 	}
 	// NOTE: This authorize check is intentionally placed after request
 	// parsing because we need req.OrganizationID to scope the RBAC check
 	// to the correct org. The request body is bounded by the ReadLimit above,
 	// limiting the cost of parsing before rejection.
-	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceChat.WithOwner(apiKey.UserID.String()).InOrg(req.OrganizationID)) {
+	chatObject := rbac.ResourceChat.WithOwner(ownerID.String()).InOrg(req.OrganizationID)
+	if !api.Authorize(r, policy.ActionCreate, chatObject) {
 		httpapi.Forbidden(rw)
 		return
+	}
+	// Chat processing runs with the owner's credentials (workspace access,
+	// OIDC and provider tokens), so creating a chat for another user is
+	// acting as that user. Org-scoped chat permissions are not enough:
+	// require the same authority the token endpoint demands to mint a
+	// session for that user.
+	ownerCtx := ctx
+	if ownerID != apiKey.UserID {
+		if !api.Authorize(r, policy.ActionCreate, rbac.ResourceApiKey.WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		//nolint:gocritic // The caller may hold this authority without being able to read the owner's membership.
+		memberships, err := api.Database.OrganizationMembers(dbauthz.AsSystemRestricted(ctx), database.OrganizationMembersParams{
+			OrganizationID: req.OrganizationID,
+			UserID:         ownerID,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// AI Bridge refuses to authorize inactive and system users, so a
+		// chat owned by one could never run. The query already omits
+		// system and deleted users.
+		if len(memberships) == 0 || memberships[0].Status != database.UserStatusActive {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Chat owner must be an active member of the organization.",
+			})
+			return
+		}
+		owner, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// From here on the request proceeds as the owner. The chat is the
+		// owner's and chatd runs it under the owner's ACLs, so the
+		// workspace, model config, MCP servers, and the creation itself
+		// must succeed for the owner, not merely for the caller.
+		ownerCtx = dbauthz.As(ctx, owner)
+		// Service accounts and custom roles may lack chat permissions
+		// entirely or hold only some of them. Creation inserts the first
+		// message and reads the chat back under the owner, so a partial
+		// grant would fail inside the transaction with a generic 403.
+		for _, action := range []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate} {
+			if !api.HTTPAuth.AuthorizeContext(ownerCtx, action, chatObject) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Chat owner does not have permission to use chats.",
+				})
+				return
+			}
+		}
 	}
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1259,7 +1337,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ctx, r, req)
+	workspaceSelection, validationStatus, validationError := api.validateCreateChatWorkspaceSelection(ownerCtx, req)
 	if validationError != nil {
 		httpapi.Write(ctx, rw, validationStatus, *validationError)
 		return
@@ -1267,7 +1345,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	title := chatprompt.FallbackTitle(titleSource)
 
-	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ctx, apiKey.UserID, req)
+	modelConfigID, personalOverrideEffort, modelConfigStatus, modelConfigError := api.resolveCreateChatModelConfigID(ownerCtx, ownerID, req)
 	if modelConfigError != nil {
 		httpapi.Write(ctx, rw, modelConfigStatus, *modelConfigError)
 		return
@@ -1280,7 +1358,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, req.OrganizationID, req.MCPServerIDs)
+	normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ownerCtx, api.Database, req.OrganizationID, req.MCPServerIDs)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to validate MCP server IDs.",
@@ -1309,6 +1387,22 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
+	}
+
+	if (len(req.UnsafeDynamicTools) > 0 || len(req.InlineMCPServers) > 0) && api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		writeChatCallerSuppliedToolsDisabled(ctx, rw)
+		return
+	}
+
+	if len(req.InlineMCPServers) > 0 {
+		if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+			writeInlineMCPServersExperimentRequired(ctx, rw)
+			return
+		}
+		if validations := validateInlineMCPServers(req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+			writeInlineMCPServersInvalid(ctx, rw, validations)
+			return
+		}
 	}
 
 	if len(req.UnsafeDynamicTools) > 250 {
@@ -1376,9 +1470,10 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err := api.chatDaemon.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
 		OrganizationID:          req.OrganizationID,
-		OwnerID:                 apiKey.UserID,
+		OwnerID:                 ownerID,
+		CreatedBy:               apiKey.UserID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
@@ -1389,6 +1484,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		SystemPrompt:            req.SystemPrompt,
 		InitialUserContent:      contentBlocks,
 		MCPServerIDs:            mcpServerIDs,
+		InlineMCPServers:        req.InlineMCPServers,
 		Labels:                  labels,
 		DynamicTools:            dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
@@ -1398,7 +1494,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, err) {
+		if api.writeChatFileError(ctx, rw, err) {
 			return
 		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
@@ -1440,7 +1536,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	chat, err = api.Database.GetChatByID(ownerCtx, chat.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to read back chat after creation.",
@@ -1453,10 +1549,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// Kick off best-effort automatic title generation now that the
 	// chat and its initial user message are persisted. It runs
 	// detached so it never blocks the create response, and only acts
-	// on the first user turn.
-	api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+	// on the first user turn. Empty creates title on their first send.
+	if len(contentBlocks) > 0 {
+		api.chatDaemon.GenerateChatTitleAsync(ownerCtx, chat)
+	}
 
-	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
+	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
@@ -1556,6 +1654,23 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
+	}
+
+	if api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+		servers, err := api.chatInlineMCPServers(ctx, chat.ID)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to get inline MCP servers",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			if chat.OwnerID != httpmw.APIKey(r).UserID {
+				for i := range servers {
+					servers[i].URL = ""
+				}
+			}
+			sdkChat.InlineMCPServers = servers
+		}
 	}
 
 	enriched := []codersdk.Chat{sdkChat}
@@ -1816,10 +1931,36 @@ func (api *API) authorizeChatWorkspaceExec(
 	chat database.Chat,
 	noWorkspaceMessage string,
 ) (database.Workspace, bool) {
+	return api.authorizeChatWorkspaceExecWithStatus(
+		rw,
+		r,
+		chat,
+		http.StatusBadRequest,
+		noWorkspaceMessage,
+		http.StatusBadRequest,
+		codersdk.ChatGitWatchWorkspaceNotFoundMessage,
+	)
+}
+
+// authorizeChatWorkspaceExecWithStatus is authorizeChatWorkspaceExec
+// with caller-chosen statuses and messages for the no-workspace and
+// workspace-not-found failures. The workspace upload endpoint reports
+// these as 409 conflicts while the stream endpoints use 400.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) authorizeChatWorkspaceExecWithStatus(
+	rw http.ResponseWriter,
+	r *http.Request,
+	chat database.Chat,
+	noWorkspaceStatus int,
+	noWorkspaceMessage string,
+	notFoundStatus int,
+	notFoundMessage string,
+) (database.Workspace, bool) {
 	ctx := r.Context()
 
 	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		httpapi.Write(ctx, rw, noWorkspaceStatus, codersdk.Response{
 			Message: noWorkspaceMessage,
 		})
 		return database.Workspace{}, false
@@ -1827,8 +1968,8 @@ func (api *API) authorizeChatWorkspaceExec(
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: codersdk.ChatGitWatchWorkspaceNotFoundMessage,
+		httpapi.Write(ctx, rw, notFoundStatus, codersdk.Response{
+			Message: notFoundMessage,
 		})
 		return database.Workspace{}, false
 	}
@@ -2212,7 +2353,8 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, and pinned-chat ordering.
+// workspace binding, archiving, pinning, pinned-chat ordering, and the
+// owner's read state.
 //
 // @Summary Update chat
 // @ID update-chat
@@ -2261,6 +2403,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+	}
+
+	// The read cursor is owner-scoped, so an admin with update
+	// permission must not move another user's unread state. Checked
+	// before any write so a rejected request does not commit the
+	// other fields of a multi-field update.
+	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its read state.",
+		})
+		return
 	}
 
 	if req.Title != nil {
@@ -2437,13 +2590,38 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Read != nil {
+		markRead := *req.Read
+		var err error
+		if markRead {
+			err = api.advanceChatReadCursor(ctx, chat.ID)
+		} else {
+			err = api.clearChatReadCursor(ctx, chat.ID)
+		}
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			action := "read"
+			if !markRead {
+				action = "unread"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to mark chat as %s.", action),
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	if req.WorkspaceID != nil {
 		workspaceID := uuid.NullUUID{}
 		workspace := database.Workspace{}
 		if *req.WorkspaceID != uuid.Nil {
 			var status int
 			var resp *codersdk.Response
-			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+			workspaceID, workspace, status, resp = api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
 			if resp != nil {
 				httpapi.Write(ctx, rw, status, *resp)
 				return
@@ -2602,7 +2780,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -2617,6 +2795,33 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.MCPServerIDs = normalizedMCPServerIDs
+
+	if req.InlineMCPServers != nil {
+		// The field belongs to root chats, so a child rejects every value,
+		// including []. The kill switch and experiment gates apply only to
+		// non-empty declarations: [] is the detach path and must keep
+		// working when the feature is turned off.
+		if chat.ParentChatID.Valid {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "inline_mcp_servers can only be declared on a root chat.",
+			})
+			return
+		}
+		if len(*req.InlineMCPServers) > 0 {
+			if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+				writeChatCallerSuppliedToolsDisabled(ctx, rw)
+				return
+			}
+			if !api.Experiments.Enabled(codersdk.ExperimentChatInlineMCPServers) {
+				writeInlineMCPServersExperimentRequired(ctx, rw)
+				return
+			}
+			if validations := validateInlineMCPServers(*req.InlineMCPServers, api.MCPAllowedPrivateCIDRs); len(validations) > 0 {
+				writeInlineMCPServersInvalid(ctx, rw, validations)
+				return
+			}
+		}
+	}
 
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2662,24 +2867,43 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Chats created without an initial message have no stored effort,
+	// so apply the personal override postChats would have applied.
+	if reasoningEffort == nil && !chat.LastReasoningEffort.Valid {
+		overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, chat.OwnerID, chat.OrganizationID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to resolve chat model config.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if overrideEffort != nil &&
+			overrideModelConfigID == cmp.Or(modelConfigID, chat.LastModelConfigID) &&
+			chatprovider.IsValidReasoningEffort(*overrideEffort) {
+			reasoningEffort = overrideEffort
+		}
+	}
+
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
-			ChatID:          chatID,
-			CreatedBy:       apiKey.UserID,
-			Content:         contentBlocks,
-			ModelConfigID:   modelConfigID,
-			ReasoningEffort: reasoningEffort,
-			BusyBehavior:    busyBehavior,
-			PlanMode:        sendPlanMode,
-			MCPServerIDs:    req.MCPServerIDs,
+			ChatID:           chatID,
+			CreatedBy:        apiKey.UserID,
+			Content:          contentBlocks,
+			ModelConfigID:    modelConfigID,
+			ReasoningEffort:  reasoningEffort,
+			BusyBehavior:     busyBehavior,
+			PlanMode:         sendPlanMode,
+			MCPServerIDs:     req.MCPServerIDs,
+			InlineMCPServers: req.InlineMCPServers,
 		},
 	)
 	if sendErr != nil {
 		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, sendErr) {
+		if api.writeChatFileError(ctx, rw, sendErr) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
@@ -2729,6 +2953,17 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			Detail:  chaterror.FormatDiagnosticDetail(sendErr),
 		})
 		return
+	}
+
+	// Pass the inserted message as the snapshot: SendMessage published
+	// the ownership hint, so a fresh history read could already contain
+	// the assistant reply and disqualify title generation.
+	if sendResult.FirstUserTurn {
+		api.chatDaemon.GenerateChatTitleForMessagesAsync(
+			ctx,
+			sendResult.Chat,
+			[]database.ChatMessage{sendResult.Message},
+		)
 	}
 
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
@@ -2808,7 +3043,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, req.Content, "content")
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -2851,7 +3086,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, editErr) {
+		if api.writeChatFileError(ctx, rw, editErr) {
 			return
 		}
 
@@ -3065,32 +3300,48 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // messages as seen. This is called on stream connect and disconnect
 // to avoid per-message API calls during active streaming.
 func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	if err := api.advanceChatReadCursor(ctx, chatID); err != nil {
+		api.Logger.Warn(ctx, "failed to mark chat as read",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// advanceChatReadCursor moves the chat's owner-scoped read cursor to the
+// latest assistant message, so nothing in the chat is unread.
+func (api *API) advanceChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
 	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// No assistant messages yet, nothing to mark as read.
-		return
+		// No assistant messages yet, so nothing can be unread.
+		return nil
 	}
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
+		return xerrors.Errorf("get last assistant message: %w", err)
 	}
 
-	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chatID,
-		LastReadMessageID: lastMsg.ID,
-	})
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to update chat last read message ID",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("update chat last read message id: %w", err)
 	}
+	return nil
+}
+
+// clearChatReadCursor clears the chat's owner-scoped read cursor, so every
+// assistant message in the chat counts as unread again.
+func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: sql.NullInt64{},
+	}); err != nil {
+		return xerrors.Errorf("clear chat last read message id: %w", err)
+	}
+	return nil
 }
 
 // @Summary Stream chat events via WebSockets
@@ -4164,7 +4415,6 @@ type createChatWorkspaceSelection struct {
 
 func (api *API) validateChatWorkspaceSelection(
 	ctx context.Context,
-	r *http.Request,
 	workspaceID *uuid.UUID,
 ) (
 	uuid.NullUUID,
@@ -4193,7 +4443,7 @@ func (api *API) validateChatWorkspaceSelection(
 		UUID:  workspace.ID,
 		Valid: true,
 	}
-	if !api.Authorize(r, policy.ActionSSH, workspace) {
+	if !api.HTTPAuth.AuthorizeContext(ctx, policy.ActionSSH, workspace) {
 		return uuid.NullUUID{}, database.Workspace{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Workspace not found or you do not have access to this resource",
 		}
@@ -4204,7 +4454,6 @@ func (api *API) validateChatWorkspaceSelection(
 
 func (api *API) validateCreateChatWorkspaceSelection(
 	ctx context.Context,
-	r *http.Request,
 	req codersdk.CreateChatRequest,
 ) (
 	createChatWorkspaceSelection,
@@ -4212,7 +4461,7 @@ func (api *API) validateCreateChatWorkspaceSelection(
 	*codersdk.Response,
 ) {
 	selection := createChatWorkspaceSelection{}
-	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, r, req.WorkspaceID)
+	workspaceID, workspace, status, resp := api.validateChatWorkspaceSelection(ctx, req.WorkspaceID)
 	if resp != nil {
 		return selection, status, resp
 	}
@@ -4246,73 +4495,85 @@ func (api *API) resolveCreateChatModelConfigID(
 		return *req.ModelConfigID, nil, 0, nil
 	}
 
-	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	overrideModelConfigID, overrideEffort, err := api.personalRootModelOverride(ctx, userID, req.OrganizationID)
 	if err != nil {
 		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
 			Message: "Failed to resolve chat model config.",
 			Detail:  err.Error(),
 		}
 	}
-	if !personalOverridesEnabled {
-		id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
-		return id, nil, status, resp
-	}
-
-	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
-		UserID:         userID,
-		OrganizationID: req.OrganizationID,
-		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
-	})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-			Message: "Failed to resolve chat model config.",
-			Detail:  err.Error(),
-		}
-	}
-	if err == nil {
-		switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
-		case codersdk.ChatPersonalModelOverrideModeChatDefault:
-		case codersdk.ChatPersonalModelOverrideModeModel:
-			if override.ModelConfigID.Valid {
-				_, reason, err := api.userCanUseChatModelConfig(
-					ctx,
-					userID,
-					req.OrganizationID,
-					override.ModelConfigID.UUID,
-				)
-				if err != nil {
-					return uuid.Nil, nil, http.StatusInternalServerError, &codersdk.Response{
-						Message: "Failed to resolve chat model config.",
-						Detail:  err.Error(),
-					}
-				}
-				if reason == chatModelConfigAvailable {
-					var effort *string
-					if override.ReasoningEffort.Valid {
-						effort = &override.ReasoningEffort.String
-					}
-					return override.ModelConfigID.UUID, effort, 0, nil
-				}
-				api.Logger.Debug(
-					ctx,
-					"personal root model override is unavailable, using default model",
-					slog.F("user_id", userID),
-					slog.F("model_config_id", override.ModelConfigID.UUID),
-					slog.F("reason", reason),
-				)
-			}
-		default:
-			api.Logger.Warn(
-				ctx,
-				"unsupported personal root model override mode, using default model",
-				slog.F("user_id", userID),
-				slog.F("mode", override.Mode),
-			)
-		}
+	if overrideModelConfigID != uuid.Nil {
+		return overrideModelConfigID, overrideEffort, 0, nil
 	}
 
 	id, status, resp := api.defaultCreateChatModelConfigID(ctx, req.OrganizationID)
 	return id, nil, status, resp
+}
+
+// personalRootModelOverride returns the user's available personal root
+// model override and its reasoning effort, or uuid.Nil when personal
+// overrides are disabled or none applies.
+func (api *API) personalRootModelOverride(
+	ctx context.Context,
+	userID uuid.UUID,
+	organizationID uuid.UUID,
+) (uuid.UUID, *string, error) {
+	personalOverridesEnabled, err := api.Database.GetChatPersonalModelOverridesEnabled(ctx)
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	if !personalOverridesEnabled {
+		return uuid.Nil, nil, nil
+	}
+
+	override, err := api.Database.GetChatUserModelOverride(ctx, database.GetChatUserModelOverrideParams{
+		UserID:         userID,
+		OrganizationID: organizationID,
+		Context:        string(codersdk.ChatPersonalModelOverrideContextRoot),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, nil, err
+	}
+	switch codersdk.ChatPersonalModelOverrideMode(override.Mode) {
+	case codersdk.ChatPersonalModelOverrideModeChatDefault:
+	case codersdk.ChatPersonalModelOverrideModeModel:
+		if override.ModelConfigID.Valid {
+			_, reason, err := api.userCanUseChatModelConfig(
+				ctx,
+				userID,
+				organizationID,
+				override.ModelConfigID.UUID,
+			)
+			if err != nil {
+				return uuid.Nil, nil, err
+			}
+			if reason == chatModelConfigAvailable {
+				var effort *string
+				if override.ReasoningEffort.Valid {
+					effort = &override.ReasoningEffort.String
+				}
+				return override.ModelConfigID.UUID, effort, nil
+			}
+			api.Logger.Debug(
+				ctx,
+				"personal root model override is unavailable, using default model",
+				slog.F("user_id", userID),
+				slog.F("model_config_id", override.ModelConfigID.UUID),
+				slog.F("reason", reason),
+			)
+		}
+	default:
+		api.Logger.Warn(
+			ctx,
+			"unsupported personal root model override mode, using default model",
+			slog.F("user_id", userID),
+			slog.F("mode", override.Mode),
+		)
+	}
+	return uuid.Nil, nil, nil
 }
 
 func (api *API) defaultCreateChatModelConfigID(
@@ -4446,16 +4707,14 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
-	// 128 KiB is generous for a system prompt while still
-	// preventing abuse or accidental pastes of large content.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -4602,15 +4861,15 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 
 	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
-	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
+	if len(sanitizedInstructions) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedInstructions)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedInstructions)),
 		})
 		return
 	}
@@ -5522,7 +5781,7 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.DeprecatedModelConfigID != nil || req.DeprecatedReasoningEffort != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Advisor model settings moved to PUT /api/experimental/organizations/{organization}/chats/model-overrides/advisor.",
+			Message: "Advisor model settings moved to PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor.",
 		})
 		return
 	}
@@ -5948,16 +6207,16 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &params) {
 		return
 	}
 
 	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
-	// Apply the same 128 KiB limit as the deployment system prompt.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	// The same limit applies as for the deployment system prompt.
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -6165,7 +6424,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
 // @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
@@ -6220,12 +6479,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Extract filename from Content-Disposition header if provided.
-	var filename string
-	if cd := r.Header.Get("Content-Disposition"); cd != "" {
-		if _, params, err := mime.ParseMediaType(cd); err == nil {
-			filename = params["filename"]
-		}
-	}
+	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
 
 	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxChatFileSizeBytes)
 	data, err := io.ReadAll(r.Body)
@@ -6376,8 +6630,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TODO(CODAGT-922): flip to /api/v2 when experimental mounts are removed.
-	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
+	downloadURL := api.AccessURL.JoinPath("api", "v2", "chats", "files", fileID.String(), "download")
 	downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
 	digest := sha256.Sum256(chatFile.Data)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatFileDownloadURLResponse{
@@ -6393,7 +6646,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Summary Download chat file with signed token
 // @ID download-chat-file-with-signed-token
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
@@ -6443,7 +6696,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @ID get-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
-// @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
+// @Produce image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
 // @Router /api/v2/chats/files/{file} [get]
@@ -6497,12 +6750,442 @@ func (api *API) serveChatFile(ctx context.Context, rw http.ResponseWriter, chatF
 	}
 }
 
+const (
+	chatWorkspaceUploadNoWorkspaceMessage       = "Chat has no workspace to upload to."
+	chatWorkspaceUploadWorkspaceNotFoundMessage = "Chat workspace not found."
+	chatWorkspaceUploadWorkspaceDeletedMessage  = "Chat workspace was deleted."
+	chatWorkspaceUploadNoAgentsMessage          = "Chat workspace has no agents."
+	chatWorkspaceUploadArchivedMessage          = "Cannot upload files to an archived chat."
+	chatWorkspaceUploadOwnerOnlyMessage         = "Only the chat owner may upload files to a chat's workspace."
+	chatWorkspaceUploadMissingFilenameMessage   = "Filename is required."
+	chatWorkspaceUploadNoChatAgentMessage       = "No chat-compatible workspace agent found."
+	chatWorkspaceUploadAgentDialTimeout         = 30 * time.Second
+	// Transport errors embed the agent's tailnet URL, so they are logged
+	// rather than returned to the client.
+	chatWorkspaceUploadAgentUnreachableDetail = "The workspace agent could not be reached. Check that the workspace agent is connected and retry."
+)
+
+func (api *API) chatWorkspaceUploadMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := httpmw.APIKey(r)
+		chat := httpmw.ChatParam(r)
+
+		if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		if apiKey.UserID != chat.OwnerID {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: chatWorkspaceUploadOwnerOnlyMessage,
+			})
+			return
+		}
+
+		if chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: chatWorkspaceUploadArchivedMessage,
+			})
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
+
+// @Summary Upload a file to a chat's workspace
+// @ID upload-a-file-to-a-chats-workspace
+// @Security CoderSessionToken
+// @Accept */*
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param Content-Disposition header string true "Filename of the file (attachment; filename=...)"
+// @Param request body string true "Raw file binary data"
+// @x-apidocgen {"rawBodyFile": "archive.zip"}
+// @Success 201 {object} codersdk.UploadChatWorkspaceFileResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
+// @Failure 429 {object} codersdk.Response
+// @Failure 500 {object} codersdk.Response
+// @Failure 502 {object} codersdk.Response
+// @Router /api/v2/chats/{chat}/workspace-files [post]
+// @Description Streams the request body into the chat workspace's
+// @Description upload directory. The request Content-Type header is
+// @Description recorded as the file's media type. There is no
+// @Description server-imposed size cap; client cancellation aborts the
+// @Description stream and the agent leaves no partial target file behind.
+func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	start := api.Clock.Now()
+	sw := &tracing.StatusWriter{ResponseWriter: rw}
+	rw = sw
+
+	var (
+		workspaceID uuid.UUID
+		agentID     uuid.UUID
+		name        string
+		body        *workspaceUsageReader
+		failure     error
+	)
+	defer func() {
+		api.chatWorkspaceUploadsTotal.WithLabelValues(strconv.Itoa(sw.Status)).Inc()
+		if sw.Status < http.StatusBadRequest {
+			return
+		}
+		var bytesRead int64
+		if body != nil {
+			bytesRead = body.bytesRead.Load()
+		}
+		fields := []slog.Field{
+			slog.F("chat_id", chat.ID),
+			slog.F("workspace_id", workspaceID),
+			slog.F("agent_id", agentID),
+			slog.F("owner_id", chat.OwnerID),
+			slog.F("file_name", name),
+			slog.F("bytes_read", bytesRead),
+			slog.F("duration", api.Clock.Since(start)),
+			slog.F("status", sw.Status),
+		}
+		if failure != nil {
+			fields = append(fields, slog.Error(failure))
+		}
+		api.Logger.Warn(ctx, "chat workspace file upload failed", fields...)
+	}()
+
+	workspace, ok := api.authorizeChatWorkspaceExecWithStatus(
+		rw,
+		r,
+		chat,
+		http.StatusConflict,
+		chatWorkspaceUploadNoWorkspaceMessage,
+		http.StatusConflict,
+		chatWorkspaceUploadWorkspaceNotFoundMessage,
+	)
+	if !ok {
+		return
+	}
+	workspaceID = workspace.ID
+	// Writing files into the workspace filesystem is an SSH-grade
+	// capability. The exec helper also admits app-connect-only
+	// callers (it serves the read-oriented stream endpoints), so
+	// require SSH explicitly, matching validateChatWorkspaceSelection.
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: chatWorkspaceUploadWorkspaceNotFoundMessage,
+		})
+		return
+	}
+
+	filename := chatFilenameFromContentDisposition(r.Header.Get("Content-Disposition"))
+	sanitizedName, err := chatfiles.SanitizeWorkspaceUploadName(filename)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: chatWorkspaceUploadMissingFilenameMessage,
+			Detail:  "Provide a filename via the Content-Disposition header.",
+		})
+		return
+	}
+	name = sanitizedName
+
+	contentType := chatfiles.BaseMediaType(r.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if workspace.Deleted {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatWorkspaceUploadWorkspaceDeletedMessage,
+		})
+		return
+	}
+	latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		failure = err
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, latestBuild.JobID)
+	if err != nil {
+		failure = err
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build job.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspaceStatus := codersdk.ConvertWorkspaceStatus(
+		codersdk.ProvisionerJobStatus(job.JobStatus),
+		codersdk.WorkspaceTransition(latestBuild.Transition),
+	)
+	if workspaceStatus != codersdk.WorkspaceStatusRunning {
+		action := "Start the workspace"
+		if latestBuild.Transition == database.WorkspaceTransitionStart &&
+			(workspaceStatus == codersdk.WorkspaceStatusPending || workspaceStatus == codersdk.WorkspaceStatusStarting) {
+			action = "Wait for the workspace to start"
+		}
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Workspace is %s. %s before uploading files.", workspaceStatus, action),
+		})
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		failure = err
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatWorkspaceUploadNoAgentsMessage,
+		})
+		return
+	}
+
+	selectedAgent, err := chatWorkspaceUploadAgent(chat, agents)
+	if err != nil {
+		failure = err
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatWorkspaceUploadNoChatAgentMessage,
+			Detail:  err.Error(),
+		})
+		return
+	}
+	agentID = selectedAgent.ID
+
+	agentStatus := selectedAgent.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout)
+	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Agent status is %q. Start the workspace agent before uploading files.",
+				agentStatus.Status,
+			),
+		})
+		return
+	}
+
+	defer r.Body.Close()
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, chatWorkspaceUploadAgentDialTimeout)
+	defer dialCancel()
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, selectedAgent.ID)
+	if err != nil {
+		failure = err
+		// A dial failure is a coderd-to-agent transport problem, the
+		// same class writeWorkspaceAgentUploadError maps to 502.
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to dial workspace agent.",
+			Detail:  chatWorkspaceUploadAgentUnreachableDetail,
+		})
+		return
+	}
+	defer release()
+
+	// Mirror chatd's connection headers so agent-side chat state (e.g.
+	// the git-watch PathStore) attributes this request to the chat.
+	var ancestorIDs []string
+	if chat.ParentChatID.Valid {
+		ancestorIDs = append(ancestorIDs, chat.ParentChatID.UUID.String())
+	}
+	ancestorJSON, err := json.Marshal(ancestorIDs)
+	if err != nil {
+		ancestorJSON = []byte("[]")
+	}
+	agentConn.SetExtraHeaders(http.Header{
+		workspacesdk.CoderChatIDHeader:          {chat.ID.String()},
+		workspacesdk.CoderAncestorChatIDsHeader: {string(ancestorJSON)},
+	})
+
+	// Uploads are neither SSH nor app sessions, so nothing else records
+	// them as workspace usage; without this an uncapped upload started
+	// near the autostop deadline could see its workspace stop mid-stream.
+	// The bump runs as chatd like the heartbeat bump: the upload itself
+	// is already authorized, but the requester may hold only SSH rights
+	// on a shared workspace while the bump needs workspace update.
+	//nolint:gocritic // Activity bump for an upload the requester is already authorized to make.
+	bumpCtx := dbauthz.AsChatd(ctx)
+	body = &workspaceUsageReader{
+		r:     r.Body,
+		clock: api.Clock,
+		report: func() {
+			api.WorkspaceUsageTracker.Add(workspace.ID)
+			workspacestats.ActivityBumpWorkspace(bumpCtx, api.Logger.Named("activity_bump"), api.Database, workspace.ID, time.Time{}, workspacestats.ActivityBumpReasonChatWorkspaceUpload)
+		},
+	}
+	body.reportNow()
+
+	resp, err := agentConn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
+		ChatID: chat.ID.String(),
+		Name:   name,
+		Body:   body,
+	})
+	if err != nil {
+		failure = err
+		writeWorkspaceAgentUploadError(ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadChatWorkspaceFileResponse{
+		Path:        resp.Path,
+		Name:        resp.Name,
+		Size:        resp.Size,
+		MediaType:   contentType,
+		WorkspaceID: workspace.ID,
+	})
+}
+
+// chatWorkspaceUploadAgent prefers the chat's bound agent when it is
+// still part of the latest build so uploads land on the same agent the
+// generation path uses. Otherwise it falls back to the deterministic
+// chat agent selection without persisting a binding; binding remains a
+// generation-path concern, and determinism makes both converge.
+func chatWorkspaceUploadAgent(chat database.Chat, agents []database.WorkspaceAgent) (database.WorkspaceAgent, error) {
+	if chat.AgentID.Valid {
+		for _, agent := range agents {
+			if agent.ID == chat.AgentID.UUID {
+				return agent, nil
+			}
+		}
+	}
+	return agentselect.FindChatAgent(agents)
+}
+
+// chatWorkspaceUploadUsageInterval bounds how often a streaming upload
+// records workspace usage; chatd heartbeats at the same cadence.
+const chatWorkspaceUploadUsageInterval = 30 * time.Second
+
+// workspaceUsageReader reports workspace usage while an upload body
+// streams so long uploads keep extending the autostop deadline.
+type workspaceUsageReader struct {
+	r          io.Reader
+	clock      quartz.Clock
+	report     func()
+	lastReport time.Time
+	// bytesRead is atomic because the HTTP transport may still be
+	// reading the body when the handler logs a failed upload.
+	bytesRead atomic.Int64
+}
+
+func (w *workspaceUsageReader) reportNow() {
+	w.lastReport = w.clock.Now()
+	w.report()
+}
+
+func (w *workspaceUsageReader) Read(p []byte) (int, error) {
+	n, err := w.r.Read(p)
+	w.bytesRead.Add(int64(n))
+	if n > 0 && w.clock.Since(w.lastReport) >= chatWorkspaceUploadUsageInterval {
+		w.reportNow()
+	}
+	return n, err
+}
+
+func writeWorkspaceAgentUploadError(ctx context.Context, rw http.ResponseWriter, err error) {
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) && sdkErr.StatusCode() != 0 {
+		// The upload handler never answers 404 itself, so a 404 means
+		// the workspace runs an agent from before this endpoint existed
+		// (coderd upgraded while the workspace kept running).
+		if sdkErr.StatusCode() == http.StatusNotFound {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "The workspace agent does not support chat file uploads. Restart the workspace to update its agent, then retry.",
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, sdkErr.StatusCode(), sdkErr.Response)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+		Message: "Failed to upload file to workspace agent.",
+		Detail:  chatWorkspaceUploadAgentUnreachableDetail,
+	})
+}
+
+func chatFilenameFromContentDisposition(contentDisposition string) string {
+	if contentDisposition == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(contentDisposition)
+	if err != nil {
+		return ""
+	}
+	return params["filename"]
+}
+
+// maxWorkspaceFileReferencePathBytes bounds persisted workspace file
+// reference paths.
+const maxWorkspaceFileReferencePathBytes = 4096
+
+// normalizeWorkspaceFileReference reports whether a client-supplied
+// workspace file reference plausibly points at a file uploaded for
+// this chat and returns the cleaned path to persist. The agent home
+// directory is not known to coderd, so validation is limited to an
+// absolute path tail scoped by chat ID and a matching basename.
+func normalizeWorkspaceFileReference(chatID uuid.UUID, filePath, name string) (string, bool) {
+	if chatID == uuid.Nil || len(filePath) > maxWorkspaceFileReferencePathBytes {
+		return "", false
+	}
+	// Control characters (including NUL, which cannot be persisted)
+	// never appear in agent-produced paths or names.
+	if strings.ContainsFunc(filePath, unicode.IsControl) || strings.ContainsFunc(name, unicode.IsControl) {
+		return "", false
+	}
+
+	normalizedPath := path.Clean(strings.ReplaceAll(strings.TrimSpace(filePath), `\`, "/"))
+	normalizedName := strings.ReplaceAll(strings.TrimSpace(name), `\`, "/")
+	if normalizedPath == "." || normalizedName == "." || normalizedName == "" {
+		return "", false
+	}
+	if path.Base(normalizedName) != normalizedName || path.Base(normalizedPath) != normalizedName {
+		return "", false
+	}
+	windowsPath := isWindowsAbsPath(normalizedPath)
+	if !path.IsAbs(normalizedPath) && !windowsPath {
+		return "", false
+	}
+
+	marker := "/" + strings.Trim(chatfiles.WorkspaceChatsDir, "/") + "/" +
+		chatID.String() + "/" + chatfiles.WorkspaceUploadFilesSubdir + "/"
+	if !strings.HasSuffix(normalizedPath, marker+normalizedName) {
+		return "", false
+	}
+	if windowsPath {
+		return strings.ReplaceAll(normalizedPath, "/", `\`), true
+	}
+	return normalizedPath, true
+}
+
+func isWindowsAbsPath(p string) bool {
+	return len(p) >= 3 && p[1] == ':' && p[2] == '/' &&
+		(('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z'))
+}
+
 func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
 	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
 ) {
-	content, pasteData, inputError := createChatInputFromParts(ctx, db, req.Content, "content")
+	// Empty content creates an idle chat with no initial user
+	// message. Generation starts with the first message POSTed to
+	// /chats/{chat}/messages. This lets clients sequence work that
+	// needs the chat ID before the first turn, such as workspace
+	// file uploads.
+	if len(req.Content) == 0 {
+		return nil, "", nil
+	}
+	// Chat creation has no chat ID yet, so workspace-file-reference
+	// parts are rejected (they require an existing chat's uploads).
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")
 	if inputError != nil {
 		return nil, "", inputError
 	}
@@ -6527,6 +7210,8 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
+	chatID uuid.UUID,
+	chatWorkspaceID uuid.NullUUID,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
 ) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
@@ -6599,6 +7284,75 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, codersdk.ChatMessageFileReference(part.FileName, part.StartLine, part.EndLine, part.Content))
+		case string(codersdk.ChatInputPartTypeWorkspaceFileReference):
+			if strings.TrimSpace(part.WorkspaceFilePath) == "" {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_path is required for workspace-file-reference.", fieldName, i),
+				}
+			}
+			if strings.TrimSpace(part.WorkspaceFileName) == "" {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_name is required for workspace-file-reference.", fieldName, i),
+				}
+			}
+			if part.WorkspaceFileSize < 0 {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_size must be non-negative.", fieldName, i),
+				}
+			}
+			if chatID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace-file-reference requires an existing chat.", fieldName, i),
+				}
+			}
+			// The sanitizer is idempotent, so every name returned by the
+			// upload endpoint passes unchanged.
+			if sanitized, err := chatfiles.SanitizeWorkspaceUploadName(part.WorkspaceFileName); err != nil || sanitized != part.WorkspaceFileName {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_name must be a name returned by the workspace file upload endpoint.", fieldName, i),
+				}
+			}
+			workspaceFilePath, ok := normalizeWorkspaceFileReference(chatID, part.WorkspaceFilePath, part.WorkspaceFileName)
+			if !ok {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_path must reference a file uploaded to this chat.", fieldName, i),
+				}
+			}
+			if strings.ContainsRune(part.WorkspaceFileMediaType, 0) {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_media_type must not contain NUL bytes.", fieldName, i),
+				}
+			}
+			// The referenced bytes live in one specific workspace's
+			// filesystem. Reject references from a workspace other
+			// than the chat's current binding: after a rebind the
+			// path is unreadable for the bound agent.
+			if part.WorkspaceFileWorkspaceID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_workspace_id is required for workspace-file-reference.", fieldName, i),
+				}
+			}
+			if !chatWorkspaceID.Valid || chatWorkspaceID.UUID != part.WorkspaceFileWorkspaceID {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_workspace_id must match the chat's bound workspace. Re-upload the file to the current workspace.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageWorkspaceFileReference(
+				part.WorkspaceFileWorkspaceID,
+				workspaceFilePath,
+				part.WorkspaceFileName,
+				part.WorkspaceFileSize,
+				chatfiles.BaseMediaType(part.WorkspaceFileMediaType),
+			))
 		default:
 			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -6621,12 +7375,19 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+// maxPromptRequestBodyBytes allows twice the prompt limit for JSON escaping
+// and characters that sanitization removes, but never less than
+// maxChatRequestBodyBytes, so small limits still return the 400 length error.
+func (api *API) maxPromptRequestBodyBytes() int64 {
+	return max(maxChatRequestBodyBytes, 2*int64(api.chatLimits.MaxPromptBytes))
+}
+
+func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A chat can reference at most %d attachments. Remove some attachments or start a new chat.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", api.chatLimits.MaxAttachmentsPerChat),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -6942,41 +7703,6 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 	}
 }
 
-func writeLegacyChatProviderGone(rw http.ResponseWriter, r *http.Request) {
-	httpapi.Write(r.Context(), rw, http.StatusGone, codersdk.Response{
-		Message: "Legacy chat provider APIs were removed. Use AI provider APIs instead.",
-		Detail:  "See https://coder.com/docs/ai-coder/agents/models#providers for AI provider configuration.",
-	})
-}
-
-func (*API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) createChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) updateChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) deleteChatProvider(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
-func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
-	writeLegacyChatProviderGone(rw, r)
-}
-
 // @Summary List AI models and provider descriptors in an organization
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
@@ -7164,7 +7890,12 @@ func (e *chatModelConfigProviderModelError) Error() string {
 	return e.Response.Message
 }
 
-func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string) *chatModelConfigProviderModelError {
+func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string, config *codersdk.ChatModelCallConfig) *chatModelConfigProviderModelError {
+	if err := chatopenai.ValidateReasoningMode(string(aiProvider.Type), config); err != nil {
+		return &chatModelConfigProviderModelError{
+			Response: codersdk.Response{Message: "Invalid model config.", Detail: err.Error()},
+		}
+	}
 	if err := chatd.ValidateAIGatewayProviderModel(aiProvider, model); err != nil {
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{
@@ -7398,7 +8129,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if !lockedAIProvider.Enabled {
 			return errChatProviderDisabled
 		}
-		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
+		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model, req.ModelConfig); err != nil {
 			return err
 		}
 
@@ -7602,7 +8333,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		// An update that touches neither the provider nor the model cannot
 		// invalidate the stored provider/model pair.
 		revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
-		if revalidateProviderModel {
+		if revalidateProviderModel || chatopenai.ReasoningMode(req.ModelConfig) != nil {
 			//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
@@ -7611,10 +8342,10 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 				}
 				return xerrors.Errorf("get AI provider for update: %w", err)
 			}
-			if !aiProvider.Enabled {
+			if revalidateProviderModel && !aiProvider.Enabled {
 				return errChatProviderDisabled
 			}
-			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
+			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model, unmarshalChatModelCallConfig(modelConfigRaw)); err != nil {
 				return err
 			}
 		}
@@ -8042,7 +8773,7 @@ func isZeroChatModelCallConfig(config *codersdk.ChatModelCallConfig) bool {
 }
 
 func isZeroChatModelOpenAIConfig(config *codersdk.ChatModelOpenAIConfig) bool {
-	return config == nil || config.UseResponsesAPI == nil
+	return config == nil || (config.UseResponsesAPI == nil && config.ReasoningModel == nil)
 }
 
 func isZeroChatModelProviderOptions(options *codersdk.ChatModelProviderOptions) bool {
@@ -8087,17 +8818,6 @@ var (
 	errChatModelConfigNotFound = xerrors.New("chat model config not found")
 )
 
-// ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
-// provider API keys.
-func ChatProviderAPIKeysFromDeploymentValues(
-	_ *codersdk.DeploymentValues,
-) chatprovider.ProviderAPIKeys {
-	// AI bridge deployment config is intentionally not reused for chat
-	// provider credentials. Bridge keys serve the AI task subsystem and
-	// should not silently broaden into chat execution paths.
-	return chatprovider.ProviderAPIKeys{}
-}
-
 // @Summary Submit chat tool results
 // @ID submit-chat-tool-results
 // @Security CoderSessionToken
@@ -8141,10 +8861,18 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.DeploymentValues.DisableChatCallerSuppliedTools.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Caller-supplied tools are disabled on this deployment.",
+			Detail:  "The server runs with --disable-chat-caller-supplied-tools. Interrupt the chat to cancel the pending tool calls.",
+		})
+		return
+	}
+
 	// Cap the raw request body to prevent excessive memory use.
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 

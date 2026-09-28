@@ -1,4 +1,6 @@
-# Additional clusters
+---
+title: Additional clusters
+---
 
 With Coder, you can deploy workspaces in additional Kubernetes clusters using
 different
@@ -46,7 +48,7 @@ coder:
       readOnly: true
 ```
 
-[Upgrade Coder](../../install/kubernetes.md#upgrade-coder-via-helm) with these
+[Upgrade Coder](../../install/server/kubernetes/index.md#upgrade-coder-via-helm) with these
 new values.
 
 ### VM control plane

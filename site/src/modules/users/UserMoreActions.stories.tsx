@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { useState } from "react";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
@@ -11,8 +11,8 @@ import { withToaster } from "#/testHelpers/storybook";
 import { UserActionDialogs, type UserAdminAction } from "./UserActionDialogs";
 import { UserMoreActions } from "./UserMoreActions";
 
-const UserMoreActionsWithDialogs: FC<
-	ComponentProps<typeof UserMoreActions>
+const UserMoreActionsWithDialogs: React.FC<
+	React.ComponentProps<typeof UserMoreActions>
 > = ({ onAction, ...props }) => {
 	const [action, setAction] = useState<UserAdminAction>();
 
@@ -56,6 +56,22 @@ export const OpenMenu: Story = {
 		await menu.findByRole("menuitem", { name: "Edit roles" });
 		await menu.findByRole("menuitem", { name: "Suspend…" });
 		await menu.findByRole("menuitem", { name: "Delete…" });
+	},
+};
+
+export const OnEditPage: Story = {
+	args: {
+		showEdit: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /open menu/i }));
+		const menu = within(document.body);
+		await menu.findByRole("menuitem", { name: "View workspaces" });
+		await expect(
+			menu.queryByRole("menuitem", { name: "Edit" }),
+		).not.toBeInTheDocument();
+		await menu.findByRole("menuitem", { name: "Edit roles" });
 	},
 };
 

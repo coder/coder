@@ -1,5 +1,5 @@
 import type { FormikTouched } from "formik";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { PreviewParameter } from "#/api/typesGenerated";
 
@@ -21,17 +21,12 @@ export function useSyncFormParameters({
 	touched,
 	setFieldValue,
 }: UseSyncFormParametersProps) {
-	// Form values only needs to be updated when parameters change
-	// Keep track of form values in a ref to avoid unnecessary updates to rich_parameter_values
-	const formValuesRef = useRef(formValues);
-
-	formValuesRef.current = formValues;
-
-	useEffect(() => {
-		if (!parameters) return;
-		const currentFormValues = formValuesRef.current;
+	// Form values only needs to be updated when parameters change. Reading the
+	// latest form values from an effect event keeps them out of the effect's
+	// dependency array so it does not re-run on every form value change.
+	const syncParameters = useEffectEvent(() => {
 		const currentFormValuesMap = new Map(
-			currentFormValues.map((value) => [value.name, value.value]),
+			formValues.map((value) => [value.name, value.value]),
 		);
 
 		const newParameterValues = parameters.map((param) => {
@@ -58,7 +53,7 @@ export function useSyncFormParameters({
 		});
 
 		const isChanged =
-			currentFormValues.length !== newParameterValues.length ||
+			formValues.length !== newParameterValues.length ||
 			newParameterValues.some(
 				(p) =>
 					!currentFormValuesMap.has(p.name) ||
@@ -68,5 +63,10 @@ export function useSyncFormParameters({
 		if (isChanged) {
 			setFieldValue("rich_parameter_values", newParameterValues);
 		}
-	}, [parameters, touched, setFieldValue]);
+	});
+
+	useEffect(() => {
+		if (!parameters) return;
+		syncParameters();
+	}, [parameters]);
 }

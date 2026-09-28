@@ -1,5 +1,4 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import {
@@ -89,7 +88,7 @@ type GroupsPageViewProps = {
 	permissions: Permissions;
 };
 
-export const GroupsPageView: FC<GroupsPageViewProps> = ({
+export const GroupsPageView: React.FC<GroupsPageViewProps> = ({
 	groups,
 	spendError,
 	canCreateGroup,
@@ -189,14 +188,14 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	);
 };
 
-interface GroupsTableBodyProps {
+type GroupsTableBodyProps = {
 	groups: GroupWithSpend[] | undefined;
 	canCreateGroup: boolean;
 	showAIBudget: boolean;
 	filterUsed: boolean;
-}
+};
 
-const GroupsTableBody: FC<GroupsTableBodyProps> = ({
+const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
 	showAIBudget,
@@ -250,12 +249,12 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	);
 };
 
-interface GroupRowProps {
+type GroupRowProps = {
 	group: GroupWithSpend;
 	showAIBudget: boolean;
-}
+};
 
-const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
+const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
@@ -344,7 +343,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	);
 };
 
-const TableLoader: FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
+const TableLoader: React.FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>

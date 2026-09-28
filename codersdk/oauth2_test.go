@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -83,6 +84,46 @@ func TestOAuth2ClientRegistrationRequest_DetermineClientType(t *testing.T) {
 				require.Equal(t, tt.wantAuthMethodAfterDefaults, req.TokenEndpointAuthMethod)
 			}
 			require.Equal(t, tt.expectedType, string(req.DetermineClientType()))
+		})
+	}
+}
+
+func TestRedirectURIMatches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		registered string
+		presented  string
+		want       bool
+	}{
+		{"ExactMatch", "https://app.example.com/callback", "https://app.example.com/callback", true},
+		{"CustomSchemeExact", "cursor://anysphere.cursor-mcp/oauth/callback", "cursor://anysphere.cursor-mcp/oauth/callback", true},
+		{"LoopbackIPv4PortDiffers", "http://127.0.0.1/callback", "http://127.0.0.1:53219/callback", true},
+		{"LoopbackIPv6PortDiffers", "http://[::1]/callback", "http://[::1]:53219/callback", true},
+		{"LocalhostPortDiffers", "http://localhost/callback", "http://localhost:53219/callback", true},
+		{"RegisteredPortDoesNotPin", "http://localhost:9876/callback", "http://localhost:53219/callback", true},
+		{"PresentedWithoutPort", "http://127.0.0.1:53219/callback", "http://127.0.0.1/callback", true},
+		{"LoopbackPathDiffers", "http://127.0.0.1/callback", "http://127.0.0.1:53219/other", false},
+		{"LoopbackSchemeDiffers", "http://127.0.0.1/callback", "https://127.0.0.1:53219/callback", false},
+		{"LoopbackHostSubstitution", "http://127.0.0.1/callback", "http://localhost:53219/callback", false},
+		{"LoopbackQueryDiffers", "http://127.0.0.1/callback", "http://127.0.0.1:53219/callback?next=x", false},
+		{"LoopbackUserinfoDiffers", "http://127.0.0.1/callback", "http://user@127.0.0.1:53219/callback", false},
+		{"LocalhostSubdomain", "http://app.localhost/callback", "http://app.localhost:53219/callback", false},
+		{"OtherLoopbackIP", "http://127.0.0.2/callback", "http://127.0.0.2:53219/callback", false},
+		{"HTTPSLoopbackPortDiffers", "https://127.0.0.1/callback", "https://127.0.0.1:53219/callback", false},
+		{"NonLoopbackPortDiffers", "https://app.example.com/callback", "https://app.example.com:8443/callback", false},
+		{"LoopbackPresentedAgainstNonLoopback", "https://app.example.com/callback", "http://127.0.0.1:53219/callback", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			registered, err := url.Parse(tt.registered)
+			require.NoError(t, err)
+			presented, err := url.Parse(tt.presented)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, codersdk.RedirectURIMatches(presented, registered))
 		})
 	}
 }

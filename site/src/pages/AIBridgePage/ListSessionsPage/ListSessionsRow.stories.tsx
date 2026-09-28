@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
@@ -45,6 +45,11 @@ export const MultipleProviders: Story = {
 			...MockSession,
 			providers: ["anthropic", "openai", "copilot"],
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByRole("button", { name: "3 providers" }));
+		await screen.findByRole("tooltip");
 	},
 };
 

@@ -1,4 +1,6 @@
-# Integrate Coder with Istio
+---
+title: Integrate Coder with Istio
+---
 
 Use Istio service mesh for your Coder workspace traffic to implement access
 controls, encrypt service-to-service communication, and gain visibility into

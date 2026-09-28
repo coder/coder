@@ -16,12 +16,13 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var _ Provider = &Anthropic{}
@@ -69,20 +70,21 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	// so it is cheap to run at construction.
 	var bedrock *messages.BedrockRuntime
 	if bedrockCfg != nil {
-		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		awsCfg, err := buildBedrockCredentials(ctx, *bedrockCfg)
 		if err != nil {
 			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 		}
 		runtimeCfg := *bedrockCfg
-		// resolvedRegion is bedrockCfg.Region if provided;
+		// awsCfg.Region is bedrockCfg.Region if provided;
 		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
 		if runtimeCfg.Region == "" {
-			runtimeCfg.Region = resolvedRegion
+			runtimeCfg.Region = awsCfg.Region
 		}
 		if err := runtimeCfg.Validate(); err != nil {
 			return nil, xerrors.Errorf("bedrock config: %w", err)
 		}
-		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
+
+		bedrock = messages.NewBedrockRuntime(runtimeCfg, awsCfg.Credentials)
 	}
 
 	return &Anthropic{
@@ -173,18 +175,18 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 // When both BYOK headers are present, X-Api-Key takes priority to match
 // claude-code behavior. Centralized requests require a key pool, except for
 // Bedrock providers, which authenticate via AWS signing rather than a pool.
-func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
-		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
+func (p *Anthropic) resolveCredential(r *http.Request) (credential.Credential, error) {
+	if apiKey := r.Header.Get(aibheaders.AuthHeaderXAPIKey); apiKey != "" {
+		return credential.BYOK{Secret: apiKey, Header: aibheaders.AuthHeaderXAPIKey}, nil
 	}
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
 	if p.cfg.KeyPool != nil {
-		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+		return &credential.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
 	if p.bedrock != nil {
-		return intercept.Bedrock{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+		return credential.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	return nil, ErrNoCredential
 }
@@ -194,7 +196,7 @@ func (p *Anthropic) BaseURL() string {
 }
 
 func (*Anthropic) AuthHeader() string {
-	return intercept.AuthHeaderXAPIKey
+	return aibheaders.AuthHeaderXAPIKey
 }
 
 func (p *Anthropic) KeyPool() *keypool.Pool {
@@ -206,10 +208,10 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 		Pool:   p.cfg.KeyPool,
 		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
-			return r.Header.Get(intercept.AuthHeaderXAPIKey) != "" || r.Header.Get(intercept.AuthHeaderAuthorization) != ""
+			return r.Header.Get(aibheaders.AuthHeaderXAPIKey) != "" || r.Header.Get(aibheaders.AuthHeaderAuthorization) != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
-			h.Set(intercept.AuthHeaderXAPIKey, key)
+			h.Set(aibheaders.AuthHeaderXAPIKey, key)
 		},
 		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
 			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
