@@ -772,7 +772,7 @@ type sqlcQuerier interface {
 	// GetPresetsBackoff groups workspace builds by preset ID.
 	// Each preset is associated with exactly one template version ID.
 	// For each group, the query checks up to N of the most recent jobs that occurred within the
-	// lookback period, where N equals the number of desired instances for the corresponding preset.
+	// lookback period, where N is the larger of the preset's desired instances and its largest scheduled instance count.
 	// If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
 	// Query returns a list of preset IDs for which we should backoff.
 	// Only active template versions with configured presets are considered.

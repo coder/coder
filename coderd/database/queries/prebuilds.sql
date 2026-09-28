@@ -140,7 +140,7 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_pre
 -- GetPresetsBackoff groups workspace builds by preset ID.
 -- Each preset is associated with exactly one template version ID.
 -- For each group, the query checks up to N of the most recent jobs that occurred within the
--- lookback period, where N equals the number of desired instances for the corresponding preset.
+-- lookback period, where N is the larger of the preset's desired instances and its largest scheduled instance count.
 -- If at least one of the job within a group has failed, we should backoff on the corresponding preset ID.
 -- Query returns a list of preset IDs for which we should backoff.
 -- Only active template versions with configured presets are considered.
@@ -154,7 +154,12 @@ GROUP BY t.id, wpb.template_version_id, wpb.transition, wlb.template_version_pre
 -- name: GetPresetsBackoff :many
 WITH filtered_builds AS (
 	-- Only select builds which are for prebuild creations
-	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status, tvp.desired_instances
+	SELECT wlb.template_version_id, wlb.created_at, tvp.id AS preset_id, wlb.job_status,
+		-- A schedule-only preset has desired_instances = 0, which would leave the backoff window empty.
+		GREATEST(
+			tvp.desired_instances,
+			(SELECT COALESCE(MAX(tvpps.desired_instances), 0) FROM template_version_preset_prebuild_schedules tvpps WHERE tvpps.preset_id = tvp.id)
+		) AS desired_instances
 	FROM template_version_presets tvp
 			INNER JOIN workspace_latest_builds wlb ON wlb.template_version_preset_id = tvp.id
 			INNER JOIN workspaces w ON wlb.workspace_id = w.id

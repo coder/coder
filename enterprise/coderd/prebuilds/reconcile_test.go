@@ -1964,6 +1964,70 @@ func TestFailedBuildBackoff(t *testing.T) {
 	require.EqualValues(t, backoffInterval*time.Duration(presetState.Backoff.NumFailed), clock.Until(actions[0].BackoffUntil).Truncate(backoffInterval))
 }
 
+func TestFailedBuildBackoffScheduleOnlyPreset(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	clock := quartz.NewMock(t)
+	backoffInterval := time.Minute
+	cfg := codersdk.PrebuildsConfig{
+		ReconciliationBackoffLookback: serpent.Duration(muchEarlier * -10), // Has to be positive.
+		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
+		ReconciliationInterval:        serpent.Duration(time.Second),
+	}
+	logger := slogtest.Make(
+		t, &slogtest.Options{IgnoreErrors: true},
+	).Leveled(slog.LevelDebug)
+	db, ps := dbtestutil.NewDB(t)
+	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
+	reconciler := prebuilds.NewStoreReconciler(
+		db, ps, cache, cfg, logger,
+		clock,
+		prometheus.NewRegistry(),
+		newNoopEnqueuer(),
+		newNoopUsageCheckerPtr(),
+		noop.NewTracerProvider(),
+		10,
+		nil,
+	)
+
+	// Given: a preset whose instance count comes only from a schedule that is always active.
+	const scheduledInstances = 2
+	userID := uuid.New()
+	dbgen.User(t, db, database.User{
+		ID: userID,
+	})
+	org, template := setupTestDBTemplate(t, db, userID, false)
+	templateVersionID := setupTestDBTemplateVersion(ctx, t, clock, db, ps, org.ID, userID, template.ID)
+	preset := setupTestDBPresetWithScheduling(t, db, templateVersionID, 0, "test", "UTC")
+	dbgen.PresetPrebuildSchedule(t, db, database.InsertPresetPrebuildScheduleParams{
+		PresetID:         preset.ID,
+		CronExpression:   "* * * * *",
+		DesiredInstances: scheduledInstances,
+	})
+	for range scheduledInstances {
+		_, _ = setupTestDBPrebuild(t, clock, db, ps, database.WorkspaceTransitionStart, database.ProvisionerJobStatusFailed, org.ID, preset, template.ID, templateVersionID)
+	}
+
+	// When: determining what actions to take next.
+	snapshot, err := reconciler.SnapshotState(ctx, db)
+	require.NoError(t, err)
+	presetState, err := snapshot.FilterByPreset(preset.ID)
+	require.NoError(t, err)
+	state := presetState.CalculateState()
+	actions, err := reconciler.CalculateActions(ctx, *presetState)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(actions))
+
+	// Then: the schedule drives the desired count, and the failures back off creation instead of retrying.
+	require.EqualValues(t, scheduledInstances, state.Desired)
+	require.NotNil(t, presetState.Backoff)
+	require.EqualValues(t, scheduledInstances, presetState.Backoff.NumFailed)
+	require.EqualValues(t, 0, actions[0].Create)
+	require.True(t, clock.Now().Before(actions[0].BackoffUntil))
+}
+
 func TestReconciliationLock(t *testing.T) {
 	t.Parallel()
 
