@@ -365,6 +365,27 @@ func TestPrepareClientHeaders(t *testing.T) {
 		require.Equal(t, originalCopy, input)
 	})
 
+	t.Run("actor prefix headers are removed case insensitively", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Ai-Bridge-Actor-Id":                {"spoofed-id"},
+			"X-Ai-Bridge-Actor-Metadata-Username": {"spoofed-name"},
+			"X-Ai-Bridge-Actor-Metadata-Email":    {"spoofed-email", "another-email"},
+			"x-ai-bridge-actor-metadata-custom":   {"spoofed-custom"},
+			"X-AI-BRIDGE-ACTOR":                   {"bare-prefix"},
+			"X-Ai-Bridge-ActorExtra":              {"prefix-suffix"},
+			"X-Ai-Bridge-Other":                   {"preserved"},
+			"X-Custom":                            {"value-1", "value-2"},
+		}
+		original := input.Clone()
+
+		require.Equal(t, http.Header{
+			"X-Ai-Bridge-Other": {"preserved"},
+			"X-Custom":          {"value-1", "value-2"},
+		}, headers.PrepareClientHeaders(input))
+		require.Equal(t, original, input)
+	})
 	t.Run("agent firewall headers are removed", func(t *testing.T) {
 		t.Parallel()
 
@@ -492,6 +513,8 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		clientHeaders.Set(headers.ActorIDHeader, "client-id")
 		clientHeaders.Set(headers.ActorMetadataHeader("Username"), "client-name")
 		clientHeaders.Set(headers.ActorMetadataHeader("Email"), "client-email")
+		clientHeaders.Set(headers.ActorMetadataHeader("Custom"), "client-custom")
+		clientHeaders.Set("X-Unrelated", "preserved")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
 		for _, tc := range []struct {
@@ -500,18 +523,16 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			want  http.Header
 		}{
 			{
-				name: "off preserves client values",
+				name: "off strips client actor headers",
 				want: http.Header{
-					"Authorization":                       {"Bearer provider-key"},
-					"X-Ai-Bridge-Actor-Id":                {"client-id"},
-					"X-Ai-Bridge-Actor-Metadata-Username": {"client-name"},
-					"X-Ai-Bridge-Actor-Metadata-Email":    {"client-email"},
+					"Authorization": {"Bearer provider-key"},
+					"X-Unrelated":   {"preserved"},
 				},
 			},
 			{
 				name:  "on with no attributes removes client values",
 				names: map[string]string{},
-				want:  http.Header{"Authorization": {"Bearer provider-key"}},
+				want:  http.Header{"Authorization": {"Bearer provider-key"}, "X-Unrelated": {"preserved"}},
 			},
 			{
 				name:  "on injects configured attributes",
@@ -519,6 +540,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				want: http.Header{
 					"Authorization":        {"Bearer provider-key"},
 					"X-Ai-Bridge-Actor-Id": {"user-123"},
+					"X-Unrelated":          {"preserved"},
 				},
 			},
 		} {
@@ -631,6 +653,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"X-Ai-Bridge-Actor-Id":                {"client-id"},
 			"X-Ai-Bridge-Actor-Metadata-Username": {"client-name"},
 		}
+		clientHeaders.Set(headers.ActorMetadataHeader("Custom"), "client-custom")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
 
@@ -641,6 +664,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 
 		require.Equal(t, []string{"user-123"}, result.Values(headers.ActorIDHeader))
 		require.Equal(t, []string{"alice"}, result.Values(headers.ActorMetadataHeader("Username")))
+		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Custom")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, sdkCopy, sdkHeaders)
 		require.Equal(t, clientCopy, clientHeaders)

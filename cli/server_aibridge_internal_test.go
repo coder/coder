@@ -160,22 +160,20 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 	)
 
 	tests := []struct {
-		name                string
-		providerType        database.AIProviderType
-		sendActorHeaders    bool
-		actorHeaderID       string
-		actorHeaderName     string
-		actorHeaderEmail    string
-		wantCustomHeaders   bool
-		wantStandardHeaders bool
+		name              string
+		providerType      database.AIProviderType
+		sendActorHeaders  bool
+		actorHeaderID     string
+		actorHeaderName   string
+		actorHeaderEmail  string
+		wantCustomHeaders bool
 	}{
 		{
-			name:                "disabled with configured destinations",
-			providerType:        database.AIProviderTypeOpenai,
-			actorHeaderID:       customIDHeader,
-			actorHeaderName:     customNameHeader,
-			actorHeaderEmail:    customMailHeader,
-			wantStandardHeaders: true,
+			name:             "disabled with configured destinations",
+			providerType:     database.AIProviderTypeOpenai,
+			actorHeaderID:    customIDHeader,
+			actorHeaderName:  customNameHeader,
+			actorHeaderEmail: customMailHeader,
 		},
 		{
 			name:             "enabled with empty destinations",
@@ -192,13 +190,12 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			wantCustomHeaders: true,
 		},
 		{
-			name:                "Copilot ignores configured destinations",
-			providerType:        database.AIProviderTypeCopilot,
-			sendActorHeaders:    true,
-			actorHeaderID:       customIDHeader,
-			actorHeaderName:     customNameHeader,
-			actorHeaderEmail:    customMailHeader,
-			wantStandardHeaders: true,
+			name:             "Copilot ignores configured destinations",
+			providerType:     database.AIProviderTypeCopilot,
+			sendActorHeaders: true,
+			actorHeaderID:    customIDHeader,
+			actorHeaderName:  customNameHeader,
+			actorHeaderEmail: customMailHeader,
 		},
 	}
 
@@ -252,13 +249,9 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				assert.NotContains(t, receivedHeaders, customNameHeader)
 				assert.NotContains(t, receivedHeaders, customMailHeader)
 			}
-			if tt.wantStandardHeaders {
-				assert.Equal(t, clientID, receivedHeaders.Get(headers.ActorIDHeader))
-				assert.Equal(t, clientName, receivedHeaders.Get(headers.ActorMetadataHeader("Username")))
-			} else {
-				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader))
-				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
-			}
+			// Client actor headers never reach the upstream.
+			assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader))
+			assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
 		})
 	}
 }

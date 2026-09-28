@@ -191,7 +191,7 @@ func ExtractAgentFirewallHeaders(r *http.Request) (sessionID *string, seqNumber 
 }
 
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
-// transport, auth, and proxy headers removed.
+// transport, auth, proxy, agent firewall, workspace ID, and actor headers removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	prepared := clientHeaders.Clone()
 	for _, h := range hopByHopHeaders {
@@ -212,14 +212,21 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	// Never forward a client-supplied workspace ID: providers that need one set
 	// it from their own configuration.
 	prepared.Del(HeaderAnthropicWorkspaceID)
+	// Delete raw keys: Del canonicalizes, so it misses noncanonical client keys.
+	for name := range prepared {
+		if IsActorHeader(name) {
+			delete(prepared, name)
+		}
+	}
 	return prepared
 }
 
 // BuildUpstreamHeaders produces the header set for an upstream SDK request.
 // It starts from the prepared client headers, preserves provider auth, then
 // applies identity from the authenticated request actor.
-// A nil actorHeaderNames map leaves client identity headers unchanged. A non-nil
-// map enables identity cleanup, even when no attributes are selected.
+// Client actor-prefixed headers are always removed. A nil actorHeaderNames map
+// disables injection; a non-nil map also removes client values at its
+// configured destinations, even when no attributes are selected.
 func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, actorHeaderNames map[string]string, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
@@ -233,9 +240,6 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 
 	if actorHeaderNames == nil {
 		return headers
-	}
-	for _, name := range []string{ActorIDHeader, ActorMetadataHeader("Username"), ActorMetadataHeader("Email")} {
-		headers.Del(name)
 	}
 	for _, name := range actorHeaderNames {
 		headers.Del(name)
