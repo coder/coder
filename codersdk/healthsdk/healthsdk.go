@@ -32,6 +32,7 @@ const (
 	HealthSectionAccessURL          HealthSection = "AccessURL"
 	HealthSectionWebsocket          HealthSection = "Websocket"
 	HealthSectionDatabase           HealthSection = "Database"
+	HealthSectionPubsub             HealthSection = "Pubsub"
 	HealthSectionWorkspaceProxy     HealthSection = "WorkspaceProxy"
 	HealthSectionProvisionerDaemons HealthSection = "ProvisionerDaemons"
 )
@@ -41,6 +42,7 @@ var HealthSections = []HealthSection{
 	HealthSectionAccessURL,
 	HealthSectionWebsocket,
 	HealthSectionDatabase,
+	HealthSectionPubsub,
 	HealthSectionWorkspaceProxy,
 	HealthSectionProvisionerDaemons,
 }
@@ -109,6 +111,7 @@ type HealthcheckReport struct {
 	AccessURL          AccessURLReport          `json:"access_url"`
 	Websocket          WebsocketReport          `json:"websocket"`
 	Database           DatabaseReport           `json:"database"`
+	Pubsub             PubsubReport             `json:"pubsub"`
 	WorkspaceProxy     WorkspaceProxyReport     `json:"workspace_proxy"`
 	ProvisionerDaemons ProvisionerDaemonsReport `json:"provisioner_daemons"`
 
@@ -121,6 +124,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 	var msgs []string
 	msgs = append(msgs, r.AccessURL.Summarize("Access URL:", docsURL)...)
 	msgs = append(msgs, r.Database.Summarize("Database:", docsURL)...)
+	msgs = append(msgs, r.Pubsub.Summarize("Pubsub:", docsURL)...)
 	msgs = append(msgs, r.DERP.Summarize("DERP:", docsURL)...)
 	msgs = append(msgs, r.ProvisionerDaemons.Summarize("Provisioner Daemons:", docsURL)...)
 	msgs = append(msgs, r.Websocket.Summarize("Websocket:", docsURL)...)
@@ -237,24 +241,17 @@ type DatabaseReport struct {
 	Latency     string `json:"latency"`
 	LatencyMS   int64  `json:"latency_ms"`
 	ThresholdMS int64  `json:"threshold_ms"`
-	// Pubsub reports the status of the Coder pubsub subsystem, including
-	// whether this replica is using the embedded NATS pubsub backend in
-	// addition to PostgreSQL pubsub, which is always available. NATS is
-	// optional, so it never affects the Severity of this report.
-	Pubsub DatabasePubsubReport `json:"pubsub"`
 }
 
-// DatabasePubsubReport shows whether the embedded NATS pubsub backend is
-// enabled and connected for this replica.
-type DatabasePubsubReport struct {
-	// Enabled indicates whether the embedded NATS pubsub backend is enabled
-	// for this deployment, i.e. the no_nats_pubsub experiment is not set.
-	Enabled bool `json:"enabled"`
-	// Connected indicates whether this replica is currently connected to the
-	// embedded NATS pubsub backend. It is false when NATS pubsub is disabled,
-	// has fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is
-	// not yet connected.
-	Connected bool `json:"connected"`
+// PubsubReport describes the primary pubsub backend used by this replica.
+type PubsubReport struct {
+	BaseReport
+	Backend string `json:"backend"`
+	// Connected is nil when the backend does not support health reporting.
+	Connected *bool `json:"connected"`
+	// LastConnectionStateChange is when the current connection state was
+	// observed. It is omitted if no state has been observed yet.
+	LastConnectionStateChange *time.Time `json:"last_connection_state_change,omitempty" format:"date-time"`
 }
 
 // ProvisionerDaemonsReport includes health details of each connected provisioner daemon.

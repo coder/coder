@@ -4452,10 +4452,14 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 		latency: "92570",
 		latency_ms: 92570,
 		threshold_ms: 92570,
-		pubsub: {
-			enabled: true,
-			connected: true,
-		},
+	},
+	pubsub: {
+		backend: "nats",
+		connected: true,
+		last_connection_state_change: "2026-09-24T07:00:00Z",
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
 	},
 	workspace_proxy: {
 		healthy: true,
@@ -4855,10 +4859,14 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 		latency_ms: 0,
 		reachable: true,
 		threshold_ms: 92570,
-		pubsub: {
-			enabled: true,
-			connected: true,
-		},
+	},
+	pubsub: {
+		backend: "nats",
+		connected: true,
+		last_connection_state_change: "2026-09-24T07:00:00Z",
+		severity: "ok",
+		warnings: [],
+		dismissed: false,
 	},
 	derp: {
 		healthy: false,

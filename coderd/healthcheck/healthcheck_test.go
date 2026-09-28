@@ -19,6 +19,7 @@ type testChecker struct {
 	AccessURLReport          healthsdk.AccessURLReport
 	WebsocketReport          healthsdk.WebsocketReport
 	DatabaseReport           healthsdk.DatabaseReport
+	PubsubReport             healthsdk.PubsubReport
 	WorkspaceProxyReport     healthsdk.WorkspaceProxyReport
 	ProvisionerDaemonsReport healthsdk.ProvisionerDaemonsReport
 }
@@ -37,6 +38,10 @@ func (c *testChecker) Websocket(context.Context, *healthcheck.WebsocketReportOpt
 
 func (c *testChecker) Database(context.Context, *healthcheck.DatabaseReportOptions) healthsdk.DatabaseReport {
 	return c.DatabaseReport
+}
+
+func (c *testChecker) Pubsub(context.Context, *healthcheck.PubsubReportOptions) healthsdk.PubsubReport {
+	return c.PubsubReport
 }
 
 func (c *testChecker) WorkspaceProxy(context.Context, *healthcheck.WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport {
@@ -64,6 +69,7 @@ func healthyChecker() *testChecker {
 			Healthy:    true,
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
 		},
+		PubsubReport: healthsdk.PubsubReport{BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK}},
 		DatabaseReport: healthsdk.DatabaseReport{
 			Healthy:    true,
 			BaseReport: healthsdk.BaseReport{Severity: health.SeverityOK},
@@ -154,6 +160,18 @@ func TestHealthcheck(t *testing.T) {
 				c := healthyChecker()
 				c.DatabaseReport = healthsdk.DatabaseReport{
 					Healthy:    false,
+					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
+				}
+				return c
+			}(),
+			healthy:  false,
+			severity: health.SeverityError,
+		},
+		{
+			name: "PubsubFail",
+			checker: func() *testChecker {
+				c := healthyChecker()
+				c.PubsubReport = healthsdk.PubsubReport{
 					BaseReport: healthsdk.BaseReport{Severity: health.SeverityError},
 				}
 				return c

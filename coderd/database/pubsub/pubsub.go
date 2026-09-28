@@ -56,15 +56,18 @@ type Pubsub interface {
 	Close() error
 }
 
-// ConnectionStatusReporter is implemented by pubsub backends that can report
-// their current connection state in-process, without scraping the
-// coder_pubsub_connected Prometheus gauge. Only backends with a live
-// connection concept (e.g. the embedded NATS pubsub) implement it; PGPubsub
-// does not, since PostgreSQL pubsub is always considered the baseline
-// backend.
-type ConnectionStatusReporter interface {
-	// Connected reports whether the backend is currently connected.
-	Connected() bool
+// HealthReporter is implemented by pubsub backends that report their health.
+type HealthReporter interface {
+	ReportHealth() HealthReport
+}
+
+// HealthReport describes a pubsub backend's current connection state.
+type HealthReport struct {
+	Backend   string
+	Connected bool
+	// LastConnectionStateChange is when the current state was observed.
+	// It is zero if no connection state has been observed yet.
+	LastConnectionStateChange time.Time
 }
 
 // msgOrErr either contains a message or an error
@@ -241,7 +244,38 @@ type PGPubsub struct {
 	closedListener   bool
 	closeListenerErr error
 
+	healthMu     sync.Mutex
+	health       HealthReport
+	healthClosed bool
+
 	metrics *BackendMetrics
+}
+
+// ReportHealth reports the PostgreSQL listener's connection state.
+func (p *PGPubsub) ReportHealth() HealthReport {
+	p.healthMu.Lock()
+	defer p.healthMu.Unlock()
+	return p.health
+}
+
+func (p *PGPubsub) recordConnectionEvent(event pq.ListenerEventType, now time.Time) {
+	var connected bool
+	switch event {
+	case pq.ListenerEventConnected, pq.ListenerEventReconnected:
+		connected = true
+	case pq.ListenerEventDisconnected:
+	default:
+		return
+	}
+	p.healthMu.Lock()
+	defer p.healthMu.Unlock()
+	if p.healthClosed {
+		return
+	}
+	if p.health.Connected != connected || p.health.LastConnectionStateChange.IsZero() {
+		p.health.Connected = connected
+		p.health.LastConnectionStateChange = now
+	}
 }
 
 // BufferSize is the maximum number of unhandled messages we will buffer
@@ -411,6 +445,14 @@ func (p *PGPubsub) closeListener() error {
 		return p.closeListenerErr
 	}
 	p.closedListener = true
+	// pq does not emit a disconnect event when the listener is closed.
+	p.healthMu.Lock()
+	if p.health.Connected {
+		p.health.Connected = false
+		p.health.LastConnectionStateChange = time.Now()
+	}
+	p.healthClosed = true
+	p.healthMu.Unlock()
 	p.closeListenerErr = p.pgListener.Close()
 
 	return p.closeListenerErr
@@ -547,6 +589,7 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 	)
 	p.pgListener = pqListenerShim{
 		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
+			p.recordConnectionEvent(t, time.Now())
 			switch t {
 			case pq.ListenerEventConnected:
 				p.logger.Debug(ctx, "pubsub connected to postgres")
@@ -625,5 +668,6 @@ func newWithoutListener(logger slog.Logger, db *sql.DB, metrics *Metrics) *PGPub
 		db:         db,
 		queues:     make(map[string]*queueSet),
 		metrics:    metrics.ForBackend(logger, BackendPostgres),
+		health:     HealthReport{Backend: BackendPostgres},
 	}
 }

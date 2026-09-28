@@ -24,6 +24,9 @@ func TestSummarize(t *testing.T) {
 			Database: healthsdk.DatabaseReport{
 				BaseReport: unhealthy,
 			},
+			Pubsub: healthsdk.PubsubReport{
+				BaseReport: unhealthy,
+			},
 			DERP: healthsdk.DERPHealthReport{
 				BaseReport: unhealthy,
 			},
@@ -43,6 +46,9 @@ func TestSummarize(t *testing.T) {
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Database: Error: test error",
 			"Database: Warn: TEST: testing",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
+			"Pubsub: Error: test error",
+			"Pubsub: Warn: TEST: testing",
 			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"DERP: Error: test error",
 			"DERP: Warn: TEST: testing",

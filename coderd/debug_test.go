@@ -212,6 +212,7 @@ func TestDebugHealth(t *testing.T) {
 	t.Run("Text", func(t *testing.T) {
 		t.Parallel()
 
+		changed := time.Date(2026, 9, 24, 7, 0, 0, 0, time.UTC)
 		var (
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
@@ -222,6 +223,7 @@ func TestDebugHealth(t *testing.T) {
 						Time:    time.Now(),
 						Healthy: true,
 						DERP:    healthsdk.DERPHealthReport{Healthy: true},
+						Pubsub:  healthsdk.PubsubReport{Backend: "nats", Connected: new(true), LastConnectionStateChange: &changed},
 					}
 				},
 			})
@@ -242,6 +244,9 @@ func TestDebugHealth(t *testing.T) {
 		assert.Contains(t, resStr, "access_url: false")
 		assert.Contains(t, resStr, "websocket: false")
 		assert.Contains(t, resStr, "database: false")
+		assert.Contains(t, resStr, "pubsub backend: nats")
+		assert.Contains(t, resStr, "pubsub connected: true")
+		assert.Contains(t, resStr, "pubsub last connection state change: 2026-09-24T07:00:00Z")
 	})
 }
 
@@ -281,10 +286,10 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket, healthsdk.HealthSectionPubsub},
 		}
 
-		// when: dismiss "derp" and "websocket"
+		// when: dismiss "derp", "websocket", and "pubsub"
 		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
@@ -303,6 +308,7 @@ func TestHealthSettings(t *testing.T) {
 		require.NoError(t, json.Unmarshal(bs, &hc))
 		require.True(t, hc.DERP.Dismissed)
 		require.True(t, hc.Websocket.Dismissed)
+		require.True(t, hc.Pubsub.Dismissed)
 	})
 
 	t.Run("UnDismissSection", func(t *testing.T) {
@@ -320,7 +326,7 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		initial := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket, healthsdk.HealthSectionPubsub},
 		}
 
 		err := healthsdk.New(adminClient).PutHealthSettings(ctx, initial)
@@ -330,7 +336,7 @@ func TestHealthSettings(t *testing.T) {
 			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
 		}
 
-		// when: undismiss "websocket"
+		// when: undismiss "websocket" and "pubsub"
 		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
@@ -349,6 +355,7 @@ func TestHealthSettings(t *testing.T) {
 		require.NoError(t, json.Unmarshal(bs, &hc))
 		require.True(t, hc.DERP.Dismissed)
 		require.False(t, hc.Websocket.Dismissed)
+		require.False(t, hc.Pubsub.Dismissed)
 	})
 
 	t.Run("NotModified", func(t *testing.T) {
@@ -362,7 +369,7 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket, healthsdk.HealthSectionPubsub},
 		}
 
 		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)

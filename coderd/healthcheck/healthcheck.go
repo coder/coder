@@ -102,6 +102,7 @@ type Checker interface {
 	AccessURL(ctx context.Context, opts *AccessURLReportOptions) healthsdk.AccessURLReport
 	Websocket(ctx context.Context, opts *WebsocketReportOptions) healthsdk.WebsocketReport
 	Database(ctx context.Context, opts *DatabaseReportOptions) healthsdk.DatabaseReport
+	Pubsub(ctx context.Context, opts *PubsubReportOptions) healthsdk.PubsubReport
 	WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport
 	ProvisionerDaemons(ctx context.Context, opts *ProvisionerDaemonsReportDeps) healthsdk.ProvisionerDaemonsReport
 }
@@ -109,6 +110,7 @@ type Checker interface {
 type ReportOptions struct {
 	AccessURL          AccessURLReportOptions
 	Database           DatabaseReportOptions
+	Pubsub             PubsubReportOptions
 	DerpHealth         derphealth.ReportOptions
 	Websocket          WebsocketReportOptions
 	WorkspaceProxy     WorkspaceProxyReportOptions
@@ -145,6 +147,12 @@ func (defaultChecker) Database(ctx context.Context, opts *DatabaseReportOptions)
 	var report DatabaseReport
 	report.Run(ctx, opts)
 	return healthsdk.DatabaseReport(report)
+}
+
+func (defaultChecker) Pubsub(ctx context.Context, opts *PubsubReportOptions) healthsdk.PubsubReport {
+	var report PubsubReport
+	report.Run(ctx, opts)
+	return healthsdk.PubsubReport(report)
 }
 
 func (defaultChecker) WorkspaceProxy(ctx context.Context, opts *WorkspaceProxyReportOptions) healthsdk.WorkspaceProxyReport {
@@ -238,6 +246,23 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 		defer wg.Done()
 		defer func() {
 			if err := recover(); err != nil {
+				report.Pubsub.Severity = health.SeverityError
+				report.Pubsub.Error = health.Errorf(health.CodeUnknown, "pubsub report panic: %s", err)
+			}
+		}()
+
+		if opts.Progress != nil {
+			opts.Progress.Start("Pubsub")
+			defer opts.Progress.Complete("Pubsub")
+		}
+		report.Pubsub = opts.Checker.Pubsub(ctx, &opts.Pubsub)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
 				report.WorkspaceProxy.Error = health.Errorf(health.CodeUnknown, "proxy report panic: %s", err)
 			}
 		}()
@@ -282,6 +307,9 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 	if report.Database.Severity.Value() > health.SeverityWarning.Value() {
 		failingSections = append(failingSections, healthsdk.HealthSectionDatabase)
 	}
+	if report.Pubsub.Severity.Value() > health.SeverityWarning.Value() {
+		failingSections = append(failingSections, healthsdk.HealthSectionPubsub)
+	}
 	if report.WorkspaceProxy.Severity.Value() > health.SeverityWarning.Value() {
 		failingSections = append(failingSections, healthsdk.HealthSectionWorkspaceProxy)
 	}
@@ -305,6 +333,9 @@ func Run(ctx context.Context, opts *ReportOptions) *healthsdk.HealthcheckReport 
 	}
 	if report.Database.Severity.Value() > report.Severity.Value() {
 		report.Severity = report.Database.Severity
+	}
+	if report.Pubsub.Severity.Value() > report.Severity.Value() {
+		report.Severity = report.Pubsub.Severity
 	}
 	if report.WorkspaceProxy.Severity.Value() > report.Severity.Value() {
 		report.Severity = report.WorkspaceProxy.Severity

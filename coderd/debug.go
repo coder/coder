@@ -129,6 +129,8 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 			hc.AccessURL.Dismissed = true
 		case healthsdk.HealthSectionDERP:
 			hc.DERP.Dismissed = true
+		case healthsdk.HealthSectionPubsub:
+			hc.Pubsub.Dismissed = true
 		case healthsdk.HealthSectionDatabase:
 			hc.Database.Dismissed = true
 		case healthsdk.HealthSectionWebsocket:
@@ -150,6 +152,15 @@ func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Requ
 		_, _ = fmt.Fprintln(rw, "access_url:", hc.AccessURL.Healthy)
 		_, _ = fmt.Fprintln(rw, "websocket:", hc.Websocket.Healthy)
 		_, _ = fmt.Fprintln(rw, "database:", hc.Database.Healthy)
+		_, _ = fmt.Fprintln(rw, "pubsub backend:", hc.Pubsub.Backend)
+		if hc.Pubsub.Connected != nil {
+			_, _ = fmt.Fprintln(rw, "pubsub connected:", *hc.Pubsub.Connected)
+		} else {
+			_, _ = fmt.Fprintln(rw, "pubsub connected: unknown")
+		}
+		if hc.Pubsub.LastConnectionStateChange != nil {
+			_, _ = fmt.Fprintln(rw, "pubsub last connection state change:", hc.Pubsub.LastConnectionStateChange.Format(time.RFC3339))
+		}
 
 	case "", "json":
 		httpapi.WriteIndent(ctx, rw, http.StatusOK, hc)

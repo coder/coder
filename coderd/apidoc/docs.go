@@ -33039,19 +33039,6 @@ const docTemplate = `{
                 }
             }
         },
-        "healthsdk.DatabasePubsubReport": {
-            "type": "object",
-            "properties": {
-                "connected": {
-                    "description": "Connected indicates whether this replica is currently connected to the\nembedded NATS pubsub backend. It is false when NATS pubsub is disabled,\nhas fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is\nnot yet connected.",
-                    "type": "boolean"
-                },
-                "enabled": {
-                    "description": "Enabled indicates whether the embedded NATS pubsub backend is enabled\nfor this deployment, i.e. the no_nats_pubsub experiment is not set.",
-                    "type": "boolean"
-                }
-            }
-        },
         "healthsdk.DatabaseReport": {
             "type": "object",
             "properties": {
@@ -33070,14 +33057,6 @@ const docTemplate = `{
                 },
                 "latency_ms": {
                     "type": "integer"
-                },
-                "pubsub": {
-                    "description": "Pubsub reports the status of the Coder pubsub subsystem, including\nwhether this replica is using the embedded NATS pubsub backend in\naddition to PostgreSQL pubsub, which is always available. NATS is\noptional, so it never affects the Severity of this report.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/healthsdk.DatabasePubsubReport"
-                        }
-                    ]
                 },
                 "reachable": {
                     "type": "boolean"
@@ -33112,6 +33091,7 @@ const docTemplate = `{
                 "AccessURL",
                 "Websocket",
                 "Database",
+                "Pubsub",
                 "WorkspaceProxy",
                 "ProvisionerDaemons"
             ],
@@ -33120,6 +33100,7 @@ const docTemplate = `{
                 "HealthSectionAccessURL",
                 "HealthSectionWebsocket",
                 "HealthSectionDatabase",
+                "HealthSectionPubsub",
                 "HealthSectionWorkspaceProxy",
                 "HealthSectionProvisionerDaemons"
             ]
@@ -33157,6 +33138,9 @@ const docTemplate = `{
                 },
                 "provisioner_daemons": {
                     "$ref": "#/definitions/healthsdk.ProvisionerDaemonsReport"
+                },
+                "pubsub": {
+                    "$ref": "#/definitions/healthsdk.PubsubReport"
                 },
                 "severity": {
                     "description": "Severity indicates the status of Coder health.",
@@ -33224,6 +33208,47 @@ const docTemplate = `{
             "properties": {
                 "provisioner_daemon": {
                     "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/health.Message"
+                    }
+                }
+            }
+        },
+        "healthsdk.PubsubReport": {
+            "type": "object",
+            "properties": {
+                "backend": {
+                    "type": "string"
+                },
+                "connected": {
+                    "description": "Connected is nil when the backend does not support health reporting.",
+                    "type": "boolean"
+                },
+                "dismissed": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "last_connection_state_change": {
+                    "description": "LastConnectionStateChange is when the current connection state was\nobserved. It is omitted if no state has been observed yet.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "severity": {
+                    "enum": [
+                        "ok",
+                        "warning",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/health.Severity"
+                        }
+                    ]
                 },
                 "warnings": {
                     "type": "array",

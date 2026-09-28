@@ -133,7 +133,7 @@ type Options struct {
 	// ClusterHost, so ClusterHost must be an IP for mTLS to activate.
 	ClusterCA cryptokeys.SigningKeycache
 
-	// clock overrides the cluster TLS clock, for tests.
+	// clock overrides the clock for tests.
 	clock quartz.Clock
 
 	// clusterTLSTimeout overrides the cluster route TLS handshake timeout, for
@@ -269,7 +269,7 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		peerFetcher:   opts.PeerFetcher,
 		peerRefresh:   make(chan struct{}, 1),
 		metrics:       m,
-		conns:         newConnTracker(m),
+		conns:         newConnTracker(m, opts.clock),
 	}
 }
 
@@ -455,12 +455,10 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 	return pool, nil
 }
 
-// Connected reports whether every connection this Pubsub owns is currently
-// dialed to the embedded NATS server. It mirrors the coder_pubsub_connected
-// Prometheus gauge (backend="nats") so callers can query connectivity
-// in-process, without scraping metrics.
-func (p *Pubsub) Connected() bool {
-	return p.conns.connected()
+// ReportHealth reports connectivity of all owned clients to the embedded NATS
+// server. It does not check cluster routes or end-to-end message delivery.
+func (p *Pubsub) ReportHealth() pubsub.HealthReport {
+	return p.conns.reportHealth()
 }
 
 // Publish publishes a message under the given event name. The

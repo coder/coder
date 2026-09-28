@@ -4620,26 +4620,6 @@ export const DatabaseNotReachable = "database not reachable";
 
 // From healthsdk/healthsdk.go
 /**
- * DatabasePubsubReport shows whether the embedded NATS pubsub backend is
- * enabled and connected for this replica.
- */
-export interface DatabasePubsubReport {
-	/**
-	 * Enabled indicates whether the embedded NATS pubsub backend is enabled
-	 * for this deployment, i.e. the no_nats_pubsub experiment is not set.
-	 */
-	readonly enabled: boolean;
-	/**
-	 * Connected indicates whether this replica is currently connected to the
-	 * embedded NATS pubsub backend. It is false when NATS pubsub is disabled,
-	 * has fallen back to PostgreSQL pubsub (e.g. missing cluster host), or is
-	 * not yet connected.
-	 */
-	readonly connected: boolean;
-}
-
-// From healthsdk/healthsdk.go
-/**
  * DatabaseReport shows the results of pinging the configured database.Conn.
  */
 export interface DatabaseReport extends BaseReport {
@@ -4651,13 +4631,6 @@ export interface DatabaseReport extends BaseReport {
 	readonly latency: string;
 	readonly latency_ms: number;
 	readonly threshold_ms: number;
-	/**
-	 * Pubsub reports the status of the Coder pubsub subsystem, including
-	 * whether this replica is using the embedded NATS pubsub backend in
-	 * addition to PostgreSQL pubsub, which is always available. NATS is
-	 * optional, so it never affects the Severity of this report.
-	 */
-	readonly pubsub: DatabasePubsubReport;
 }
 
 // From codersdk/debug.go
@@ -5672,6 +5645,7 @@ export type HealthSection =
 	| "DERP"
 	| "Database"
 	| "ProvisionerDaemons"
+	| "Pubsub"
 	| "Websocket"
 	| "WorkspaceProxy";
 
@@ -5680,6 +5654,7 @@ export const HealthSections: HealthSection[] = [
 	"DERP",
 	"Database",
 	"ProvisionerDaemons",
+	"Pubsub",
 	"Websocket",
 	"WorkspaceProxy",
 ];
@@ -5741,6 +5716,7 @@ export interface HealthcheckReport {
 	readonly access_url: AccessURLReport;
 	readonly websocket: WebsocketReport;
 	readonly database: DatabaseReport;
+	readonly pubsub: PubsubReport;
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
 	/**
@@ -8068,6 +8044,23 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unreachable",
 	"unregistered",
 ];
+
+// From healthsdk/healthsdk.go
+/**
+ * PubsubReport describes the primary pubsub backend used by this replica.
+ */
+export interface PubsubReport extends BaseReport {
+	readonly backend: string;
+	/**
+	 * Connected is nil when the backend does not support health reporting.
+	 */
+	readonly connected: boolean | null;
+	/**
+	 * LastConnectionStateChange is when the current connection state was
+	 * observed. It is omitted if no state has been observed yet.
+	 */
+	readonly last_connection_state_change?: string;
+}
 
 // From codersdk/workspaces.go
 /**

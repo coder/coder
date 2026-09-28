@@ -54,16 +54,6 @@ const DatabasePage = () => {
 
 					<GridDataLabel>Threshold</GridDataLabel>
 					<GridDataValue>{database.threshold_ms}ms</GridDataValue>
-
-					<GridDataLabel>NATS pubsub enabled</GridDataLabel>
-					<GridDataValue>
-						{database.pubsub.enabled ? "Yes" : "No"}
-					</GridDataValue>
-
-					<GridDataLabel>NATS pubsub connected</GridDataLabel>
-					<GridDataValue>
-						{database.pubsub.connected ? "Yes" : "No"}
-					</GridDataValue>
 				</GridData>
 			</Main>
 		</>

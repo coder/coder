@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
@@ -185,4 +186,30 @@ func (f *fakePqListener) requireIsListening(t testing.TB, s string) {
 	defer f.mu.Unlock()
 	_, ok := f.channels[s]
 	require.True(t, ok, "should be listening for '%s', but isn't", s)
+}
+
+func TestPGPubsub_ReportHealth(t *testing.T) {
+	t.Parallel()
+	p := newWithoutListener(testutil.Logger(t), nil, nil)
+	p.pgListener = newFakePqListener()
+	go p.listen()
+	t.Cleanup(func() { require.NoError(t, p.Close()) })
+	require.Equal(t, HealthReport{Backend: BackendPostgres}, p.ReportHealth())
+
+	now := time.Date(2026, 9, 24, 7, 0, 0, 0, time.UTC)
+	for _, event := range []pq.ListenerEventType{pq.ListenerEventConnected, pq.ListenerEventDisconnected, pq.ListenerEventReconnected} {
+		connected := event != pq.ListenerEventDisconnected
+		now = now.Add(time.Second)
+		p.recordConnectionEvent(event, now)
+		expected := HealthReport{Backend: BackendPostgres, Connected: connected, LastConnectionStateChange: now}
+		require.Equal(t, expected, p.ReportHealth())
+		p.recordConnectionEvent(event, now.Add(time.Millisecond))
+		require.Equal(t, expected, p.ReportHealth())
+	}
+	require.NoError(t, p.Close())
+	closed := p.ReportHealth()
+	require.False(t, closed.Connected)
+	require.False(t, closed.LastConnectionStateChange.IsZero())
+	p.recordConnectionEvent(pq.ListenerEventReconnected, now.Add(time.Second))
+	require.Equal(t, closed, p.ReportHealth())
 }

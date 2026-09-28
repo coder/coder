@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/xnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func Test_defaultPendingLimits(t *testing.T) {
@@ -283,8 +284,9 @@ func Test_Pubsub_connectedMetric(t *testing.T) {
 
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
 	reg := prometheus.NewRegistry()
-	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg)})
+	ps := newPubsub(ctx, logger, Options{disableCluster: true, Metrics: pubsub.NewMetrics(reg), clock: clock})
 	handlers := ps.buildConnHandlers()
 
 	// Two owned connections, all up.
@@ -292,23 +294,43 @@ func Test_Pubsub_connectedMetric(t *testing.T) {
 	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 
+	require.Equal(t, pubsub.HealthReport{Backend: pubsub.BackendNATS, Connected: true, LastConnectionStateChange: clock.Now()}, ps.ReportHealth())
+	clock.Advance(time.Second)
+
 	// First disconnect drops the gauge to 0 and counts a disconnection.
 	handlers.disconnectErr(nil, xerrors.New("boom"))
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
+
+	disconnected := ps.ReportHealth()
+	require.False(t, disconnected.Connected)
+	require.Equal(t, clock.Now(), disconnected.LastConnectionStateChange)
+	clock.Advance(time.Second)
 
 	// Second disconnect: still down, counts again.
 	handlers.disconnectErr(nil, xerrors.New("boom"))
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 	require.Equal(t, 2.0, metricValue(t, reg, "coder_pubsub_disconnections_total", "nats"))
 
+	require.Equal(t, disconnected, ps.ReportHealth())
+
 	// One reconnect with the other still down keeps the gauge at 0.
 	handlers.reconnect(nil)
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
+	require.Equal(t, disconnected, ps.ReportHealth())
+
 	// Once every owned connection is back the gauge returns to 1.
 	handlers.reconnect(nil)
 	require.Equal(t, 1.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
+	require.Equal(t, pubsub.HealthReport{Backend: pubsub.BackendNATS, Connected: true, LastConnectionStateChange: clock.Now()}, ps.ReportHealth())
+
+	clock.Advance(time.Second)
+	handlers.disconnectErr(nil, xerrors.New("boom"))
+	disconnected = ps.ReportHealth()
+	clock.Advance(time.Second)
+	require.NoError(t, ps.Close())
+	require.Equal(t, disconnected, ps.ReportHealth())
 }
 
 func Test_Pubsub_failureMetrics(t *testing.T) {
@@ -345,6 +367,10 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 	// suppressed for our own connection closes.
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
 
+	closed := ps.ReportHealth()
+	require.False(t, closed.Connected)
+	require.False(t, closed.LastConnectionStateChange.IsZero())
+
 	// Late reconnect callbacks during the shutdown window must not flip
 	// the gauge back to 1: markClosed zeroes totalConns so the connected
 	// guard stays false even if every owned connection reports a
@@ -353,6 +379,8 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 		handlers.reconnect(nil)
 	}
 	require.Equal(t, 0.0, metricValue(t, reg, "coder_pubsub_connected", "nats"))
+
+	require.Equal(t, closed, ps.ReportHealth())
 
 	// Closing our own connections must not invoke the disconnect handler,
 	// so disconnections_total stays 0. The async callback would fire
@@ -820,4 +848,14 @@ func (b *blockingConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscriptio
 	close(b.started)
 	<-b.unblock
 	return nil, assert.AnError
+}
+
+func Test_Pubsub_reportHealthWithoutMetrics(t *testing.T) {
+	t.Parallel()
+	ps := newTestPubsub(t, Options{disableCluster: true})
+	report := ps.ReportHealth()
+	require.Equal(t, pubsub.BackendNATS, report.Backend)
+	require.True(t, report.Connected)
+	require.False(t, report.LastConnectionStateChange.IsZero())
+	require.Equal(t, report, ps.ReportHealth())
 }

@@ -33,6 +33,10 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	uut, err := pubsub.New(ctx, logger, db, connectionURL, pubsub.NewMetrics(registry))
 	require.NoError(t, err)
 	defer uut.Close()
+	report := uut.ReportHealth()
+	require.Equal(t, pubsub.BackendPostgres, report.Backend)
+	require.True(t, report.Connected)
+	require.False(t, report.LastConnectionStateChange.IsZero())
 
 	// Counters use lower-bound assertions because the exact values depend on
 	// live traffic timing. The precise probe-exclusion behavior is covered by

@@ -73,10 +73,6 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
     "healthy": true,
     "latency": "string",
     "latency_ms": 0,
-    "pubsub": {
-      "connected": true,
-      "enabled": true
-    },
     "reachable": true,
     "severity": "ok",
     "threshold_ms": 0,
@@ -353,6 +349,20 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
         ]
       }
     ],
+    "severity": "ok",
+    "warnings": [
+      {
+        "code": "EUNKNOWN",
+        "message": "string"
+      }
+    ]
+  },
+  "pubsub": {
+    "backend": "string",
+    "connected": true,
+    "dismissed": true,
+    "error": "string",
+    "last_connection_state_change": "2019-08-24T14:15:22Z",
     "severity": "ok",
     "warnings": [
       {

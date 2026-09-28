@@ -320,6 +320,7 @@ const PremiumPage = lazy(
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
+const PubsubPage = lazy(() => import("./pages/HealthPage/PubsubPage"));
 const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
 const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
 const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
@@ -787,6 +788,7 @@ export const router = createBrowserRouter(
 						<Route index element={<Navigate to="access-url" replace />} />
 						<Route path="access-url" element={<AccessURLPage />} />
 						<Route path="database" element={<DatabasePage />} />
+						<Route path="pubsub" element={<PubsubPage />} />
 						<Route path="derp" element={<DERPPage />} />
 						<Route path="derp/regions/:regionId" element={<DERPRegionPage />} />
 						<Route path="websocket" element={<WebsocketPage />} />

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 // connTracker tracks the connected state across the NATS Pubsub's owned
@@ -12,7 +13,9 @@ import (
 // (the gauge is 1 only while every owned connection is up) and drives the
 // shared instruments accordingly.
 type connTracker struct {
-	m *pubsub.BackendMetrics
+	m      *pubsub.BackendMetrics
+	clock  quartz.Clock
+	health pubsub.HealthReport
 
 	// mu guards the connection-state accounting. Connect and disconnect
 	// callbacks are rare, so a mutex keeps the gauge update atomic with the
@@ -22,8 +25,11 @@ type connTracker struct {
 	connectedConns int
 }
 
-func newConnTracker(m *pubsub.BackendMetrics) *connTracker {
-	return &connTracker{m: m}
+func newConnTracker(m *pubsub.BackendMetrics, clock quartz.Clock) *connTracker {
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+	return &connTracker{m: m, clock: clock, health: pubsub.HealthReport{Backend: pubsub.BackendNATS}}
 }
 
 // markConnected records that all total owned connections have dialed
@@ -48,7 +54,7 @@ func (c *connTracker) markClosed() {
 	defer c.mu.Unlock()
 	c.totalConns = 0
 	c.connectedConns = 0
-	c.m.MarkDisconnected()
+	c.setConnectedLocked()
 }
 
 // onDisconnect records an unexpected disconnect of one owned connection.
@@ -75,18 +81,20 @@ func (c *connTracker) onReconnect() {
 // setConnectedLocked sets the connected gauge to 1 only when every owned
 // connection is up. Callers must hold mu.
 func (c *connTracker) setConnectedLocked() {
-	if c.totalConns > 0 && c.connectedConns == c.totalConns {
+	connected := c.totalConns > 0 && c.connectedConns == c.totalConns
+	if c.health.Connected != connected || c.health.LastConnectionStateChange.IsZero() {
+		c.health.Connected = connected
+		c.health.LastConnectionStateChange = c.clock.Now()
+	}
+	if connected {
 		c.m.MarkConnected()
 		return
 	}
 	c.m.MarkDisconnected()
 }
 
-// connected reports the same state as the connected gauge: true only while
-// every owned connection is up. It lets callers query current connectivity
-// without scraping Prometheus.
-func (c *connTracker) connected() bool {
+func (c *connTracker) reportHealth() pubsub.HealthReport {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.totalConns > 0 && c.connectedConns == c.totalConns
+	return c.health
 }
