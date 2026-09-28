@@ -620,7 +620,7 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	const isOwner = chat !== undefined && !isViewerNotOwner;
-	const [composerMode, setComposerMode] = useState<ComposerMode>(undefined);
+	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
 	const {
 		serverMarkedID,
 		queuedMessageUnderEditID,
