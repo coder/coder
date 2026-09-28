@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -25,6 +26,8 @@ func queuedTextContent(t *testing.T, text string) json.RawMessage {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+const pausedArchiveRefusal = "Cannot archive: a chat in this family is paused at a queued message under edit. Finish editing, send, or remove that message first."
 
 // TestPatchChatQueuedMessage covers routing, authorization, and error
 // mapping for the queued-edit endpoint; state outcomes are covered in
@@ -76,9 +79,7 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		err = client.EditChatQueuedMessage(ctx, chat.ID, next.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(true)})
 		requireSDKError(t, err, http.StatusConflict)
 		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: boolPtr(true)})
-		require.Equal(t,
-			"Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first.",
-			requireSDKError(t, err, http.StatusConflict).Message)
+		require.Equal(t, pausedArchiveRefusal, requireSDKError(t, err, http.StatusConflict).Message)
 		require.NoError(t, client.EditChatQueuedMessage(ctx, chat.ID, head.ID, codersdk.EditChatQueuedMessageRequest{Editing: boolPtr(false)}))
 		listed, err = client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
@@ -103,6 +104,39 @@ func TestPatchChatQueuedMessage(t *testing.T) {
 		refreshed, err = db.GetChatByID(sysCtx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.ChatStatusWaiting, refreshed.Status)
+	})
+
+	// The archive refusal names the paused state when a child, not the
+	// root, is the member that refuses.
+	t.Run("ArchiveRefusedByPausedChild", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t, withChatWorkerDisabled)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+
+		root := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+			LastModelConfigID: modelConfig.ID, Title: "idle root",
+		})
+		child := dbgen.Chat(t, db, database.Chat{
+			OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+			LastModelConfigID: modelConfig.ID, Title: "paused child", Status: database.ChatStatusPaused,
+			ParentChatID: uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: root.ID, Valid: true},
+		})
+		queued := insertTestChatQueuedMessage(ctx, t, db, child.ID, queuedTextContent(t, "under edit"), modelConfig.ID)
+		_, err := db.UpdateChatQueuedMessageEditing(sysCtx, database.UpdateChatQueuedMessageEditingParams{
+			ID: queued.ID, ChatID: child.ID, Editing: true,
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateChat(ctx, root.ID, codersdk.UpdateChatRequest{Archived: boolPtr(true)})
+		require.Equal(t, pausedArchiveRefusal, requireSDKError(t, err, http.StatusConflict).Message)
+		refreshed, err := db.GetChatByID(sysCtx, root.ID)
+		require.NoError(t, err)
+		require.False(t, refreshed.Archived)
 	})
 
 	t.Run("Guards", func(t *testing.T) {

@@ -3,7 +3,9 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -342,22 +344,86 @@ func TestWorker_AutoArchiveSkipsPinnedRoot(t *testing.T) {
 
 func TestWorker_AutoArchiveSkipsActiveStatusRoot(t *testing.T) {
 	t.Parallel()
-	for _, status := range []database.ChatStatus{database.ChatStatusRunning, database.ChatStatusPaused} {
-		t.Run(string(status), func(t *testing.T) {
-			t.Parallel()
-			f := newWorkerTestFixture(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
-			chat := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
-			forceExecutionState(t, f, chat.ID, status, false)
-			require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+	chat := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+	forceExecutionState(t, f, chat.ID, database.ChatStatusRunning, false)
+	require.NoError(t, f.db.UpsertChatAutoArchiveDays(ctx, 90))
 
-			worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
-			worker.archiveOnce(ctx, now)
+	worker := f.newArchiveWorker(t, newRecordingPubsub(f.pubsub), nil, nil)
+	worker.archiveOnce(ctx, now)
 
-			require.False(t, f.archived(t, chat.ID), "%s root must not be auto-archived", status)
+	require.False(t, f.archived(t, chat.ID), "running root must not be auto-archived")
+}
+
+// TestGetAutoArchiveInactiveChatCandidatesSkipsPaused checks the
+// candidate query directly: a paused chat refuses SetArchived, so a
+// family with a paused member must not be selected. Each case has a
+// control where the same chat is idle and the root is selected.
+func TestGetAutoArchiveInactiveChatCandidatesSkipsPaused(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+
+	// pause puts chatID in P: a queued row under edit and status paused.
+	pause := func(t *testing.T, f *workerTestFixture, chatID uuid.UUID) database.ChatQueuedMessage {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		queued, err := f.db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+			ChatID:        chatID,
+			Content:       json.RawMessage(`[{"type":"text","text":"under edit"}]`),
+			ModelConfigID: uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		_, err = f.db.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+			ID: queued.ID, ChatID: chatID, Editing: true,
+		})
+		require.NoError(t, err)
+		forceExecutionState(t, f, chatID, database.ChatStatusPaused, false)
+		return queued
+	}
+	// resume returns chatID to W: no queued rows and status waiting.
+	resume := func(t *testing.T, f *workerTestFixture, chatID uuid.UUID, queued database.ChatQueuedMessage) {
+		t.Helper()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, f.db.DeleteChatQueuedMessage(ctx, database.DeleteChatQueuedMessageParams{
+			ID: queued.ID, ChatID: chatID,
+		}))
+		forceExecutionState(t, f, chatID, database.ChatStatusWaiting, false)
+	}
+	selected := func(t *testing.T, f *workerTestFixture, rootID uuid.UUID) bool {
+		t.Helper()
+		candidates, err := f.db.GetAutoArchiveInactiveChatCandidates(testutil.Context(t, testutil.WaitShort), database.GetAutoArchiveInactiveChatCandidatesParams{
+			ArchiveCutoff: now,
+			LimitCount:    100,
+		})
+		require.NoError(t, err)
+		return slices.ContainsFunc(candidates, func(c database.GetAutoArchiveInactiveChatCandidatesRow) bool {
+			return c.ID == rootID
 		})
 	}
+
+	t.Run("PausedRoot", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		root := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		queued := pause(t, f, root.ID)
+		require.False(t, selected(t, f, root.ID), "a paused root is not a candidate")
+		resume(t, f, root.ID, queued)
+		require.True(t, selected(t, f, root.ID), "the same root is a candidate when idle")
+	})
+
+	t.Run("PausedChild", func(t *testing.T) {
+		t.Parallel()
+		f := newWorkerTestFixture(t)
+		root := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		child := f.createArchiveCandidate(t, now.Add(-120*24*time.Hour))
+		f.linkChild(t, root.ID, child.ID)
+		queued := pause(t, f, child.ID)
+		require.False(t, selected(t, f, root.ID), "an idle root with a paused child is not a candidate")
+		resume(t, f, child.ID, queued)
+		require.True(t, selected(t, f, root.ID), "the same root is a candidate when the child is idle")
+	})
 }
 
 func TestWorker_AutoArchiveIgnoresDeletedMessages(t *testing.T) {
