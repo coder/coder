@@ -2453,7 +2453,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Every field is validated before the first write, so a rejected
+	// Every field is validated before the first write, so an invalid
 	// request changes nothing.
 	var planModeUpdate *database.NullChatPlanMode
 	if req.PlanMode != nil {
