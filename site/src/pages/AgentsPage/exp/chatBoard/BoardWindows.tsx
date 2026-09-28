@@ -1,4 +1,4 @@
-import { type FC, lazy, Suspense, useEffect, useEffectEvent } from "react";
+import { lazy, Suspense, useEffect, useEffectEvent } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import {

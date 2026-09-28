@@ -1,14 +1,6 @@
 import { cn } from "cn";
 import { BotIcon, XIcon } from "lucide-react";
-import {
-	type FC,
-	type KeyboardEvent as ReactKeyboardEvent,
-	type ReactNode,
-	type PointerEvent as ReactPointerEvent,
-	useEffect,
-	useEffectEvent,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
@@ -65,7 +57,7 @@ type FloatingChatProps = {
 	readonly onPreviewLeave: () => void;
 	/** Present for chats that belong to a card: opens that card's assistant. */
 	readonly cardAssistant?: Readonly<{ cardTitle: string; open: () => void }>;
-	readonly children: ReactNode;
+	readonly children: React.ReactNode;
 };
 
 /**

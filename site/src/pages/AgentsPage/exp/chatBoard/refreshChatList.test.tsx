@@ -1,5 +1,4 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import type { PropsWithChildren } from "react";
 import {
 	type InfiniteData,
 	QueryClient,
@@ -19,7 +18,7 @@ const renderBoardList = async () => {
 	const queryClient = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	const wrapper = ({ children }: PropsWithChildren) => (
+	const wrapper = ({ children }: React.PropsWithChildren) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
 	const fetches: Deferred<Chat[]>[] = [];

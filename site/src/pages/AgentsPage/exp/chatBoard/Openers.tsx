@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { BotIcon, MessageSquareIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { isActiveChatStatus } from "../../components/ChatConversation/chatStore";
@@ -16,7 +15,7 @@ type ChatOpeners = {
  * Hidden while the chat works: the spinner already marks the chat, and the
  * dot would flicker on each token.
  */
-const UnreadBadge: FC<{ readonly chat: Chat }> = ({ chat }) => {
+const UnreadBadge: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 	if (!chat.has_unread || isActiveChatStatus(chat.status)) return null;
 	return (
 		<span
@@ -32,7 +31,7 @@ type ChatOpenerProps = ChatOpeners & {
 };
 
 /** The chat icon: resting on it previews the chat, clicking it pins the window. */
-export const ChatOpener: FC<ChatOpenerProps> = ({
+export const ChatOpener: React.FC<ChatOpenerProps> = ({
 	chat,
 	onOpen,
 	onPreview,
@@ -69,7 +68,7 @@ const assistantLabel: Partial<Record<Chat["status"], string>> = {
 };
 
 /** The board list hides assistant chats; this icon is the only sign a card has one. */
-export const AssistantOpener: FC<AssistantOpenerProps> = ({
+export const AssistantOpener: React.FC<AssistantOpenerProps> = ({
 	assistant,
 	onOpen,
 	onPreview,

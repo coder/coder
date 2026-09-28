@@ -2,7 +2,7 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ActionsMenu } from "./ActionsMenu";

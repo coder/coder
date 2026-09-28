@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";

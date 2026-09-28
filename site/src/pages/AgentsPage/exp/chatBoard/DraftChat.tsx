@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { createChat } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
@@ -28,7 +27,7 @@ type DraftChatProps = {
  * experiment copies helpers instead of exporting them from production
  * modules.
  */
-export const DraftChat: FC<DraftChatProps> = ({
+export const DraftChat: React.FC<DraftChatProps> = ({
 	labels,
 	context,
 	onCreated,

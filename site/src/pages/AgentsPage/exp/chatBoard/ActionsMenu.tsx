@@ -4,7 +4,6 @@ import {
 	EllipsisVerticalIcon,
 	type LucideIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -20,7 +19,7 @@ import {
 type MenuAction = Readonly<{ label: string; icon: LucideIcon }> &
 	(
 		| Readonly<{ onSelect: () => void; destructive?: boolean }>
-		| Readonly<{ children: ReactNode }>
+		| Readonly<{ children: React.ReactNode }>
 	);
 
 type ActionsMenuProps = {

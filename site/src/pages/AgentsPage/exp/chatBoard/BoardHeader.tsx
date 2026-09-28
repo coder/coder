@@ -5,7 +5,7 @@ import {
 	PencilIcon,
 	SearchIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -119,7 +119,7 @@ type EffortMenuProps = {
 // no effort can be called because blank names are dropped on write.
 const ALL = "";
 
-const EffortMenu: FC<EffortMenuProps> = ({
+const EffortMenu: React.FC<EffortMenuProps> = ({
 	effortCounts,
 	cardCount,
 	value,

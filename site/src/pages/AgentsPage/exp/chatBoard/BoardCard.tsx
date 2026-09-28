@@ -307,7 +307,7 @@ type EffortsSubMenuProps = {
 	readonly onToggle: (name: string, on: boolean) => void;
 };
 
-const EffortsSubMenu: FC<EffortsSubMenuProps> = ({
+const EffortsSubMenu: React.FC<EffortsSubMenuProps> = ({
 	selected,
 	known,
 	onToggle,

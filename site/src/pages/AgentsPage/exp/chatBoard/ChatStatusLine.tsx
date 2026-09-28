@@ -20,13 +20,13 @@ type AgeProps = { readonly date: string | number };
  * shortRelativeTime call would freeze: the React Compiler caches it by
  * `date` and cannot see that it reads the clock.
  */
-export const RelativeAge: FC<AgeProps> = ({ date }) => (
+export const RelativeAge: React.FC<AgeProps> = ({ date }) => (
 	// useTime keeps its first value when its input changes, so a new date
 	// gets a new instance.
 	<TickingAge key={date} date={date} />
 );
 
-const TickingAge: FC<AgeProps> = ({ date }) => {
+const TickingAge: React.FC<AgeProps> = ({ date }) => {
 	const age = useTime(() => shortRelativeTime(date), {
 		interval: AGE_REFRESH_MS,
 	});
@@ -40,7 +40,7 @@ const TickingAge: FC<AgeProps> = ({ date }) => {
  * would read "now" and say nothing, so it is omitted until the chat
  * settles. Shared by single cards and group rows.
  */
-export const ChatStatusLine: FC<ChatStatusLineProps> = ({
+export const ChatStatusLine: React.FC<ChatStatusLineProps> = ({
 	chat,
 	className,
 }) => {

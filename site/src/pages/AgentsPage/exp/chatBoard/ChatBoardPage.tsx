@@ -364,7 +364,7 @@ const ChatBoardPage: React.FC = () => {
 	// The board is replaced only while a query has nothing to show. A failed
 	// refetch keeps its data, and the board with it, so open note editors
 	// are not unmounted by a background request; the failure is shown inline.
-	let body: ReactNode;
+	let body: React.ReactNode;
 	if (chatsQuery.data === undefined) {
 		body = chatsQuery.isError ? (
 			<ErrorAlert error={chatsQuery.error} />
