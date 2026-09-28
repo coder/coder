@@ -138,7 +138,7 @@ func TestExperimentRuleAudit(t *testing.T) {
 		stored, err := f.put(ctx, codersdk.ExperimentRuleModeCondition, condition, 0)
 		require.NoError(t, err)
 
-		// Require the entry before inspecting it, so the redaction check
+		// Require the entry before inspecting it, so the diff checks
 		// cannot pass because nothing was audited.
 		entry := f.waitAuditLogs(ctx, t, 1)[0]
 		require.Equal(t, int32(http.StatusOK), entry.StatusCode)
@@ -148,10 +148,9 @@ func TestExperimentRuleAudit(t *testing.T) {
 		require.Equal(t, f.ownerID, entry.UserID)
 		var diff audit.Map
 		require.NoError(t, json.Unmarshal(entry.Diff, &diff))
-		require.Equal(t, audit.OldNew{Old: "", New: "", Secret: true}, diff["condition"])
+		require.Equal(t, audit.OldNew{Old: "", New: condition}, diff["condition"])
 		require.Equal(t, audit.OldNew{Old: "", New: "condition"}, diff["mode"])
 		require.Equal(t, audit.OldNew{Old: float64(0), New: float64(1)}, diff["revision"])
-		require.NotContains(t, string(entry.Diff), "audited-condition")
 
 		// An identical write is a no-op: 200 with the unchanged rule and
 		// no entry. The conflict below is audited after it, so a stray
@@ -205,7 +204,7 @@ func TestExperimentRuleAudit(t *testing.T) {
 }
 
 // TestExperimentRuleRedaction checks that condition text is readable only
-// through the rules API: it must not reach logs, audit diffs,
+// through the rules API and audit diffs: it must not reach logs,
 // /deployment/config or a support bundle, even for invalid conditions and
 // conditions that fail during evaluation.
 func TestExperimentRuleRedaction(t *testing.T) {
@@ -224,11 +223,13 @@ func TestExperimentRuleRedaction(t *testing.T) {
 
 	// A valid condition, then one that fails while the member's
 	// experiments are evaluated.
-	_, err = f.put(ctx, codersdk.ExperimentRuleModeCondition, fmt.Sprintf("user.email == %q", sentinel), 0)
+	validCondition := fmt.Sprintf("user.email == %q", sentinel)
+	failingCondition := fmt.Sprintf("user.groups[7] == %q", sentinel)
+	_, err = f.put(ctx, codersdk.ExperimentRuleModeCondition, validCondition, 0)
 	require.NoError(t, err)
 	_, err = memberClient.Experiments(ctx)
 	require.NoError(t, err)
-	_, err = f.put(ctx, codersdk.ExperimentRuleModeCondition, fmt.Sprintf("user.groups[7] == %q", sentinel), 1)
+	_, err = f.put(ctx, codersdk.ExperimentRuleModeCondition, failingCondition, 1)
 	require.NoError(t, err)
 	_, err = memberClient.Experiments(ctx)
 	require.NoError(t, err)
@@ -239,9 +240,12 @@ func TestExperimentRuleRedaction(t *testing.T) {
 	}, testutil.IntervalFast)
 	require.Contains(t, f.storedRule(ctx, t).Condition, sentinel)
 
-	for _, entry := range f.waitAuditLogs(ctx, t, 2) {
-		require.NotContains(t, string(entry.Diff), sentinel)
-	}
+	// The invalid write is not audited. The newest entry records the
+	// condition change with both texts.
+	latest := f.waitAuditLogs(ctx, t, 2)[0]
+	var diff audit.Map
+	require.NoError(t, json.Unmarshal(latest.Diff, &diff))
+	require.Equal(t, audit.OldNew{Old: validCondition, New: failingCondition}, diff["condition"])
 
 	res, err := f.owner.Request(ctx, http.MethodGet, "/api/v2/deployment/config", nil)
 	require.NoError(t, err)
