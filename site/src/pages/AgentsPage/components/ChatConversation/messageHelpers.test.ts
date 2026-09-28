@@ -333,6 +333,43 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
+	it("keeps workspace-file-only user messages visible for the placeholder", () => {
+		const message = buildMessage([
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.workspaceFileReferenceCount).toBe(1);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("keeps text with workspace file references visible but not copyable", () => {
+		const message = buildMessage([
+			{ type: "text", text: "Use this file." },
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+				workspace_file_workspace_id: "ws-1",
+			},
+		]);
+
+		const state = getDisplayState(message);
+		expect(state.shouldHide).toBe(false);
+		expect(state.hasUserMessageBody).toBe(true);
+		expect(state.hasWorkspaceFileReferences).toBe(true);
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
 	it("hides assistant messages with no renderable content", () => {
 		const message = buildMessage([], "assistant");
 

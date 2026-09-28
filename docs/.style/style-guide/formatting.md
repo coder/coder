@@ -235,6 +235,27 @@ The second labels a bare command `console` but shows no output, so `sh` is corre
 
 *Enforced by `markdownlint` rule `MD040` for the missing-language case.*
 
+### Commands that pipe a download into a shell
+
+When a command downloads a script and pipes it into a shell, pass curl `-fsSL`.
+Without `-f`, curl writes the body of an HTTP error response to stdout, and the shell runs that error page as a script.
+With `-f`, curl exits non-zero and writes nothing, so a failed download fails closed.
+
+**Do**:
+
+```sh
+curl -fsSL https://coder.com/install.sh | sh
+```
+
+**Don't**:
+
+```sh
+curl -L https://coder.com/install.sh | sh
+```
+
+*Documentation-only.
+No Vale rule.*
+
 ### Callouts
 
 Use the GitHub callout syntax for asides.
@@ -276,7 +297,7 @@ brew install coder/coder/coder
 ### Linux
 
 ```sh
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 ### Windows

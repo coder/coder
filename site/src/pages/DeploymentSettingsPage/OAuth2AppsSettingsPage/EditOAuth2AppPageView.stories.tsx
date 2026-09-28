@@ -172,6 +172,7 @@ export const DynamicallyRegisteredValues: Story = {
 					name: "VS Code Coder Extension",
 					callback_url: "vscode://coder.coder-remote/oauth/callback",
 					redirect_uris: ["vscode://coder.coder-remote/oauth/callback"],
+					dynamically_registered: true,
 				},
 			},
 			{

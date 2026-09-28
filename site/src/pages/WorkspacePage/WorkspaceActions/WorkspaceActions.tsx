@@ -1,4 +1,4 @@
-import { type FC, Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { useQuery } from "react-query";
 import { deploymentConfig } from "#/api/queries/deployment";
 import type { Workspace, WorkspaceBuildParameter } from "#/api/typesGenerated";
@@ -39,7 +39,7 @@ type WorkspaceActionsProps = {
 	handleDormantActivate: () => void;
 };
 
-export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
+export const WorkspaceActions: React.FC<WorkspaceActionsProps> = ({
 	workspace,
 	isUpdating,
 	isRestarting,
@@ -76,7 +76,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	);
 
 	// A mapping of button type to the corresponding React component
-	const buttonMapping: Record<ActionType, ReactNode> = {
+	const buttonMapping: Record<ActionType, React.ReactNode> = {
 		updateAndStart: (
 			<UpdateButton
 				handleAction={handleUpdate}

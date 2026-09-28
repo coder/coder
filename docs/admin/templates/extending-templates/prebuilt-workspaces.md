@@ -32,7 +32,7 @@ Prebuilt workspaces are tightly integrated with [workspace presets](./parameters
 
 ## Prerequisites
 
-- [**Premium license**](../../licensing/index.md)
+- [**Premium license**](../../../install/prepare/licensing.md)
 - **Compatible Terraform provider**: Use `coder/coder` Terraform provider `>= 2.4.1`.
 
 ## Enable prebuilt workspaces for template presets
@@ -402,7 +402,7 @@ The section [Managing prebuild provisioning queues](#managing-prebuild-provision
 This section outlines a **best-practice configuration** to prevent that situation by isolating prebuild jobs to a dedicated provisioner pool.
 This setup is optional and requires minor template changes.
 
-Coder supports [external provisioners and provisioner tags](../../provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
+Coder supports [external provisioners and provisioner tags](../../../install/operate/provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
 By creating external provisioners with a special tag (e.g., `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs,
 all prebuild work is handled by the prebuild pool.
 This keeps other provisioners available to handle user-initiated jobs.
@@ -412,11 +412,11 @@ This keeps other provisioners available to handle user-initiated jobs.
 1. Create a provisioner key with a prebuild tag (e.g., `is_prebuild=true`).
     Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
     **Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
-    See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
+    See [Scoped Key](../../../install/operate/provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
 
 1. Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
     Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
-    See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
+    See [External provisioners](../../../install/operate/provisioners/index.md) for environment-specific deployment examples.
 
 1. Update the template to conditionally add the prebuild tag for prebuild jobs.
 
@@ -436,7 +436,7 @@ Because the condition evaluates based on the workspace owner, provisioning or de
 > [!NOTE]
 > The prebuild provisioner pool can still accept non-prebuild jobs.
 > To achieve a fully isolated setup, add an additional tag (`is_prebuild=false`) to your standard provisioners, ensuring a clean separation between prebuild and non-prebuild workloads.
-> See [Provisioner Tags](../../provisioners/index.md#provisioner-tags) for further details.
+> See [Provisioner Tags](../../../install/operate/provisioners/index.md#provisioner-tags) for further details.
 
 #### Validation
 

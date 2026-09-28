@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { type FC, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
 import { toast } from "sonner";
@@ -54,7 +54,7 @@ type MemberWithSpend = ReducedUser & {
 	readonly spend: GroupMemberAISpend | undefined;
 };
 
-const GroupMembersPage: FC = () => {
+const GroupMembersPage: React.FC = () => {
 	const {
 		group: groupData,
 		members,
@@ -230,7 +230,7 @@ type GroupMemberRowProps = {
 	onRemove: () => void;
 };
 
-const GroupMemberRow: FC<GroupMemberRowProps> = ({
+const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,

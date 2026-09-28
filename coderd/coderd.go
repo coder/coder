@@ -869,6 +869,7 @@ func New(options *Options) *API {
 	api.agentProvider = stn
 
 	{ // Chat daemon and git sync worker initialization.
+		api.chatLimits = chatd.LimitsFromConfig(options.DeploymentValues.AI.Chat)
 		maxChatsPerAcquire := options.DeploymentValues.AI.Chat.AcquireBatchSize.Value()
 		if maxChatsPerAcquire > math.MaxInt32 {
 			maxChatsPerAcquire = math.MaxInt32
@@ -937,6 +938,7 @@ func New(options *Options) *API {
 				AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
 				AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 				StreamSilenceTimeout:           streamSilenceTimeout,
+				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
@@ -952,6 +954,7 @@ func New(options *Options) *API {
 				MCPHTTPClient:                  api.mcpHTTPClient,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
+				Limits:                         api.chatLimits,
 			})
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
@@ -1039,6 +1042,13 @@ func New(options *Options) *API {
 	}
 
 	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.chatWorkspaceUploadsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "chat",
+		Name:      "workspace_upload_total",
+		Help:      "Total chat workspace file uploads by HTTP response status.",
+	}, []string{"status"})
+	options.PrometheusRegistry.MustRegister(api.chatWorkspaceUploadsTotal)
 	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
 
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
@@ -1852,6 +1862,7 @@ func New(options *Options) *API {
 			)
 			r.Get("/", api.workspaceBuild)
 			r.Patch("/cancel", api.patchCancelWorkspaceBuild)
+			r.Post("/debug-events", api.postWorkspaceBuildDebugEvent)
 			r.Get("/logs", api.workspaceBuildLogs)
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
@@ -2247,12 +2258,17 @@ type API struct {
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 	wsWatcher                *httpapi.WSWatcher
 
+	chatWorkspaceUploadsTotal *prometheus.CounterVec
+
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
 	// stats. This is used to provide insights in the WebUI.
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// chatLimits are the deployment chat limits shared by the chat daemon
+	// and the chat HTTP handlers.
+	chatLimits chatd.Limits
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

@@ -1,12 +1,6 @@
 import { cn } from "cn";
 import { ExternalLinkIcon } from "lucide-react";
-import {
-	type FC,
-	type HTMLProps,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-} from "react";
+import { useLayoutEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router";
 import type {
 	ProvisionerJobLog,
@@ -48,11 +42,11 @@ import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 export const LOGS_TAB_KEY = "logs";
 
 type BuildStatsItemProps = Readonly<{
-	children?: ReactNode;
+	children?: React.ReactNode;
 	label: string;
 }>;
 
-const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
+const BuildStatsItem: React.FC<BuildStatsItemProps> = ({ children, label }) => {
 	return (
 		<StatsItem
 			className="flex-col gap-0 p-0 [&>span:first-of-type]:text-xs [&>span:first-of-type]:font-medium md:p-0"
@@ -76,7 +70,7 @@ type WorkspaceBuildPageViewProps = {
 	activeBuildNumber: number;
 };
 
-export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
+export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 	logs,
 	build,
 	buildError,
@@ -265,7 +259,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	);
 };
 
-const ScrollArea: FC<HTMLProps<HTMLDivElement>> = ({ className, ...props }) => {
+const ScrollArea: React.FC<React.HTMLProps<HTMLDivElement>> = ({
+	className,
+	...props
+}) => {
 	/**
 	 * @todo 2024-10-03 - Use only CSS to set the height of the content.
 	 *
@@ -322,7 +319,7 @@ function sortLogsByCreatedAt(
 	});
 }
 
-const BuildLogsContent: FC<{
+const BuildLogsContent: React.FC<{
 	logs?: ProvisionerJobLog[];
 	build?: WorkspaceBuild;
 }> = ({ logs = [], build }) => {
@@ -345,7 +342,7 @@ type AgentLogsContentProps = {
 	agent: WorkspaceAgent;
 };
 
-const AgentLogsContent: FC<AgentLogsContentProps> = ({ agent }) => {
+const AgentLogsContent: React.FC<AgentLogsContentProps> = ({ agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
 	return (
 		<AgentLogs

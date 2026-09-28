@@ -1,10 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	Suspense,
-	useContext,
-} from "react";
+import { createContext, Suspense, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { API } from "#/api/api";
@@ -74,7 +68,7 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 	return context;
 };
 
-export const TemplateLayout: FC<PropsWithChildren> = ({
+export const TemplateLayout: React.FC<React.PropsWithChildren> = ({
 	children = <Outlet />,
 }) => {
 	const navigate = useNavigate();

@@ -9,18 +9,18 @@ full-text search.
 
 ## Filters
 
-| Key          | Values                              | Description                                                                                                           |
-|--------------|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| `title`      | substring                           | Case-insensitive substring match. Quote multi-word values.                                                            |
-| `archived`   | `true`, `false`                     | Filter by archived state. Default: `false`.                                                                           |
-| `has_unread` | `true`, `false`                     | Conversations with unread assistant messages.                                                                         |
-| `pr_status`  | `draft`, `open`, `merged`, `closed` | Linked pull request state. Comma-separated for OR.                                                                    |
-| `diff_url`   | URL                                 | Match by associated diff URL. Quote values containing colons.                                                         |
-| `pr`         | positive integer                    | Exact PR number match.                                                                                                |
-| `repo`       | substring                           | Case-insensitive substring match against git remote origin or URL. Quote values containing colons.                    |
-| `pr_title`   | substring                           | Case-insensitive PR title substring match. Quote multi-word values.                                                   |
-| `source`     | `created_by_me`, `shared_with_me`   | Ownership scope. Default: `created_by_me`. Pass both values comma-separated to return owned and shared conversations. |
-| `search`     | text                                | Full-text search across chat titles, PR titles, PR numbers, and message content. Quote multi-word values.             |
+| Key          | Values                                      | Description                                                                                                           |
+|--------------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `title`      | substring                                   | Case-insensitive substring match. Quote multi-word values.                                                            |
+| `archived`   | `true`, `false`                             | Filter by archived state. Default: `false`.                                                                           |
+| `has_unread` | `true`, `false`                             | Conversations with unread assistant messages.                                                                         |
+| `pr_status`  | `draft`, `open`, `merged`, `closed`, `none` | Linked pull request state. Comma-separated for OR. `none` matches conversations with no linked pull request.          |
+| `diff_url`   | URL                                         | Match by associated diff URL. Quote values containing colons.                                                         |
+| `pr`         | positive integer                            | Exact PR number match.                                                                                                |
+| `repo`       | substring                                   | Case-insensitive substring match against git remote origin or URL. Quote values containing colons.                    |
+| `pr_title`   | substring                                   | Case-insensitive PR title substring match. Quote multi-word values.                                                   |
+| `source`     | `created_by_me`, `shared_with_me`           | Ownership scope. Default: `created_by_me`. Pass both values comma-separated to return owned and shared conversations. |
+| `search`     | text                                        | Full-text search across chat titles, PR titles, PR numbers, and message content. Quote multi-word values.             |
 
 Multiple filters in one query combine with AND logic. `search:` cannot
 be combined with `title:`, `pr_title:`, or `pr:`.
@@ -61,6 +61,9 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 # Conversations with open or draft PRs
 ?q=pr_status:open,draft
 
+# Conversations with no pull request, or an open one
+?q=pr_status:none,open
+
 # Filter by diff URL (quote values containing colons)
 ?q=diff_url:"https://github.com/coder/coder/pull/123"
 
@@ -91,5 +94,6 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 - `title:`, `repo:`, and `pr_title:` use ILIKE matching. `%` and `_` act as wildcards.
 - `pr_status:draft` means the PR is open **and** marked as a draft.
   `pr_status:open` means the PR is open and not a draft.
-- Conversations without a linked diff status are excluded when `pr_status`, `pr`, `repo`, or `pr_title` is set. The `repo:` filter also matches chats tracking a branch with no PR.
+- `pr_status:none` matches conversations with no pull request, including those whose linked PR was cleared.
+- Conversations without a linked diff status are excluded when `pr`, `repo`, `pr_title`, or any `pr_status` value other than `none` is set. The `repo:` filter also matches chats tracking a branch with no PR.
 - Unrecognized keys, bare terms, or combining `search:` with `title:`, `pr_title:`, or `pr:` return HTTP 400 with a validation error.

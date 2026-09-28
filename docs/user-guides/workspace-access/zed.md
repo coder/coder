@@ -21,7 +21,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    Our install script is the fastest way to install Coder on Linux/macOS:
 
    ```sh
-   curl -L https://coder.com/install.sh | sh
+   curl -fsSL https://coder.com/install.sh | sh
    ```
 
    Refer to [GitHub releases](https://github.com/coder/coder/releases) for

@@ -787,63 +787,190 @@ func TestStopAndStoreRecording_Empty(t *testing.T) {
 }
 
 // TestStopAndStoreRecording_EvictsOldestAtCap verifies that storing a
-// recording on a chat at the file cap evicts the oldest file.
+// recording on a chat at the configured file cap evicts the oldest files and
+// that a cap of one keeps the recording instead of storing its thumbnail.
 func TestStopAndStoreRecording_EvictsOldestAtCap(t *testing.T) {
 	t.Parallel()
 
-	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := chatdTestContext(t)
+	tests := []struct {
+		name           string
+		limits         Limits
+		maxAttachments int32
+	}{
+		{name: "Default", maxAttachments: codersdk.DefaultChatMaxAttachmentsPerChat},
+		{name: "ConfiguredOne", limits: Limits{MaxAttachmentsPerChat: 1}, maxAttachments: 1},
+		{name: "ConfiguredBelowDefault", limits: Limits{MaxAttachmentsPerChat: 3}, maxAttachments: 3},
+		{name: "ConfiguredAboveDefault", limits: Limits{MaxAttachmentsPerChat: 60}, maxAttachments: 60},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
+			db, ps := dbtestutil.NewDB(t)
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			user, org, model := seedInternalChatDeps(t, db)
+			workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+				withInternalTestServerLimits(tt.limits))
+
+			ctx := chatdTestContext(t)
+			parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+			existing := make([]uuid.UUID, 0, tt.maxAttachments)
+			for i := range tt.maxAttachments {
+				file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+					OwnerID:        user.ID,
+					OrganizationID: workspace.OrganizationID,
+					Name:           fmt.Sprintf("existing-%02d.txt", i),
+					Mimetype:       "text/plain",
+					Data:           []byte("existing"),
+				})
+				require.NoError(t, err)
+				rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+					ChatID:       parent.ID,
+					MaxFileLinks: tt.maxAttachments,
+					FileIds:      []uuid.UUID{file.ID},
+				})
+				require.NoError(t, err)
+				require.Zero(t, rejected)
+				existing = append(existing, file.ID)
+			}
+
+			mockConn.EXPECT().
+				StopDesktopRecording(gomock.Any(), gomock.Any()).
+				Return(buildMultipartResponse(
+					partSpec{"video/mp4", validRecordingMP4(1000, 0xDE)},
+					partSpec{"image/jpeg", validRecordingJPEG(492, 0xD8)},
+				), nil).
+				Times(1)
+
+			result := server.stopAndStoreRecording(
+				ctx, mockConn, uuid.New().String(), parent.ID, user.ID,
+				uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			)
+
+			require.NotEmpty(t, result.recordingFileID)
+			_, err := db.GetChatFileByID(ctx, uuid.MustParse(result.recordingFileID))
+			require.NoError(t, err, "the returned recording must still exist")
+			evicted := 2
+			if tt.maxAttachments == 1 {
+				evicted = 1
+				assert.Empty(t, result.thumbnailFileID, "no second slot for a thumbnail")
+			} else {
+				assert.NotEmpty(t, result.thumbnailFileID)
+			}
+			for i, id := range existing {
+				_, err := db.GetChatFileByID(ctx, id)
+				if i < evicted {
+					require.ErrorIs(t, err, sql.ErrNoRows, "file %d should be evicted", i)
+				} else {
+					require.NoError(t, err, "file %d should be kept", i)
+				}
+			}
+		})
+	}
+}
+
+// TestStopAndStoreRecording_LimitsConcurrentUploads verifies that no more
+// than the configured number of recordings are stopped and stored at once.
+func TestStopAndStoreRecording_LimitsConcurrentUploads(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		limits      Limits
+		maxInFlight int
+	}{
+		{name: "Default", maxInFlight: codersdk.DefaultChatMaxConcurrentRecordingUploads},
+		{name: "ConfiguredOne", limits: Limits{MaxConcurrentRecordingUploads: 1}, maxInFlight: 1},
+		{name: "ConfiguredTwo", limits: Limits{MaxConcurrentRecordingUploads: 2}, maxInFlight: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, ps := dbtestutil.NewDB(t)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+				withInternalTestServerLimits(tt.limits))
+			calls := tt.maxInFlight + 1
+			entered := make(chan struct{}, calls)
+			release := make(chan struct{})
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			mockConn.EXPECT().
+				StopDesktopRecording(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, _ workspacesdk.StopDesktopRecordingRequest) (workspacesdk.StopDesktopRecordingResponse, error) {
+					entered <- struct{}{}
+					select {
+					case <-release:
+					case <-ctx.Done():
+					}
+					return workspacesdk.StopDesktopRecordingResponse{}, xerrors.New("recording released")
+				}).
+				Times(calls)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			done := make(chan struct{}, calls)
+			for range calls {
+				go func(ctx context.Context) {
+					server.stopAndStoreRecording(ctx, mockConn, uuid.NewString(), uuid.New(), uuid.New(), uuid.NullUUID{})
+					done <- struct{}{}
+				}(ctx)
+			}
+
+			for range tt.maxInFlight {
+				testutil.TryReceive(ctx, t, entered)
+			}
+			require.Never(t, func() bool { return len(entered) > 0 },
+				testutil.IntervalMedium, testutil.IntervalFast,
+				"a call must wait while %d uploads are in flight", tt.maxInFlight)
+
+			testutil.RequireSend(ctx, t, release, struct{}{})
+			testutil.TryReceive(ctx, t, entered)
+			close(release)
+			for range calls {
+				testutil.TryReceive(ctx, t, done)
+			}
+		})
+	}
+}
+
+// TestStopAndStoreRecording_CanceledWhileWaitingForUpload verifies that a call
+// waiting for an upload slot gives up when its context is canceled.
+func TestStopAndStoreRecording_CanceledWhileWaitingForUpload(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerLimits(Limits{MaxConcurrentRecordingUploads: 1}))
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-	user, org, model := seedInternalChatDeps(t, db)
-	workspace, _, _ := seedWorkspaceBinding(t, db, user.ID)
-
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
-
-	var oldest uuid.UUID
-	for i := range codersdk.MaxChatFileIDs {
-		id := insertLinkedChatFile(
-			ctx,
-			t,
-			db,
-			parent.ID,
-			user.ID,
-			workspace.OrganizationID,
-			fmt.Sprintf("existing-%02d.txt", i),
-			"text/plain",
-			[]byte("existing"),
-		)
-		if i == 0 {
-			oldest = id
-		}
-	}
-
-	var beforeCount int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&beforeCount))
-
-	videoData := validRecordingMP4(1000, 0xDE)
 	mockConn.EXPECT().
 		StopDesktopRecording(gomock.Any(), gomock.Any()).
-		Return(buildMultipartResponse(partSpec{"video/mp4", videoData}), nil).
+		DoAndReturn(func(context.Context, workspacesdk.StopDesktopRecordingRequest) (workspacesdk.StopDesktopRecordingResponse, error) {
+			entered <- struct{}{}
+			<-release
+			return workspacesdk.StopDesktopRecordingResponse{}, xerrors.New("recording released")
+		}).
 		Times(1)
 
-	recordingID := uuid.New().String()
-	result := server.stopAndStoreRecording(
-		ctx, mockConn, recordingID, parent.ID, user.ID,
-		uuid.NullUUID{UUID: workspace.ID, Valid: true},
-	)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	holderDone := make(chan struct{})
+	go func(ctx context.Context) {
+		defer close(holderDone)
+		server.stopAndStoreRecording(ctx, mockConn, uuid.NewString(), uuid.New(), uuid.New(), uuid.NullUUID{})
+	}(ctx)
+	testutil.TryReceive(ctx, t, entered)
 
-	require.NotEmpty(t, result.recordingFileID)
-	assert.Empty(t, result.thumbnailFileID)
+	waitCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	result := server.stopAndStoreRecording(waitCtx, mockConn, uuid.NewString(), uuid.New(), uuid.New(), uuid.NullUUID{})
+	require.Equal(t, recordingResult{}, result)
 
-	var afterCount int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_files").Scan(&afterCount))
-	assert.Equal(t, beforeCount, afterCount, "the recording replaces the evicted file")
-	_, err := db.GetChatFileByID(ctx, oldest)
-	require.ErrorIs(t, err, sql.ErrNoRows)
+	close(release)
+	testutil.TryReceive(ctx, t, holderDone)
 }
 
 // TestStopAndStoreRecording_WithThumbnail verifies that a multipart

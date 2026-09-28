@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { createGroup } from "#/api/queries/groups";
@@ -6,7 +5,7 @@ import { pageTitle } from "#/utils/page";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 import { useGroupsSettings } from "./GroupsPageProvider";
 
-const CreateGroupPage: FC = () => {
+const CreateGroupPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const { showOrganizations } = useGroupsSettings();

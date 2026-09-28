@@ -10,6 +10,7 @@ export const roleDescriptions: Record<string, string> = {
 	"user-admin": "User admin can manage all users and groups.",
 	"template-admin": "Template admin can manage all templates and workspaces.",
 	auditor: "Auditor can access the audit logs.",
+	"agents-access": "Coder Agents User can use Coder Agents chat.",
 	"organization-admin":
 		"Organization admin can manage all resources within this organization.",
 	"organization-user-admin":
@@ -52,6 +53,7 @@ const roleNamesByAccessLevel: readonly string[] = [
 	"organization-template-admin",
 	"auditor",
 	"organization-auditor",
+	"agents-access",
 	"member",
 	"organization-member",
 ];

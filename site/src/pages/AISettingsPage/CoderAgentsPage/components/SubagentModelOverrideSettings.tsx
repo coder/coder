@@ -1,11 +1,13 @@
 import { useFormik } from "formik";
-import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	type ProviderInfo,
+	toEnabledModelSelectorOptions,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import { pickReasoningEffort } from "#/pages/AgentsPage/utils/reasoningEffort";
 import { AgentSettingLayout } from "./AgentSettingLayout";
 
@@ -26,7 +28,7 @@ type UpdateModelOverrideRequest = {
 
 type SubagentModelOverrideSettingsProps = {
 	title: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -44,7 +46,7 @@ type SubagentModelOverrideSettingsProps = {
 	disabled?: boolean;
 };
 
-export const SubagentModelOverrideSettings: FC<
+export const SubagentModelOverrideSettings: React.FC<
 	SubagentModelOverrideSettingsProps
 > = ({
 	title,
@@ -64,25 +66,10 @@ export const SubagentModelOverrideSettings: FC<
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
-	const enabledModelOptions = enabledModels.map((modelConfig) => {
-		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
-		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
-		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
-		return {
-			id: modelConfig.id,
-			provider: providerInfo?.provider ?? "",
-			providerId: modelConfig.ai_provider_id,
-			providerLabel: providerInfo?.displayName,
-			providerIcon: providerInfo?.icon,
-			model: modelConfig.model,
-			displayName: modelConfig.display_name.trim() || modelConfig.model,
-			contextLimit: modelConfig.context_limit,
-			...(reasoningEffort?.default
-				? { reasoningEffortDefault: reasoningEffort.default }
-				: {}),
-			...(reasoningEfforts.length > 0 ? { reasoningEfforts } : {}),
-		};
-	});
+	const enabledModelOptions = toEnabledModelSelectorOptions(
+		enabledModels,
+		providerInfoByID,
+	);
 
 	const form = useFormik({
 		enableReinitialize: true,
@@ -155,15 +142,18 @@ export const SubagentModelOverrideSettings: FC<
 								) ?? "",
 						});
 					}}
+					triggerAriaLabel={title}
 					disabled={isFormDisabled}
 					placeholder={
-						isUnavailableSavedModel ? "Unavailable model" : unsetPlaceholder
+						isLoading
+							? "Loading models..."
+							: isUnavailableSavedModel
+								? "Unavailable model"
+								: unsetPlaceholder
 					}
-					emptyMessage={
-						isLoading ? "Loading models..." : "No enabled models found."
-					}
+					emptyMessage="No enabled models found."
 					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
-					contentClassName="min-w-[18rem]"
+					contentClassName="min-w-72"
 					reasoningEffort={selectedReasoningEffort}
 					onReasoningEffortChange={(value) =>
 						void form.setFieldValue("reasoning_effort", value)

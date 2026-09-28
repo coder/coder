@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -32,6 +32,8 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
@@ -154,7 +156,7 @@ export const chatCostIdToInvalidate = (
 	return getChatCostTreeID(chat);
 };
 
-const AgentsPageLayout: FC = () => {
+const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
@@ -179,46 +181,13 @@ const AgentsPageLayout: FC = () => {
 	);
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
-	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
-	// layout shift on pages that toggle scrollbars. The agents page
-	// uses its own internal scroll containers so the reserved gutter
-	// space is unnecessary and wastes horizontal room.
-	//
-	// Removing the gutter requires three things:
-	//
-	// 1. overflow:hidden on both <html> and <body> so neither element
-	//    can produce a scrollbar.
-	// 2. scrollbar-gutter:auto on <html> so the browser stops
-	//    reserving space for a scrollbar that will never appear.
-	//    This is what makes react-remove-scroll-bar measure a gap of
-	//    0 when a Radix dropdown opens, so it injects no padding or
-	//    margin compensation.
-	// 3. An injected <style> that overrides the global
-	//    `overflow-y: scroll !important` on body[data-scroll-locked].
-	//    Without this, opening any Radix dropdown would force a
-	//    scrollbar onto <body>, re-introducing the layout shift.
+	// Opts out of the global scrollbar gutter; see html[data-agents-layout]
+	// in index.css.
 	useEffect(() => {
 		const html = document.documentElement;
-		const body = document.body;
-
-		const prevHtmlOverflow = html.style.overflow;
-		const prevHtmlScrollbarGutter = html.style.scrollbarGutter;
-		const prevBodyOverflow = body.style.overflow;
-
-		html.style.overflow = "hidden";
-		html.style.scrollbarGutter = "auto";
-		body.style.overflow = "hidden";
-
-		const style = document.createElement("style");
-		style.textContent =
-			"html body[data-scroll-locked] { overflow-y: hidden !important; }";
-		document.head.appendChild(style);
-
+		html.dataset.agentsLayout = "";
 		return () => {
-			html.style.overflow = prevHtmlOverflow;
-			html.style.scrollbarGutter = prevHtmlScrollbarGutter;
-			body.style.overflow = prevBodyOverflow;
-			style.remove();
+			delete html.dataset.agentsLayout;
 		};
 	}, []);
 
@@ -373,6 +342,22 @@ const AgentsPageLayout: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin agent."));
 		},
 	});
+	const markChatReadBase = markChatRead(queryClient);
+	const markChatReadMutation = useMutation({
+		...markChatReadBase,
+		onError: (error, chatId, context) => {
+			markChatReadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as read."));
+		},
+	});
+	const markChatUnreadBase = markChatUnread(queryClient);
+	const markChatUnreadMutation = useMutation({
+		...markChatUnreadBase,
+		onError: (error, chatId, context) => {
+			markChatUnreadBase.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to mark agent as unread."));
+		},
+	});
 	const reorderPinnedChatMutation = useMutation({
 		...reorderPinnedChat(queryClient),
 		onError: (error) => {
@@ -507,6 +492,12 @@ const AgentsPageLayout: FC = () => {
 	const requestUnpinAgent = (chatId: string) => {
 		unpinAgentMutation.mutate(chatId);
 	};
+	const requestMarkChatRead = (chatId: string) => {
+		markChatReadMutation.mutate(chatId);
+	};
+	const requestMarkChatUnread = (chatId: string) => {
+		markChatUnreadMutation.mutate(chatId);
+	};
 	const requestReorderPinnedAgent = (chatId: string, pinOrder: number) => {
 		reorderPinnedChatMutation.mutate({ chatId, pinOrder });
 	};
@@ -528,6 +519,17 @@ const AgentsPageLayout: FC = () => {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
 		navigate({ pathname: "/agents", search: location.search });
+	};
+
+	const handleOpenSettings = () => {
+		// Already there: keep the original `from` so the back button
+		// still returns to the view the user opened settings from.
+		if (isSettingsView(sidebarViewFromPath(location.pathname))) {
+			return;
+		}
+		navigate("/agents/settings", {
+			state: { from: location.pathname + location.search },
+		});
 	};
 
 	useEffect(() => {
@@ -683,6 +685,7 @@ const AgentsPageLayout: FC = () => {
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
+		onOpenSettings: handleOpenSettings,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -769,6 +772,8 @@ const AgentsPageLayout: FC = () => {
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
 						onPinAgent={requestPinAgent}
 						onUnpinAgent={requestUnpinAgent}
+						onMarkChatRead={requestMarkChatRead}
+						onMarkChatUnread={requestMarkChatUnread}
 						onReorderPinnedAgent={requestReorderPinnedAgent}
 						onRenameTitle={requestRenameTitle}
 						onProposeTitle={requestProposeTitle}

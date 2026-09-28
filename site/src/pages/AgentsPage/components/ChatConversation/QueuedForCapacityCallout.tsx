@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
@@ -14,11 +13,9 @@ type QueuedForCapacityCalloutProps = {
 	agentHoursHardLimit?: number;
 };
 
-export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
-	hasLicense,
-	canManageLicenses,
-	agentHoursHardLimit,
-}) => {
+export const QueuedForCapacityCallout: React.FC<
+	QueuedForCapacityCalloutProps
+> = ({ hasLicense, canManageLicenses, agentHoursHardLimit }) => {
 	let limitMessage =
 		"Your team has reached the Community license limit for active agents.";
 	if (hasLicense) {
@@ -29,7 +26,7 @@ export const QueuedForCapacityCallout: FC<QueuedForCapacityCalloutProps> = ({
 		limitMessage = `Your team has reached the ${agentHoursHardLimit}-hour Agent Hours hard limit.`;
 	}
 
-	let action: ReactNode = (
+	let action: React.ReactNode = (
 		<>
 			<Link href={concurrencyDocsUrl} target="_blank" rel="noreferrer">
 				Learn more

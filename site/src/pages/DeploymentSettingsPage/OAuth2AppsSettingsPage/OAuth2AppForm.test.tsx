@@ -14,7 +14,7 @@ import {
 	MockOAuth2ProviderApps,
 } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
-import { OAuth2AppForm } from "./OAuth2AppForm";
+import { narrowsAllowlist, OAuth2AppForm } from "./OAuth2AppForm";
 
 const selectScope = async (user: UserEvent, name: string) => {
 	await user.click(screen.getByRole("combobox", { name: /allowed scopes/i }));
@@ -67,7 +67,7 @@ describe("OAuth2AppForm", () => {
 		});
 	});
 
-	it("submits edited dynamically registered client values", async () => {
+	it("trims the edited name on update", async () => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn();
 		const app = {
@@ -1019,5 +1019,92 @@ describe("OAuth2AppForm", () => {
 				expect.objectContaining({ scope: "legacy:scope workspace:ssh" }),
 			),
 		);
+	});
+});
+
+describe("narrowsAllowlist", () => {
+	const catalog = MockExternalAPIKeyScopes.external;
+
+	it.each([
+		{
+			label: "adding a scope to an existing list",
+			stored: "workspace:ssh",
+			next: ["workspace:ssh", "workspace:read"],
+			narrows: false,
+		},
+		{
+			label: "removing a scope from an existing list",
+			stored: "workspace:ssh workspace:read",
+			next: ["workspace:read"],
+			narrows: true,
+		},
+		{
+			label: "swapping one scope for another",
+			stored: "workspace:ssh",
+			next: ["workspace:read"],
+			narrows: true,
+		},
+		{
+			label: "clearing the list",
+			stored: "workspace:ssh",
+			next: [],
+			narrows: false,
+		},
+		{
+			label: "imposing a list on an unrestricted app",
+			stored: "",
+			next: ["workspace:ssh"],
+			narrows: true,
+		},
+		{
+			label: "imposing a list of unknown names on an unrestricted app",
+			stored: "",
+			next: ["legacy:thing"],
+			narrows: true,
+		},
+		{
+			label: "replacing a scope with coder:all",
+			stored: "workspace:ssh",
+			next: ["coder:all"],
+			narrows: false,
+		},
+		{
+			label: "imposing coder:all on an unrestricted app",
+			stored: "",
+			next: ["coder:all"],
+			narrows: false,
+		},
+		{
+			label: "keeping the same list",
+			stored: "workspace:ssh",
+			next: ["workspace:ssh"],
+			narrows: false,
+		},
+		{
+			label: "removing a name the deployment does not offer",
+			stored: "workspace:ssh legacy:thing",
+			next: ["workspace:ssh"],
+			narrows: false,
+		},
+		{
+			label: "removing the only offered name",
+			stored: "workspace:ssh legacy:thing",
+			next: ["legacy:thing"],
+			narrows: true,
+		},
+		{
+			label: "replacing a list that grants nothing",
+			stored: "legacy:thing",
+			next: ["workspace:read"],
+			narrows: false,
+		},
+		{
+			label: "adding a scope to a whitespace-only list",
+			stored: "   ",
+			next: ["workspace:read"],
+			narrows: false,
+		},
+	])("returns $narrows when $label", ({ stored, next, narrows }) => {
+		expect(narrowsAllowlist(stored, next, catalog)).toBe(narrows);
 	});
 });

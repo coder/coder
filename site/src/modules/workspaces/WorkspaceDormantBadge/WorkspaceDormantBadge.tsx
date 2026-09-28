@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import {
@@ -16,7 +15,7 @@ type WorkspaceDormantBadgeProps = {
 	workspace: Workspace;
 };
 
-export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
+export const WorkspaceDormantBadge: React.FC<WorkspaceDormantBadgeProps> = ({
 	workspace,
 }) => {
 	return workspace.deleting_at ? (

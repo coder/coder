@@ -114,7 +114,7 @@ CODER_OAUTH2_PROVIDER_ENABLE=true
 CODER_EXPERIMENTS=mcp-server-http
 ```
 
-For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider.md#enable-oauth2-provider).
+For the YAML and Helm forms of the provider setting, refer to [Enable OAuth2 Provider](../admin/integrations/oauth2-provider/index.md#enable-oauth2-provider).
 That page does not cover the experiment; set it with the top-level [`experiments`](../reference/cli/server.md#--experiments) YAML key.
 
 ### MCP Registry

@@ -23,13 +23,17 @@ import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
+import { debugWorkspaceBuildSearchParam } from "#/modules/workspaces/workspaceBuildDebugLink";
 import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
+	MockFailedWorkspaceBuild,
 	MockNoPermissions,
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -44,6 +48,7 @@ import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsLayout from "./AgentSettingsLayout";
 import AgentsPageLayout from "./AgentsPageLayout";
+import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	clampLeftSidebarWidth,
@@ -261,41 +266,15 @@ const meta: Meta<typeof AgentsPageLayout> = {
 	args: {},
 	beforeEach: () => {
 		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
+		localStorage.removeItem(emptyInputStorageKey);
 		// Mocks for the queries AgentsPageLayout runs for the sidebar.
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 		spyOn(
 			API.experimental,
 			"getUserChatPersonalModelOverrides",
 		).mockResolvedValue({
+			...MockUnsetUserChatPersonalModelOverrides,
 			enabled: false,
-			root: {
-				context: "root",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			general: {
-				context: "general",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			explore: {
-				context: "explore",
-				mode: "deployment_default",
-				model_config_id: "",
-				is_set: false,
-			},
-			deployment_defaults: {
-				general: {
-					context: "general",
-					model_config_id: "",
-				},
-				explore: {
-					context: "explore",
-					model_config_id: "",
-				},
-			},
 		});
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
@@ -1105,6 +1084,40 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await screen.findByText(
 			/organization model choices and deployment-wide Coder Agents capabilities/,
+		);
+	},
+};
+
+const debugWorkspaceBuildRouter = (buildId: string) =>
+	reactRouterParameters({
+		location: {
+			path: "/agents",
+			searchParams: { [debugWorkspaceBuildSearchParam]: buildId },
+		},
+		routing: [agentsRouting, aiSettingsRouting],
+	});
+
+export const DebugWorkspaceBuildLoading: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockReturnValue(new Promise(() => {}));
+	},
+};
+
+export const DebugWorkspaceBuildLoadError: Story = {
+	parameters: {
+		experiments: ["enable-ai-workspace-debug"],
+		reactRouter: debugWorkspaceBuildRouter(MockFailedWorkspaceBuild().id),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceBuild").mockRejectedValue(
+			mockApiError({
+				message:
+					"Resource not found or you do not have access to this resource",
+			}),
 		);
 	},
 };

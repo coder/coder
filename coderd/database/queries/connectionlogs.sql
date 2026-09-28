@@ -259,7 +259,8 @@ WHERE connection_logs.id = old_logs.id;
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+	client_session_id
 )
 SELECT
     u.id,
@@ -279,7 +280,8 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.client_session_id, '')
 FROM (
     SELECT
         unnest(sqlc.arg('id')::uuid[]) AS id,
@@ -298,7 +300,8 @@ FROM (
         unnest(sqlc.arg('slug_or_port')::text[]) AS slug_or_port,
         unnest(sqlc.arg('connection_id')::uuid[]) AS connection_id,
         unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
-        unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time
+        unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time,
+        unnest(sqlc.arg('client_session_id')::text[]) AS client_session_id
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET

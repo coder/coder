@@ -1,12 +1,5 @@
 import { cn } from "cn";
-import {
-	type FC,
-	type ReactNode,
-	type SyntheticEvent,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -70,7 +63,7 @@ type UserAIBudgetOverrideDialogProps = {
 	canUpdate: boolean;
 };
 
-export const UserAIBudgetOverrideDialog: FC<
+export const UserAIBudgetOverrideDialog: React.FC<
 	UserAIBudgetOverrideDialogProps
 > = ({
 	open,
@@ -117,7 +110,7 @@ export const UserAIBudgetOverrideDialog: FC<
 		userGroups: userGroupsQuery.data ?? [],
 	};
 
-	let body: ReactNode;
+	let body: React.ReactNode;
 	if (loadError) {
 		body = <ErrorAlert error={loadError} />;
 	} else if (isLoading) {
@@ -186,7 +179,7 @@ type BudgetProps = {
 };
 
 /** The member's effective limit as a sentence, to place inside a paragraph. */
-const BudgetSummary: FC<BudgetProps> = ({
+const BudgetSummary: React.FC<BudgetProps> = ({
 	user,
 	currentGroup,
 	override,
@@ -227,7 +220,7 @@ const BudgetSummary: FC<BudgetProps> = ({
  * updating both the user and the group it charges, so group admins can read a
  * member's budget without being able to change it.
  */
-const ReadOnlyBudget: FC<BudgetProps> = (props) => (
+const ReadOnlyBudget: React.FC<BudgetProps> = (props) => (
 	<p className="m-0 text-sm text-content-secondary">
 		<BudgetSummary {...props} /> To update this limit, contact a Coder
 		administrator.
@@ -244,7 +237,7 @@ type OverrideFormProps = BudgetProps & {
 };
 
 /** Mounted only after budget data loads, so state seeds from it without a sync effect. */
-const OverrideForm: FC<OverrideFormProps> = ({
+const OverrideForm: React.FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
 	defaultGroupId,
@@ -303,7 +296,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 			? `${groupDisplayName(group)} (default)`
 			: groupDisplayName(group);
 
-	const handleSubmit = async (event: SyntheticEvent) => {
+	const handleSubmit = async (event: React.SyntheticEvent) => {
 		event.preventDefault();
 		if (!canSubmit) {
 			return;
@@ -481,7 +474,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	);
 };
 
-const Bold: FC<{ children: ReactNode }> = ({ children }) => (
+const Bold: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 	<span className="font-medium text-content-primary">{children}</span>
 );
 

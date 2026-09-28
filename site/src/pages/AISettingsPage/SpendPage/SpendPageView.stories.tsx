@@ -44,13 +44,12 @@ const meta = {
 		onOrganizationChange: fn(),
 		isOrganizationsLoading: false,
 		organizationsError: null,
-		dateRange: {
-			startDate: new Date("2026-02-10T00:00:00Z"),
-			endDate: new Date("2026-03-12T00:00:00Z"),
+		period: {
+			start: new Date("2026-02-10T00:00:00Z"),
+			end: new Date("2026-03-12T00:00:00Z"),
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
-		isRetentionLoading: false,
-		onDateRangeChange: fn(),
+		onPeriodChange: fn(),
 		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
 		reportQuery: mockReportQuery,
 	},
@@ -89,8 +88,12 @@ export const NoPermittedOrganizations: Story = {
 
 export const Loading: Story = {
 	args: {
-		dateRange: undefined,
-		isRetentionLoading: true,
+		period: {
+			start: new Date("2026-03-05T12:00:00Z"),
+			end: new Date("2026-03-12T12:00:00Z"),
+			preset: "last_7d",
+		},
+		minDate: undefined,
 		reportQuery: mockPendingReportQuery,
 	},
 };

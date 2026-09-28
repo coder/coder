@@ -139,4 +139,4 @@ environment variable. For comprehensive configuration options, see
 
 ## How to Enable Connection Logs
 
-This feature is only available with a [Premium license](../licensing/index.md).
+This feature is only available with a [Premium license](../../install/prepare/licensing.md).

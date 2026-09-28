@@ -1,4 +1,4 @@
-# Sandboxing
+# Network isolation
 
 Use your template to run the AI agent in a separate sandbox from the user's development environment.
 You control which files and networks the agent can access without restricting the user's access.
