@@ -2680,11 +2680,12 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				// Archive only succeeds from W, E0, E1, and E1P; busy
-				// and paused chats are refused.
 				message := "Cannot archive an active chat. Interrupt or wait for the chat to finish first."
-				if chat.Status == database.ChatStatusPaused {
-					message = "Cannot archive a paused chat. Finish editing, send, or remove the queued message under edit first."
+				// The refusal can come from any member of the family, so
+				// the message follows the state that refused.
+				var transitionErr *chatstate.TransitionError
+				if errors.As(err, &transitionErr) && transitionErr.From == chatstate.StateP {
+					message = "Cannot archive: a chat in this family is paused at a queued message under edit. Finish editing, send, or remove that message first."
 				}
 				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 					Message: message,
