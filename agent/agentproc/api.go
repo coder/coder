@@ -200,8 +200,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout, and return at the execute
-		// timeout.
+		// client-supplied timeout, and return at waitUntil.
 		wait := maxWaitDuration
 		if !proc.waitUntil.IsZero() {
 			wait = min(wait, api.manager.clock.Until(proc.waitUntil))
@@ -233,11 +232,11 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// KillToolCall kills the running process of tool call id and marks it
-// canceled.
-func (api *API) KillToolCall(ctx context.Context, id uuid.UUID) {
+// KillToolCall kills the running process of tool call id if chat chatID
+// owns it, and marks it canceled.
+func (api *API) KillToolCall(ctx context.Context, chatID, id uuid.UUID) {
 	proc, ok := api.manager.get(id.String())
-	if !ok {
+	if !ok || proc.chatID != chatID.String() {
 		return
 	}
 	proc.mu.Lock()

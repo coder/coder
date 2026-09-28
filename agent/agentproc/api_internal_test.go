@@ -29,16 +29,19 @@ func TestToolCallProcess(t *testing.T) {
 	t.Cleanup(func() { _ = api.Close() })
 	handler := agentchat.Middleware(api.Routes())
 
-	chatID, id := uuid.NewString(), uuid.New()
-	serve := func(method, path string, body any) *httptest.ResponseRecorder {
+	chatID, otherChat, id := uuid.NewString(), uuid.NewString(), uuid.New()
+	serveAs := func(chat, method, path string, body any) *httptest.ResponseRecorder {
 		b, err := json.Marshal(body)
 		require.NoError(t, err)
 		req := httptest.NewRequestWithContext(ctx, method, path, bytes.NewReader(b))
-		req.Header.Set(workspacesdk.CoderChatIDHeader, chatID)
+		req.Header.Set(workspacesdk.CoderChatIDHeader, chat)
 		req.Header.Set(workspacesdk.CoderToolCallIDHeader, id.String())
 		rw := httptest.NewRecorder()
 		handler.ServeHTTP(rw, req)
 		return rw
+	}
+	serve := func(method, path string, body any) *httptest.ResponseRecorder {
+		return serveAs(chatID, method, path, body)
 	}
 	start := func(timeout time.Duration) {
 		var resp workspacesdk.StartProcessResponse
@@ -68,9 +71,16 @@ func TestToolCallProcess(t *testing.T) {
 	require.True(t, resp.TimedOut)
 	require.False(t, resp.Canceled)
 
-	api.KillToolCall(ctx, id)
 	proc, ok := api.manager.get(id.String())
 	require.True(t, ok)
+
+	// Another chat can neither attach to the process nor kill it.
+	require.Equal(t, http.StatusInternalServerError, serveAs(otherChat, http.MethodPost, "/start", workspacesdk.StartProcessRequest{Command: "true"}).Code)
+	api.KillToolCall(ctx, uuid.MustParse(otherChat), id)
+	require.True(t, proc.info().Running)
+	require.False(t, proc.canceled.Load())
+
+	api.KillToolCall(ctx, uuid.MustParse(chatID), id)
 	testutil.TryReceive(ctx, t, proc.done)
 	resp = output()
 	require.True(t, resp.Canceled)

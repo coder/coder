@@ -40,14 +40,14 @@ type entry struct {
 // Table remembers tool calls by chat ID and tool call ID.
 type Table struct {
 	clock   quartz.Clock
-	kill    func(ctx context.Context, id uuid.UUID)
+	kill    func(ctx context.Context, chatID, id uuid.UUID)
 	mu      sync.Mutex
 	entries map[key]*entry
 }
 
-// New returns a Table. kill kills the process of a canceled tool call,
-// if it has one.
-func New(clock quartz.Clock, kill func(ctx context.Context, id uuid.UUID)) *Table {
+// New returns a Table. kill kills the running process of canceled tool
+// call id if chat chatID owns one.
+func New(clock quartz.Clock, kill func(ctx context.Context, chatID, id uuid.UUID)) *Table {
 	return &Table{clock: clock, kill: kill, entries: make(map[key]*entry)}
 }
 
@@ -93,15 +93,7 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 			return
 		}
 		if !found {
-			rec := httptest.NewRecorder()
-			next.ServeHTTP(rec, r)
-			e.resp = workspacesdk.CancelToolCallResponse{
-				Received:    true,
-				Status:      rec.Code,
-				ContentType: rec.Header().Get("Content-Type"),
-				Body:        rec.Body.Bytes(),
-			}
-			close(e.done)
+			run(e, next, r)
 		}
 		select {
 		case <-e.done:
@@ -114,6 +106,35 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// run runs next for new entry e and saves its response. If next panics,
+// run saves a 500 saying the outcome is unknown, so repeats and cancels
+// do not wait for a response that never comes, and the panic continues
+// to httpmw.Recover.
+func run(e *entry, next http.Handler, r *http.Request) {
+	rec := httptest.NewRecorder()
+	defer func() {
+		if e.resp.Status == 0 {
+			rec = httptest.NewRecorder()
+			httpapi.Write(r.Context(), rec, http.StatusInternalServerError, codersdk.Response{
+				Message: "Tool call failed with an internal error. Its outcome is unknown.",
+			})
+			e.resp = savedResponse(rec)
+		}
+		close(e.done)
+	}()
+	next.ServeHTTP(rec, r)
+	e.resp = savedResponse(rec)
+}
+
+func savedResponse(rec *httptest.ResponseRecorder) workspacesdk.CancelToolCallResponse {
+	return workspacesdk.CancelToolCallResponse{
+		Received:    true,
+		Status:      rec.Code,
+		ContentType: rec.Header().Get("Content-Type"),
+		Body:        rec.Body.Bytes(),
+	}
+}
+
 // Routes returns the HTTP handler for tool call routes.
 func (t *Table) Routes() http.Handler {
 	r := chi.NewRouter()
@@ -121,9 +142,10 @@ func (t *Table) Routes() http.Handler {
 	return r
 }
 
-// handleCancel cancels tool call {id}. A tool call the agent never
-// received is refused from now on. Otherwise the cancel waits for the
-// run to finish, kills its process, and answers the saved response.
+// handleCancel cancels tool call {id}. A tool call the agent has no
+// record of is refused from now on, and a process with its ID is killed:
+// the process outlives the record. Otherwise the cancel waits for the run
+// to finish, kills its process, and answers the saved response.
 func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -148,6 +170,7 @@ func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	t.mu.Unlock()
 
 	if e.done == nil {
+		t.kill(ctx, chat.ID, id)
 		httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.CancelToolCallResponse{})
 		return
 	}
@@ -157,6 +180,6 @@ func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	case <-ctx.Done():
 		return
 	}
-	t.kill(ctx, id)
+	t.kill(ctx, chat.ID, id)
 	httpapi.Write(ctx, rw, http.StatusOK, e.resp)
 }

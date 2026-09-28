@@ -112,7 +112,8 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 
 // start spawns a new process with the given ID, or returns the
 // process that already has it: a repeated tool call start attaches to
-// its process and keeps its waitUntil. Both foreground and background
+// its process and keeps its waitUntil. It refuses an ID whose process
+// belongs to another chat. Both foreground and background
 // processes use a long-lived context so the process survives the HTTP
 // request lifecycle. The background flag only affects client-side
 // polling behavior.
@@ -124,6 +125,9 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string)
 	}
 	if proc, ok := m.procs[id]; ok {
 		m.mu.Unlock()
+		if proc.chatID != chatID {
+			return nil, xerrors.Errorf("process %q belongs to another chat", id)
+		}
 		return proc, nil
 	}
 	m.mu.Unlock()

@@ -31,8 +31,10 @@ func ToolCallIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 
 // CancelToolCallResponse is the answer to a tool call cancel.
 type CancelToolCallResponse struct {
-	// Received is false when the agent never received a request for the
-	// tool call; the agent now refuses it.
+	// Received is false when the agent has no record of a request for
+	// the tool call: it never received one, or forgot it (records last an
+	// hour and do not survive an agent restart). The agent refuses the
+	// tool call from now on and kills a process started with its ID.
 	Received bool `json:"received"`
 	// Status, ContentType, and Body are the saved response of the tool
 	// call's request when Received is true.
