@@ -395,6 +395,9 @@ type FilterComboboxChipProps = React.ComponentProps<typeof Badge> & {
 	removeLabel?: string;
 };
 
+/** Height shared by chips and controls that sit in the chip row. */
+export const chipRowItemHeightClassName = "h-7";
+
 export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 	className,
 	children,
@@ -418,6 +421,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 			svgSize="sm"
 			className={cn(
 				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				chipRowItemHeightClassName,
 				className,
 			)}
 			{...props}
@@ -467,7 +471,8 @@ export const FilterComboboxChipsInput: React.FC<
 			// without chips.
 			size={1}
 			className={cn(
-				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				chipRowItemHeightClassName,
+				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}
