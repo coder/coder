@@ -163,20 +163,60 @@ describe("Claude Platform provider form", () => {
 	});
 });
 
-it.each(["anthropic", "openai"] as const)(
-	"only relaxes key requirements for %s as appropriate",
-	async (type) => {
+it.each([
+	{ type: "anthropic", baseUrl: "https://api.anthropic.com", key: "" },
+	{
+		type: "openai",
+		baseUrl: "https://api.openai.com/v1/",
+		key: "provider-key",
+	},
+	{
+		type: "azure",
+		baseUrl: "https://azure.example.com/openai/v1",
+		key: "provider-key",
+	},
+	{
+		type: "google",
+		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+		key: "provider-key",
+	},
+	{
+		type: "openai-compat",
+		baseUrl: "https://provider.example.com/v1",
+		key: "provider-key",
+	},
+	{
+		type: "openrouter",
+		baseUrl: "https://openrouter.ai/api/v1",
+		key: "provider-key",
+	},
+	{
+		type: "vercel",
+		baseUrl: "https://ai-gateway.vercel.sh/v1",
+		key: "provider-key",
+	},
+	{
+		type: "copilot",
+		baseUrl: "https://api.business.githubcopilot.com",
+		key: "",
+	},
+] as const)(
+	"only relaxes key requirements for $type as appropriate",
+	async ({ type, baseUrl, key }) => {
 		const user = userEvent.setup();
 		const onSubmit = vi.fn<(values: ProviderFormValues) => void>();
-		render(<ProviderForm initialValues={{ type }} onSubmit={onSubmit} />);
+		render(
+			<ProviderForm initialValues={{ type, baseUrl }} onSubmit={onSubmit} />,
+		);
 		await user.click(screen.getByRole("button", { name: "Add provider" }));
-		if (type === "anthropic") {
-			await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
-		} else {
+		if (key) {
 			expect(onSubmit).not.toHaveBeenCalled();
-			await user.type(screen.getByLabelText(/^API key/i), "provider-key");
+			await user.type(screen.getByLabelText(/^API key/i), key);
 			await user.click(screen.getByRole("button", { name: "Add provider" }));
-			await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
 		}
+		await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce());
+		expect(onSubmit.mock.calls[0][0]).toEqual(
+			expect.objectContaining({ type, baseUrl, apiKey: key }),
+		);
 	},
 );
