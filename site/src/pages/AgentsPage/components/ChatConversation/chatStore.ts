@@ -108,7 +108,10 @@ export const isActiveChatStatus = (
 	status === "requires_action" ||
 	status === "interrupting";
 
-/** Statuses a turn completes in. A turn that ends in error did not complete. */
+/**
+ * A turn completes in `waiting`, or in `paused` when the queue head is under
+ * edit. A turn that ends in `error` did not complete.
+ */
 export const isTurnCompletedChatStatus = (
 	status: TypesGen.ChatStatus,
 ): boolean => status === "waiting" || status === "paused";
