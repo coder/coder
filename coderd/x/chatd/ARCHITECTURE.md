@@ -55,7 +55,7 @@ File links are metadata, but they are written inside transitions: if a transitio
 
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
 
-TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
+Files uploaded into the chat's workspace through `POST /api/v2/chats/{chat}/workspace-files` get no file links, so they don't count toward the cap and are never evicted. Their bytes live in the workspace, not in coderd, and a message refers to one with a `workspace-file-reference` part that records the file's path and workspace. The model sees only the path and reads the file with its workspace tools. A reference is valid only in the workspace it was uploaded to: once the chat's workspace binding changes, new messages can't include it, and the model is told the file is no longer accessible.
 
 Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
 
@@ -120,8 +120,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 ### Transitions used by the HTTP endpoints
 
-- `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
-- TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
+- `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. If the initial history has no user message, it lands in `waiting` instead, and the chat starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - When `Create(initialMessages)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0` or `E1`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
@@ -162,7 +161,8 @@ stateDiagram-v2
 
     [*] --> N
 
-    N --> R0: Create
+    N --> R0: Create / user message
+    N --> W: Create / no user message
 
     W --> R0: SendMessage
     W --> R0: EditMessage
@@ -461,9 +461,10 @@ The write paths maintain exactly one default whenever an organization has at lea
 
 This endpoint uses `Create(initialMessages)`:
 
-- `N -> Create(initialMessages) -> R0`
+- `N -> Create(initialMessages) -> R0` if `content` is non-empty
+- `N -> Create(initialMessages) -> W` if `content` is empty
 
-TODO (#27111): a request with an empty `content` array now takes `N -> Create(initialMessages) -> W`: the chat is created idle with system messages only and no worker picks it up, so clients can use the chat ID (for example for workspace file uploads) before the first `POST /api/v2/chats/{chat}/messages` starts generation. Describe this here.
+With empty `content`, the chat starts idle with only system messages. This lets a client get the chat ID before the first turn, for example to upload files into the chat's workspace, and then start generation with its first `POST /api/v2/chats/{chat}/messages`.
 
 No other input states are supported.
 
@@ -630,7 +631,7 @@ No other input states are supported: generating chats and chats with queued mess
 
 ### `POST /api/v2/chats/{chat}/workspace-files`
 
-TODO (#27079): this owner-only endpoint uses no transition. It streams the raw request body to the chat's workspace agent (`/api/v0/upload-chat-file`), preferring the bound agent and otherwise falling back to `agentselect.FindChatAgent` without persisting a binding, and returns the final path so the client can attach a `workspace-file-reference` part to its next message. Describe this here.
+This endpoint uses no transition and writes nothing to the chat. It rejects archived chats and works in every other execution state, including while a turn is running. It streams the request body into the chat's workspace through a workspace agent and returns the file's path for the client to reference from a later message. The upload prefers the agent the chat is bound to. Otherwise it picks one with the chat worker's deterministic agent selection without binding the chat, so the file lands on the agent whose tools will read it.
 
 ## Pubsub
 
