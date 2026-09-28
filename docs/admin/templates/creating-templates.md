@@ -69,7 +69,9 @@ If you select modules that are known to conflict with each other, the builder
 displays a warning. Module conflicts do not block template creation, but you
 should review the warning before proceeding.
 
-#### Disabling the template builder
+<a id="disabling-the-template-builder"></a>
+
+#### Turn off the template builder
 
 Operators can disable the template builder by setting the
 `CODER_DISABLE_TEMPLATE_BUILDER` environment variable or the

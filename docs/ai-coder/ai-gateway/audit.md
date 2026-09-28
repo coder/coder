@@ -1,5 +1,5 @@
 ---
-title: Auditing AI Sessions
+title: Audit AI sessions
 ---
 
 > [!NOTE]
@@ -44,7 +44,9 @@ Anthropic (extended thinking) and OpenAI (reasoning summaries) support this
 feature. Reasoning data gives auditors insight into **why** a tool was called,
 not just what was called.
 
-## Navigating the UI
+<a id="navigating-the-ui"></a>
+
+## Navigate the UI
 
 ### Sessions list
 
@@ -95,7 +97,9 @@ The **Session summary** card beside the timeline reports the session's
 
 ![Session detail](../../images/aibridge/session_detail.png)
 
-## Conducting a forensic audit
+<a id="conducting-a-forensic-audit"></a>
+
+## Conduct a forensic audit
 
 When investigating an incident (policy violation, destructive action, etc.):
 

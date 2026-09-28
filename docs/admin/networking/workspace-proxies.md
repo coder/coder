@@ -109,7 +109,9 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 # Additional configuration options are available.
 ```
 
-### Running on Kubernetes
+<a id="running-on-kubernetes"></a>
+
+### Run on Kubernetes
 
 Make a `values-wsproxy.yaml` with the workspace proxy configuration.
 
@@ -148,14 +150,18 @@ Test that the workspace proxy is reachable with `curl -vvv`. If for some reason,
 the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down
 and up the deployment's replicas.
 
-### Running on a VM
+<a id="running-on-a-vm"></a>
+
+### Run on a VM
 
 ```sh
 # Set configuration options via environment variables, a config file, or cmd flags
 coder wsproxy server
 ```
 
-### Running as a system service
+<a id="running-as-a-system-service"></a>
+
+### Run as a system service
 
 If you've installed Coder via a [system package](../../install/index.md), you
 can configure the workspace proxy by settings in
@@ -177,7 +183,9 @@ To restart workspace proxy after applying system changes:
 sudo systemctl restart coder-workspace-proxy
 ```
 
-### Running in Docker
+<a id="running-in-docker"></a>
+
+### Run in Docker
 
 Modify the default entrypoint to run a workspace proxy server instead of a
 regular control plane.
@@ -206,7 +214,9 @@ FROM ghcr.io/coder/coder:latest
 ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 ```
 
-### Selecting a proxy
+<a id="selecting-a-proxy"></a>
+
+### Select a proxy
 
 Users can select a workspace proxy at the top-right of the browser-based Coder dashboard.
 Workspace proxy preferences are cached by the web browser.

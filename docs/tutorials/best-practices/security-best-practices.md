@@ -151,7 +151,7 @@ If you use this feature:
 1. Follow your organization's policies about key rotation on a fixed schedule.
 
    - If you suspect the key has been leaked or compromised,
-     [rotate the key immediately](../../admin/security/database-encryption.md#rotating-keys).
+     [rotate the key immediately](../../admin/security/database-encryption.md#rotate-keys).
 
 ## Provisioner daemons
 

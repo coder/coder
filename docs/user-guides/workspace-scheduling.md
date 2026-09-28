@@ -114,7 +114,9 @@ configurations to better understand how they interact.
 > [!NOTE]
 > The activity bump must be configured by your template admin.
 
-### Working hours
+<a id="working-hours"></a>
+
+### Work schedule
 
 The intended configuration for autostop is to combine it with autostart, and set
 a "working schedule" for your workspace. It's pretty intuitive:
@@ -123,7 +125,9 @@ If I want to use my workspace from 9 to 5 on weekdays, I would set my autostart 
 My workspace will always be available during these hours, regardless of how long I spend away from my laptop.
 If I end up working overtime and log off at 6:00 PM, the activity bump will kick in, postponing the shutdown until 7:00 PM.
 
-#### Basing solely on activity detection
+<a id="basing-solely-on-activity-detection"></a>
+
+#### Rely solely on activity detection
 
 If you'd like to ignore the TTL from autostop and have your workspace solely
 function on activity detection, you can set your autostop equal to activity
