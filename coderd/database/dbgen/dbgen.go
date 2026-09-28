@@ -111,6 +111,14 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 		ClientType:        takeFirst(seed.ClientType, database.ChatClientTypeUi),
 	})
 	require.NoError(t, err, "insert chat")
+	// InsertChat creates the row at snapshot_version 0; the creating
+	// transaction's commit write is what lands a chat on version 1.
+	chat, err = db.BumpChatSnapshotVersion(genCtx, database.BumpChatSnapshotVersionParams{
+		ID:             chat.ID,
+		HistoryChanged: false,
+		QueueChanged:   false,
+	})
+	require.NoError(t, err, "commit chat creation")
 	return chat
 }
 
@@ -145,6 +153,14 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
+	// Messages are stamped with the version the transaction commits, so
+	// commit the insert the way a transition would.
+	_, err = db.BumpChatSnapshotVersion(genCtx, database.BumpChatSnapshotVersionParams{
+		ID:             seed.ChatID,
+		HistoryChanged: true,
+		QueueChanged:   false,
+	})
+	require.NoError(t, err, "commit chat message insert")
 	return database.ChatMessage(msgs[0])
 }
 

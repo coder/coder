@@ -127,9 +127,9 @@ func insertChat(
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
 		}
-		// Insert the initial history under the new chat row. The
-		// message revision trigger advances `history_version` to the
-		// current `snapshot_version` (which is 1 for a brand new chat).
+		// Insert the initial history under the new chat row (created at
+		// snapshot_version 0) and commit the creation with the single
+		// write that lands the chat on version 1 with history_version 1.
 		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
@@ -137,9 +137,13 @@ func insertChat(
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
 			return err
 		}
-		refreshed, err := store.GetChatByID(ctx, chat.ID)
+		refreshed, err := store.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+			ID:             chat.ID,
+			HistoryChanged: true,
+			QueueChanged:   false,
+		})
 		if err != nil {
-			return xerrors.Errorf("reload chat after initial messages: %w", err)
+			return xerrors.Errorf("commit chat creation: %w", err)
 		}
 		result = CreateChatResult{
 			Chat:            refreshed,
@@ -174,7 +178,9 @@ func insertChat(
 // do not have to repeat the UpdateChatExecutionState boilerplate.
 // The state machine writes status, archived, last_error, ownership
 // identifiers, the requires-action deadline, and the manual
-// compaction request marker as one atomic update.
+// compaction request marker as one atomic update. That update is the
+// transition's commit write: it advances snapshot_version and records
+// the history and queue changes the transaction made so far.
 //
 // CompactionRequestedAt is one-shot by construction: leaving it at
 // its zero value clears any pending manual compaction request, so a
@@ -193,6 +199,7 @@ type executionStateUpdate struct {
 }
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
+	historyChanged, queueChanged := tx.takeVersionFlags()
 	return tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
 		ID:                       tx.chatID,
 		Status:                   u.Status,
@@ -202,12 +209,13 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		LastError:                u.LastError,
 		RequiresActionDeadlineAt: u.RequiresActionDeadlineAt,
 		CompactionRequestedAt:    u.CompactionRequestedAt,
-		GrantHistoryEpoch:        u.GrantHistoryEpoch,
+		HistoryChanged:           u.GrantHistoryEpoch || historyChanged,
+		QueueChanged:             queueChanged,
 	})
 }
 
 // insertMessages inserts the given Message batch under the current
-// chat.
+// chat and marks the transaction as having changed history.
 func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error) {
 	if len(messages) == 0 {
 		return nil, nil
@@ -216,7 +224,40 @@ func (tx *Tx) insertMessages(messages []Message) ([]database.ChatMessage, error)
 	if err != nil {
 		return nil, xerrors.Errorf("insert messages: %w", err)
 	}
+	tx.historyChanged = true
 	return fromInsertedRows(inserted), nil
+}
+
+// softDeleteMessageAndSuffix soft-deletes the target message and every
+// message after it and marks the transaction as having changed history.
+func (tx *Tx) softDeleteMessageAndSuffix(targetID int64) error {
+	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, targetID); err != nil {
+		return xerrors.Errorf("soft-delete target: %w", err)
+	}
+	if err := tx.store.SoftDeleteChatMessagesAfterID(tx.ctx, database.SoftDeleteChatMessagesAfterIDParams{
+		ChatID:  tx.chatID,
+		AfterID: targetID,
+	}); err != nil {
+		return xerrors.Errorf("soft-delete suffix: %w", err)
+	}
+	tx.historyChanged = true
+	return nil
+}
+
+// removeQueuedMessage deletes one queued message and marks the
+// transaction as having changed the queue when a row was removed.
+func (tx *Tx) removeQueuedMessage(id int64) (int64, error) {
+	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
+		ID:     id,
+		ChatID: tx.chatID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if rows > 0 {
+		tx.queueChanged = true
+	}
+	return rows, nil
 }
 
 // clearQueue deletes all queued messages on the chat and returns the
@@ -232,6 +273,7 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 	if _, err := tx.store.DeleteAllChatQueuedMessagesReturningCount(tx.ctx, tx.chatID); err != nil {
 		return nil, xerrors.Errorf("delete queued: %w", err)
 	}
+	tx.queueChanged = true
 	ids := make([]int64, len(queued))
 	for i, q := range queued {
 		ids[i] = q.ID
@@ -273,13 +315,18 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	if err := tx.requireQueueCapacity(); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
-	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued, err := tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:          tx.chatID,
 		Content:         rawContent,
 		ModelConfigID:   m.ModelConfigID,
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
 	})
+	if err != nil {
+		return database.ChatQueuedMessage{}, err
+	}
+	tx.queueChanged = true
+	return queued, nil
 }
 
 func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
@@ -504,10 +551,7 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if _, err := tx.removeQueuedMessage(head.ID); err != nil {
 		return SendMessageResult{}, xerrors.Errorf("delete promoted queued head: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -639,14 +683,8 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 		}
 	}
 
-	if err := tx.store.SoftDeleteChatMessageByID(tx.ctx, target.ID); err != nil {
-		return EditMessageResult{}, xerrors.Errorf("soft-delete target: %w", err)
-	}
-	if err := tx.store.SoftDeleteChatMessagesAfterID(tx.ctx, database.SoftDeleteChatMessagesAfterIDParams{
-		ChatID:  tx.chatID,
-		AfterID: target.ID,
-	}); err != nil {
-		return EditMessageResult{}, xerrors.Errorf("soft-delete suffix: %w", err)
+	if err := tx.softDeleteMessageAndSuffix(target.ID); err != nil {
+		return EditMessageResult{}, err
 	}
 	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, "Tool execution interrupted by message edit", false)
 	if err != nil {
@@ -829,10 +867,7 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	rows, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     input.QueuedMessageID,
-		ChatID: tx.chatID,
-	})
+	rows, err := tx.removeQueuedMessage(input.QueuedMessageID)
 	if err != nil {
 		return DeleteQueuedMessageResult{}, xerrors.Errorf("delete queued: %w", err)
 	}
@@ -873,12 +908,15 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("get queued: %w", err)
 	}
-	_, err = tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
+	moved, err := tx.store.ReorderChatQueuedMessageToHead(tx.ctx, database.ReorderChatQueuedMessageToHeadParams{
 		ID:     input.QueuedMessageID,
 		ChatID: tx.chatID,
 	})
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("reorder queue: %w", err)
+	}
+	if moved > 0 {
+		tx.queueChanged = true
 	}
 
 	// R1/I1: leave the target at the queue head and transition to
@@ -923,10 +961,7 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 			len(cancels)+1, len(inserted),
 		)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     target.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if _, err := tx.removeQueuedMessage(target.ID); err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("delete promoted queued: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1199,6 +1234,9 @@ func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGen
 	if err != nil {
 		return RecordGenerationAttemptResult{}, err
 	}
+	if err := tx.requireNoVersionFlags(TransitionRecordGenerationAttempt); err != nil {
+		return RecordGenerationAttemptResult{}, err
+	}
 	value, err := tx.store.IncrementChatGenerationAttempt(tx.ctx, tx.chatID)
 	if err != nil {
 		return RecordGenerationAttemptResult{}, xerrors.Errorf("increment generation attempt: %w", err)
@@ -1236,6 +1274,9 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 			TransitionRecordRetryState, from,
 			"retry payload is not valid JSON",
 		)
+	}
+	if err := tx.requireNoVersionFlags(TransitionRecordRetryState); err != nil {
+		return RecordRetryStateResult{}, err
 	}
 	chat, err := tx.store.UpdateChatRetryState(tx.ctx, database.UpdateChatRetryStateParams{
 		ID:         tx.chatID,
@@ -1410,10 +1451,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if _, err := tx.removeQueuedMessage(head.ID); err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1483,10 +1521,7 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
 	}
-	if _, err := tx.store.DeleteChatQueuedMessageReturningCount(tx.ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     head.ID,
-		ChatID: tx.chatID,
-	}); err != nil {
+	if _, err := tx.removeQueuedMessage(head.ID); err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("delete promoted head: %w", err)
 	}
 	updated, err := tx.applyExecutionState(executionStateUpdate{

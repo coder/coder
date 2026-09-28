@@ -833,29 +833,6 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION bump_chat_queue_version_on_queued_message_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-    changed_chat_id uuid;
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        changed_chat_id = OLD.chat_id;
-    ELSE
-        changed_chat_id = NEW.chat_id;
-    END IF;
-
-    UPDATE chats
-    SET queue_version = snapshot_version
-    WHERE id = changed_chat_id;
-
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    END IF;
-    RETURN NEW;
-END;
-$$;
-
 CREATE FUNCTION chat_message_search_text(content jsonb) RETURNS text
     LANGUAGE sql IMMUTABLE PARALLEL SAFE
     AS $$
@@ -1480,7 +1457,7 @@ BEGIN
         RAISE EXCEPTION 'chat % does not exist', NEW.chat_id;
     END IF;
 
-    NEW.revision = chat_snapshot_version;
+    NEW.revision = chat_snapshot_version + 1;
     RETURN NEW;
 END;
 $$;
@@ -1506,49 +1483,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-
-CREATE FUNCTION update_chat_history_after_message_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    UPDATE chats c
-    SET history_version = c.snapshot_version,
-        generation_attempt = 0
-    FROM (
-        SELECT DISTINCT chat_id FROM chat_message_history_new_rows
-    ) AS affected
-    WHERE c.id = affected.chat_id
-      AND (
-          c.history_version IS DISTINCT FROM c.snapshot_version
-          OR c.generation_attempt <> 0
-      );
-    RETURN NULL;
-END;
-$$;
-
-CREATE FUNCTION update_chat_history_after_message_update() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    UPDATE chats c
-    SET history_version = c.snapshot_version,
-        generation_attempt = 0
-    FROM (
-        SELECT DISTINCT n.chat_id
-        FROM chat_message_history_new_rows n
-        JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
-    ) AS affected
-    WHERE c.id = affected.chat_id
-      AND (
-          c.history_version IS DISTINCT FROM c.snapshot_version
-          OR c.generation_attempt <> 0
-      );
-    RETURN NULL;
-END;
-$$;
-
-COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -5049,12 +4983,6 @@ COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'Wh
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DELETE ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
-
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
-
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
-
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -5076,10 +5004,6 @@ CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat
 CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
 
 CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
-
-CREATE TRIGGER trigger_update_chat_history_after_message_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_insert();
-
-CREATE TRIGGER trigger_update_chat_history_after_message_update AFTER UPDATE ON chat_messages REFERENCING OLD TABLE AS chat_message_history_old_rows NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_update();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 

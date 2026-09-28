@@ -1416,7 +1416,7 @@ func (f *taskTestFixture) forceExecutionState(t *testing.T, chatID uuid.UUID, st
 	t.Helper()
 	var updated database.Chat
 	require.NoError(t, f.db.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(testutil.Context(t, testutil.WaitShort), chatID); err != nil {
+		if _, err := store.LockChatForTransition(testutil.Context(t, testutil.WaitShort), chatID); err != nil {
 			return err
 		}
 		chat, err := store.GetChatByID(testutil.Context(t, testutil.WaitShort), chatID)

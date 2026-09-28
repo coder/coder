@@ -308,7 +308,7 @@ func (w *chatWorker) acquireCandidate(
 		return false, nil
 	}
 	// The pre-check already identified the chat; caching its RBAC object
-	// lets the bump authorize without re-reading it.
+	// lets the transition lock authorize without re-reading it.
 	if rbacCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBACFor(precheck.ID, precheck.OwnerID, precheck.OrganizationID)); err == nil {
 		ctx = rbacCtx
 	}
@@ -316,8 +316,8 @@ func (w *chatWorker) acquireCandidate(
 	runnerID := uuid.New()
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		// The bump already returned the locked row; reading it again here
-		// would add two round trips while the transition lock is held.
+		// The lock already returned the row; reading it again here would
+		// add two round trips while the transition lock is held.
 		chat, state, err := tx.Current()
 		if errors.Is(err, chatstate.ErrChatNotFound) {
 			return errSkipAcquire

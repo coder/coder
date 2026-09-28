@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -59,12 +60,26 @@ func userMessageContent(t *testing.T, text string) []byte {
 	return raw.RawMessage
 }
 
-// TestMessageInsertAssignsRevisionAndHistoryVersion verifies that
-// inserting a chat message via the legacy InsertChatMessages query
-// assigns NEW.revision from chats.snapshot_version (BEFORE trigger)
-// and bumps chats.history_version + resets generation_attempt (AFTER
-// STATEMENT trigger).
-func TestMessageInsertAssignsRevisionAndHistoryVersion(t *testing.T) {
+// insertRawAssistantMessage inserts an assistant message with raw SQL so
+// only the BEFORE trigger decides its revision.
+func insertRawAssistantMessage(t *testing.T, tf *triggerFixture, chatID uuid.UUID, text string) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	content := userMessageContent(t, text)
+	_, err := tf.sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
+		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
+	`, chatID, string(content), int(chatprompt.CurrentContentVersion))
+	require.NoError(t, err)
+}
+
+// TestMessageInsertStampsCommittedRevision verifies the transition
+// protocol for message inserts: the BEFORE trigger stamps NEW.revision
+// with the version the enclosing transaction will commit
+// (snapshot_version + 1), the insert itself leaves the chats row
+// untouched, and the commit write moves history_version to that version
+// and resets generation_attempt.
+func TestMessageInsertStampsCommittedRevision(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -74,37 +89,21 @@ func TestMessageInsertAssignsRevisionAndHistoryVersion(t *testing.T) {
 	require.Equal(t, int64(1), created.Chat.SnapshotVersion)
 	require.Equal(t, int64(1), created.Chat.HistoryVersion)
 
-	// Force generation_attempt > 0 so we can prove the trigger
-	// resets it on a new history change.
+	// Force generation_attempt > 0 so we can prove the commit write
+	// resets it on a history change.
 	_, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	locked, err := f.DB.LockChatForTransition(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), before.GenerationAttempt)
+	require.Equal(t, int64(1), locked.Chat.GenerationAttempt)
+	require.Equal(t, int64(2), locked.Chat.SnapshotVersion, "the attempt increment is a commit write")
 
-	// Bump snapshot_version directly to simulate a transition having
-	// taken the row lock.
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	insertRawAssistantMessage(t, tf, created.Chat.ID, "hello-before-commit")
+
+	untouched, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, before.SnapshotVersion+1, bumped.Chat.SnapshotVersion)
+	require.Equal(t, locked.Chat, untouched, "a message insert must not write the chats row")
 
-	// Insert a new assistant message via raw SQL so we know the
-	// BEFORE+AFTER triggers (and only those) decide revision and
-	// history_version.
-	content := userMessageContent(t, "hello-after-bump")
-	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-	require.NoError(t, err)
-
-	// History version equals snapshot_version, generation_attempt resets.
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.HistoryVersion)
-	require.Equal(t, int64(0), after.GenerationAttempt)
-
-	// The inserted message picked up revision = bumped snapshot.
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID: created.Chat.ID,
 	})
@@ -112,14 +111,24 @@ func TestMessageInsertAssignsRevisionAndHistoryVersion(t *testing.T) {
 	require.NotEmpty(t, msgs)
 	last := msgs[len(msgs)-1]
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
-	require.Equal(t, bumped.Chat.SnapshotVersion, last.Revision)
+	require.Equal(t, locked.Chat.SnapshotVersion+1, last.Revision,
+		"revision is the version the transaction commits")
+
+	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+		ID:             created.Chat.ID,
+		HistoryChanged: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, last.Revision, after.SnapshotVersion)
+	require.Equal(t, last.Revision, after.HistoryVersion)
+	require.Equal(t, int64(0), after.GenerationAttempt)
 }
 
-// TestMessageUpdateAssignsNewRevisionAndHistoryVersion verifies that
-// updating a chat message's content advances NEW.revision to the
-// current chats.snapshot_version and that chats.history_version
-// bumps to match.
-func TestMessageUpdateAssignsNewRevisionAndHistoryVersion(t *testing.T) {
+// TestMessageUpdateStampsCommittedRevision verifies that a material
+// UPDATE of a chat message advances NEW.revision to the version the
+// transaction will commit and that the commit write moves
+// history_version to match.
+func TestMessageUpdateStampsCommittedRevision(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -132,12 +141,10 @@ func TestMessageUpdateAssignsNewRevisionAndHistoryVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, msgs)
 	target := msgs[0]
-	originalRevision := target.Revision
 
-	// Bump the snapshot so the trigger sees a new revision target.
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	locked, err := f.DB.LockChatForTransition(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Greater(t, bumped.Chat.SnapshotVersion, originalRevision)
+	require.Equal(t, target.Revision, locked.Chat.SnapshotVersion)
 
 	newContent := userMessageContent(t, "edited content")
 	_, err = tf.sqlDB.ExecContext(ctx, `
@@ -147,14 +154,20 @@ func TestMessageUpdateAssignsNewRevisionAndHistoryVersion(t *testing.T) {
 
 	reloaded, err := f.DB.GetChatMessageByID(ctx, target.ID)
 	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, reloaded.Revision,
-		"updated message picks up the current snapshot version")
+	require.Equal(t, locked.Chat.SnapshotVersion+1, reloaded.Revision,
+		"updated message picks up the committed version")
 
-	chatAfter, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	untouched, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, chatAfter.HistoryVersion)
-	require.Equal(t, int64(0), chatAfter.GenerationAttempt,
-		"history change resets generation_attempt")
+	require.Equal(t, locked.Chat, untouched, "a message update must not write the chats row")
+
+	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+		ID:             created.Chat.ID,
+		HistoryChanged: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, reloaded.Revision, after.HistoryVersion)
+	require.Equal(t, int64(0), after.GenerationAttempt)
 }
 
 // TestMessageRevisionCannotBeSetByRuntimeCode verifies the BEFORE
@@ -213,13 +226,10 @@ func TestMessageChatIDCannotChange(t *testing.T) {
 	require.Contains(t, err.Error(), "chat_id is immutable")
 }
 
-// TestNoopMessageUpdateDoesNotAdvanceHistoryVersion verifies that a
-// no-op UPDATE on a chat_messages row (one whose OLD and NEW are
-// indistinguishable) does NOT advance chats.history_version even
-// when the snapshot was previously bumped. This guards against the
-// AFTER UPDATE STATEMENT trigger naively reacting to every touched
-// row id regardless of whether the row actually changed.
-func TestNoopMessageUpdateDoesNotAdvanceHistoryVersion(t *testing.T) {
+// TestNoopMessageUpdateDoesNotAdvanceRevision verifies that a no-op
+// UPDATE on a chat_messages row (one whose OLD and NEW are
+// indistinguishable) does NOT advance the row's revision.
+func TestNoopMessageUpdateDoesNotAdvanceRevision(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -234,25 +244,12 @@ func TestNoopMessageUpdateDoesNotAdvanceHistoryVersion(t *testing.T) {
 	target := msgs[0]
 	originalRevision := target.Revision
 
-	// Bump snapshot so the AFTER STATEMENT guard
-	// (history_version != snapshot_version) is now true.
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.NotEqual(t, bumped.Chat.SnapshotVersion, bumped.Chat.HistoryVersion,
-		"snapshot bump leaves history_version trailing")
-
 	// No-op UPDATE: SET content = content. OLD IS NOT DISTINCT FROM NEW.
 	_, err = tf.sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages SET content = content WHERE id = $1
 	`, target.ID)
 	require.NoError(t, err)
 
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.HistoryVersion, after.HistoryVersion,
-		"no-op update must NOT advance history_version")
-
-	// And the row's revision is untouched.
 	reloaded, err := f.DB.GetChatMessageByID(ctx, target.ID)
 	require.NoError(t, err)
 	require.Equal(t, originalRevision, reloaded.Revision,
@@ -298,10 +295,8 @@ func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, withRetry.RetryState.Valid)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.NotEqual(t, bumped.Chat.SnapshotVersion, bumped.Chat.HistoryVersion,
-		"snapshot bump leaves history_version trailing")
 
 	// Backfill-shaped UPDATE: only search_tsv and search_tsv_config change.
 	_, err = tf.sqlDB.ExecContext(ctx, `
@@ -324,22 +319,17 @@ func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.HistoryVersion, after.HistoryVersion,
-		"backfill must NOT advance history_version")
-	require.Equal(t, int64(1), after.GenerationAttempt,
-		"backfill must NOT reset generation_attempt")
-	require.True(t, after.RetryState.Valid,
-		"backfill must NOT clear retry_state")
-	require.Equal(t, withRetry.RetryStateVersion, after.RetryStateVersion,
-		"backfill must NOT change retry_state_version")
+	require.Equal(t, before, after, "backfill must NOT touch the chats row")
+	require.Equal(t, int64(1), after.GenerationAttempt)
+	require.True(t, after.RetryState.Valid)
 }
 
-// Queue version triggers
+// Queue version
 
-// TestQueueInsertUpdatesQueueVersion verifies that an INSERT into
-// chat_queued_messages bumps chats.queue_version to the current
-// snapshot_version.
-func TestQueueInsertUpdatesQueueVersion(t *testing.T) {
+// TestQueueWritesLeaveChatUntouchedUntilCommit verifies that queue
+// writes no longer touch the chats row: queue_version moves only when a
+// commit write records the change.
+func TestQueueWritesLeaveChatUntouchedUntilCommit(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -349,21 +339,57 @@ func TestQueueInsertUpdatesQueueVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), before.QueueVersion)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	content := userMessageContent(t, "queued")
-	_, err = f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:    created.Chat.ID,
-		Content:   content,
+		Content:   userMessageContent(t, "queued"),
 		CreatedBy: f.User.ID,
 	})
 	require.NoError(t, err)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	_, err = tf.sqlDB.ExecContext(ctx, `
+		UPDATE chat_queued_messages SET content = $1::jsonb WHERE id = $2
+	`, string(userMessageContent(t, "updated")), queued.ID)
 	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.QueueVersion,
-		"INSERT into chat_queued_messages bumps queue_version")
+	rows, err := f.DB.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
+		ID:     queued.ID,
+		ChatID: created.Chat.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rows)
+
+	untouched, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, before, untouched, "queue writes must not write the chats row")
+
+	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+		ID:           created.Chat.ID,
+		QueueChanged: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, before.SnapshotVersion+1, after.SnapshotVersion)
+	require.Equal(t, after.SnapshotVersion, after.QueueVersion,
+		"the commit write records the queue change at the committed version")
+	require.Equal(t, before.HistoryVersion, after.HistoryVersion,
+		"a queue change must not move history_version")
+}
+
+// TestExecutionStateCommitRecordsQueueChange verifies the exec-state
+// commit write records queue changes the same way as the bump-only one.
+func TestExecutionStateCommitRecordsQueueChange(t *testing.T) {
+	t.Parallel()
+	tf := newTriggerFixture(t)
+	f := tf.f
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+
+	after, err := f.DB.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		ID:           created.Chat.ID,
+		Status:       database.ChatStatusWaiting,
+		QueueChanged: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion)
+	require.Equal(t, after.SnapshotVersion, after.QueueVersion)
+	require.Equal(t, created.Chat.HistoryVersion, after.HistoryVersion)
 }
 
 // TestQueuedMessageCreatedByIsRequired verifies the database enforces
@@ -399,117 +425,9 @@ func TestLegacyQueuedMessageInsertUsesChatOwnerAsCreator(t *testing.T) {
 	require.Equal(t, created.Chat.OwnerID, queued.CreatedBy)
 }
 
-// TestQueueUpdateContentUpdatesQueueVersion verifies that an UPDATE
-// of chat_queued_messages.content bumps queue_version. The
-// AFTER UPDATE trigger explicitly listens for content changes.
-func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "initial"),
-		CreatedBy: f.User.ID,
-	})
-	require.NoError(t, err)
-
-	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Greater(t, bumped.Chat.SnapshotVersion, before.QueueVersion)
-
-	updated := userMessageContent(t, "updated")
-	_, err = tf.sqlDB.ExecContext(ctx, `
-		UPDATE chat_queued_messages SET content = $1::jsonb WHERE id = $2
-	`, string(updated), queued.ID)
-	require.NoError(t, err)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.QueueVersion,
-		"UPDATE of queued content bumps queue_version")
-}
-
-// TestQueueUpdatePositionUpdatesQueueVersion verifies that an UPDATE
-// of chat_queued_messages.position (such as the reorder-to-head
-// path) bumps queue_version.
-func TestQueueUpdatePositionUpdatesQueueVersion(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	q1, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "first"),
-		CreatedBy: f.User.ID,
-	})
-	require.NoError(t, err)
-	q2, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "second"),
-		CreatedBy: f.User.ID,
-	})
-	require.NoError(t, err)
-	require.NotEqual(t, q1.ID, q2.ID)
-
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	// Move q2 to head by setting its position to q1.position - 1.
-	_, err = tf.sqlDB.ExecContext(ctx, `
-		UPDATE chat_queued_messages SET position = $1 WHERE id = $2
-	`, q1.Position-1, q2.ID)
-	require.NoError(t, err)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.QueueVersion,
-		"UPDATE of queued position bumps queue_version")
-}
-
-// TestQueueDeleteUpdatesQueueVersion verifies that DELETE from
-// chat_queued_messages bumps queue_version.
-func TestQueueDeleteUpdatesQueueVersion(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "to delete"),
-		CreatedBy: f.User.ID,
-	})
-	require.NoError(t, err)
-
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	rows, err := f.DB.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     queued.ID,
-		ChatID: created.Chat.ID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, int64(1), rows)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.QueueVersion,
-		"DELETE from queue bumps queue_version")
-}
-
-// TestNonQueueUpdateDoesNotUpdateQueueVersion verifies that mutations
-// on other chat-related tables do NOT bump queue_version. The
-// canonical case is inserting a chat message: it must update
-// history_version but leave queue_version untouched.
-func TestNonQueueUpdateDoesNotUpdateQueueVersion(t *testing.T) {
+// TestHistoryCommitDoesNotUpdateQueueVersion verifies that committing a
+// history change leaves queue_version untouched.
+func TestHistoryCommitDoesNotUpdateQueueVersion(t *testing.T) {
 	t.Parallel()
 	tf := newTriggerFixture(t)
 	f := tf.f
@@ -518,22 +436,15 @@ func TestNonQueueUpdateDoesNotUpdateQueueVersion(t *testing.T) {
 	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	content := userMessageContent(t, "non-queue mutation")
-	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-	require.NoError(t, err)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	insertRawAssistantMessage(t, tf, created.Chat.ID, "non-queue mutation")
+	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+		ID:             created.Chat.ID,
+		HistoryChanged: true,
+	})
 	require.NoError(t, err)
 	require.Equal(t, before.QueueVersion, after.QueueVersion,
-		"chat_messages INSERT must not bump queue_version")
-	// Sanity: history_version DID move.
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.HistoryVersion)
+		"a history change must not bump queue_version")
+	require.Equal(t, after.SnapshotVersion, after.HistoryVersion)
 }
 
 // Retry state triggers
@@ -558,9 +469,6 @@ func TestRetryStateUpdateSetsRetryStateVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
 	after, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
@@ -570,7 +478,9 @@ func TestRetryStateUpdateSetsRetryStateVersion(t *testing.T) {
 	require.JSONEq(t,
 		`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`,
 		string(after.RetryState.RawMessage))
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.RetryStateVersion)
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion,
+		"the retry state write is a commit write")
+	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion)
 }
 
 func TestRetryStateSameValueDoesNotUpdateRetryStateVersion(t *testing.T) {
@@ -581,21 +491,18 @@ func TestRetryStateSameValueDoesNotUpdateRetryStateVersion(t *testing.T) {
 	created := createTestChat(t, f)
 
 	payload := []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`)
-	_, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
 	first, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: payload,
 	})
 	require.NoError(t, err)
 
-	_, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
 	second, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: payload,
 	})
 	require.NoError(t, err)
+	require.Equal(t, first.SnapshotVersion+1, second.SnapshotVersion)
 	require.Equal(t, first.RetryStateVersion, second.RetryStateVersion,
 		"same retry_state payload must not update retry_state_version")
 }
@@ -607,8 +514,6 @@ func TestGenerationAttemptClearsRetryState(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	_, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
 	withRetry, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
@@ -616,8 +521,6 @@ func TestGenerationAttemptClearsRetryState(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, withRetry.RetryState.Valid)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
 	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), attempt)
@@ -625,7 +528,9 @@ func TestGenerationAttemptClearsRetryState(t *testing.T) {
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.False(t, after.RetryState.Valid)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.RetryStateVersion,
+	require.Equal(t, withRetry.SnapshotVersion+1, after.SnapshotVersion,
+		"the attempt increment is a commit write")
+	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion,
 		"clearing retry_state on generation attempt bumps retry_state_version")
 }
 
@@ -639,8 +544,6 @@ func TestGenerationAttemptWithNullRetryStateDoesNotUpdateRetryStateVersion(t *te
 	require.NoError(t, err)
 	require.False(t, before.RetryState.Valid)
 
-	_, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
 	_, err = f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
 	require.NoError(t, err)
 
@@ -672,29 +575,23 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	_, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+	_, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
 	require.NoError(t, err)
-	_, err = f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	_, err = f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
+	withRetry, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
 	})
 	require.NoError(t, err)
+	require.Equal(t, int64(1), withRetry.GenerationAttempt)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	content := userMessageContent(t, "history clears retry state")
-	_, err = tf.sqlDB.ExecContext(ctx, `
-		INSERT INTO chat_messages (chat_id, role, content, content_version, visibility)
-		VALUES ($1, 'assistant', $2::jsonb, $3, 'both')
-	`, created.Chat.ID, string(content), int(chatprompt.CurrentContentVersion))
-	require.NoError(t, err)
-
-	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	insertRawAssistantMessage(t, tf, created.Chat.ID, "history clears retry state")
+	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
+		ID:             created.Chat.ID,
+		HistoryChanged: true,
+	})
 	require.NoError(t, err)
 	require.Equal(t, int64(0), after.GenerationAttempt)
 	require.False(t, after.RetryState.Valid)
-	require.Equal(t, bumped.Chat.SnapshotVersion, after.RetryStateVersion,
+	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion,
 		"history reset of generation_attempt clears retry_state")
 }

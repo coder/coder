@@ -73,9 +73,9 @@ func (s *lockAttemptStore) InTx(fn func(database.Store) error, opts *database.Tx
 	}, opts)
 }
 
-func (s *lockAttemptStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
+func (s *lockAttemptStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
 	s.once.Do(func() { close(s.attempted) })
-	return s.Store.LockChatAndBumpSnapshotVersion(ctx, id)
+	return s.Store.LockChatForTransition(ctx, id)
 }
 
 // TestLockLocksChatRow verifies that ChatMachine.Lock holds the chat
@@ -126,7 +126,7 @@ func TestLockLocksChatRow(t *testing.T) {
 	require.True(t, waitForChan(ctx, lockEntered), "Lock callback never started")
 
 	// Goroutine B: try to Update the same chat. It must block on
-	// LockChatAndBumpSnapshotVersion until A releases.
+	// LockChatForTransition until A releases.
 	var updateErr error
 	var updateWG sync.WaitGroup
 	updateWG.Go(func() {

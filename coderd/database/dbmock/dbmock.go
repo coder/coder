@@ -336,6 +336,21 @@ func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesSent(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkMarkNotificationMessagesSent", reflect.TypeOf((*MockStore)(nil).BulkMarkNotificationMessagesSent), ctx, arg)
 }
 
+// BumpChatSnapshotVersion mocks base method.
+func (m *MockStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BumpChatSnapshotVersion", ctx, arg)
+	ret0, _ := ret[0].(database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BumpChatSnapshotVersion indicates an expected call of BumpChatSnapshotVersion.
+func (mr *MockStoreMockRecorder) BumpChatSnapshotVersion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BumpChatSnapshotVersion", reflect.TypeOf((*MockStore)(nil).BumpChatSnapshotVersion), ctx, arg)
+}
+
 // CalculateAIBridgeInterceptionsTelemetrySummary mocks base method.
 func (m *MockStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
 	m.ctrl.T.Helper()
@@ -9342,21 +9357,6 @@ func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(ctx, workspaceID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), ctx, workspaceID)
 }
 
-// LockChatAndBumpSnapshotVersion mocks base method.
-func (m *MockStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LockChatAndBumpSnapshotVersion", ctx, id)
-	ret0, _ := ret[0].(database.LockChatAndBumpSnapshotVersionRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// LockChatAndBumpSnapshotVersion indicates an expected call of LockChatAndBumpSnapshotVersion.
-func (mr *MockStoreMockRecorder) LockChatAndBumpSnapshotVersion(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatAndBumpSnapshotVersion", reflect.TypeOf((*MockStore)(nil).LockChatAndBumpSnapshotVersion), ctx, id)
-}
-
 // LockChatByID mocks base method.
 func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
@@ -9370,6 +9370,21 @@ func (m *MockStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, 
 func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
+}
+
+// LockChatForTransition mocks base method.
+func (m *MockStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatForTransition", ctx, id)
+	ret0, _ := ret[0].(database.LockChatForTransitionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockChatForTransition indicates an expected call of LockChatForTransition.
+func (mr *MockStoreMockRecorder) LockChatForTransition(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatForTransition", reflect.TypeOf((*MockStore)(nil).LockChatForTransition), ctx, id)
 }
 
 // LockProvisionerKeyByIDForShare mocks base method.

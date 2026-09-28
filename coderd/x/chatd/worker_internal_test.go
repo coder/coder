@@ -353,22 +353,22 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 	}
 }
 
-// bumpCountingStore counts snapshot bumps, including those issued on the
+// lockCountingStore counts transition locks, including those taken on the
 // transactional handle inside InTx.
-type bumpCountingStore struct {
+type lockCountingStore struct {
 	database.Store
-	bumps *atomic.Int64
+	locks *atomic.Int64
 }
 
-func (s *bumpCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+func (s *lockCountingStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(&bumpCountingStore{Store: tx, bumps: s.bumps})
+		return fn(&lockCountingStore{Store: tx, locks: s.locks})
 	}, opts)
 }
 
-func (s *bumpCountingStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
-	s.bumps.Add(1)
-	return s.Store.LockChatAndBumpSnapshotVersion(ctx, id)
+func (s *lockCountingStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+	s.locks.Add(1)
+	return s.Store.LockChatForTransition(ctx, id)
 }
 
 // TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking verifies the
@@ -382,14 +382,14 @@ func TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking(t *testing.T) {
 	chat := f.createRunningChat(t)
 	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
 
-	bumps := &atomic.Int64{}
+	locks := &atomic.Int64{}
 	opts := testOptions(t, f, newRecordingTaskStarter())
-	opts.Store = &bumpCountingStore{Store: f.db, bumps: bumps}
+	opts.Store = &lockCountingStore{Store: f.db, locks: locks}
 	worker, err := newChatWorker(newUnstartedServer(t, f.pubsub, f.db), opts)
 	require.NoError(t, err)
 
 	acquired, err := worker.acquireCandidate(testutil.Context(t, testutil.WaitShort), worker.opts.WorkerID, nil, chat.ID)
 	require.NoError(t, err)
 	require.False(t, acquired)
-	require.Zero(t, bumps.Load(), "a losing replica must not take the row lock")
+	require.Zero(t, locks.Load(), "a losing replica must not take the row lock")
 }

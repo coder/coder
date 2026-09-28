@@ -264,6 +264,14 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.BumpChatSnapshotVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("BumpChatSnapshotVersion").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BumpChatSnapshotVersion").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
@@ -4928,19 +4936,19 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
-func (m queryMetricsStore) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.LockChatAndBumpSnapshotVersion(ctx, id)
-	m.queryLatencies.WithLabelValues("LockChatAndBumpSnapshotVersion").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatAndBumpSnapshotVersion").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatForTransition(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatForTransition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatForTransition").Inc()
 	return r0, r1
 }
 

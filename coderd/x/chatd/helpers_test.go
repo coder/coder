@@ -487,7 +487,7 @@ func forceExecutionState(
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var updated database.Chat
 	require.NoError(t, f.db.InTx(func(store database.Store) error {
-		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, chatID); err != nil {
+		if _, err := store.LockChatForTransition(ctx, chatID); err != nil {
 			return err
 		}
 		chat, err := store.GetChatByID(ctx, chatID)

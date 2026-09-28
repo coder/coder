@@ -102,6 +102,8 @@ Remember!
 
 We will not define the SQL queries that correspond to each transition - it'd take too much space and it's not central to the document's purpose. Instead, we focus on what each transition does to the database state, and how it affects the execution and ownership states.
 
+TODO: the transition lock no longer writes the row. Each transition ends with a single commit write (`UpdateChatExecutionState`, `BumpChatSnapshotVersion`, `IncrementChatGenerationAttempt`, or `UpdateChatRetryState`) that advances `snapshot_version` together with the transition's own fields, and `ChatMachine.Update` issues a bump-only commit write when the callback performed none. Rewrite this paragraph and the two that follow: `history_version` and `queue_version` are now written by the commit write (from write-intent flags set by the message and queue helpers), not by triggers. The motivation is that Postgres re-runs every FK check on an UPDATE whose old row version was written by the same transaction, and those checks key-share the parent rows shared by all chats (users, organizations, chat_model_configs).
+
 Each transaction that applies one or more transitions advances the `snapshot_version` field on the `chats` table by 1 immediately after locking the chat row and before mutating any tables. This lets us version the chat's execution state. The chat worker and the stream loop rely on it to ensure they do not process outdated or out of order notifications.
 
 Chat-message changes update `history_version` on the `chats` table and the `revision` fields on the `chat_messages` table automatically via Postgres triggers described in [Message revisions and history version](#message-revisions-and-history-version). `history_version` stores the latest `snapshot_version` in which chat message history changed. The chat runner and the stream loop rely on it to ensure they are fully aware of the chat's history changes. See [Event processing](#event-processing) for how the runner uses `history_version` differently from `snapshot_version`.
@@ -111,6 +113,8 @@ Queue changes update `queue_version` automatically via Postgres triggers describ
 I don't recommend reading the rest of section thoroughly if this is your first time reading this document. It's an information dump that only makes sense once you pair it with a specific runtime component of chatd. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing how an HTTP endpoint or a chat worker implements a specific feature.
 
 ### Transitions used by the HTTP endpoints
+
+TODO: `Create` now inserts the chat at `snapshot_version` 0, inserts the initial history (stamped with revision 1), and commits with `BumpChatSnapshotVersion`, landing on `snapshot_version` 1 and `history_version` 1. Update the bullet below.
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
@@ -281,6 +285,8 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 `chats.history_version` stores the latest `snapshot_version` in which chat message history changed. It starts at `0`, remains unchanged for non-history transitions, and is set to the current `snapshot_version` whenever a message is inserted or meaningfully updated. A newly created chat starts with `snapshot_version = 1`; because `Create` inserts initial history in that snapshot, the created chat's `history_version` becomes `1`. No-op message updates do not advance message `revision`, advance `history_version`, or reset `generation_attempt`. Whenever `history_version` changes, `generation_attempt` is reset to `0`; generation attempts are scoped to the current history version.
 
+TODO: the invariant is now the reverse: the `BEFORE INSERT`/`BEFORE UPDATE` trigger stamps `revision = snapshot_version + 1`, the version the enclosing transaction commits, and every transaction that writes `chat_messages` must end with a commit write that advances `snapshot_version` and sets `history_version` (the `AFTER` triggers that wrote `history_version` and reset `generation_attempt` were dropped in migration 000600). Rewrite this paragraph and the trigger listing below accordingly.
+
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
 
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
@@ -343,6 +349,8 @@ EXECUTE FUNCTION set_chat_message_revision();
 ## Queue version
 
 `chats.queue_version` stores the latest `snapshot_version` in which the queue changed. It starts at `0`, remains unchanged for non-queue transitions, and is set to the current `snapshot_version` whenever a queued message is inserted, updated, reordered, or deleted. A newly created chat with no queued messages has `queue_version = 0`.
+
+TODO: these triggers were dropped in migration 000600. The queue helpers in `chatstate` record the change on the transaction and the commit write sets `queue_version` to the committed `snapshot_version`. Rewrite this section.
 
 An `AFTER INSERT`, `AFTER UPDATE`, and `AFTER DELETE` trigger records that the queue changed:
 

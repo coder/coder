@@ -85,6 +85,12 @@ type sqlcQuerier interface {
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
+	// The commit write of a transition that changes no execution state (for
+	// example CommitStep, or a metadata-only Update callback): advances
+	// snapshot_version and records history and queue changes exactly like
+	// UpdateChatExecutionState. It must be the only UPDATE of the chats row in
+	// its transaction (see LockChatForTransition).
+	BumpChatSnapshotVersion(ctx context.Context, arg BumpChatSnapshotVersionParams) (Chat, error)
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
@@ -1130,7 +1136,8 @@ type sqlcQuerier interface {
 	// Returns the hydrated chat IDs so callers can notify watchers of every
 	// chat the statement pinned.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error)
-	// Increments generation_attempt and returns the resulting value.
+	// The commit write of RecordGenerationAttempt: advances snapshot_version,
+	// increments generation_attempt, and returns the resulting attempt.
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
 	// The day parameter is normalized to its UTC calendar day before storage.
@@ -1156,6 +1163,9 @@ type sqlcQuerier interface {
 	InsertAuditLog(ctx context.Context, arg InsertAuditLogParams) (AuditLog, error)
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
+	// A new chat starts at snapshot_version 0: the creating transaction inserts
+	// the initial history (stamped with version 1 by the revision trigger) and
+	// then commits with BumpChatSnapshotVersion, landing on version 1.
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
@@ -1346,10 +1356,15 @@ type sqlcQuerier interface {
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
 	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
-	// Locks the chat row with FOR NO KEY UPDATE and atomically increments its
-	// snapshot_version, returning the post-bump chat. This is the single
-	// entry point ChatMachine.Update uses to acquire the row lock and
-	// allocate a new snapshot version in one round trip.
+	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the chat row with FOR NO KEY UPDATE without writing it and returns
+	// the current chat. ChatMachine.Update uses this to start a transition; the
+	// transition's single commit write (UpdateChatExecutionState,
+	// BumpChatSnapshotVersion, IncrementChatGenerationAttempt, or
+	// UpdateChatRetryState) advances snapshot_version. Keeping the lock free of
+	// writes matters: Postgres re-runs every foreign key check on an UPDATE
+	// whose old row version was written by the same transaction, and those
+	// checks take FOR KEY SHARE on parent rows shared by many chats.
 	//
 	// FOR NO KEY UPDATE (rather than FOR UPDATE) is sufficient because the
 	// transition never changes chats.id, and it stays compatible with the
@@ -1357,8 +1372,7 @@ type sqlcQuerier interface {
 	// messages, queued messages) take on the chat row, so those writers do
 	// not convoy against transitions. Concurrent transitions still serialize
 	// because FOR NO KEY UPDATE conflicts with itself.
-	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (LockChatAndBumpSnapshotVersionRow, error)
-	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	LockChatForTransition(ctx context.Context, id uuid.UUID) (LockChatForTransitionRow, error)
 	// Locks the provisioner key row with FOR KEY SHARE for the remainder of the
 	// current transaction. FOR KEY SHARE conflicts with DELETE, so while the lock
 	// is held the key cannot be deleted, and a committed deletion is observed as
@@ -1516,15 +1530,18 @@ type sqlcQuerier interface {
 	// parameter keeps updated_at under the caller's clock, matching
 	// the injectable quartz.Clock used by FinalizeStale sweeps.
 	UpdateChatDebugStep(ctx context.Context, arg UpdateChatDebugStepParams) (ChatDebugStep, error)
-	// Atomically updates the execution-state-managed fields on a chat:
-	// status, archived, last_error, ownership identifiers, the
-	// requires-action deadline, and the manual compaction request marker.
-	// Callers compose this with transition mutations inside a single
-	// ChatMachine.Update transaction.
+	// The commit write of a transition that changes execution state. It
+	// advances snapshot_version and atomically updates the execution-state
+	// fields: status, archived, last_error, ownership identifiers, the
+	// requires-action deadline, and the manual compaction request marker. It
+	// must be the only UPDATE of the chats row in its transaction (see
+	// LockChatForTransition).
 	//
-	// grant_history_epoch gives a turn that inserts no history the same
-	// fresh retry budget and message part episode keys a history change
-	// would grant, mirroring the chat_messages trigger postcondition.
+	// history_changed records that the transaction inserted or materially
+	// updated chat_messages, or that a turn without history changes is granted
+	// the same fresh retry budget and message part episode keys: history_version
+	// moves to the committed snapshot_version and the generation attempt state
+	// resets. queue_changed records a chat_queued_messages change the same way.
 	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
@@ -1549,8 +1566,9 @@ type sqlcQuerier interface {
 	UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
-	// Stores the client-visible retry payload. retry_state_version is
-	// assigned by trigger from the current snapshot_version.
+	// The commit write of RecordRetryState: advances snapshot_version and
+	// stores the client-visible retry payload. retry_state_version is assigned
+	// by trigger from the committed snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only

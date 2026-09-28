@@ -1489,24 +1489,33 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionShare).Returns()
 	}))
-	s.Run("LockChatAndBumpSnapshotVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("LockChatForTransition", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		row := database.LockChatAndBumpSnapshotVersionRow{Chat: chat}
+		row := database.LockChatForTransitionRow{Chat: chat}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
+		dbm.EXPECT().LockChatForTransition(gomock.Any(), chat.ID).Return(row, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(row)
 	}))
-	s.Run("GetChatTransitionState", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetChatTransitionStateParams{ID: uuid.New(), StaleSeconds: 30}
+	s.Run("GetChatTransitionState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetChatTransitionStateParams{ID: chat.ID, StaleSeconds: 30}
 		row := database.GetChatTransitionStateRow{ID: arg.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().GetChatTransitionState(gomock.Any(), arg).Return(row, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(row)
 	}))
 	s.Run("UpdateChatExecutionState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatExecutionStateParams{ID: chat.ID, Status: database.ChatStatusRunning}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+	}))
+	s.Run("BumpChatSnapshotVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.BumpChatSnapshotVersionParams{ID: chat.ID, HistoryChanged: true}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().BumpChatSnapshotVersion(gomock.Any(), arg).Return(chat, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
 	}))
 	s.Run("IncrementChatGenerationAttempt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -7896,7 +7905,7 @@ func TestChatWriteAuthorization_FastPath(t *testing.T) {
 	ownerID := uuid.New()
 	orgID := uuid.New()
 	chat := database.Chat{ID: uuid.New(), OwnerID: ownerID, OrganizationID: orgID}
-	bumped := database.LockChatAndBumpSnapshotVersionRow{Chat: chat}
+	locked := database.LockChatForTransitionRow{Chat: chat}
 
 	actor := rbac.Subject{
 		ID:     ownerID.String(),
@@ -7919,14 +7928,14 @@ func TestChatWriteAuthorization_FastPath(t *testing.T) {
 		dbm := dbmock.NewMockStore(ctrl)
 		// No GetChatByID expectation: the cached object must satisfy
 		// authorization for every chat-scoped write.
-		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().LockChatForTransition(gomock.Any(), chat.ID).Return(locked, nil)
 		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(chat, nil)
 		dbm.EXPECT().Wrappers().Return([]string{})
 		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 
-		got, err := q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		got, err := q.LockChatForTransition(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Equal(t, bumped, got)
+		require.Equal(t, locked, got)
 		_, err = q.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: chat.ID})
 		require.NoError(t, err)
 	})
@@ -7943,11 +7952,11 @@ func TestChatWriteAuthorization_FastPath(t *testing.T) {
 		dbm := dbmock.NewMockStore(ctrl)
 		// A cached object for another chat must never authorize this one.
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().LockChatForTransition(gomock.Any(), chat.ID).Return(locked, nil)
 		dbm.EXPECT().Wrappers().Return([]string{})
 		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 
-		_, err = q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		_, err = q.LockChatForTransition(ctx, chat.ID)
 		require.NoError(t, err)
 	})
 
@@ -7958,11 +7967,11 @@ func TestChatWriteAuthorization_FastPath(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		dbm := dbmock.NewMockStore(ctrl)
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil)
-		dbm.EXPECT().LockChatAndBumpSnapshotVersion(gomock.Any(), chat.ID).Return(bumped, nil)
+		dbm.EXPECT().LockChatForTransition(gomock.Any(), chat.ID).Return(locked, nil)
 		dbm.EXPECT().Wrappers().Return([]string{})
 		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 
-		_, err := q.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+		_, err := q.LockChatForTransition(ctx, chat.ID)
 		require.NoError(t, err)
 	})
 }

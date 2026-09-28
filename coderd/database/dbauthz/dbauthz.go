@@ -1964,6 +1964,13 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
+func (q *querier) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.Chat{}, err
+	}
+	return q.db.BumpChatSnapshotVersion(ctx, arg)
+}
+
 func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
 		return database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, err
@@ -3734,7 +3741,7 @@ func (q *querier) GetChatSystemPromptConfig(ctx context.Context) (database.GetCh
 }
 
 func (q *querier) GetChatTransitionState(ctx context.Context, arg database.GetChatTransitionStateParams) (database.GetChatTransitionStateRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionRead); err != nil {
 		return database.GetChatTransitionStateRow{}, err
 	}
 	return q.db.GetChatTransitionState(ctx, arg)
@@ -7086,18 +7093,20 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
-func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.LockChatAndBumpSnapshotVersionRow, error) {
-	if err := q.authorizeChatByID(ctx, id, policy.ActionUpdate); err != nil {
-		return database.LockChatAndBumpSnapshotVersionRow{}, err
-	}
-	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
-}
-
 func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return uuid.Nil, err
 	}
 	return q.db.LockChatByID(ctx, id)
+}
+
+func (q *querier) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
+	// The lock starts a transition, so it requires the same permission as
+	// the writes that follow it.
+	if err := q.authorizeChatByID(ctx, id, policy.ActionUpdate); err != nil {
+		return database.LockChatForTransitionRow{}, err
+	}
+	return q.db.LockChatForTransition(ctx, id)
 }
 
 func (q *querier) LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
