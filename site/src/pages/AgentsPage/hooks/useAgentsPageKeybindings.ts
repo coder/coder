@@ -6,13 +6,16 @@ import { isMac } from "#/utils/platform";
  *
  * - Ctrl+N / Cmd+N: Create a new agent.
  * - Ctrl+K / Cmd+K: Toggle agent search.
+ * - Ctrl+, / Cmd+,: Open settings.
  */
 export function useAgentsPageKeybindings({
 	onNewAgent,
 	onToggleSearch,
+	onOpenSettings,
 }: {
 	onNewAgent: () => void;
 	onToggleSearch?: () => void;
+	onOpenSettings?: () => void;
 }) {
 	useEffect(() => {
 		const handler = (event: KeyboardEvent) => {
@@ -31,10 +34,16 @@ export function useAgentsPageKeybindings({
 			if (key === "k" && onToggleSearch) {
 				event.preventDefault();
 				onToggleSearch();
+				return;
+			}
+
+			if (key === "," && onOpenSettings) {
+				event.preventDefault();
+				onOpenSettings();
 			}
 		};
 
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
-	}, [onNewAgent, onToggleSearch]);
+	}, [onNewAgent, onToggleSearch, onOpenSettings]);
 }

@@ -497,6 +497,17 @@ const AgentsPageLayout: FC = () => {
 		navigate({ pathname: "/agents", search: location.search });
 	};
 
+	const handleOpenSettings = () => {
+		// Already there: keep the original `from` so the back button
+		// still returns to the view the user opened settings from.
+		if (isSettingsView(sidebarViewFromPath(location.pathname))) {
+			return;
+		}
+		navigate("/agents/settings", {
+			state: { from: location.pathname + location.search },
+		});
+	};
+
 	useEffect(() => {
 		activeChatIDRef.current = agentId;
 	});
@@ -650,6 +661,7 @@ const AgentsPageLayout: FC = () => {
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
 		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
+		onOpenSettings: handleOpenSettings,
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
