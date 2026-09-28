@@ -39,7 +39,7 @@ func StartStallDetector(threshold time.Duration) func() {
 				{Name: "/sched/goroutines:goroutines"},
 			}
 			metrics.Read(samples)
-			fmt.Fprintf(os.Stderr,
+			_, _ = fmt.Fprintf(os.Stderr,
 				"stall detector: %s passed between 1s ticks, ending at %s: heap=%dMiB gc_cycles=%d goroutines=%d gomaxprocs=%d\n",
 				gap.Round(time.Millisecond),
 				now.UTC().Format(time.RFC3339Nano),
