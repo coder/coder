@@ -60,6 +60,9 @@ type runner struct {
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
 	experiments   turnExperimentDecisions
+	// workspace holds workspace state for the chat while this runner owns
+	// it.
+	workspace runnerWorkspaceState
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -233,6 +236,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
 		TurnExperiments:          &r.experiments,
+		RunnerState:              &r.workspace,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

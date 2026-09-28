@@ -35,6 +35,9 @@ import (
 type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// RunnerState holds workspace state kept across generation steps.
+	// Nil keeps nothing across steps.
+	RunnerState *runnerWorkspaceState
 	// RecordMCPConnectSummaries receives the preparation's per-server
 	// MCP connect outcomes as soon as the connect phase completes,
 	// with the debug context needed to create the run when no action
@@ -462,6 +465,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		prepareInput := generationPrepareInput{
 			Chat:                      chat,
 			Messages:                  messages,
+			RunnerState:               input.RunnerState,
 			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 			TurnExperiments:           input.TurnExperiments,
 		}

@@ -1889,6 +1889,88 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	}
 }
 
+// TestPlanPathHomeDirectoryCachedAcrossSteps checks that the workspace home
+// directory used for the plan path is read from the agent once, not on every
+// generation step.
+func TestPlanPathHomeDirectoryCachedAcrossSteps(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var (
+		requests   []recordedOpenAIRequest
+		requestsMu sync.Mutex
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		call := len(requests)
+		requestsMu.Unlock()
+		if call == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"echo hi"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	var lsCalls atomic.Int32
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, string, workspacesdk.LSRequest) (workspacesdk.LSResponse, error) {
+			lsCalls.Add(1)
+			return workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil
+		}).AnyTimes()
+	mockConn.EXPECT().StartProcess(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil).AnyTimes()
+	exitCode := 0
+	mockConn.EXPECT().ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{Output: "hi\n", ExitCode: &exitCode}, nil).AnyTimes()
+
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Title:          "plan-path-home-cache",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Run echo hi."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 2, "expected a tool call step and a reply step")
+	planPath := chattool.PlanPathForChat("/home/coder", chat.ID)
+	for i, req := range recorded {
+		require.Truef(t, requestHasSystemSubstring(req, planPath), "step %d system prompt should include the plan path", i+1)
+	}
+	require.Equal(t, int32(1), lsCalls.Load(), "the home directory should be read from the agent once")
+}
+
 func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	t.Parallel()
 

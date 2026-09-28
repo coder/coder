@@ -68,6 +68,8 @@ type chatWorkerTaskStartInput struct {
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
+	// RunnerState holds workspace state kept across the runner's tasks.
+	RunnerState *runnerWorkspaceState
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {

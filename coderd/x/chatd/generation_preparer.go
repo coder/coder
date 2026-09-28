@@ -244,6 +244,7 @@ func (server *Server) prepareGeneration(
 		chatStateMu:      &chatStateMu,
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
+		runnerState:      input.RunnerState,
 	}
 	// mcpCleanup and inlineMCPCleanup are assigned by g2 goroutines and
 	// read only after g2.Wait, so no error path can run this before
@@ -265,11 +266,7 @@ func (server *Server) prepareGeneration(
 	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
-		conn, err := workspaceCtx.getWorkspaceConn(ctx)
-		if err != nil {
-			return "", "", err
-		}
-		home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+		home, err := workspaceCtx.workspaceHome(ctx)
 		if err != nil {
 			return "", "", err
 		}
@@ -288,14 +285,6 @@ func (server *Server) prepareGeneration(
 		planCtx, cancel := context.WithTimeout(resolveCtx, planPathLookupTimeout)
 		defer cancel()
 
-		if _, _, err := workspaceCtx.workspaceAgentIDForConn(planCtx); err != nil {
-			logger.Debug(resolveCtx, "plan path instruction: agent not reachable",
-				slog.Error(err),
-				slog.F("chat_id", chat.ID),
-			)
-			return ""
-		}
-
 		planPath, home, err := planPathFn(planCtx)
 		if err != nil {
 			logger.Debug(resolveCtx, "plan path instruction: failed to resolve plan path",
@@ -304,6 +293,10 @@ func (server *Server) prepareGeneration(
 			)
 			return ""
 		}
+		// Dialing the agent bumps workspace activity, and a cached home
+		// directory skips the dial. Bump here so every step of an active
+		// chat still keeps its workspace from autostopping.
+		workspaceCtx.trackWorkspaceUsage(planCtx, workspaceCtx.currentChatSnapshot())
 		return formatPlanPathBlock(planPath, home)
 	}
 
@@ -481,11 +474,12 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	// Resolve the per-chat plan path block in the parallel phase. It dials
-	// the workspace agent to read the home directory, so running it here lets
-	// the cold dial overlap with the rest of turn preparation instead of
-	// blocking system prompt assembly on a sequential dial. Best-effort:
-	// resolvePlanPathBlock logs and returns an empty block on failure.
+	// Resolve the per-chat plan path block in the parallel phase. On a
+	// home directory cache miss it dials the workspace agent, so running it
+	// here lets the cold dial overlap with the rest of turn preparation
+	// instead of blocking system prompt assembly on a sequential dial.
+	// Best-effort: resolvePlanPathBlock logs and returns an empty block on
+	// failure.
 	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid {
 		g2.Go(func() error {
 			planPathBlock = resolvePlanPathBlock(ctx)

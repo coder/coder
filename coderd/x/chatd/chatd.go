@@ -414,6 +414,9 @@ type turnWorkspaceContext struct {
 	chatStateMu      *sync.Mutex
 	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+	// runnerState holds workspace state kept across the steps of the
+	// runner that owns the chat. Nil keeps nothing across steps.
+	runnerState *runnerWorkspaceState
 
 	mu                sync.Mutex
 	agent             database.WorkspaceAgent
@@ -421,6 +424,38 @@ type turnWorkspaceContext struct {
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
+}
+
+// runnerWorkspaceState is workspace state a chat runner keeps across its
+// generation tasks while it owns the chat, so each step does not ask the
+// agent again. A nil *runnerWorkspaceState keeps nothing.
+type runnerWorkspaceState struct {
+	mu          sync.Mutex
+	homeAgentID uuid.UUID
+	home        string
+}
+
+// cachedHome returns the home directory read earlier from agentID.
+func (s *runnerWorkspaceState) cachedHome(agentID uuid.UUID) (string, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.home == "" || s.homeAgentID != agentID {
+		return "", false
+	}
+	return s.home, true
+}
+
+func (s *runnerWorkspaceState) setHome(agentID uuid.UUID, home string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.homeAgentID = agentID
+	s.home = home
 }
 
 func (c *turnWorkspaceContext) close() {
@@ -1051,6 +1086,34 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	}
 
 	return nil, xerrors.New("chat workspace changed while connecting")
+}
+
+// workspaceHome returns the home directory of the chat's workspace agent.
+// It dials the agent only when the runner has not read the home directory
+// from the latest agent yet.
+func (c *turnWorkspaceContext) workspaceHome(ctx context.Context) (string, error) {
+	_, agentID, err := c.workspaceAgentIDForConn(ctx)
+	if err != nil {
+		return "", err
+	}
+	if home, ok := c.runnerState.cachedHome(agentID); ok {
+		return home, nil
+	}
+
+	conn, err := c.getWorkspaceConn(ctx)
+	if err != nil {
+		return "", err
+	}
+	home, err := chattool.ResolveWorkspaceHome(ctx, conn)
+	if err != nil {
+		return "", err
+	}
+	// Key by the agent the conn reached, which differs from agentID when
+	// the dial switched to a replacement agent.
+	if agent, err := c.getWorkspaceAgent(ctx); err == nil {
+		c.runnerState.setHome(agent.ID, home)
+	}
+	return home, nil
 }
 
 // AgentConnFunc provides access to workspace agent connections.
