@@ -762,7 +762,7 @@ type sqlcQuerier interface {
 	GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error)
 	// GetPresetsAtFailureLimit groups workspace builds by preset ID.
 	// Each preset is associated with exactly one template version ID.
-	// For each preset, the query checks the last hard_limit builds.
+	// For each preset, the query checks the last hard_limit finished builds.
 	// If all of them failed, the preset is considered to have hit the hard failure limit.
 	// The query returns a list of preset IDs that have reached this failure threshold.
 	// Only active template versions with configured presets are considered.
