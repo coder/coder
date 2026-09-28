@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -101,9 +102,15 @@ func (ln *wrappedListener) Accept() (net.Conn, error) {
 func TestNewServer_UpgradeClient(t *testing.T) {
 	t.Parallel()
 
+	var gotClientSessionID string
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, &agentssh.Config{
+		ReportConnection: func(_ uuid.UUID, report agentssh.ConnectionReport) func(int, string) {
+			gotClientSessionID = report.ClientSessionID
+			return func(int, string) {}
+		},
+	})
 	require.NoError(t, err)
 	defer s.Close()
 	err = s.UpdateHostSigner(42)
@@ -143,6 +150,8 @@ func TestNewServer_UpgradeClient(t *testing.T) {
 	err = s.Close()
 	require.NoError(t, err)
 	<-done
+
+	require.Equal(t, clientSessionID, gotClientSessionID)
 }
 
 func TestNewServer_ExecuteShebang(t *testing.T) {
