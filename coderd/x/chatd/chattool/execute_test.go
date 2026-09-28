@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
@@ -422,22 +423,30 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "partial output", result.Output)
 	})
 
-	t.Run("RetryReturnsAtAgentTimeout", func(t *testing.T) {
+	t.Run("StopsAtAgentStartTimeout", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
+		// The fake agent keeps the timeout from the first start and ends
+		// only waits that ask to stop there. On a retry that timeout
+		// passes long before chatd's own.
+		var startTimeout time.Duration
 		mockConn.EXPECT().
 			StartProcess(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
-				assert.Equal(t, int64(600_000), req.TimeoutMs)
+				startTimeout = time.Duration(req.TimeoutMs) * time.Millisecond
 				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
 			})
-		// A retry gets the first attempt's process, and the agent's
-		// wait returns at that attempt's deadline, long before chatd's.
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
-			Return(workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil)
+			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				if startTimeout == 10*time.Minute && opts != nil && opts.StopAtStartTimeout {
+					return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
+				}
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
 
 		tool := newExecuteTool(t, mockConn)
 		ctx := testutil.Context(t, testutil.WaitMedium)
