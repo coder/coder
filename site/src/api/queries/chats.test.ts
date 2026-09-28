@@ -3186,6 +3186,15 @@ describe("mergeWatchedChatSummary", () => {
 			titleFrom: "cached",
 		},
 		{
+			name: "applies a title written one microsecond later",
+			cached: { title_updated_at: "2025-01-01T00:00:00.000001Z" },
+			watched: {
+				title: "After",
+				title_updated_at: "2025-01-01T00:00:00.000002Z",
+			},
+			titleFrom: "watched",
+		},
+		{
 			name: "applies a title when the cached chat has no title_updated_at",
 			cached: { title_updated_at: undefined },
 			watched: {
