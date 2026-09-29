@@ -2594,6 +2594,8 @@ CREATE TABLE connection_logs (
     disconnect_time timestamp with time zone,
     disconnect_reason text,
     client_session_id text,
+    rx_bytes bigint,
+    tx_bytes bigint,
     CONSTRAINT connection_logs_client_session_id_check CHECK (((client_session_id IS NULL) OR (client_session_id ~ '^[0-9a-f]{32}$'::text)))
 );
 
@@ -2612,6 +2614,10 @@ COMMENT ON COLUMN connection_logs.disconnect_time IS 'The time the connection wa
 COMMENT ON COLUMN connection_logs.disconnect_reason IS 'The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.';
 
 COMMENT ON COLUMN connection_logs.client_session_id IS 'Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.';
+
+COMMENT ON COLUMN connection_logs.rx_bytes IS 'Total bytes received by the agent on this connection. Null for web events and non-disconnect events.';
+
+COMMENT ON COLUMN connection_logs.tx_bytes IS 'Total bytes sent by the agent on this connection. Null for web events and non-disconnect events.';
 
 CREATE TABLE crypto_keys (
     feature crypto_key_feature NOT NULL,

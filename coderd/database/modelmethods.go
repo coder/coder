@@ -1051,6 +1051,8 @@ type UpsertConnectionLogParams struct {
 	ClientSessionID  sql.NullString   `db:"client_session_id" json:"client_session_id"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+	RxBytes          sql.NullInt64    `db:"rx_bytes" json:"rx_bytes"`
+	TxBytes          sql.NullInt64    `db:"tx_bytes" json:"tx_bytes"`
 }
 
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {

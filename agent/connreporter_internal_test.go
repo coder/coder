@@ -82,10 +82,14 @@ func TestConnectionReporter(t *testing.T) {
 			require.Equal(t, tc.report.ID[:], req0.GetConnection().GetId())
 			require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
 			require.Equal(t, tc.report.ClientSessionID, req0.GetConnection().GetClientSessionId())
+			require.Equal(t, int64(0), req0.GetConnection().GetRxBytes())
+			require.Equal(t, int64(0), req0.GetConnection().GetTxBytes())
 
 			connReporter.Disconnect(proto.DisconnectEvent{
-				Code:   0,
-				Reason: "because",
+				Code:    0,
+				Reason:  "because",
+				RxBytes: 10,
+				TxBytes: 20,
 			})
 
 			req1 := testutil.RequireReceive(ctx, t, sink.report)
@@ -95,6 +99,8 @@ func TestConnectionReporter(t *testing.T) {
 			require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
 			require.Equal(t, "because", req1.GetConnection().GetReason())
 			require.Equal(t, tc.report.ClientSessionID, req1.GetConnection().GetClientSessionId())
+			require.Equal(t, int64(10), req1.GetConnection().GetRxBytes())
+			require.Equal(t, int64(20), req1.GetConnection().GetTxBytes())
 		})
 	}
 

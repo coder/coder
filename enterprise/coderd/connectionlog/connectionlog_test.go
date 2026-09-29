@@ -156,6 +156,8 @@ func TestDBBackendIntegration(t *testing.T) {
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
 			DisconnectReason: sql.NullString{String: "client left", Valid: true},
 			IP:               testIP(),
+			RxBytes:          sql.NullInt64{Int64: 11, Valid: true},
+			TxBytes:          sql.NullInt64{Int64: 22, Valid: true},
 		})
 		require.NoError(t, err)
 		require.NoError(t, b2.Close())
@@ -220,6 +222,8 @@ func TestDBBackendIntegration(t *testing.T) {
 			Code:             sql.NullInt32{Int32: 0, Valid: true},
 			DisconnectReason: sql.NullString{String: "done", Valid: true},
 			IP:               testIP(),
+			RxBytes:          sql.NullInt64{Int64: 11, Valid: true},
+			TxBytes:          sql.NullInt64{Int64: 22, Valid: true},
 		})
 		require.NoError(t, err)
 

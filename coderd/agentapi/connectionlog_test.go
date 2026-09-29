@@ -50,6 +50,8 @@ func TestConnectionLog(t *testing.T) {
 		status          int32
 		reason          string
 		clientSessionID string
+		rxBytes         int64
+		txBytes         int64
 	}{
 		{
 			name:            "SSH Connect",
@@ -60,6 +62,8 @@ func TestConnectionLog(t *testing.T) {
 			ip:              "127.0.0.1",
 			status:          200,
 			clientSessionID: "0123456789abcdef0123456789abcdef",
+			rxBytes:         10,
+			txBytes:         50,
 		},
 		{
 			name:   "VS Code Connect",
@@ -168,6 +172,14 @@ func TestConnectionLog(t *testing.T) {
 				ClientSessionID: sql.NullString{
 					String: tt.clientSessionID,
 					Valid:  tt.clientSessionID != "",
+				},
+				RxBytes: sql.NullInt64{
+					Int64: tt.rxBytes,
+					Valid: *tt.action == agentproto.Connection_DISCONNECT,
+				},
+				TxBytes: sql.NullInt64{
+					Int64: tt.txBytes,
+					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
 			}))
 		})

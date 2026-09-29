@@ -260,7 +260,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
     slug_or_port, connection_id, disconnect_reason, disconnect_time,
-	client_session_id
+	client_session_id, rx_bytes, tx_bytes
 )
 SELECT
     u.id,
@@ -281,7 +281,9 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    CASE WHEN u.rx_bytes_valid THEN u.rx_bytes ELSE NULL END,
+    CASE WHEN u.tx_bytes_valid THEN u.tx_bytes ELSE NULL END
 FROM (
     SELECT
         unnest(sqlc.arg('id')::uuid[]) AS id,
@@ -301,7 +303,11 @@ FROM (
         unnest(sqlc.arg('connection_id')::uuid[]) AS connection_id,
         unnest(sqlc.arg('disconnect_reason')::text[]) AS disconnect_reason,
         unnest(sqlc.arg('disconnect_time')::timestamptz[]) AS disconnect_time,
-        unnest(sqlc.arg('client_session_id')::text[]) AS client_session_id
+        unnest(sqlc.arg('client_session_id')::text[]) AS client_session_id,
+        unnest(sqlc.arg('rx_bytes')::bigint[]) AS rx_bytes,
+        unnest(sqlc.arg('rx_bytes_valid')::bool[]) AS rx_bytes_valid,
+        unnest(sqlc.arg('tx_bytes')::bigint[]) AS tx_bytes,
+        unnest(sqlc.arg('tx_bytes_valid')::bool[]) AS tx_bytes_valid
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -329,4 +335,14 @@ DO UPDATE SET
         WHEN connection_logs.code IS NULL
         THEN EXCLUDED.code
         ELSE connection_logs.code
+    END,
+    rx_bytes = CASE
+        WHEN connection_logs.rx_bytes IS NULL
+        THEN EXCLUDED.rx_bytes
+        ELSE connection_logs.rx_bytes
+    END,
+    tx_bytes = CASE
+        WHEN connection_logs.tx_bytes IS NULL
+        THEN EXCLUDED.tx_bytes
+        ELSE connection_logs.tx_bytes
     END;

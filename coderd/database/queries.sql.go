@@ -16310,7 +16310,7 @@ INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
     slug_or_port, connection_id, disconnect_reason, disconnect_time,
-	client_session_id
+	client_session_id, rx_bytes, tx_bytes
 )
 SELECT
     u.id,
@@ -16331,7 +16331,9 @@ SELECT
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
     NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
-    NULLIF(u.client_session_id, '')
+    NULLIF(u.client_session_id, ''),
+    CASE WHEN u.rx_bytes_valid THEN u.rx_bytes ELSE NULL END,
+    CASE WHEN u.tx_bytes_valid THEN u.tx_bytes ELSE NULL END
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -16351,7 +16353,11 @@ FROM (
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
         unnest($17::timestamptz[]) AS disconnect_time,
-        unnest($18::text[]) AS client_session_id
+        unnest($18::text[]) AS client_session_id,
+        unnest($19::bigint[]) AS rx_bytes,
+        unnest($20::bool[]) AS rx_bytes_valid,
+        unnest($21::bigint[]) AS tx_bytes,
+        unnest($22::bool[]) AS tx_bytes_valid
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -16379,6 +16385,16 @@ DO UPDATE SET
         WHEN connection_logs.code IS NULL
         THEN EXCLUDED.code
         ELSE connection_logs.code
+    END,
+    rx_bytes = CASE
+        WHEN connection_logs.rx_bytes IS NULL
+        THEN EXCLUDED.rx_bytes
+        ELSE connection_logs.rx_bytes
+    END,
+    tx_bytes = CASE
+        WHEN connection_logs.tx_bytes IS NULL
+        THEN EXCLUDED.tx_bytes
+        ELSE connection_logs.tx_bytes
     END
 `
 
@@ -16401,6 +16417,10 @@ type BatchUpsertConnectionLogsParams struct {
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
 	ClientSessionID  []string         `db:"client_session_id" json:"client_session_id"`
+	RxBytes          []int64          `db:"rx_bytes" json:"rx_bytes"`
+	RxBytesValid     []bool           `db:"rx_bytes_valid" json:"rx_bytes_valid"`
+	TxBytes          []int64          `db:"tx_bytes" json:"tx_bytes"`
+	TxBytesValid     []bool           `db:"tx_bytes_valid" json:"tx_bytes_valid"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -16423,6 +16443,10 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
 		pq.Array(arg.ClientSessionID),
+		pq.Array(arg.RxBytes),
+		pq.Array(arg.RxBytesValid),
+		pq.Array(arg.TxBytes),
+		pq.Array(arg.TxBytesValid),
 	)
 	return err
 }
@@ -16605,7 +16629,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id, connection_logs.rx_bytes, connection_logs.tx_bytes,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -16820,6 +16844,8 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
 			&i.ConnectionLog.ClientSessionID,
+			&i.ConnectionLog.RxBytes,
+			&i.ConnectionLog.TxBytes,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,

@@ -5134,6 +5134,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5173,6 +5177,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5197,6 +5205,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"test disconnect"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5209,6 +5221,8 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, disconnectTime.Equal(row.DisconnectTime.Time))
 		require.Equal(t, "test disconnect", row.DisconnectReason.String)
 		require.Equal(t, int32(1), row.Code.Int32)
+		require.Equal(t, int64(10), row.RxBytes.Int64)
+		require.Equal(t, int64(20), row.TxBytes.Int64)
 	})
 
 	t.Run("DuplicateConnectIsNoOp", func(t *testing.T) {
@@ -5239,6 +5253,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			}
 		}
 
@@ -5299,6 +5317,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"bye"},
 			DisconnectTime:   []time.Time{disconnectTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{10},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{20},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5322,6 +5344,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5340,7 +5366,7 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		connID := uuid.New()
 		disconnectTime := dbtime.Now()
 
-		mkDisconnect := func(reason string, code int32) database.BatchUpsertConnectionLogsParams {
+		mkDisconnect := func(reason string, code int32, rxBytes, txBytes int64) database.BatchUpsertConnectionLogsParams {
 			return database.BatchUpsertConnectionLogsParams{
 				ID:               []uuid.UUID{uuid.New()},
 				ConnectTime:      []time.Time{disconnectTime},
@@ -5360,14 +5386,18 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{reason},
 				DisconnectTime:   []time.Time{disconnectTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{rxBytes},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{txBytes},
+				TxBytesValid:     []bool{true},
 			}
 		}
 
-		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1))
+		err := db.BatchUpsertConnectionLogs(ctx, mkDisconnect("first reason", 1, 33, 44))
 		require.NoError(t, err)
 
-		// Second disconnect with different reason and code.
-		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2))
+		// Second disconnect with different reason, code, and bytes.
+		err = db.BatchUpsertConnectionLogs(ctx, mkDisconnect("second reason", 2, 55, 66))
 		require.NoError(t, err)
 
 		rows, err := db.GetConnectionLogsOffset(ctx, database.GetConnectionLogsOffsetParams{LimitOpt: 10})
@@ -5378,6 +5408,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			"disconnect_reason should not be overwritten")
 		require.Equal(t, int32(1), row.Code.Int32,
 			"code should not be overwritten")
+		require.Equal(t, int64(33), row.RxBytes.Int64,
+			"rx bytes should not be overwritten")
+		require.Equal(t, int64(44), row.TxBytes.Int64,
+			"tx bytes should not be overwritten")
 	})
 
 	t.Run("ClientSessionIDIsWriteOnce", func(t *testing.T) {
@@ -5408,6 +5442,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{id},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{true},
 			}
 		}
 
@@ -5453,6 +5491,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{false},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{false},
 			})
 			require.NoError(t, err)
 		}
@@ -5488,12 +5530,16 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{"invalid"},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{false},
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "violates check constraint")
 	})
 
-	t.Run("CodeZeroPreserved", func(t *testing.T) {
+	t.Run("ZeroPreserved", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
@@ -5520,6 +5566,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{"normal"},
 			DisconnectTime:   []time.Time{now},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{0},
+			RxBytesValid:     []bool{true},
+			TxBytes:          []int64{0},
+			TxBytesValid:     []bool{true},
 		})
 		require.NoError(t, err)
 
@@ -5529,9 +5579,13 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.True(t, rows[0].ConnectionLog.Code.Valid, "code should be non-NULL")
 		require.Equal(t, int32(0), rows[0].ConnectionLog.Code.Int32,
 			"code=0 should be preserved, not treated as NULL")
+		require.Equal(t, int64(0), rows[0].ConnectionLog.RxBytes.Int64,
+			"rx_bytes=0 should be preserved, not treated as NULL")
+		require.Equal(t, int64(0), rows[0].ConnectionLog.TxBytes.Int64,
+			"tx_bytes=0 should be preserved, not treated as NULL")
 	})
 
-	t.Run("CodeNullWhenInvalid", func(t *testing.T) {
+	t.Run("NullWhenInvalid", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := context.Background()
@@ -5558,6 +5612,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: []string{""},
 			DisconnectTime:   []time.Time{zeroTime},
 			ClientSessionID:  []string{""},
+			RxBytes:          []int64{22},
+			RxBytesValid:     []bool{false},
+			TxBytes:          []int64{33},
+			TxBytesValid:     []bool{false},
 		})
 		require.NoError(t, err)
 
@@ -5566,6 +5624,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		require.Len(t, rows, 1)
 		require.False(t, rows[0].ConnectionLog.Code.Valid,
 			"code should be NULL when code_valid is false")
+		require.False(t, rows[0].ConnectionLog.RxBytes.Valid,
+			"rx_bytes should be NULL when rx_bytes_valid is false")
+		require.False(t, rows[0].ConnectionLog.TxBytes.Valid,
+			"tx_bytes should be NULL when tx_bytes_valid is false")
 	})
 
 	t.Run("NullConnectionIDEvents", func(t *testing.T) {
@@ -5597,6 +5659,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 				DisconnectReason: []string{""},
 				DisconnectTime:   []time.Time{zeroTime},
 				ClientSessionID:  []string{""},
+				RxBytes:          []int64{0},
+				RxBytesValid:     []bool{true},
+				TxBytes:          []int64{0},
+				TxBytesValid:     []bool{true},
 			})
 			require.NoError(t, err)
 		}
@@ -5633,6 +5699,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 		disconnectReasons := make([]string, n)
 		disconnectTimes := make([]time.Time, n)
 		clientSessionIDs := make([]string, n)
+		rxBytes := make([]int64, n)
+		rxBytesValids := make([]bool, n)
+		txBytes := make([]int64, n)
+		txBytesValids := make([]bool, n)
 
 		for i := range n {
 			ids[i] = uuid.New()
@@ -5653,6 +5723,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			disconnectReasons[i] = ""
 			disconnectTimes[i] = zeroTime
 			clientSessionIDs[i] = ""
+			rxBytes[i] = 0
+			rxBytesValids[i] = false
+			txBytes[i] = 0
+			txBytesValids[i] = false
 		}
 
 		err := db.BatchUpsertConnectionLogs(ctx, database.BatchUpsertConnectionLogsParams{
@@ -5674,6 +5748,10 @@ func TestBatchUpsertConnectionLogs(t *testing.T) {
 			DisconnectReason: disconnectReasons,
 			DisconnectTime:   disconnectTimes,
 			ClientSessionID:  clientSessionIDs,
+			RxBytes:          rxBytes,
+			RxBytesValid:     rxBytesValids,
+			TxBytes:          txBytes,
+			TxBytesValid:     txBytesValids,
 		})
 		require.NoError(t, err)
 
