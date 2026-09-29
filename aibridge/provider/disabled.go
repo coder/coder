@@ -8,6 +8,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -38,7 +39,7 @@ func (*DisabledStub) PassthroughRoutes() []string { return nil }
 func (*DisabledStub) AuthHeader() string          { return "" }
 
 // ResolveCredential returns ErrNoCredential for a disabled provider.
-func (*DisabledStub) ResolveCredential(*http.Request) (intercept.Credential, error) {
+func (*DisabledStub) ResolveCredential(*http.Request) (credential.Credential, error) {
 	return nil, ErrNoCredential
 }
 

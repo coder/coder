@@ -10,7 +10,7 @@ You can use `coder_metadata` to show Terraform resource attributes like these:
 
 - Compute resources
 - IP addresses
-- [Secrets](../../security/secrets.md#displaying-secrets)
+- [Secrets](../../security/secrets.md#display-secrets)
 - Important file paths
 
 ![ui](../../../images/admin/templates/coder-metadata-ui.png)
@@ -59,7 +59,9 @@ resource "coder_metadata" "deployment" {
 }
 ```
 
-## Hiding resources in the dashboard
+<a id="hiding-resources-in-the-dashboard"></a>
+
+## Hide resources in the dashboard
 
 Some resources don't need to be exposed in the dashboard's UI. This helps keep
 the workspace view clean for developers. To hide a resource, use the `hide`
@@ -77,7 +79,9 @@ resource "coder_metadata" "hide_serviceaccount" {
 }
 ```
 
-## Using a custom resource icon
+<a id="using-a-custom-resource-icon"></a>
+
+## Use a custom resource icon
 
 To use custom icons for your resource metadata, use the `icon` attribute. It
 must be a valid path or URL.

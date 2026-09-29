@@ -1324,6 +1324,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -1357,6 +1358,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }
@@ -1377,6 +1379,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
 {
   "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
   "thinking_display_mode": "auto"
 }

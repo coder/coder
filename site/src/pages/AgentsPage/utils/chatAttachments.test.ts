@@ -13,6 +13,7 @@ import {
 	isRasterImageMediaType,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
+	shouldRouteFileToWorkspace,
 } from "./chatAttachments";
 
 describe("handleAttachmentDownloadClick", () => {
@@ -284,6 +285,36 @@ describe("isRasterImageMediaType", () => {
 		["application/pdf", false],
 	])("%s -> %s", (mediaType, expected) => {
 		expect(isRasterImageMediaType(mediaType)).toBe(expected);
+	});
+});
+
+describe("shouldRouteFileToWorkspace", () => {
+	it("keeps allowlisted MIME types on the attachment path", () => {
+		const file = new File(["png"], "image.png", { type: "image/png" });
+
+		expect(shouldRouteFileToWorkspace(file)).toBe(false);
+	});
+
+	it("keeps files with an empty MIME type on the attachment path", () => {
+		const file = new File(["markdown"], "notes.md");
+
+		expect(shouldRouteFileToWorkspace(file)).toBe(false);
+	});
+
+	it("keeps application/octet-stream files on the attachment path", () => {
+		const file = new File(["unknown"], "attachment.bin", {
+			type: "application/octet-stream",
+		});
+
+		expect(shouldRouteFileToWorkspace(file)).toBe(false);
+	});
+
+	it("routes declared non-allowlisted MIME types to the workspace", () => {
+		const file = new File(["zip"], "archive.zip", {
+			type: "application/zip",
+		});
+
+		expect(shouldRouteFileToWorkspace(file)).toBe(true);
 	});
 });
 

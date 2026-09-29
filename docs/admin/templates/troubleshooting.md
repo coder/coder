@@ -54,7 +54,7 @@ option is set to blocking or you have enabled the `--wait=yes` option (for e.g.
 `coder ssh` or `coder config-ssh`). In such an event, you can always access the
 workspace by using the web terminal, or via SSH using the `--wait=no` option. If
 the startup script is running longer than it should, or never completing, you
-can try to [debug the startup script](#debugging-the-startup-script) to resolve
+can try to [debug the startup script](#debug-the-startup-script) to resolve
 the issue. Alternatively, you can try to force the startup script to exit by
 terminating processes started by it or terminating the startup script itself (on
 Linux, `ps` and `kill` are useful tools).
@@ -82,7 +82,7 @@ is still running or has exited with a non-zero status (see
 necessary, but you may want to
 [start a new shell session](#session-was-started-before-the-startup-script-finished)
 after it has completed or check the
-[startup script logs](#debugging-the-startup-script) to see if there are any
+[startup script logs](#debug-the-startup-script) to see if there are any
 issues.
 
 ### Session was started before the startup script finished
@@ -110,7 +110,7 @@ exits with an error, it means the last command run by the script failed. When
 script and the remaining commands will not be executed. This also means that
 [your workspace may be incomplete](#your-workspace-may-be-incomplete). If you
 see this error, you can check the
-[startup script logs](#debugging-the-startup-script) to figure out what the
+[startup script logs](#debug-the-startup-script) to figure out what the
 issue is.
 
 Common causes for startup script errors:
@@ -119,7 +119,9 @@ Common causes for startup script errors:
 - A command that fails due to missing permissions
 - Network issues (e.g., unable to reach a server)
 
-### Debugging the startup script
+<a id="debugging-the-startup-script"></a>
+
+### Debug the startup script
 
 The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is to open the workspace in the Coder dashboard and select "Show startup log" (if not already visible).
 This will show all the output from the script. Another

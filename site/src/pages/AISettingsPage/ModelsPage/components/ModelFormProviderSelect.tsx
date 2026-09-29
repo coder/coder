@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Label } from "#/components/Label/Label";
 import {
 	Select,
@@ -10,7 +9,7 @@ import {
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 
-export const ModelFormProviderSelect: FC<{
+export const ModelFormProviderSelect: React.FC<{
 	providerStates: readonly ProviderState[];
 	selectedProviderKey: string;
 	onProviderChange: (providerKey: string) => void;

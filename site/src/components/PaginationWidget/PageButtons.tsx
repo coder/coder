@@ -1,4 +1,3 @@
-import type { FC, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 
 type NumberedPageButtonProps = {
@@ -9,7 +8,7 @@ type NumberedPageButtonProps = {
 	disabled?: boolean;
 };
 
-export const NumberedPageButton: FC<NumberedPageButtonProps> = ({
+export const NumberedPageButton: React.FC<NumberedPageButtonProps> = ({
 	pageNumber,
 	totalPages,
 	onClick,
@@ -31,10 +30,10 @@ export const NumberedPageButton: FC<NumberedPageButtonProps> = ({
 
 type PlaceholderPageButtonProps = {
 	pagesOmitted: number;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const PlaceholderPageButton: FC<PlaceholderPageButtonProps> = ({
+export const PlaceholderPageButton: React.FC<PlaceholderPageButtonProps> = ({
 	pagesOmitted,
 	children = <>&hellip;</>,
 }) => {
@@ -50,7 +49,7 @@ export const PlaceholderPageButton: FC<PlaceholderPageButtonProps> = ({
 };
 
 type BasePageButtonProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	onClick?: () => void;
 	name: string;
 	"aria-label": string;
@@ -58,7 +57,7 @@ type BasePageButtonProps = {
 	disabled?: boolean;
 };
 
-const BasePageButton: FC<BasePageButtonProps> = ({
+const BasePageButton: React.FC<BasePageButtonProps> = ({
 	children,
 	onClick,
 	name,

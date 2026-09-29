@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -59,7 +58,7 @@ import { RIGHT_PANEL_OPEN_KEY } from "./components/RightPanel/RightPanel";
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
 // ---------------------------------------------------------------------------
-const AgentChatPageLayout: FC = () => {
+const AgentChatPageLayout: React.FC = () => {
 	return (
 		<div className="flex h-full">
 			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -103,7 +102,7 @@ const STALE_MODEL_CONFIG_ID = "stale-model-config";
 const DISABLED_DEFAULT_MODEL_CONFIG_ID = "disabled-default-model-config";
 const RECOVERY_MODEL_CONFIG_ID = "recovery-model-config";
 
-const AgentChatSwitchHarness: FC = () => {
+const AgentChatSwitchHarness: React.FC = () => {
 	const navigate = useNavigate();
 	return (
 		<>

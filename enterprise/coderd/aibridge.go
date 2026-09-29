@@ -1392,6 +1392,8 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 	}
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
 // @Summary List organization AI spend by user
 // @Description Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
@@ -1412,7 +1414,8 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 // @Param limit query int false "Page size (default 10, maximum 100)"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.OrganizationAISpendReport
-// @Router /api/v2/organizations/{organization}/ai/spend/users [get]
+// @Router /api/experimental/organizations/{organization}/ai/spend/users [get]
+// @x-apidocgen {"skip": true}
 func (api *API) organizationAISpendUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)

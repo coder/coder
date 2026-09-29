@@ -1,4 +1,4 @@
-import { type FC, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Outlet, useBlocker, useParams, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -88,7 +88,7 @@ const applyEmbedTheme = (theme: ConcreteThemeName) => {
 	root.dataset.embedTheme = theme;
 };
 
-const AgentEmbedPage: FC = () => {
+const AgentEmbedPage: React.FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	if (!agentId) {
 		throw new Error("AgentEmbedPage requires an agentId route parameter.");

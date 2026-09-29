@@ -7,7 +7,6 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { cn } from "cn";
 import {
-	type Ref,
 	useCallback,
 	useEffect,
 	useEffectEvent,
@@ -39,7 +38,7 @@ export type WorkspaceTerminalHandle = {
 };
 
 type WorkspaceTerminalProps = {
-	ref?: Ref<WorkspaceTerminalHandle>;
+	ref?: React.Ref<WorkspaceTerminalHandle>;
 	agentId: string | undefined;
 	operatingSystem?: string;
 	className?: string;

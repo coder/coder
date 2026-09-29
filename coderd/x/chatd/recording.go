@@ -201,7 +201,9 @@ func (p *Server) stopAndStoreRecording(
 			result.recordingFileID = attachment.FileID.String()
 		}
 	}
-	if thumbnailData != nil && result.recordingFileID != "" {
+	// The thumbnail is linked in its own transaction, so at a cap of one
+	// it would evict the recording that was just stored.
+	if thumbnailData != nil && result.recordingFileID != "" && p.chatLimits.MaxAttachmentsPerChat > 1 {
 		attachment, err := p.storeRecordingArtifact(
 			chatdCtx,
 			parentChatID,
@@ -248,6 +250,7 @@ func (p *Server) storeRecordingArtifact(
 			storedName,
 			verifiedMediaType,
 			data,
+			p.chatLimits.MaxAttachmentsPerChat,
 		)
 		return err
 	}, database.DefaultTXOptions().WithID("store_recording_artifact"))

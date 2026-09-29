@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { action } from "storybook/actions";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type {
@@ -30,7 +30,10 @@ type ResyncHarnessProps = {
 	onSubmit: (update: UpdateUserAppearanceSettingsRequest) => void;
 };
 
-const ResyncHarness: FC<ResyncHarnessProps> = ({ initialValues, onSubmit }) => {
+const ResyncHarness: React.FC<ResyncHarnessProps> = ({
+	initialValues,
+	onSubmit,
+}) => {
 	const [settings, setSettings] = useState(initialValues);
 
 	return (
@@ -58,7 +61,7 @@ type PendingUpdateHarnessProps = {
 	onSubmit: (update: UpdateUserAppearanceSettingsRequest) => void;
 };
 
-const PendingUpdateHarness: FC<PendingUpdateHarnessProps> = ({
+const PendingUpdateHarness: React.FC<PendingUpdateHarnessProps> = ({
 	initialValues,
 	onSubmit,
 }) => {

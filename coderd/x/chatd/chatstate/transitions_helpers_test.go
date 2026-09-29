@@ -124,6 +124,7 @@ func createTestChatWithDynamicTools(t *testing.T, f *testFixture, toolName strin
 			RawMessage: dynamicToolJSON(toolName),
 			Valid:      true,
 		},
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("hello", f.User.ID, f.Model.ID),
 		},

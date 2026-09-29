@@ -73,7 +73,13 @@ const (
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
-type reportConnectionFunc func(id uuid.UUID, sessionType string, ip string) (disconnected func(code int, reason string))
+type ConnectionReport struct {
+	AppName         string
+	IP              string
+	ClientSessionID string
+}
+
+type reportConnectionFunc func(uuid.UUID, ConnectionReport) (disconnected func(code int, reason string))
 
 // startSessionFunc counts a session until endSession is called, which must
 // happen exactly once.
@@ -182,7 +188,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if config.ReportConnection == nil {
-		config.ReportConnection = func(uuid.UUID, string, string) func(int, string) { return func(int, string) {} }
+		config.ReportConnection = func(uuid.UUID, ConnectionReport) func(int, string) { return func(int, string) {} }
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
@@ -441,7 +447,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, ConnectionReport{
+			AppName: appName,
+			IP:      remoteAddrString,
+		})
 		defer disconnected(1, reason)
 
 		logger.Info(ctx, reason)
@@ -470,7 +479,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
-		disconnected := s.config.ReportConnection(id, appName, remoteAddrString)
+		disconnected := s.config.ReportConnection(id, ConnectionReport{
+			AppName: appName,
+			IP:      remoteAddrString,
+		})
 		defer func() {
 			logger.Info(ctx, "ssh session closed",
 				codersdk.ConnectionDirectionAgentToClient.SlogField(),

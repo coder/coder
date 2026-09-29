@@ -16,7 +16,7 @@ Template [admins](../../users/index.md) may define these default values:
   stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace
   restarts to apply template updates regardless of user activity.
-- **Activity bump**: The duration by which to extend a workspace's deadline when activity is detected (default: 1 hour). The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH). For details on what counts as activity, see the [user guide on activity detection](../../../user-guides/workspace-scheduling.md#activity-detection).
+- **Activity bump**: The duration by which to extend a workspace's deadline when activity is detected (default: 1&nbsp;hour). The workspace will be considered inactive when no sessions are detected (VSCode, JetBrains, Terminal, or SSH). For details on what counts as activity, see the [user guide on activity detection](../../../user-guides/workspace-scheduling.md#activity-detection).
 - **Dormancy**: This allows automatic deletion of unused workspaces to reduce
   spend on idle resources.
 
@@ -108,7 +108,7 @@ stopped due to the policy at the start of the user's quiet hours.
 ![User schedule settings](../../../images/admin/templates/schedule/user-quiet-hours.png)
 
 Admins can define the default quiet hours for all users with the
-[CODER_QUIET_HOURS_DEFAULT_SCHEDULE](../../../reference/cli/server.md#--default-quiet-hours-schedule)
+[CODER_QUIET_HOURS_DEFAULT_SCHEDULE](../../../reference/cli/server/index.md#--default-quiet-hours-schedule)
 environment variable. The value should be a cron expression such as
 `CRON_TZ=America/Chicago 30 2 * * *` which would set the default quiet hours to
 2:30 AM in the America/Chicago timezone. The cron schedule can only have a
@@ -117,7 +117,7 @@ to set the default quiet hours to a time when most users are not expected to be
 using Coder.
 
 Admins can force users to use the default quiet hours with the
-[CODER_ALLOW_CUSTOM_QUIET_HOURS](../../../reference/cli/server.md#--allow-custom-quiet-hours)
+[CODER_ALLOW_CUSTOM_QUIET_HOURS](../../../reference/cli/server/index.md#--allow-custom-quiet-hours)
 environment variable. Users will still be able to see the page, but will be
 unable to set a custom time or timezone. If users have already set a custom
 quiet hours schedule, it will be ignored and the default will be used instead.

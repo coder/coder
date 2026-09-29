@@ -24,7 +24,9 @@ JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via th
 
 ![JetBrains AI Assistant Settings](../../../images/aibridge/clients/jetbrains-ai-settings.png)
 
-## Using the AI Assistant
+<a id="using-the-ai-assistant"></a>
+
+## Use the AI Assistant
 
 1. Go back to **AI Chat** on theleft side bar and choose **Chat**.
 1. In the Model dropdown, select the desired model (e.g., `gpt-5.2`).

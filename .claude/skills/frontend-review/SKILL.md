@@ -105,6 +105,6 @@ when all rules PASS or remaining FAILs have a written justification.
 ## Notes
 
 - This audit does not replace `pnpm check`, `pnpm lint`, `pnpm format`, or
-  tests; run those too (see site/AGENTS.md Pre-PR Checklist).
+  tests; run those too (see the Completion section of `site/AGENTS.md`).
 - Report findings in the current diff only. Do not refactor pre-existing
   violations in untouched code; note them at most.

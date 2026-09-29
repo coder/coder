@@ -250,7 +250,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput({ message: "hello" });
 		});
 
 		const remountKeyAfterSend = result.current.remountKey;
@@ -263,7 +263,12 @@ describe("useConversationEditingState", () => {
 		// the same text, so the editor is forced to reinitialize.
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
 		unmount();
 	});
 
@@ -278,10 +283,18 @@ describe("useConversationEditingState", () => {
 		});
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello", attachments);
+			await result.current.handleSendFromInput({
+				message: "hello",
+				attachments,
+			});
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
 		unmount();
 	});
 
@@ -312,7 +325,7 @@ describe("useConversationEditingState", () => {
 
 		await act(async () => {
 			await expect(
-				result.current.handleSendFromInput("edited message"),
+				result.current.handleSendFromInput({ message: "edited message" }),
 			).rejects.toThrow("boom");
 		});
 
@@ -336,9 +349,9 @@ describe("useConversationEditingState", () => {
 		});
 
 		await act(async () => {
-			await expect(result.current.handleSendFromInput("hello")).rejects.toThrow(
-				"boom",
-			);
+			await expect(
+				result.current.handleSendFromInput({ message: "hello" }),
+			).rejects.toThrow("boom");
 		});
 
 		expect(mockInput.clear).not.toHaveBeenCalled();
@@ -355,10 +368,15 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInput.handle;
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput({ message: "hello" });
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: undefined,
+		});
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
@@ -399,9 +417,14 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput({ message: "hello" });
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+				expect(onSend).toHaveBeenCalledWith({
+					message: "hello",
+					attachments: undefined,
+					workspaceUploads: undefined,
+					editedMessageID: undefined,
+				});
 			});
 		});
 
@@ -436,7 +459,7 @@ describe("useConversationEditingState", () => {
 		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput({ message: "hello" });
 			await vi.waitFor(() => {
 				expect(localStorage.getItem(expectedKey)).toBeNull();
 			});

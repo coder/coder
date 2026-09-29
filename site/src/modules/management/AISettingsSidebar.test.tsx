@@ -32,7 +32,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	}),
 }));
 
-it("links organization group member readers to the User spend page", async () => {
+it("links organization group member readers to the Spend page", async () => {
 	const user = userEvent.setup();
 	vi.spyOn(API, "getOrganizations").mockResolvedValue([MockOrganization]);
 	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
@@ -51,7 +51,7 @@ it("links organization group member readers to the User spend page", async () =>
 		{ initialEntries: ["/ai/settings?org=second"] },
 	);
 	renderWithRouter(router);
-	await user.click(await screen.findByRole("link", { name: "User spend" }));
+	await user.click(await screen.findByRole("link", { name: "Spend" }));
 	expect(router.state.location.pathname).toBe("/ai/settings/spend");
 	expect(router.state.location.search).toBe("?org=second");
 });

@@ -96,7 +96,9 @@ admin username and password.
 You can now access Coder on your local machine with the relevant
 `***.try.coder.app` URL and logging in with the username and password.
 
-## Creating and Uploading Your First Template
+<a id="creating-and-uploading-your-first-template"></a>
+
+## Create and upload your first template
 
 First, run `coder template init` to create your first template. You’ll be given
 a list of possible templates to use. This tutorial will show you how to set up

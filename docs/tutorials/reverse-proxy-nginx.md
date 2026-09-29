@@ -36,7 +36,9 @@ title: How to use NGINX as a reverse-proxy with LetsEncrypt
    sudo systemctl stop nginx
    ```
 
-## Adding Coder deployment subdomain
+<a id="adding-coder-deployment-subdomain"></a>
+
+## Add the Coder deployment subdomain
 
 This example assumes Coder is running locally on `127.0.0.1:3000` and that
 you're using `coder.example.com` as your subdomain.

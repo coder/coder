@@ -115,7 +115,7 @@ disable direct connections and relay all traffic via DERP instead, which
 will not be affected by the low MTU.
 
 To disable direct connections, set the
-[`--block-direct-connections`](../../reference/cli/server.md#--block-direct-connections)
+[`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections)
 flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
 
 ## Throughput

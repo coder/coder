@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
@@ -8,7 +7,7 @@ type WorkspaceDeletedBannerProps = {
 	templateName: string;
 };
 
-export const WorkspaceDeletedBanner: FC<WorkspaceDeletedBannerProps> = ({
+export const WorkspaceDeletedBanner: React.FC<WorkspaceDeletedBannerProps> = ({
 	createWorkspaceLink,
 	templateName,
 }) => {
