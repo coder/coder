@@ -68,6 +68,44 @@ func NewProgram(
 	}, nil
 }
 
+// DataSourceAddresses returns the active script-order data source instances in
+// deterministic address order.
+func (p *Program) DataSourceAddresses() []string {
+	if p == nil {
+		return nil
+	}
+	addresses := make([]string, 0, len(p.dataSources))
+	for _, dataSource := range p.dataSources {
+		addresses = append(addresses, dataSource.address)
+	}
+	return addresses
+}
+
+// FilterDataSources returns an immutable Program containing only data source
+// instances accepted by retain. It returns nil when none remain.
+func (p *Program) FilterDataSources(retain func(address string) bool) *Program {
+	if p == nil {
+		return nil
+	}
+	dataSources := make([]scriptOrderDataSource, 0, len(p.dataSources))
+	for _, dataSource := range p.dataSources {
+		if retain(dataSource.address) {
+			dataSources = append(dataSources, dataSource)
+		}
+	}
+	if len(dataSources) == 0 {
+		return nil
+	}
+	if len(dataSources) == len(p.dataSources) {
+		return p
+	}
+	return &Program{
+		stateIndex:  p.stateIndex,
+		configIndex: p.configIndex,
+		dataSources: dataSources,
+	}
+}
+
 // Script contains the lifecycle and runtime information needed to prepare and
 // finalize script-order rules.
 type Script struct {
@@ -112,6 +150,15 @@ func (p *Prepared) Warnings() []string {
 	return warnings
 }
 
+// WarningsOmitted returns the number of phase-filter warnings omitted after
+// the request-local warning limit was reached.
+func (p *Prepared) WarningsOmitted() int {
+	if p == nil {
+		return 0
+	}
+	return p.warningsOmitted
+}
+
 // Finalize validates bound runtimes and constructs deterministic graphs.
 func (p *Prepared) Finalize(scripts map[string]Script) (ScriptOrder, error) {
 	if p == nil {
@@ -121,9 +168,13 @@ func (p *Prepared) Finalize(scripts map[string]Script) (ScriptOrder, error) {
 		p.preparedScriptOrder, internalScriptOrderScripts(scripts),
 	)
 	if err != nil {
-		return ScriptOrder{}, err
+		return ScriptOrder{}, xerrors.Errorf("resolve script order: %w", err)
 	}
-	return buildScriptOrderGraphs(resolved.rules)
+	order, err := buildScriptOrderGraphs(resolved.rules)
+	if err != nil {
+		return ScriptOrder{}, xerrors.Errorf("build script order graphs: %w", err)
+	}
+	return order, nil
 }
 
 func internalScriptOrderScripts(scripts map[string]Script) map[string]scriptOrderScript {

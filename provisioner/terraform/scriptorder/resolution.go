@@ -79,7 +79,12 @@ type preparedScriptOrder struct {
 	rules                   []preparedScriptOrderRule
 	selectedScriptAddresses []string
 	warnings                []scriptOrderPhaseFilterWarning
+	warningsOmitted         int
 }
+
+// Bound detailed logs per conversion; one omission summary may follow.
+// TODO(PLAT-554): Benchmark warning-heavy rules and tune this limit.
+const maxScriptOrderPhaseFilterWarnings = 100
 
 // ScriptOrder contains one deterministic dependency graph per runtime
 // and lifecycle phase. Independent groups within the same runtime and
@@ -123,7 +128,11 @@ func prepareScriptOrder(
 			return preparedScriptOrder{}, err
 		}
 		if warning != nil {
-			result.warnings = append(result.warnings, *warning)
+			if len(result.warnings) < maxScriptOrderPhaseFilterWarnings {
+				result.warnings = append(result.warnings, *warning)
+			} else {
+				result.warningsOmitted++
+			}
 		}
 		// A rule with an empty run or after address set contributes
 		// no dependency edges.

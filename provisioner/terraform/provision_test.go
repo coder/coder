@@ -159,6 +159,7 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
 			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
 			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
@@ -172,6 +173,7 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
 			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
 			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.optional"],"after":["coder_script.prerequisite"]}]}}
@@ -189,6 +191,21 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 		]}},
 		"configuration":{"root_module":{"resources":[
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","schema_version":0}
+		]}}
+	}`
+	const removedDeclarationPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{}},
+		"prior_state":{
+			"format_version":"1.0",
+			"terraform_version":"1.15.0",
+			"values":{"root_module":{"resources":[
+				{"address":"data.coder_script_order.order[0]","mode":"data","type":"coder_script_order","name":"order","index":0,"values":{"rule":[{"run":["coder_script.missing"],"after":["coder_script.also_missing"]}]}}
+			]}}
+		},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"count_expression":{"constant_value":0}}
 		]}}
 	}`
 	const graphDOT = `digraph {
@@ -242,6 +259,13 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 			savedPlanGraph: "not a graph",
 			wantGraphs:     2,
 			errorContains:  "index saved plan graph for script ordering",
+		},
+		{
+			name:           "RemovedDeclaration",
+			transition:     proto.WorkspaceTransition_START,
+			planJSON:       removedDeclarationPlanJSON,
+			savedPlanGraph: `digraph { "[root] data.coder_script_order.order[0] (destroy)" }`,
+			wantGraphs:     2,
 		},
 	}
 	for _, test := range tests {
@@ -333,6 +357,7 @@ func TestGraphReusesCachedScriptOrderPlanConfiguration(t *testing.T) {
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
 		"planned_values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
 			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
 			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
@@ -346,6 +371,7 @@ func TestGraphReusesCachedScriptOrderPlanConfiguration(t *testing.T) {
 		"format_version":"1.0",
 		"terraform_version":"1.15.0",
 		"values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
 			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
 			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
 			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},

@@ -346,15 +346,47 @@ func (s *server) Graph(
 				"index saved plan graph for script ordering: %s", graphErr,
 			)
 		}
-		scriptOrderInput.planGraph = planGraph
-		runtimeProgram := scriptOrderInput.runtimeProgram
-		scriptOrderInput.loadRuntimeProvenance = func(ctx context.Context) error {
-			return runtimeProgram.LoadProvenance(ctx, e.files.WorkDirectory())
+		filteredProgram, filterErr := filterRemovedScriptOrderDataSources(
+			ctx, planGraph, scriptOrderInput.program,
+		)
+		if filterErr != nil {
+			endStage(filterErr)
+			return provisionersdk.GraphError(
+				"filter removed script order data sources: %s", filterErr,
+			)
+		}
+		if filteredProgram == nil {
+			scriptOrderInput = nil
+		} else {
+			if filteredProgram != scriptOrderInput.program {
+				scriptOrderInput, filterErr =
+					prepareScriptOrderRuntimeBindingInputWithPrograms(
+						ctx,
+						modules,
+						filteredProgram,
+						scriptOrderInput.runtimeProgram,
+						scriptOrderSource,
+					)
+				if filterErr != nil {
+					endStage(filterErr)
+					return provisionersdk.GraphError(
+						"prepare filtered script order conversion: %s",
+						filterErr,
+					)
+				}
+			}
+			scriptOrderInput.planGraph = planGraph
+			runtimeProgram := scriptOrderInput.runtimeProgram
+			scriptOrderInput.loadRuntimeProvenance = func(ctx context.Context) error {
+				return runtimeProgram.LoadProvenance(
+					ctx, e.files.WorkDirectory(),
+				)
+			}
 		}
 	}
 	endStage(nil)
 
-	conversion, err := convertState(
+	conversion, err := convertStateWithScriptOrder(
 		ctx, modules, rawGraph, e.server.logger, scriptOrderInput,
 	)
 	if err != nil {

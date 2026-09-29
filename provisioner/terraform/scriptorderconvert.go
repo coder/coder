@@ -7,9 +7,48 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/provisioner/terraform/agentruntime"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
+	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 )
+
+type scriptOrderGraphConversionResult struct {
+	state           *State
+	order           *scriptorder.ScriptOrder
+	warnings        []string
+	warningsOmitted int
+}
+
+func convertStateWithScriptOrder(
+	ctx context.Context,
+	modules []*tfjson.StateModule,
+	rawGraph string,
+	logger slog.Logger,
+	input *scriptOrderRuntimeBindingInput,
+) (*scriptOrderGraphConversionResult, error) {
+	conversion, err := convertState(ctx, modules, rawGraph, logger, input)
+	if err != nil {
+		return nil, err
+	}
+	result := &scriptOrderGraphConversionResult{state: conversion.state}
+	if conversion.scriptOrder == nil {
+		return result, nil
+	}
+
+	order, err := conversion.scriptOrder.prepared.Finalize(
+		conversion.scriptOrder.scripts,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(order.Graphs) > 0 {
+		result.order = &order
+	}
+	result.warnings = conversion.scriptOrder.prepared.Warnings()
+	result.warningsOmitted = conversion.scriptOrder.prepared.WarningsOmitted()
+	return result, nil
+}
 
 func prepareScriptOrderRuntimeBindingInput(
 	ctx context.Context,
@@ -31,7 +70,18 @@ func prepareScriptOrderRuntimeBindingInput(
 			return nil, err
 		}
 	}
+	return prepareScriptOrderRuntimeBindingInputWithPrograms(
+		ctx, modules, program, runtimeProgram, source,
+	)
+}
 
+func prepareScriptOrderRuntimeBindingInputWithPrograms(
+	ctx context.Context,
+	modules []*tfjson.StateModule,
+	program *scriptorder.Program,
+	runtimeProgram *agentruntime.Program,
+	source scriptOrderConversionSource,
+) (*scriptOrderRuntimeBindingInput, error) {
 	scripts := make(map[string]scriptorder.Script)
 	visited := 0
 	for _, module := range modules {
@@ -81,6 +131,62 @@ func prepareScriptOrderRuntimeBindingInput(
 		prepared:       prepared,
 		preparationErr: preparationErr,
 	}, nil
+}
+
+func filterRemovedScriptOrderDataSources(
+	ctx context.Context,
+	index *tfgraph.Index,
+	program *scriptorder.Program,
+) (*scriptorder.Program, error) {
+	if index == nil || program == nil {
+		return program, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	addresses := program.DataSourceAddresses()
+	candidates := make(map[string]struct{}, len(addresses))
+	for _, address := range addresses {
+		candidates[address] = struct{}{}
+	}
+
+	// Terraform omits data-resource deletes from the JSON plan's resource
+	// changes, but retains their destroy nodes in the saved-plan graph.
+	removed := make(map[string]struct{}, len(addresses))
+	present := make(map[string]struct{}, len(addresses))
+	nodeIndex := 0
+	for _, node := range index.Nodes() {
+		if nodeIndex%256 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		nodeIndex++
+		address := node.Address()
+		if _, candidate := candidates[address]; !candidate {
+			continue
+		}
+		switch node.Operation() {
+		case "destroy":
+			removed[address] = struct{}{}
+		case "":
+			present[address] = struct{}{}
+		}
+	}
+	for address := range present {
+		delete(removed, address)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(removed) == 0 {
+		return program, nil
+	}
+	return program.FilterDataSources(func(address string) bool {
+		_, removed := removed[address]
+		return !removed
+	}), nil
 }
 
 func hasScriptOrderDataSource(modules []*tfjson.StateModule) bool {
