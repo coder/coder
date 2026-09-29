@@ -34,8 +34,7 @@ func (f *testFixture) newAutomation(t *testing.T) database.ChatAutomation {
 }
 
 // staleReason makes queued rows of an automation fail the queue
-// promotion guard. Disabling mirrors what the later disable operation
-// does: it turns the automation off and bumps its queue generation.
+// promotion guard.
 type staleReason struct {
 	name  string
 	apply func(ctx context.Context, t *testing.T, f *testFixture, automationID uuid.UUID)
@@ -705,7 +704,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 
 	errNotAdmitted := xerrors.New("automation not admitted")
 	// admit locks the sending automation together with every automation
-	// already queued on the chat, like Publish will.
+	// already queued on the chat.
 	admit := func(own database.ChatAutomation) chatstate.AdmitFunc {
 		return func(ctx context.Context, store database.Store, chatID uuid.UUID) (chatstate.AutomationProvenance, error) {
 			queue, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)

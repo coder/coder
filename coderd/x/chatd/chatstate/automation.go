@@ -161,13 +161,12 @@ func (tx *Tx) dropUnpromotable(
 	return passing, nil
 }
 
-// guardQueuedRows is the queue promotion guard. Every transition that
-// promotes queued rows must pass the rows it is about to promote
-// through it. Rows without an automation pass without any database
-// access. The automations of the remaining rows are locked in ascending
-// id order; rows whose automation is missing, disabled, or on another
-// queue generation are deleted and left out of the result. Passing rows
-// keep their order.
+// guardQueuedRows applies the queue promotion guard to rows. Rows
+// without an automation pass without any database access. The
+// automations of the remaining rows are locked in ascending id order;
+// rows whose automation is missing, disabled, or on another queue
+// generation are deleted and left out of the result. Passing rows keep
+// their order.
 func (tx *Tx) guardQueuedRows(rows []database.ChatQueuedMessage) ([]database.ChatQueuedMessage, error) {
 	ids := queuedAutomationIDs(rows)
 	if len(ids) == 0 {

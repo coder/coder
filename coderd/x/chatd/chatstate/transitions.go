@@ -130,19 +130,14 @@ func insertChat(
 	}
 	admittedIndex := -1
 	if input.AdmitInTx != nil {
+		userMessages := 0
 		for i, m := range input.InitialMessages {
-			if m.Role != database.ChatMessageRoleUser {
-				continue
+			if m.Role == database.ChatMessageRoleUser {
+				admittedIndex = i
+				userMessages++
 			}
-			if admittedIndex != -1 {
-				return CreateChatResult{}, newTransitionError(
-					TransitionCreateChat, StateN,
-					"admitted chat creation requires exactly one initial user message",
-				)
-			}
-			admittedIndex = i
 		}
-		if admittedIndex == -1 {
+		if userMessages != 1 {
 			return CreateChatResult{}, newTransitionError(
 				TransitionCreateChat, StateN,
 				"admitted chat creation requires exactly one initial user message",
