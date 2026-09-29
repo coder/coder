@@ -1832,7 +1832,7 @@ const annotationClientSessionID = "client_session_id"
 // buffered in memory and emitted to stderr only when the command returns an
 // error. bufferedLoggerMiddleware installs the buffered logger for these
 // commands. Commands that manage their own logger destination (for example ssh,
-// which writes to a file to avoid corrupting its stdio stream) do not opt in.
+// which writes to a file to avoid corrupting its stdio stream) should not opt in.
 const annotationBufferedLogger = "buffered_logger"
 
 // bufferedLoggerMiddleware installs a stderr logger backed by a flight recorder
