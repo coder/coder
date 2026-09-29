@@ -174,13 +174,20 @@ func (tx *Tx) requireNoVersionFlags(t Transition) error {
 	return nil
 }
 
+// enter records that the callback invoked transition t, for metrics.
+// Transitions that validate through requireFromAllowed are recorded
+// there; the ones that load state directly call enter themselves.
+func (tx *Tx) enter(t Transition) {
+	tx.transitions = append(tx.transitions, t)
+}
+
 // requireFromAllowed loads the current state and validates t against
 // the transition matrix. Returns the loaded chat and execution state
 // on success, [ErrInvalidState] when the chat is in an invalid state
 // and t is not [TransitionReconcileInvalidState], and a typed
 // *TransitionError otherwise.
 func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, error) {
-	tx.transitions = append(tx.transitions, t)
+	tx.enter(t)
 	chat, from, err := tx.loadState()
 	if err != nil {
 		return chat, from, err
@@ -238,15 +245,21 @@ func (m *ChatMachine) Update(
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
-	start := time.Now()
+	// Phase boundaries for metrics: pre_lock is BeginTx (including any wait
+	// for a pooled connection), lock_wait is the lock statement, callback is
+	// everything run while holding the row, commit is COMMIT or ROLLBACK.
 	var (
-		tx       *Tx
-		lockWait time.Duration
+		start       = time.Now()
+		lockStart   time.Time
+		lockEnd     time.Time
+		callbackEnd time.Time
+		tx          *Tx
 	)
 	err := m.store.InTx(func(store database.Store) error {
-		lockStart := time.Now()
+		lockStart = time.Now()
+		defer func() { callbackEnd = time.Now() }()
 		locked, err := store.LockChatForTransition(ctx, m.chatID)
-		lockWait = time.Since(lockStart)
+		lockEnd = time.Now()
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
@@ -312,7 +325,13 @@ func (m *ChatMachine) Update(
 	if tx != nil {
 		transitions = tx.transitions
 	}
-	m.metrics.observe(transitions, err, time.Since(start), lockWait)
+	m.metrics.observe(transitions, err, transitionPhases{
+		start:       start,
+		lockStart:   lockStart,
+		lockEnd:     lockEnd,
+		callbackEnd: callbackEnd,
+		end:         time.Now(),
+	})
 	if err != nil {
 		return err
 	}
