@@ -131,7 +131,7 @@ func TestSSH(t *testing.T) {
 			// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 			stdin.WriteLine("exit")
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
 		})
 	}
 
@@ -1884,7 +1884,7 @@ func TestSSH_Stdio(t *testing.T) {
 			_ = clientOutput.Close()
 
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
 		})
 	}
 }
@@ -2319,7 +2319,7 @@ func TestSSH_CoderConnect(t *testing.T) {
 			_ = clientOutput.Close()
 
 			<-cmdDone
-			assertConnLog(t, connLogger, r.Workspace, tc.id)
+			assertConnLog(t, connLogger, r.Workspace, database.ConnectionTypeSsh, tc.id)
 		})
 	}
 
@@ -2762,26 +2762,27 @@ func TestSSH_Completion(t *testing.T) {
 func assertConnLog(t *testing.T,
 	connLogger *connectionlog.FakeConnectionLogger,
 	workspace database.WorkspaceTable,
-	id string,
+	expectedType database.ConnectionType,
+	clientSessionID string,
 ) {
 	t.Helper()
-	// Wait until we get at least one related ssh log.
-	var sshLogs []database.UpsertConnectionLogParams
+	// Wait until we get at least one related log.
+	var logs []database.UpsertConnectionLogParams
 	require.Eventually(t, func() bool {
 		for _, log := range connLogger.ConnectionLogs() {
-			if log.Type == database.ConnectionTypeSsh &&
+			if log.Type == expectedType &&
 				log.WorkspaceID == workspace.ID {
-				sshLogs = append(sshLogs, log)
+				logs = append(logs, log)
 			}
 		}
-		return len(sshLogs) > 0
+		return len(logs) > 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 
-	for _, log := range sshLogs {
+	for _, log := range logs {
 		switch {
-		case id != "":
-			require.Equal(t, id, log.ClientSessionID.String)
-		default: // Should have generated an ID.
+		case clientSessionID != "":
+			require.Equal(t, clientSessionID, log.ClientSessionID.String)
+		default: // Should have generated a client session ID.
 			require.NotEmpty(t, log.ClientSessionID.String)
 		}
 	}

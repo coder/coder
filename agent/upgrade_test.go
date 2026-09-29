@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/proto"
@@ -18,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestAgent_SSHUpgrade_Error(t *testing.T) {
+func TestAgent_TCPUpgrade_Error(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -169,6 +170,70 @@ func TestAgent_SSHUpgrade(t *testing.T) {
 			assertConnectionReport(t, client,
 				proto.ConnectEvent{
 					Type:            proto.Connection_SSH,
+					ClientSessionID: tc.expect,
+				},
+				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},
+			)
+		})
+	}
+}
+
+func TestAgent_ReconnectingPTYUpgrade(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		id     string
+		expect string
+	}{
+		{
+			name: "EmptyClientSessionID",
+		},
+		{
+			name: "InvalidClientSessionID",
+			id:   "invalid",
+		},
+		{
+			name:   "ValidClientSessionID",
+			id:     "0123456789abcdef0123456789abcdef",
+			expect: "0123456789abcdef0123456789abcdef",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			//nolint:dogsled
+			conn, client, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			require.True(t, conn.AwaitReachable(ctx))
+
+			if tc.id != "" {
+				conn.SetExtraHeaders(http.Header{
+					"baggage": []string{tracing.SessionIDBaggageKey + "=" + tc.id},
+				})
+			}
+
+			ptyConn, err := conn.ReconnectingPTY(ctx, uuid.New(), 128, 128, "bash")
+			require.NoError(t, err)
+			defer ptyConn.Close()
+
+			data, err := json.Marshal(workspacesdk.ReconnectingPTYRequest{
+				Data: "echo test\r\n",
+			})
+			require.NoError(t, err)
+			_, err = ptyConn.Write(data)
+			require.NoError(t, err)
+
+			err = ptyConn.Close()
+			require.NoError(t, err)
+
+			assertConnectionReport(t, client,
+				proto.ConnectEvent{
+					Type:            proto.Connection_RECONNECTING_PTY,
 					ClientSessionID: tc.expect,
 				},
 				proto.DisconnectEvent{Reason: string(codersdk.DisconnectReasonGraceful)},

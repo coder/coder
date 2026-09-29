@@ -244,7 +244,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			"session": ssh.DefaultSessionHandler,
 		},
 		ConnCallback: func(ctx ssh.Context, conn net.Conn) net.Conn {
-			ctx.SetValue(clientSessionIDContextKey{}, clientSessionIDFromConn(conn))
+			ctx.SetValue(clientSessionIDContextKey{}, ClientSessionIDFromConn(conn))
 			return conn
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
@@ -1114,7 +1114,7 @@ func (s *Server) Serve(l net.Listener) (retErr error) {
 // connection was accepted.  If the conn is an UpgradedConn, then the client
 // session ID will be extracted from it.
 func (s *Server) handleConn(l net.Listener, c net.Conn) {
-	clientSessionID := clientSessionIDFromConn(c)
+	clientSessionID := ClientSessionIDFromConn(c)
 	logger := s.logger.With(
 		slog.F("remote_addr", c.RemoteAddr()),
 		slog.F("local_addr", c.LocalAddr()),
@@ -1438,7 +1438,7 @@ type UpgradedConn interface {
 	ClientSessionID() string
 }
 
-func clientSessionIDFromConn(conn net.Conn) string {
+func ClientSessionIDFromConn(conn net.Conn) string {
 	if uc, ok := conn.(UpgradedConn); ok {
 		return uc.ClientSessionID()
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/httpmw"
 )
 
-func (a *agent) apiHandler(upgradeListener *httpUpgradeListener) http.Handler {
+func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r := chi.NewRouter()
 	r.Use(
 		httpmw.Recover(a.logger),

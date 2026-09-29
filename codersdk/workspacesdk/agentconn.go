@@ -251,7 +251,16 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	c.headersMu.RLock()
+	extraHeaders := c.extraHeaders.Clone()
+	c.headersMu.RUnlock()
+
+	addr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
+	conn, err := DialTCPUpgrade(ctx, addr.String(), c.apiClient(ctx), extraHeaders, AgentReconnectingPTYPort)
+	if errors.Is(err, ErrAgentTCPUpgradeUnsupported) {
+		// Fall back to dialing the port directly.
+		conn, err = c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	}
 	if err != nil {
 		return nil, err
 	}

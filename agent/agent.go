@@ -1839,27 +1839,41 @@ func (a *agent) createTailnet(
 		}
 	}()
 
-	upgradeListener := &httpUpgradeListener{
+	upgrader := &httpUpgrader{
 		logger: a.logger,
 		addr:   apiListener.Addr(),
-		closed: make(chan struct{}),
-		conn:   make(chan *upgradedConn),
 	}
+	sshUpgradeListener := upgrader.listen(workspacesdk.AgentStandardSSHPort)
+	ptyUpgradeListener := upgrader.listen(workspacesdk.AgentReconnectingPTYPort)
 	defer func() {
 		if err != nil {
-			_ = upgradeListener.Close()
+			_ = sshUpgradeListener.Close()
+			_ = ptyUpgradeListener.Close()
 		}
 	}()
 
 	if err = a.trackGoroutine(func() {
-		_ = a.sshServer.Serve(upgradeListener)
+		_ = a.sshServer.Serve(sshUpgradeListener)
+	}); err != nil {
+		return nil, err
+	}
+
+	if err = a.trackGoroutine(func() {
+		go func() {
+			select {
+			case <-ctx.Done():
+			case <-a.hardCtx.Done():
+			}
+			_ = ptyUpgradeListener.Close()
+		}()
+		_ = a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, ptyUpgradeListener)
 	}); err != nil {
 		return nil, err
 	}
 
 	if err = a.trackGoroutine(func() {
 		defer apiListener.Close()
-		apiHandler := a.apiHandler(upgradeListener)
+		apiHandler := a.apiHandler(upgrader)
 		server := &http.Server{
 			BaseContext:       func(net.Listener) context.Context { return ctx },
 			Handler:           apiHandler,

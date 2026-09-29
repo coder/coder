@@ -2,10 +2,8 @@ package agent
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,8 +15,8 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 type upgradedConn struct {
@@ -32,7 +30,6 @@ func (c *upgradedConn) ClientSessionID() string    { return c.clientSessionID }
 
 type httpUpgradeListener struct {
 	mu     sync.Mutex
-	logger slog.Logger
 	addr   net.Addr
 	conn   chan *upgradedConn
 	closed chan struct{}
@@ -60,9 +57,25 @@ func (ln *httpUpgradeListener) Close() error {
 	return nil
 }
 
+type httpUpgrader struct {
+	listeners syncmap.Map[uint16, *httpUpgradeListener]
+	logger    slog.Logger
+	addr      net.Addr
+}
+
+// listen listens for upgrades on the specified port.
+func (up *httpUpgrader) listen(port uint16) net.Listener {
+	listener, _ := up.listeners.LoadOrStore(port, &httpUpgradeListener{
+		addr:   up.addr,
+		closed: make(chan struct{}),
+		conn:   make(chan *upgradedConn),
+	})
+	return listener
+}
+
 // handler upgrades an HTTP connection based on the port number, passing along
 // any client session ID that exists on the request context.
-func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) {
+func (up *httpUpgrader) handler(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	port, err := strconv.ParseUint(chi.URLParam(r, "port"), 10, 16)
 	if err != nil {
@@ -73,11 +86,10 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	supported := []uint64{workspacesdk.AgentStandardSSHPort}
-	if !slices.Contains(supported, port) {
+	listener, ok := up.listeners.Load(uint16(port))
+	if !ok {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Unsupported port for upgrading",
-			Detail:  fmt.Sprintf("Supported ports: %v", supported),
 		})
 		return
 	}
@@ -98,7 +110,7 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 
 	clientSessionID := tracing.ClientSessionID(r)
 	if clientSessionID == "" {
-		ln.logger.Warn(ctx, "client session ID is missing")
+		up.logger.Warn(ctx, "client session ID is missing")
 	}
 
 	hijacker, ok := rw.(http.Hijacker)
@@ -137,12 +149,12 @@ func (ln *httpUpgradeListener) handler(rw http.ResponseWriter, r *http.Request) 
 	t := time.NewTimer(30 * time.Second)
 	defer t.Stop()
 	select {
-	case ln.conn <- uconn:
+	case listener.conn <- uconn:
 		return
-	case <-ln.closed:
-		ln.logger.Info(ctx, "listener closed; closing connection")
+	case <-listener.closed:
+		up.logger.Info(ctx, "listener closed; closing connection")
 	case <-t.C:
-		ln.logger.Info(ctx, "listener timed out accepting; closing connection")
+		up.logger.Info(ctx, "listener timed out accepting; closing connection")
 	}
 	_ = conn.Close()
 }
