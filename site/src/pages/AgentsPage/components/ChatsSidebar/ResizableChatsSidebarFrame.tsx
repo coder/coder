@@ -130,13 +130,19 @@ export const ResizableChatsSidebarFrame = ({
 				"--agents-left-sidebar-max-width": `${maxWidth}px`,
 			}}
 			onAnimationEnd={(e) => {
-				if (e.target === e.currentTarget) {
+				// A late end event from a replaced slide must not end the current one.
+				const slideAnimation =
+					viewportSlide === "out" ? "panel-slide-out" : "panel-slide-in";
+				if (
+					e.target === e.currentTarget &&
+					e.animationName === slideAnimation
+				) {
 					onViewportSlideEnd?.();
 				}
 			}}
 			className={
 				viewportSlide === "out"
-					? "relative invisible h-full min-h-0 w-0 min-w-0 shrink-0 overflow-hidden [--panel-width:var(--agents-left-sidebar-width)] animate-panel-slide-out"
+					? "relative invisible h-full min-h-0 w-0 min-w-0 shrink-0 overflow-hidden max-w-(--agents-left-sidebar-max-width) [--panel-width:var(--agents-left-sidebar-width)] animate-panel-slide-out"
 					: cn(
 							className,
 							"relative sm:overflow-hidden sm:max-w-(--agents-left-sidebar-max-width)",
@@ -154,7 +160,7 @@ export const ResizableChatsSidebarFrame = ({
 			<div
 				className={
 					viewportSlide === "out"
-						? "h-full w-(--agents-left-sidebar-width)"
+						? "h-full w-(--agents-left-sidebar-width) max-w-(--agents-left-sidebar-max-width)"
 						: "size-full sm:w-(--agents-left-sidebar-width) sm:max-w-(--agents-left-sidebar-max-width)"
 				}
 			>
