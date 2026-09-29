@@ -37,8 +37,9 @@ func TestEditFiles(t *testing.T) {
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
-		assert.Contains(t, info.Description, "Each file's edits are validated before that file is written: a file with any error is left unchanged, and files without errors are still applied.")
-		assert.NotContains(t, info.Description, "All edits in a batch")
+		assert.Equal(t,
+			"Edit files by replacing old_text with new_text. Edits to the same file apply in order. If any edit to a file fails, that file is left unchanged; other files are still edited.",
+			info.Description)
 	})
 
 	t.Run("RejectedInputNamesWhatToChange", func(t *testing.T) {
@@ -353,7 +354,7 @@ func TestEditFiles(t *testing.T) {
 				name:        "SingleHomeRootPlanPath",
 				input:       `{"edits":[{"path":"/Users/dev/plan.md","old_text":"old","new_text":"new"}]}`,
 				wantIsError: true,
-				want: editFilesFileRejectedMessage("/Users/dev/plan.md", 0, sharedPlanPathResolvedMessage(
+				want: editFilesOnlyEditRejectedMessage("/Users/dev/plan.md", sharedPlanPathResolvedMessage(
 					"/Users/dev/plan.md",
 					"/Users/dev/.coder/plans/PLAN-chat.md",
 				)),
@@ -366,7 +367,9 @@ func TestEditFiles(t *testing.T) {
 					`]}`,
 				sentPath: "/Users/dev/subdir/plan.md",
 				want: `{"status":"partial",` +
-					`"message":"Applied 1 file. /Users/dev/plan.md was not applied (edits[1]): fix and resend only the edits for /Users/dev/plan.md.",` +
+					`"message":"Applied 1 of 2 edits. Not applied:\n- edits[1] (/Users/dev/plan.md): ` +
+					sharedPlanPathResolvedMessage("/Users/dev/plan.md", "/Users/dev/.coder/plans/PLAN-chat.md") +
+					`. /Users/dev/plan.md is unchanged; fix and resend only these edits.",` +
 					`"files":[` +
 					`{"path":"/Users/dev/plan.md","status":"rejected","edits":[1],"error":"` +
 					sharedPlanPathResolvedMessage("/Users/dev/plan.md", "/Users/dev/.coder/plans/PLAN-chat.md") + `"},` +
@@ -432,7 +435,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, editFilesFileRejectedMessage("/home/coder/plan.md", 0, planPathVerificationMessage("/home/coder/plan.md")), resp.Content)
+		assert.Equal(t, editFilesOnlyEditRejectedMessage("/home/coder/plan.md", planPathVerificationMessage("/home/coder/plan.md")), resp.Content)
 	})
 
 	t.Run("RejectsRelativePlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
@@ -458,7 +461,7 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
-		assert.Equal(t, editFilesFileRejectedMessage("plan.md", 0, "Use the chat-specific absolute plan path; plan files must use absolute paths"), resp.Content)
+		assert.Equal(t, editFilesOnlyEditRejectedMessage("plan.md", "Use the chat-specific absolute plan path; plan files must use absolute paths"), resp.Content)
 	})
 
 	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
@@ -729,7 +732,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			name:  "OneFileApplied",
 			input: `{"edits":[` + editA + `]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
-			want:  `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+			want:  `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
 			name:  "SeveralFilesApplied",
@@ -738,7 +741,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)},
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, resp: applied("/repo/b.go", diffB)},
 			},
-			want: `{"status":"applied","message":"Applied edits to 2 files.","files":[` +
+			want: `{"status":"applied","message":"Applied 2 of 2 edits.","files":[` +
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"},` +
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
 		},
@@ -748,7 +751,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			name:  "EmptyDiff",
 			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{{OldText: "x", NewText: "x"}}, resp: applied("/repo/a.go", "")}},
-			want:  `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+			want:  `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
 			// Agents that predate per-file results return none, so
@@ -759,7 +762,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA, {OldText: "y := 1", NewText: "y := 2"}}},
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}},
 			},
-			want: `{"status":"applied","message":"Applied edits to 2 files.","files":[` +
+			want: `{"status":"applied","message":"Applied 3 of 3 edits.","files":[` +
 				`{"path":"/repo/a.go","status":"applied"},{"path":"/repo/b.go","status":"applied"}]}`,
 		},
 		{
@@ -770,7 +773,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				edits: []workspacesdk.FileEdit{fileEditA, {OldText: "y := 1", NewText: "y := 2"}},
 				resp:  applied("/repo/a.go", diffA),
 			}},
-			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+			want: `{"status":"applied","message":"Applied 2 of 2 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
 			// A failing first file does not stop later files, and its
@@ -787,7 +790,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/c.go", edits: []workspacesdk.FileEdit{fileEditC}, resp: applied("/repo/c.go", "")},
 			},
 			want: `{"status":"partial",` +
-				`"message":"Applied 2 files. /repo/a.go was not applied (none of edits[0], edits[2] were applied): fix and resend only the edits for /repo/a.go.",` +
+				`"message":"Applied 2 of 4 edits. Not applied:\n- edits[0], edits[2] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.",` +
 				`"files":[` +
 				`{"path":"/repo/a.go","status":"rejected","edits":[0,2],"error":"edit /repo/a.go: search string not found in file"},` +
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"},` +
@@ -807,7 +810,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				},
 			},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. /repo/b.go was not applied (none of edits[1], edits[3] were applied): fix and resend only the edits for /repo/b.go.",` +
+				`"message":"Applied 2 of 4 edits. Not applied:\n- edits[1], edits[3] (/repo/b.go): edit /repo/b.go: search string not found in file. /repo/b.go is unchanged; fix and resend only these edits.",` +
 				`"files":[` +
 				`{"path":"/repo/b.go","status":"rejected","edits":[1,3],"error":"edit /repo/b.go: search string not found in file"},` +
 				`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
@@ -822,7 +825,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, resp: applied("/repo/b.go", diffB)},
 			},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. It is unknown whether /repo/a.go was applied (edits[0]): re-read /repo/a.go before resending its edits.",` +
+				`"message":"Applied 1 of 2 edits. Unknown whether applied:\n- edits[0] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.",` +
 				`"files":[` +
 				`{"path":"/repo/a.go","status":"unknown","edits":[0],"error":"do request: connection reset by peer"},` +
 				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
@@ -836,7 +839,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/c.go", edits: []workspacesdk.FileEdit{fileEditC}, err: xerrors.New("decode response body: unexpected EOF")},
 			},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go. It is unknown whether /repo/c.go was applied (edits[2]): re-read /repo/c.go before resending its edits.",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.\n` +
+				`Unknown whether applied:\n- edits[2] (/repo/c.go): decode response body: unexpected EOF. Re-read /repo/c.go before resending these edits.",` +
 				`"files":[` +
 				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"open /repo/b.go: file does not exist"},` +
 				`{"path":"/repo/c.go","status":"unknown","edits":[2],"error":"decode response body: unexpected EOF"},` +
@@ -852,9 +856,9 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, err: agentError(http.StatusNotFound, "open /repo/b.go: file does not exist")},
 			},
 			wantIsError: true,
-			want: "No files were applied.\n" +
-				"- /repo/a.go (edits[0]): write /repo/a.go: no space left on device\n" +
-				"- /repo/b.go (edits[1]): open /repo/b.go: file does not exist",
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): write /repo/a.go: no space left on device. /repo/a.go is unchanged; fix and resend only these edits.\n" +
+				"- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.",
 		},
 		{
 			// Transport metadata from codersdk.Error.Error() is
@@ -863,15 +867,15 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			input:       `{"edits":[{"path":"a.txt","old_text":"x := 1","new_text":"x := 2"}]}`,
 			calls:       []fileCall{{path: "a.txt", edits: []workspacesdk.FileEdit{fileEditA}, err: xerrors.Errorf("do request: %w", detailed)}},
 			wantIsError: true,
-			want:        "No files were applied.\n- a.txt (edits[0]): file path must be absolute: \"a.txt\": Use an absolute path.: some detail",
+			want:        "Applied 0 of 1 edits. Not applied:\n- edits[0] (a.txt): file path must be absolute: \"a.txt\": Use an absolute path.: some detail. a.txt is unchanged; fix and resend only these edits.",
 		},
 		{
 			name:        "OnlyUnknown",
 			input:       `{"edits":[` + editA + `]}`,
 			calls:       []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, err: xerrors.New("do request: connection reset by peer")}},
 			wantIsError: true,
-			want: "No files were applied, except that files marked unknown may have been.\n" +
-				"- /repo/a.go (edits[0]): unknown whether applied (do request: connection reset by peer); re-read it before resending its edits",
+			want: "Applied 0 of 1 edits. Unknown whether applied:\n" +
+				"- edits[0] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.",
 		},
 		{
 			name:  "RejectedAndUnknownNothingApplied",
@@ -881,9 +885,10 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, err: xerrors.New("do request: connection reset by peer")},
 			},
 			wantIsError: true,
-			want: "No files were applied, except that files marked unknown may have been.\n" +
-				"- /repo/a.go (edits[0]): edit /repo/a.go: search string not found in file\n" +
-				"- /repo/b.go (edits[1]): unknown whether applied (do request: connection reset by peer); re-read it before resending its edits",
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.\n" +
+				"Unknown whether applied:\n" +
+				"- edits[1] (/repo/b.go): do request: connection reset by peer. Re-read /repo/b.go before resending these edits.",
 		},
 		{
 			// Path-tied coderd checks reject only their file, without
@@ -899,7 +904,9 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			},
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
 			want: `{"status":"partial",` +
-				`"message":"Applied 1 file. plan.md was not applied (edits[0]): fix and resend only the edits for plan.md. /home/coder/plan.md was not applied (edits[2]): fix and resend only the edits for /home/coder/plan.md.",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n` +
+				`- edits[0] (plan.md): Use the chat-specific absolute plan path; plan files must use absolute paths. plan.md is unchanged; fix and resend only these edits.\n` +
+				`- edits[2] (/home/coder/plan.md): the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md. /home/coder/plan.md is unchanged; fix and resend only these edits.",` +
 				`"files":[` +
 				`{"path":"plan.md","status":"rejected","edits":[0],"error":"Use the chat-specific absolute plan path; plan files must use absolute paths"},` +
 				`{"path":"/home/coder/plan.md","status":"rejected","edits":[2],"error":"the plan path /home/coder/plan.md is no longer supported at the home root; use the chat-specific plan path: /home/coder/.coder/plans/PLAN-chat.md"},` +
@@ -961,7 +968,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				cancelAfterFirst: true,
 				input:            `{"edits":[` + editA + `,` + editB + `]}`,
 				want: `{"status":"partial",` +
-					`"message":"Applied 1 file. /repo/b.go was not applied because the tool call was interrupted (edits[1]).",` +
+					`"message":"Applied 1 of 2 edits. Not applied:\n- edits[1] (/repo/b.go): not sent because the tool call was interrupted.",` +
 					`"files":[` +
 					`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"not sent because the tool call was interrupted"},` +
 					`{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
@@ -970,9 +977,9 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 				name:        "BeforeFirstFile",
 				input:       `{"edits":[` + editA + `,{"path":"/home/coder/plan.md","old_text":"c","new_text":"d"}]}`,
 				wantIsError: true,
-				want: "No files were applied.\n" +
-					"- /repo/a.go was not applied because the tool call was interrupted (edits[0])\n" +
-					"- /home/coder/plan.md was not applied because the tool call was interrupted (edits[1])",
+				want: "Applied 0 of 2 edits. Not applied:\n" +
+					"- edits[0] (/repo/a.go): not sent because the tool call was interrupted.\n" +
+					"- edits[1] (/home/coder/plan.md): not sent because the tool call was interrupted.",
 			},
 		}
 		for _, tt := range interruptTests {

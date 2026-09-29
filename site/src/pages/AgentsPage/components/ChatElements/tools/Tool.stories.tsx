@@ -1983,7 +1983,7 @@ export const EditFilesPartial: Story = {
 		result: {
 			status: "partial",
 			message:
-				"Applied 1 file. src/server.ts was not applied (edits[1]): fix and resend only the edits for src/server.ts. It is unknown whether src/routes.ts was applied (edits[2]): re-read src/routes.ts before resending its edits.",
+				'Applied 1 of 3 edits. Not applied:\n- edits[1] (src/server.ts): old_text matches 3 occurrences (expected exactly 1). Include more surrounding context to make the match unique, or set replace_all to true. src/server.ts is unchanged; fix and resend only these edits.\nUnknown whether applied:\n- edits[2] (src/routes.ts): Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF. Re-read src/routes.ts before resending these edits.',
 			files: [
 				{
 					path: "src/server.ts",
