@@ -171,17 +171,11 @@ export function FilterCombobox({
 	const flyoutCategoryKey = flyout.categoryKey;
 	const setFlyoutCategoryKey = (categoryKey: string | null) =>
 		setFlyout({ categoryKey, openAtReset: open });
-	// Highlighted category row, tracked here instead of the full highlight so
-	// moving through option rows does not re-render the lists. `null` means
-	// another row is highlighted; `undefined` means none is, as when typed
-	// text turns `autoHighlight` off or the pointer leaves the menu.
+	// Only category rows are tracked, so option highlights do not re-render the
+	// lists. `null`: another row is highlighted. `undefined`: none is.
 	const [highlightedCategoryKey, setHighlightedCategoryKey] = useState<
 		string | null | undefined
 	>(undefined);
-	// While typed text narrows the rows, only a scope match shows a flyout,
-	// and only while its row is highlighted or no row is highlighted. It
-	// never shows on coarse pointers. A flyout the text hides returns when the
-	// text is deleted.
 	const scopeMatchShown =
 		!isCoarsePointer &&
 		scopeMatchKey !== null &&
@@ -246,17 +240,15 @@ export function FilterCombobox({
 		setPanelOffset(row ? Math.max(0, row.offsetTop - scrollTop) : 0);
 	}, [panelCategoryKey]);
 	// The flyout follows cmdk's highlight, which pointer and keyboard both move.
-	// A highlight never opens a closed flyout; `shownFlyoutKey` handles the
-	// scope match.
+	// A highlight never opens a closed flyout.
 	const handleHighlightedValueChange = (
 		highlighted: string,
 		previous: string,
 	) => {
 		actions.onHighlightedValueChange(highlighted, previous);
-		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "",
-		// with no row highlighted. It must not close a flyout the text only
-		// hides, such as Owner's while `own` is typed, so the flyout returns when
-		// the text is deleted.
+		// While typed text turns `autoHighlight` off, cmdk's pick arrives as "".
+		// It must not close a flyout the text only hides, such as Owner's while
+		// `own` is typed, so the flyout returns when the text is deleted.
 		if (highlighted === "") {
 			setHighlightedCategoryKey(undefined);
 			return;
@@ -270,7 +262,6 @@ export function FilterCombobox({
 		}
 		updateFlyoutCategory(isCategoryRow ? highlighted : null);
 	};
-	// The flyout renders only on wider viewports.
 	const flyoutOptions = useFlyoutOptions(
 		activeCategoryKey === null && !isMobile
 			? listedCategories.find((category) => category.key === shownFlyoutKey)
@@ -279,8 +270,7 @@ export function FilterCombobox({
 		unfilteredOptionsErroredKeys,
 		actions.retryUnfilteredOptions,
 	);
-	// Toggling clears text typed to find the category, so the flyout is pinned
-	// open explicitly rather than through the scope match.
+	// Toggling clears the text that matched the scope phrase, so pin the flyout.
 	const toggleFlyoutScope = (categoryKey: string) => {
 		setFlyoutCategoryKey(categoryKey);
 		actions.toggleScope(categoryKey, { clearCategorySearch: true });
@@ -454,13 +444,12 @@ export function FilterCombobox({
 									>
 										<ChipLabel prefix={prefix} value={value} />
 									</FilterComboboxChip>
-									{/* Joined to its chip, since it widens that chip's filter. */}
 									{category && pillToggle && (
 										<FilterComboboxChip
 											removeLabel={pillToggle.pillRemoveLabel(value)}
 											onRemove={(event) => {
-												// The pill unmounts, so keyboard removal keeps focus
-												// in the search input.
+												// Keyboard removal unmounts the focused pill, so focus
+												// moves to the search input.
 												if (event.detail === 0) {
 													actions.focusInput();
 												}
@@ -1007,15 +996,14 @@ function FlyoutScopeToggle({
 				checked={checked}
 				disabled={disabled}
 				onCheckedChange={() => onToggle(categoryKey)}
-				// Keep focus in the combobox input so keyboard navigation continues.
 				onMouseDown={(event) => event.preventDefault()}
 				onKeyDown={(event) => {
 					if (
 						navigatesList &&
 						(event.key === "ArrowUp" || event.key === "ArrowDown")
 					) {
-						// Return focus to the combobox input; the key still reaches
-						// cmdk, which moves the highlight into the options.
+						// Refocus the input; cmdk still gets the key and moves the
+						// highlight into the options.
 						event.currentTarget
 							.closest("[cmdk-root]")
 							?.querySelector<HTMLInputElement>("[cmdk-input]")
@@ -1192,7 +1180,6 @@ type FlyoutCategoryPanelProps = Readonly<{
 	offset: number;
 	flyout: NonNullable<ReturnType<typeof useFlyoutOptions>>;
 	selectedTokens: readonly string[];
-	/** Token an option commits, or the applied chip it removes. */
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;
@@ -1280,7 +1267,6 @@ type CategoryOptionsListProps = Readonly<{
 	/** Size of the category's unfiltered option list, when cached. */
 	unfilteredOptionCount: number | undefined;
 	selectedTokens: readonly string[];
-	/** Token an option commits, or the applied chip it removes. */
 	optionTokenFor: (option: FilterOption) => string;
 	scope: ScopeState | undefined;
 	onToggleScope: (categoryKey: string) => void;

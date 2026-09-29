@@ -47,8 +47,7 @@ describe("WorkspacesFilter", () => {
 		);
 	});
 
-	// Removing the pill narrows the chip, which works only when `user:me`
-	// parsed as an Owner chip with the scope pill rather than as free text.
+	// The pill exists only when `user:me` parses as an Owner chip, not free text.
 	it.each([
 		["a user who can list others", undefined],
 		["a user who cannot list others", MockNoPermissions],

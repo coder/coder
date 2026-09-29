@@ -636,8 +636,6 @@ const scopedOwnerCategories: FilterCategory[] = [
 	},
 ];
 
-// A category scope toggle sits below the option list; the applied chip is
-// joined by a `+ shared with alice` pill while the toggle is on.
 export const ScopeToggle: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -656,8 +654,6 @@ export const ScopeToggle: Story = {
 	},
 };
 
-// Typing the start of the toggle's search phrase opens the Owner flyout, so
-// the toggle is visible.
 export const ScopeToggleTypedMatch: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {
@@ -672,8 +668,6 @@ export const ScopeToggleTypedMatch: Story = {
 	},
 };
 
-// A long owner name in the chip and its scope pill. At desktop width the pill
-// shows in full.
 export const ScopePillFullLabel: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -683,8 +677,6 @@ export const ScopePillFullLabel: Story = {
 	),
 };
 
-// With a chip under each Owner key, both chips show their own query keys, no
-// pill shows, and the switch is disabled because toggling would drop a filter.
 export const ScopeToggleWithSecondOwner: Story = {
 	render: () => (
 		<FilterComboboxHarness
@@ -695,7 +687,6 @@ export const ScopeToggleWithSecondOwner: Story = {
 	play: ScopeToggle.play,
 };
 
-// On a phone the pill truncates so the chip pair stays inside the field.
 export const ScopePillTruncatesWhenNarrow: Story = {
 	...ScopePillFullLabel,
 	parameters: {
@@ -705,7 +696,6 @@ export const ScopePillTruncatesWhenNarrow: Story = {
 	},
 };
 
-// Hovering the pill shows the full switch label.
 export const ScopePillTooltip: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {

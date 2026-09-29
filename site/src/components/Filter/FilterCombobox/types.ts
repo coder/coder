@@ -50,24 +50,12 @@ export type FilterCategory = {
 	 */
 	hideWhenSingleOption?: boolean;
 	/**
-	 * Switch shown below the category's options. While it is on, options
-	 * commit under `widenedKey` instead of the category key, e.g. Owner
-	 * committing `user:alice` (owned by or shared with alice) instead of
-	 * `owner:alice`. With no chip it is on and disabled, so the first pick
-	 * commits under `widenedKey`. Once a chip is applied, the switch follows
-	 * that chip's key and later picks keep it; with a chip under each key it is
-	 * disabled and both chips show their own query keys. A typed prefix sets
-	 * the key for that entry's pick: `widenedKey` commits under `widenedKey`;
-	 * the category key or an alias commits under the category key. Without a
-	 * typed prefix, a value an applied chip holds, ignoring letter case, maps
-	 * to that chip: choosing its option removes the chip, and typed Enter
-	 * with no option highlighted keeps it. Otherwise a typed value that no
-	 * option lists commits under the category key unless `widenedKey` was
-	 * typed, since a backend may reject the widened key for values the
-	 * requester cannot list. While it is on and enabled, a pill after the
-	 * chip reads `pillPrefix` and the chip's value, and removing the pill
-	 * turns the switch off. Applies only to submenu categories, not inline
-	 * ones.
+	 * Switch below a submenu category's options. While on, options commit
+	 * under `widenedKey` instead of the category key, e.g. Owner committing
+	 * `user:alice` (owned by or shared with alice). The applied chip sets the
+	 * switch, and a typed key prefix overrides it for that pick. Typed values
+	 * no option lists commit under the category key unless `widenedKey` was
+	 * typed, since a backend may reject the widened key for them.
 	 */
 	scopeToggle?: {
 		/** Switch label for the category's applied value, if there is one. */
@@ -85,7 +73,7 @@ export type FilterCategory = {
 	};
 };
 
-/** Query keys the category owns: `chipKeys` (default `[key]`) plus `scopeToggle.widenedKey`. */
+/** Query keys the category owns, including its scope toggle's widened key. */
 export const categoryChipKeys = (
 	category: Pick<FilterCategory, "key" | "chipKeys" | "scopeToggle">,
 ): readonly string[] => [

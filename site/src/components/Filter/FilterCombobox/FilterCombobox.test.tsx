@@ -2893,7 +2893,6 @@ describe("FilterCombobox", () => {
 					} else if (action === "switch") {
 						await user.click(await findScopeSwitch("alice"));
 					} else {
-						// Flyout rows opened by the pointer are buttons.
 						await user.click(
 							await screen.findByRole("button", { name: "alice" }),
 						);

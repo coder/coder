@@ -95,8 +95,8 @@ const selfUserOption = (me: UserIdentity): FilterOption => ({
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// The current user's option when the query is empty or appears in
-// `{username} (you)` or `me`, otherwise nothing. Both Owner loaders use it.
+// Users who cannot list other users still filter by themselves, so the Owner
+// category stays available with just the "you" option.
 export const getSelfUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -113,7 +113,6 @@ export const getSelfUserFilterOptions = async (
 	return [];
 };
 
-// Shared by the Owner category for both `owner` and `user` tokens.
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,

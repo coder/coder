@@ -59,9 +59,8 @@ type State = {
 	 */
 	typedFreeText: string;
 	/**
-	 * Scope set by a typed prefix for the open scope-toggle category:
-	 * `widenedKey` sets true, and the category key or an alias sets false. Null
-	 * when no prefix was typed, so the applied chip decides the scope instead.
+	 * Scope from a typed key prefix in the open scope category (`widenedKey`
+	 * is true). Null lets the applied chip decide.
 	 */
 	typedScopeWidened: boolean | null;
 };
@@ -471,14 +470,10 @@ export const useFilterCombobox = ({
 					return key !== undefined && categoryChipKeys(category).includes(key);
 				})
 			: [];
-	// The switch and pill act on a scope category's only chip. With a chip
-	// under each key, such as a bookmarked `user:me owner:carol`, rewriting one
-	// would collide with the other, and the query would silently lose a filter.
+	// With a chip under each key, such as a bookmarked `user:me owner:carol`,
+	// rewriting one would collide with the other and drop a filter.
 	const isScopeToggleDisabled = (category: FilterCategory) =>
 		scopeChipsOf(category).length !== 1;
-	// A category's first applied chip decides its scope toggle; with no chip
-	// the toggle is on. While its category is open, a typed prefix decides it
-	// instead. The typed key reaches the query only with the option picked.
 	const isScopeWidened = (category: FilterCategory) => {
 		const toggle = category.scopeToggle;
 		if (!toggle) {
@@ -505,10 +500,8 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
-	// The applied chip holding a value, ignoring letter case, unless a typed
-	// prefix sets the key. An option maps to it, so its row shows as applied
-	// and choosing it removes it; typed Enter with no option highlighted
-	// commits it, which keeps it.
+	// An option whose value an applied chip holds, ignoring case, maps to that
+	// chip, so it shows as selected and toggles the chip off.
 	const scopeChipHolding = (category: FilterCategory, value: string) => {
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return undefined;
@@ -1022,9 +1015,8 @@ export const useFilterCombobox = ({
 		}
 	};
 
-	// A pick in a scope category replaces the chip under the picked key, or the
-	// category's first chip when none uses that key, such as after a typed
-	// `owner:` or `user:` prefix.
+	// Falls back to the category's first chip, as after a typed prefix that
+	// switches the key.
 	const withCategoryOption = (token: string) => {
 		const category = categoryForChip(token);
 		const scopeChips = category ? scopeChipsOf(category) : [];
@@ -1466,10 +1458,9 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Let cmdk commit a currently highlighted category option. Otherwise
-		// Enter commits the typed value: the applied chip holding it, a listed
-		// option matching it ignoring letter case, or a new chip, so valid
-		// backend values do not have to appear in the suggestion list.
+		// Let cmdk commit a currently highlighted category option. If there is no
+		// rendered option to select, Enter commits the typed value directly so
+		// valid backend values do not have to appear in the suggestion list.
 		if (
 			event.key === "Enter" &&
 			mode === "category" &&
@@ -1482,8 +1473,8 @@ export const useFilterCombobox = ({
 				(option) =>
 					option.value.toLowerCase() === typedOption.value.toLowerCase(),
 			);
-			// See `scopeToggle`: unlisted values avoid the widened key, which a
-			// backend can reject (#29961 for Workspaces `user:`).
+			// Unlisted values avoid the widened key, which a backend can
+			// reject (#29961 for Workspaces `user:`).
 			const candidate =
 				scopeChipHolding(activeCategory, typedOption.value) ??
 				(listedOption
@@ -1623,7 +1614,6 @@ export const useFilterCombobox = ({
 		menuCategories,
 		listedCategories,
 		categoriesNarrowedByText: categoryQuery.length > 0,
-		// Category whose scopeToggle.searchPhrase starts with the typed text.
 		scopeMatchKey: scopeMatchedCategory?.key ?? null,
 		categoryPlaceholderCount,
 		autoHighlight: !typingFreeText && !placeholdersShown,
@@ -1650,10 +1640,7 @@ export const useFilterCombobox = ({
 				disabled: isScopeToggleDisabled(category),
 			};
 		},
-		// Key of the category whose scope pill follows this chip.
 		scopePillCategoryKey,
-		// While a scope category has a chip under each key, its chips show their
-		// own query keys instead of the category key.
 		showsOwnQueryKey: (token: string) => {
 			const category = categoryForChip(token);
 			return category !== undefined && scopeChipsOf(category).length > 1;
