@@ -114,12 +114,10 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 ### Transitions used by the HTTP endpoints
 
-<!-- TODO: document SendMessage(steer), steer rows stored for internal interrupt sends, and the steer jump rule on E1 -->
-
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be `queue`, `steer`, or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed. `steer` and `interrupt` messages are queued as `steer` messages. From `E1`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
 - `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
@@ -130,16 +128,15 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 
 ### Transitions used by the chat worker
 
-<!-- TODO: document DeliverSteerMessages and the steer jump rule in FinishTurn and FinishInterruption -->
-
 - `Acquire(worker_id, runner_id)` locks the chat row, sets `chats.worker_id` and `chats.runner_id`, and inserts an initial heartbeat row for `(chat_id, runner_id)`.
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
-- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
+- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes queued messages, it inserts every `steer` message, or the queue head if there are none, into history and lands in `running`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
+- `DeliverSteerMessages` verifies the chat is still `running`, removes the `steer` messages from the queue, inserts them into history in queue order, and stays in `running`. `queue` messages stay queued.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
-- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
+- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes every `steer` message, or the queue head if there are none, inserts them into history as a user turn, and lands in `running`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
@@ -147,8 +144,6 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Execution state transition diagram
-
-<!-- TODO: add SendMessage(steer), DeliverSteerMessages, and the steer jump rule edges -->
 
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
@@ -175,7 +170,10 @@ stateDiagram-v2
     E0 --> W: ClearContext
     E0 --> XE0: SetArchived(true)
 
-    E1 --> R1: SendMessage
+    E1 --> R1: SendMessage(queue)
+    E1 --> R1: SendMessage(interrupt)
+    E1 --> R0: SendMessage(steer) / promoted last queued
+    E1 --> R1: SendMessage(steer) / queue still non-empty
     E1 --> R0: EditMessage
     E1 --> R1: RequestCompaction
     E1 --> E0: DeleteQueuedMessage / removed last queued
@@ -194,6 +192,8 @@ stateDiagram-v2
     R0 --> W: FinishTurn / queue empty
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
+    R0 --> R1: SendMessage(steer)
+    R0 --> R0: DeliverSteerMessages
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -204,11 +204,14 @@ stateDiagram-v2
     R1 --> R0: EditMessage
     R1 --> E1: FinishError
     R1 --> R1: SendMessage(queue)
+    R1 --> R1: SendMessage(steer)
+    R1 --> R0: DeliverSteerMessages / promoted last queued
+    R1 --> R1: DeliverSteerMessages / queue still non-empty
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
     R1 --> R0: FinishTurn / promoted last queued
-    R1 --> R1: FinishTurn / queue still non-empty after promoting head
+    R1 --> R1: FinishTurn / queue still non-empty after promoting
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
@@ -220,12 +223,13 @@ stateDiagram-v2
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: PromoteQueuedMessage
     I1 --> R0: FinishInterruption / promoted last queued
-    I1 --> R1: FinishInterruption / queue still non-empty after promoting head
+    I1 --> R1: FinishInterruption / queue still non-empty after promoting
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
     A0 --> R0: CancelRequiresAction
     A0 --> A1: SendMessage(queue)
+    A0 --> A1: SendMessage(steer)
     A0 --> R1: SendMessage(interrupt)
     A0 --> R0: EditMessage
 
@@ -233,6 +237,7 @@ stateDiagram-v2
     A1 --> R1: Interrupt
     A1 --> R1: CancelRequiresAction
     A1 --> A1: SendMessage(queue)
+    A1 --> A1: SendMessage(steer)
     A1 --> R1: SendMessage(interrupt)
     A1 --> R0: EditMessage
     A1 --> A0: DeleteQueuedMessage / removed last queued
@@ -483,7 +488,7 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
 - `E0 -> SendMessage(m, queue) -> R0`
-- `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, and clears the error. The scenario where this happens is:
+- `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, or every `steer` message if there are any, and clears the error. The scenario where this happens is:
   - the user queued some messages
   - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
   - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
@@ -506,7 +511,7 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A0 -> SendMessage(m, interrupt) -> R1`
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized. `m` is queued as a `steer` message, so `FinishInterruption` promotes it together with any other `steer` messages, ahead of `queue` messages. When `SendMessage(m, interrupt)` lands in `R1` from `A0` or `A1`, `m` stays queued, and the chat worker promotes it with `DeliverSteerMessages` before its next LLM API call.
 
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
@@ -879,8 +884,6 @@ Retriable conditions include, but are not limited to:
 
 #### Generation goroutine
 
-<!-- TODO: document steer delivery before each assistant model call (not before compaction or local tool execution) -->
-
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
@@ -894,7 +897,7 @@ The retry limit is the `CODER_CHAT_MAX_GENERATION_RETRIES` deployment option (25
 
 The step limit is the `CODER_CHAT_MAX_STEPS_PER_TURN` deployment option (1200 by default). A step is one committed assistant response; compressed compaction and clear messages do not count. The count starts after the latest user message that is not model-only, so hook context and replayed compaction input do not restart it. After the tool calls requested by the last response have run, the goroutine checks the count, and once it reaches the limit, the goroutine finishes the turn the way it finishes a completed one instead of calling the LLM API again. The chat shows no error and gets no final assistant reply. With lifecycle hooks enabled, that finish dispatches the `stop` hook first, and a `stop` response with model context can continue the turn once, so a turn can exceed the limit by one response.
 
-The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
+The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. Before each assistant LLM API call, it first applies `DeliverSteerMessages`. Compaction calls don't apply it. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 
 When receiving streaming message parts from the LLM API, the generation goroutine adds them to the [Message part buffer](#message-part-buffer) in real time. Whenever it starts a new generation attempt, it must start a new episode in the buffer, and mark it as closed when the attempt is finished; either because the LLM API call returned a response, or the attempt was cancelled. If `AddPart` returns an error, the goroutine ignores it. Storing parts in the buffer is best-effort: if the buffer is full, or the episode is closed, the parts are dropped. A stale generation goroutine may keep on adding parts to the buffer until it is cancelled or exits.
 
