@@ -48,7 +48,6 @@ AI Gateway Proxy remains part of `coderd` and can forward its intercepted traffi
 
 The control connection between a standalone replica and `coderd` uses a versioned AI Gateway API.
 The current AI Gateway API version is defined in [`coderd/aibridged/proto/version.go`](../../../coderd/aibridged/proto/version.go).
-The unreleased v1.3 protocol adds workspace attribution and the authenticated user's email to the control connection.
 
 `coderd` validates the AI Gateway API version that a standalone replica advertises before it accepts the control connection.
 AI Gateway API compatibility follows these rules:
@@ -85,7 +84,8 @@ Email forwarding requires both the global `send_actor_headers` setting and a non
 
 AI Gateway uses values from the authenticated Coder account, not client-supplied headers.
 AI Gateway omits the email header when the authenticated account has no email address.
-Email is personal information, so enable the email option only for upstream providers you trust with that information.
+Actor header settings apply to every configured provider.
+Email is personal information, so set the email option only if every upstream may receive it.
 Gateway does not inject actor headers on passthrough routes.
 
 ### Header name restrictions

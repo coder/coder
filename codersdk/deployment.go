@@ -2091,7 +2091,7 @@ communicating directly.`,
 	}
 	aiGatewayActorHeaderEmail := serpent.Option{
 		Name:        "AI Gateway Actor Header Email",
-		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Email is personal information; opt in only for trusted upstream providers.",
+		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.",
 		Flag:        "ai-gateway-actor-header-email",
 		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
 		Value:       &c.AI.BridgeConfig.ActorHeaderEmail,

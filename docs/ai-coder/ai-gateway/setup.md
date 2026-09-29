@@ -120,7 +120,8 @@ ai_gateway:
 
 The equivalent CLI options are `--ai-gateway-actor-header-id`, `--ai-gateway-actor-header-username`, and `--ai-gateway-actor-header-email`.
 The email header is empty by default.
-To forward email, set `actor_header_email` to `X-AI-Bridge-Actor-Metadata-Email` only for trusted upstream providers.
+To forward email, set `actor_header_email`, for example to `X-AI-Bridge-Actor-Metadata-Email`.
+The setting applies to every configured provider, so enable it only if all of them, and any proxy in between, may receive user email addresses.
 For defaults, precedence, and privacy considerations, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
 
 ## Data Retention

@@ -1995,7 +1995,7 @@ Header name for the authenticated user's username. Empty disables this header. R
 | Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL</code> |
 | YAML        | <code>ai_gateway.actor_header_email</code>        |
 
-Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Email is personal information; opt in only for trusted upstream providers.
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
 
 ### --ai-gateway-dump-dir
 

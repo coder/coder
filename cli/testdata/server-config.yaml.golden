@@ -1034,8 +1034,8 @@ ai_gateway:
   # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
   actor_header_username: X-AI-Bridge-Actor-Metadata-Username
   # Header name for the authenticated user's email address. Empty disables this
-  # header. Requires AI Gateway actor headers to be enabled. Email is personal
-  # information; opt in only for trusted upstream providers.
+  # header. Requires AI Gateway actor headers to be enabled. Applies to every
+  # configured provider; email is personal information.
   # (default: <unset>, type: string)
   actor_header_email: ""
   # Base directory for dumping AI Gateway request/response pairs to disk for
