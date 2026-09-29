@@ -262,14 +262,19 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
-	var chat database.Chat
+	var (
+		chat        database.Chat
+		cancelable  []fantasy.ToolCallContent
+		toolCallIDs map[string]uuid.UUID
+	)
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		chat = loadedChat
-		return nil
+		cancelable, toolCallIDs, err = s.cancelableToolCalls(ctx, store, chat)
+		return err
 	})
 	if err != nil {
 		return normalizeTaskInfrastructureError(err, "lock chat for interrupt")
@@ -316,7 +321,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("convert buffered parts: %w", err)
 	}
 
-	canceled := s.cancelUnresolvedToolCalls(ctx, chat)
+	canceled := s.cancelUnresolvedToolCalls(ctx, chat, cancelable, toolCallIDs)
 
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -707,24 +712,24 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
-// cancelUnresolvedToolCalls cancels the chat's unresolved tool calls on
-// its agent and returns the results the agent's answers give, by provider
-// tool call ID. Calls without a result keep the generic interrupted
-// result, and a warning says why.
-func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat) map[string]fantasy.ToolResponse {
+// cancelableToolCalls returns the chat's unresolved tool calls that can be
+// canceled on its agent, with their tool call IDs by provider tool call ID.
+// Call it with the store of the chat's locked read so the calls belong to
+// the state the interrupt task started for. A failed read fails the locked
+// read, since the transaction cannot commit after it. Unparsable history
+// logs a warning and returns no calls.
+func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.Store, chat database.Chat) ([]fantasy.ToolCallContent, map[string]uuid.UUID, error) {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
-		return nil
+		return nil, nil, nil
 	}
-	logger := s.opts.Logger.With(slog.F("chat_id", chat.ID))
-	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	if err != nil {
-		logger.Warn(ctx, "load messages to cancel tool calls on agent", slog.Error(err))
-		return nil
+		return nil, nil, xerrors.Errorf("load messages to cancel tool calls on agent: %w", err)
 	}
 	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
-		logger.Warn(ctx, "find tool calls to cancel on agent", slog.Error(err))
-		return nil
+		s.opts.Logger.Warn(ctx, "find tool calls to cancel on agent", slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil, nil, nil
 	}
 	// Only these tools act on the agent, and only calls with a tool call
 	// ID can be canceled there, so other calls do not dial the agent.
@@ -733,9 +738,19 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 		_, ok := ids[call.ToolCallID]
 		return !ok || (call.ToolName != chattool.ExecuteToolName && call.ToolName != "edit_files" && call.ToolName != "write_file")
 	})
+	return calls, ids, nil
+}
+
+// cancelUnresolvedToolCalls cancels calls, the chat's unresolved tool
+// calls from cancelableToolCalls, on its agent and returns the results the
+// agent's answers give, by provider tool call ID. ids holds the calls'
+// tool call IDs. Calls without a result keep the generic interrupted
+// result, and a warning says why.
+func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat, calls []fantasy.ToolCallContent, ids map[string]uuid.UUID) map[string]fantasy.ToolResponse {
 	if len(calls) == 0 {
 		return nil
 	}
+	logger := s.opts.Logger.With(slog.F("chat_id", chat.ID))
 	ctx, cancel := context.WithTimeout(ctx, interruptCancelTimeout)
 	defer cancel()
 	conn, release, err := s.server.agentConnFn(ctx, chat.AgentID.UUID)
