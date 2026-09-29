@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -323,4 +324,59 @@ func countChannel(channels []string, channel string) int {
 		}
 	}
 	return c
+}
+
+// TestUpdateNonBlockingLockSkipsHeldRow verifies the acquisition lock mode:
+// while another transaction holds the chat row, Update returns
+// ErrChatLocked without waiting, running the callback, or publishing, and
+// records the attempt under its own metric outcome. Once the row is free
+// the same machine transitions normally.
+func TestUpdateNonBlockingLockSkipsHeldRow(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	created := createTestChat(t, f)
+	published := len(f.Pub.channels)
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- f.DB.InTx(func(store database.Store) error {
+			if _, err := store.LockChatForTransition(ctx, created.Chat.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		}, nil)
+	}()
+	testutil.TryReceive(ctx, t, locked)
+
+	reg := prometheus.NewRegistry()
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID).
+		WithMetrics(chatstate.NewMetrics(reg)).
+		WithNonBlockingLock()
+	callbackRan := false
+	err := m.Update(ctx, func(*chatstate.Tx, database.Store) error {
+		callbackRan = true
+		return nil
+	})
+	require.ErrorIs(t, err, chatstate.ErrChatLocked)
+	require.False(t, callbackRan, "the callback must not run without the lock")
+	require.Len(t, f.Pub.channels, published, "a skipped acquisition publishes nothing")
+	counts := histogramCounts(t, reg, "coderd_chatd_transition_duration_seconds", nil)
+	require.Equal(t, uint64(1), counts["none|lock_unavailable"])
+
+	close(release)
+	require.NoError(t, testutil.TryReceive(ctx, t, holderDone))
+
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+		return err
+	}))
+	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, after.Status)
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion, "the skipped attempt advanced nothing")
 }

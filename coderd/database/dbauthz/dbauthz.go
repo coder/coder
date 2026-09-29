@@ -7100,6 +7100,15 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
+func (q *querier) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.LockChatForAcquisitionRow, error) {
+	// Same permission as LockChatForTransition: the lock starts the Acquire
+	// transition.
+	if err := q.authorizeChatByID(ctx, id, policy.ActionUpdate); err != nil {
+		return database.LockChatForAcquisitionRow{}, err
+	}
+	return q.db.LockChatForAcquisition(ctx, id)
+}
+
 func (q *querier) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
 	// The lock starts a transition, so it requires the same permission as
 	// the writes that follow it.

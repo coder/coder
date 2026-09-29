@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -256,30 +255,6 @@ func (w *chatWorker) acquireCandidateSafely(
 	return w.acquireCandidate(ctx, workerID, manager, chatID)
 }
 
-// waitAcquireJitter sleeps a random duration in [0, AcquireJitter) so
-// replicas racing for the same chat stagger their acquisition pre-checks.
-// It uses wall time rather than the injected clock: the delay is random
-// load shaping, and tests that drive a mock clock would otherwise stall
-// acquisition on a timer they never advance.
-func (w *chatWorker) waitAcquireJitter(ctx context.Context) error {
-	if w.opts.AcquireJitter <= 0 {
-		return nil
-	}
-	//nolint:gosec // Load-shaping jitter, not used for crypto.
-	delay := time.Duration(rand.Int64N(int64(w.opts.AcquireJitter)))
-	if delay <= 0 {
-		return nil
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-timer.C:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func (w *chatWorker) acquireCandidate(
 	ctx context.Context,
 	workerID uuid.UUID,
@@ -287,13 +262,11 @@ func (w *chatWorker) acquireCandidate(
 	chatID uuid.UUID,
 ) (bool, error) {
 	// Every replica woken by the same ownership hint races for this chat and
-	// only one can win. Without a pre-check each loser takes the row lock,
-	// bumps the snapshot, and rolls back. A short random delay spreads the
-	// replicas, then a lock-free read lets the later ones see the winner's
-	// ownership and skip. The authoritative check still runs under the lock.
-	if err := w.waitAcquireJitter(ctx); err != nil {
-		return false, err
-	}
+	// only one can win. The lock-free read skips chats whose winner has
+	// already committed and supplies the RBAC object the lock authorizes
+	// with; the non-blocking lock below covers the rest, so a loser never
+	// queues on the row behind the winner. The authoritative check still
+	// runs under the lock.
 	precheck, err := w.opts.Store.GetChatTransitionState(ctx, database.GetChatTransitionStateParams{
 		ID:           chatID,
 		StaleSeconds: w.opts.HeartbeatStaleSeconds,
@@ -314,7 +287,7 @@ func (w *chatWorker) acquireCandidate(
 	}
 
 	runnerID := uuid.New()
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics).WithNonBlockingLock()
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// The lock already returned the row; reading it again here would
 		// add two round trips while the transition lock is held.
@@ -356,7 +329,7 @@ func (w *chatWorker) acquireCandidate(
 	if errors.Is(err, errCapacityRefused) {
 		return false, errCapacityRefused
 	}
-	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
+	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, chatstate.ErrChatLocked) {
 		return false, nil
 	}
 	if err != nil {

@@ -1357,6 +1357,13 @@ type sqlcQuerier interface {
 	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// LockChatForTransition with NOWAIT, for worker acquisition only. Several
+	// replicas wake on the same ownership hint and only one can claim the
+	// chat; a held row lock means another transaction is already claiming or
+	// driving it, so the caller skips (SQLSTATE 55P03) instead of queueing
+	// behind the winner and rolling back once it can read the owner. Every
+	// other transition keeps the blocking lock.
+	LockChatForAcquisition(ctx context.Context, id uuid.UUID) (LockChatForAcquisitionRow, error)
 	// Locks the chat row with FOR NO KEY UPDATE without writing it and returns
 	// the current chat. ChatMachine.Update uses this to start a transition; the
 	// transition's single commit write (UpdateChatExecutionState,

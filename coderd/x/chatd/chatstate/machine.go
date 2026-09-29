@@ -34,6 +34,7 @@ type ChatMachine struct {
 	publisher Publisher
 	chatID    uuid.UUID
 	metrics   *Metrics
+	noWait    bool
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -58,6 +59,36 @@ func NewChatMachine(
 func (m *ChatMachine) WithMetrics(metrics *Metrics) *ChatMachine {
 	m.metrics = metrics
 	return m
+}
+
+// WithNonBlockingLock makes Update fail with [ErrChatLocked] instead of
+// waiting when another transaction holds the chat row. Worker acquisition
+// uses it: a held lock means another replica is already claiming or
+// driving the chat, so queueing behind it only delays that replica's next
+// transition.
+func (m *ChatMachine) WithNonBlockingLock() *ChatMachine {
+	m.noWait = true
+	return m
+}
+
+// lockChat takes the transition lock and returns the locked row with its
+// queue flag. Both lock statements return the same shape.
+func (m *ChatMachine) lockChat(ctx context.Context, store database.Store) (database.Chat, bool, error) {
+	if m.noWait {
+		locked, err := store.LockChatForAcquisition(ctx, m.chatID)
+		if err != nil {
+			if database.IsLockNotAvailableError(err) {
+				return database.Chat{}, false, ErrChatLocked
+			}
+			return database.Chat{}, false, err
+		}
+		return locked.Chat, locked.HasQueued, nil
+	}
+	locked, err := store.LockChatForTransition(ctx, m.chatID)
+	if err != nil {
+		return database.Chat{}, false, err
+	}
+	return locked.Chat, locked.HasQueued, nil
 }
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
@@ -292,18 +323,21 @@ func (m *ChatMachine) UpdateReturning(
 	err := m.store.InTx(func(store database.Store) error {
 		lockStart = time.Now()
 		defer func() { callbackEnd = time.Now() }()
-		locked, err := store.LockChatForTransition(ctx, m.chatID)
+		lockedChat, hasQueued, err := m.lockChat(ctx, store)
 		lockEnd = time.Now()
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
+			}
+			if errors.Is(err, ErrChatLocked) {
+				return err
 			}
 			return xerrors.Errorf("lock chat: %w", err)
 		}
 		// The lock returned the authoritative row. Cache its RBAC object
 		// on the transaction context so dbauthz authorizes the callback's
 		// writes without re-reading the chat under the lock.
-		txCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(locked.Chat))
+		txCtx, err := dbauthz.WithChatRBAC(ctx, dbauthz.CacheableChatRBAC(lockedChat))
 		if err != nil {
 			return xerrors.Errorf("cache chat rbac: %w", err)
 		}
@@ -311,7 +345,7 @@ func (m *ChatMachine) UpdateReturning(
 			ctx:    txCtx,
 			store:  store,
 			chatID: m.chatID,
-			seed:   &txSeed{chat: locked.Chat, hasQueued: locked.HasQueued},
+			seed:   &txSeed{chat: lockedChat, hasQueued: hasQueued},
 		}
 		if err := fn(tx, store); err != nil {
 			return err

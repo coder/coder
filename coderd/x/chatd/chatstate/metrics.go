@@ -1,6 +1,7 @@
 package chatstate
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: "coderd",
 			Subsystem: "chatd",
 			Name:      "transition_duration_seconds",
-			Help:      "Wall time of one ChatMachine.Update from before BeginTx to after commit or rollback. The transition label lists the transitions the callback ran, joined by '+'.",
+			Help:      "Wall time of one ChatMachine.Update from before BeginTx to after commit or rollback. The transition label lists the transitions the callback ran, joined by '+'. The outcome is committed, rolled_back, or lock_unavailable (a non-blocking lock found the row held; the callback never ran).",
 			Buckets:   buckets,
 		}, []string{"transition", "outcome"}),
 		phase: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -64,7 +65,10 @@ func (m *Metrics) observe(transitions []Transition, err error, phases transition
 		label = strings.Join(names, "+")
 	}
 	outcome := "committed"
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrChatLocked):
+		outcome = "lock_unavailable"
+	case err != nil:
 		outcome = "rolled_back"
 	}
 	m.duration.WithLabelValues(label, outcome).Observe(phases.end.Sub(phases.start).Seconds())

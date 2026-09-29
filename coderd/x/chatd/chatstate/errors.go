@@ -35,6 +35,11 @@ var (
 	// since the transition started).
 	ErrChatNotFound = xerrors.New("chat not found")
 
+	// ErrChatLocked is returned by [ChatMachine.Update] on a machine
+	// configured with [ChatMachine.WithNonBlockingLock] when another
+	// transaction holds the chat row. Nothing was written or published.
+	ErrChatLocked = xerrors.New("chat row is locked by another transaction")
+
 	// ErrChatNotRoot is returned by family-archive helpers when the
 	// supplied chat is not a root chat (its parent_chat_id is set).
 	ErrChatNotRoot = xerrors.New("chat is not a root chat")

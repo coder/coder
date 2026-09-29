@@ -4944,6 +4944,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.LockChatForAcquisitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatForAcquisition(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatForAcquisition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatForAcquisition").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockChatForTransition(ctx, id)

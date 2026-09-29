@@ -9372,6 +9372,21 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
+// LockChatForAcquisition mocks base method.
+func (m *MockStore) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.LockChatForAcquisitionRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatForAcquisition", ctx, id)
+	ret0, _ := ret[0].(database.LockChatForAcquisitionRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockChatForAcquisition indicates an expected call of LockChatForAcquisition.
+func (mr *MockStoreMockRecorder) LockChatForAcquisition(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatForAcquisition", reflect.TypeOf((*MockStore)(nil).LockChatForAcquisition), ctx, id)
+}
+
 // LockChatForTransition mocks base method.
 func (m *MockStore) LockChatForTransition(ctx context.Context, id uuid.UUID) (database.LockChatForTransitionRow, error) {
 	m.ctrl.T.Helper()

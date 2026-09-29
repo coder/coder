@@ -371,6 +371,11 @@ func (s *lockCountingStore) LockChatForTransition(ctx context.Context, id uuid.U
 	return s.Store.LockChatForTransition(ctx, id)
 }
 
+func (s *lockCountingStore) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.LockChatForAcquisitionRow, error) {
+	s.locks.Add(1)
+	return s.Store.LockChatForAcquisition(ctx, id)
+}
+
 // TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking verifies the
 // lock-free acquisition pre-check: a replica that loses the race to a chat
 // with a live lease must skip without taking the row lock or bumping the
@@ -392,4 +397,53 @@ func TestWorker_PrecheckSkipsFreshlyOwnedChatWithoutLocking(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, acquired)
 	require.Zero(t, locks.Load(), "a losing replica must not take the row lock")
+}
+
+// TestWorker_AcquisitionSkipsLockedChatWithoutWaiting verifies the
+// non-blocking acquisition lock: while another transaction holds a chat
+// row (a replica mid-Acquire, or a SendMessage), the worker skips that chat
+// and moves on to the next candidate instead of queueing behind the
+// holder, then acquires the skipped chat on the next wake once the row is
+// free.
+func TestWorker_AcquisitionSkipsLockedChatWithoutWaiting(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	// Candidates are scanned oldest first, so the held chat is attempted
+	// before the free one.
+	held := f.createRunningChat(t)
+	free := f.createRunningChat(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- f.db.InTx(func(store database.Store) error {
+			if _, err := store.LockChatForTransition(ctx, held.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		}, nil)
+	}()
+	testutil.TryReceive(ctx, t, locked)
+
+	starter := newRecordingTaskStarter()
+	worker := startWorker(t, testOptions(t, f, starter))
+	worker.Wake()
+	// Reaching the second candidate while the first row is still held proves
+	// the attempt on the held row failed at the lock statement instead of
+	// blocking the scan.
+	call := starter.waitCall(t, taskKindGeneration, free.ID)
+	require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
+	latest, err := f.db.GetChatByID(ctx, held.ID)
+	require.NoError(t, err)
+	require.False(t, latest.WorkerID.Valid, "a skipped acquisition must not claim the chat")
+
+	close(release)
+	require.NoError(t, testutil.TryReceive(ctx, t, holderDone))
+	worker.Wake()
+	call = starter.waitCall(t, taskKindGeneration, held.ID)
+	require.Equal(t, worker.opts.WorkerID, call.input.WorkerID)
 }
