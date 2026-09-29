@@ -1368,6 +1368,20 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.requireChatAutomations,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listChatAutomations)
+			r.Post("/", api.postChatAutomation)
+			r.Route("/{automation}", func(r chi.Router) {
+				r.Get("/", api.chatAutomation)
+				r.Patch("/", api.patchChatAutomation)
+				r.Delete("/", api.deleteChatAutomation)
+			})
+		})
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

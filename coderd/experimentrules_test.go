@@ -93,6 +93,7 @@ func TestExperimentRules(t *testing.T) {
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample)},
 			{Experiment: string(codersdk.ExperimentMCPToolSearch), StaticDefault: true},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 		}, entries)
 
 		w.put(ctx, codersdk.ExperimentExample, codersdk.ExperimentRuleModeOn, "")
@@ -177,6 +178,7 @@ func TestExperimentRules(t *testing.T) {
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &stored},
 			{Experiment: string(codersdk.ExperimentMCPToolSearch)},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 		}, entries)
 	})
 
@@ -235,6 +237,7 @@ func TestExperimentRules(t *testing.T) {
 		require.Equal(t, []codersdk.ExperimentRuleEntry{
 			{Experiment: string(codersdk.ExperimentExample), Rule: &codersdk.ExperimentRule{Revision: 2}},
 			{Experiment: string(codersdk.ExperimentMCPToolSearch), Rule: &codersdk.ExperimentRule{}},
+			{Experiment: string(codersdk.ExperimentChatAutomations)},
 			{Experiment: string(codersdk.ExperimentAutoFillParameters), Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOff), Revision: 4}, Ignored: true},
 			{Experiment: "not-an-experiment", Rule: &codersdk.ExperimentRule{Mode: string(codersdk.ExperimentRuleModeOn), Revision: 1}, Ignored: true},
 		}, entries)

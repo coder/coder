@@ -5460,6 +5460,23 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const countChatAutomationsByOwnerID = `-- name: CountChatAutomationsByOwnerID :one
+SELECT
+    COUNT(*)
+FROM
+    chat_automations
+WHERE
+    owner_id = $1::uuid
+`
+
+// Counts the automations owner_id owns across all organizations.
+func (q *sqlQuerier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatAutomationsByOwnerID, ownerID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteChatAutomationByID = `-- name: DeleteChatAutomationByID :exec
 DELETE FROM
     chat_automations
@@ -5530,6 +5547,66 @@ FOR UPDATE
 // Missing ids are not returned.
 func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]ChatAutomation, error) {
 	rows, err := q.db.QueryContext(ctx, getChatAutomationsByIDsForUpdate, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.WhenBusy,
+			&i.WebhookUse,
+			&i.WebhookSecretHash,
+			&i.WebhookSecretVersion,
+			&i.WebhookConsumedAt,
+			&i.Prompt,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleRevision,
+			&i.ScheduleNextRunAt,
+			&i.QueueGeneration,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
+SELECT
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+FROM
+    chat_automations
+WHERE
+    organization_id = $1::uuid
+ORDER BY
+    created_at DESC,
+    id DESC
+`
+
+func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationsByOrganizationID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -5675,6 +5752,87 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		arg.ScheduleNextRunAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+	)
+	var i ChatAutomation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.CreatedByChatID,
+		&i.Kind,
+		&i.Enabled,
+		&i.TargetMode,
+		&i.TargetChatID,
+		&i.NewChatModelConfigID,
+		&i.ReasoningEffort,
+		&i.WhenBusy,
+		&i.WebhookUse,
+		&i.WebhookSecretHash,
+		&i.WebhookSecretVersion,
+		&i.WebhookConsumedAt,
+		&i.Prompt,
+		&i.ScheduleCron,
+		&i.ScheduleTimeZone,
+		&i.ScheduleRevision,
+		&i.ScheduleNextRunAt,
+		&i.QueueGeneration,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatAutomationByID = `-- name: UpdateChatAutomationByID :one
+UPDATE
+    chat_automations
+SET
+    name = $1,
+    prompt = $2,
+    target_chat_id = $3,
+    new_chat_model_config_id = $4,
+    reasoning_effort = $5,
+    when_busy = $6,
+    schedule_cron = $7,
+    schedule_time_zone = $8,
+    schedule_revision = $9,
+    schedule_next_run_at = $10,
+    updated_at = $11
+WHERE
+    id = $12::uuid
+RETURNING
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+`
+
+type UpdateChatAutomationByIDParams struct {
+	Name                 string                     `db:"name" json:"name"`
+	Prompt               string                     `db:"prompt" json:"prompt"`
+	TargetChatID         uuid.NullUUID              `db:"target_chat_id" json:"target_chat_id"`
+	NewChatModelConfigID uuid.NullUUID              `db:"new_chat_model_config_id" json:"new_chat_model_config_id"`
+	ReasoningEffort      NullChatReasoningEffort    `db:"reasoning_effort" json:"reasoning_effort"`
+	WhenBusy             NullChatAutomationWhenBusy `db:"when_busy" json:"when_busy"`
+	ScheduleCron         sql.NullString             `db:"schedule_cron" json:"schedule_cron"`
+	ScheduleTimeZone     sql.NullString             `db:"schedule_time_zone" json:"schedule_time_zone"`
+	ScheduleRevision     int64                      `db:"schedule_revision" json:"schedule_revision"`
+	ScheduleNextRunAt    sql.NullTime               `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	UpdatedAt            time.Time                  `db:"updated_at" json:"updated_at"`
+	ID                   uuid.UUID                  `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateChatAutomationByIDParams) (ChatAutomation, error) {
+	row := q.db.QueryRowContext(ctx, updateChatAutomationByID,
+		arg.Name,
+		arg.Prompt,
+		arg.TargetChatID,
+		arg.NewChatModelConfigID,
+		arg.ReasoningEffort,
+		arg.WhenBusy,
+		arg.ScheduleCron,
+		arg.ScheduleTimeZone,
+		arg.ScheduleRevision,
+		arg.ScheduleNextRunAt,
+		arg.UpdatedAt,
+		arg.ID,
 	)
 	var i ChatAutomation
 	err := row.Scan(

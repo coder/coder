@@ -1784,6 +1784,49 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 	}
 }
 
+// ChatAutomation converts a chat automation row to its SDK form. The
+// webhook secret hash is never included. nextRuns are the upcoming schedule
+// runs the caller computed; a nil slice is returned as empty.
+func ChatAutomation(row database.ChatAutomation, nextRuns []time.Time) codersdk.ChatAutomation {
+	automation := codersdk.ChatAutomation{
+		ID:                   row.ID,
+		OrganizationID:       row.OrganizationID,
+		OwnerID:              row.OwnerID,
+		Name:                 row.Name,
+		CreatedByChatID:      nullUUIDPtr(row.CreatedByChatID),
+		Kind:                 codersdk.ChatAutomationKind(row.Kind),
+		Enabled:              row.Enabled,
+		TargetMode:           codersdk.ChatAutomationTargetMode(row.TargetMode),
+		TargetChatID:         nullUUIDPtr(row.TargetChatID),
+		NewChatModelConfigID: nullUUIDPtr(row.NewChatModelConfigID),
+		WebhookSecretVersion: row.WebhookSecretVersion,
+		WebhookConsumedAt:    nullTimePtr(row.WebhookConsumedAt),
+		Prompt:               row.Prompt,
+		ScheduleCron:         nullStringPtr(row.ScheduleCron),
+		ScheduleTimeZone:     nullStringPtr(row.ScheduleTimeZone),
+		ScheduleNextRunAt:    nullTimePtr(row.ScheduleNextRunAt),
+		NextRunTimes:         nextRuns,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+	}
+	if automation.NextRunTimes == nil {
+		automation.NextRunTimes = []time.Time{}
+	}
+	if row.ReasoningEffort.Valid {
+		effort := string(row.ReasoningEffort.ChatReasoningEffort)
+		automation.ReasoningEffort = &effort
+	}
+	if row.WhenBusy.Valid {
+		whenBusy := codersdk.ChatAutomationWhenBusy(row.WhenBusy.ChatAutomationWhenBusy)
+		automation.WhenBusy = &whenBusy
+	}
+	if row.WebhookUse.Valid {
+		webhookUse := codersdk.ChatAutomationWebhookUse(row.WebhookUse.ChatAutomationWebhookUse)
+		automation.WebhookUse = &webhookUse
+	}
+	return automation
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil

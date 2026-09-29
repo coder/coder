@@ -1866,6 +1866,17 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
 
+### --chat-max-automations-per-owner
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>int</code>                                   |
+| Environment | <code>$CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER</code> |
+| YAML        | <code>chat.maxAutomationsPerOwner</code>           |
+| Default     | <code>50</code>                                    |
+
+Maximum number of chat automations one user can own across all organizations. Creating one more fails with HTTP 409. Must be at least 1.
+
 ### --chat-stream-silence-timeout
 
 |             |                                                 |

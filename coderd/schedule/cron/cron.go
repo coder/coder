@@ -94,6 +94,49 @@ func TimeRange(raw string) (*Schedule, error) {
 	return parse(raw)
 }
 
+// Standard parses a Schedule from a standard five-field cron spec
+// (minute, hour, day of month, month, day of week) evaluated in timeZone.
+// Unlike Weekly and Daily, every field may be restricted. The spec must
+// not carry its own CRON_TZ= or TZ= prefix, and descriptors such as
+// @daily or @every are not supported. timeZone must be a non-empty IANA
+// time zone name other than Local.
+//
+// Example Usage:
+//
+//	sched, _ := cron.Standard("0 9 1 * *", "Europe/Berlin")
+//	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
+//	// Output: 2022-05-01T07:00:00Z
+func Standard(spec, timeZone string) (*Schedule, error) {
+	fields := strings.Fields(spec)
+	if len(fields) != 5 {
+		return nil, xerrors.Errorf("schedule must have exactly 5 fields (minute, hour, day of month, month, day of week), got %d", len(fields))
+	}
+	for _, field := range fields {
+		if strings.Contains(field, "=") || strings.HasPrefix(field, "@") {
+			return nil, xerrors.Errorf("schedule field %q is not supported: set the time zone separately and do not use descriptors", field)
+		}
+	}
+	if err := ValidateTimeZone(timeZone); err != nil {
+		return nil, err
+	}
+	return parse("CRON_TZ=" + timeZone + " " + strings.Join(fields, " "))
+}
+
+// ValidateTimeZone reports whether timeZone is a non-empty IANA time zone
+// name other than Local, as Standard requires.
+func ValidateTimeZone(timeZone string) error {
+	if timeZone == "" {
+		return xerrors.New("time zone is required")
+	}
+	if timeZone == "Local" {
+		return xerrors.New("time zone Local is not supported: use an IANA time zone name")
+	}
+	if _, err := time.LoadLocation(timeZone); err != nil {
+		return xerrors.Errorf("invalid time zone %q: %w", timeZone, err)
+	}
+	return nil
+}
+
 func parse(raw string) (*Schedule, error) {
 	// If schedule does not specify a timezone, default to UTC. Otherwise,
 	// the library will default to time.Local which we want to avoid.

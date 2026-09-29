@@ -86,7 +86,7 @@ func TestExperimentRules(t *testing.T) {
 		require.NoError(t, err)
 		var entries []codersdk.ExperimentRuleEntry
 		require.NoError(t, json.Unmarshal([]byte(stdout), &entries))
-		require.Len(t, entries, 2)
+		require.Len(t, entries, len(codersdk.ExperimentsUserScoped))
 		require.Equal(t, rule, entries[0].Rule)
 
 		stdout, _, err = run("list")

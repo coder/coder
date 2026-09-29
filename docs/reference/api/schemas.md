@@ -1075,6 +1075,7 @@ title: Schemas
       "user": {}
     },
     "max_attachments_per_chat": 0,
+    "max_automations_per_owner": 0,
     "max_concurrent_recording_uploads": 0,
     "max_generation_retries": 0,
     "max_prompt_bytes": 0,
@@ -2570,6 +2571,129 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |---------------------|---------|----------|--------------|-------------|
 | `auto_archive_days` | integer | false    |              |             |
 
+## codersdk.ChatAutomation
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "kind": "webhook",
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "next_run_times": [
+    "2019-08-24T14:15:22Z"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "prompt": "string",
+  "reasoning_effort": "string",
+  "schedule_cron": "string",
+  "schedule_next_run_at": "2019-08-24T14:15:22Z",
+  "schedule_time_zone": "string",
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "target_mode": "existing_chat",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "webhook_consumed_at": "2019-08-24T14:15:22Z",
+  "webhook_secret_version": 0,
+  "webhook_use": "single",
+  "when_busy": "queue"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                            |
+|----------------------------|------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string                                                                 | false    |              |                                                                                                                        |
+| `created_by_chat_id`       | string                                                                 | false    |              |                                                                                                                        |
+| `enabled`                  | boolean                                                                | false    |              |                                                                                                                        |
+| `id`                       | string                                                                 | false    |              |                                                                                                                        |
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                        |
+| `name`                     | string                                                                 | false    |              |                                                                                                                        |
+| `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                        |
+| `next_run_times`           | array of string                                                        | false    |              | Next run times lists up to five upcoming runs of an enabled schedule. It is empty for webhooks and disabled schedules. |
+| `organization_id`          | string                                                                 | false    |              |                                                                                                                        |
+| `owner_id`                 | string                                                                 | false    |              |                                                                                                                        |
+| `prompt`                   | string                                                                 | false    |              |                                                                                                                        |
+| `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                        |
+| `schedule_cron`            | string                                                                 | false    |              |                                                                                                                        |
+| `schedule_next_run_at`     | string                                                                 | false    |              |                                                                                                                        |
+| `schedule_time_zone`       | string                                                                 | false    |              |                                                                                                                        |
+| `target_chat_id`           | string                                                                 | false    |              |                                                                                                                        |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                        |
+| `updated_at`               | string                                                                 | false    |              |                                                                                                                        |
+| `webhook_consumed_at`      | string                                                                 | false    |              |                                                                                                                        |
+| `webhook_secret_version`   | integer                                                                | false    |              |                                                                                                                        |
+| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |                                                                                                                        |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |                                                                                                                        |
+
+#### Enumerated Values
+
+| Property      | Value(s)                    |
+|---------------|-----------------------------|
+| `kind`        | `schedule`, `webhook`       |
+| `target_mode` | `existing_chat`, `new_chat` |
+| `webhook_use` | `multi`, `single`           |
+| `when_busy`   | `queue`, `skip`             |
+
+## codersdk.ChatAutomationKind
+
+```json
+"webhook"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)              |
+|-----------------------|
+| `schedule`, `webhook` |
+
+## codersdk.ChatAutomationTargetMode
+
+```json
+"existing_chat"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                    |
+|-----------------------------|
+| `existing_chat`, `new_chat` |
+
+## codersdk.ChatAutomationWebhookUse
+
+```json
+"single"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)          |
+|-------------------|
+| `multi`, `single` |
+
+## codersdk.ChatAutomationWhenBusy
+
+```json
+"queue"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)        |
+|-----------------|
+| `queue`, `skip` |
+
 ## codersdk.ChatBusyBehavior
 
 ```json
@@ -2622,6 +2746,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "user": {}
   },
   "max_attachments_per_chat": 0,
+  "max_automations_per_owner": 0,
   "max_concurrent_recording_uploads": 0,
   "max_generation_retries": 0,
   "max_prompt_bytes": 0,
@@ -2643,6 +2768,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
 | `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
 | `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_automations_per_owner`        | integer                    | false    |              | Max automations per owner is the maximum number of chat automations one user can own across all organizations.                            |
 | `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
 | `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
 | `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
@@ -5884,6 +6010,90 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
 | `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
 
+## codersdk.CreateChatAutomationRequest
+
+```json
+{
+  "kind": "webhook",
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "prompt": "string",
+  "reasoning_effort": "string",
+  "schedule_cron": "string",
+  "schedule_time_zone": "string",
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "target_mode": "existing_chat",
+  "webhook_use": "single",
+  "when_busy": "queue"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                                   | Required | Restrictions | Description |
+|----------------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |             |
+| `name`                     | string                                                                 | false    |              |             |
+| `new_chat_model_config_id` | string                                                                 | false    |              |             |
+| `prompt`                   | string                                                                 | false    |              |             |
+| `reasoning_effort`         | string                                                                 | false    |              |             |
+| `schedule_cron`            | string                                                                 | false    |              |             |
+| `schedule_time_zone`       | string                                                                 | false    |              |             |
+| `target_chat_id`           | string                                                                 | false    |              |             |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |             |
+| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |             |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |             |
+
+#### Enumerated Values
+
+| Property      | Value(s)                    |
+|---------------|-----------------------------|
+| `kind`        | `schedule`, `webhook`       |
+| `target_mode` | `existing_chat`, `new_chat` |
+| `webhook_use` | `multi`, `single`           |
+| `when_busy`   | `queue`, `skip`             |
+
+## codersdk.CreateChatAutomationResponse
+
+```json
+{
+  "automation": {
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_chat_id": "3dc4e58f-14e6-4902-8349-f9b3287f98a9",
+    "enabled": true,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "kind": "webhook",
+    "name": "string",
+    "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+    "next_run_times": [
+      "2019-08-24T14:15:22Z"
+    ],
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "prompt": "string",
+    "reasoning_effort": "string",
+    "schedule_cron": "string",
+    "schedule_next_run_at": "2019-08-24T14:15:22Z",
+    "schedule_time_zone": "string",
+    "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+    "target_mode": "existing_chat",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "webhook_consumed_at": "2019-08-24T14:15:22Z",
+    "webhook_secret_version": 0,
+    "webhook_use": "single",
+    "when_busy": "queue"
+  },
+  "webhook_secret": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description |
+|------------------|----------------------------------------------------|----------|--------------|-------------|
+| `automation`     | [codersdk.ChatAutomation](#codersdkchatautomation) | false    |              |             |
+| `webhook_secret` | string                                             | false    |              |             |
+
 ## codersdk.CreateChatMessageRequest
 
 ```json
@@ -7604,6 +7814,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "user": {}
         },
         "max_attachments_per_chat": 0,
+        "max_automations_per_owner": 0,
         "max_concurrent_recording_uploads": 0,
         "max_generation_retries": 0,
         "max_prompt_bytes": 0,
@@ -8239,6 +8450,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "user": {}
       },
       "max_attachments_per_chat": 0,
+      "max_automations_per_owner": 0,
       "max_concurrent_recording_uploads": 0,
       "max_generation_retries": 0,
       "max_prompt_bytes": 0,
@@ -9237,9 +9449,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                      |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-automations`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -15924,6 +16136,40 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name                | Type    | Required | Restrictions | Description |
 |---------------------|---------|----------|--------------|-------------|
 | `auto_archive_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatAutomationRequest
+
+```json
+{
+  "name": "string",
+  "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
+  "prompt": "string",
+  "reasoning_effort": "string",
+  "schedule_cron": "string",
+  "schedule_time_zone": "string",
+  "target_chat_id": "6cfb1625-d23b-4c12-87c5-a714748aceaa",
+  "when_busy": "queue"
+}
+```
+
+### Properties
+
+| Name                       | Type                                                               | Required | Restrictions | Description |
+|----------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `name`                     | string                                                             | false    |              |             |
+| `new_chat_model_config_id` | string                                                             | false    |              |             |
+| `prompt`                   | string                                                             | false    |              |             |
+| `reasoning_effort`         | string                                                             | false    |              |             |
+| `schedule_cron`            | string                                                             | false    |              |             |
+| `schedule_time_zone`       | string                                                             | false    |              |             |
+| `target_chat_id`           | string                                                             | false    |              |             |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |             |
+
+#### Enumerated Values
+
+| Property    | Value(s)        |
+|-------------|-----------------|
+| `when_busy` | `queue`, `skip` |
 
 ## codersdk.UpdateChatDebugLoggingAllowUsersRequest
 

@@ -2132,6 +2132,73 @@ export interface ChatAutoArchiveDaysResponse {
 	readonly auto_archive_days: number;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomation is a webhook or scheduled automation that delivers a
+ * prompt to an agent chat. It never carries the webhook secret or its
+ * hash.
+ */
+export interface ChatAutomation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly name: string;
+	readonly created_by_chat_id?: string;
+	readonly kind: ChatAutomationKind;
+	readonly enabled: boolean;
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id?: string;
+	readonly new_chat_model_config_id?: string;
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly webhook_use?: ChatAutomationWebhookUse;
+	readonly webhook_secret_version: number;
+	readonly webhook_consumed_at?: string;
+	readonly prompt: string;
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+	readonly schedule_next_run_at?: string;
+	/**
+	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
+	 * It is empty for webhooks and disabled schedules.
+	 */
+	readonly next_run_times: readonly string[];
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationKind = "schedule" | "webhook";
+
+export const ChatAutomationKinds: ChatAutomationKind[] = [
+	"schedule",
+	"webhook",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
+
+export const ChatAutomationTargetModes: ChatAutomationTargetMode[] = [
+	"existing_chat",
+	"new_chat",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWebhookUse = "multi" | "single";
+
+export const ChatAutomationWebhookUses: ChatAutomationWebhookUse[] = [
+	"multi",
+	"single",
+];
+
+export const ChatAutomationWhenBusies: ChatAutomationWhenBusy[] = [
+	"queue",
+	"skip",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWhenBusy = "queue" | "skip";
+
 // From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
@@ -2209,6 +2276,11 @@ export interface ChatConfig {
 	 * desktop recordings that each Coder server stores at the same time.
 	 */
 	readonly max_concurrent_recording_uploads: number;
+	/**
+	 * MaxAutomationsPerOwner is the maximum number of chat automations
+	 * one user can own across all organizations.
+	 */
+	readonly max_automations_per_owner: number;
 	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
@@ -4022,6 +4094,36 @@ export interface CreateAIProviderRequest {
 	readonly settings?: AIProviderSettings;
 }
 
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationRequest creates a chat automation owned by the
+ * caller.
+ */
+export interface CreateChatAutomationRequest {
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id?: string;
+	readonly new_chat_model_config_id?: string;
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly webhook_use?: ChatAutomationWebhookUse;
+	readonly prompt: string;
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * CreateChatAutomationResponse is returned when a chat automation is
+ * created. WebhookSecret is set only for webhook automations, and this is
+ * the only response that ever contains it.
+ */
+export interface CreateChatAutomationResponse {
+	readonly automation: ChatAutomation;
+	readonly webhook_secret?: string;
+}
+
 // From codersdk/chats.go
 /**
  * CreateChatMessageRequest is the request to add a message to a chat.
@@ -4889,6 +4991,14 @@ export const DefaultChatMaxAttachmentsPerChat = 50;
 // From codersdk/chats.go
 /**
  * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAutomationsPerOwner is the default maximum number of
+ * chat automations one user can own across all organizations.
+ */
+export const DefaultChatMaxAutomationsPerOwner = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
  * DefaultChatMaxConcurrentRecordingUploads is the default maximum
  * number of virtual desktop recordings that each Coder server stores
  * at the same time.
@@ -5302,6 +5412,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
@@ -5381,6 +5492,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
@@ -10333,6 +10445,22 @@ export interface UpdateChatACL {
  */
 export interface UpdateChatAutoArchiveDaysRequest {
 	readonly auto_archive_days: number;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * UpdateChatAutomationRequest changes the set fields of a chat automation.
+ * The kind and target mode of an automation cannot change.
+ */
+export interface UpdateChatAutomationRequest {
+	readonly name?: string;
+	readonly prompt?: string;
+	readonly schedule_cron?: string;
+	readonly schedule_time_zone?: string;
+	readonly reasoning_effort?: string;
+	readonly when_busy?: ChatAutomationWhenBusy;
+	readonly target_chat_id?: string;
+	readonly new_chat_model_config_id?: string;
 }
 
 // From codersdk/chats.go

@@ -2021,6 +2021,15 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
+// CountChatAutomationsByOwnerID counts rows across every organization, so it
+// requires site-wide read on chat automations rather than per-row checks.
+func (q *querier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatAutomation); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatAutomationsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return database.CountChatCapacityActiveByPoolRow{}, err
@@ -3211,6 +3220,10 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 
 func (q *querier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByIDsForUpdate)(ctx, ids)
+}
+
+func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatAutomation, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatAutomationsByOrganizationID)(ctx, organizationID)
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -7561,6 +7574,34 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
+}
+
+// UpdateChatAutomationByID authorizes update on the automation and, like
+// InsertChatAutomation, authorizes a newly referenced target chat (update)
+// or model config (read). Unchanged references are not checked again.
+func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.UpdateChatAutomationByIDParams) (database.ChatAutomation, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if arg.TargetChatID.Valid && arg.TargetChatID != automation.TargetChatID {
+		chat, err := q.db.GetChatByID(ctx, arg.TargetChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.NewChatModelConfigID.Valid && arg.NewChatModelConfigID != automation.NewChatModelConfigID {
+		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	return q.db.UpdateChatAutomationByID(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

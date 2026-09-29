@@ -1532,6 +1532,57 @@ func (s *MethodTestSuite) TestChats() {
 		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
 		check.Args(automation.ID).Asserts(object, policy.ActionDelete).Returns()
 	}))
+	s.Run("GetChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationsByOrganizationID(gomock.Any(), automation.OrganizationID).Return([]database.ChatAutomation{automation}, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args(automation.OrganizationID).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
+	}))
+	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceChatAutomation, policy.ActionRead).Returns(int64(3))
+	}))
+	s.Run("UpdateChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		// Unchanged references are not authorized again.
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.UpdateChatAutomationByIDParams{
+			ID:                   automation.ID,
+			Name:                 "renamed",
+			TargetChatID:         automation.TargetChatID,
+			NewChatModelConfigID: automation.NewChatModelConfigID,
+		}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationByID(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args(arg).Asserts(object, policy.ActionUpdate).Returns(automation)
+	}))
+	s.Run("UpdateChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		// A changed target chat needs update and a changed model config needs read.
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		target := testutil.Fake(s.T(), faker, database.Chat{})
+		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
+		arg := database.UpdateChatAutomationByIDParams{
+			ID:                   automation.ID,
+			TargetChatID:         uuid.NullUUID{UUID: target.ID, Valid: true},
+			NewChatModelConfigID: uuid.NullUUID{UUID: config.ID, Valid: true},
+		}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), target.ID).Return(target, nil).AnyTimes()
+		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationByID(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		modelObject := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(arg).Asserts(
+			object, policy.ActionUpdate,
+			target, policy.ActionUpdate,
+			modelObject, policy.ActionRead,
+		).Returns(automation)
+	}))
 	s.Run("InsertChatFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatFileParams{})
 		file := testutil.Fake(s.T(), faker, database.InsertChatFileRow{OwnerID: arg.OwnerID, OrganizationID: arg.OrganizationID})
