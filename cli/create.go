@@ -519,17 +519,21 @@ func resolvePreset(presets []codersdk.Preset, presetName string) (*codersdk.Pres
 	return nil, ErrNoPresetFound
 }
 
-// presetNoneOption is the selection menu label for creating a workspace
-// without a preset, matching the dashboard's "None" option.
-const presetNoneOption = "None"
+const (
+	// presetNoneOption is the selection menu label for creating a workspace
+	// without a preset, matching the dashboard's "None" option.
+	presetNoneOption = "None"
+	// presetNoneFallbackOption replaces presetNoneOption when a preset's
+	// label is also "None", so the menu never shows two identical entries.
+	presetNoneFallbackOption = "None (no preset)"
+)
 
-// promptPresetSelection shows a CLI selection menu of the presets defined in the template version,
-// preceded by a "None" option.
-// Returns the selected preset, or nil if the user selected "None".
-func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
-	presetMap := make(map[string]*codersdk.Preset)
-	presetOptions := []string{presetNoneOption}
-
+// presetSelectOptions builds the preset selection menu entries. The first
+// entry is the label for applying no preset, which is also returned as
+// noneOption. presetMap maps every other entry to its preset.
+func presetSelectOptions(presets []codersdk.Preset) (options []string, noneOption string, presetMap map[string]*codersdk.Preset) {
+	presetMap = make(map[string]*codersdk.Preset, len(presets))
+	presetOptions := make([]string, 0, len(presets))
 	for _, preset := range presets {
 		var option string
 		if preset.Description == "" {
@@ -541,6 +545,19 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 		presetMap[option] = &preset
 	}
 
+	noneOption = presetNoneOption
+	if _, ok := presetMap[noneOption]; ok {
+		noneOption = presetNoneFallbackOption
+	}
+	return append([]string{noneOption}, presetOptions...), noneOption, presetMap
+}
+
+// promptPresetSelection shows a CLI selection menu of the presets defined in the template version,
+// preceded by an option to apply no preset.
+// Returns the selected preset, or nil if the user chose to apply no preset.
+func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (*codersdk.Preset, error) {
+	presetOptions, noneOption, presetMap := presetSelectOptions(presets)
+
 	// Show selection UI
 	_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "Select a preset below:"))
 	selected, err := cliui.Select(inv, cliui.SelectOptions{
@@ -551,7 +568,7 @@ func promptPresetSelection(inv *serpent.Invocation, presets []codersdk.Preset) (
 		return nil, xerrors.Errorf("failed to select preset: %w", err)
 	}
 
-	if selected == presetNoneOption {
+	if selected == noneOption {
 		return nil, nil //nolint:nilnil // A nil preset means no preset is applied.
 	}
 	return presetMap[selected], nil
