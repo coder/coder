@@ -19,9 +19,11 @@ import (
 	"github.com/coder/quartz"
 )
 
-// entryMaxAge is how long a tool call is remembered. A retry after this
-// runs the tool call again.
-const entryMaxAge = time.Hour
+// forgetAfter is how old a tool call record may get. Adding a record
+// deletes records older than this, to bound the table's memory. After
+// deletion, a retry of the tool call runs it again and a cancel answers
+// received: false.
+const forgetAfter = time.Hour
 
 type key struct {
 	chatID uuid.UUID
@@ -51,12 +53,12 @@ func New(clock quartz.Clock, kill func(ctx context.Context, chatID, id uuid.UUID
 	return &Table{clock: clock, kill: kill, entries: make(map[key]*entry)}
 }
 
-// add stores e under k and drops entries older than entryMaxAge.
+// add stores e under k and drops entries older than forgetAfter.
 // t.mu must be held.
 func (t *Table) add(k key, e *entry) {
 	e.added = t.clock.Now()
 	for k, old := range t.entries {
-		if e.added.Sub(old.added) > entryMaxAge {
+		if e.added.Sub(old.added) > forgetAfter {
 			delete(t.entries, k)
 		}
 	}
