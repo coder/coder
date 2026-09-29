@@ -108,7 +108,9 @@ func IsActorHeader(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
 }
 
-// headersFromActor produces a map of headers from a given [aibcontext.Actor].
+// headersFromActor maps supported actor attributes to configured header names.
+// Attributes with no destination and unknown mapping keys are ignored.
+// No headers are returned if actor is nil.
 func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]string) map[string]string {
 	if actor == nil {
 		return nil
