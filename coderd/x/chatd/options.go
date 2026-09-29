@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/quartz"
 )
@@ -196,6 +197,7 @@ type chatWorkerOptions struct {
 
 	AgentCapacityLimiter AgentCapacityLimiter
 	CapacityMetrics      *capacityMetrics
+	TransitionMetrics    *chatstate.Metrics
 
 	AcquisitionInterval      time.Duration
 	CapacityMetricsInterval  time.Duration

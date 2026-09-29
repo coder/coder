@@ -314,7 +314,7 @@ func (w *chatWorker) acquireCandidate(
 	}
 
 	runnerID := uuid.New()
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics)
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// The lock already returned the row; reading it again here would
 		// add two round trips while the transition lock is held.
@@ -374,7 +374,7 @@ func (w *chatWorker) acquireCandidate(
 func (w *chatWorker) abandonAcquiredChat(ctx context.Context, workerID uuid.UUID, runnerID uuid.UUID, chatID uuid.UUID) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownCleanupTimeout)
 	defer cancel()
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithMetrics(w.opts.TransitionMetrics)
 	err := machine.Update(cleanupCtx, func(tx *chatstate.Tx, _ database.Store) error {
 		// The lock already returned the row; verify ownership against it
 		// instead of re-reading while the lock is held.

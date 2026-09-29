@@ -199,6 +199,7 @@ type Server struct {
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
+	transitionMetrics    *chatstate.Metrics
 	chatWorker           *chatWorker
 	messagePartBuffer    *messagepartbuffer.Buffer
 	streamSyncPoller     *streamSyncPoller
@@ -2994,6 +2995,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
+		p.transitionMetrics = chatstate.NewMetrics(cfg.PrometheusRegistry)
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "chat_auto_archive",
@@ -3030,6 +3032,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		MessagePartBuffer:     p.messagePartBuffer,
 		AgentCapacityLimiter:  agentCapacityLimiter,
 		CapacityMetrics:       agentCapacityMetrics,
+		TransitionMetrics:     p.transitionMetrics,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,

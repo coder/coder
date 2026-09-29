@@ -431,7 +431,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	if input.TurnID == uuid.Nil {
 		input.TurnID = uuid.New()
 	}
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	for {
 		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {

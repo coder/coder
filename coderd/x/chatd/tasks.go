@@ -249,7 +249,7 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 }
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	var chat database.Chat
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
@@ -362,7 +362,7 @@ func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome i
 }
 
 func (s *taskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	for {
 		decision, err := decideRequiresActionTimeout(ctx, machine, input)
 		if err != nil {
@@ -475,7 +475,7 @@ func (s *taskStarter) cancelRequiresAction(
 }
 
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID).WithMetrics(s.opts.TransitionMetrics)
 	mismatch := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		// The lock already returned the row; verify against it instead of

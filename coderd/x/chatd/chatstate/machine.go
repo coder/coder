@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -32,6 +33,7 @@ type ChatMachine struct {
 	store     database.Store
 	publisher Publisher
 	chatID    uuid.UUID
+	metrics   *Metrics
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -51,6 +53,13 @@ func NewChatMachine(
 	}
 }
 
+// WithMetrics makes Update record its transactions in metrics. A nil
+// value leaves recording off.
+func (m *ChatMachine) WithMetrics(metrics *Metrics) *ChatMachine {
+	m.metrics = metrics
+	return m
+}
+
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID.
@@ -67,7 +76,8 @@ func NewChatMachine(
 // Tx also records write intent for the commit write: whether the
 // transaction changed chat history or the queue, and how many commit
 // writes ran. The helpers that perform those writes set the flags and
-// the next commit write consumes them (see takeVersionFlags).
+// the next commit write consumes them (see takeVersionFlags). The
+// transitions the callback invoked are kept for metrics.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
@@ -78,6 +88,7 @@ type Tx struct {
 	historyChanged bool
 	queueChanged   bool
 	commits        int
+	transitions    []Transition
 }
 
 // txSeed is the chat row and queue flag returned by the transition lock.
@@ -169,6 +180,7 @@ func (tx *Tx) requireNoVersionFlags(t Transition) error {
 // and t is not [TransitionReconcileInvalidState], and a typed
 // *TransitionError otherwise.
 func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, error) {
+	tx.transitions = append(tx.transitions, t)
 	chat, from, err := tx.loadState()
 	if err != nil {
 		return chat, from, err
@@ -226,8 +238,15 @@ func (m *ChatMachine) Update(
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
+	start := time.Now()
+	var (
+		tx       *Tx
+		lockWait time.Duration
+	)
 	err := m.store.InTx(func(store database.Store) error {
+		lockStart := time.Now()
 		locked, err := store.LockChatForTransition(ctx, m.chatID)
+		lockWait = time.Since(lockStart)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
@@ -241,7 +260,7 @@ func (m *ChatMachine) Update(
 		if err != nil {
 			return xerrors.Errorf("cache chat rbac: %w", err)
 		}
-		tx := &Tx{
+		tx = &Tx{
 			ctx:    txCtx,
 			store:  store,
 			chatID: m.chatID,
@@ -289,6 +308,11 @@ func (m *ChatMachine) Update(
 		}
 		return nil
 	}, nil)
+	var transitions []Transition
+	if tx != nil {
+		transitions = tx.transitions
+	}
+	m.metrics.observe(transitions, err, time.Since(start), lockWait)
 	if err != nil {
 		return err
 	}
