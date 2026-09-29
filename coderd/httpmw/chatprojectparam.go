@@ -22,6 +22,8 @@ func ChatProjectParam(r *http.Request) database.ChatProject {
 }
 
 // ExtractChatProjectParam grabs a chat project from the "project" URL parameter.
+// It must run after ExtractOrganizationParam; projects outside the route
+// organization are reported as not found.
 func ExtractChatProjectParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -43,6 +45,10 @@ func ExtractChatProjectParam(db database.Store) func(http.Handler) http.Handler 
 					Message: "Internal error fetching chat project.",
 					Detail:  err.Error(),
 				})
+				return
+			}
+			if project.OrganizationID != OrganizationParam(r).ID {
+				httpapi.ResourceNotFound(rw)
 				return
 			}
 

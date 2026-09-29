@@ -4738,7 +4738,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `description`     | string | false    |              |                                                                                               |
 | `icon`            | string | false    |              | Icon is a URL, typically an emoji image under /emojis, or empty for the default folder glyph. |
 | `id`              | string | false    |              |                                                                                               |
-| `name`            | string | false    |              |                                                                                               |
+| `name`            | string | false    |              | Name is a display label and is not unique; ID identifies the project.                         |
 | `organization_id` | string | false    |              |                                                                                               |
 | `owner_id`        | string | false    |              |                                                                                               |
 | `updated_at`      | string | false    |              |                                                                                               |
@@ -6412,19 +6412,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "description": "string",
   "icon": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6"
+  "name": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `description`     | string | false    |              |             |
-| `icon`            | string | false    |              |             |
-| `name`            | string | true     |              |             |
-| `organization_id` | string | true     |              |             |
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `name`        | string | true     |              |             |
 
 ## codersdk.CreateChatRequest
 

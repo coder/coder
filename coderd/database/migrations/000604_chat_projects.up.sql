@@ -27,9 +27,7 @@ COMMENT ON TABLE chat_projects IS 'Organization-scoped projects that group agent
 COMMENT ON COLUMN chat_projects.icon IS 'Optional icon URL shown next to the project name.';
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects (organization_id);
--- Projects are private to their creator, so names are unique per creator
--- rather than per organization.
-CREATE UNIQUE INDEX idx_chat_projects_owner_lower_name ON chat_projects (organization_id, owner_id, lower(name));
+CREATE INDEX idx_chat_projects_owner_id ON chat_projects (owner_id);
 
 ALTER TABLE chats ADD COLUMN project_id uuid REFERENCES chat_projects(id) ON DELETE SET NULL;
 COMMENT ON COLUMN chats.project_id IS 'Optional project that groups a root chat with related chats.';

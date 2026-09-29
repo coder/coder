@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -16,27 +17,25 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary List chat projects
-// @ID list-chat-projects
+// @Summary List chat projects in an organization
+// @ID list-organization-chat-projects
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param organization query string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.ChatProject
-// @Router /api/experimental/chats/projects [get]
+// @Router /api/experimental/organizations/{organization}/chats/projects [get]
 // @x-apidocgen {"skip": true}
-func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listOrganizationChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	organizationID, err := uuid.Parse(r.URL.Query().Get("organization"))
-	if err != nil || organizationID == uuid.Nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "organization query parameter is required."})
-		return
-	}
+	organization := httpmw.OrganizationParam(r)
 
-	projects, err := api.Database.GetChatProjectsByOrganizationID(ctx, organizationID)
+	projects, err := api.Database.GetChatProjectsByOrganizationID(ctx, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -44,12 +43,30 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
+}
 
-	response := make([]codersdk.ChatProject, len(projects))
-	for i, project := range projects {
-		response[i] = db2sdk.ChatProject(project)
+// @Summary List the authenticated user's chat projects
+// @ID list-user-chat-projects
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {array} codersdk.ChatProject
+// @Router /api/experimental/chats/projects [get]
+// @x-apidocgen {"skip": true}
+func (api *API) listUserChatProjects(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	projects, err := api.Database.GetChatProjectsByOwnerID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chat projects.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
 }
 
 // @Summary Create chat project
@@ -58,28 +75,31 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Accept json
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.CreateChatProjectRequest true "Create chat project request"
 // @Success 201 {object} codersdk.ChatProject
-// @Router /api/experimental/chats/projects [post]
+// @Router /api/experimental/organizations/{organization}/chats/projects [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	organization := httpmw.OrganizationParam(r)
 
 	var req codersdk.CreateChatProjectRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.OrganizationID == uuid.Nil || strings.TrimSpace(req.Name) == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "organization_id and name are required."})
+	req.Name = strings.TrimSpace(req.Name)
+	req.Icon = strings.TrimSpace(req.Icon)
+	if req.Name == "" {
+		writeChatProjectFieldError(ctx, rw, "name", "Name is required.")
 		return
 	}
-	if resp := validateChatProjectFields(strings.TrimSpace(req.Name), req.Description, strings.TrimSpace(req.Icon)); resp != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+	if !validateChatProjectFields(ctx, rw, req.Name, req.Description, req.Icon) {
 		return
 	}
 	if !api.Authorize(r, policy.ActionCreate, database.ChatProject{
-		OrganizationID: req.OrganizationID,
+		OrganizationID: organization.ID,
 		OwnerID:        apiKey.UserID,
 	}.RBACObject()) {
 		httpapi.Forbidden(rw)
@@ -91,22 +111,18 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 		Log:            api.Logger,
 		Request:        r,
 		Action:         database.AuditActionCreate,
-		OrganizationID: req.OrganizationID,
+		OrganizationID: organization.ID,
 	})
 	defer commitAudit()
 
 	project, err := api.Database.InsertChatProject(ctx, database.InsertChatProjectParams{
 		ID:             uuid.NullUUID{},
-		OrganizationID: req.OrganizationID,
+		OrganizationID: organization.ID,
 		OwnerID:        apiKey.UserID,
-		Name:           strings.TrimSpace(req.Name),
+		Name:           req.Name,
 		Description:    req.Description,
-		Icon:           strings.TrimSpace(req.Icon),
+		Icon:           req.Icon,
 	})
-	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat project.",
@@ -123,9 +139,10 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Success 200 {object} codersdk.ChatProject
-// @Router /api/experimental/chats/projects/{project} [get]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project} [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -145,10 +162,11 @@ func (api *API) getChatProject(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Accept json
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Param request body codersdk.UpdateChatProjectRequest true "Update chat project request"
 // @Success 200 {object} codersdk.ChatProject
-// @Router /api/experimental/chats/projects/{project} [patch]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -172,24 +190,20 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	name := project.Name
 	if req.Name != nil {
-		name = strings.TrimSpace(*req.Name)
+		*req.Name = strings.TrimSpace(*req.Name)
 	}
-	if name == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "name must not be blank."})
+	if req.Icon != nil {
+		*req.Icon = strings.TrimSpace(*req.Icon)
+	}
+	if req.Name != nil && *req.Name == "" {
+		writeChatProjectFieldError(ctx, rw, "name", "Name must not be blank.")
 		return
 	}
-	description := project.Description
-	if req.Description != nil {
-		description = *req.Description
-	}
-	icon := project.Icon
-	if req.Icon != nil {
-		icon = strings.TrimSpace(*req.Icon)
-	}
-	if resp := validateChatProjectFields(name, description, icon); resp != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, *resp)
+	name := ptr.NilToDefault(req.Name, project.Name)
+	description := ptr.NilToDefault(req.Description, project.Description)
+	icon := ptr.NilToDefault(req.Icon, project.Icon)
+	if !validateChatProjectFields(ctx, rw, name, description, icon) {
 		return
 	}
 
@@ -199,10 +213,6 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		Description: description,
 		Icon:        icon,
 	})
-	if database.IsUniqueViolation(err) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "You already have a chat project with this name."})
-		return
-	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project.",
@@ -218,9 +228,10 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 // @ID delete-chat-project
 // @Security CoderSessionToken
 // @Tags Chats
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Success 204
-// @Router /api/experimental/chats/projects/{project} [delete]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project} [delete]
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -263,15 +274,27 @@ const (
 	chatProjectIconMaxChars        = 256
 )
 
-func validateChatProjectFields(name, description, icon string) *codersdk.Response {
+// validateChatProjectFields writes a 400 response and returns false when a
+// sanitized field exceeds its limit.
+func validateChatProjectFields(ctx context.Context, rw http.ResponseWriter, name, description, icon string) bool {
 	if utf8.RuneCountInString(name) > chatProjectNameMaxChars {
-		return &codersdk.Response{Message: fmt.Sprintf("name must be at most %d characters.", chatProjectNameMaxChars)}
+		writeChatProjectFieldError(ctx, rw, "name", fmt.Sprintf("Name must be at most %d characters.", chatProjectNameMaxChars))
+		return false
 	}
 	if utf8.RuneCountInString(description) > chatProjectDescriptionMaxChars {
-		return &codersdk.Response{Message: fmt.Sprintf("description must be at most %d characters.", chatProjectDescriptionMaxChars)}
+		writeChatProjectFieldError(ctx, rw, "description", fmt.Sprintf("Description must be at most %d characters.", chatProjectDescriptionMaxChars))
+		return false
 	}
 	if utf8.RuneCountInString(icon) > chatProjectIconMaxChars {
-		return &codersdk.Response{Message: fmt.Sprintf("icon must be at most %d characters.", chatProjectIconMaxChars)}
+		writeChatProjectFieldError(ctx, rw, "icon", fmt.Sprintf("Icon must be at most %d characters.", chatProjectIconMaxChars))
+		return false
 	}
-	return nil
+	return true
+}
+
+func writeChatProjectFieldError(ctx context.Context, rw http.ResponseWriter, field, detail string) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message:     detail,
+		Validations: []codersdk.ValidationError{{Field: field, Detail: detail}},
+	})
 }

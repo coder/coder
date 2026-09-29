@@ -113,14 +113,7 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 		r.Use(apiKeyMiddleware)
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
-			r.Get("/", api.listChatProjects)
-			r.Post("/", api.postChatProject)
-			r.Route("/{project}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatProjectParam(api.Database))
-				r.Get("/", api.getChatProject)
-				r.Patch("/", api.patchChatProject)
-				r.Delete("/", api.deleteChatProject)
-			})
+			r.Get("/", api.listUserChatProjects)
 		})
 		r.Route("/config", func(r chi.Router) {
 			r.Group(func(r chi.Router) {
@@ -141,6 +134,23 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 				r.Get("/runs", api.getChatDebugRuns)
 				r.Get("/runs/{debugRun}", api.getChatDebugRun)
 			})
+		})
+	})
+}
+
+// registerExperimentalOrganizationChatRoutes mounts the organization-scoped
+// chat routes that were not promoted to /api/v2; r must already extract the
+// organization parameter.
+func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
+	r.Route("/chats/projects", func(r chi.Router) {
+		r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjects))
+		r.Get("/", api.listOrganizationChatProjects)
+		r.Post("/", api.postChatProject)
+		r.Route("/{project}", func(r chi.Router) {
+			r.Use(httpmw.ExtractChatProjectParam(api.Database))
+			r.Get("/", api.getChatProject)
+			r.Patch("/", api.patchChatProject)
+			r.Delete("/", api.deleteChatProject)
 		})
 	})
 }

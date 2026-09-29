@@ -3324,6 +3324,9 @@ export interface ChatProject {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	/**
+	 * Name is a display label and is not unique; ID identifies the project.
+	 */
 	readonly name: string;
 	readonly description: string;
 	/**
@@ -4041,10 +4044,10 @@ export interface CreateChatModelRequest {
 
 // From codersdk/chats.go
 /**
- * CreateChatProjectRequest creates an organization-scoped chat project.
+ * CreateChatProjectRequest creates a chat project in the organization named
+ * by the route.
  */
 export interface CreateChatProjectRequest {
-	readonly organization_id: string;
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;

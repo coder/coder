@@ -7538,11 +7538,50 @@ const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationI
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
 FROM chat_projects
 WHERE organization_id = $1::uuid
-ORDER BY lower(name)
+ORDER BY lower(name), id
 `
 
 func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
 	rows, err := q.db.QueryContext(ctx, getChatProjectsByOrganizationID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatProject
+	for rows.Next() {
+		var i ChatProject
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.Description,
+			&i.Icon,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
+SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
+FROM chat_projects
+WHERE owner_id = $1::uuid
+ORDER BY lower(name), id
+`
+
+func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
 	if err != nil {
 		return nil, err
 	}

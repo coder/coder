@@ -4869,7 +4869,7 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 
-CREATE UNIQUE INDEX idx_chat_projects_owner_lower_name ON chat_projects USING btree (organization_id, owner_id, lower(name));
+CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 

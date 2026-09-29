@@ -1357,17 +1357,26 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	if req.ProjectID != nil {
 		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid chat project."})
-			return
-		}
-		if project.OrganizationID != req.OrganizationID {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project does not belong to this chat's organization."})
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching chat project.",
+				Detail:  err.Error(),
+			})
 			return
 		}
 		// Projects are private to their owner, and a chat in a project reads
 		// and writes its memory, so the chat's owner must own the project.
+		// This matches the unreadable-project response so callers creating
+		// chats for other users cannot probe for project IDs.
 		if project.OwnerID != ownerID {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Project belongs to another user."})
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+			return
+		}
+		if project.OrganizationID != req.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Chat project does not belong to this chat's organization."})
 			return
 		}
 		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
