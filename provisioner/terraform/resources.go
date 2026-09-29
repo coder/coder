@@ -168,6 +168,11 @@ type State struct {
 	HasExternalAgents     bool
 }
 
+type convertStateResult struct {
+	state       *State
+	scriptOrder *scriptOrderConversionResult
+}
+
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
 
 func hasExternalAgentResources(graph *gographviz.Graph) bool {
@@ -186,8 +191,27 @@ func hasExternalAgentResources(graph *gographviz.Graph) bool {
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
+func ConvertState(
+	ctx context.Context,
+	modules []*tfjson.StateModule,
+	rawGraph string,
+	logger slog.Logger,
+) (*State, error) {
+	result, err := convertState(ctx, modules, rawGraph, logger, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result.state, nil
+}
+
 // nolint:gocognit // This function makes more sense being large for now, until refactored.
-func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph string, logger slog.Logger) (*State, error) {
+func convertState(
+	ctx context.Context,
+	modules []*tfjson.StateModule,
+	rawGraph string,
+	logger slog.Logger,
+	scriptOrderInput *scriptOrderRuntimeBindingInput,
+) (*convertStateResult, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -235,6 +259,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// subsequent lookups are O(1) instead of scanning the
 	// full map each time.
 	sortedResources := sortResourcesByType(tfResourcesByLabel)
+	var scriptOrderBinding *scriptOrderRuntimeBinding
+	if scriptOrderInput != nil {
+		scriptOrderBinding, err = newScriptOrderRuntimeBinding(
+			ctx, sortedResources["coder_script"], *scriptOrderInput,
+		)
+		if err != nil {
+			return nil, xerrors.Errorf(
+				"prepare script order runtime binding: %w", err,
+			)
+		}
+	}
 
 	// Find all agents!
 	agentNames := map[string]struct{}{}
@@ -415,6 +450,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		if agentResource == nil {
 			continue
 		}
+		if scriptOrderBinding != nil {
+			scriptOrderBinding.recordWorkspaceAgent(tfResource.Address, agent)
+		}
 
 		agents, exists := resourceAgents[agentResource.Label]
 		if !exists {
@@ -438,13 +476,19 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 					continue
 				}
 
-				agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
+				devcontainer := &proto.Devcontainer{
 					Id:              attrs.ID,
 					Name:            resource.Name,
 					WorkspaceFolder: attrs.WorkspaceFolder,
 					ConfigPath:      attrs.ConfigPath,
 					SubagentId:      attrs.SubAgentID,
-				})
+				}
+				agent.Devcontainers = append(agent.Devcontainers, devcontainer)
+				if scriptOrderBinding != nil {
+					scriptOrderBinding.recordDevcontainer(
+						resource.Address, devcontainer,
+					)
+				}
 			}
 		}
 	}
@@ -643,9 +687,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	sortedScriptResources := sortedResources["coder_script"]
 	for _, resource := range sortedScriptResources {
 		var attrs agentScriptAttributes
-		err = mapstructure.Decode(resource.AttributeValues, &attrs)
-		if err != nil {
-			return nil, xerrors.Errorf("decode script attributes: %w", err)
+		record, decoded := scriptOrderScriptRecord{}, false
+		if scriptOrderBinding != nil {
+			record, decoded = scriptOrderBinding.scriptRecords[resource.Address]
+		}
+		if decoded {
+			attrs = record.attributes
+		} else {
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode script attributes: %w", err)
+			}
 		}
 
 		script := &proto.Script{
@@ -1041,13 +1093,17 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	slices.SortFunc(externalAuthProviders, func(a, b *proto.ExternalAuthProviderResource) int {
 		return cmp.Compare(a.Id, b.Id)
 	})
-	return &State{
+	result := &convertStateResult{state: &State{
 		Resources:             resources,
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
 		HasExternalAgents:     hasExternalAgentResources(graph),
-	}, nil
+	}}
+	if scriptOrderBinding != nil {
+		result.scriptOrder = scriptOrderBinding.result()
+	}
+	return result, nil
 }
 
 func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
