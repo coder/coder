@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -65,6 +66,10 @@ func TestPruneSessionLogs(t *testing.T) {
 
 func TestPruneSessionLogs_ReturnsRemoveErrors(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("a read-only directory does not prevent file removal on Windows, so os.Remove would not fail")
+	}
 
 	if os.Geteuid() == 0 {
 		t.Skip("root ignores directory permissions, so os.Remove would not fail")
