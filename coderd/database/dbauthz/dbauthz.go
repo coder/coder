@@ -6206,11 +6206,12 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
-// InsertChatAutomation also authorizes the chats the automation references:
-// it delivers prompts into the target chat, so the caller must be able to
-// update it, and it records the creating chat, so the caller must be able
-// to read it. The automation check runs first so an unauthorized caller
-// learns nothing about the chats.
+// InsertChatAutomation also authorizes the chats and model the automation
+// references: it delivers prompts into the target chat, so the caller must
+// be able to update it; it records the creating chat, so the caller must be
+// able to read it; and new chats use the model config, so the caller must
+// be able to read it. The automation check runs first so an unauthorized
+// caller learns nothing about the referenced rows.
 func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
 	obj := rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
@@ -6231,6 +6232,14 @@ func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertC
 			return database.ChatAutomation{}, err
 		}
 		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.NewChatModelConfigID.Valid {
+		// New chats use this model, so the caller must pass the model
+		// config's user and group ACL, the same read check chat creation
+		// applies when it looks the model up.
+		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
 			return database.ChatAutomation{}, err
 		}
 	}

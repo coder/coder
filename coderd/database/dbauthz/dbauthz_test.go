@@ -1465,9 +1465,33 @@ func (s *MethodTestSuite) TestChats() {
 		})
 		arg.TargetChatID = uuid.NullUUID{}
 		arg.CreatedByChatID = uuid.NullUUID{}
+		arg.NewChatModelConfigID = uuid.NullUUID{}
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate).Returns(automation)
+	}))
+	s.Run("InsertChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
+		arg := testutil.Fake(s.T(), faker, database.InsertChatAutomationParams{
+			Kind:                 database.ChatAutomationKindSchedule,
+			TargetMode:           database.ChatAutomationTargetModeNewChat,
+			OrganizationID:       config.OrganizationID,
+			NewChatModelConfigID: uuid.NullUUID{UUID: config.ID, Valid: true},
+		})
+		arg.TargetChatID = uuid.NullUUID{}
+		arg.CreatedByChatID = uuid.NullUUID{}
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
+		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		modelObject := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(arg).Asserts(
+			rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate,
+			modelObject, policy.ActionRead,
+		).Returns(automation)
 	}))
 	s.Run("InsertChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		target := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1478,6 +1502,7 @@ func (s *MethodTestSuite) TestChats() {
 			TargetChatID:    uuid.NullUUID{UUID: target.ID, Valid: true},
 			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
 		})
+		arg.NewChatModelConfigID = uuid.NullUUID{}
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
 		dbm.EXPECT().GetChatByID(gomock.Any(), target.ID).Return(target, nil).AnyTimes()
 		dbm.EXPECT().GetChatByID(gomock.Any(), creator.ID).Return(creator, nil).AnyTimes()

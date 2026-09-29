@@ -4826,9 +4826,13 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
+
 CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_next_run_at) WHERE ((kind = 'schedule'::chat_automation_kind) AND enabled);
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
+
+CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
