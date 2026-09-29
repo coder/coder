@@ -14978,7 +14978,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		// The partition is emitted after the turn span ends.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		testutil.Eventually(ctx, t, func(context.Context) bool {
-			return chatd.TurnOutcomeCount(t, h.registry, chatloop.TurnOutcomeCompleted) == 1
+			return chatd.RootTurnOutcomeCount(t, h.registry, chatloop.TurnOutcomeCompleted) == 1
 		}, testutil.IntervalFast)
 		require.Positive(t, chatd.TurnCategorySeconds(t, h.registry, chatloop.TurnCategoryToolExecution, chatloop.TurnOutcomeCompleted))
 	})

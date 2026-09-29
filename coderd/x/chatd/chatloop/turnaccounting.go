@@ -289,5 +289,5 @@ func (t *StageTracer) emitTurnAccounting(partition map[TurnCategory]time.Duratio
 			t.metrics.RecordTurnCategory(category, chatKind, outcome, partition[category])
 		}
 	}
-	t.metrics.RecordTurnOutcome(outcome, chatKind)
+	t.recordTurnOutcome(outcome, chatKind)
 }

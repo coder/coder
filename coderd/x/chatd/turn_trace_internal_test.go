@@ -917,14 +917,6 @@ func turnCategorySeconds(t *testing.T, registry *prometheus.Registry, category c
 	}).GetCounter().GetValue()
 }
 
-func turnOutcomeCount(t *testing.T, registry *prometheus.Registry, outcome chatloop.TurnOutcome) float64 {
-	t.Helper()
-	return promhelp.MetricValue(t, registry, "coderd_chatd_turn_outcomes_total", prometheus.Labels{
-		"chat_kind": string(chatloop.ChatKindRoot),
-		"outcome":   string(outcome),
-	}).GetCounter().GetValue()
-}
-
 func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
@@ -941,12 +933,12 @@ func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	clock.Advance(time.Second)
 	commit.End(nil)
 	turn.Complete(token)
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted), "the turn must stay open until the step ends")
+	require.Zero(t, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeCompleted), "the turn must stay open until the step ends")
 	clock.Advance(time.Second)
 	step.End(nil)
 	turn.Settle(token)
 
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
+	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeCompleted))
 	completed := func(category chatloop.TurnCategory) float64 {
 		return turnCategorySeconds(t, registry, category, chatloop.TurnOutcomeCompleted)
 	}
@@ -987,10 +979,10 @@ func TestRunnerTurnSpanCountsStepRunningAtInterrupt(t *testing.T) {
 	turn.Settle(token)
 	clock.Advance(time.Second).MustWait(ctx)
 	step.End(context.Canceled)
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeInterrupted))
+	require.Zero(t, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeInterrupted))
 	turn.Release(task)
 
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeInterrupted))
+	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeInterrupted))
 	interrupted := func(category chatloop.TurnCategory) float64 {
 		return turnCategorySeconds(t, registry, category, chatloop.TurnOutcomeInterrupted)
 	}
@@ -1019,7 +1011,7 @@ func TestRunnerTurnSpanRetryContinuesTurn(t *testing.T) {
 
 	require.Len(t, turnSpansByStart(t, recorder), 1)
 	require.Len(t, stageSpansByStart(t, recorder, chatloop.StageAcquisition), 1)
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted))
+	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeCompleted))
 	require.Equal(t, 60.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryScheduling, chatloop.TurnOutcomeCompleted))
 }
 
@@ -1050,7 +1042,7 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	turn.Invalidate(interrupted, chatloop.TurnOutcomeInterrupted, xerrors.Errorf("generation action: %w", context.Canceled))
 	_, afterInterrupt := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
 	require.NotEqual(t, interrupted, afterInterrupt)
-	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.TurnOutcomeInterrupted))
+	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeInterrupted))
 	clock.Advance(time.Second)
 	turn.Complete(afterInterrupt)
 	turn.Settle(afterInterrupt)
@@ -1067,7 +1059,7 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 		chatloop.TurnOutcomeInterrupted: 1,
 		chatloop.TurnOutcomeAbandoned:   1,
 	} {
-		require.Equal(t, count, turnOutcomeCount(t, registry, outcome), outcome)
+		require.Equal(t, count, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, outcome), outcome)
 	}
 	require.Len(t, turnSpansByStart(t, recorder), 5, "outcomes sum to closed turns")
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryStreaming, chatloop.TurnOutcomeCompleted))
@@ -1104,5 +1096,5 @@ func TestRunnerTurnSpanLabelsSubagentTurns(t *testing.T) {
 		"chat_kind": subagent,
 		"outcome":   completed,
 	}).GetCounter().GetValue())
-	require.Zero(t, turnOutcomeCount(t, registry, chatloop.TurnOutcomeCompleted), "no root series")
+	require.Zero(t, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeCompleted), "no root series")
 }
