@@ -55,20 +55,26 @@ type sessionApp struct {
 // sessionApps keys attribution and presentation by normalized registry module
 // ID. An unregistered ID shows as-is under AppFamilyUnknown.
 var sessionApps = map[string]sessionApp{
+	// VS Code forks report their URI scheme, with hyphens folded.
 	"vscode":          {AppFamilyVSCode, "VS Code", "/icon/code.svg"},
 	"vscode_insiders": {AppFamilyVSCode, "VS Code Insiders", "/icon/code-insiders.svg"},
 	"vscode_web":      {AppFamilyVSCode, "VS Code Web", "/icon/code.svg"},
 	"code_server":     {AppFamilyVSCode, "code-server", "/icon/code.svg"},
+	"code_oss":        {AppFamilyVSCode, "Code - OSS", ""},
 	"cursor":          {AppFamilyVSCode, "Cursor", "/icon/cursor.svg"},
-	"windsurf":        {AppFamilyVSCode, "Windsurf", "/icon/windsurf.svg"},
-	"positron":        {AppFamilyVSCode, "Positron", "/icon/positron.svg"},
-	"vscodium":        {AppFamilyVSCode, "VSCodium", ""},
-	"codium":          {AppFamilyVSCode, "VSCodium", ""},
-	"antigravity":     {AppFamilyVSCode, "Antigravity", "/icon/antigravity.svg"},
-	"trae":            {AppFamilyVSCode, "Trae", ""},
-	"kiro":            {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
-	"devin":           {AppFamilyVSCode, "Devin", "/icon/devin.svg"},
-	"jetbrains":       {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
+	// Reported by Windsurf builds from before the Devin Desktop rename.
+	"windsurf":          {AppFamilyVSCode, "Windsurf", "/icon/windsurf.svg"},
+	"positron":          {AppFamilyVSCode, "Positron", "/icon/positron.svg"},
+	"vscodium":          {AppFamilyVSCode, "VSCodium", ""},
+	"vscodium_insiders": {AppFamilyVSCode, "VSCodium Insiders", ""},
+	"codium":            {AppFamilyVSCode, "VSCodium", ""},
+	"antigravity":       {AppFamilyVSCode, "Antigravity", "/icon/antigravity.svg"},
+	"trae":              {AppFamilyVSCode, "Trae", ""},
+	"trae_cn":           {AppFamilyVSCode, "Trae CN", ""},
+	"kiro":              {AppFamilyVSCode, "Kiro", "/icon/kiro.svg"},
+	"devin":             {AppFamilyVSCode, "Devin Desktop", "/icon/devin.svg"},
+	"devin_next":        {AppFamilyVSCode, "Devin Desktop Next", "/icon/devin.svg"},
+	"jetbrains":         {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
 	// No agent reports sftp; the family covers the sftp_mins history.
 	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
 	// Zed speaks SSH, so it counts toward the SSH total.

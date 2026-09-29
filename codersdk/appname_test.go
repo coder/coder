@@ -94,6 +94,41 @@ func TestAppNameFamily(t *testing.T) {
 	}
 }
 
+// The VS Code extension reports vscode.env.uriScheme, so each known scheme
+// must resolve to a VS Code family key.
+func TestVSCodeURISchemesAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		scheme      string
+		appName     string
+		displayName string
+	}{
+		{"vscode", "vscode", "VS Code"},
+		{"vscode-insiders", "vscode_insiders", "VS Code Insiders"},
+		{"code-oss", "code_oss", "Code - OSS"},
+		{"vscodium", "vscodium", "VSCodium"},
+		{"vscodium-insiders", "vscodium_insiders", "VSCodium Insiders"},
+		{"positron", "positron", "Positron"},
+		{"cursor", "cursor", "Cursor"},
+		{"devin", "devin", "Devin Desktop"},
+		{"devin-next", "devin_next", "Devin Desktop Next"},
+		{"windsurf", "windsurf", "Windsurf"},
+		{"antigravity", "antigravity", "Antigravity"},
+		{"trae", "trae", "Trae"},
+		{"trae-cn", "trae_cn", "Trae CN"},
+		{"kiro", "kiro", "Kiro"},
+	} {
+		t.Run(tc.scheme, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.appName, codersdk.NormalizeAppName(tc.scheme))
+			require.Equal(t, codersdk.AppFamilyVSCode, codersdk.AppNameFamily(tc.scheme))
+			app := codersdk.SessionCountApps(map[string]int64{tc.appName: 1})[tc.appName]
+			require.Equal(t, tc.displayName, app.DisplayName)
+		})
+	}
+}
+
 // Family sets are derived from the one registry, so callers that need the app
 // names in a family do not need a second list.
 func TestRegistryFamilySets(t *testing.T) {
