@@ -234,17 +234,18 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    The expected result is no rows, because a running `coderd` updates its row every 5&nbsp;seconds.
    The `"primary"` filter leaves out workspace proxies, which report to the same table.
 
-1. Record the builds that the outage interrupted:
+1. Record the builds that the outage interrupted, replacing `<outage-start>` with the time you stopped the first provisioner or `coderd`:
 
    ```sql
    SELECT pj.id AS job_id, wb.workspace_id, wb.transition, pj.job_status
    FROM provisioner_jobs pj
    JOIN workspace_builds wb ON wb.job_id = pj.id
-   WHERE pj.job_status IN ('running', 'canceling');
+   WHERE pj.job_status IN ('running', 'canceling')
+      OR (pj.job_status IN ('canceled', 'failed') AND pj.completed_at >= '<outage-start>');
    ```
 
-   The new release marks these builds as failed, so plan to tell their owners to start or stop the workspace again.
-   Builds that `coderd` canceled while it stopped don't appear here, so also check `coder provisioner jobs list --status canceled,failed --org <organization>`.
+   The new release marks running builds as failed, and builds that `coderd` canceled while it stopped show as canceled or failed.
+   Plan to tell the owners of these workspaces to start or stop them again.
 
 ### Start the new release
 
