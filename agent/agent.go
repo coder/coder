@@ -596,9 +596,10 @@ func (a *agent) runLoop() {
 			return
 		}
 		if errors.Is(err, io.EOF) {
-			// Lost the connection to coderd. Logging at Error flushes the buffered
-			// debug history so the detail leading up to the disconnect is available.
-			a.logger.Error(ctx, "disconnected from coderd",
+			// Lost the connection to coderd. Flush the buffered debug history so the
+			// detail leading up to the disconnect is available in the logs.
+			a.logger.Flush(ctx)
+			a.logger.Warn(ctx, "disconnected from coderd",
 				codersdk.ConnectionDirectionServerToAgent.SlogField(),
 				codersdk.DisconnectReasonNetworkError.SlogField(),
 				codersdk.DisconnectReasonNetworkError.SlogExpectedField(),
@@ -606,7 +607,10 @@ func (a *agent) runLoop() {
 			)
 			continue
 		}
-		a.logger.Error(ctx, "run exited with error", slog.Error(err))
+		// Flush the buffered debug history so the detail leading up to the failure
+		// is available in the logs.
+		a.logger.Flush(ctx)
+		a.logger.Warn(ctx, "run exited with error", slog.Error(err))
 	}
 }
 
