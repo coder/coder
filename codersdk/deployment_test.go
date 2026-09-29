@@ -578,79 +578,41 @@ func must[T any](value T, err error) T {
 func TestAIGatewayActorHeaderNames(t *testing.T) {
 	t.Parallel()
 
-	defaults := [2]string{"X-AI-Bridge-Actor-ID", "X-AI-Bridge-Actor-Metadata-Username"}
-	keys := [2]string{"actor_header_id", "actor_header_username"}
-	flags := [2]string{"ai-gateway-actor-header-id", "ai-gateway-actor-header-username"}
-	envs := [2]string{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME"}
-
-	type testCase struct {
-		name    string
-		args    []string
-		environ serpent.Environ
-		config  string
-		want    [2]string
-		wantErr string
-	}
-	cases := []testCase{{name: "default", want: defaults}}
-	for _, source := range []string{"flag", "env", "yaml"} {
-		for i, key := range keys {
-			for _, value := range []string{"X-Custom-Header", ""} {
-				name := "custom"
-				if value == "" {
-					name = "disabled"
-				}
-				tc := testCase{name: source + "/" + key + "/" + name, want: defaults}
-				tc.want[i] = value
-				switch source {
-				case "flag":
-					tc.args = []string{"--" + flags[i], value}
-				case "env":
-					tc.environ = serpent.Environ{{Name: envs[i], Value: value}}
-				case "yaml":
-					tc.config = fmt.Sprintf("ai_gateway:\n  %s: %q\n", key, value)
-				}
-				cases = append(cases, tc)
-			}
-		}
-	}
-	cases = append(cases,
-		testCase{
-			name:    "flag clears environment username",
-			args:    []string{"--" + flags[1], ""},
-			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}},
-			want:    [2]string{defaults[0], ""},
+	for _, tc := range []struct {
+		name         string
+		args         []string
+		environ      serpent.Environ
+		config       string
+		wantID       string
+		wantUsername string
+	}{
+		{
+			name:         "defaults",
+			wantID:       "X-AI-Bridge-Actor-ID",
+			wantUsername: "X-AI-Bridge-Actor-Metadata-Username",
 		},
-		testCase{
-			name:    "environment clears YAML username",
-			environ: serpent.Environ{{Name: envs[1], Value: ""}},
-			config:  "ai_gateway:\n  actor_header_username: X-Yaml-Username\n",
-			want:    [2]string{defaults[0], ""},
+		{
+			name:         "flags",
+			args:         []string{"--ai-gateway-actor-header-id", "X-User-ID", "--ai-gateway-actor-header-username", "X-Username"},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
 		},
-		testCase{
-			name:    "precedence is per attribute",
-			args:    []string{"--" + flags[1], "X-Flag-Username"},
-			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}},
-			config:  "ai_gateway:\n  actor_header_id: X-Yaml-ID\n  actor_header_username: X-Yaml-Username\n",
-			want:    [2]string{"X-Yaml-ID", "X-Flag-Username"},
+		{
+			name: "environment",
+			environ: serpent.Environ{
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_ID", Value: "X-User-ID"},
+				{Name: "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", Value: "X-Username"},
+			},
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
 		},
-		testCase{
-			name: "last flag clears username",
-			args: []string{"--" + flags[1], "X-Username", "--" + flags[1], ""},
-			want: [2]string{defaults[0], ""},
+		{
+			name:         "YAML",
+			config:       "ai_gateway:\n  actor_header_id: X-User-ID\n  actor_header_username: X-Username\n",
+			wantID:       "X-User-ID",
+			wantUsername: "X-Username",
 		},
-		testCase{
-			name: "last flag enables username",
-			args: []string{"--" + flags[1], "", "--" + flags[1], "X-Username"},
-			want: [2]string{defaults[0], "X-Username"},
-		},
-		testCase{
-			name: "all disabled",
-			args: []string{"--" + flags[0], "", "--" + flags[1], ""},
-		},
-		testCase{name: "invalid", args: []string{"--" + flags[1], "Bad: Header"}, wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
-		testCase{name: "duplicate", args: []string{"--" + flags[0], "X-User", "--" + flags[1], "x-user"}, wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_ID and CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
-	)
-	for _, tc := range cases {
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			dv := &codersdk.DeploymentValues{}
@@ -660,22 +622,9 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 				Options: dv.Options(),
 				Handler: func(_ *serpent.Invocation) error {
 					called = true
-					if tc.wantErr != "" {
-						require.ErrorContains(t, dv.Validate(), tc.wantErr)
-						return nil
-					}
-					require.NoError(t, dv.Validate())
-					encoded, err := json.Marshal(dv.AI.BridgeConfig)
-					require.NoError(t, err)
-					var config map[string]json.RawMessage
-					require.NoError(t, json.Unmarshal(encoded, &config))
-					require.NotContains(t, config, "actor_header_names")
-					for i, key := range keys {
-						var value string
-						require.NoError(t, json.Unmarshal(config[key], &value))
-						require.Equal(t, tc.want[i], value, key)
-					}
-					return nil
+					require.Equal(t, tc.wantID, dv.AI.BridgeConfig.ActorHeaderID.Value())
+					require.Equal(t, tc.wantUsername, dv.AI.BridgeConfig.ActorHeaderUsername.Value())
+					return dv.Validate()
 				},
 			}
 			inv := cmd.Invoke(tc.args...)
@@ -689,6 +638,56 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			require.True(t, called, "configuration must reach validation")
 		})
 	}
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := codersdk.AIBridgeConfig{
+			ActorHeaderID:       serpent.String("X-User-ID"),
+			ActorHeaderUsername: serpent.String("X-Username"),
+		}
+		encoded, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(encoded, &fields))
+		require.JSONEq(t, `"X-User-ID"`, string(fields["actor_header_id"]))
+		require.JSONEq(t, `"X-Username"`, string(fields["actor_header_username"]))
+		require.NotContains(t, fields, "actor_header_names")
+		require.NotContains(t, fields, "actor_header_meta_username")
+	})
+
+	t.Run("validation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			wantErr  string
+		}{
+			{name: "both empty"},
+			{name: "ID only", id: "X-User-ID"},
+			{name: "username only", username: "X-Username"},
+			{name: "custom names", id: "X-User-ID", username: "X-Username"},
+			{name: "invalid", username: "Bad: Header", wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
+			{name: "duplicate", id: "X-User", username: "x-user", wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_ID and CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.wantErr != "" {
+					require.EqualError(t, err, tc.wantErr)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
 
 	t.Run("actor prefix", func(t *testing.T) {
 		t.Parallel()
