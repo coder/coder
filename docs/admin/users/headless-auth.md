@@ -1,5 +1,5 @@
 ---
-title: Headless Authentication
+title: Headless authentication
 ---
 
 > [!NOTE]

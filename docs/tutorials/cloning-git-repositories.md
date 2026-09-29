@@ -1,5 +1,5 @@
 ---
-title: Cloning Git Repositories
+title: Cloning Git repositories
 ---
 
 <div style="padding: 0px; margin: 0px;">

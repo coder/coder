@@ -1,5 +1,5 @@
 ---
-title: Rebranding Migration
+title: Rebranding migration
 ---
 
 AI Bridge has been renamed to **AI Gateway**. This is a cosmetic rebrand to make

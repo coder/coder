@@ -1,5 +1,5 @@
 ---
-title: Port Forwarding
+title: Port forwarding
 ---
 
 Port forwarding lets developers securely access processes on their Coder

@@ -1,5 +1,5 @@
 ---
-title: Resource Metadata
+title: Resource metadata
 ---
 
 Expose key workspace information to your users with

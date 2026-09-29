@@ -1,5 +1,5 @@
 ---
-title: Workspace Tags
+title: Workspace tags
 ---
 
 Template administrators can leverage static template tags to limit workspace

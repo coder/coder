@@ -1,5 +1,5 @@
 ---
-title: Microsoft Teams Notifications
+title: Microsoft Teams notifications
 ---
 
 [Microsoft Teams](https://www.microsoft.com/en-us/microsoft-teams) is a widely

@@ -1,5 +1,5 @@
 ---
-title: External Workspaces
+title: External workspaces
 ---
 
 External workspaces allow you to seamlessly connect externally managed infrastructure as Coder workspaces. This enables you to integrate existing servers, on-premises systems, or any capable machine with the Coder environment, ensuring a smooth and efficient development workflow without requiring Coder to provision additional compute resources.

@@ -1,4 +1,4 @@
-# External Authentication
+# External authentication
 
 Coder integrates with any OpenID Connect provider to automate away the need for
 developers to authenticate with external services within their workspace. This

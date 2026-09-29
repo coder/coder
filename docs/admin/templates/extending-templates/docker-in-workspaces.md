@@ -1,5 +1,5 @@
 ---
-title: Docker in Workspaces
+title: Docker in workspaces
 ---
 
 There are a few ways to run Docker within container-based Coder workspaces.

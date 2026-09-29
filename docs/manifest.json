@@ -18,7 +18,7 @@
 					"path": "./support/index.md",
 					"children": [
 						{
-							"title": "Generate a Support Bundle",
+							"title": "Support bundle",
 							"description": "Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.",
 							"path": "./support/support-bundle.md"
 						}
@@ -27,7 +27,7 @@
 			]
 		},
 		{
-			"title": "Get started",
+			"title": "Quickstart",
 			"description": "Install Coder, build your first template, and launch your first workspace in this quickstart guide.",
 			"path": "./get-started/index.md",
 			"icon_path": "./images/icons/rocket.svg",
@@ -69,7 +69,7 @@
 					"icon_path": "./images/icons/terminal.svg"
 				},
 				{
-					"title": "1. Plan your deployment",
+					"title": "Plan your deployment",
 					"description": "Learn the architecture, size the deployment, and record the decisions that shape it.",
 					"path": "./install/plan/index.md",
 					"icon_path": "./images/icons/notes.svg",
@@ -85,22 +85,22 @@
 							"path": "./install/plan/sizing/index.md",
 							"children": [
 								{
-									"title": "Up to 1,000 Users",
+									"title": "Up to 1,000 users",
 									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users",
 									"path": "./install/plan/sizing/1k-users.md"
 								},
 								{
-									"title": "Up to 2,000 Users",
+									"title": "Up to 2,000 users",
 									"description": "Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users",
 									"path": "./install/plan/sizing/2k-users.md"
 								},
 								{
-									"title": "Up to 3,000 Users",
+									"title": "Up to 3,000 users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./install/plan/sizing/3k-users.md"
 								},
 								{
-									"title": "Up to 10,000 Users",
+									"title": "Up to 10,000 users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
 									"path": "./install/plan/sizing/10k-users.md"
 								}
@@ -109,7 +109,7 @@
 					]
 				},
 				{
-					"title": "2. Prepare prerequisites",
+					"title": "Prepare prerequisites",
 					"description": "Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.",
 					"path": "./install/prepare/index.md",
 					"icon_path": "./images/icons/dependency.svg",
@@ -121,20 +121,20 @@
 							"icon_path": "./images/icons/licensing.svg"
 						},
 						{
-							"title": "Air-gapped Deployments",
+							"title": "Air-gapped deployments",
 							"description": "Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.",
 							"path": "./install/prepare/airgap.md",
 							"icon_path": "./images/icons/lan.svg"
 						},
 						{
-							"title": "Mirror Coder Registry with Artifactory",
+							"title": "Mirror the registry",
 							"description": "Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments",
 							"path": "./install/prepare/registry-mirror.md"
 						}
 					]
 				},
 				{
-					"title": "3. Install the control plane",
+					"title": "Install the control plane",
 					"description": "Choose a platform and install the Coder control plane on it.",
 					"path": "./install/server/index.md",
 					"icon_path": "./images/icons/download.svg",
@@ -171,13 +171,13 @@
 							"icon_path": "./images/icons/openshift.svg"
 						},
 						{
-							"title": "RPM (RHEL family)",
+							"title": "RHEL-family Linux",
 							"description": "Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.",
 							"path": "./install/server/rpm.md",
 							"icon_path": "./images/icons/system.svg"
 						},
 						{
-							"title": "Cloud Providers",
+							"title": "Cloud platforms",
 							"description": "Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.",
 							"path": "./install/server/cloud/index.md",
 							"icon_path": "./images/icons/cloud.svg",
@@ -208,23 +208,23 @@
 					]
 				},
 				{
-					"title": "4. Validate your deployment",
+					"title": "Validate your deployment",
 					"description": "Harden the deployment, then prove it works and holds up under load.",
 					"path": "./install/validate/index.md",
 					"icon_path": "./images/icons/health.svg",
 					"children": [
 						{
-							"title": "Scale Testing",
+							"title": "Scale testing",
 							"description": "Plan and run scale tests to make sure your Coder deployment can handle your organization's load.",
 							"path": "./install/validate/scale-testing.md",
 							"children": [
 								{
-									"title": "Scaling Utilities",
+									"title": "Scale tests and utilities",
 									"description": "Use Coder's built-in scale-testing utility to benchmark and load-test your deployment.",
 									"path": "./install/validate/scale-testing/utility.md"
 								},
 								{
-									"title": "Scaling best practices",
+									"title": "Scale Coder",
 									"description": "Best practices for preparing and tuning a Coder deployment so it scales to many users.",
 									"path": "./tutorials/best-practices/scale-coder.md"
 								}
@@ -233,20 +233,20 @@
 					]
 				},
 				{
-					"title": "5. Operate and maintain",
+					"title": "Operate and maintain",
 					"description": "Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.",
 					"path": "./install/operate/index.md",
 					"icon_path": "./images/icons/wrench.svg",
 					"children": [
 						{
-							"title": "External Provisioners",
+							"title": "External provisioners",
 							"description": "Run external provisioner daemons to isolate builds and scale workspace provisioning.",
 							"path": "./install/operate/provisioners/index.md",
 							"icon_path": "./images/icons/key.svg",
 							"state": ["premium"],
 							"children": [
 								{
-									"title": "Manage Provisioner Jobs",
+									"title": "Manage provisioner jobs",
 									"description": "Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.",
 									"path": "./install/operate/provisioners/manage-provisioner-jobs.md",
 									"state": ["premium"]
@@ -287,13 +287,13 @@
 			]
 		},
 		{
-			"title": "User Guides",
+			"title": "User guides",
 			"description": "Guides for Coder end users on accessing, managing, and personalizing their workspaces.",
 			"path": "./user-guides/index.md",
 			"icon_path": "./images/icons/users.svg",
 			"children": [
 				{
-					"title": "Access Workspaces",
+					"title": "Workspace access",
 					"description": "Connect to your Coder workspace using SSH, your IDE, a web terminal, remote desktop, and more.",
 					"path": "./user-guides/workspace-access/index.md",
 					"icon_path": "./images/icons/access.svg",
@@ -304,7 +304,7 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
-							"title": "Web Terminal",
+							"title": "Web terminal",
 							"description": "Use the browser-based web terminal to run commands in your workspace without any local setup.",
 							"path": "./user-guides/workspace-access/web-terminal.md"
 						},
@@ -327,7 +327,7 @@
 							]
 						},
 						{
-							"title": "Remote Desktop",
+							"title": "Remote desktops",
 							"description": "Connect to a GUI-based desktop in your Coder workspace using RDP, including Windows workspaces.",
 							"path": "./user-guides/workspace-access/remote-desktops.md"
 						},
@@ -337,17 +337,17 @@
 							"path": "./user-guides/workspace-access/emacs-tramp.md"
 						},
 						{
-							"title": "Port Forwarding",
+							"title": "Workspace ports",
 							"description": "Securely access ports and processes running inside your Coder workspace from your local machine.",
 							"path": "./user-guides/workspace-access/port-forwarding.md"
 						},
 						{
-							"title": "Filebrowser",
+							"title": "File browser",
 							"description": "Upload, download, and manage files in your Coder workspace from the browser with File Browser.",
 							"path": "./user-guides/workspace-access/filebrowser.md"
 						},
 						{
-							"title": "Web IDEs and Coder Apps",
+							"title": "Web IDEs",
 							"description": "Access your Coder workspace through web-based IDEs that run in the browser, with no local install.",
 							"path": "./user-guides/workspace-access/web-ides.md"
 						},
@@ -385,32 +385,32 @@
 					"icon_path": "./images/icons/computer-code.svg",
 					"children": [
 						{
-							"title": "Coder Desktop Connect and Sync",
+							"title": "Coder Desktop Connect and sync",
 							"description": "Use Coder Desktop to connect to workspaces and sync their code and files to your local machine.",
 							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
 					]
 				},
 				{
-					"title": "Workspace Management",
+					"title": "Manage workspaces",
 					"description": "Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.",
 					"path": "./user-guides/workspace-management.md",
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
-					"title": "Workspace Sharing",
+					"title": "Shared workspaces",
 					"description": "Let multiple users securely connect to a single Coder workspace to program and debug together.",
 					"path": "./user-guides/shared-workspaces.md",
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
-					"title": "Workspace Scheduling",
+					"title": "Manage workspace schedules",
 					"description": "Control cloud costs by scheduling when your Coder workspaces automatically start and stop.",
 					"path": "./user-guides/workspace-scheduling.md",
 					"icon_path": "./images/icons/stopwatch.svg"
 				},
 				{
-					"title": "Workspace Lifecycle",
+					"title": "Workspace lifecycle",
 					"description": "A guide to the workspace lifecycle, from creation and status through stopping and deletion.",
 					"path": "./user-guides/workspace-lifecycle.md",
 					"icon_path": "./images/icons/circle-dot.svg"
@@ -422,7 +422,7 @@
 					"icon_path": "./images/icons/container.svg",
 					"children": [
 						{
-							"title": "Working with dev containers",
+							"title": "Work with dev containers",
 							"description": "Access and work inside dev containers in your Coder workspace over SSH, your IDE, or the web terminal.",
 							"path": "./user-guides/devcontainers/working-with-dev-containers.md"
 						},
@@ -459,7 +459,7 @@
 			"icon_path": "./images/icons/wrench.svg",
 			"children": [
 				{
-					"title": "Setup",
+					"title": "Configure control plane access",
 					"description": "Configure your Coder control plane with server settings and environment variables.",
 					"path": "./admin/setup/index.md",
 					"icon_path": "./images/icons/toggle_on.svg",
@@ -471,7 +471,7 @@
 							"state": ["premium"]
 						},
 						{
-							"title": "Configuration Reference",
+							"title": "Configuration reference",
 							"description": "Searchable list of every Coder server setting with its environment variable, CLI flag, and YAML key",
 							"path": "./admin/setup/configuration-reference.md"
 						},
@@ -487,7 +487,7 @@
 							"state": ["early access"]
 						},
 						{
-							"title": "Data Retention",
+							"title": "Data retention",
 							"description": "Configure retention policies that automatically purge old records from Coder database tables.",
 							"path": "./admin/setup/data-retention.md"
 						}
@@ -500,7 +500,7 @@
 					"icon_path": "./images/icons/users.svg",
 					"children": [
 						{
-							"title": "OIDC Authentication",
+							"title": "OpenID Connect",
 							"description": "Configure OpenID Connect authentication with identity providers like Okta or Active Directory",
 							"path": "./admin/users/oidc-auth/index.md",
 							"children": [
@@ -522,29 +522,29 @@
 							]
 						},
 						{
-							"title": "GitHub Authentication",
+							"title": "GitHub",
 							"description": "Set up authentication through GitHub OAuth to enable secure user login and sign-up",
 							"path": "./admin/users/github-auth.md"
 						},
 						{
-							"title": "Password Authentication",
+							"title": "Password authentication",
 							"description": "Manage username/password authentication settings and user password reset workflows",
 							"path": "./admin/users/password-auth.md"
 						},
 						{
-							"title": "Headless Authentication",
+							"title": "Headless authentication",
 							"description": "Create and manage headless service accounts for automated systems and API integrations",
 							"path": "./admin/users/headless-auth.md",
 							"state": ["premium"]
 						},
 						{
-							"title": "Groups \u0026 Roles",
+							"title": "Groups and roles",
 							"description": "Manage access control with user groups and role-based permissions for Coder resources",
 							"path": "./admin/users/groups-roles.md",
 							"state": ["premium"]
 						},
 						{
-							"title": "IdP Sync",
+							"title": "IdP sync",
 							"description": "Synchronize user groups, roles, and organizations from your identity provider to Coder",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["premium"]
@@ -562,7 +562,7 @@
 							"state": ["premium"]
 						},
 						{
-							"title": "Sessions \u0026 API Tokens",
+							"title": "API & session tokens",
 							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
@@ -575,22 +575,22 @@
 					"icon_path": "./images/icons/picture.svg",
 					"children": [
 						{
-							"title": "Creating Templates",
+							"title": "Creating templates",
 							"description": "Create a Coder template with Terraform to define the infrastructure for your workspaces.",
 							"path": "./admin/templates/creating-templates.md"
 						},
 						{
-							"title": "Managing Templates",
+							"title": "Work with templates",
 							"description": "Learn how to edit, version, and manage Coder templates, along with recommended best practices.",
 							"path": "./admin/templates/managing-templates/index.md",
 							"children": [
 								{
-									"title": "Image Management",
+									"title": "Image management",
 									"description": "Learn how to build and manage the container images that back your Coder templates.",
 									"path": "./admin/templates/managing-templates/image-management.md"
 								},
 								{
-									"title": "Change Management",
+									"title": "Change management",
 									"description": "Manage Coder template changes with source control, versioning, and CI/CD publishing.",
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
@@ -600,17 +600,17 @@
 									"path": "./admin/templates/managing-templates/envbuilder.md"
 								},
 								{
-									"title": "Template Dependencies",
+									"title": "Template dependencies",
 									"description": "Manage provider and module dependencies in your Coder templates to keep builds reproducible.",
 									"path": "./admin/templates/managing-templates/dependencies.md"
 								},
 								{
-									"title": "Workspace Scheduling",
+									"title": "Workspace scheduling",
 									"description": "Configure template settings that control how workspaces autostart, autostop, and stay available.",
 									"path": "./admin/templates/managing-templates/schedule.md"
 								},
 								{
-									"title": "External Workspaces",
+									"title": "External workspaces",
 									"description": "Connect externally managed servers and machines to Coder as external workspaces.",
 									"path": "./admin/templates/managing-templates/external-workspaces.md",
 									"state": ["premium", "early access"]
@@ -618,22 +618,22 @@
 							]
 						},
 						{
-							"title": "Extending Templates",
+							"title": "Extend templates",
 							"description": "Extend your Coder templates with parameters, metadata, web IDEs, Docker, and more.",
 							"path": "./admin/templates/extending-templates/index.md",
 							"children": [
 								{
-									"title": "Agent Metadata",
+									"title": "Agent metadata",
 									"description": "Display real-time metrics from the workspace agent, such as CPU, memory, and disk usage.",
 									"path": "./admin/templates/extending-templates/agent-metadata.md"
 								},
 								{
-									"title": "Build Parameters",
+									"title": "Parameters",
 									"description": "Use build parameters to prompt users and customize each workspace when it is created.",
 									"path": "./admin/templates/extending-templates/parameters.md"
 								},
 								{
-									"title": "Dynamic Parameters",
+									"title": "Dynamic parameters",
 									"description": "Build conditional, identity-aware template forms with Coder's dynamic parameters.",
 									"path": "./admin/templates/extending-templates/dynamic-parameters.md"
 								},
@@ -649,42 +649,42 @@
 									"path": "./admin/templates/extending-templates/icons.md"
 								},
 								{
-									"title": "Resource Metadata",
+									"title": "Resource metadata",
 									"description": "Expose key workspace resource information to your users in the Coder dashboard with metadata.",
 									"path": "./admin/templates/extending-templates/resource-metadata.md"
 								},
 								{
-									"title": "Resource Monitoring",
+									"title": "Resource monitoring",
 									"description": "Monitor workspace resource usage and alert on thresholds from the Coder dashboard.",
 									"path": "./admin/templates/extending-templates/resource-monitoring.md"
 								},
 								{
-									"title": "Resource Ordering",
+									"title": "UI resource ordering",
 									"description": "Control the order that resources and parameters appear in the workspace creation UI.",
 									"path": "./admin/templates/extending-templates/resource-ordering.md"
 								},
 								{
-									"title": "Resource Persistence",
+									"title": "Resource persistence",
 									"description": "Control which workspace resources persist across restarts and which are recreated on each build.",
 									"path": "./admin/templates/extending-templates/resource-persistence.md"
 								},
 								{
-									"title": "Environment Variables",
+									"title": "Environment variables",
 									"description": "Inject environment variables into Coder workspaces using the coder_env Terraform resource.",
 									"path": "./admin/templates/extending-templates/environment-variables.md"
 								},
 								{
-									"title": "Terraform Variables",
+									"title": "Terraform template-wide variables",
 									"description": "Use Terraform template-wide variables to parameterize and manage your Coder templates.",
 									"path": "./admin/templates/extending-templates/variables.md"
 								},
 								{
-									"title": "Terraform Modules",
+									"title": "Reuse template code",
 									"description": "Reuse Terraform code across your Coder templates with shared, versioned modules.",
 									"path": "./admin/templates/extending-templates/modules.md"
 								},
 								{
-									"title": "Web IDEs and Coder Apps",
+									"title": "Web IDEs in templates",
 									"description": "Add and configure web IDEs in your Coder templates as coder_app resources.",
 									"path": "./admin/templates/extending-templates/web-ides.md"
 								},
@@ -694,22 +694,22 @@
 									"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
 								},
 								{
-									"title": "JetBrains IDEs in Air-Gapped Deployments",
+									"title": "JetBrains IDEs in an air-gapped environment",
 									"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
 									"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 								},
 								{
-									"title": "Docker in Workspaces",
+									"title": "Docker in workspaces",
 									"description": "Run Docker inside container-based Coder workspaces using several supported approaches.",
 									"path": "./admin/templates/extending-templates/docker-in-workspaces.md"
 								},
 								{
-									"title": "Workspace Tags",
+									"title": "Workspace tags",
 									"description": "Route workspace builds to specific provisioners using workspace tags and parameters.",
 									"path": "./admin/templates/extending-templates/workspace-tags.md"
 								},
 								{
-									"title": "Provider Authentication",
+									"title": "Provider authentication",
 									"description": "Authenticate the Coder control plane to cloud provider APIs so it can provision workspaces.",
 									"path": "./admin/templates/extending-templates/provider-authentication.md"
 								},
@@ -724,13 +724,13 @@
 									"path": "./admin/templates/extending-templates/process-priority.md"
 								},
 								{
-									"title": "Process Logging",
+									"title": "Workspace process logging",
 									"description": "Log all system-level process activity inside workspaces for security and auditing.",
 									"path": "./admin/templates/extending-templates/process-logging.md",
 									"state": ["premium"]
 								},
 								{
-									"title": "Startup Dependencies",
+									"title": "Workspace startup coordination",
 									"description": "Coordinate workspace startup scripts with dependency management so they run in the right order.",
 									"path": "./admin/templates/startup-coordination/index.md",
 									"state": ["early access"],
@@ -760,20 +760,20 @@
 							"path": "./admin/templates/open-in-coder.md"
 						},
 						{
-							"title": "Permissions \u0026 Policies",
+							"title": "Permissions",
 							"description": "Control which users and groups can use, edit, and administer each Coder template.",
 							"path": "./admin/templates/template-permissions.md",
 							"state": ["premium"]
 						},
 						{
-							"title": "Troubleshooting Templates",
+							"title": "Troubleshoot templates",
 							"description": "Troubleshoot common Coder template problems, from failed builds to misconfigured workspaces.",
 							"path": "./admin/templates/troubleshooting.md"
 						}
 					]
 				},
 				{
-					"title": "External Authentication",
+					"title": "External authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
 					"path": "./admin/external-auth/index.md",
 					"icon_path": "./images/icons/plug.svg"
@@ -790,12 +790,12 @@
 							"path": "./admin/integrations/prometheus.md"
 						},
 						{
-							"title": "Kubernetes Logging",
+							"title": "Kubernetes event logs",
 							"description": "Stream Kubernetes event logs into workspace startup logs to debug pod scheduling issues.",
 							"path": "./admin/integrations/kubernetes-logs.md"
 						},
 						{
-							"title": "Additional Kubernetes Clusters",
+							"title": "Additional clusters",
 							"description": "Deploy Coder workspaces across additional Kubernetes clusters beyond the control plane cluster.",
 							"path": "./admin/integrations/multiple-kube-clusters.md"
 						},
@@ -805,7 +805,7 @@
 							"path": "./admin/integrations/jfrog-artifactory.md"
 						},
 						{
-							"title": "Island Secure Browser",
+							"title": "Island browser integration",
 							"description": "Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.",
 							"path": "./admin/integrations/island.md"
 						},
@@ -825,7 +825,7 @@
 							"path": "./admin/integrations/vault.md"
 						},
 						{
-							"title": "OAuth2 Provider",
+							"title": "OAuth2 provider",
 							"description": "Use Coder as an OAuth2 authorization server so third-party apps can authenticate users.",
 							"path": "./admin/integrations/oauth2-provider/index.md",
 							"children": [
@@ -867,7 +867,7 @@
 							"path": "./admin/integrations/devcontainers/index.md",
 							"children": [
 								{
-									"title": "Dev Containers Integration",
+									"title": "Configure a template for Dev Containers",
 									"description": "Configure a Coder template for native dev containers backed by Docker.",
 									"path": "./admin/integrations/devcontainers/integration.md"
 								},
@@ -904,7 +904,7 @@
 					"icon_path": "./images/icons/networking.svg",
 					"children": [
 						{
-							"title": "Port Forwarding",
+							"title": "Port forwarding",
 							"description": "Learn how port forwarding works in Coder and how to expose workspace ports to users.",
 							"path": "./admin/networking/port-forwarding.md"
 						},
@@ -914,19 +914,19 @@
 							"path": "./admin/networking/stun.md"
 						},
 						{
-							"title": "Workspace Proxies",
+							"title": "Workspace proxies",
 							"description": "Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.",
 							"path": "./admin/networking/workspace-proxies.md",
 							"state": ["premium"]
 						},
 						{
-							"title": "High Availability",
+							"title": "High availability",
 							"description": "Configure Coder in high availability (HA) mode for horizontal scalability and failover.",
 							"path": "./admin/networking/high-availability.md",
 							"state": ["premium"]
 						},
 						{
-							"title": "Wildcard Access URL",
+							"title": "Wildcard access URLs",
 							"description": "Configure a wildcard access URL to enable port forwarding, web IDEs, and app previews.",
 							"path": "./admin/networking/wildcard-access-url.md"
 						},
@@ -954,12 +954,12 @@
 							"path": "./admin/monitoring/metrics.md"
 						},
 						{
-							"title": "Health Check",
+							"title": "Deployment health",
 							"description": "Use Coder's deployment health page to monitor your control plane and its dependencies.",
 							"path": "./admin/monitoring/health-check.md"
 						},
 						{
-							"title": "Connection Logs",
+							"title": "Connection logs",
 							"description": "Monitor SSH, app, and agent connections to your workspaces with the connection log.",
 							"path": "./admin/monitoring/connection-logs.md",
 							"state": ["premium"]
@@ -970,12 +970,12 @@
 							"path": "./admin/monitoring/notifications/index.md",
 							"children": [
 								{
-									"title": "Slack Notifications",
+									"title": "Slack notifications",
 									"description": "Set up a Slack integration to deliver Coder notifications to your channels.",
 									"path": "./admin/monitoring/notifications/slack.md"
 								},
 								{
-									"title": "Microsoft Teams Notifications",
+									"title": "Microsoft Teams notifications",
 									"description": "Set up a Microsoft Teams integration to deliver Coder notifications to your channels.",
 									"path": "./admin/monitoring/notifications/teams.md"
 								}
@@ -990,7 +990,7 @@
 					"icon_path": "./images/icons/lock.svg",
 					"children": [
 						{
-							"title": "Audit Logs",
+							"title": "Audit logs",
 							"description": "Track user and administrator actions across your Coder deployment with audit logs.",
 							"path": "./admin/security/audit-logs.md",
 							"state": ["premium"]
@@ -1001,7 +1001,7 @@
 							"path": "./admin/security/secrets.md"
 						},
 						{
-							"title": "Database Encryption",
+							"title": "Database encryption",
 							"description": "Encrypt sensitive values in the Coder database to protect tokens and secrets at rest.",
 							"path": "./admin/security/database-encryption.md",
 							"state": ["premium"]
@@ -1011,13 +1011,13 @@
 			]
 		},
 		{
-			"title": "Run AI Coding Agents in Coder",
+			"title": "Run AI coding agents in Coder",
 			"description": "Run and manage AI coding agents like Claude Code and Codex in Coder workspaces, alongside your existing development environments.",
 			"path": "./ai-coder/index.md",
 			"icon_path": "./images/icons/wand.svg",
 			"children": [
 				{
-					"title": "Best Practices",
+					"title": "Best practices",
 					"description": "Cultural and technical best practices for introducing AI coding agents into your organization.",
 					"path": "./ai-coder/best-practices.md"
 				},
@@ -1032,7 +1032,7 @@
 					"path": "./ai-coder/agents/index.md",
 					"children": [
 						{
-							"title": "Getting Started",
+							"title": "Getting started",
 							"description": "Enable Coder Agents, prepare your deployment, and run your first Coder Agent",
 							"path": "./ai-coder/agents/getting-started.md"
 						},
@@ -1042,12 +1042,12 @@
 							"path": "./ai-coder/agents/architecture.md"
 						},
 						{
-							"title": "Platform Controls",
+							"title": "Platform controls",
 							"description": "Learn how platform teams control Coder Agents behavior, models, spend, and policies.",
 							"path": "./ai-coder/agents/platform-controls/index.md",
 							"children": [
 								{
-									"title": "Template Optimization",
+									"title": "Template optimization",
 									"description": "Best practices for creating templates that are discoverable and useful to Coder Agents",
 									"path": "./ai-coder/agents/platform-controls/template-optimization.md"
 								},
@@ -1063,7 +1063,7 @@
 									"state": ["early access"]
 								},
 								{
-									"title": "MCP Servers",
+									"title": "MCP servers",
 									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
 									"path": "./ai-coder/agents/platform-controls/mcp-servers.md"
 								},
@@ -1074,22 +1074,22 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Git Providers",
+									"title": "Git providers",
 									"description": "Configure Git providers so Coder Agents can show pull request diffs in the in-chat viewer.",
 									"path": "./ai-coder/agents/platform-controls/git-providers.md"
 								},
 								{
-									"title": "Data Retention",
+									"title": "Conversation data retention",
 									"description": "Configure automatic cleanup of old Coder Agents conversation data to manage database size.",
 									"path": "./ai-coder/agents/platform-controls/chat-retention.md"
 								},
 								{
-									"title": "Debug Data Retention",
+									"title": "Chat debug data retention",
 									"description": "Configure automatic cleanup of old Coder Agents chat debug data to manage database size.",
 									"path": "./ai-coder/agents/platform-controls/chat-debug-retention.md"
 								},
 								{
-									"title": "Auto-Archive",
+									"title": "Conversation auto-archive",
 									"description": "Automatically archive long-inactive Coder Agents conversations to keep chat lists tidy.",
 									"path": "./ai-coder/agents/platform-controls/chat-auto-archive.md"
 								},
@@ -1113,7 +1113,7 @@
 							]
 						},
 						{
-							"title": "Extending Agents",
+							"title": "Extending agents",
 							"description": "Extend Coder Agents with custom skills and MCP tools defined in your workspace templates.",
 							"path": "./ai-coder/agents/extending-agents.md"
 						},
@@ -1128,22 +1128,22 @@
 							"path": "./ai-coder/agents/tools/index.md"
 						},
 						{
-							"title": "Chat Sharing",
+							"title": "Chat sharing",
 							"description": "Give other users and groups read-only access to a Coder Agents conversation with chat sharing.",
 							"path": "./ai-coder/agents/chat-sharing.md"
 						},
 						{
-							"title": "Search Syntax",
+							"title": "Conversation search syntax",
 							"description": "Filter Coder Agents conversations by title, status, and linked pull requests with search syntax.",
 							"path": "./ai-coder/agents/chat-search-syntax.md"
 						},
 						{
-							"title": "Licensing \u0026 Usage",
+							"title": "Licensing & usage",
 							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
 						{
-							"title": "Tasks to Chats API Migration",
+							"title": "Migrate from the Tasks API to the Chats API",
 							"description": "Migrate your integrations from the removed Coder Tasks API to the Coder Agents Chats API.",
 							"path": "./ai-coder/agents/tasks-to-chats-migration.md"
 						}
@@ -1182,39 +1182,39 @@
 							"state": ["premium"],
 							"children": [
 								{
-									"title": "NS Jail",
+									"title": "Nsjail jail type",
 									"description": "Learn how Agent Firewall's default nsjail jail type isolates agents using Linux namespaces.",
 									"path": "./ai-coder/agent-firewall/nsjail/index.md",
 									"children": [
 										{
-											"title": "NS Jail on Docker",
+											"title": "Nsjail on Docker",
 											"description": "Runtime and permission requirements for running Agent Firewall's nsjail jail type on Docker.",
 											"path": "./ai-coder/agent-firewall/nsjail/docker.md"
 										},
 										{
-											"title": "NS Jail on Kubernetes",
+											"title": "Nsjail on Kubernetes",
 											"description": "Runtime and permission requirements for running Agent Firewall's nsjail jail type on Kubernetes.",
 											"path": "./ai-coder/agent-firewall/nsjail/k8s.md"
 										},
 										{
-											"title": "NS Jail on ECS",
+											"title": "Nsjail on ECS",
 											"description": "Runtime and permission requirements for running Agent Firewall's nsjail jail type on AWS ECS.",
 											"path": "./ai-coder/agent-firewall/nsjail/ecs.md"
 										}
 									]
 								},
 								{
-									"title": "LandJail",
+									"title": "Landjail jail type",
 									"description": "Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.",
 									"path": "./ai-coder/agent-firewall/landjail.md"
 								},
 								{
-									"title": "Rules Engine",
+									"title": "Rules engine",
 									"description": "Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.",
 									"path": "./ai-coder/agent-firewall/rules-engine.md"
 								},
 								{
-									"title": "Version Compatibility",
+									"title": "Version requirements",
 									"description": "Check the Coder and Claude Code module version requirements for running Agent Firewall.",
 									"path": "./ai-coder/agent-firewall/version.md"
 								}
@@ -1234,7 +1234,7 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Standalone Deployment",
+									"title": "Standalone deployment",
 									"description": "Deploy and operate AI Gateway as a standalone service",
 									"path": "./ai-coder/ai-gateway/standalone.md",
 									"state": ["premium"]
@@ -1246,7 +1246,7 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Client Configuration",
+									"title": "Client configuration",
 									"description": "Configure your AI coding tools to route their model requests through AI Gateway.",
 									"path": "./ai-coder/ai-gateway/clients/index.md",
 									"state": ["premium"],
@@ -1326,7 +1326,7 @@
 									]
 								},
 								{
-									"title": "MCP Tools Injection",
+									"title": "MCP tools injection",
 									"description": "Connect MCP servers to AI Gateway to inject tools and centrally manage what users can call.",
 									"path": "./ai-coder/ai-gateway/mcp.md"
 								},
@@ -1345,7 +1345,7 @@
 									]
 								},
 								{
-									"title": "Provider Configuration",
+									"title": "Provider configuration",
 									"description": "Learn how AI Gateway stores and reloads LLM provider configuration for your deployment.",
 									"path": "./ai-coder/ai-gateway/providers.md",
 									"state": ["premium"]
@@ -1363,7 +1363,7 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "AI Governance Cost Control",
+									"title": "AI Governance cost control",
 									"description": "Configure AI Gateway budgets, enforcement, notifications, and spend reporting.",
 									"path": "./ai-coder/ai-gateway/cost-controls.md",
 									"state": ["premium"]
@@ -1375,7 +1375,7 @@
 									"state": ["premium"]
 								},
 								{
-									"title": "Rebranding Migration",
+									"title": "Rebranding migration",
 									"description": "Update configuration and references after the AI Bridge rename to AI Gateway.",
 									"path": "./ai-coder/ai-gateway/rebranding-migration.md",
 									"state": ["premium"]
@@ -1385,7 +1385,7 @@
 					]
 				},
 				{
-					"title": "MCP Server",
+					"title": "MCP server",
 					"description": "Connect external AI coding agents to Coder using its built-in Model Context Protocol server.",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
@@ -1404,7 +1404,7 @@
 					"path": "./get-started/index.md"
 				},
 				{
-					"title": "Write a Template from Scratch",
+					"title": "Write a template from scratch",
 					"description": "Learn how to write a Coder template from scratch with Terraform, step by step.",
 					"path": "./tutorials/template-from-scratch.md"
 				},
@@ -1414,23 +1414,23 @@
 					"path": "./tutorials/external-database.md"
 				},
 				{
-					"title": "Image Management",
+					"title": "Image management",
 					"description": "Learn how to build and manage the container images that back your Coder templates.",
 					"path": "./admin/templates/managing-templates/image-management.md"
 				},
 				{
-					"title": "Configuring Okta",
+					"title": "Configure custom claims/scopes with Okta for group/role",
 					"description": "Configure custom Okta claims and scopes to drive Coder group and role sync.",
 					"path": "./tutorials/configuring-okta.md"
 				},
 				{
-					"title": "Persistent Shared Workspaces",
+					"title": "Persistent shared workspaces",
 					"description": "Set up long-lived shared workspaces with service accounts and workspace sharing",
 					"path": "./tutorials/persistent-shared-workspaces.md",
 					"state": ["premium"]
 				},
 				{
-					"title": "Google to AWS Federation",
+					"title": "Google Cloud to AWS federation",
 					"description": "Federate a Google Cloud service account to AWS so Coder can authenticate across clouds.",
 					"path": "./tutorials/gcp-to-aws.md"
 				},
@@ -1440,27 +1440,27 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
-					"title": "Istio Integration",
+					"title": "Istio integration",
 					"description": "Use the Istio service mesh to secure and control your Coder workspace traffic.",
 					"path": "./admin/integrations/istio.md"
 				},
 				{
-					"title": "Island Secure Browser Integration",
+					"title": "Island browser integration",
 					"description": "Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.",
 					"path": "./admin/integrations/island.md"
 				},
 				{
-					"title": "Template ImagePullSecrets",
+					"title": "Image pull secrets",
 					"description": "Create Kubernetes ImagePullSecrets so Coder workspaces can pull images from private registries.",
 					"path": "./tutorials/image-pull-secret.md"
 				},
 				{
-					"title": "Postgres SSL",
+					"title": "PostgreSQL SSL",
 					"description": "Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.",
 					"path": "./tutorials/postgres-ssl.md"
 				},
 				{
-					"title": "Azure Federation",
+					"title": "Azure federation",
 					"description": "Federate Coder's control plane to Azure so it can authenticate to Azure services.",
 					"path": "./tutorials/azure-federation.md"
 				},
@@ -1470,37 +1470,37 @@
 					"path": "./install/server/kubernetes/kubernetes-azure-app-gateway.md"
 				},
 				{
-					"title": "Cloning Git Repositories",
+					"title": "Cloning Git repositories",
 					"description": "Learn how to automatically clone Git repositories into your Coder workspaces on startup.",
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
-					"title": "Test Templates Through CI/CD",
+					"title": "Test templates through CI/CD",
 					"description": "Test and publish your Coder templates automatically through a CI/CD pipeline.",
 					"path": "./tutorials/testing-templates.md"
 				},
 				{
-					"title": "Use Apache as a Reverse Proxy",
+					"title": "Apache reverse proxy",
 					"description": "Configure Apache as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
 					"path": "./tutorials/reverse-proxy-apache.md"
 				},
 				{
-					"title": "Use Caddy as a Reverse Proxy",
+					"title": "Caddy",
 					"description": "Configure Caddy as a reverse proxy for Coder, with automatic HTTPS certificates.",
 					"path": "./tutorials/reverse-proxy-caddy.md"
 				},
 				{
-					"title": "Use NGINX as a Reverse Proxy",
+					"title": "NGINX reverse proxy",
 					"description": "Configure NGINX as a reverse proxy for Coder, with TLS certificates from Let's Encrypt.",
 					"path": "./tutorials/reverse-proxy-nginx.md"
 				},
 				{
-					"title": "Pre-install JetBrains IDEs in Workspaces",
+					"title": "Pre-install JetBrains IDEs",
 					"description": "Pre-install JetBrains IDE backends in your template for faster first-time connections.",
 					"path": "./admin/templates/extending-templates/jetbrains-preinstall.md"
 				},
 				{
-					"title": "Use JetBrains IDEs in Air-Gapped Deployments",
+					"title": "JetBrains IDEs in an air-gapped environment",
 					"description": "Configure JetBrains IDEs to work in air-gapped Coder deployments without internet access.",
 					"path": "./admin/templates/extending-templates/jetbrains-airgapped.md"
 				},

@@ -1,5 +1,5 @@
 ---
-title: Image Management
+title: Image management
 ---
 
 While Coder provides example

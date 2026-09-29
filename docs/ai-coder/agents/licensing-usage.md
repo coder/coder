@@ -1,5 +1,5 @@
 ---
-title: Licensing & Usage
+title: Licensing & usage
 ---
 
 Coder Agents licensing controls concurrent agent activity and Agent Time usage across your deployment.

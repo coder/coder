@@ -1,5 +1,5 @@
 ---
-title: Getting Started
+title: Getting started
 ---
 
 This guide walks platform teams and administrators through setting up Coder
