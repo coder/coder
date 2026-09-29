@@ -1,6 +1,5 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
 import { QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -28,7 +27,7 @@ import {
 type TimelineStage = {
 	messages?: ChatMessage[];
 	pendingToolCallIDs?: ReadonlySet<string>;
-} & Partial<ComponentProps<typeof ConversationTimeline>>;
+} & Partial<React.ComponentProps<typeof ConversationTimeline>>;
 
 function renderTimeline(initial: TimelineStage = {}) {
 	const queryClient = createTestQueryClient();
