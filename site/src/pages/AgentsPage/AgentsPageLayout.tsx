@@ -64,7 +64,6 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { canAccessCoderAgentsSettings } from "#/modules/permissions";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
@@ -758,7 +757,9 @@ const AgentsPageLayout: React.FC = () => {
 
 	// Mobile hides the sidebar on chat and settings detail routes, so slide it
 	// across the sm breakpoint.
-	const isMobileViewport = useMediaQuery(mobileViewportMediaQuery);
+	// rem, not the shared px query, so it switches with the sm: classes at any
+	// browser font size.
+	const isMobileViewport = useMediaQuery("(width < 40rem)");
 	const [prevIsMobileViewport, setPrevIsMobileViewport] =
 		useState(isMobileViewport);
 	const [sidebarViewportSlide, setSidebarViewportSlide] =

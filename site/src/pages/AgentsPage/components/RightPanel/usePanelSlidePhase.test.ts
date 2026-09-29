@@ -1,18 +1,21 @@
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
 	nextPanelSlidePhase,
 	type PanelSlidePhase,
+	usePanelSlidePhase,
 } from "./usePanelSlidePhase";
 
 const closed = {
 	isOpen: false,
 	isExpanded: false,
 	isBelowLg: false,
-	isDragging: false,
+	isPointerResizing: false,
 };
 const open = { ...closed, isOpen: true };
 const expanded = { ...open, isExpanded: true };
 const belowLg = { ...closed, isBelowLg: true };
+const dragging = { isPointerResizing: true };
 
 describe("nextPanelSlidePhase", () => {
 	it.each<{
@@ -51,6 +54,20 @@ describe("nextPanelSlidePhase", () => {
 			expected: "slidingOut",
 		},
 		{
+			name: "ends a slide-out when the overlay opens",
+			phase: "slidingOut",
+			prev: belowLg,
+			next: { ...open, isBelowLg: true },
+			expected: "open",
+		},
+		{
+			name: "expands without closing",
+			phase: "open",
+			prev: open,
+			next: expanded,
+			expected: "open",
+		},
+		{
 			name: "opens without a slide when leaving expanded mode",
 			phase: "open",
 			prev: expanded,
@@ -65,20 +82,51 @@ describe("nextPanelSlidePhase", () => {
 			expected: "closed",
 		},
 		{
-			name: "ends an open slide when a drag starts",
-			phase: "opening",
-			prev: open,
-			next: { ...open, isDragging: true },
-			expected: "open",
-		},
-		{
 			name: "closes without a slide when dragged shut",
 			phase: "open",
-			prev: { ...open, isDragging: true },
-			next: { ...closed, isDragging: true },
+			prev: { ...open, ...dragging },
+			next: { ...closed, ...dragging },
 			expected: "closed",
+		},
+		{
+			name: "opens without a slide when dragged back open",
+			phase: "closed",
+			prev: { ...closed, ...dragging },
+			next: { ...open, ...dragging },
+			expected: "open",
 		},
 	])("$name", ({ phase, prev, next, expected }) => {
 		expect(nextPanelSlidePhase(phase, prev, next)).toBe(expected);
+	});
+});
+
+describe("usePanelSlidePhase", () => {
+	const renderPhase = (panel: HTMLElement) =>
+		renderHook((inputs) => usePanelSlidePhase({ current: panel }, inputs), {
+			initialProps: closed,
+		});
+
+	it("settles at once when no animation runs", () => {
+		const { result, rerender } = renderPhase(document.createElement("div"));
+
+		rerender(open);
+
+		expect(result.current).toBe("open");
+	});
+
+	it("settles when the panel's animations finish", async () => {
+		const panel = document.createElement("div");
+		let finish = () => {};
+		const finished = new Promise<void>((resolve) => {
+			finish = resolve;
+		});
+		panel.getAnimations = () => [{ finished } as unknown as Animation];
+		const { result, rerender } = renderPhase(panel);
+
+		rerender(open);
+		expect(result.current).toBe("opening");
+
+		await act(async () => finish());
+		expect(result.current).toBe("open");
 	});
 });
