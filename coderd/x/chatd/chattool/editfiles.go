@@ -31,9 +31,9 @@ type EditFilesArgs struct {
 // EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
 // carries the path of the file it changes.
 type EditFilesEdit struct {
-	Path       string `json:"path" description:"Absolute path of the file to edit."`
-	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
-	NewText    string `json:"new_text" description:"Replacement text."`
+	Path       string `json:"path" description:"Absolute path of the file, for example /home/coder/project/main.go."`
+	OldText    string `json:"old_text" description:"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."`
+	NewText    string `json:"new_text" description:"Replacement text. Must differ from old_text."`
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
@@ -237,15 +237,8 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return editFilesTool{AgentTool: fantasy.NewAgentTool(
 		EditFilesName,
-		"Perform edits on one or more files by replacing old_text with"+
-			" new_text. Send a flat list of edits; each edit carries the"+
-			" absolute path of the file it changes, and edits to the same"+
-			" file apply in the order listed. Matching is fuzzy"+
-			" (tolerates whitespace and indentation differences) and preserves"+
-			" the file's existing indentation and line endings. Errors if"+
-			" old_text matches zero locations, or more than one unless"+
-			" replace_all is set. All edits in a batch are validated before"+
-			" any file is written.",
+		"Edit files by replacing old_text with new_text. Edits to the same"+
+			" file apply in order. If any edit fails, no file is changed.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
 				return rejectEditFiles("Add at least one edit to edits"), nil

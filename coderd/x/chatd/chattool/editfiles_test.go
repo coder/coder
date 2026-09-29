@@ -31,12 +31,15 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"edits":{"type":"array","items":{
 			"type":"object","required":["path","old_text","new_text"],"properties":{
-				"path":{"type":"string","description":"Absolute path of the file to edit."},
-				"old_text":{"type":"string","description":"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."},
-				"new_text":{"type":"string","description":"Replacement text."},
+				"path":{"type":"string","description":"Absolute path of the file, for example /home/coder/project/main.go."},
+				"old_text":{"type":"string","description":"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."},
+				"new_text":{"type":"string","description":"Replacement text. Must differ from old_text."},
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
+		assert.Equal(t,
+			"Edit files by replacing old_text with new_text. Edits to the same file apply in order. If any edit fails, no file is changed.",
+			info.Description)
 	})
 
 	t.Run("RejectedInputNamesWhatToChange", func(t *testing.T) {
