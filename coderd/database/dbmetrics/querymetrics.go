@@ -368,14 +368,6 @@ func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, st
 	return r0, r1
 }
 
-func (m queryMetricsStore) CountChatQueuedAutomationMessagesByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.CountChatQueuedAutomationMessagesByChatID(ctx, chatID)
-	m.queryLatencies.WithLabelValues("CountChatQueuedAutomationMessagesByChatID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatQueuedAutomationMessagesByChatID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountChatQueuedMessages(ctx, chatID)

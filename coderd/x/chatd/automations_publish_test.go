@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -117,6 +118,16 @@ func (f publishFixture) newChatWebhook(ctx context.Context, t *testing.T, use co
 	return automation
 }
 
+// singleUseWebhook creates a single-use webhook automation with the
+// given target mode.
+func (f publishFixture) singleUseWebhook(ctx context.Context, t *testing.T, targetMode codersdk.ChatAutomationTargetMode) database.ChatAutomation {
+	t.Helper()
+	if targetMode == codersdk.ChatAutomationTargetModeNewChat {
+		return f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+	}
+	return f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
+}
+
 // createdChats returns the owner's chats other than the fixture chat.
 func (f publishFixture) createdChats(ctx context.Context, t *testing.T) []uuid.UUID {
 	t.Helper()
@@ -154,6 +165,28 @@ func (f publishFixture) requireNotConsumed(ctx context.Context, t *testing.T, au
 	require.NoError(t, err)
 	require.False(t, stored.WebhookConsumedAt.Valid, "a refused delivery does not use up a single-use webhook")
 }
+
+// newHookConsumer returns a user_prompt_submit hook consumer that answers
+// with body after calling onCall, and the number of hook calls.
+func newHookConsumer(t *testing.T, body string, onCall func()) (*httptest.Server, *atomic.Int64) {
+	t.Helper()
+	var calls atomic.Int64
+	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		if onCall != nil {
+			onCall()
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(consumer.Close)
+	return consumer, &calls
+}
+
+const (
+	// hookNoDecision lets the prompt through unchanged.
+	hookNoDecision = `{}`
+	hookDeny       = `{"permission":{"decision":"deny"},"user_message":"blocked"}`
+)
 
 func TestPublishAutomationWebhook(t *testing.T) {
 	t.Parallel()
@@ -217,43 +250,103 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		require.True(t, stored.WebhookConsumedAt.Valid)
 	})
 
+	t.Run("SecretRotatedBeforeSend", func(t *testing.T) {
+		t.Parallel()
+		for _, targetMode := range []codersdk.ChatAutomationTargetMode{
+			codersdk.ChatAutomationTargetModeExistingChat,
+			codersdk.ChatAutomationTargetModeNewChat,
+		} {
+			t.Run(string(targetMode), func(t *testing.T) {
+				t.Parallel()
+				consumer, hookCalls := newHookConsumer(t, hookDeny, nil)
+				f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.singleUseWebhook(ctx, t, targetMode)
+				_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+				require.NoError(t, err)
+
+				// automation still carries the version the request was
+				// verified against. The payload of a stale secret never
+				// reaches the hooks.
+				_, err = f.publish(ctx, automation)
+				require.ErrorIs(t, err, chatd.ErrAutomationSecretChanged)
+				require.Zero(t, hookCalls.Load())
+				f.requireNothingSaved(ctx, t)
+				require.Empty(t, f.createdChats(ctx, t))
+			})
+		}
+	})
+
 	t.Run("SecretRotatedBeforeCommit", func(t *testing.T) {
 		t.Parallel()
-		f := newPublishFixture(t, database.ChatStatusWaiting)
+		// The hook runs after the pre-send checks and before the locks,
+		// so rotating there reaches the check under lock.
+		var rotate func()
+		consumer, hookCalls := newHookConsumer(t, hookNoDecision, func() { rotate() })
+		f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
-		_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
-		require.NoError(t, err)
+		rotate = func() {
+			_, _, err := f.server.RotateAutomationSecret(ctx, f.owner.ID, automation.ID)
+			assert.NoError(t, err)
+		}
 
-		// automation still carries the version the request was verified
-		// against.
-		_, err = f.publish(ctx, automation)
+		_, err := f.publish(ctx, automation)
 		require.ErrorIs(t, err, chatd.ErrAutomationSecretChanged)
+		require.EqualValues(t, 1, hookCalls.Load())
 		f.requireNothingSaved(ctx, t)
-		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
-		require.NoError(t, err)
-		require.False(t, stored.WebhookConsumedAt.Valid)
+		f.requireNotConsumed(ctx, t, automation)
 	})
 
 	t.Run("SkipBusyChat", func(t *testing.T) {
 		t.Parallel()
-		f := newPublishFixture(t, database.ChatStatusRunning)
+		consumer, hookCalls := newHookConsumer(t, hookNoDecision, nil)
+		f := newPublishFixture(t, database.ChatStatusRunning, func(cfg *chatd.Config) {
+			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusySkip)
 
 		_, err := f.publish(ctx, automation)
 		require.ErrorIs(t, err, chatd.ErrAutomationChatBusy)
+		require.Zero(t, hookCalls.Load(), "a refused input never reaches the hooks")
 		f.requireNothingSaved(ctx, t)
-		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
-		require.NoError(t, err)
-		require.False(t, stored.WebhookConsumedAt.Valid, "a skipped delivery does not use up a single-use webhook")
+		f.requireNotConsumed(ctx, t, automation)
+	})
+
+	t.Run("SkipChatBusyBeforeCommit", func(t *testing.T) {
+		t.Parallel()
+		// The hook runs after the pre-send checks and before the locks,
+		// so a turn starting there reaches the busy check under lock.
+		var startTurn func()
+		consumer, hookCalls := newHookConsumer(t, hookNoDecision, func() { startTurn() })
+		f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusySkip)
+		startTurn = func() {
+			_, err := f.sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'running' WHERE id = $1", f.chat.ID)
+			assert.NoError(t, err)
+		}
+
+		_, err := f.publish(ctx, automation)
+		require.ErrorIs(t, err, chatd.ErrAutomationChatBusy)
+		require.EqualValues(t, 1, hookCalls.Load())
+		f.requireNothingSaved(ctx, t)
 	})
 
 	t.Run("QueueBusyChatShare", func(t *testing.T) {
 		t.Parallel()
+		consumer, hookCalls := newHookConsumer(t, hookNoDecision, nil)
 		// A queue of 4 leaves automations a share of 2.
 		f := newPublishFixture(t, database.ChatStatusRunning, func(cfg *chatd.Config) {
 			cfg.Limits = chatd.Limits{MaxQueuedMessagesPerChat: 4}
+			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
@@ -265,6 +358,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		}
 		_, err := f.publish(ctx, automation)
 		require.ErrorIs(t, err, chatd.ErrAutomationQueueShareFull)
+		require.EqualValues(t, 2, hookCalls.Load(), "a refused input never reaches the hooks")
 
 		chat, err := f.db.GetChatByID(ctx, f.chat.ID)
 		require.NoError(t, err)
@@ -284,6 +378,63 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.True(t, sent.Queued)
+	})
+
+	t.Run("QueueBusyChatShareIgnoresStaleRows", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name  string
+			stale string
+		}{
+			{"Disabled", "UPDATE chat_automations SET enabled = false WHERE id = $1"},
+			{"NewerGeneration", "UPDATE chat_automations SET queue_generation = queue_generation + 1 WHERE id = $1"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				// A queue of 4 leaves automations a share of 2.
+				f := newPublishFixture(t, database.ChatStatusRunning, func(cfg *chatd.Config) {
+					cfg.Limits = chatd.Limits{MaxQueuedMessagesPerChat: 4}
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				filler := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+				for range 2 {
+					_, err := f.publish(ctx, filler)
+					require.NoError(t, err)
+				}
+				// Promotion drops the filler's rows now, so they leave
+				// the share free. Changing the row directly keeps them
+				// queued.
+				_, err := f.sqlDB.ExecContext(ctx, tc.stale, filler.ID)
+				require.NoError(t, err)
+
+				automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+				_, err = f.publish(ctx, automation)
+				require.NoError(t, err)
+				queued, err := f.db.GetChatQueuedMessages(ctx, f.chat.ID)
+				require.NoError(t, err)
+				require.Len(t, queued, 3)
+			})
+		}
+	})
+
+	t.Run("SkipErroredChatWithOnlyStaleRows", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusRunning)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		filler := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti, codersdk.ChatAutomationWhenBusyQueue)
+		_, err := f.publish(ctx, filler)
+		require.NoError(t, err)
+		// Promotion would drop the stale row, so the errored chat counts
+		// as idle.
+		_, err = f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET queue_generation = queue_generation + 1 WHERE id = $1", filler.ID)
+		require.NoError(t, err)
+		_, err = f.sqlDB.ExecContext(ctx, "UPDATE chats SET status = 'error' WHERE id = $1", f.chat.ID)
+		require.NoError(t, err)
+
+		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusySkip)
+		result, err := f.publish(ctx, automation)
+		require.NoError(t, err)
+		require.Equal(t, f.chat.ID, result.ChatID)
 	})
 
 	t.Run("RefusedOwner", func(t *testing.T) {
@@ -367,24 +518,17 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		} {
 			t.Run(string(targetMode), func(t *testing.T) {
 				t.Parallel()
-				consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					_, _ = w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
-				}))
-				t.Cleanup(consumer.Close)
+				consumer, hookCalls := newHookConsumer(t, hookDeny, nil)
 				f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
 					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
-				var automation database.ChatAutomation
-				if targetMode == codersdk.ChatAutomationTargetModeNewChat {
-					automation = f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
-				} else {
-					automation = f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
-				}
+				automation := f.singleUseWebhook(ctx, t, targetMode)
 
 				_, err := f.publish(ctx, automation)
 				var denied *chathooks.UserPromptDeniedError
 				require.ErrorAs(t, err, &denied)
+				require.EqualValues(t, 1, hookCalls.Load())
 				f.requireNothingSaved(ctx, t)
 				require.Empty(t, f.createdChats(ctx, t))
 				f.requireNotConsumed(ctx, t, automation)
@@ -488,26 +632,18 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				var (
-					f    publishFixture
-					once sync.Once
-				)
-				consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					once.Do(func() {
-						assert.NoError(t, tc.change(f, r.Context()))
-					})
-					// No permission decision lets the input through unchanged.
-					_, _ = w.Write([]byte(`{}`))
-				}))
-				t.Cleanup(consumer.Close)
-				f = newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+				var change func()
+				consumer, hookCalls := newHookConsumer(t, hookNoDecision, func() { change() })
+				f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
 					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
 				automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+				change = func() { assert.NoError(t, tc.change(f, ctx)) }
 
 				_, err := f.publish(ctx, automation)
 				require.ErrorIs(t, err, tc.want)
+				require.EqualValues(t, 1, hookCalls.Load())
 				require.Empty(t, f.createdChats(ctx, t))
 				f.requireNotConsumed(ctx, t, automation)
 			})
@@ -539,6 +675,38 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		}
 		require.Equal(t, 1, accepted)
 		require.Len(t, f.createdChats(ctx, t), 1)
+	})
+
+	t.Run("SingleUseConsumedSkipsHooks", func(t *testing.T) {
+		t.Parallel()
+		for _, targetMode := range []codersdk.ChatAutomationTargetMode{
+			codersdk.ChatAutomationTargetModeExistingChat,
+			codersdk.ChatAutomationTargetModeNewChat,
+		} {
+			t.Run(string(targetMode), func(t *testing.T) {
+				t.Parallel()
+				consumer, hookCalls := newHookConsumer(t, hookDeny, nil)
+				f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.singleUseWebhook(ctx, t, targetMode)
+				count, err := f.db.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+					ID:  automation.ID,
+					Now: dbtestutil.NowInDefaultTimezone(),
+				})
+				require.NoError(t, err)
+				require.EqualValues(t, 1, count)
+
+				// A repeated request to a used webhook must not expose its
+				// payload to prompt hooks.
+				_, err = f.publish(ctx, automation)
+				require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
+				require.Zero(t, hookCalls.Load())
+				f.requireNothingSaved(ctx, t)
+				require.Empty(t, f.createdChats(ctx, t))
+			})
+		}
 	})
 }
 
