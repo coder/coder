@@ -572,6 +572,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
+Returns 204 with no body when the version has no previous version.
+
 ### Parameters
 
 | Name                  | In   | Type         | Required | Description           |

@@ -246,8 +246,9 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 // @ID watch-chat-events-for-a-user-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
+// @Description Upgrades to a WebSocket. The server sends each event as a separate message.
 // @Produce json
-// @Success 200 {object} codersdk.ChatWatchEvent
+// @Success 101 {object} codersdk.ChatWatchEvent
 // @Router /api/v2/chats/watch [get]
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1994,9 +1995,10 @@ func (api *API) authorizeChatWorkspaceExecWithStatus(
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
+// @Description Upgrades to a WebSocket. The server sends each git state update as a separate message.
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
+// @Success 101 {object} codersdk.WorkspaceAgentGitServerMessage
 // @Router /api/v2/chats/{chat}/stream/git [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -3346,12 +3348,13 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 
 // @Summary Stream chat events via WebSockets
 // @ID stream-chat-events-via-websockets
+// @Description Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -9059,11 +9062,12 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Stream chat parts via WebSockets
 // @ID stream-chat-parts-via-websockets
+// @Description Upgrades to a WebSocket. Each message is a JSON array holding a batch of one or more events.
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {array} codersdk.ChatStreamEvent
+// @Success 101 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream/parts [get]
 // @x-apidocgen {"skip": true}
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
