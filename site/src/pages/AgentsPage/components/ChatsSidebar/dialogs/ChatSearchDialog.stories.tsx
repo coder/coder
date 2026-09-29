@@ -152,10 +152,10 @@ export const Results: Story = {
 			"Fix",
 		);
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"Fix"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"Fix"' },
+				expect.any(AbortSignal),
+			);
 		});
 		await expect(
 			await body.findByText("Fix race condition in auth middleware"),
@@ -220,10 +220,10 @@ export const OverflowResults: Story = {
 			"review",
 		);
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"review"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"review"' },
+				expect.any(AbortSignal),
+			);
 		});
 
 		const result = await body.findByRole("option", {
@@ -256,10 +256,10 @@ export const CappedResults: Story = {
 			"Fix",
 		);
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"Fix"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"Fix"' },
+				expect.any(AbortSignal),
+			);
 		});
 		await expect(
 			await body.findByText(
@@ -342,10 +342,10 @@ export const ErrorState: Story = {
 		await userEvent.type(searchInput, "backend failure");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"backend failure"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"backend failure"' },
+				expect.any(AbortSignal),
+			);
 		});
 		await expect(await body.findByRole("alert")).toBeInTheDocument();
 	},
@@ -375,10 +375,10 @@ export const ErrorStateWithStackTrace: Story = {
 		await userEvent.type(searchInput, "backend failure");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"backend failure"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"backend failure"' },
+				expect.any(AbortSignal),
+			);
 		});
 		const alert = await body.findByRole("alert");
 		await expect(alert).toBeInTheDocument();
@@ -418,10 +418,10 @@ export const BooleanFilterPill: Story = {
 		).toBeInTheDocument();
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "has_unread:true",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "has_unread:true" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -446,10 +446,10 @@ export const ParameterizedFilterPill: Story = {
 		await expect(await body.findByText("pr_status:open")).toBeInTheDocument();
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:open",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:open" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -470,15 +470,15 @@ export const ParameterizedPRStatusCommaContinuation: Story = {
 			await body.findByText("pr_status:open,merged"),
 		).toBeInTheDocument();
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:open,merged",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:open,merged" },
+				expect.any(AbortSignal),
+			);
 		});
-		expect(API.experimental.getChats).not.toHaveBeenCalledWith({
-			limit: CHAT_SEARCH_LIMIT,
-			q: 'pr_status:open search:"merged"',
-		});
+		expect(API.experimental.getChats).not.toHaveBeenCalledWith(
+			{ limit: CHAT_SEARCH_LIMIT, q: 'pr_status:open search:"merged"' },
+			expect.any(AbortSignal),
+		);
 	},
 };
 
@@ -531,10 +531,10 @@ export const DiffURLFilterPill: Story = {
 		});
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: `diff_url:"https://${longDiffURL}"`,
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: `diff_url:"https://${longDiffURL}"` },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -560,10 +560,10 @@ export const ParameterizedFilterPillEnterCommit: Story = {
 		await expect(await body.findByText("pr_status:closed")).toBeInTheDocument();
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:closed",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:closed" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -584,10 +584,10 @@ export const StatusFilterPill: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "status:running",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "status:running" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -630,10 +630,10 @@ export const TypedFilterWithoutTrailingSpace: Story = {
 		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
 		await expect(searchInput).toHaveValue("");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "has_unread:true",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "has_unread:true" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -648,10 +648,10 @@ export const TypedFilterMidString: Story = {
 		await expect(await body.findByText("has_unread:true")).toBeInTheDocument();
 		await expect(searchInput).toHaveValue("fix auth");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'has_unread:true search:"fix auth"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'has_unread:true search:"fix auth"' },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -665,10 +665,10 @@ export const TypedTitleStaysSearchText: Story = {
 
 		await expect(searchInput).toHaveValue("title:auth");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'search:"title:auth"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'search:"title:auth"' },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -688,10 +688,10 @@ export const QuotedTypedFilterDoesNotCommitEarly: Story = {
 		).toBeInTheDocument();
 		await expect(searchInput).toHaveValue("");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:open,merged",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:open,merged" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -713,15 +713,15 @@ export const EmptyIncompleteFilterDoesNotCommit: Story = {
 		await userEvent.type(searchInput, "open");
 		await userEvent.keyboard("{Enter}");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:open",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:open" },
+				expect.any(AbortSignal),
+			);
 		});
-		expect(API.experimental.getChats).not.toHaveBeenCalledWith({
-			limit: CHAT_SEARCH_LIMIT,
-			q: "pr_status:",
-		});
+		expect(API.experimental.getChats).not.toHaveBeenCalledWith(
+			{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:" },
+			expect.any(AbortSignal),
+		);
 	},
 };
 
@@ -734,25 +734,25 @@ export const CommittedFilterDoesNotLeakStaleText: Story = {
 		await userEvent.click(await body.findByText("PR status"));
 		await userEvent.type(searchInput, "open");
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "pr_status:open",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "pr_status:open" },
+				expect.any(AbortSignal),
+			);
 		});
 
 		await userEvent.keyboard("{Enter}");
 		await userEvent.type(searchInput, "fix");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'pr_status:open search:"fix"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'pr_status:open search:"fix"' },
+				expect.any(AbortSignal),
+			);
 		});
-		expect(API.experimental.getChats).not.toHaveBeenCalledWith({
-			limit: CHAT_SEARCH_LIMIT,
-			q: 'pr_status:open search:"open"',
-		});
+		expect(API.experimental.getChats).not.toHaveBeenCalledWith(
+			{ limit: CHAT_SEARCH_LIMIT, q: 'pr_status:open search:"open"' },
+			expect.any(AbortSignal),
+		);
 	},
 };
 
@@ -768,10 +768,10 @@ export const DuplicateTypedFilterReplacesPill: Story = {
 		await expect(await body.findByText("has_unread:false")).toBeInTheDocument();
 		await expect(body.queryByText("has_unread:true")).not.toBeInTheDocument();
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: "has_unread:false",
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: "has_unread:false" },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };
@@ -789,10 +789,10 @@ export const PunctuationOnlyTextHidesIndexingNote: Story = {
 		await userEvent.type(searchInput, "???");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'has_unread:true search:"???"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'has_unread:true search:"???"' },
+				expect.any(AbortSignal),
+			);
 		});
 		await expect(
 			await body.findByText("No matching chats", { exact: false }),
@@ -819,10 +819,10 @@ export const CombinedFilterAndText: Story = {
 		await userEvent.type(searchInput, "Fix");
 
 		await waitFor(() => {
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: CHAT_SEARCH_LIMIT,
-				q: 'has_unread:true search:"Fix"',
-			});
+			expect(API.experimental.getChats).toHaveBeenCalledWith(
+				{ limit: CHAT_SEARCH_LIMIT, q: 'has_unread:true search:"Fix"' },
+				expect.any(AbortSignal),
+			);
 		});
 	},
 };

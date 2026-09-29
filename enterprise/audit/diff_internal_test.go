@@ -393,6 +393,30 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			name: "ConditionTracked",
+			left: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `"coder/beta" in user.groups`,
+				Revision:   1,
+			},
+			right: database.ExperimentRule{
+				ID:         uuid.UUID{1},
+				Experiment: "example",
+				Mode:       "condition",
+				Condition:  `user.email == "alice@example.com"`,
+				Revision:   2,
+			},
+			exp: audit.Map{
+				"condition": audit.OldNew{Old: `"coder/beta" in user.groups`, New: `user.email == "alice@example.com"`},
+				"revision":  audit.OldNew{Old: int64(1), New: int64(2)},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			// User skill content is user-authored instruction text, not secret
 			// material, so audit diffs can include the content change.
 			name: "UserSkillContentTracked",

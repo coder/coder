@@ -399,36 +399,40 @@ title: Schemas
   "circuit_breaker_interval": 0,
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
+  "disable_content_recording": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "structured_logging_source": "string"
 }
 ```
 
 ### Properties
 
-| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
-|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
-| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
-| `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
-| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                       |
-| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                     |
-| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                        |
-| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                        |
-| `enabled`                           | boolean | false    |              |                                                                                                                                                                        |
-| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                           |
-| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                        |
-| `rate_limit`                        | integer | false    |              |                                                                                                                                                                        |
-| `retention`                         | integer | false    |              |                                                                                                                                                                        |
-| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
-| `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
+| Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
+|-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.                                                                                                 |
+| `budget_period`                     | string  | false    |              |                                                                                                                                                                                                                                                                        |
+| `budget_policy`                     | string  | false    |              | Budget settings for AI Governance cost controls.                                                                                                                                                                                                                       |
+| `circuit_breaker_enabled`           | boolean | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                                                                                                                     |
+| `circuit_breaker_failure_threshold` | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_interval`          | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
+| `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `rate_limit`                        | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `retention`                         | integer | false    |              |                                                                                                                                                                                                                                                                        |
+| `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
+| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1040,13 +1044,15 @@ title: Schemas
     "circuit_breaker_interval": 0,
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
+    "disable_content_recording": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "structured_logging_source": "string"
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -7567,13 +7573,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_interval": 0,
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
+        "disable_content_recording": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "structured_logging_source": "string"
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -8200,13 +8208,15 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_interval": 0,
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
+      "disable_content_recording": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "structured_logging_source": "string"
     },
     "chat": {
       "acquire_batch_size": 0,
@@ -9230,6 +9240,68 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value(s)                                                                                                                                                                                                                                                                                                                                                                  |
 |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+
+## codersdk.ExperimentRule
+
+```json
+{
+  "condition": "string",
+  "mode": "string",
+  "revision": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                                                                                                                                                                          |
+|--------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`  | string  | false    |              | Condition is the CEL expression of a condition rule.                                                                                                                                                                 |
+| `mode`       | string  | false    |              | Mode is one of the ExperimentRuleMode values, or empty when the stored rule is malformed. A malformed rule decides off until it is replaced. It is a plain string so that clients can represent the malformed state. |
+| `revision`   | integer | false    |              | Revision increases on every change and starts at 1. Zero means the stored rule has no readable positive revision, so it is malformed.                                                                                |
+| `updated_at` | string  | false    |              |                                                                                                                                                                                                                      |
+| `updated_by` | string  | false    |              |                                                                                                                                                                                                                      |
+
+## codersdk.ExperimentRuleEntry
+
+```json
+{
+  "experiment": "string",
+  "ignored": true,
+  "rule": {
+    "condition": "string",
+    "mode": "string",
+    "revision": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "updated_by": "deea00dc-b6b6-4412-a483-26ac61e1f6fe"
+  },
+  "static_default": true
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                                  |
+|------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `experiment`     | string                                             | false    |              | Experiment is the experiment name. Ignored entries can name experiments this version does not know, so it is a plain string. |
+| `ignored`        | boolean                                            | false    |              | Ignored is true for a stored rule of an experiment that does not accept runtime rules. Such a rule has no effect.            |
+| `rule`           | [codersdk.ExperimentRule](#codersdkexperimentrule) | false    |              | Rule is null when no rule was ever stored.                                                                                   |
+| `static_default` | boolean                                            | false    |              | Static default reports whether the experiment is in the startup --experiments list of the replica that answered.             |
+
+## codersdk.ExperimentRuleMode
+
+```json
+"inherit"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `condition`, `inherit`, `off`, `on` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -13430,6 +13502,30 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |--------------------------------------------------|
 | `ok`, `unhealthy`, `unreachable`, `unregistered` |
 
+## codersdk.PutExperimentRuleRequest
+
+```json
+{
+  "condition": "string",
+  "expected_revision": 0,
+  "mode": "inherit"
+}
+```
+
+### Properties
+
+| Name                | Type                                                       | Required | Restrictions | Description                                                                                                                                                                                              |
+|---------------------|------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `condition`         | string                                                     | false    |              | Condition is required for the condition mode and must be empty otherwise.                                                                                                                                |
+| `expected_revision` | integer                                                    | false    |              | Expected revision must equal the current revision of the stored rule, or zero when no rule is stored or the stored rule has no readable positive revision. A different revision fails with 409 Conflict. |
+| `mode`              | [codersdk.ExperimentRuleMode](#codersdkexperimentrulemode) | false    |              |                                                                                                                                                                                                          |
+
+#### Enumerated Values
+
+| Property | Value(s)                            |
+|----------|-------------------------------------|
+| `mode`   | `condition`, `inherit`, `off`, `on` |
+
 ## codersdk.PutExtendWorkspaceRequest
 
 ```json
@@ -13710,9 +13806,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 

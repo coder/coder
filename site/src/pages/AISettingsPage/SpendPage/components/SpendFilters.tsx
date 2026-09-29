@@ -38,23 +38,6 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 }) => {
 	return (
 		<div className="flex flex-wrap items-start gap-2">
-			{organizations.length > 1 && (
-				<OrganizationAutocomplete
-					value={organization}
-					ariaLabel={`Organization ${getOrganizationLabel(
-						organization,
-						organizations,
-					)}`}
-					options={organizations}
-					triggerClassName="basis-[150px] grow"
-					optionsTabbable
-					onChange={(next) => {
-						if (next) {
-							onOrganizationChange(next);
-						}
-					}}
-				/>
-			)}
 			{canFilterDimensions && (
 				<div className="min-w-60 flex-1">
 					<FilterCombobox
@@ -65,6 +48,23 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 						errorMessage={filterError}
 					/>
 				</div>
+			)}
+			{organizations.length > 1 && (
+				<OrganizationAutocomplete
+					value={organization}
+					ariaLabel={`Organization ${getOrganizationLabel(
+						organization,
+						organizations,
+					)}`}
+					options={organizations}
+					triggerClassName="w-full sm:w-60"
+					optionsTabbable
+					onChange={(next) => {
+						if (next) {
+							onOrganizationChange(next);
+						}
+					}}
+				/>
 			)}
 			<DateTimeRangePicker
 				now={now}
