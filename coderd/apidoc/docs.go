@@ -2458,8 +2458,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "description": "Attachment disposition carrying the file name, for example ` + "`" + `attachment; filename=image.png` + "`" + `",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -8495,12 +8494,11 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
@@ -8606,12 +8604,11 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
@@ -9838,16 +9835,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get the available idp sync claim fields",
                 "operationId": "get-the-available-idp-sync-claim-fields",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -9877,14 +9864,6 @@ const docTemplate = `{
                 "summary": "Get the idp sync claim field values",
                 "operationId": "get-the-idp-sync-claim-field-values",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "string",
@@ -17290,8 +17269,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
-                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
+                        "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, ` + "`" + `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=` + "`" + `.",
                         "name": "Authorization",
                         "in": "header"
                     },

@@ -1301,7 +1301,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Content-Type: image/png' \
   -H 'Accept: application/json' \
-  -H 'Content-Disposition: attachment; filename="image.png"' \
+  -H 'Content-Disposition: string' \
   -H 'Coder-Session-Token: API_KEY' \
   --data-binary '@image.png'
 ```
@@ -1310,11 +1310,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                                                 |
+|-----------------------|--------|--------------|----------|---------------------------------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                                             |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name, for example `attachment; filename=image.png` |
+| `body`                | body   | string       | true     | Raw file binary data                                                                        |
 
 ### Example responses
 

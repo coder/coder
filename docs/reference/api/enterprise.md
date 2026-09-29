@@ -3592,12 +3592,6 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 `GET /api/v2/settings/idpsync/available-fields`
 
-### Parameters
-
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
-
 ### Example responses
 
 > 200 Response
@@ -3633,10 +3627,9 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimF
 
 ### Parameters
 
-| Name           | In    | Type           | Required | Description     |
-|----------------|-------|----------------|----------|-----------------|
-| `organization` | path  | string(uuid)   | true     | Organization ID |
-| `claimField`   | query | string(string) | true     | Claim Field     |
+| Name         | In    | Type           | Required | Description |
+|--------------|-------|----------------|----------|-------------|
+| `claimField` | query | string(string) | true     | Claim Field |
 
 ### Example responses
 
@@ -5303,7 +5296,7 @@ curl -X POST http://coder-server:8080/oauth2/register \
 # Example request using curl
 curl -X POST http://coder-server:8080/oauth2/revoke \
   -H 'Accept: application/json' \
-  -H 'Authorization: Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ='
+  -H 'Authorization: string'
 ```
 
 `POST /oauth2/revoke`
@@ -5320,14 +5313,14 @@ token_type_hint: string
 
 ### Parameters
 
-| Name                | In     | Type   | Required | Description                                                                                                                                                        |
-|---------------------|--------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. |
-| `body`              | body   | object | false    |                                                                                                                                                                    |
-| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                         |
-| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.         |
-| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                |
-| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                              |
+| Name                | In     | Type   | Required | Description                                                                                                                                                                                                               |
+|---------------------|--------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `Authorization`     | header | string | false    | HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both. For example, `Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=`. |
+| `body`              | body   | object | false    |                                                                                                                                                                                                                           |
+| `» client_id`       | body   | string | false    | Client ID, required unless sent as the HTTP Basic username                                                                                                                                                                |
+| `» client_secret`   | body   | string | false    | Client secret, required for a confidential client unless sent as the HTTP Basic password. Public clients (token_endpoint_auth_method=none) send no secret.                                                                |
+| `» token`           | body   | string | true     | The token to revoke                                                                                                                                                                                                       |
+| `» token_type_hint` | body   | string | false    | Hint about token type (access_token or refresh_token)                                                                                                                                                                     |
 
 ### Example responses
 

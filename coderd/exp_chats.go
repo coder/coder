@@ -6427,7 +6427,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param Content-Disposition header string true "Attachment disposition carrying the file name, for example `attachment; filename=image.png`"
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
