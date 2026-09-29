@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -153,6 +154,35 @@ func TestAssignOrganizationMemberRole(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, buf.String(), must(rbac.RoleByName(rbac.ScopedRoleOrgAdmin(owner.OrganizationID))).DisplayName)
 		require.Contains(t, buf.String(), customRole.DisplayName)
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+		_, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		inv, root := clitest.New(t, "organization", "members", "edit-roles", user.Username, codersdk.RoleOrganizationAdmin, "-o", "json")
+		// nolint:gocritic // you cannot change your own roles
+		clitest.SetupConfig(t, ownerClient, root)
+
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var member codersdk.OrganizationMemberWithUserData
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &member), "unmarshal JSON output")
+		require.Equal(t, user.Username, member.Username)
+		require.Len(t, member.Roles, 1)
+		require.Equal(t, "organization-admin", member.Roles[0].Name)
 	})
 }
 
