@@ -40,15 +40,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-// defaultAgentLogBufferSize is the default number of log entries below the
+// defaultAgentFlightRecorderSize is the default number of log entries below the
 // current log level that the agent keeps in memory and emits when it logs an
 // error, such as losing its connection to coderd.
-const defaultAgentLogBufferSize = 1000
+const defaultAgentFlightRecorderSize = 1000
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
-		logBufferSize                   int64
+		flightRecorderSize              int64
 		scriptDataDir                   string
 		pprofAddress                    string
 		noReap                          bool
@@ -177,12 +177,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// Below-level (debug) entries are kept in a rolling in-memory history and
 			// emitted when an error is logged (see agent.runLoop), so the detail
 			// leading up to a failure is available without logging debug during
-			// normal operation. At Debug the recorder has nothing to buffer.
+			// normal operation. At Debug the recorder has nothing to record.
 			level := slog.LevelInfo
 			if r.verbose {
 				level = slog.LevelDebug
 			}
-			logger := inv.Logger.AppendSinks(sinks...).Leveled(level).FlightRecorder(int(logBufferSize))
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(level).FlightRecorder(int(flightRecorderSize))
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
@@ -512,12 +512,12 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Value:       serpent.StringOf(&slogStackdriverPath),
 		},
 		{
-			Flag:    "log-buffer-size",
-			Env:     "CODER_AGENT_LOG_BUFFER_SIZE",
-			Default: strconv.Itoa(defaultAgentLogBufferSize),
+			Flag:    "agent-flight-recorder-size",
+			Env:     "CODER_AGENT_FLIGHT_RECORDER_SIZE",
+			Default: strconv.Itoa(defaultAgentFlightRecorderSize),
 			Description: "Number of log entries below the current log level to keep " +
-				"in memory and emit on errors. Set to 0 to disable buffering.",
-			Value: serpent.Int64Of(&logBufferSize),
+				"in memory and emit on errors. Set to 0 to disable the flight recorder.",
+			Value: serpent.Int64Of(&flightRecorderSize),
 		},
 		{
 			Flag:        "block-file-transfer",

@@ -200,7 +200,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 			// The disabled-server messages are logged at debug. Run verbose so
-			// they are written to the log file instead of buffered in memory.
+			// they are written to the log file instead of recorded in memory.
 			"--verbose",
 			"--pprof-address", "",
 			"--prometheus-address", "",

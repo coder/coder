@@ -155,10 +155,10 @@ func (s *flushTestSink) contains(msg string) bool {
 	return slices.Contains(s.messages, msg)
 }
 
-// TestAgent_FlushLogBufferOnDisconnect verifies the agent emits its buffered
+// TestAgent_FlushFlightRecorderOnDisconnect verifies the agent emits its recorded
 // debug history when it loses the connection to coderd, so the detail leading
 // up to the disconnect is available even though the agent runs at Info.
-func TestAgent_FlushLogBufferOnDisconnect(t *testing.T) {
+func TestAgent_FlushFlightRecorderOnDisconnect(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -168,9 +168,9 @@ func TestAgent_FlushLogBufferOnDisconnect(t *testing.T) {
 
 	// The debug entry is held by the flight recorder, not emitted, during normal
 	// operation at Info.
-	const sentinel = "buffered debug sentinel"
+	const sentinel = "recorded debug sentinel"
 	logger.Debug(ctx, sentinel)
-	require.False(t, sink.contains(sentinel), "debug entry should be buffered, not emitted")
+	require.False(t, sink.contains(sentinel), "debug entry should be recorded, not emitted")
 
 	manifest := agentsdk.Manifest{
 		AgentID:       uuid.New(),
@@ -195,7 +195,7 @@ func TestAgent_FlushLogBufferOnDisconnect(t *testing.T) {
 		_ = agentUnderTest.Close()
 	})
 
-	// Losing the connection to coderd flushes the buffered debug history to the
+	// Losing the connection to coderd flushes the recorded debug history to the
 	// sink.
 	require.Eventually(t, func() bool {
 		return sink.contains(sentinel)
