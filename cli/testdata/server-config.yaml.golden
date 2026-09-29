@@ -998,6 +998,15 @@ ai_gateway:
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
   structured_logging: false
+  # Which process emits AI Gateway interception records when structured logging is
+  # enabled: coderd, the gateway, or both. The gateway emits records that are never
+  # persisted, such as records a deployment has chosen not to store, but cannot
+  # report thread_parent_id or thread_root_id. Use both to verify a move from one to
+  # the other; records reaching coderd are then reported twice. A standalone gateway
+  # must be configured to emit its own records, and its logs shipped rather than
+  # coderd's.
+  # (default: coderd, type: enum[coderd\|gateway\|both])
+  structured_logging_source: coderd
   # Once enabled, extra headers will be added to upstream requests to identify the
   # user (actor) making requests to AI Gateway. This is only needed if you are using
   # a proxy between AI Gateway and an upstream AI provider. This will send

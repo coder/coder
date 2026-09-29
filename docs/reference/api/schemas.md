@@ -405,7 +405,8 @@ title: Schemas
   "rate_limit": 0,
   "retention": 0,
   "send_actor_headers": true,
-  "structured_logging": true
+  "structured_logging": true,
+  "structured_logging_source": "string"
 }
 ```
 
@@ -429,6 +430,7 @@ title: Schemas
 | `retention`                         | integer | false    |              |                                                                                                                                                                        |
 | `send_actor_headers`                | boolean | false    |              |                                                                                                                                                                        |
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                        |
+| `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                       |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -1046,7 +1048,8 @@ title: Schemas
     "rate_limit": 0,
     "retention": 0,
     "send_actor_headers": true,
-    "structured_logging": true
+    "structured_logging": true,
+    "structured_logging_source": "string"
   },
   "chat": {
     "acquire_batch_size": 0,
@@ -7573,7 +7576,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "rate_limit": 0,
         "retention": 0,
         "send_actor_headers": true,
-        "structured_logging": true
+        "structured_logging": true,
+        "structured_logging_source": "string"
       },
       "chat": {
         "acquire_batch_size": 0,
@@ -8206,7 +8210,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "rate_limit": 0,
       "retention": 0,
       "send_actor_headers": true,
-      "structured_logging": true
+      "structured_logging": true,
+      "structured_logging_source": "string"
     },
     "chat": {
       "acquire_batch_size": 0,

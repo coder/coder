@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -54,9 +55,23 @@ type PoolOptions struct {
 	MaxItems int64
 	TTL      time.Duration
 	Clock    quartz.Clock
+
+	// StructuredLogging makes each bridge emit AI Gateway interception
+	// records in the format described by [recorder.InterceptionLogMarker].
+	StructuredLogging bool
 }
 
 var DefaultPoolOptions = PoolOptions{MaxItems: 5000, TTL: time.Minute * 15}
+
+// PoolOptionsFromConfig returns DefaultPoolOptions with the record policy the
+// deployment configured. Every construction site uses it, so the in-process
+// daemon, the standalone gateway and the test harness cannot drift.
+func PoolOptionsFromConfig(cfg codersdk.AIBridgeConfig) PoolOptions {
+	options := DefaultPoolOptions
+	options.StructuredLogging = cfg.EmitsStructuredLogs(codersdk.AIStructuredLoggingSourceGateway)
+
+	return options
+}
 
 var _ Pooler = &CachedBridgePool{}
 
@@ -82,6 +97,11 @@ type CachedBridgePool struct {
 	// (*ristretto.Cache).Close may race against cache usage.
 	cacheMu sync.RWMutex
 	cacheWG sync.WaitGroup
+}
+
+// Options reports the options the pool was built with.
+func (p *CachedBridgePool) Options() PoolOptions {
+	return p.options
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
@@ -228,6 +248,8 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	rec := aibridge.NewRecorder(
 		p.logger.Named("recorder"),
 		p.tracer,
+		req.APIKeyID,
+		p.options.StructuredLogging,
 		recorder.NewDRPCRecorder(req.APIKeyID, func(clientCtx context.Context) (proto.DRPCRecorderClient, error) {
 			// The recorder outlives this Acquire call, so the client is acquired
 			// against the context of the record call being served.

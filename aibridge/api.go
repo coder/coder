@@ -81,9 +81,9 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 
 // NewRecorder creates a [Recorder] which logs each record and refuses
 // malformed ones before handing it to base.
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, base Recorder) Recorder {
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, base Recorder) Recorder {
 	return recorder.ChainMiddleware(
-		recorder.WithLogging(logger),
+		recorder.WithLogging(logger, apiKeyID, structured),
 		recorder.WithValidation(logger),
 		recorder.WithTracing(tracer),
 	)(base)

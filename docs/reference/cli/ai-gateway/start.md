@@ -202,6 +202,28 @@ Maximum number of concurrent AI Gateway requests per replica. Set to 0 to disabl
 
 Maximum number of AI Gateway requests per second per replica. Set to 0 to disable (unlimited).
 
+### --ai-gateway-structured-logging
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>bool</code>                                 |
+| Environment | <code>$CODER_AI_GATEWAY_STRUCTURED_LOGGING</code> |
+| YAML        | <code>ai_gateway.structured_logging</code>        |
+| Default     | <code>false</code>                                |
+
+Emit structured logs for AI Gateway interception records. Use this for exporting these records to external SIEM or observability systems.
+
+### --ai-gateway-structured-logging-source
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>coderd\|gateway\|both</code>                       |
+| Environment | <code>$CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE</code> |
+| YAML        | <code>ai_gateway.structured_logging_source</code>        |
+| Default     | <code>coderd</code>                                      |
+
+Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as records a deployment has chosen not to store, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.
+
 ### --ai-gateway-send-actor-headers
 
 |             |                                                   |
