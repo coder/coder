@@ -54,6 +54,8 @@ func TestConnectionLog(t *testing.T) {
 		status          int32
 		reason          string
 		clientSessionID string
+		rxBytes         int64
+		txBytes         int64
 	}{
 		{
 			name:            "SSH Connect",
@@ -143,6 +145,16 @@ func TestConnectionLog(t *testing.T) {
 			appName:    "some_ide",
 			time:       dbtime.Now(),
 		},
+		{
+			name:    "Bytes Transferred Disconnect",
+			id:      uuid.New(),
+			action:  agentproto.Connection_DISCONNECT.Enum(),
+			typ:     agentproto.Connection_SSH.Enum(),
+			method:  database.ConnectionLogMethodSSH,
+			time:    dbtime.Now(),
+			rxBytes: 10,
+			txBytes: 50,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -172,6 +184,8 @@ func TestConnectionLog(t *testing.T) {
 					ClientSessionId:  tt.clientSessionID,
 					AppName:          tt.reqAppName,
 					ConnectionMethod: tt.reqMethod,
+					RxBytes:          tt.rxBytes,
+					TxBytes:          tt.txBytes,
 				},
 			})
 			require.NoError(t, err)
@@ -203,7 +217,6 @@ func TestConnectionLog(t *testing.T) {
 					Valid: false,
 				},
 				ConnectionStatus: agentProtoConnectionActionToConnectionLog(t, *tt.action),
-
 				Code:             expectedCode,
 				IP:               expectedIP,
 				ConnectionMethod: tt.method,
@@ -219,6 +232,14 @@ func TestConnectionLog(t *testing.T) {
 				ClientSessionID: sql.NullString{
 					String: tt.clientSessionID,
 					Valid:  tt.clientSessionID != "",
+				},
+				RxBytes: sql.NullInt64{
+					Int64: tt.rxBytes,
+					Valid: *tt.action == agentproto.Connection_DISCONNECT,
+				},
+				TxBytes: sql.NullInt64{
+					Int64: tt.txBytes,
+					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
 			}, logs[0])
 		})
