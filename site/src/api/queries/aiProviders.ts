@@ -18,6 +18,13 @@ export const aiModelPrices = (provider: string, model: string) =>
 		queryFn: () => API.experimental.getAIModelPrices({ provider, model }),
 	});
 
+/** Every configured model price, across providers. */
+export const allAIModelPrices = () =>
+	queryOptions({
+		queryKey: aiModelPricesKey,
+		queryFn: () => API.experimental.getAIModelPrices({}),
+	});
+
 export const aiProviderKeyFor = (idOrName: string) =>
 	[...aiProvidersListKey, idOrName] as const;
 

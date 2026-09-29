@@ -61,6 +61,13 @@ const meta = {
 		onFilterQueryChange: fn(),
 		filterError: undefined,
 		reportQuery: mockReportQuery,
+		unpricedModels: {
+			forUser: () => undefined,
+			total: undefined,
+			setPricingHref: undefined,
+		},
+		onExportCSV: fn(),
+		isExportingCSV: false,
 	},
 } satisfies Meta<typeof SpendPageView>;
 
@@ -152,4 +159,8 @@ export const NarrowContainer: Story = {
 			</div>
 		),
 	],
+};
+
+export const ExportingCSV: Story = {
+	args: { isExportingCSV: true },
 };

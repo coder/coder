@@ -1,4 +1,6 @@
+import { DownloadIcon } from "lucide-react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
@@ -6,6 +8,7 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { spendQuickPresets } from "../spendPeriod";
 import { spendFilterCategories } from "./spendFilterCategories";
 
@@ -21,6 +24,8 @@ type SpendFiltersProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
+	onExportCSV: () => void;
+	isExportingCSV: boolean;
 };
 
 export const SpendFilters: React.FC<SpendFiltersProps> = ({
@@ -35,6 +40,8 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
+	onExportCSV,
+	isExportingCSV,
 }) => {
 	return (
 		<div className="flex flex-wrap items-start gap-2">
@@ -75,6 +82,18 @@ export const SpendFilters: React.FC<SpendFiltersProps> = ({
 				minDate={minDate}
 				size="lg"
 			/>
+			<Button
+				variant="outline"
+				size="lg"
+				className="shrink-0"
+				onClick={onExportCSV}
+				disabled={isExportingCSV}
+			>
+				<Spinner loading={isExportingCSV}>
+					<DownloadIcon />
+				</Spinner>
+				Export CSV
+			</Button>
 		</div>
 	);
 };

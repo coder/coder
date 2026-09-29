@@ -8,6 +8,8 @@ type ClientsBadgeProps = {
 export const ClientsBadge: React.FC<ClientsBadgeProps> = ({ clients }) => (
 	<ItemsBadge
 		noun="clients"
+		tooltipHeading={{ title: "Top clients", subtitle: "(Based on cost)" }}
+		maxTooltipItems={5}
 		items={clients.map((client) => ({
 			key: client,
 			label: client,

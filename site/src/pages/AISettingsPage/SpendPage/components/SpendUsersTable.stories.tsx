@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, screen, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import type { OrganizationAISpendReport } from "#/api/typesGenerated";
 import {
 	mockInitialRenderResult,
@@ -9,7 +9,11 @@ import {
 	MockOrganizationAISpendReport,
 	MockOrganizationAISpendUser,
 } from "#/testHelpers/entities";
-import { type SpendReportQuery, SpendUsersTable } from "./SpendUsersTable";
+import {
+	type SpendReportQuery,
+	SpendUsersTable,
+	type UnpricedModelsInfo,
+} from "./SpendUsersTable";
 
 const loadedReportQuery = (
 	report: OrganizationAISpendReport,
@@ -54,9 +58,36 @@ const mockMultipleDimensionsReport: OrganizationAISpendReport = {
 	})),
 };
 
+const noUnpricedModels: UnpricedModelsInfo = {
+	forUser: () => undefined,
+	total: undefined,
+	setPricingHref: undefined,
+};
+
+const unpricedModelNames = [
+	"arcee-ai/trinity-large-thinking",
+	"gpt-4-turbo",
+	"claude-opus-4.8",
+	"gemini-3.8-flash",
+	"anthropic.claude-haiku-4-5",
+];
+
+const knownUnpricedModels: UnpricedModelsInfo = {
+	forUser: () => unpricedModelNames.slice(0, 2),
+	total: unpricedModelNames,
+	setPricingHref: undefined,
+};
+
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendUsersTable",
 	component: SpendUsersTable,
+	args: {
+		period: {
+			start: new Date("2026-04-10T00:00:00"),
+			end: new Date("2026-04-16T00:00:00"),
+		},
+		unpricedModels: noUnpricedModels,
+	},
 } satisfies Meta<typeof SpendUsersTable>;
 
 export default meta;
@@ -114,25 +145,64 @@ export const UnpricedUsage: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 };
 
-export const CostSetupTooltip: Story = {
-	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
+export const UnpricedModelsTooltip: Story = {
+	args: {
+		reportQuery: loadedReportQuery(mockUnpricedUsageReport),
+		unpricedModels: knownUnpricedModels,
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: `Cost setup for ${MockOrganizationAISpendUser.name}`,
+				name: `Model pricing missing for ${MockOrganizationAISpendUser.name}`,
 			}),
 		);
-		await screen.findByRole("tooltip");
+		const tooltip = await screen.findByRole("tooltip");
+		await expect(
+			within(tooltip).queryByRole("link", {
+				name: "Set pricing for these models",
+			}),
+		).not.toBeInTheDocument();
 	},
 };
 
-export const TotalCostSetupKeyboard: Story = {
+// Admins who can set pricing get a link to the models page.
+export const UnpricedModelsTooltipForAdmins: Story = {
+	args: {
+		reportQuery: loadedReportQuery(mockUnpricedUsageReport),
+		unpricedModels: {
+			...knownUnpricedModels,
+			setPricingHref: "/ai/settings/models?org=coder",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(canvasElement).getByRole("button", {
+				name: "Model pricing missing",
+			}),
+		);
+		const tooltip = await screen.findByRole("tooltip");
+		await expect(
+			within(tooltip).getAllByText("5 models used", { exact: false }),
+		).not.toHaveLength(0);
+		await expect(
+			within(tooltip).getByRole("link", {
+				name: "Set pricing for these models",
+			}),
+		).toHaveAttribute("href", "/ai/settings/models?org=coder");
+	},
+};
+
+// Viewers who cannot read model prices get the warning without the list.
+export const UnpricedModelsUnknownKeyboard: Story = {
 	args: { reportQuery: loadedReportQuery(mockUnpricedUsageReport) },
 	play: async ({ canvasElement }) => {
 		within(canvasElement)
-			.getByRole("button", { name: "Cost setup for total spend" })
+			.getByRole("button", { name: "Model pricing missing" })
 			.focus();
-		await screen.findByRole("tooltip");
+		const tooltip = await screen.findByRole("tooltip");
+		await expect(
+			within(tooltip).queryByRole("list", { name: "Models without pricing" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -150,6 +220,34 @@ export const ClientsList: Story = {
 	},
 };
 
+// The tooltip lists only the top five clients, however many the user used.
+export const LongClientsList: Story = {
+	args: {
+		reportQuery: loadedReportQuery({
+			...mockMultipleDimensionsReport,
+			users: mockMultipleDimensionsReport.users.map((user) => ({
+				...user,
+				clients: [
+					"Claude Code",
+					"Cursor",
+					"Codex",
+					"GitHub Copilot",
+					"Zed",
+					"Unknown",
+				],
+			})),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(
+			within(
+				within(canvasElement).getByRole("row", { name: /alice/ }),
+			).getByRole("button", { name: "6 clients" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
 export const ModelsList: Story = {
 	args: { reportQuery: loadedReportQuery(mockMultipleDimensionsReport) },
 	play: async ({ canvasElement }) => {
@@ -162,7 +260,7 @@ export const ModelsList: Story = {
 	},
 };
 
-// A list taller than the viewport scrolls inside the tooltip.
+// The tooltip lists only the top five models, however many the user used.
 export const LongModelsList: Story = {
 	args: {
 		reportQuery: loadedReportQuery({

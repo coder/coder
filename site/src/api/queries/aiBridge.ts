@@ -3,8 +3,10 @@ import { API } from "#/api/api";
 import type {
 	AIBridgeListSessionsResponse,
 	AIBridgeSessionThreadsResponse,
+	OrganizationAISpendDetailsFilter,
 	OrganizationAISpendFilter,
 	OrganizationAISpendReport,
+	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
 import { useFilterParamsKey } from "#/components/Filter/Filter";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -75,6 +77,57 @@ export const paginatedOrganizationAISpend = (
 				: undefined,
 	};
 };
+
+// The largest page the users endpoint serves.
+const AI_SPEND_USERS_MAX_PAGE_SIZE = 100;
+
+/**
+ * Every user matching the filter, for summaries that the paged report does
+ * not carry, such as which models lack pricing across all users.
+ */
+export const organizationAISpendAllUsers = (
+	organizationId: string,
+	filter: OrganizationAISpendFilter,
+) => ({
+	queryKey: [
+		...organizationAISpendScopeKey(organizationId, filter),
+		"allUsers",
+	],
+	queryFn: async (): Promise<OrganizationAISpendUser[]> => {
+		const first = await API.experimental.getOrganizationAISpendUsers(
+			organizationId,
+			{ ...filter, limit: AI_SPEND_USERS_MAX_PAGE_SIZE },
+		);
+		const offsets: number[] = [];
+		for (
+			let offset = AI_SPEND_USERS_MAX_PAGE_SIZE;
+			offset < first.count;
+			offset += AI_SPEND_USERS_MAX_PAGE_SIZE
+		) {
+			offsets.push(offset);
+		}
+		const rest = await Promise.all(
+			offsets.map((offset) =>
+				API.experimental.getOrganizationAISpendUsers(organizationId, {
+					...filter,
+					limit: AI_SPEND_USERS_MAX_PAGE_SIZE,
+					offset,
+				}),
+			),
+		);
+		return [first, ...rest].flatMap((report) => report.users);
+	},
+});
+
+export const exportOrganizationAISpend = () => ({
+	mutationFn: ({
+		organizationId,
+		filter,
+	}: {
+		organizationId: string;
+		filter: OrganizationAISpendDetailsFilter;
+	}) => API.exportOrganizationAISpend(organizationId, filter),
+});
 
 export const infiniteSessionThreads = (sessionId: string) => {
 	return {

@@ -1,4 +1,5 @@
 import type { UseQueryResult } from "react-query";
+import type { To } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -21,6 +22,7 @@ import { ClientsBadge } from "#/pages/AIBridgePage/ClientsBadge";
 import { ModelsBadge } from "#/pages/AIBridgePage/ModelsBadge";
 import { ProvidersBadge } from "#/pages/AIBridgePage/ProvidersBadge";
 import { SpendAmount } from "./SpendAmount";
+import { SpendSummary } from "./SpendSummary";
 
 export type SpendReportQuery =
 	PaginationResult<TypesGen.OrganizationAISpendReport> &
@@ -29,12 +31,28 @@ export type SpendReportQuery =
 			"isLoading" | "isFetching" | "error" | "refetch"
 		>;
 
+/** Which models lack pricing, for the spend warnings. */
+export type UnpricedModelsInfo = {
+	/** Undefined when the user's unpriced models cannot be determined. */
+	forUser: (
+		user: TypesGen.OrganizationAISpendUser,
+	) => readonly string[] | undefined;
+	/** Every matching user's unpriced models, or undefined if unknown. */
+	total: readonly string[] | undefined;
+	/** Where admins set model pricing; undefined for everyone else. */
+	setPricingHref: To | undefined;
+};
+
 type SpendUsersTableProps = {
 	reportQuery: SpendReportQuery;
+	period: { start: Date; end: Date };
+	unpricedModels: UnpricedModelsInfo;
 };
 
 export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 	reportQuery,
+	period,
+	unpricedModels,
 }) => {
 	const retryButton = (
 		<Button
@@ -80,7 +98,12 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 						<Spinner size="lg" loading className="text-content-secondary" />
 					</div>
 				)}
-				<SpendTotal report={report} />
+				<SpendSummary
+					report={report}
+					period={period}
+					unpricedModels={unpricedModels.total}
+					setPricingHref={unpricedModels.setPricingHref}
+				/>
 				<PaginationContainer query={reportQuery} paginationUnitLabel="users">
 					<Table
 						aria-label="Spend by user"
@@ -105,7 +128,11 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 								<TableEmpty message="No AI Gateway spend found" isCompact />
 							) : (
 								report.users.map((user) => (
-									<SpendUserRow key={user.user_id} user={user} />
+									<SpendUserRow
+										key={user.user_id}
+										user={user}
+										unpricedModels={unpricedModels}
+									/>
 								))
 							)}
 						</TableBody>
@@ -118,9 +145,13 @@ export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 
 type SpendUserRowProps = {
 	user: TypesGen.OrganizationAISpendUser;
+	unpricedModels: UnpricedModelsInfo;
 };
 
-const SpendUserRow: React.FC<SpendUserRowProps> = ({ user }) => (
+const SpendUserRow: React.FC<SpendUserRowProps> = ({
+	user,
+	unpricedModels,
+}) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
 		<TableHead
@@ -146,28 +177,16 @@ const SpendUserRow: React.FC<SpendUserRowProps> = ({ user }) => (
 		</TableCell>
 		<TableCell className="text-right">
 			<SpendAmount
-				scope={{ user: user.name || user.username }}
+				user={user.name || user.username}
 				costMicros={user.cost_micros}
 				unpricedUsageCount={user.unpriced_usage_count}
+				unpricedModels={
+					user.unpriced_usage_count > 0
+						? unpricedModels.forUser(user)
+						: undefined
+				}
+				setPricingHref={unpricedModels.setPricingHref}
 			/>
 		</TableCell>
 	</TableRow>
-);
-
-type SpendTotalProps = {
-	report: TypesGen.OrganizationAISpendReport;
-};
-
-// The total covers every matching user in the period, not only the page.
-const SpendTotal: React.FC<SpendTotalProps> = ({ report }) => (
-	<div className="flex flex-col gap-1">
-		<span className="text-sm text-content-secondary">Total spend</span>
-		<span className="text-2xl font-semibold text-content-primary">
-			<SpendAmount
-				scope="organization"
-				costMicros={report.totals.cost_micros}
-				unpricedUsageCount={report.totals.unpriced_usage_count}
-			/>
-		</span>
-	</div>
 );

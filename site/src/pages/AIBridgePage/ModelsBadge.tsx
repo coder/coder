@@ -8,6 +8,8 @@ type ModelsBadgeProps = {
 export const ModelsBadge: React.FC<ModelsBadgeProps> = ({ models }) => (
 	<ItemsBadge
 		noun="models"
+		tooltipHeading={{ title: "Top models", subtitle: "(Based on cost)" }}
+		maxTooltipItems={5}
 		items={models.map((model) => ({
 			key: model,
 			label: model,

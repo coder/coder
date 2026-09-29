@@ -1,11 +1,21 @@
-import { useState } from "react";
-import { useQuery } from "react-query";
+import { saveAs } from "file-saver";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
+	exportOrganizationAISpend,
+	organizationAISpendAllUsers,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
-import type { OrganizationAISpendFilter } from "#/api/typesGenerated";
+import { allAIModelPrices } from "#/api/queries/aiProviders";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import type {
+	OrganizationAISpendFilter,
+	OrganizationAISpendUser,
+} from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
@@ -23,6 +33,18 @@ import {
 } from "./components/spendFilterQuery";
 import { SpendPageView } from "./SpendPageView";
 import { defaultSpendPeriod } from "./spendPeriod";
+import { findUnpricedModels, pricedModelKeys } from "./unpricedModels";
+
+const modelPricePermissionChecks = {
+	readModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "read",
+	},
+	updateModelPrices: {
+		object: { resource_type: "ai_model_price" },
+		action: "update",
+	},
+} as const;
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
@@ -176,6 +198,89 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	}
 	const minDate = retention?.start ? new Date(retention.start) : undefined;
 
+	const modelPricePermissionsQuery = useQuery({
+		...checkAuthorization({ checks: modelPricePermissionChecks }),
+		enabled: isSpendAvailable,
+	});
+	const modelPricesQuery = useQuery({
+		...allAIModelPrices(),
+		enabled: modelPricePermissionsQuery.data?.readModelPrices === true,
+	});
+	const pricedKeys = useMemo(
+		() =>
+			modelPricesQuery.data
+				? pricedModelKeys(modelPricesQuery.data)
+				: undefined,
+		[modelPricesQuery.data],
+	);
+	// The summary names unpriced models across every matching user, which the
+	// paged report does not carry.
+	const allUsersQuery = useQuery({
+		...organizationAISpendAllUsers(organization?.id ?? "", spendFilter),
+		enabled:
+			organization !== undefined &&
+			pricedKeys !== undefined &&
+			(reportQuery.data?.totals.unpriced_usage_count ?? 0) > 0,
+	});
+	const totalUnpricedModels =
+		pricedKeys && allUsersQuery.data
+			? [
+					...new Set(
+						allUsersQuery.data
+							.filter((user) => user.unpriced_usage_count > 0)
+							.flatMap((user) => findUnpricedModels(user, pricedKeys)),
+					),
+				].sort()
+			: undefined;
+	const unpricedModels = {
+		forUser: (user: OrganizationAISpendUser) =>
+			pricedKeys ? findUnpricedModels(user, pricedKeys) : undefined,
+		total: totalUnpricedModels,
+		setPricingHref:
+			modelPricePermissionsQuery.data?.updateModelPrices && organization
+				? {
+						pathname: "/ai/settings/models",
+						search: new URLSearchParams({
+							[modelOrganizationSearchParam]: organization.name,
+						}).toString(),
+					}
+				: undefined,
+	};
+
+	const exportMutation = useMutation(exportOrganizationAISpend());
+	const onExportCSV = () => {
+		if (organization === undefined) {
+			return;
+		}
+		exportMutation.mutate(
+			{
+				organizationId: organization.id,
+				// The export endpoint rejects the client filter.
+				filter: {
+					period_start: spendFilter.period_start,
+					period_end: spendFilter.period_end,
+					provider_name: dimensions.provider_name,
+					model: dimensions.model,
+				},
+			},
+			{
+				onSuccess: (csv) => {
+					// Matches the name the server sends in Content-Disposition.
+					const dateOnly = (date: Date) => date.toISOString().slice(0, 10);
+					saveAs(
+						csv,
+						`ai-spend-export-${organization.name}-${dateOnly(period.start)}-to-${dateOnly(period.end)}.csv`,
+					);
+				},
+				onError: (error) => {
+					toast.error("Failed to export CSV.", {
+						description: getErrorDetail(error),
+					});
+				},
+			},
+		);
+	};
+
 	return (
 		<>
 			<title>{pageTitle("Spend", "AI Settings")}</title>
@@ -203,6 +308,9 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 						: undefined
 				}
 				reportQuery={reportQuery}
+				unpricedModels={unpricedModels}
+				onExportCSV={onExportCSV}
+				isExportingCSV={exportMutation.isPending}
 			/>
 		</>
 	);

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
-import { screen, spyOn, userEvent, within } from "storybook/test";
+import { expect, screen, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type { OrganizationAISpendUser } from "#/api/typesGenerated";
@@ -31,6 +31,7 @@ const mockSpendUsers: OrganizationAISpendUser[] = Array.from(
 		providers: i % 3 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 		clients: i % 2 === 1 ? ["Claude Code", "Cursor"] : ["Claude Code"],
 		models: i % 3 === 0 ? ["claude-opus-4-6", "gpt-5.4"] : ["claude-opus-4-6"],
+		unpriced_usage_count: i % 4 === 0 ? 2 : 0,
 	}),
 );
 
@@ -68,17 +69,31 @@ const meta = {
 			MockOrganization,
 			MockOrganization2,
 		]);
-		spyOn(API, "checkAuthorization").mockResolvedValue({
-			[MockOrganization.id]: true,
-			[MockOrganization2.id]: true,
-		});
+		spyOn(API, "checkAuthorization").mockImplementation(async (req) =>
+			"readModelPrices" in req.checks
+				? { readModelPrices: true, updateModelPrices: true }
+				: { [MockOrganization.id]: true, [MockOrganization2.id]: true },
+		);
+		spyOn(API.experimental, "getAIModelPrices").mockResolvedValue([
+			{
+				provider: "anthropic",
+				model: "claude-opus-4-6",
+				input_price: 5_000_000,
+				output_price: 25_000_000,
+				cache_read_price: null,
+				cache_write_price: null,
+				source: "default",
+				created_at: "2026-03-01T00:00:00Z",
+				updated_at: "2026-03-01T00:00:00Z",
+			},
+		]);
 		spyOn(API.experimental, "getOrganizationAISpendUsers").mockImplementation(
 			async (_organizationId, params) => ({
 				...MockOrganizationAISpendReport,
 				period_start: params.period_start ?? "2026-03-01T00:00:00.000Z",
 				period_end: params.period_end ?? "2026-04-01T00:00:00.000Z",
 				count: mockSpendUsers.length,
-				totals: { cost_micros: 78_000_000, unpriced_usage_count: 0 },
+				totals: { cost_micros: 78_000_000, unpriced_usage_count: 6 },
 				users: mockSpendUsers.slice(
 					params.offset ?? 0,
 					(params.offset ?? 0) + (params.limit ?? 10),
@@ -96,7 +111,13 @@ type Story = StoryObj<typeof SpendPage>;
 export const FirstPage: Story = {
 	parameters: { reactRouter: explicitRange },
 	play: async ({ canvasElement }) => {
-		await within(canvasElement).findByRole("table", { name: "Spend by user" });
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await expect(
+			within(canvas.getByRole("region", { name: "Spend summary" })).getByText(
+				"Feb 10 - Mar 12",
+			),
+		).toBeInTheDocument();
 	},
 };
 
@@ -183,5 +204,23 @@ export const SecondPage: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
 		await userEvent.click(canvas.getByRole("button", { name: "Next page" }));
+	},
+};
+
+export const UnpricedModelsSummary: Story = {
+	parameters: { reactRouter: explicitRange },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Spend by user" });
+		await userEvent.hover(
+			canvas.getByRole("button", { name: "Model pricing missing" }),
+		);
+		const tooltip = await screen.findByRole("tooltip");
+		await within(tooltip).findByText("gpt-5.4");
+		await expect(
+			within(tooltip).getByRole("link", {
+				name: "Set pricing for these models",
+			}),
+		).toBeInTheDocument();
 	},
 };
