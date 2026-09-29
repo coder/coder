@@ -1,5 +1,5 @@
 ---
-title: Appearance (Premium)
+title: Appearance
 ---
 
 > [!NOTE]
