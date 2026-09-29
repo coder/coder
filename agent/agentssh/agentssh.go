@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
 	"strings"
@@ -248,9 +249,25 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 			return conn
 		},
 		ConnectionFailedCallback: func(conn net.Conn, err error) {
+			// The conn here is our conn wrapped in a ssh.serverConn, so unwrap to get
+			// the client session ID from the inner conn.
+			clientSessionID := ""
+			val := reflect.ValueOf(conn)
+			if val.Kind() == reflect.Ptr {
+				val = val.Elem()
+			}
+			if val.Kind() == reflect.Struct {
+				f := val.FieldByName("Conn")
+				if f.IsValid() && f.CanInterface() {
+					if inner, ok := f.Interface().(net.Conn); ok {
+						clientSessionID = ClientSessionIDFromConn(inner)
+					}
+				}
+			}
 			s.logger.Warn(ctx, "ssh connection failed",
 				slog.F("remote_addr", conn.RemoteAddr()),
 				slog.F("local_addr", conn.LocalAddr()),
+				slog.F("client_session_id", clientSessionID),
 				slog.Error(err))
 			metrics.failedConnectionsTotal.Add(1)
 		},
