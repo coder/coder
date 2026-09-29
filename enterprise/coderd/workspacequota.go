@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,9 +19,17 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 )
 
+// quotaLockTimeout bounds how long a quota commit waits for an earlier commit
+// for the same owner and organization. Holders keep the lock for a few quick
+// queries, so a wait this long means a holder is stuck or the database is
+// overloaded.
+const quotaLockTimeout = 30 * time.Second
+
 type committer struct {
 	Log      slog.Logger
 	Database database.Store
+	// lockTimeout overrides quotaLockTimeout when set, for tests.
+	lockTimeout time.Duration
 }
 
 func (c *committer) CommitQuota(
@@ -41,21 +50,35 @@ func (c *committer) CommitQuota(
 		return nil, err
 	}
 
+	lockTimeout := quotaLockTimeout
+	if c.lockTimeout > 0 {
+		lockTimeout = c.lockTimeout
+	}
 	var (
-		consumed int64
-		budget   int64
-		permit   bool
+		consumed     int64
+		budget       int64
+		permit       bool
+		lockTimedOut bool
 	)
 	err = c.Database.InTx(func(s database.Store) error {
 		// InTx only retries SERIALIZABLE transactions, but reset anyway so the
 		// response always comes from the attempt that committed.
-		consumed, budget, permit = 0, 0, false
+		consumed, budget, permit, lockTimedOut = 0, 0, false, false
 
 		// Quota commits for the same owner and organization take turns. The
 		// lock is held until commit, and READ COMMITTED gives each statement
 		// below a fresh snapshot, so the reads include every cost committed
 		// by the previous lock holder.
-		err := s.AcquireLock(ctx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
+		lockCtx, cancel := context.WithTimeout(ctx, lockTimeout)
+		err := s.AcquireLock(lockCtx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
+		cancel()
+		// Check the deadline even when AcquireLock succeeded. The driver can
+		// close the connection once the deadline passes, so a lock granted
+		// at that moment may not be usable.
+		if errors.Is(lockCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			lockTimedOut = true
+			return xerrors.New("workspace quota lock wait timed out")
+		}
 		if err != nil {
 			return xerrors.Errorf("acquire workspace quota lock: %w", err)
 		}
@@ -120,6 +143,11 @@ func (c *committer) CommitQuota(
 		Isolation:    sql.LevelReadCommitted,
 		TxIdentifier: "commit_quota",
 	})
+	if lockTimedOut {
+		// InTx's error also reports the failed rollback on the closed
+		// connection, which reads like a database problem.
+		return nil, xerrors.Errorf("timed out after %s waiting for workspace quota lock", lockTimeout)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -168,6 +169,42 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		res, err := f.committer(t, f.db).CommitQuota(ctx, commitRequest(f.build(t, user, org), 10))
 		require.NoError(t, err)
 		require.True(t, res.Ok)
+	})
+
+	// A commit that waits too long for the lock fails without charging its
+	// build, and the lock holder still commits. The holder's own timeout
+	// passes while it holds the lock, which must not affect the rest of
+	// its transaction.
+	t.Run("LockWaitTimesOut", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		f := newQuotaFixture(t)
+		user := dbgen.User(t, f.db, database.User{})
+		// Budget for both builds, so the waiter fails only because of the
+		// timeout.
+		org := f.org(t, 20, user)
+
+		pause := newQuotaPause()
+		holder := f.committer(t, pause.store(f.db))
+		holder.lockTimeout = testutil.IntervalMedium
+		holderDone := commitAsync(ctx, holder, f.build(t, user, org), 10)
+		testutil.TryReceive(ctx, t, pause.paused)
+
+		waiter := f.committer(t, f.db)
+		waiter.lockTimeout = testutil.IntervalMedium
+		waiterBuild := f.build(t, user, org)
+		_, err := waiter.CommitQuota(ctx, commitRequest(waiterBuild, 10))
+		require.EqualError(t, err,
+			fmt.Sprintf("timed out after %s waiting for workspace quota lock", testutil.IntervalMedium))
+		require.EqualValues(t, 0, f.buildCost(ctx, t, waiterBuild))
+
+		close(pause.resume)
+		held := testutil.RequireReceive(ctx, t, holderDone)
+		require.NoError(t, held.err)
+		require.True(t, held.resp.Ok)
+		require.EqualValues(t, 10, f.consumed(ctx, t, user, org))
+		require.Zero(t, f.advisoryLocks(ctx, t, false))
 	})
 
 	t.Run("CancelReleasesLock", func(t *testing.T) {

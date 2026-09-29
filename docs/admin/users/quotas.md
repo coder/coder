@@ -109,6 +109,8 @@ Form will never get held up by quota enforcement.
 
 Coder v2.39.0 and later check quota for one build at a time for each user in each organization.
 Builds that start together, such as several autostarts, are each checked against the credits that the builds before them consumed.
+Only the quota check takes turns, so builds don't wait for each other to finish.
+If a quota check waits more than 30&nbsp;seconds for earlier checks, for example because the database is overloaded, the build fails with a `Failed to commit quota` error, and its owner can start or stop the workspace again.
 
 ## Upgrade a deployment that enforces quotas
 
