@@ -34,3 +34,8 @@ RETURNING *;
 -- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = @id::uuid;
+
+-- name: CountChatProjectsByOwnerID :one
+SELECT COUNT(*)::bigint
+FROM chat_projects
+WHERE owner_id = @owner_id::uuid;

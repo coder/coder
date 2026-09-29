@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 
@@ -231,6 +232,34 @@ func TestChatProjectFieldLimits(t *testing.T) {
 	longDescription := strings.Repeat("d", 1025)
 	_, err = client.UpdateChatProject(ctx, firstUser.OrganizationID, project.ID, codersdk.UpdateChatProjectRequest{Description: &longDescription})
 	requireChatProjectFieldError(t, err, "description", "Description must be at most 1024 characters.")
+}
+
+func TestChatProjectLimit(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, db := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	// The cap counts the owner's projects in every organization.
+	otherOrganization := dbgen.Organization(t, db, database.Organization{})
+	var last database.ChatProject
+	for i := range 100 {
+		organizationID := firstUser.OrganizationID
+		if i%2 == 0 {
+			organizationID = otherOrganization.ID
+		}
+		last = dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: organizationID, OwnerID: firstUser.UserID})
+	}
+
+	_, err := client.CreateChatProject(ctx, firstUser.OrganizationID, codersdk.CreateChatProjectRequest{Name: "One too many"})
+	require.Equal(t, http.StatusConflict, coderdtest.SDKError(t, err).StatusCode())
+
+	// Another user's projects do not count toward the cap.
+	memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+	_ = createChatProject(t, codersdk.NewExperimentalClient(memberRaw), firstUser.OrganizationID, "Member project")
+
+	require.NoError(t, client.DeleteChatProject(ctx, last.OrganizationID, last.ID))
+	_ = createChatProject(t, client, firstUser.OrganizationID, "Fits after a delete")
 }
 
 func TestChatProjectListFilter(t *testing.T) {

@@ -360,6 +360,14 @@ func (m queryMetricsStore) CountChatProjectMemoriesByProjectID(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatProjectsByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("CountChatProjectsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatProjectsByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountChatQueuedMessages(ctx, chatID)
