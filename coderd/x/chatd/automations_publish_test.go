@@ -366,9 +366,11 @@ func TestPublishAutomationWebhook(t *testing.T) {
 					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
 				})
 				ctx := testutil.Context(t, testutil.WaitLong)
-				automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
+				var automation database.ChatAutomation
 				if targetMode == codersdk.ChatAutomationTargetModeNewChat {
 					automation = f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+				} else {
+					automation = f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
 				}
 
 				_, err := f.publish(ctx, automation)
