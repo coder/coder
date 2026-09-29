@@ -7824,11 +7824,11 @@ WITH updated_chat AS (
     UPDATE chats
     SET
         snapshot_version = snapshot_version + 1,
-        history_version = CASE WHEN $1::boolean THEN snapshot_version + 1 ELSE history_version END,
-        generation_attempt = CASE WHEN $1::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN $1::boolean THEN NULL ELSE retry_state END,
-        queue_version = CASE WHEN $2::boolean THEN snapshot_version + 1 ELSE queue_version END
-    WHERE id = $3::uuid
+        history_version = CASE WHEN $2::boolean THEN snapshot_version + 1 ELSE history_version END,
+        generation_attempt = CASE WHEN $2::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN $2::boolean THEN NULL ELSE retry_state END,
+        queue_version = CASE WHEN $3::boolean THEN snapshot_version + 1 ELSE queue_version END
+    WHERE id = $4::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -7884,14 +7884,39 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded
 `
 
 type BumpChatSnapshotVersionParams struct {
+	StaleSeconds   int32     `db:"stale_seconds" json:"stale_seconds"`
 	HistoryChanged bool      `db:"history_changed" json:"history_changed"`
 	QueueChanged   bool      `db:"queue_changed" json:"queue_changed"`
 	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+type BumpChatSnapshotVersionRow struct {
+	Chat           Chat `db:"chat" json:"chat"`
+	HasQueued      bool `db:"has_queued" json:"has_queued"`
+	OwnershipStale bool `db:"ownership_stale" json:"ownership_stale"`
 }
 
 // The commit write of a transition that changes no execution state (for
@@ -7899,57 +7924,64 @@ type BumpChatSnapshotVersionParams struct {
 // snapshot_version and records history and queue changes exactly like
 // UpdateChatExecutionState. It must be the only UPDATE of the chats row in
 // its transaction (see LockChatForTransition).
-func (q *sqlQuerier) BumpChatSnapshotVersion(ctx context.Context, arg BumpChatSnapshotVersionParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, bumpChatSnapshotVersion, arg.HistoryChanged, arg.QueueChanged, arg.ID)
-	var i Chat
+func (q *sqlQuerier) BumpChatSnapshotVersion(ctx context.Context, arg BumpChatSnapshotVersionParams) (BumpChatSnapshotVersionRow, error) {
+	row := q.db.QueryRowContext(ctx, bumpChatSnapshotVersion,
+		arg.StaleSeconds,
+		arg.HistoryChanged,
+		arg.QueueChanged,
+		arg.ID,
+	)
+	var i BumpChatSnapshotVersionRow
 	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.LastReasoningEffort,
-		&i.Archived,
-		&i.LastError,
-		&i.Mode,
-		pq.Array(&i.MCPServerIDs),
-		&i.Labels,
-		&i.BuildID,
-		&i.AgentID,
-		&i.PinOrder,
-		&i.LastReadMessageID,
-		&i.DynamicTools,
-		&i.OrganizationID,
-		&i.PlanMode,
-		&i.ClientType,
-		&i.LastTurnSummary,
-		&i.Summary,
-		&i.SummaryGeneratedAt,
-		&i.SnapshotVersion,
-		&i.HistoryVersion,
-		&i.QueueVersion,
-		&i.GenerationAttempt,
-		&i.RetryState,
-		&i.RetryStateVersion,
-		&i.RunnerID,
-		&i.RequiresActionDeadlineAt,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.OwnerUsername,
-		&i.OwnerName,
-		&i.ContextAggregateHash,
-		&i.ContextDirtySince,
-		&i.ContextDirtyResources,
-		&i.ContextError,
-		&i.CompactionRequestedAt,
+		&i.Chat.ID,
+		&i.Chat.OwnerID,
+		&i.Chat.WorkspaceID,
+		&i.Chat.Title,
+		&i.Chat.Status,
+		&i.Chat.WorkerID,
+		&i.Chat.StartedAt,
+		&i.Chat.HeartbeatAt,
+		&i.Chat.CreatedAt,
+		&i.Chat.UpdatedAt,
+		&i.Chat.ParentChatID,
+		&i.Chat.RootChatID,
+		&i.Chat.LastModelConfigID,
+		&i.Chat.LastReasoningEffort,
+		&i.Chat.Archived,
+		&i.Chat.LastError,
+		&i.Chat.Mode,
+		pq.Array(&i.Chat.MCPServerIDs),
+		&i.Chat.Labels,
+		&i.Chat.BuildID,
+		&i.Chat.AgentID,
+		&i.Chat.PinOrder,
+		&i.Chat.LastReadMessageID,
+		&i.Chat.DynamicTools,
+		&i.Chat.OrganizationID,
+		&i.Chat.PlanMode,
+		&i.Chat.ClientType,
+		&i.Chat.LastTurnSummary,
+		&i.Chat.Summary,
+		&i.Chat.SummaryGeneratedAt,
+		&i.Chat.SnapshotVersion,
+		&i.Chat.HistoryVersion,
+		&i.Chat.QueueVersion,
+		&i.Chat.GenerationAttempt,
+		&i.Chat.RetryState,
+		&i.Chat.RetryStateVersion,
+		&i.Chat.RunnerID,
+		&i.Chat.RequiresActionDeadlineAt,
+		&i.Chat.UserACL,
+		&i.Chat.GroupACL,
+		&i.Chat.OwnerUsername,
+		&i.Chat.OwnerName,
+		&i.Chat.ContextAggregateHash,
+		&i.Chat.ContextDirtySince,
+		&i.Chat.ContextDirtyResources,
+		&i.Chat.ContextError,
+		&i.Chat.CompactionRequestedAt,
+		&i.HasQueued,
+		&i.OwnershipStale,
 	)
 	return i, err
 }
@@ -10915,22 +10947,158 @@ func (q *sqlQuerier) HydrateAgentChatsContext(ctx context.Context, arg HydrateAg
 }
 
 const incrementChatGenerationAttempt = `-- name: IncrementChatGenerationAttempt :one
-UPDATE chats
-SET
-    snapshot_version = snapshot_version + 1,
-    generation_attempt = generation_attempt + 1,
-    updated_at = NOW()
-WHERE id = $1::uuid
-RETURNING generation_attempt
+WITH updated_chat AS (
+    UPDATE chats
+    SET
+        snapshot_version = snapshot_version + 1,
+        generation_attempt = generation_attempt + 1,
+        updated_at = NOW()
+    WHERE id = $2::uuid
+    RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at
+    FROM updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )::boolean AS ownership_stale
+FROM chats_expanded
 `
 
+type IncrementChatGenerationAttemptParams struct {
+	StaleSeconds int32     `db:"stale_seconds" json:"stale_seconds"`
+	ID           uuid.UUID `db:"id" json:"id"`
+}
+
+type IncrementChatGenerationAttemptRow struct {
+	Chat           Chat `db:"chat" json:"chat"`
+	HasQueued      bool `db:"has_queued" json:"has_queued"`
+	OwnershipStale bool `db:"ownership_stale" json:"ownership_stale"`
+}
+
 // The commit write of RecordGenerationAttempt: advances snapshot_version,
-// increments generation_attempt, and returns the resulting attempt.
-func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, incrementChatGenerationAttempt, id)
-	var generation_attempt int64
-	err := row.Scan(&generation_attempt)
-	return generation_attempt, err
+// increments generation_attempt, and returns the committed chat.
+func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, arg IncrementChatGenerationAttemptParams) (IncrementChatGenerationAttemptRow, error) {
+	row := q.db.QueryRowContext(ctx, incrementChatGenerationAttempt, arg.StaleSeconds, arg.ID)
+	var i IncrementChatGenerationAttemptRow
+	err := row.Scan(
+		&i.Chat.ID,
+		&i.Chat.OwnerID,
+		&i.Chat.WorkspaceID,
+		&i.Chat.Title,
+		&i.Chat.Status,
+		&i.Chat.WorkerID,
+		&i.Chat.StartedAt,
+		&i.Chat.HeartbeatAt,
+		&i.Chat.CreatedAt,
+		&i.Chat.UpdatedAt,
+		&i.Chat.ParentChatID,
+		&i.Chat.RootChatID,
+		&i.Chat.LastModelConfigID,
+		&i.Chat.LastReasoningEffort,
+		&i.Chat.Archived,
+		&i.Chat.LastError,
+		&i.Chat.Mode,
+		pq.Array(&i.Chat.MCPServerIDs),
+		&i.Chat.Labels,
+		&i.Chat.BuildID,
+		&i.Chat.AgentID,
+		&i.Chat.PinOrder,
+		&i.Chat.LastReadMessageID,
+		&i.Chat.DynamicTools,
+		&i.Chat.OrganizationID,
+		&i.Chat.PlanMode,
+		&i.Chat.ClientType,
+		&i.Chat.LastTurnSummary,
+		&i.Chat.Summary,
+		&i.Chat.SummaryGeneratedAt,
+		&i.Chat.SnapshotVersion,
+		&i.Chat.HistoryVersion,
+		&i.Chat.QueueVersion,
+		&i.Chat.GenerationAttempt,
+		&i.Chat.RetryState,
+		&i.Chat.RetryStateVersion,
+		&i.Chat.RunnerID,
+		&i.Chat.RequiresActionDeadlineAt,
+		&i.Chat.UserACL,
+		&i.Chat.GroupACL,
+		&i.Chat.OwnerUsername,
+		&i.Chat.OwnerName,
+		&i.Chat.ContextAggregateHash,
+		&i.Chat.ContextDirtySince,
+		&i.Chat.ContextDirtyResources,
+		&i.Chat.ContextError,
+		&i.Chat.CompactionRequestedAt,
+		&i.HasQueued,
+		&i.OwnershipStale,
+	)
+	return i, err
 }
 
 const insertAgentContextResourcesIntoChat = `-- name: InsertAgentContextResourcesIntoChat :exec
@@ -12627,20 +12795,20 @@ WITH updated_chat AS (
     UPDATE chats
     SET
         snapshot_version = snapshot_version + 1,
-        status = $1::chat_status,
-        archived = $2::boolean,
-        worker_id = $3::uuid,
-        runner_id = $4::uuid,
-        last_error = $5::jsonb,
-        requires_action_deadline_at = $6::timestamptz,
-        compaction_requested_at = $7::timestamptz,
-        history_version = CASE WHEN $8::boolean THEN snapshot_version + 1 ELSE history_version END,
-        generation_attempt = CASE WHEN $8::boolean THEN 0 ELSE generation_attempt END,
-        retry_state = CASE WHEN $8::boolean THEN NULL ELSE retry_state END,
-        queue_version = CASE WHEN $9::boolean THEN snapshot_version + 1 ELSE queue_version END,
-        pin_order = CASE WHEN $2::boolean THEN 0 ELSE pin_order END,
+        status = $2::chat_status,
+        archived = $3::boolean,
+        worker_id = $4::uuid,
+        runner_id = $5::uuid,
+        last_error = $6::jsonb,
+        requires_action_deadline_at = $7::timestamptz,
+        compaction_requested_at = $8::timestamptz,
+        history_version = CASE WHEN $9::boolean THEN snapshot_version + 1 ELSE history_version END,
+        generation_attempt = CASE WHEN $9::boolean THEN 0 ELSE generation_attempt END,
+        retry_state = CASE WHEN $9::boolean THEN NULL ELSE retry_state END,
+        queue_version = CASE WHEN $10::boolean THEN snapshot_version + 1 ELSE queue_version END,
+        pin_order = CASE WHEN $3::boolean THEN 0 ELSE pin_order END,
         updated_at = NOW()
-    WHERE id = $10::uuid
+    WHERE id = $11::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -12696,11 +12864,30 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded
 `
 
 type UpdateChatExecutionStateParams struct {
+	StaleSeconds             int32                 `db:"stale_seconds" json:"stale_seconds"`
 	Status                   ChatStatus            `db:"status" json:"status"`
 	Archived                 bool                  `db:"archived" json:"archived"`
 	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
@@ -12711,6 +12898,12 @@ type UpdateChatExecutionStateParams struct {
 	HistoryChanged           bool                  `db:"history_changed" json:"history_changed"`
 	QueueChanged             bool                  `db:"queue_changed" json:"queue_changed"`
 	ID                       uuid.UUID             `db:"id" json:"id"`
+}
+
+type UpdateChatExecutionStateRow struct {
+	Chat           Chat `db:"chat" json:"chat"`
+	HasQueued      bool `db:"has_queued" json:"has_queued"`
+	OwnershipStale bool `db:"ownership_stale" json:"ownership_stale"`
 }
 
 // The commit write of a transition that changes execution state. It
@@ -12725,8 +12918,9 @@ type UpdateChatExecutionStateParams struct {
 // the same fresh retry budget and message part episode keys: history_version
 // moves to the committed snapshot_version and the generation attempt state
 // resets. queue_changed records a chat_queued_messages change the same way.
-func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error) {
+func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (UpdateChatExecutionStateRow, error) {
 	row := q.db.QueryRowContext(ctx, updateChatExecutionState,
+		arg.StaleSeconds,
 		arg.Status,
 		arg.Archived,
 		arg.WorkerID,
@@ -12738,55 +12932,57 @@ func (q *sqlQuerier) UpdateChatExecutionState(ctx context.Context, arg UpdateCha
 		arg.QueueChanged,
 		arg.ID,
 	)
-	var i Chat
+	var i UpdateChatExecutionStateRow
 	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.LastReasoningEffort,
-		&i.Archived,
-		&i.LastError,
-		&i.Mode,
-		pq.Array(&i.MCPServerIDs),
-		&i.Labels,
-		&i.BuildID,
-		&i.AgentID,
-		&i.PinOrder,
-		&i.LastReadMessageID,
-		&i.DynamicTools,
-		&i.OrganizationID,
-		&i.PlanMode,
-		&i.ClientType,
-		&i.LastTurnSummary,
-		&i.Summary,
-		&i.SummaryGeneratedAt,
-		&i.SnapshotVersion,
-		&i.HistoryVersion,
-		&i.QueueVersion,
-		&i.GenerationAttempt,
-		&i.RetryState,
-		&i.RetryStateVersion,
-		&i.RunnerID,
-		&i.RequiresActionDeadlineAt,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.OwnerUsername,
-		&i.OwnerName,
-		&i.ContextAggregateHash,
-		&i.ContextDirtySince,
-		&i.ContextDirtyResources,
-		&i.ContextError,
-		&i.CompactionRequestedAt,
+		&i.Chat.ID,
+		&i.Chat.OwnerID,
+		&i.Chat.WorkspaceID,
+		&i.Chat.Title,
+		&i.Chat.Status,
+		&i.Chat.WorkerID,
+		&i.Chat.StartedAt,
+		&i.Chat.HeartbeatAt,
+		&i.Chat.CreatedAt,
+		&i.Chat.UpdatedAt,
+		&i.Chat.ParentChatID,
+		&i.Chat.RootChatID,
+		&i.Chat.LastModelConfigID,
+		&i.Chat.LastReasoningEffort,
+		&i.Chat.Archived,
+		&i.Chat.LastError,
+		&i.Chat.Mode,
+		pq.Array(&i.Chat.MCPServerIDs),
+		&i.Chat.Labels,
+		&i.Chat.BuildID,
+		&i.Chat.AgentID,
+		&i.Chat.PinOrder,
+		&i.Chat.LastReadMessageID,
+		&i.Chat.DynamicTools,
+		&i.Chat.OrganizationID,
+		&i.Chat.PlanMode,
+		&i.Chat.ClientType,
+		&i.Chat.LastTurnSummary,
+		&i.Chat.Summary,
+		&i.Chat.SummaryGeneratedAt,
+		&i.Chat.SnapshotVersion,
+		&i.Chat.HistoryVersion,
+		&i.Chat.QueueVersion,
+		&i.Chat.GenerationAttempt,
+		&i.Chat.RetryState,
+		&i.Chat.RetryStateVersion,
+		&i.Chat.RunnerID,
+		&i.Chat.RequiresActionDeadlineAt,
+		&i.Chat.UserACL,
+		&i.Chat.GroupACL,
+		&i.Chat.OwnerUsername,
+		&i.Chat.OwnerName,
+		&i.Chat.ContextAggregateHash,
+		&i.Chat.ContextDirtySince,
+		&i.Chat.ContextDirtyResources,
+		&i.Chat.ContextError,
+		&i.Chat.CompactionRequestedAt,
+		&i.HasQueued,
+		&i.OwnershipStale,
 	)
 	return i, err
 }
@@ -13478,9 +13674,9 @@ WITH updated_chat AS (
     UPDATE chats
     SET
         snapshot_version = snapshot_version + 1,
-        retry_state = $1::jsonb,
+        retry_state = $2::jsonb,
         updated_at = NOW()
-    WHERE id = $2::uuid
+    WHERE id = $3::uuid
     RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, last_reasoning_effort, compaction_requested_at, summary, summary_generated_at
 ),
 chats_expanded AS (
@@ -13536,69 +13732,96 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at
+SELECT
+    chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at,
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * $1::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded
 `
 
 type UpdateChatRetryStateParams struct {
-	RetryState json.RawMessage `db:"retry_state" json:"retry_state"`
-	ID         uuid.UUID       `db:"id" json:"id"`
+	StaleSeconds int32           `db:"stale_seconds" json:"stale_seconds"`
+	RetryState   json.RawMessage `db:"retry_state" json:"retry_state"`
+	ID           uuid.UUID       `db:"id" json:"id"`
+}
+
+type UpdateChatRetryStateRow struct {
+	Chat           Chat `db:"chat" json:"chat"`
+	HasQueued      bool `db:"has_queued" json:"has_queued"`
+	OwnershipStale bool `db:"ownership_stale" json:"ownership_stale"`
 }
 
 // The commit write of RecordRetryState: advances snapshot_version and
 // stores the client-visible retry payload. retry_state_version is assigned
 // by trigger from the committed snapshot_version.
-func (q *sqlQuerier) UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error) {
-	row := q.db.QueryRowContext(ctx, updateChatRetryState, arg.RetryState, arg.ID)
-	var i Chat
+func (q *sqlQuerier) UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (UpdateChatRetryStateRow, error) {
+	row := q.db.QueryRowContext(ctx, updateChatRetryState, arg.StaleSeconds, arg.RetryState, arg.ID)
+	var i UpdateChatRetryStateRow
 	err := row.Scan(
-		&i.ID,
-		&i.OwnerID,
-		&i.WorkspaceID,
-		&i.Title,
-		&i.Status,
-		&i.WorkerID,
-		&i.StartedAt,
-		&i.HeartbeatAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentChatID,
-		&i.RootChatID,
-		&i.LastModelConfigID,
-		&i.LastReasoningEffort,
-		&i.Archived,
-		&i.LastError,
-		&i.Mode,
-		pq.Array(&i.MCPServerIDs),
-		&i.Labels,
-		&i.BuildID,
-		&i.AgentID,
-		&i.PinOrder,
-		&i.LastReadMessageID,
-		&i.DynamicTools,
-		&i.OrganizationID,
-		&i.PlanMode,
-		&i.ClientType,
-		&i.LastTurnSummary,
-		&i.Summary,
-		&i.SummaryGeneratedAt,
-		&i.SnapshotVersion,
-		&i.HistoryVersion,
-		&i.QueueVersion,
-		&i.GenerationAttempt,
-		&i.RetryState,
-		&i.RetryStateVersion,
-		&i.RunnerID,
-		&i.RequiresActionDeadlineAt,
-		&i.UserACL,
-		&i.GroupACL,
-		&i.OwnerUsername,
-		&i.OwnerName,
-		&i.ContextAggregateHash,
-		&i.ContextDirtySince,
-		&i.ContextDirtyResources,
-		&i.ContextError,
-		&i.CompactionRequestedAt,
+		&i.Chat.ID,
+		&i.Chat.OwnerID,
+		&i.Chat.WorkspaceID,
+		&i.Chat.Title,
+		&i.Chat.Status,
+		&i.Chat.WorkerID,
+		&i.Chat.StartedAt,
+		&i.Chat.HeartbeatAt,
+		&i.Chat.CreatedAt,
+		&i.Chat.UpdatedAt,
+		&i.Chat.ParentChatID,
+		&i.Chat.RootChatID,
+		&i.Chat.LastModelConfigID,
+		&i.Chat.LastReasoningEffort,
+		&i.Chat.Archived,
+		&i.Chat.LastError,
+		&i.Chat.Mode,
+		pq.Array(&i.Chat.MCPServerIDs),
+		&i.Chat.Labels,
+		&i.Chat.BuildID,
+		&i.Chat.AgentID,
+		&i.Chat.PinOrder,
+		&i.Chat.LastReadMessageID,
+		&i.Chat.DynamicTools,
+		&i.Chat.OrganizationID,
+		&i.Chat.PlanMode,
+		&i.Chat.ClientType,
+		&i.Chat.LastTurnSummary,
+		&i.Chat.Summary,
+		&i.Chat.SummaryGeneratedAt,
+		&i.Chat.SnapshotVersion,
+		&i.Chat.HistoryVersion,
+		&i.Chat.QueueVersion,
+		&i.Chat.GenerationAttempt,
+		&i.Chat.RetryState,
+		&i.Chat.RetryStateVersion,
+		&i.Chat.RunnerID,
+		&i.Chat.RequiresActionDeadlineAt,
+		&i.Chat.UserACL,
+		&i.Chat.GroupACL,
+		&i.Chat.OwnerUsername,
+		&i.Chat.OwnerName,
+		&i.Chat.ContextAggregateHash,
+		&i.Chat.ContextDirtySince,
+		&i.Chat.ContextDirtyResources,
+		&i.Chat.ContextError,
+		&i.Chat.CompactionRequestedAt,
+		&i.HasQueued,
+		&i.OwnershipStale,
 	)
 	return i, err
 }

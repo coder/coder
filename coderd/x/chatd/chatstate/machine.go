@@ -64,26 +64,31 @@ func (m *ChatMachine) WithMetrics(metrics *Metrics) *ChatMachine {
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID.
 //
-// Tx does not cache chat state across writes. The only row it holds is
-// the one returned by the transition lock, and that is consumed by the
-// first loadState call in the transaction. Every transition validates
-// before it writes, so that first call always runs before any
-// execution-state mutation and sees exactly the locked row. Later
-// calls read the chat row and queue cardinality from the database, so
-// a bundle of transitions inside one Update callback always validates
-// against the latest state.
+// Tx does not cache chat state for validation. The row returned by the
+// transition lock is consumed by the first loadState call in the
+// transaction. Every transition validates before it writes, so that
+// first call always runs before any execution-state mutation and sees
+// exactly the locked row. Later calls read the chat row and queue
+// cardinality from the database, so a bundle of transitions inside one
+// Update callback always validates against the latest state.
 //
 // Tx also records write intent for the commit write: whether the
 // transaction changed chat history or the queue, and how many commit
 // writes ran. The helpers that perform those writes set the flags and
-// the next commit write consumes them (see takeVersionFlags). The
-// transitions the callback invoked are kept for metrics.
+// the next commit write consumes them (see takeVersionFlags). The last
+// commit write's result is kept so Update can publish and return the
+// committed row without reading it again; it is never used to validate
+// a transition. The commit write is the last statement of a transition
+// that can change the row, the queue, or the heartbeat, so that result
+// is never stale. The transitions the callback invoked are kept for
+// metrics.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
 	chatID uuid.UUID
 
-	seed *txSeed
+	seed      *txSeed
+	committed *commitResult
 
 	historyChanged bool
 	queueChanged   bool
@@ -95,6 +100,19 @@ type Tx struct {
 type txSeed struct {
 	chat      database.Chat
 	hasQueued bool
+}
+
+// commitResult is the chat row a commit write returned together with the
+// queue and ownership lease flags evaluated in the same statement.
+type commitResult struct {
+	chat           database.Chat
+	hasQueued      bool
+	ownershipStale bool
+}
+
+// recordCommit keeps the result of the commit write that just ran.
+func (tx *Tx) recordCommit(chat database.Chat, hasQueued, ownershipStale bool) {
+	tx.committed = &commitResult{chat: chat, hasQueued: hasQueued, ownershipStale: ownershipStale}
 }
 
 // Ctx returns the context the surrounding [ChatMachine.Update] call
@@ -211,13 +229,15 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 // row in the transaction and Postgres does not re-run the chat's foreign
 // key checks against parent rows shared by many chats. If fn performs
 // no commit write, Update bumps `snapshot_version` once after it so
-// every Update publishes a new version. Update constructs a
-// [PublishBuffer], enqueues `chat:update` (and a `chat:ownership` hint
-// when the post-transition state is worker-runnable and ownership is
-// missing or stale) inside the transaction, and flushes the buffer only after
-// the transaction function succeeds. If the transaction rolls back,
-// the deferred Discard suppresses every buffered publication so
-// subscribers never see uncommitted state.
+// every Update publishes a new version. The commit write returns the
+// committed row together with the queue and ownership lease flags, and
+// Update publishes from that result: it constructs a [PublishBuffer],
+// enqueues `chat:update` (and a `chat:ownership` hint when the
+// post-transition state is worker-runnable and ownership is missing or
+// stale) inside the transaction, and flushes the buffer only after the
+// transaction function succeeds. If the transaction rolls back, the
+// deferred Discard suppresses every buffered publication so subscribers
+// never see uncommitted state.
 //
 // If Update is called with a store that is already in a transaction,
 // [database.Store.InTx] reuses the active transaction. In that case,
@@ -235,11 +255,24 @@ func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
 ) error {
+	_, err := m.UpdateReturning(ctx, fn)
+	return err
+}
+
+// UpdateReturning is [ChatMachine.Update] that also returns the chat row
+// the transition's commit write produced, so callers do not read the row
+// again while holding the lock. The row is returned whenever the
+// transaction committed, including when publishing the state update
+// failed afterwards; it is zero when the transaction rolled back.
+func (m *ChatMachine) UpdateReturning(
+	ctx context.Context,
+	fn func(*Tx, database.Store) error,
+) (database.Chat, error) {
 	if m.store == nil {
-		return xerrors.New("chatstate: ChatMachine has nil store")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil store")
 	}
 	if m.publisher == nil {
-		return xerrors.New("chatstate: ChatMachine has nil publisher")
+		return database.Chat{}, xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
 
 	buffer := NewPublishBuffer(m.publisher)
@@ -254,6 +287,7 @@ func (m *ChatMachine) Update(
 		lockEnd     time.Time
 		callbackEnd time.Time
 		tx          *Tx
+		committed   database.Chat
 	)
 	err := m.store.InTx(func(store database.Store) error {
 		lockStart = time.Now()
@@ -284,34 +318,30 @@ func (m *ChatMachine) Update(
 		}
 		if tx.commits == 0 {
 			historyChanged, queueChanged := tx.takeVersionFlags()
-			if _, err := store.BumpChatSnapshotVersion(txCtx, database.BumpChatSnapshotVersionParams{
+			bumped, err := store.BumpChatSnapshotVersion(txCtx, database.BumpChatSnapshotVersionParams{
 				ID:             m.chatID,
 				HistoryChanged: historyChanged,
 				QueueChanged:   queueChanged,
-			}); err != nil {
+				StaleSeconds:   HeartbeatStaleSeconds,
+			})
+			if err != nil {
 				return xerrors.Errorf("bump chat snapshot: %w", err)
 			}
+			tx.recordCommit(bumped.Chat, bumped.HasQueued, bumped.OwnershipStale)
 		}
-		// One lean read after the commit write captures the committed
-		// versions and the ownership lease in a single round trip.
-		state, err := store.GetChatTransitionState(txCtx, database.GetChatTransitionStateParams{
-			ID:           m.chatID,
-			StaleSeconds: HeartbeatStaleSeconds,
-		})
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrChatNotFound
-			}
-			return xerrors.Errorf("load chat transition state: %w", err)
+		result := tx.committed
+		if result == nil {
+			return xerrors.New("chatstate: commit write recorded no result")
 		}
-		snapshot := snapshotFromTransitionState(state)
+		committed = result.chat
+		snapshot := snapshotFromChat(result.chat)
 		if err := buffer.Publish(
-			coderdpubsub.ChatStateUpdateChannel(state.ID),
+			coderdpubsub.ChatStateUpdateChannel(result.chat.ID),
 			chatUpdateMessage(snapshot),
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if classifyExecutionState(state.Status, state.Archived, state.HasQueued, true).IsRunnable() && state.OwnershipStale {
+		if ClassifyExecutionState(result.chat, result.hasQueued, true).IsRunnable() && result.ownershipStale {
 			if err := buffer.Publish(
 				coderdpubsub.ChatStateOwnershipChannel,
 				chatOwnershipMessage(snapshot),
@@ -333,9 +363,9 @@ func (m *ChatMachine) Update(
 		end:         time.Now(),
 	})
 	if err != nil {
-		return err
+		return database.Chat{}, err
 	}
-	return buffer.Flush()
+	return committed, buffer.Flush()
 }
 
 // Lock locks the chat row with FOR NO KEY UPDATE and runs fn in a

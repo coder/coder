@@ -264,7 +264,7 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+func (m queryMetricsStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.BumpChatSnapshotVersionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.BumpChatSnapshotVersion(ctx, arg)
 	m.queryLatencies.WithLabelValues("BumpChatSnapshotVersion").Observe(time.Since(start).Seconds())
@@ -4048,7 +4048,7 @@ func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg dat
 	return r0, r1
 }
 
-func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
+func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, id database.IncrementChatGenerationAttemptParams) (database.IncrementChatGenerationAttemptRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.IncrementChatGenerationAttempt(ctx, id)
 	m.queryLatencies.WithLabelValues("IncrementChatGenerationAttempt").Observe(time.Since(start).Seconds())
@@ -5304,7 +5304,7 @@ func (m queryMetricsStore) UpdateChatDebugStep(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
+func (m queryMetricsStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.UpdateChatExecutionStateRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatExecutionState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatExecutionState").Observe(time.Since(start).Seconds())
@@ -5392,7 +5392,7 @@ func (m queryMetricsStore) UpdateChatPlanModeByID(ctx context.Context, arg datab
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
+func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.UpdateChatRetryStateRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatRetryState(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatRetryState").Observe(time.Since(start).Seconds())

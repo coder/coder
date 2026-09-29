@@ -91,7 +91,7 @@ func TestMessageInsertStampsCommittedRevision(t *testing.T) {
 
 	// Force generation_attempt > 0 so we can prove the commit write
 	// resets it on a history change.
-	_, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	_, err := f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: created.Chat.ID})
 	require.NoError(t, err)
 	locked, err := f.DB.LockChatForTransition(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -119,9 +119,9 @@ func TestMessageInsertStampsCommittedRevision(t *testing.T) {
 		HistoryChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, last.Revision, after.SnapshotVersion)
-	require.Equal(t, last.Revision, after.HistoryVersion)
-	require.Equal(t, int64(0), after.GenerationAttempt)
+	require.Equal(t, last.Revision, after.Chat.SnapshotVersion)
+	require.Equal(t, last.Revision, after.Chat.HistoryVersion)
+	require.Equal(t, int64(0), after.Chat.GenerationAttempt)
 }
 
 // TestMessageUpdateStampsCommittedRevision verifies that a material
@@ -166,8 +166,8 @@ func TestMessageUpdateStampsCommittedRevision(t *testing.T) {
 		HistoryChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, reloaded.Revision, after.HistoryVersion)
-	require.Equal(t, int64(0), after.GenerationAttempt)
+	require.Equal(t, reloaded.Revision, after.Chat.HistoryVersion)
+	require.Equal(t, int64(0), after.Chat.GenerationAttempt)
 }
 
 // TestMessageRevisionCannotBeSetByRuntimeCode verifies the BEFORE
@@ -284,16 +284,16 @@ func TestSearchTsvBackfillDoesNotTouchChatState(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, tsvPending, "fresh message starts with search_tsv pending")
 
-	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: created.Chat.ID})
 	require.NoError(t, err)
-	require.Equal(t, int64(1), attempt)
+	require.Equal(t, int64(1), attempt.Chat.GenerationAttempt)
 
 	withRetry, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
 	})
 	require.NoError(t, err)
-	require.True(t, withRetry.RetryState.Valid)
+	require.True(t, withRetry.Chat.RetryState.Valid)
 
 	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -365,10 +365,10 @@ func TestQueueWritesLeaveChatUntouchedUntilCommit(t *testing.T) {
 		QueueChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, before.SnapshotVersion+1, after.SnapshotVersion)
-	require.Equal(t, after.SnapshotVersion, after.QueueVersion,
+	require.Equal(t, before.SnapshotVersion+1, after.Chat.SnapshotVersion)
+	require.Equal(t, after.Chat.SnapshotVersion, after.Chat.QueueVersion,
 		"the commit write records the queue change at the committed version")
-	require.Equal(t, before.HistoryVersion, after.HistoryVersion,
+	require.Equal(t, before.HistoryVersion, after.Chat.HistoryVersion,
 		"a queue change must not move history_version")
 }
 
@@ -387,9 +387,9 @@ func TestExecutionStateCommitRecordsQueueChange(t *testing.T) {
 		QueueChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion)
-	require.Equal(t, after.SnapshotVersion, after.QueueVersion)
-	require.Equal(t, created.Chat.HistoryVersion, after.HistoryVersion)
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.Chat.SnapshotVersion)
+	require.Equal(t, after.Chat.SnapshotVersion, after.Chat.QueueVersion)
+	require.Equal(t, created.Chat.HistoryVersion, after.Chat.HistoryVersion)
 }
 
 // TestQueuedMessageCreatedByIsRequired verifies the database enforces
@@ -442,9 +442,9 @@ func TestHistoryCommitDoesNotUpdateQueueVersion(t *testing.T) {
 		HistoryChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, before.QueueVersion, after.QueueVersion,
+	require.Equal(t, before.QueueVersion, after.Chat.QueueVersion,
 		"a history change must not bump queue_version")
-	require.Equal(t, after.SnapshotVersion, after.HistoryVersion)
+	require.Equal(t, after.Chat.SnapshotVersion, after.Chat.HistoryVersion)
 }
 
 // Retry state triggers
@@ -474,13 +474,13 @@ func TestRetryStateUpdateSetsRetryStateVersion(t *testing.T) {
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
 	})
 	require.NoError(t, err)
-	require.True(t, after.RetryState.Valid)
+	require.True(t, after.Chat.RetryState.Valid)
 	require.JSONEq(t,
 		`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`,
-		string(after.RetryState.RawMessage))
-	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion,
+		string(after.Chat.RetryState.RawMessage))
+	require.Equal(t, created.Chat.SnapshotVersion+1, after.Chat.SnapshotVersion,
 		"the retry state write is a commit write")
-	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion)
+	require.Equal(t, after.Chat.SnapshotVersion, after.Chat.RetryStateVersion)
 }
 
 func TestRetryStateSameValueDoesNotUpdateRetryStateVersion(t *testing.T) {
@@ -502,8 +502,8 @@ func TestRetryStateSameValueDoesNotUpdateRetryStateVersion(t *testing.T) {
 		RetryState: payload,
 	})
 	require.NoError(t, err)
-	require.Equal(t, first.SnapshotVersion+1, second.SnapshotVersion)
-	require.Equal(t, first.RetryStateVersion, second.RetryStateVersion,
+	require.Equal(t, first.Chat.SnapshotVersion+1, second.Chat.SnapshotVersion)
+	require.Equal(t, first.Chat.RetryStateVersion, second.Chat.RetryStateVersion,
 		"same retry_state payload must not update retry_state_version")
 }
 
@@ -519,16 +519,16 @@ func TestGenerationAttemptClearsRetryState(t *testing.T) {
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
 	})
 	require.NoError(t, err)
-	require.True(t, withRetry.RetryState.Valid)
+	require.True(t, withRetry.Chat.RetryState.Valid)
 
-	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	attempt, err := f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: created.Chat.ID})
 	require.NoError(t, err)
-	require.Equal(t, int64(1), attempt)
+	require.Equal(t, int64(1), attempt.Chat.GenerationAttempt)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.False(t, after.RetryState.Valid)
-	require.Equal(t, withRetry.SnapshotVersion+1, after.SnapshotVersion,
+	require.Equal(t, withRetry.Chat.SnapshotVersion+1, after.SnapshotVersion,
 		"the attempt increment is a commit write")
 	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion,
 		"clearing retry_state on generation attempt bumps retry_state_version")
@@ -544,7 +544,7 @@ func TestGenerationAttemptWithNullRetryStateDoesNotUpdateRetryStateVersion(t *te
 	require.NoError(t, err)
 	require.False(t, before.RetryState.Valid)
 
-	_, err = f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	_, err = f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: created.Chat.ID})
 	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -575,14 +575,14 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	_, err := f.DB.IncrementChatGenerationAttempt(ctx, created.Chat.ID)
+	_, err := f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: created.Chat.ID})
 	require.NoError(t, err)
 	withRetry, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{
 		ID:         created.Chat.ID,
 		RetryState: []byte(`{"attempt":1,"delay_ms":250,"error":"retry","retrying_at":"2026-05-29T00:00:00Z"}`),
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(1), withRetry.GenerationAttempt)
+	require.Equal(t, int64(1), withRetry.Chat.GenerationAttempt)
 
 	insertRawAssistantMessage(t, tf, created.Chat.ID, "history clears retry state")
 	after, err := f.DB.BumpChatSnapshotVersion(ctx, database.BumpChatSnapshotVersionParams{
@@ -590,8 +590,8 @@ func TestHistoryChangeClearsRetryState(t *testing.T) {
 		HistoryChanged: true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(0), after.GenerationAttempt)
-	require.False(t, after.RetryState.Valid)
-	require.Equal(t, after.SnapshotVersion, after.RetryStateVersion,
+	require.Equal(t, int64(0), after.Chat.GenerationAttempt)
+	require.False(t, after.Chat.RetryState.Valid)
+	require.Equal(t, after.Chat.SnapshotVersion, after.Chat.RetryStateVersion,
 		"history reset of generation_attempt clears retry_state")
 }

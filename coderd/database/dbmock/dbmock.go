@@ -337,10 +337,10 @@ func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesSent(ctx, arg any) 
 }
 
 // BumpChatSnapshotVersion mocks base method.
-func (m *MockStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+func (m *MockStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.BumpChatSnapshotVersionRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "BumpChatSnapshotVersion", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
+	ret0, _ := ret[0].(database.BumpChatSnapshotVersionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7634,18 +7634,18 @@ func (mr *MockStoreMockRecorder) InTx(arg0, arg1 any) *gomock.Call {
 }
 
 // IncrementChatGenerationAttempt mocks base method.
-func (m *MockStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
+func (m *MockStore) IncrementChatGenerationAttempt(ctx context.Context, arg database.IncrementChatGenerationAttemptParams) (database.IncrementChatGenerationAttemptRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IncrementChatGenerationAttempt", ctx, id)
-	ret0, _ := ret[0].(int64)
+	ret := m.ctrl.Call(m, "IncrementChatGenerationAttempt", ctx, arg)
+	ret0, _ := ret[0].(database.IncrementChatGenerationAttemptRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IncrementChatGenerationAttempt indicates an expected call of IncrementChatGenerationAttempt.
-func (mr *MockStoreMockRecorder) IncrementChatGenerationAttempt(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) IncrementChatGenerationAttempt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementChatGenerationAttempt", reflect.TypeOf((*MockStore)(nil).IncrementChatGenerationAttempt), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementChatGenerationAttempt", reflect.TypeOf((*MockStore)(nil).IncrementChatGenerationAttempt), ctx, arg)
 }
 
 // IncrementUserAIDailySpend mocks base method.
@@ -10059,10 +10059,10 @@ func (mr *MockStoreMockRecorder) UpdateChatDebugStep(ctx, arg any) *gomock.Call 
 }
 
 // UpdateChatExecutionState mocks base method.
-func (m *MockStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
+func (m *MockStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.UpdateChatExecutionStateRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateChatExecutionState", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
+	ret0, _ := ret[0].(database.UpdateChatExecutionStateRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10222,10 +10222,10 @@ func (mr *MockStoreMockRecorder) UpdateChatPlanModeByID(ctx, arg any) *gomock.Ca
 }
 
 // UpdateChatRetryState mocks base method.
-func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
+func (m *MockStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.UpdateChatRetryStateRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateChatRetryState", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
+	ret0, _ := ret[0].(database.UpdateChatRetryStateRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

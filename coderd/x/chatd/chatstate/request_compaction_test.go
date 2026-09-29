@@ -231,7 +231,7 @@ func TestRequestCompaction_FreshHistoryEpoch(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			seeded := seedState(t, f, chatstate.StateE0)
 			for range tc.attempts {
-				_, err := f.DB.IncrementChatGenerationAttempt(ctx, seeded.chatID)
+				_, err := f.DB.IncrementChatGenerationAttempt(ctx, database.IncrementChatGenerationAttemptParams{ID: seeded.chatID})
 				require.NoError(t, err)
 			}
 			_, err := f.DB.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{

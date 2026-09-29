@@ -131,21 +131,6 @@ func snapshotFromChat(chat database.Chat) chatStateSnapshot {
 	}
 }
 
-func snapshotFromTransitionState(row database.GetChatTransitionStateRow) chatStateSnapshot {
-	return chatStateSnapshot{
-		ID:                row.ID,
-		SnapshotVersion:   row.SnapshotVersion,
-		HistoryVersion:    row.HistoryVersion,
-		QueueVersion:      row.QueueVersion,
-		RetryStateVersion: row.RetryStateVersion,
-		GenerationAttempt: row.GenerationAttempt,
-		Status:            row.Status,
-		Archived:          row.Archived,
-		WorkerID:          row.WorkerID,
-		RunnerID:          row.RunnerID,
-	}
-}
-
 // buildChatUpdateMessage produces the JSON payload for a
 // `chat:update` publication from a full chat row.
 func buildChatUpdateMessage(chat database.Chat) []byte {

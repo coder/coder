@@ -631,6 +631,8 @@ There are 2 notification channels:
 - The current pubsub API is not assumed to provide transaction atomicity or commit-order delivery. Receivers must tolerate duplicates, drops, and reordering.
 - Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
 
+TODO: the notification values, the queue flag, and the ownership lease check now come from the commit write's own result (every commit write returns the chat row plus `has_queued` and `ownership_stale`), so a transition touches the chat row only through its lock and its commit write. `Acquire` writes its heartbeat before the commit write for this reason. Mention this here.
+
 # Chat worker
 
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.

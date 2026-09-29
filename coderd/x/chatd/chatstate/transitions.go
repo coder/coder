@@ -141,24 +141,25 @@ func insertChat(
 			ID:             chat.ID,
 			HistoryChanged: true,
 			QueueChanged:   false,
+			StaleSeconds:   HeartbeatStaleSeconds,
 		})
 		if err != nil {
 			return xerrors.Errorf("commit chat creation: %w", err)
 		}
 		result = CreateChatResult{
-			Chat:            refreshed,
+			Chat:            refreshed.Chat,
 			InitialMessages: fromInsertedRows(inserted),
 		}
 		if err := buffer.Publish(
-			coderdpubsub.ChatStateUpdateChannel(refreshed.ID),
-			buildChatUpdateMessage(refreshed),
+			coderdpubsub.ChatStateUpdateChannel(refreshed.Chat.ID),
+			buildChatUpdateMessage(refreshed.Chat),
 		); err != nil {
 			return xerrors.Errorf("buffer chat update: %w", err)
 		}
-		if ClassifyExecutionState(refreshed, false, true).IsRunnable() {
+		if ClassifyExecutionState(refreshed.Chat, refreshed.HasQueued, true).IsRunnable() && refreshed.OwnershipStale {
 			if err := buffer.Publish(
 				coderdpubsub.ChatStateOwnershipChannel,
-				buildChatOwnershipMessage(refreshed),
+				buildChatOwnershipMessage(refreshed.Chat),
 			); err != nil {
 				return xerrors.Errorf("buffer ownership hint: %w", err)
 			}
@@ -200,7 +201,7 @@ type executionStateUpdate struct {
 
 func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error) {
 	historyChanged, queueChanged := tx.takeVersionFlags()
-	return tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
+	updated, err := tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
 		ID:                       tx.chatID,
 		Status:                   u.Status,
 		Archived:                 u.Archived,
@@ -211,7 +212,13 @@ func (tx *Tx) applyExecutionState(u executionStateUpdate) (database.Chat, error)
 		CompactionRequestedAt:    u.CompactionRequestedAt,
 		HistoryChanged:           u.GrantHistoryEpoch || historyChanged,
 		QueueChanged:             queueChanged,
+		StaleSeconds:             HeartbeatStaleSeconds,
 	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	tx.recordCommit(updated.Chat, updated.HasQueued, updated.OwnershipStale)
+	return updated.Chat, nil
 }
 
 // insertMessages inserts the given Message batch under the current
@@ -1162,6 +1169,15 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 	if err != nil {
 		return AcquireResult{}, err
 	}
+	// The heartbeat lands before the commit write so the ownership lease
+	// that write evaluates is fresh and Update publishes no `chat:ownership`
+	// hint for a chat that was just claimed.
+	if err := tx.store.UpsertChatHeartbeat(tx.ctx, database.UpsertChatHeartbeatParams{
+		ChatID:   tx.chatID,
+		RunnerID: input.RunnerID,
+	}); err != nil {
+		return AcquireResult{}, xerrors.Errorf("upsert heartbeat: %w", err)
+	}
 	if _, err := tx.applyExecutionState(executionStateUpdate{
 		Status:                   chat.Status,
 		Archived:                 chat.Archived,
@@ -1173,15 +1189,6 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 	}); err != nil {
 		return AcquireResult{}, xerrors.Errorf("set ownership: %w", err)
 	}
-	if err := tx.store.UpsertChatHeartbeat(tx.ctx, database.UpsertChatHeartbeatParams{
-		ChatID:   tx.chatID,
-		RunnerID: input.RunnerID,
-	}); err != nil {
-		return AcquireResult{}, xerrors.Errorf("upsert heartbeat: %w", err)
-	}
-	// Acquire writes a fresh heartbeat itself, so the post-commit
-	// ownership-hint logic in Update will evaluate the heartbeat as
-	// fresh and skip publishing a `chat:ownership` hint.
 	return AcquireResult{}, nil
 }
 
@@ -1239,12 +1246,16 @@ func (tx *Tx) RecordGenerationAttempt(_ RecordGenerationAttemptInput) (RecordGen
 	if err := tx.requireNoVersionFlags(TransitionRecordGenerationAttempt); err != nil {
 		return RecordGenerationAttemptResult{}, err
 	}
-	value, err := tx.store.IncrementChatGenerationAttempt(tx.ctx, tx.chatID)
+	updated, err := tx.store.IncrementChatGenerationAttempt(tx.ctx, database.IncrementChatGenerationAttemptParams{
+		ID:           tx.chatID,
+		StaleSeconds: HeartbeatStaleSeconds,
+	})
 	if err != nil {
 		return RecordGenerationAttemptResult{}, xerrors.Errorf("increment generation attempt: %w", err)
 	}
+	tx.recordCommit(updated.Chat, updated.HasQueued, updated.OwnershipStale)
 	return RecordGenerationAttemptResult{
-		GenerationAttempt: value,
+		GenerationAttempt: updated.Chat.GenerationAttempt,
 	}, nil
 }
 
@@ -1280,14 +1291,16 @@ func (tx *Tx) RecordRetryState(input RecordRetryStateInput) (RecordRetryStateRes
 	if err := tx.requireNoVersionFlags(TransitionRecordRetryState); err != nil {
 		return RecordRetryStateResult{}, err
 	}
-	chat, err := tx.store.UpdateChatRetryState(tx.ctx, database.UpdateChatRetryStateParams{
-		ID:         tx.chatID,
-		RetryState: input.RetryState.RawMessage,
+	updated, err := tx.store.UpdateChatRetryState(tx.ctx, database.UpdateChatRetryStateParams{
+		ID:           tx.chatID,
+		RetryState:   input.RetryState.RawMessage,
+		StaleSeconds: HeartbeatStaleSeconds,
 	})
 	if err != nil {
 		return RecordRetryStateResult{}, xerrors.Errorf("update retry state: %w", err)
 	}
-	return RecordRetryStateResult{Chat: chat}, nil
+	tx.recordCommit(updated.Chat, updated.HasQueued, updated.OwnershipStale)
+	return RecordRetryStateResult{Chat: updated.Chat}, nil
 }
 
 // CommitStepInput configures [Tx.CommitStep].

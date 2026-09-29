@@ -2714,7 +2714,25 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT *
+SELECT
+    sqlc.embed(chats_expanded),
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded;
 
 -- name: BumpChatSnapshotVersion :one
@@ -2787,7 +2805,25 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT *
+SELECT
+    sqlc.embed(chats_expanded),
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded;
 
 -- name: UpdateChatRetryState :one
@@ -2856,19 +2892,112 @@ chats_expanded AS (
     LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
     JOIN visible_users owner ON owner.id = updated_chat.owner_id
 )
-SELECT *
+SELECT
+    sqlc.embed(chats_expanded),
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
 FROM chats_expanded;
 
 -- name: IncrementChatGenerationAttempt :one
 -- The commit write of RecordGenerationAttempt: advances snapshot_version,
--- increments generation_attempt, and returns the resulting attempt.
-UPDATE chats
-SET
-    snapshot_version = snapshot_version + 1,
-    generation_attempt = generation_attempt + 1,
-    updated_at = NOW()
-WHERE id = @id::uuid
-RETURNING generation_attempt;
+-- increments generation_attempt, and returns the committed chat.
+WITH updated_chat AS (
+    UPDATE chats
+    SET
+        snapshot_version = snapshot_version + 1,
+        generation_attempt = generation_attempt + 1,
+        updated_at = NOW()
+    WHERE id = @id::uuid
+    RETURNING *
+),
+chats_expanded AS (
+    SELECT
+        updated_chat.id,
+        updated_chat.owner_id,
+        updated_chat.workspace_id,
+        updated_chat.title,
+        updated_chat.status,
+        updated_chat.worker_id,
+        updated_chat.started_at,
+        updated_chat.heartbeat_at,
+        updated_chat.created_at,
+        updated_chat.updated_at,
+        updated_chat.parent_chat_id,
+        updated_chat.root_chat_id,
+        updated_chat.last_model_config_id,
+        updated_chat.last_reasoning_effort,
+        updated_chat.archived,
+        updated_chat.last_error,
+        updated_chat.mode,
+        updated_chat.mcp_server_ids,
+        updated_chat.labels,
+        updated_chat.build_id,
+        updated_chat.agent_id,
+        updated_chat.pin_order,
+        updated_chat.last_read_message_id,
+        updated_chat.dynamic_tools,
+        updated_chat.organization_id,
+        updated_chat.plan_mode,
+        updated_chat.client_type,
+        updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
+        updated_chat.snapshot_version,
+        updated_chat.history_version,
+        updated_chat.queue_version,
+        updated_chat.generation_attempt,
+        updated_chat.retry_state,
+        updated_chat.retry_state_version,
+        updated_chat.runner_id,
+        updated_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        updated_chat.context_aggregate_hash,
+        updated_chat.context_dirty_since,
+        updated_chat.context_dirty_resources,
+        updated_chat.context_error,
+        updated_chat.compaction_requested_at
+    FROM updated_chat
+    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = updated_chat.owner_id
+)
+SELECT
+    sqlc.embed(chats_expanded),
+    -- The commit write is the transition's last statement that can touch
+    -- the queue or the heartbeat, so ChatMachine.Update publishes from
+    -- this row instead of reading the chat again under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued,
+    (
+        chats_expanded.worker_id IS NULL
+        OR chats_expanded.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = chats_expanded.id
+              AND h.runner_id = chats_expanded.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
+FROM chats_expanded;
 
 -- name: GetDatabaseNow :one
 -- Returns the current database timestamp. Used so transitions that

@@ -58,28 +58,28 @@ func (s *countingStore) LockChatForTransition(ctx context.Context, id uuid.UUID)
 	return s.Store.LockChatForTransition(ctx, id)
 }
 
-func (s *countingStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
+func (s *countingStore) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.UpdateChatExecutionStateRow, error) {
 	if s.inTx {
 		s.counts.inc(&s.counts.chatWrites)
 	}
 	return s.Store.UpdateChatExecutionState(ctx, arg)
 }
 
-func (s *countingStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+func (s *countingStore) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.BumpChatSnapshotVersionRow, error) {
 	if s.inTx {
 		s.counts.inc(&s.counts.chatWrites)
 	}
 	return s.Store.BumpChatSnapshotVersion(ctx, arg)
 }
 
-func (s *countingStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
+func (s *countingStore) IncrementChatGenerationAttempt(ctx context.Context, arg database.IncrementChatGenerationAttemptParams) (database.IncrementChatGenerationAttemptRow, error) {
 	if s.inTx {
 		s.counts.inc(&s.counts.chatWrites)
 	}
-	return s.Store.IncrementChatGenerationAttempt(ctx, id)
+	return s.Store.IncrementChatGenerationAttempt(ctx, arg)
 }
 
-func (s *countingStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
+func (s *countingStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.UpdateChatRetryStateRow, error) {
 	if s.inTx {
 		s.counts.inc(&s.counts.chatWrites)
 	}
@@ -115,8 +115,8 @@ func (s *countingStore) IsChatHeartbeatStale(ctx context.Context, arg database.I
 }
 
 // TestUpdateSingleTransitionReadsNothingUnderLock pins the round-trip
-// budget of a transition: the lock seeds validation and one lean read
-// feeds the publish, so no other chat read runs while the row lock is
+// budget of a transition: the lock seeds validation and the commit write
+// feeds the publish, so no chat read at all runs while the row lock is
 // held. Reads creeping back here directly lengthen lock hold time.
 func TestUpdateSingleTransitionReadsNothingUnderLock(t *testing.T) {
 	t.Parallel()
@@ -127,14 +127,15 @@ func TestUpdateSingleTransitionReadsNothingUnderLock(t *testing.T) {
 	counts := &roundTripCounts{}
 	m := chatstate.NewChatMachine(&countingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
 
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Equal(t, 1, counts.lock)
 	require.Equal(t, 1, counts.chatWrites, "a transition updates the chats row exactly once")
-	require.Equal(t, 1, counts.transitionState)
+	require.Zero(t, counts.transitionState, "the commit write feeds the publish; no post-callback read")
 	require.Zero(t, counts.getChatByID, "GetChatByID must not run under the transition lock")
 	require.Zero(t, counts.countQueued, "CountChatQueuedMessages must not run under the transition lock")
 	require.Zero(t, counts.heartbeatStale, "IsChatHeartbeatStale must not run under the transition lock")
@@ -143,13 +144,15 @@ func TestUpdateSingleTransitionReadsNothingUnderLock(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.ChatStatusWaiting, after.Status)
 	require.Equal(t, created.Chat.SnapshotVersion+1, after.SnapshotVersion)
+	require.Equal(t, after, committed, "UpdateReturning hands back the committed row")
 }
 
 // TestUpdateWritesChatRowOnce pins the single-write contract for the
 // callback shapes that have no execution-state write of their own: a
 // history-only transition and a metadata-only callback each end in
 // exactly one chats UPDATE, issued by Update, which records the
-// history change and advances snapshot_version.
+// history change and advances snapshot_version. The row that write
+// returns is the one UpdateReturning hands back.
 func TestUpdateWritesChatRowOnce(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -159,18 +162,21 @@ func TestUpdateWritesChatRowOnce(t *testing.T) {
 	counts := &roundTripCounts{}
 	m := chatstate.NewChatMachine(&countingStore{Store: f.DB, counts: counts}, f.Pub, created.Chat.ID)
 
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+	committed, err := m.UpdateReturning(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		msg := userTextMessage("step", f.User.ID, f.Model.ID)
 		msg.Role = database.ChatMessageRoleAssistant
 		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{msg}})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, 1, counts.chatWrites, "CommitStep commits through Update's bump-only write")
+	require.Zero(t, counts.transitionState)
 
 	afterStep, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, created.Chat.SnapshotVersion+1, afterStep.SnapshotVersion)
 	require.Equal(t, afterStep.SnapshotVersion, afterStep.HistoryVersion, "the commit write records the history change")
+	require.Equal(t, afterStep, committed, "the returned row carries the bump-only write's versions")
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: created.Chat.ID})
 	require.NoError(t, err)
 	require.Equal(t, afterStep.SnapshotVersion, msgs[len(msgs)-1].Revision, "messages carry the committed version")
@@ -212,7 +218,7 @@ func TestUpdateBundleRereadsAfterSeedConsumed(t *testing.T) {
 	}))
 
 	require.Equal(t, 1, counts.lock)
-	require.Equal(t, 1, counts.transitionState)
+	require.Zero(t, counts.transitionState)
 	require.Equal(t, 1, counts.getChatByID, "second transition re-reads once the seed is consumed")
 	require.Equal(t, 1, counts.countQueued)
 
@@ -279,7 +285,7 @@ func TestUpdateThroughDBAuthzAuthorizesWritesFromCachedRBAC(t *testing.T) {
 	}))
 
 	require.Equal(t, 1, counts.lock)
-	require.Equal(t, 1, counts.transitionState)
+	require.Zero(t, counts.transitionState)
 	require.Equal(t, 1, counts.getChatByID,
 		"only the lock's pre-lock authorization reads the chat; the callback's write must not")
 	require.Zero(t, counts.countQueued)
@@ -289,8 +295,8 @@ func TestUpdateThroughDBAuthzAuthorizesWritesFromCachedRBAC(t *testing.T) {
 // TestUpdateThroughDBAuthzWithCallerCachedRBACReadsNothing shows that a
 // caller which already holds the chat (HTTP middleware, the worker runner)
 // can cache its RBAC object up front so even the lock authorizes without a
-// read: the transition then touches the chat row only through the lock, its
-// commit write, and the lean post-callback read.
+// read: the transition then touches the chat row only through the lock and
+// its commit write.
 func TestUpdateThroughDBAuthzWithCallerCachedRBACReadsNothing(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -309,6 +315,6 @@ func TestUpdateThroughDBAuthzWithCallerCachedRBACReadsNothing(t *testing.T) {
 	}))
 
 	require.Equal(t, 1, counts.lock)
-	require.Equal(t, 1, counts.transitionState)
+	require.Zero(t, counts.transitionState)
 	require.Zero(t, counts.getChatByID, "no chat read at all when the caller cached the RBAC object")
 }

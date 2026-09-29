@@ -1507,29 +1507,34 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UpdateChatExecutionState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatExecutionStateParams{ID: chat.ID, Status: database.ChatStatusRunning}
+		row := database.UpdateChatExecutionStateRow{Chat: chat}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
 	}))
 	s.Run("BumpChatSnapshotVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.BumpChatSnapshotVersionParams{ID: chat.ID, HistoryChanged: true}
+		row := database.BumpChatSnapshotVersionRow{Chat: chat}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().BumpChatSnapshotVersion(gomock.Any(), arg).Return(chat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+		dbm.EXPECT().BumpChatSnapshotVersion(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
 	}))
 	s.Run("IncrementChatGenerationAttempt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.IncrementChatGenerationAttemptParams{ID: chat.ID}
+		row := database.IncrementChatGenerationAttemptRow{Chat: chat}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().IncrementChatGenerationAttempt(gomock.Any(), chat.ID).Return(int64(7), nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(7))
+		dbm.EXPECT().IncrementChatGenerationAttempt(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
 	}))
 	s.Run("UpdateChatRetryState", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		arg := database.UpdateChatRetryStateParams{ID: chat.ID, RetryState: []byte(`{"attempt":1}`)}
+		row := database.UpdateChatRetryStateRow{Chat: chat}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().UpdateChatRetryState(gomock.Any(), arg).Return(chat, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(chat)
+		dbm.EXPECT().UpdateChatRetryState(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(row)
 	}))
 	s.Run("GetDatabaseNow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		now := time.Now()
@@ -7929,7 +7934,7 @@ func TestChatWriteAuthorization_FastPath(t *testing.T) {
 		// No GetChatByID expectation: the cached object must satisfy
 		// authorization for every chat-scoped write.
 		dbm.EXPECT().LockChatForTransition(gomock.Any(), chat.ID).Return(locked, nil)
-		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(chat, nil)
+		dbm.EXPECT().UpdateChatExecutionState(gomock.Any(), gomock.Any()).Return(database.UpdateChatExecutionStateRow{Chat: chat}, nil)
 		dbm.EXPECT().Wrappers().Return([]string{})
 		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 

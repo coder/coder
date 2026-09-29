@@ -1964,9 +1964,9 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
-func (q *querier) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.Chat, error) {
+func (q *querier) BumpChatSnapshotVersion(ctx context.Context, arg database.BumpChatSnapshotVersionParams) (database.BumpChatSnapshotVersionRow, error) {
 	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
-		return database.Chat{}, err
+		return database.BumpChatSnapshotVersionRow{}, err
 	}
 	return q.db.BumpChatSnapshotVersion(ctx, arg)
 }
@@ -6078,11 +6078,11 @@ func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.Hyd
 	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
 
-func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
-	if err := q.authorizeChatByID(ctx, id, policy.ActionUpdate); err != nil {
-		return 0, err
+func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, arg database.IncrementChatGenerationAttemptParams) (database.IncrementChatGenerationAttemptRow, error) {
+	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
+		return database.IncrementChatGenerationAttemptRow{}, err
 	}
-	return q.db.IncrementChatGenerationAttempt(ctx, id)
+	return q.db.IncrementChatGenerationAttempt(ctx, arg)
 }
 
 func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {
@@ -7542,9 +7542,9 @@ func (q *querier) UpdateChatDebugStep(ctx context.Context, arg database.UpdateCh
 	return q.db.UpdateChatDebugStep(ctx, arg)
 }
 
-func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.Chat, error) {
+func (q *querier) UpdateChatExecutionState(ctx context.Context, arg database.UpdateChatExecutionStateParams) (database.UpdateChatExecutionStateRow, error) {
 	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
-		return database.Chat{}, err
+		return database.UpdateChatExecutionStateRow{}, err
 	}
 	return q.db.UpdateChatExecutionState(ctx, arg)
 }
@@ -7669,11 +7669,11 @@ func (q *querier) UpdateChatPlanModeByID(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatPlanModeByID(ctx, arg)
 }
 
-func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
+func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.UpdateChatRetryStateRow, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.
 	if err := q.authorizeChatByID(ctx, arg.ID, policy.ActionUpdate); err != nil {
-		return database.Chat{}, err
+		return database.UpdateChatRetryStateRow{}, err
 	}
 	return q.db.UpdateChatRetryState(ctx, arg)
 }

@@ -113,13 +113,14 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	require.NoError(t, err, "insert chat")
 	// InsertChat creates the row at snapshot_version 0; the creating
 	// transaction's commit write is what lands a chat on version 1.
-	chat, err = db.BumpChatSnapshotVersion(genCtx, database.BumpChatSnapshotVersionParams{
+	bumped, err := db.BumpChatSnapshotVersion(genCtx, database.BumpChatSnapshotVersionParams{
 		ID:             chat.ID,
 		HistoryChanged: false,
 		QueueChanged:   false,
+		StaleSeconds:   0,
 	})
 	require.NoError(t, err, "commit chat creation")
-	return chat
+	return bumped.Chat
 }
 
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
@@ -159,6 +160,7 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ID:             seed.ChatID,
 		HistoryChanged: true,
 		QueueChanged:   false,
+		StaleSeconds:   0,
 	})
 	require.NoError(t, err, "commit chat message insert")
 	return database.ChatMessage(msgs[0])
