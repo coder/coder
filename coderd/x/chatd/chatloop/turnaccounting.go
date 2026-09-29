@@ -224,13 +224,14 @@ func (s *StageSpan) report(elapsed time.Duration, err error) {
 }
 
 // EndTurn closes a chat_turn span at end and emits its time partition.
-// Only completed turns are observed on the histogram.
+// Only completed turns are observed on the histogram, which measures
+// reply latency.
 func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	if s == nil || s.ended {
 		return
 	}
 	elapsed := end.Sub(s.start)
-	categories, overattributed := turnPartition(s.acc, elapsed)
+	partition, overattributed := turnPartition(s.acc, elapsed)
 	s.span.SetAttributes(
 		attribute.String(AttrTurnOutcome, string(outcome)),
 		attribute.Bool(AttrOverattributed, overattributed),
@@ -245,7 +246,7 @@ func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	if overattributed {
 		s.tracer.RecordAnomaly(StageAnomalyOverattributed)
 	}
-	s.tracer.emitTurnAccounting(categories, s.chatKind, outcome)
+	s.tracer.emitTurnAccounting(partition, s.chatKind, outcome)
 }
 
 func categorizeRecordedStage(ctx context.Context, stage Stage, start time.Time, elapsed time.Duration) {
@@ -275,17 +276,17 @@ func turnPartition(acc *TurnAccumulator, turnDuration time.Duration) (map[TurnCa
 	return categories, unattributed < 0
 }
 
-// emitTurnAccounting records the partition before the outcome, so a
-// counted outcome implies a recorded partition.
-func (t *StageTracer) emitTurnAccounting(categories map[TurnCategory]time.Duration, chatKind ChatKind, outcome TurnOutcome) {
+// emitTurnAccounting records the partition, or a nonpositive_turn
+// anomaly when partition is nil, and then counts the outcome.
+func (t *StageTracer) emitTurnAccounting(partition map[TurnCategory]time.Duration, chatKind ChatKind, outcome TurnOutcome) {
 	if t == nil || t.metrics == nil {
 		return
 	}
-	if categories == nil {
+	if partition == nil {
 		t.RecordAnomaly(StageAnomalyNonPositiveTurn)
 	} else {
 		for _, category := range turnTimeCategories {
-			t.metrics.RecordTurnCategory(category, chatKind, outcome, categories[category])
+			t.metrics.RecordTurnCategory(category, chatKind, outcome, partition[category])
 		}
 	}
 	t.metrics.RecordTurnOutcome(outcome, chatKind)

@@ -179,7 +179,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "turn_outcomes_total",
-			Help:      "Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished). Every closed turn is counted exactly once. Every counted turn also records its partition in turn_time_seconds_total, except turns counted as nonpositive_turn in stage_anomalies_total. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Every counted turn also records its partition in turn_time_seconds_total, except turns counted as nonpositive_turn in stage_anomalies_total. Registered only with the chat-stage-metrics experiment.",
 		}, []string{"outcome", "chat_kind"}),
 		stageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
