@@ -95,6 +95,26 @@ func (r *RootCmd) addOrganizationMember(orgContext *OrganizationContext) *serpen
 }
 
 func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serpent.Command {
+	// Text keeps the existing output. The handler fetches the member with user
+	// data so table and JSON match "organization members list".
+	formatter := cliui.NewOutputFormatter(
+		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+			member, ok := data.(codersdk.OrganizationMemberWithUserData)
+			if !ok {
+				return "", xerrors.Errorf("expected type %T, got %T", member, data)
+			}
+
+			updatedTo := make([]string, 0, len(member.Roles))
+			for _, role := range member.Roles {
+				updatedTo = append(updatedTo, role.String())
+			}
+
+			return fmt.Sprintf("Member roles updated to [%s]", strings.Join(updatedTo, ", ")), nil
+		}),
+		cliui.TableFormat([]codersdk.OrganizationMemberWithUserData{}, []string{"username", "organization roles"}),
+		cliui.JSONFormat(),
+	)
+
 	cmd := &serpent.Command{
 		Use:     "edit-roles <username | user_id> [roles...]",
 		Aliases: []string{"edit-role"},
@@ -116,22 +136,28 @@ func (r *RootCmd) assignOrganizationRoles(orgContext *OrganizationContext) *serp
 			userIdentifier := inv.Args[0]
 			roles := inv.Args[1:]
 
-			member, err := client.UpdateOrganizationMemberRoles(ctx, organization.ID, userIdentifier, codersdk.UpdateRoles{
+			_, err = client.UpdateOrganizationMemberRoles(ctx, organization.ID, userIdentifier, codersdk.UpdateRoles{
 				Roles: roles,
 			})
 			if err != nil {
 				return xerrors.Errorf("update member roles: %w", err)
 			}
 
-			updatedTo := make([]string, 0)
-			for _, role := range member.Roles {
-				updatedTo = append(updatedTo, role.String())
+			member, err := client.OrganizationMember(ctx, organization.ID.String(), userIdentifier)
+			if err != nil {
+				return xerrors.Errorf("fetch updated member: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Member roles updated to [%s]\n", strings.Join(updatedTo, ", "))
-			return nil
+			out, err := formatter.Format(ctx, member)
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
 }
