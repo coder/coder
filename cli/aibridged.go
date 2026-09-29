@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -241,10 +242,10 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	dumpDir := cfg.APIDumpDir.Value()
 	actorHeaderNames := map[string]string{}
 	if name := cfg.ActorHeaderID.Value(); name != "" {
-		actorHeaderNames["id"] = name
+		actorHeaderNames[aibheaders.ActorAttributeID] = name
 	}
 	if name := cfg.ActorHeaderMetaUsername.Value(); name != "" {
-		actorHeaderNames["username"] = name
+		actorHeaderNames[aibheaders.ActorAttributeUsername] = name
 	}
 
 	// aibridge currently has native support for OpenAI and Anthropic

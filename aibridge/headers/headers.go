@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	// ActorAttributeID is the actor-header mapping key for the authenticated user ID.
+	ActorAttributeID = "id"
+	// ActorAttributeUsername is the actor-header mapping key for the username.
+	ActorAttributeUsername = "username"
+
 	// ActorHeaderPrefix prefixes every AI Bridge actor header.
 	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
 	actorHeaderPrefixLower = "x-ai-bridge-actor"
@@ -104,10 +109,10 @@ func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]strin
 	}
 
 	headers := make(map[string]string, len(actorHeaderNames))
-	if name := actorHeaderNames["id"]; name != "" {
+	if name := actorHeaderNames[ActorAttributeID]; name != "" {
 		headers[name] = actor.ID
 	}
-	name := actorHeaderNames["username"]
+	name := actorHeaderNames[ActorAttributeUsername]
 	if name == "" {
 		return headers
 	}
