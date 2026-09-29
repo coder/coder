@@ -75,6 +75,20 @@ var sessionApps = map[string]sessionApp{
 	"devin":             {AppFamilyVSCode, "Devin Desktop", "/icon/devin.svg"},
 	"devin_next":        {AppFamilyVSCode, "Devin Desktop Next", "/icon/devin.svg"},
 	"jetbrains":         {AppFamilyJetBrains, "JetBrains", "/icon/jetbrains.svg"},
+	// JetBrains plugins report one name per IDE, whatever its edition.
+	"intellij":       {AppFamilyJetBrains, "IntelliJ IDEA", "/icon/intellij.svg"},
+	"pycharm":        {AppFamilyJetBrains, "PyCharm", "/icon/pycharm.svg"},
+	"goland":         {AppFamilyJetBrains, "GoLand", "/icon/goland.svg"},
+	"webstorm":       {AppFamilyJetBrains, "WebStorm", "/icon/webstorm.svg"},
+	"phpstorm":       {AppFamilyJetBrains, "PhpStorm", "/icon/phpstorm.svg"},
+	"rubymine":       {AppFamilyJetBrains, "RubyMine", "/icon/rubymine.svg"},
+	"clion":          {AppFamilyJetBrains, "CLion", "/icon/clion.svg"},
+	"rider":          {AppFamilyJetBrains, "Rider", "/icon/rider.svg"},
+	"rustrover":      {AppFamilyJetBrains, "RustRover", "/icon/rustrover.svg"},
+	"datagrip":       {AppFamilyJetBrains, "DataGrip", "/icon/datagrip.svg"},
+	"dataspell":      {AppFamilyJetBrains, "DataSpell", "/icon/dataspell.svg"},
+	"mps":            {AppFamilyJetBrains, "MPS", ""},
+	"android_studio": {AppFamilyJetBrains, "Android Studio", "/icon/android-studio.svg"},
 	// No agent reports sftp; the family covers the sftp_mins history.
 	"sftp": {AppFamilySFTP, "SFTP", "/icon/terminal.svg"},
 	// Zed speaks SSH, so it counts toward the SSH total.
