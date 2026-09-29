@@ -1868,10 +1868,6 @@ func ChatProjectMemory(row database.GetChatProjectMemoryByIDRow) codersdk.ChatPr
 	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
 }
 
-func ChatProjectMemoryByName(row database.GetChatProjectMemoryByNameRow) codersdk.ChatProjectMemory {
-	return convertChatProjectMemory(row.ChatProjectMemory, row.CreatedByUsername)
-}
-
 func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow) []codersdk.ChatProjectMemory {
 	memories := make([]codersdk.ChatProjectMemory, len(rows))
 	for i, row := range rows {

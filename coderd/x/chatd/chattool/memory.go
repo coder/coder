@@ -400,8 +400,12 @@ func DeleteMemory(store MemoryStore, projectName string) fantasy.AgentTool {
 		if err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
-		if err := store.Delete(ctx, name); err != nil {
+		err = store.Delete(ctx, name)
+		switch {
+		case errors.Is(err, ErrMemoryNotFound):
 			return fantasy.NewTextErrorResponse("memory was not found"), nil
+		case err != nil:
+			return fantasy.NewTextErrorResponse("failed to delete memory"), nil
 		}
 		return toolResponse(map[string]any{"deleted": name}), nil
 	})
