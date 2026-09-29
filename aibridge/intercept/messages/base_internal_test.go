@@ -1580,14 +1580,16 @@ func TestRecordTokenUsage(t *testing.T) {
 
 	id := uuid.New()
 	tests := []struct {
-		name     string
-		msgID    string
-		usage    anthropic.Usage
-		expected *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel anthropic.Model
+		usage         anthropic.Usage
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:  "without service tier or extra tokens",
-			msgID: "msg_basic",
+			name:          "without service tier or extra tokens",
+			msgID:         "msg_basic",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              10,
 				OutputTokens:             20,
@@ -1598,6 +1600,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_basic",
+				ProviderModel:         "provider-model",
 				Input:                 10,
 				Output:                20,
 				CacheReadInputTokens:  3,
@@ -1606,8 +1609,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "with service tier and all extra tokens",
-			msgID: "msg_full",
+			name:          "with service tier and all extra tokens",
+			msgID:         "msg_full",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              100,
 				OutputTokens:             200,
@@ -1625,6 +1629,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_full",
+				ProviderModel:         "provider-model",
 				Input:                 100,
 				Output:                200,
 				CacheReadInputTokens:  30,
@@ -1640,7 +1645,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "omits zero extra tokens and service tier",
+			name:  "omits zero extra tokens, service tier and provider model",
 			msgID: "msg_partial_extra",
 			usage: anthropic.Usage{
 				ServerToolUse: anthropic.ServerToolUsage{
@@ -1666,7 +1671,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				id:       id,
 				recorder: rec,
 			}
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage)
 
 			usages := rec.RecordedTokenUsages()
 			require.Len(t, usages, 1)

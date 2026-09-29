@@ -122,6 +122,7 @@ func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageReco
 	_, err = client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		InterceptionId:        req.InterceptionID,
 		MsgId:                 req.MsgID,
+		ProviderModel:         req.ProviderModel,
 		InputTokens:           req.Input,
 		OutputTokens:          req.Output,
 		CacheReadInputTokens:  req.CacheReadInputTokens,

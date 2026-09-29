@@ -401,6 +401,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 response.ID,
+		ProviderModel:         response.Model,
 		Input:                 inputNonCacheTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,

@@ -32,6 +32,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 		wantCompletionTokens int64
 		wantTotalTokens      int64
 		wantServiceTier      string
+		wantModel            string
 	}{
 		{
 			name: "cumulative snapshots with trailing usage-less chunk",
@@ -66,6 +67,17 @@ func TestStreamProcessorUsage(t *testing.T) {
 			wantCompletionTokens: 30,
 			wantTotalTokens:      6030,
 			wantServiceTier:      "priority",
+		},
+		{
+			name: "model reported by the provider",
+			chunks: []string{
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{"content":"one"}}]}`,
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+			},
+			wantPromptTokens:     6000,
+			wantCompletionTokens: 30,
+			wantTotalTokens:      6030,
+			wantModel:            "provider-model",
 		},
 	}
 
@@ -103,6 +115,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 			assert.Equal(t, tt.wantCompletionTokens, usage.CompletionTokens)
 			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
 			assert.Equal(t, tt.wantServiceTier, processor.serviceTier)
+			assert.Equal(t, tt.wantModel, processor.getModel())
 		})
 	}
 }
