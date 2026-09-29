@@ -58,6 +58,12 @@ To connect to a Coder deployment that uses internal certificates, configure the 
 1. Add your certificate path in the **CA Path** field.
    ![JetBrains Toolbox Coder Provider certificate path](../../../images/user-guides/jetbrains/toolbox/certificate.png)
 
+## Collect a support bundle
+
+Follow the [JetBrains Toolbox support bundle procedure](../../../support/support-bundle.md#jetbrains-toolbox) to check prerequisites and collect diagnostics.
+The workspace action menu's **Collect logs** action collects Toolbox diagnostics and a nested `coder-support.zip` for that workspace.
+The general Toolbox **Collect logs and diagnostic data** action doesn't generate a Coder support bundle.
+
 ## Troubleshooting
 
 If you encounter issues connecting to your Coder workspace via JetBrains Toolbox, follow these steps to enable and capture debug logs:
@@ -74,7 +80,7 @@ If you encounter issues connecting to your Coder workspace via JetBrains Toolbox
 
 1. Access logs via **Toolbox App Menu > About > Show log files**.
 2. Locate the log file named `jetbrains-toolbox.log` and attach it to your support ticket.
-3. If you need to capture logs for a specific workspace, you can also generate a ZIP file using the Workspace action menu, available either on the main Workspaces page in Coder view or within the individual workspace view, under the option labeled **Collect logs**.
+3. To include workspace diagnostics, [collect a support bundle](#collect-a-support-bundle) from the workspace action menu.
 
 ## Additional Resources
 

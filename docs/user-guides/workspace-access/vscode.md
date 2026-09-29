@@ -89,13 +89,11 @@ The extension includes commands for collecting diagnostics from VS Code:
 
 - **Coder: Export Telemetry** exports only local telemetry. Choose a date range
   and JSON or OTLP JSON zip format, then review the file before sharing it.
-- **Coder: Create Support Bundle** runs `coder support bundle` and adds a
-  `vscode-logs/` directory with recent VS Code extension diagnostics, including
-  extension logs, proxy and Remote-SSH logs, redacted VS Code settings, and
-  local telemetry files when available. The `vscode-logs/` directory is only
-  added when the bundle is created from the VS Code Coder Remote extension;
-  bundles created with the CLI alone do not include it.
-- **Coder: View Logs** opens the extension output logs in VS Code.
+- **Coder: Create Support Bundle** runs `coder support bundle` and adds local extension logs, proxy and Remote-SSH logs, selected redacted settings, and telemetry under `vscode-logs/`.
+  With Coder CLI version 2.36.0 or later and a reachable workspace agent that supports file collection, it also collects remote editor server logs under `agent/workspace_files/`.
+  Bundles created with the CLI alone don't include local VS Code diagnostics.
+  Follow the [VS Code support bundle procedure](../../support/support-bundle.md#vs-code) to select a workspace, confirm collection, and save the archive.
+- **Coder: View Logs** opens SSH proxy logs in VS Code.
 
 Support bundles can contain sensitive diagnostic data. Review the generated
 bundle before sharing it. Learn more about
