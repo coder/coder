@@ -98,13 +98,16 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<ErrorAlert error={error} />
 				</div>
 			)}
-			<Table aria-label="AI providers">
+			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/3">Base URL</TableHead>
 						<TableHead>
 							<span className="sr-only">Status</span>
+						</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open provider</span>
 						</TableHead>
 					</TableRow>
 				</TableHeader>
