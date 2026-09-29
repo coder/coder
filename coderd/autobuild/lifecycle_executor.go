@@ -330,10 +330,13 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}); err != nil {
 								return xerrors.Errorf("stamp autostop reminder marker: %w", err)
 							}
-							// Workspaces bound to a chat are usually ephemeral
-							// agent workspaces, so a stop reminder is noise. The
-							// marker is still stamped so the SQL pre-filter stops
-							// returning this build on every tick.
+							// Skip the reminder for workspaces bound to a chat;
+							// they are usually ephemeral agent workspaces. This
+							// runs after the marker update above on purpose:
+							// GetWorkspacesEligibleForLifecycleAction selects
+							// builds whose marker does not match their deadline,
+							// so leaving it unset would re-select this workspace
+							// on every tick until it stops.
 							boundToChat, err := tx.IsWorkspaceBoundToChat(e.ctx, ws.ID)
 							if err != nil {
 								return xerrors.Errorf("check workspace chat binding: %w", err)
