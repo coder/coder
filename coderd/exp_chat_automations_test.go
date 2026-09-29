@@ -295,6 +295,13 @@ func TestChatAutomations(t *testing.T) {
 		updated, err = env.member.UpdateChatAutomation(ctx, env.orgID, id, enable)
 		require.NoError(t, err)
 		require.True(t, updated.Enabled)
+		// A webhook has no schedule, so enabling it again sets no cursor.
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, webhook.Automation.ID, disable)
+		require.NoError(t, err)
+		updated, err = env.member.UpdateChatAutomation(ctx, env.orgID, webhook.Automation.ID, enable)
+		require.NoError(t, err)
+		require.True(t, updated.Enabled)
+		require.Nil(t, updated.ScheduleNextRunAt)
 		require.NoError(t, env.owner.DeleteChatAutomation(ctx, env.orgID, webhook.Automation.ID))
 
 		// The automation is not found under another organization's path,
@@ -552,6 +559,13 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusNotFound)
 		_ = res.Body.Close()
+		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
+
+		// Disabling again, for example as a retry, also removes a row an
+		// earlier cleanup missed.
+		env.queueAutomationMessage(t, chat.ID, &disabledID, before.QueueGeneration)
+		_, err = orgAdmin.UpdateChatAutomation(ctx, env.orgID, disabledID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
 		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
 
 		// Deleting disables first, so its queued messages go too.
