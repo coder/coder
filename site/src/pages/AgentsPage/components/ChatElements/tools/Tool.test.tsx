@@ -185,12 +185,12 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [applied("/repo/a.go"), applied("/repo/b.go")],
 			},
 			header: "Edited 2 files",
 			rows: [serverDiffRow("/repo/a.go"), serverDiffRow("/repo/b.go")],
-			hiddenText: "Applied edits to 2 files.",
+			hiddenText: "Applied 2 of 2 edits.",
 		},
 		{
 			// Older agents return no per-file results; every file was written.
@@ -198,7 +198,7 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [],
 			},
 			header: "Edited 2 files",
@@ -209,8 +209,7 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "partial",
-				message:
-					"Applied 1 file. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
+				message: `Applied 1 of 2 edits. Not applied:\n- edits[1] (/repo/b.go): ${ambiguous}. /repo/b.go is unchanged; fix and resend only these edits.`,
 				files: [
 					{
 						path: "/repo/b.go",
@@ -229,7 +228,7 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [
 					{ path: "/repo/a.go", status: "applied", diff: "" },
 					applied("/repo/b.go"),
@@ -243,7 +242,7 @@ describe("Tool edit_files rows", () => {
 			args: { edits: [edit("/repo/a.go\n"), edit(" /repo/b.go")] },
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [applied("/repo/a.go"), applied("/repo/b.go")],
 			},
 			header: "Edited 2 files",
@@ -271,8 +270,7 @@ describe("Tool edit_files rows", () => {
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message:
-					"Applied 2 files. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
+				message: `Applied 2 of 3 edits. Not applied:\n- edits[1] (/repo/b.go): ${ambiguous}. /repo/b.go is unchanged; fix and resend only these edits.`,
 				files: [
 					{
 						path: "/repo/b.go",
@@ -290,16 +288,14 @@ describe("Tool edit_files rows", () => {
 				rejectedRow("/repo/b.go", ambiguous),
 				serverDiffRow("/repo/c.go"),
 			],
-			hiddenText:
-				"Applied 2 files. /repo/b.go was not applied (edits[1]): fix and resend only the edits for /repo/b.go.",
+			hiddenText: `Applied 2 of 3 edits. Not applied:\n- edits[1] (/repo/b.go): ${ambiguous}. /repo/b.go is unchanged; fix and resend only these edits.`,
 		},
 		{
 			name: "partial result missing a file shows it as unreported",
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message:
-					"Applied 1 file. /repo/c.go was not applied (edits[2]): fix and resend only the edits for /repo/c.go.",
+				message: `Applied 1 of 3 edits. Not applied:\n- edits[2] (/repo/c.go): ${ambiguous}. /repo/c.go is unchanged; fix and resend only these edits.`,
 				files: [
 					{
 						path: "/repo/c.go",
@@ -322,8 +318,7 @@ describe("Tool edit_files rows", () => {
 			args: threeFiles,
 			result: {
 				status: "partial",
-				message:
-					"Applied 1 file. It is unknown whether /repo/b.go was applied (edits[1]): re-read /repo/b.go before resending its edits. /repo/c.go was not applied (edits[2]): fix and resend only the edits for /repo/c.go.",
+				message: `Applied 1 of 3 edits. Not applied:\n- edits[2] (/repo/c.go): ${ambiguous}. /repo/c.go is unchanged; fix and resend only these edits.\nUnknown whether applied:\n- edits[1] (/repo/b.go): ${transportError}. Re-read /repo/b.go before resending these edits.`,
 				files: [
 					{
 						path: "/repo/b.go",
@@ -350,11 +345,11 @@ describe("Tool edit_files rows", () => {
 		{
 			name: "error result",
 			args: twoFiles,
-			result: { error: "No files were applied. old_text not found" },
+			result: { error: "Applied 0 of 2 edits: old_text not found" },
 			isError: true,
 			header: "Failed to edit 2 files",
 			rows: [],
-			shownError: "No files were applied. old_text not found",
+			shownError: "Applied 0 of 2 edits: old_text not found",
 		},
 	])(
 		"$name",
@@ -393,7 +388,9 @@ describe("Tool edit_files rows", () => {
 				rendered.map((el) => [el.getAttribute("aria-label"), el.textContent]),
 			).toEqual(rows);
 			if (hiddenText) {
-				expect(screen.queryByText(hiddenText)).toBeNull();
+				// textContent keeps the newlines of multi-line messages, which
+				// queryByText would collapse.
+				expect(document.body.textContent).not.toContain(hiddenText);
 			}
 		},
 	);

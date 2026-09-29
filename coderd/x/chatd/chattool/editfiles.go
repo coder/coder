@@ -30,9 +30,9 @@ type EditFilesArgs struct {
 // EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
 // carries the path of the file it changes.
 type EditFilesEdit struct {
-	Path       string `json:"path" description:"Absolute path of the file to edit."`
-	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
-	NewText    string `json:"new_text" description:"Replacement text."`
+	Path       string `json:"path" description:"Absolute path of the file, for example /home/coder/project/main.go."`
+	OldText    string `json:"old_text" description:"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."`
+	NewText    string `json:"new_text" description:"Replacement text. Must differ from old_text."`
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
@@ -236,16 +236,9 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return editFilesTool{AgentTool: fantasy.NewAgentTool(
 		EditFilesName,
-		"Perform edits on one or more files by replacing old_text with"+
-			" new_text. Send a flat list of edits; each edit carries the"+
-			" absolute path of the file it changes, and edits to the same"+
-			" file apply in the order listed. Matching is fuzzy"+
-			" (tolerates whitespace and indentation differences) and preserves"+
-			" the file's existing indentation and line endings. Errors if"+
-			" old_text matches zero locations, or more than one unless"+
-			" replace_all is set. Each file's edits are validated before that"+
-			" file is written: a file with any error is left unchanged, and"+
-			" files without errors are still applied.",
+		"Edit files by replacing old_text with new_text. Edits to the same"+
+			" file apply in order. If any edit to a file fails, that file is"+
+			" left unchanged; other files are still edited.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
 				return rejectEditFiles("Add at least one edit to edits"), nil
@@ -350,6 +343,7 @@ func executeEditFilesTool(
 	}
 
 	var applied, notApplied []editFilesFileResult
+	appliedEdits := 0
 	for _, file := range GroupEditsByPath(args.Edits) {
 		indexes := editIndexes[file.Path]
 		// The interrupt handler can persist this result, so a file not yet
@@ -394,23 +388,25 @@ func executeEditFilesTool(
 			result.Diff = &diff
 		}
 		applied = append(applied, result)
+		appliedEdits += len(indexes)
 	}
 
+	message := editFilesResultMessage(appliedEdits, len(args.Edits), notApplied)
 	switch {
 	case len(notApplied) == 0:
 		return marshalToolResponse(editFilesResult{
 			Status:  editFilesStatusApplied,
-			Message: fmt.Sprintf("Applied edits to %d %s.", len(applied), pluralFiles(len(applied))),
+			Message: message,
 			Files:   applied,
 		}), nil
 	case len(applied) > 0:
 		return marshalToolResponse(editFilesResult{
 			Status:  editFilesStatusPartial,
-			Message: partialEditFilesMessage(len(applied), notApplied),
+			Message: message,
 			Files:   append(notApplied, applied...),
 		}), nil
 	default:
-		return fantasy.NewTextErrorResponse(noneAppliedEditFilesMessage(notApplied)), nil
+		return fantasy.NewTextErrorResponse(message), nil
 	}
 }
 
@@ -421,50 +417,39 @@ func isAgentResponse(err error) bool {
 	return ok
 }
 
-// partialEditFilesMessage summarizes a result where some files were
-// applied, naming each file that was not applied, in the order of
-// notApplied.
-func partialEditFilesMessage(applied int, notApplied []editFilesFileResult) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "Applied %d %s.", applied, pluralFiles(applied))
+// editFilesResultMessage counts the applied edits out of total, then
+// lists one line per file that was not applied, in the order of
+// notApplied, with files of unknown outcome under their own heading.
+func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult) string {
+	var rejected, unknown []string
 	for _, file := range notApplied {
-		indexes := formatEditIndexes(file.Edits)
+		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
 		switch {
 		case file.Status == editFilesStatusUnknown:
-			_, _ = fmt.Fprintf(&sb, " It is unknown whether %s was applied (%s): re-read %s before resending its edits.", file.Path, indexes, file.Path)
+			unknown = append(unknown, prefix+file.Error+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
-			_, _ = fmt.Fprintf(&sb, " %s (%s).", interruptedFileSentence(file.Path), indexes)
-		case len(file.Edits) == 1:
-			_, _ = fmt.Fprintf(&sb, " %s was not applied (%s): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
+			rejected = append(rejected, prefix+file.Error+".")
 		default:
-			_, _ = fmt.Fprintf(&sb, " %s was not applied (none of %s were applied): fix and resend only the edits for %s.", file.Path, indexes, file.Path)
+			rejected = append(rejected, prefix+file.Error+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}
-	}
-	return sb.String()
-}
-
-// noneAppliedEditFilesMessage is the error text when no file was
-// applied: a heading, then one line per file with its edits and error.
-// The heading does not claim that unknown files were not applied.
-func noneAppliedEditFilesMessage(files []editFilesFileResult) string {
-	heading := editFilesNoneApplied
-	if slices.ContainsFunc(files, func(file editFilesFileResult) bool {
-		return file.Status == editFilesStatusUnknown
-	}) {
-		heading = "No files were applied, except that files marked unknown may have been."
 	}
 	var sb strings.Builder
-	_, _ = sb.WriteString(heading)
-	for _, file := range files {
-		indexes := formatEditIndexes(file.Edits)
-		switch {
-		case file.Status == editFilesStatusUnknown:
-			_, _ = fmt.Fprintf(&sb, "\n- %s (%s): unknown whether applied (%s); re-read it before resending its edits", file.Path, indexes, file.Error)
-		case file.Error == editFilesInterruptedError:
-			_, _ = fmt.Fprintf(&sb, "\n- %s (%s)", interruptedFileSentence(file.Path), indexes)
-		default:
-			_, _ = fmt.Fprintf(&sb, "\n- %s (%s): %s", file.Path, indexes, file.Error)
+	_, _ = fmt.Fprintf(&sb, "Applied %d of %d edits.", applied, total)
+	// The first heading follows the count on the same line; a later one
+	// starts its own line.
+	separator := " "
+	for _, section := range []struct {
+		heading string
+		lines   []string
+	}{
+		{"Not applied:", rejected},
+		{"Unknown whether applied:", unknown},
+	} {
+		if len(section.lines) == 0 {
+			continue
 		}
+		_, _ = sb.WriteString(separator + section.heading + strings.Join(section.lines, ""))
+		separator = "\n"
 	}
 	return sb.String()
 }
@@ -472,12 +457,8 @@ func noneAppliedEditFilesMessage(files []editFilesFileResult) string {
 // editFilesInterruptedError is the error of a file that was not sent
 // because the tool call was interrupted. Nothing is known to be wrong
 // with such a file, and the user may have interrupted to stop it, so
-// messages name it without a resend instruction.
+// its line has no resend instruction.
 const editFilesInterruptedError = "not sent because the tool call was interrupted"
-
-func interruptedFileSentence(path string) string {
-	return path + " was not applied because the tool call was interrupted"
-}
 
 // formatEditIndexes renders indexes as "edits[1], edits[3]".
 func formatEditIndexes(indexes []int) string {
@@ -488,9 +469,8 @@ func formatEditIndexes(indexes []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// editFilesNoneApplied appears in every edit_files error result for a
-// call that is known to have written nothing.
-const editFilesNoneApplied = "No files were applied."
+// editFilesNoneApplied ends every whole-call rejection.
+const editFilesNoneApplied = "No edits were applied."
 
 // File and result statuses in edit_files results.
 const (
@@ -519,13 +499,6 @@ type editFilesFileResult struct {
 	// Diff is the agent's diff for an applied file, nil when the agent
 	// returned no per-file result.
 	Diff *string `json:"diff,omitempty"`
-}
-
-func pluralFiles(n int) string {
-	if n == 1 {
-		return "file"
-	}
-	return "files"
 }
 
 // rejectEditFiles returns a whole-call rejection decided before any
