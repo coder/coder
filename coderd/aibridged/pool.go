@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/quartz"
 )
 
@@ -227,16 +228,11 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	rec := aibridge.NewRecorder(
 		p.logger.Named("recorder"),
 		p.tracer,
-		func(clientCtx context.Context) (aibridge.Recorder, error) {
+		recorder.NewDRPCRecorder(req.APIKeyID, func(clientCtx context.Context) (proto.DRPCRecorderClient, error) {
 			// The recorder outlives this Acquire call, so the client is acquired
 			// against the context of the record call being served.
-			client, err := clientFn(clientCtx)
-			if err != nil {
-				return nil, xerrors.Errorf("acquire client: %w", err)
-			}
-
-			return recorder.NewDRPCRecorder(req.APIKeyID, client), nil
-		},
+			return clientFn(clientCtx)
+		}),
 	)
 
 	// Slow path.
