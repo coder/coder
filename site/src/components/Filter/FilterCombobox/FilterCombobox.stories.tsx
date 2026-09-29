@@ -226,6 +226,26 @@ export const SearchableHoverFlyoutNoMatches: Story = {
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "nobody"),
 };
 
+export const FlyoutNearRightEdge: Story = {
+	render: () => (
+		<div className="ml-auto w-72">
+			<FilterComboboxHarness initialQuery="" />
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
+		);
+		await body.findByRole("button", { name: "kubernetes" });
+	},
+};
+
 // Inside a category, the filter toggle returns to the category list instead of
 // closing the menu.
 export const ToggleLeavesCategory: Story = {

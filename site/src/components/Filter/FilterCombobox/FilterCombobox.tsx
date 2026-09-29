@@ -913,11 +913,29 @@ function OptionsPanel({
 }: OptionsPanelProps) {
 	// A searchable panel is pinned to the top so its search field stays put.
 	const top = search ? 0 : offset;
+	const panelRef = useRef<HTMLDivElement>(null);
+	const [opensLeft, setOpensLeft] = useState(false);
+	// Radix keeps only the main menu inside the viewport, so the flyout moves to
+	// the menu's left side when it would run past the right edge.
+	useLayoutEffect(() => {
+		const panel = panelRef.current;
+		const menu = panel?.offsetParent;
+		if (embedded || !panel || !menu) {
+			return;
+		}
+		const { left, right } = menu.getBoundingClientRect();
+		const width = panel.offsetWidth;
+		setOpensLeft(
+			right + width > document.documentElement.clientWidth && left - width >= 0,
+		);
+	});
 	return (
 		<div
+			ref={panelRef}
 			onMouseEnter={onMouseEnter}
 			className={cn(
 				flyoutPanelClassName,
+				opensLeft && "sm:left-auto sm:right-[calc(100%-0.25rem)]",
 				"p-2",
 				embedded &&
 					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
