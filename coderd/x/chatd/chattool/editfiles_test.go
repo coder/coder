@@ -73,7 +73,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo edits were applied.",
+				wantErr: "Send edits as a list where each edit has path, old_text and new_text, for example: " + example + "; the files key is not supported\nNo edits were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -884,6 +884,21 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			calls: []fileCall{
 				{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, err: agentError(http.StatusBadRequest, "edit /repo/a.go: search string not found in file")},
 				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, err: xerrors.New("do request: connection reset by peer")},
+			},
+			wantIsError: true,
+			want: "Applied 0 of 2 edits. Not applied:\n" +
+				"- edits[0] (/repo/a.go): edit /repo/a.go: search string not found in file. /repo/a.go is unchanged; fix and resend only these edits.\n" +
+				"Unknown whether applied:\n" +
+				"- edits[1] (/repo/b.go): do request: connection reset by peer. Re-read /repo/b.go before resending these edits.",
+		},
+		{
+			// Trailing periods and spaces of an error are trimmed before a
+			// sentence is appended, so a line never has "..".
+			name:  "ErrorEndingInPeriodIsTrimmed",
+			input: `{"edits":[` + editA + `,` + editB + `]}`,
+			calls: []fileCall{
+				{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, err: agentError(http.StatusBadRequest, "edit /repo/a.go: search string not found in file. ")},
+				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, err: xerrors.New("do request: connection reset by peer..")},
 			},
 			wantIsError: true,
 			want: "Applied 0 of 2 edits. Not applied:\n" +

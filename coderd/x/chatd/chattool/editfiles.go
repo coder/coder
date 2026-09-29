@@ -219,7 +219,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	}
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
 		return rejectEditFiles(
-			"Send a flat list of edits where every edit has its own path, for example " + editFilesExample +
+			"Send edits as a list where each edit has path, old_text and new_text, for example: " + editFilesExample +
 				"; the files key is not supported",
 		), nil
 	}
@@ -440,15 +440,18 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 	var rejected, unknown []string
 	for _, file := range reports {
 		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
+		// Each line appends a sentence to the error, so its own trailing
+		// periods and spaces are trimmed to avoid "..".
+		reason := strings.TrimRight(file.Error, ". ")
 		switch {
 		case file.Status == editFilesStatusUnknown:
-			unknown = append(unknown, prefix+file.Error+". Re-read "+file.Path+" before resending these edits.")
+			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
-			rejected = append(rejected, prefix+file.Error+".")
+			rejected = append(rejected, prefix+reason+".")
 		case file.Error == editFilesNoOpError:
-			rejected = append(rejected, prefix+file.Error+". If you meant to change this text, resend the edit with the new text.")
+			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend the edit with the new text.")
 		default:
-			rejected = append(rejected, prefix+file.Error+". "+file.Path+" is unchanged; fix and resend only these edits.")
+			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}
 	}
 	var sb strings.Builder
