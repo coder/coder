@@ -1649,6 +1649,22 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			}
 		})
 	}
+
+	// Queued-message provenance is all or nothing. No query writes these
+	// columns yet, so insert directly.
+	t.Run("QueuedMessagePartialProvenance", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+		})
+		_, err := sqlDB.ExecContext(ctx, `INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id)
+			VALUES ($1, '[]'::jsonb, $2, $3)`, chat.ID, owner.ID, uuid.New())
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, database.CheckChatQueuedMessagesAutomationShape), "got %v", err)
+	})
 }
 
 func TestChatContextHydration(t *testing.T) {
