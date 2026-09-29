@@ -339,8 +339,13 @@ type sqlcQuerier interface {
 	// returning the matched key. The lookup is an exact match on a unique index,
 	// so a returned row is itself proof the secret is valid.
 	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
-	// Returns the price in effect for the model, preferring a custom price over
-	// the price book.
+	// Returns the price in effect for the requested model, falling back to the
+	// model reported by the provider when the requested model has no price.
+	// Rows are ordered by model first, then by source, so the lookup order is:
+	//   1. Custom price for the requested model.
+	//   2. Price book price for the requested model.
+	//   3. Custom price for the provider-reported model.
+	//   4. Price book price for the provider-reported model.
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
 	// Returns the price in effect for each model, preferring a custom price over
 	// the price book. Filtering by source narrows the rows considered first, so a
@@ -606,6 +611,11 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsByOrganizationRow, error)
 	GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
+	GetExperimentRule(ctx context.Context, experiment string) (string, error)
+	// GetExperimentRules returns every stored runtime experiment rule, keyed by
+	// the experiment name. starts_with is used instead of LIKE because '_' is a
+	// LIKE wildcard.
+	GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -1721,6 +1731,7 @@ type sqlcQuerier interface {
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
+	UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error
 	UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIBudgetParams) (GroupAIBudget, error)
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error

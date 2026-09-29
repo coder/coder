@@ -51,7 +51,7 @@ type Bedrock struct {
 }
 
 // NewBedrock constructs a Bedrock provider. cfg supplies the shared
-// provider-level fields (Name, BaseURL, APIDumpDir, SendActorHeaders,
+// provider-level fields (Name, BaseURL, APIDumpDir, ActorHeaderNames,
 // CircuitBreaker); bedrockCfg supplies the Bedrock-specific runtime config and
 // resolves the AWS credentials provider once at construction.
 func NewBedrock(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (*Bedrock, error) {
@@ -174,7 +174,7 @@ func (p *Bedrock) createMessagesInterceptor(id uuid.UUID, r *http.Request, trace
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 	cred, err := p.resolveCredential(r)
 	if err != nil {
@@ -264,7 +264,7 @@ func (p *Bedrock) bedrockInterceptConfig() intercept.Config {
 		ProviderName:     p.Name(),
 		BaseURL:          p.runtime.Cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 }
 

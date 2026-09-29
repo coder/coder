@@ -56,6 +56,13 @@ type bridgeConfig struct {
 	userID     string
 	metadata   recorder.Metadata
 	logger     slog.Logger
+	apiKeyID   string
+	// structuredLogging makes the bridge emit AI Gateway interception
+	// records in the format described by [recorder.InterceptionLogMarker].
+	structuredLogging bool
+	// recorderMiddleware is inserted below the logging middleware, as the
+	// bridge pool does for deployment record policy.
+	recorderMiddleware []recorder.Middleware
 }
 
 // bridgeTestServer wraps an httptest.Server running a RequestBridge.
@@ -172,9 +179,7 @@ func newBridgeTestServer(
 	}
 
 	mockRec := &testutil.MockRecorder{}
-	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, func(context.Context) (aibridge.Recorder, error) {
-		return mockRec, nil
-	})
+	rec := aibridge.NewRecorder(cfg.logger, cfg.tracer, cfg.apiKeyID, cfg.structuredLogging, mockRec, cfg.recorderMiddleware...)
 
 	bridge, err := aibridge.NewRequestBridge(
 		ctx, providers, rec, cfg.mcpProxy,
@@ -185,7 +190,7 @@ func newBridgeTestServer(
 	actorID, md := cfg.userID, cfg.metadata
 	srv := httptest.NewUnstartedServer(bridge)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		return aibcontext.AsActor(ctx, actorID, md)
+		return aibcontext.AsActor(ctx, actorID, "", md)
 	}
 	srv.Start()
 	t.Cleanup(srv.Close)

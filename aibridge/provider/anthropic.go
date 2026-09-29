@@ -169,7 +169,7 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		ProviderName:     p.Name(),
 		BaseURL:          p.BaseURL(),
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
+		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 	if p.claudePlatform != nil {
 		cfg.HTTPClient = &http.Client{Transport: p.claudePlatform}

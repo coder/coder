@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { BotIcon, XIcon } from "lucide-react";
+import { BotIcon, MinusIcon, XIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import type { CardColor } from "./boardLabels";
@@ -16,6 +16,26 @@ const ARROW_DELTAS: Readonly<Record<string, readonly [number, number]>> = {
 	ArrowLeft: [-KEY_STEP_PX, 0],
 	ArrowRight: [KEY_STEP_PX, 0],
 };
+
+/**
+ * An icon button in a window's title bar, also used by the tab of a
+ * minimized window. The press must not start a title bar drag.
+ */
+export const TitleBarButton: React.FC<React.ComponentProps<typeof Button>> = ({
+	className,
+	...props
+}) => (
+	<Button
+		variant="subtle"
+		size="icon"
+		className={cn(
+			"size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0",
+			className,
+		)}
+		onPointerDown={(e) => e.stopPropagation()}
+		{...props}
+	/>
+);
 
 /** A drag of the title bar or the resize corner, from where the pointer went down. */
 type Gesture = {
@@ -50,6 +70,8 @@ type FloatingChatProps = {
 	/** New geometry after a drag or resize gesture ends, or a toggled draft option. */
 	readonly onChange: (next: ChatWindow) => void;
 	readonly onClose: () => void;
+	/** Hides the window into the tab bar; its content stays mounted. */
+	readonly onMinimize: () => void;
 	/** Any pointer or key interaction inside; pins a preview, raises a window. */
 	readonly onInteract: () => void;
 	/** Preview only: the pointer entering keeps it, leaving lets it close. */
@@ -72,6 +94,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 	color,
 	onChange,
 	onClose,
+	onMinimize,
 	onInteract,
 	onPreviewEnter,
 	onPreviewLeave,
@@ -145,9 +168,12 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 		<div
 			role="dialog"
 			aria-label={title}
+			// Kept mounted while minimized so the chat keeps its scroll, stream
+			// and any draft request in flight.
 			className={cn(
 				"fixed z-40 flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)]",
 				!win.pinned && "border-content-link/50",
+				win.minimized && "hidden",
 			)}
 			style={{
 				left: shown.x,
@@ -202,28 +228,24 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 					</label>
 				)}
 				{cardAssistant && (
-					<Button
-						variant="subtle"
-						size="icon"
+					<TitleBarButton
 						aria-label={`Assistant for ${cardAssistant.cardTitle}`}
 						title="Assistant"
-						className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
-						onPointerDown={(e) => e.stopPropagation()}
 						onClick={cardAssistant.open}
 					>
 						<BotIcon />
-					</Button>
+					</TitleBarButton>
 				)}
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label={`Close ${title}`}
-					className="size-6 shrink-0 text-content-secondary hover:text-content-primary [&>svg]:size-3.5! [&>svg]:p-0"
-					onPointerDown={(e) => e.stopPropagation()}
-					onClick={onClose}
+				<TitleBarButton
+					aria-label={`Minimize ${title}`}
+					title="Minimize"
+					onClick={onMinimize}
 				>
+					<MinusIcon />
+				</TitleBarButton>
+				<TitleBarButton aria-label={`Close ${title}`} onClick={onClose}>
 					<XIcon />
-				</Button>
+				</TitleBarButton>
 			</div>
 			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
 			{/* Above the chat's own footer, which otherwise takes the pointer. */}

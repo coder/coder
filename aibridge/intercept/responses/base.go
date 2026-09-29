@@ -110,7 +110,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -284,6 +284,7 @@ func (i *responsesInterceptionBase) recordUserPrompt(ctx context.Context, respon
 	}
 
 	promptUsage := &recorder.PromptUsageRecord{
+		CreatedAt:      time.Now().UTC(),
 		InterceptionID: i.ID().String(),
 		MsgID:          responseID,
 		Prompt:         prompt,
@@ -296,6 +297,7 @@ func (i *responsesInterceptionBase) recordUserPrompt(ctx context.Context, respon
 func (i *responsesInterceptionBase) recordModelThoughts(ctx context.Context, response *responses.Response) {
 	for _, t := range i.extractModelThoughts(response) {
 		_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+			CreatedAt:      time.Now().UTC(),
 			InterceptionID: i.ID().String(),
 			Content:        t.Content,
 			Metadata:       t.Metadata,
@@ -346,6 +348,7 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 		}
 
 		if err := i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+			CreatedAt:      time.Now().UTC(),
 			InterceptionID: i.ID().String(),
 			MsgID:          response.ID,
 			// ItemID is always present; ToolCallID (call_id) is empty for
@@ -395,8 +398,10 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 	}
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 response.ID,
+		ProviderModel:         response.Model,
 		Input:                 inputNonCacheTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
@@ -429,8 +434,9 @@ func (*responsesInterceptionBase) extractModelThoughts(response *responses.Respo
 					continue
 				}
 				thoughts = append(thoughts, &recorder.ModelThoughtRecord{
-					Content:  summary.Text,
-					Metadata: recorder.Metadata{"source": recorder.ThoughtSourceReasoningSummary},
+					CreatedAt: time.Now().UTC(),
+					Content:   summary.Text,
+					Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceReasoningSummary},
 				})
 			}
 
@@ -453,8 +459,9 @@ func (*responsesInterceptionBase) extractModelThoughts(response *responses.Respo
 					continue
 				}
 				thoughts = append(thoughts, &recorder.ModelThoughtRecord{
-					Content:  part.Text,
-					Metadata: recorder.Metadata{"source": recorder.ThoughtSourceCommentary},
+					CreatedAt: time.Now().UTC(),
+					Content:   part.Text,
+					Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceCommentary},
 				})
 			}
 		}

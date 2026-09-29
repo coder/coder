@@ -1222,6 +1222,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 		expectedTokenUsages := []*recorder.TokenUsageRecord{
 			{
 				MsgID:                 "chatcmpl-cumulative-tool",
+				ProviderModel:         "gpt-4.1",
 				Input:                 5890,
 				Output:                30,
 				CacheReadInputTokens:  100,
@@ -1236,6 +1237,7 @@ func TestOpenAIChatCompletions(t *testing.T) {
 			},
 			{
 				MsgID:                 "chatcmpl-cumulative-final",
+				ProviderModel:         "gpt-4.1",
 				Input:                 5780,
 				Output:                30,
 				CacheReadInputTokens:  200,
@@ -1730,26 +1732,30 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			streaming: true,
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
-					Input:    7545,
-					Output:   1,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7545,
+					Output:        1,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
-					Output:   74,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Output:        74,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
-					Input:    7763,
-					Output:   1,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7763,
+					Output:        1,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 				{
-					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
-					Output:   128,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Output:        128,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 			},
 		},
@@ -1757,16 +1763,18 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			name: "blocking",
 			expectTokenUsages: []*recorder.TokenUsageRecord{
 				{
-					MsgID:    "msg_01FwkWU26guw9EwkL8zeacPL",
-					Input:    7545,
-					Output:   75,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+					MsgID:         "msg_01FwkWU26guw9EwkL8zeacPL",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7545,
+					Output:        75,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
 				},
 				{
-					MsgID:    "msg_01Sr5BnPSwodTo8Df4XvUBg5",
-					Input:    7763,
-					Output:   129,
-					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+					MsgID:         "msg_01Sr5BnPSwodTo8Df4XvUBg5",
+					ProviderModel: "claude-sonnet-4-20250514",
+					Input:         7763,
+					Output:        129,
+					Metadata:      recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				},
 			},
 		},
@@ -1974,6 +1982,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 			require.ElementsMatch(t, []*recorder.TokenUsageRecord{
 				{
 					MsgID:                 firstMsgID,
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Input:                 4742,
 					Output:                45,
 					CacheReadInputTokens:  100,
@@ -1989,6 +1998,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 				},
 				{
 					MsgID:                 secondMsgID,
+					ProviderModel:         "gpt-4.1-2025-04-14",
 					Input:                 175,
 					Output:                60,
 					CacheReadInputTokens:  4864,
@@ -2848,7 +2858,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2859,7 +2874,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiChatSimple,
@@ -2870,7 +2890,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesStreamingSimple,
@@ -2881,7 +2906,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return provider.NewOpenAI(cfg)
 			},
 			fixture:   fixtures.OaiResponsesBlockingSimple,
@@ -2892,7 +2922,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
@@ -2903,7 +2938,12 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
+				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
@@ -2956,7 +2996,7 @@ func TestActorHeaders(t *testing.T) {
 				}
 
 				if send {
-					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader())], []string{defaultActorID})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader)], []string{defaultActorID})
 					require.Equal(t, found[strings.ToLower(aibheaders.ActorMetadataHeader(metadataKey))], []string{actorUsername})
 				} else {
 					require.Empty(t, found)

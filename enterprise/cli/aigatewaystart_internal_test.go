@@ -611,7 +611,6 @@ func TestAIGatewayStart_InheritedOptions(t *testing.T) {
 		"CODER_AI_GATEWAY_ENABLED":                {},
 		"CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS": {},
 		"CODER_AI_GATEWAY_RETENTION":              {},
-		"CODER_AI_GATEWAY_STRUCTURED_LOGGING":     {},
 
 		// Prometheus (coderd-only: agent/database collectors)
 		"CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY": {},

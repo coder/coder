@@ -187,9 +187,19 @@ For delivery methods, see
 
 ## How spend is calculated
 
-Coder multiplies the token usage of each request by the published price of the
-model that served it. Prices come from a curated [models.dev](https://models.dev)
-snapshot that ships with every Coder release, so no configuration is required.
+Coder multiplies the token usage of each request by the published price of its model.
+Prices come from a curated [models.dev](https://models.dev) snapshot that ships with every Coder release, so no configuration is required.
+
+Coder prices a request by the model the client requested.
+When that model has no price, Coder uses the price of the model the provider reports serving, for example when the provider resolves an alias to a specific model.
+Coder uses the first price it finds, in this order:
+
+1. A custom price for the requested model.
+1. The default price for the requested model.
+1. A custom price for the model the provider reports.
+1. The default price for the model the provider reports.
+
+A price for the requested model always takes precedence, even when the model the provider reports has a custom price.
 
 Spend accumulates only from the moment v2.36 is deployed. Upgrading mid-month
 therefore produces a partial first period.
@@ -232,12 +242,11 @@ To use your own price for any of these models, see
 >   unpriced models is effectively unlimited. Setting a price for the model
 >   closes the gap.
 
-Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`,
-labeled by `provider`, `provider_type`, and `model`, to detect unpriced usage.
-Use the `(provider_type, model)` tuple to find the price to set. Any non-zero
-value means spend is under-counted. Because the price book ships with the
-release, a newly launched model is unpriced until you upgrade Coder or set a
-price for it yourself.
+Monitor `coder_ai_gateway_cost_control_unpriced_token_usage_records_total`, labeled by `provider`, `provider_type`, `model`, and `provider_model`, to detect unpriced usage.
+`model` is the model the client requested, and `provider_model` is the model the provider reported, or empty when the provider didn't report one.
+Set a price for either model under its `provider_type` to close the gap.
+Any non-zero value means spend is under-counted.
+Because the price book ships with the release, a newly launched model is unpriced until you upgrade Coder or set a price for it yourself.
 
 Coder also notifies Owners weekly about models used in the past week that have no price.
 
@@ -397,6 +406,18 @@ Expect the following differences:
   $0 USD.
 - Coder Agents users who exceed their budget see a usage limit error in chat.
   The error details include the AI Governance budget limit.
+
+## Cost controls without conversation content
+
+Cost control reads none of the tables that store prompts, tool call arguments or model thoughts.
+It depends only on the interception and token usage records, the model prices and the budget tables.
+
+A deployment that wants budgets and spend reporting without retaining conversation content can therefore set
+[`--ai-gateway-disable-content-recording`](./setup.md#disable-content-recording) and keep every cost control feature on this page.
+
+> [!NOTE]
+> [`--ai-gateway-retention`](./setup.md#data-retention) can't do this.
+> It purges the interception and token usage records too, so it sheds the cost ledger along with the content.
 
 ## Next steps
 

@@ -809,29 +809,29 @@ func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 // TestServeHTTP_ActorHeaders validates that actor headers are correctly forwarded to
-// upstream AI providers when SendActorHeaders is enabled in the provider configuration.
+// upstream AI providers when configured.
 // These headers allow upstream providers to identify the user making the request for
 // tracking and auditing purposes.
 func TestServeHTTP_ActorHeaders(t *testing.T) {
 	t.Parallel()
 
 	testUsername := "testuser"
+	testEmail := "testuser@coder.com"
 	testUserID := uuid.New()
 
 	cases := []struct {
-		path string
+		name   string
+		path   string
+		legacy bool
 	}{
 		// Not a complete set of paths; we're not testing the specific APIs - just the provider configs.
-		{
-			path: "/openai/v1/chat/completions",
-		},
-		{
-			path: "/anthropic/v1/messages",
-		},
+		{name: "openai with email", path: "/openai/v1/chat/completions"},
+		{name: "anthropic with email", path: "/anthropic/v1/messages"},
+		{name: "openai with legacy response", path: "/openai/v1/chat/completions", legacy: true},
 	}
 
 	for _, tc := range cases {
-		t.Run(tc.path, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Setup mock upstream AI server that captures headers.
@@ -843,36 +843,48 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			}))
 			t.Cleanup(upstreamSrv.Close)
 
-			// Setup with SendActorHeaders enabled.
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 
-			// Create providers with SendActorHeaders=true.
+			// Create providers with actor headers configured.
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "openai", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "openai", "test-key"),
+					ActorHeaderNames: map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+						"email":    aibheaders.ActorMetadataHeader("Email"),
+					},
 				}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "anthropic", "test-key"),
+					ActorHeaderNames: map[string]string{
+						"id":       aibheaders.ActorIDHeader,
+						"username": aibheaders.ActorMetadataHeader("Username"),
+						"email":    aibheaders.ActorMetadataHeader("Email"),
+					},
 				}, nil),
 			}
 
 			conn := &mockDRPCConn{}
 			client.EXPECT().DRPCConn().AnyTimes().Return(conn)
 
-			// Return authorization response with user ID and username.
-			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
-				OwnerId:  testUserID.String(),
-				Username: testUsername,
-			}, nil)
+			// Return authorization response with user ID, username, and email.
+			authResponse := &proto.IsAuthorizedResponse{OwnerId: testUserID.String(), Username: testUsername}
+			if !tc.legacy {
+				authResponse.Email = testEmail
+			}
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authResponse, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
-			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
+			var recorded *proto.RecordInterceptionRequest
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+				recorded = in
+				return &proto.RecordInterceptionResponse{}, nil
+			})
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes()
 
 			// Given: aibridged is started.
@@ -901,11 +913,18 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.NotEmpty(t, receivedHeaders, "upstream server should have received headers")
 
 			// Verify the actor ID header is present with the correct value.
-			actorIDHeader := receivedHeaders.Get(aibheaders.ActorIDHeader())
-			assert.Equal(t, testUserID.String(), actorIDHeader, "actor ID header should contain user ID")
-			// Verify the actor metadata header for username is present.
-			usernameHeader := receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username"))
-			assert.Equal(t, testUsername, usernameHeader, "actor metadata username header should contain username")
+			assert.Equal(t, testUserID.String(), receivedHeaders.Get(aibheaders.ActorIDHeader), "actor ID header should contain user ID")
+			assert.Equal(t, testUsername, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username")), "actor metadata username header should contain username")
+			if tc.legacy {
+				assert.Empty(t, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Email")))
+			} else {
+				assert.Equal(t, testEmail, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Email")), "actor metadata email header should contain email")
+			}
+
+			// Email is forwarded upstream but never recorded.
+			require.NotNil(t, recorded, "interception should be recorded")
+			require.Contains(t, recorded.GetMetadata(), "Username")
+			require.NotContains(t, recorded.GetMetadata(), "Email")
 		})
 	}
 }

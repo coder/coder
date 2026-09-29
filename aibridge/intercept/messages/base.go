@@ -162,7 +162,7 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.mcpProxy = mcpProxy
 }
 
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage anthropic.Usage) {
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage) {
 	var metadata recorder.Metadata
 	if usage.ServiceTier != "" {
 		metadata = recorder.Metadata{
@@ -182,8 +182,10 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	}
 
 	usageRecord := recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
+		ProviderModel:         string(providerModel),
 		Input:                 usage.InputTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.CacheReadInputTokens,
@@ -318,8 +320,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 			continue
 		}
 		thoughtRecords = append(thoughtRecords, &recorder.ModelThoughtRecord{
-			Content:  variant.Thinking,
-			Metadata: recorder.Metadata{"source": recorder.ThoughtSourceThinking},
+			CreatedAt: time.Now().UTC(),
+			Content:   variant.Thinking,
+			Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceThinking},
 		})
 	}
 	return thoughtRecords
@@ -360,7 +363,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
