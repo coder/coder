@@ -411,7 +411,7 @@ of the implicit grant, and CSRF protections on consent pages.
 ## Next Steps
 
 - Review the [API Reference](../../reference/api/index.md) for complete endpoint documentation
-- Check [External Authentication](../external-auth/index.md) for configuring Coder as an OAuth2 client
+- Check [External Authentication](../external-auth.md) for configuring Coder as an OAuth2 client
 - See [Security Best Practices](../security/index.md) for deployment security guidance
 
 ## Feedback

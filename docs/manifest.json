@@ -193,7 +193,7 @@
 				{
 					"title": "Unofficial Install Methods",
 					"description": "Explore community-contributed, unofficial methods for installing Coder beyond the supported paths.",
-					"path": "./install/other/index.md",
+					"path": "./install/other.md",
 					"icon_path": "./images/icons/generic.svg"
 				},
 				{
@@ -799,7 +799,7 @@
 				{
 					"title": "External Authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
-					"path": "./admin/external-auth/index.md",
+					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -1003,7 +1003,7 @@
 				{
 					"title": "Licensing",
 					"description": "Add and manage Coder licenses to unlock Premium and AI Governance features.",
-					"path": "./admin/licensing/index.md",
+					"path": "./admin/licensing.md",
 					"icon_path": "./images/icons/licensing.svg"
 				}
 			]
@@ -1118,7 +1118,7 @@
 						{
 							"title": "Tools",
 							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
+							"path": "./ai-coder/agents/tools.md"
 						},
 						{
 							"title": "Chat Sharing",

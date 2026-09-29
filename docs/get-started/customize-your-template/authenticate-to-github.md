@@ -30,7 +30,7 @@ The `id` points at a provider configured on the Coder deployment, and the local 
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
 > A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
 > An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
-> To learn more, refer to [External authentication](../../admin/external-auth/index.md).
+> To learn more, refer to [External authentication](../../admin/external-auth.md).
 
 ## Step 1: Require GitHub authentication
 
@@ -600,6 +600,6 @@ Or revisit the [Customize your template overview](./index.md) for the full list 
 
 ## Learn more
 
-- [External authentication](../../admin/external-auth/index.md) in the Coder documentation
+- [External authentication](../../admin/external-auth.md) in the Coder documentation
 - [coder_external_auth data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/external_auth) in the Terraform Registry
 - [Terraform data sources](https://developer.hashicorp.com/terraform/language/data-sources)

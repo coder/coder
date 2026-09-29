@@ -244,7 +244,7 @@ Refer to [Resource persistence](../admin/templates/extending-templates/resource-
 ### External authentication
 
 In-workspace OAuth to Git providers, artifact registries, and similar services, configured with `CODER_EXTERNAL_AUTH_*` variables.
-Refer to [External authentication](../admin/external-auth/index.md).
+Refer to [External authentication](../admin/external-auth.md).
 
 ### External provisioner
 
@@ -308,7 +308,7 @@ Coder templates are infrastructure as code, written in Terraform.
 
 A signed token applied through the dashboard or with `coder licenses add`.
 Coder validates the key locally, so it works in air-gapped deployments.
-Refer to [Licensing](../admin/licensing/index.md).
+Refer to [Licensing](../admin/licensing.md).
 
 ## M
 
