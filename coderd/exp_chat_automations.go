@@ -493,6 +493,9 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 	switch {
 	case errors.Is(err, chatd.ErrAutomationNotFound), errors.Is(err, chatd.ErrAutomationSecretChanged):
 		writeChatAutomationUnauthorized(ctx, rw)
+	case errors.Is(err, chatd.ErrAutomationsExperimentDisabled):
+		// The same response as the handler's own experiment check.
+		httpapi.ResourceNotFound(rw)
 	case errors.Is(err, chatd.ErrAutomationDisabled):
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "Chat automation is disabled."})
 	case errors.Is(err, chatd.ErrAutomationOwnerInactive):

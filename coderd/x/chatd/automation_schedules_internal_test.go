@@ -1,0 +1,531 @@
+package chatd //nolint:testpackage // Runs the unexported schedule scan directly.
+
+import (
+	"context"
+	"database/sql"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+)
+
+// automationsExperimentStore turns the chat-automations experiment off for
+// every user while off is set.
+type automationsExperimentStore struct {
+	t   testing.TB
+	off atomic.Bool
+}
+
+func (s *automationsExperimentStore) Rules(context.Context) (map[codersdk.Experiment]experiments.StoredRule, error) {
+	if !s.off.Load() {
+		return map[codersdk.Experiment]experiments.StoredRule{}, nil
+	}
+	return map[codersdk.Experiment]experiments.StoredRule{
+		codersdk.ExperimentChatAutomations: experimentstest.StoredRule(s.t, experiments.Rule{Mode: experiments.ModeOff}),
+	}, nil
+}
+
+func (*automationsExperimentStore) UserAttributes(_ context.Context, userID uuid.UUID) (experiments.User, error) {
+	return experiments.User{ID: userID.String()}, nil
+}
+
+// scheduleFixture is a chat owned by an agents-access member and a mock
+// clock that every server of the fixture shares.
+type scheduleFixture struct {
+	db         database.Store
+	ps         pubsub.Pubsub
+	sqlDB      *sql.DB
+	clock      *quartz.Mock
+	experiment *automationsExperimentStore
+	owner      database.User
+	org        database.Organization
+	model      database.ChatModelConfig
+	chat       database.Chat
+}
+
+func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Time) *scheduleFixture {
+	t.Helper()
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	clock := quartz.NewMock(t)
+	clock.Set(start)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	_, err := db.UpdateMemberRoles(testutil.Context(t, testutil.WaitShort), database.UpdateMemberRolesParams{
+		GrantedRoles: []string{rbac.RoleAgentsAccess()},
+		UserID:       owner.ID,
+		OrgID:        org.ID,
+	})
+	require.NoError(t, err)
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "openai", BaseUrl: chattest.OpenAI(t)})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		IsDefault:      true,
+		OrganizationID: org.ID,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: model.ID,
+		Title:             "automation target",
+		Status:            status,
+	})
+	return &scheduleFixture{
+		db: db, ps: ps, sqlDB: sqlDB, clock: clock,
+		experiment: &automationsExperimentStore{t: t},
+		owner:      owner, org: org, model: model, chat: chat,
+	}
+}
+
+// newServer returns an unstarted server, one instance of coderd.
+func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
+	t.Helper()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
+	require.NoError(t, err)
+	server, err := New(f.ps, Config{
+		Logger:                     logger,
+		Database:                   f.db,
+		ReplicaID:                  uuid.New(),
+		Clock:                      f.clock,
+		PendingChatAcquireInterval: testutil.WaitLong,
+		Experiments:                codersdk.ExperimentsKnown,
+		ExperimentEvaluator:        evaluator,
+		Authorizer:                 rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		Limits:                     limits,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	return server
+}
+
+// existingChat creates a schedule automation that sends to the fixture
+// chat.
+func (f *scheduleFixture) existingChat(ctx context.Context, t *testing.T, server *Server, spec, timeZone string, whenBusy codersdk.ChatAutomationWhenBusy) database.ChatAutomation {
+	t.Helper()
+	return f.create(ctx, t, server, codersdk.CreateChatAutomationRequest{
+		TargetMode:   codersdk.ChatAutomationTargetModeExistingChat,
+		TargetChatID: &f.chat.ID,
+		WhenBusy:     &whenBusy,
+	}, spec, timeZone)
+}
+
+// newChat creates a schedule automation that starts a chat per run.
+func (f *scheduleFixture) newChat(ctx context.Context, t *testing.T, server *Server, spec, timeZone string) database.ChatAutomation {
+	t.Helper()
+	return f.create(ctx, t, server, codersdk.CreateChatAutomationRequest{
+		TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: &f.model.ID,
+	}, spec, timeZone)
+}
+
+func (f *scheduleFixture) create(ctx context.Context, t *testing.T, server *Server, req codersdk.CreateChatAutomationRequest, spec, timeZone string) database.ChatAutomation {
+	t.Helper()
+	req.Name = "Standup"
+	req.Kind = codersdk.ChatAutomationKindSchedule
+	req.Prompt = "Post the standup."
+	req.ScheduleCron = &spec
+	req.ScheduleTimeZone = &timeZone
+	automation, _, err := server.CreateAutomation(ctx, CreateAutomationParams{OrganizationID: f.org.ID, OwnerID: f.owner.ID, Request: req})
+	require.NoError(t, err)
+	return automation
+}
+
+// cursor returns the automation's schedule cursor in UTC.
+func (f *scheduleFixture) cursor(ctx context.Context, t *testing.T, automationID uuid.UUID) time.Time {
+	t.Helper()
+	automation, err := f.db.GetChatAutomationByID(ctx, automationID)
+	require.NoError(t, err)
+	require.True(t, automation.ScheduleNextRunAt.Valid)
+	return automation.ScheduleNextRunAt.Time.UTC()
+}
+
+// inputs counts the user messages and queued messages of the fixture chat.
+func (f *scheduleFixture) inputs(ctx context.Context, t *testing.T) int {
+	t.Helper()
+	var messages int
+	err := f.sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND role = 'user'", f.chat.ID).Scan(&messages)
+	require.NoError(t, err)
+	queued, err := f.db.GetChatQueuedMessages(ctx, f.chat.ID)
+	require.NoError(t, err)
+	return messages + len(queued)
+}
+
+// createdChats returns the owner's chats other than the fixture chat.
+func (f *scheduleFixture) createdChats(ctx context.Context, t *testing.T) []database.Chat {
+	t.Helper()
+	var chats []database.Chat
+	rows, err := f.sqlDB.QueryContext(ctx, "SELECT id FROM chats WHERE owner_id = $1 AND id <> $2", f.owner.ID, f.chat.ID)
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		require.NoError(t, rows.Scan(&id))
+		chat, err := f.db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		chats = append(chats, chat)
+	}
+	require.NoError(t, rows.Err())
+	return chats
+}
+
+// advanceTo moves the mock clock to target, firing the servers' timers on
+// the way.
+func (f *scheduleFixture) advanceTo(ctx context.Context, t *testing.T, target time.Time) {
+	t.Helper()
+	for {
+		remaining := target.Sub(f.clock.Now())
+		require.GreaterOrEqual(t, remaining, time.Duration(0), "the mock clock only moves forward")
+		if remaining == 0 {
+			return
+		}
+		next, ok := f.clock.Peek()
+		if !ok || next >= remaining {
+			f.clock.Advance(remaining).MustWait(ctx)
+			return
+		}
+		_, waiter := f.clock.AdvanceNext()
+		waiter.MustWait(ctx)
+	}
+}
+
+const (
+	lockChatRow       = "SELECT 1 FROM chats WHERE id = $1 FOR UPDATE"
+	lockAutomationRow = "SELECT 1 FROM chat_automations WHERE id = $1 FOR UPDATE"
+)
+
+// lockRow runs a locking query on a separate connection and holds the
+// lock until the returned transaction ends.
+func (f *scheduleFixture) lockRow(ctx context.Context, t *testing.T, query string, id uuid.UUID) *sql.Tx {
+	t.Helper()
+	tx, err := f.sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	_, err = tx.ExecContext(ctx, query, id)
+	require.NoError(t, err)
+	return tx
+}
+
+// waitForLockWaits waits until n other backends wait for a row lock.
+func (f *scheduleFixture) waitForLockWaits(ctx context.Context, t *testing.T, n int) {
+	t.Helper()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waits int
+		err := f.sqlDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM pg_stat_activity
+WHERE datname = current_database() AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'`).Scan(&waits)
+		return err == nil && waits >= n
+	}, testutil.IntervalFast, "wait for blocked scans")
+}
+
+// scanAsync starts a scan on each server and returns a wait function.
+func scanAsync(ctx context.Context, servers ...*Server) func() {
+	var wg sync.WaitGroup
+	for _, server := range servers {
+		wg.Go(func() { server.scanAutomationSchedules(ctx) })
+	}
+	return wg.Wait
+}
+
+func nextRun(t *testing.T, spec, timeZone string, after time.Time) time.Time {
+	t.Helper()
+	sched, err := cron.Standard(spec, timeZone)
+	require.NoError(t, err)
+	return sched.Next(after).UTC()
+}
+
+// scheduleStart is 30 seconds before the first run of a per-minute
+// schedule.
+var scheduleStart = time.Date(2026, time.June, 1, 10, 0, 30, 0, time.UTC)
+
+func TestAutomationScheduleScan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ConcurrentInstancesAcceptOnce", func(t *testing.T) {
+		t.Parallel()
+		for _, targetMode := range []codersdk.ChatAutomationTargetMode{
+			codersdk.ChatAutomationTargetModeExistingChat,
+			codersdk.ChatAutomationTargetModeNewChat,
+		} {
+			t.Run(string(targetMode), func(t *testing.T) {
+				t.Parallel()
+				f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				first, second := f.newServer(t, Limits{}), f.newServer(t, Limits{})
+				var automation database.ChatAutomation
+				var held *sql.Tx
+				if targetMode == codersdk.ChatAutomationTargetModeExistingChat {
+					automation = f.existingChat(ctx, t, first, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+					held = f.lockRow(ctx, t, lockChatRow, f.chat.ID)
+				} else {
+					automation = f.newChat(ctx, t, first, "* * * * *", "Asia/Tokyo")
+					held = f.lockRow(ctx, t, lockAutomationRow, automation.ID)
+				}
+				f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
+
+				// Both instances read the due occurrence and wait for the same
+				// lock, so both publish it.
+				wait := scanAsync(ctx, first, second)
+				f.waitForLockWaits(ctx, t, 2)
+				require.NoError(t, held.Commit())
+				wait()
+
+				if targetMode == codersdk.ChatAutomationTargetModeExistingChat {
+					require.Equal(t, 1, f.inputs(ctx, t))
+				} else {
+					chats := f.createdChats(ctx, t)
+					require.Len(t, chats, 1, "the refused instance's chat is rolled back")
+					// 10:01 UTC is 19:01 in Tokyo.
+					require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
+				}
+				require.Equal(t, scheduleStart.Add(90*time.Second), f.cursor(ctx, t, automation.ID))
+			})
+		}
+	})
+
+	t.Run("RefusalSkipsOccurrence", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name     string
+			whenBusy codersdk.ChatAutomationWhenBusy
+			limits   Limits
+			// fill runs before the refused occurrence and returns the
+			// inputs it saved.
+			fill func(ctx context.Context, t *testing.T, f *scheduleFixture, server *Server, automation database.ChatAutomation) int
+		}{
+			{
+				name:     "BusyChatSkip",
+				whenBusy: codersdk.ChatAutomationWhenBusySkip,
+			},
+			{
+				// A queue of 2 leaves automations a share of 1, which the
+				// first occurrence fills.
+				name:     "QueueShareFull",
+				whenBusy: codersdk.ChatAutomationWhenBusyQueue,
+				limits:   Limits{MaxQueuedMessagesPerChat: 2},
+				fill: func(ctx context.Context, t *testing.T, f *scheduleFixture, server *Server, automation database.ChatAutomation) int {
+					f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
+					server.scanAutomationSchedules(ctx)
+					return 1
+				},
+			},
+			{
+				name:     "QueueFull",
+				whenBusy: codersdk.ChatAutomationWhenBusyQueue,
+				limits:   Limits{MaxQueuedMessagesPerChat: 1},
+				fill: func(ctx context.Context, t *testing.T, f *scheduleFixture, server *Server, _ database.ChatAutomation) int {
+					sent, err := server.SendMessage(ctx, SendMessageOptions{
+						ChatID:    f.chat.ID,
+						CreatedBy: f.owner.ID,
+						Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
+					})
+					require.NoError(t, err)
+					require.True(t, sent.Queued)
+					return 1
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newScheduleFixture(t, database.ChatStatusRunning, scheduleStart)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				server := f.newServer(t, tc.limits)
+				automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", tc.whenBusy)
+				saved := 0
+				if tc.fill != nil {
+					saved = tc.fill(ctx, t, f, server, automation)
+				}
+				refused := f.cursor(ctx, t, automation.ID)
+				f.advanceTo(ctx, t, refused)
+
+				server.scanAutomationSchedules(ctx)
+				require.Equal(t, saved, f.inputs(ctx, t))
+				next := refused.Add(time.Minute)
+				require.Equal(t, next, f.cursor(ctx, t, automation.ID))
+
+				// The cursor is in the future, so a repeat scan does nothing.
+				server.scanAutomationSchedules(ctx)
+				require.Equal(t, saved, f.inputs(ctx, t))
+				require.Equal(t, next, f.cursor(ctx, t, automation.ID))
+			})
+		}
+	})
+
+	t.Run("EditRollsBackInFlightOccurrence", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
+
+		// The edit holds the automation lock while the publish waits for
+		// it, then changes the schedule like UpdateAutomation does.
+		held := f.lockRow(ctx, t, lockAutomationRow, automation.ID)
+		wait := scanAsync(ctx, server)
+		f.waitForLockWaits(ctx, t, 1)
+		edited := scheduleStart.Add(270 * time.Second)
+		_, err := held.ExecContext(ctx, `UPDATE chat_automations
+SET schedule_revision = schedule_revision + 1, schedule_cron = '*/5 * * * *', schedule_next_run_at = $2
+WHERE id = $1`, automation.ID, edited)
+		require.NoError(t, err)
+		require.NoError(t, held.Commit())
+		wait()
+
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, edited, f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("Restart", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name string
+			// late is how long after the occurrence the new instance scans.
+			late     time.Duration
+			accepted int
+		}{
+			{name: "WithinGrace", late: automationScheduleGrace, accepted: 1},
+			{name: "AfterMissedRuns", late: 4*time.Minute + 30*time.Second, accepted: 0},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.existingChat(ctx, t, f.newServer(t, Limits{}), "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+				f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(tc.late))
+
+				restarted := f.newServer(t, Limits{})
+				for range 2 {
+					restarted.scanAutomationSchedules(ctx)
+					require.Equal(t, tc.accepted, f.inputs(ctx, t))
+					// Missed runs are not replayed: the cursor moves to the
+					// first run after now.
+					require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+				}
+			})
+		}
+	})
+
+	t.Run("PreviewsMatchAcceptedRuns", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.newChat(ctx, t, server, "*/10 * * * *", "Europe/Berlin")
+		previews := AutomationNextRuns(automation, f.clock.Now(), 4)
+		require.Len(t, previews, 4)
+
+		for i, run := range previews[:3] {
+			require.Equal(t, run, f.cursor(ctx, t, automation.ID))
+			f.advanceTo(ctx, t, run)
+			server.scanAutomationSchedules(ctx)
+			require.Len(t, f.createdChats(ctx, t), i+1)
+			require.Equal(t, previews[i+1], f.cursor(ctx, t, automation.ID))
+		}
+	})
+
+	t.Run("ExpiresWhileWaitingForLock", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time)
+
+		held := f.lockRow(ctx, t, lockChatRow, f.chat.ID)
+		wait := scanAsync(ctx, server)
+		f.waitForLockWaits(ctx, t, 1)
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(automationScheduleGrace+time.Second))
+		require.NoError(t, held.Commit())
+		wait()
+
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("DaylightSavingTime", func(t *testing.T) {
+		t.Parallel()
+		newYork, err := time.LoadLocation("America/New_York")
+		require.NoError(t, err)
+		// Clocks in New York move forward on 2026-03-08.
+		f := newScheduleFixture(t, database.ChatStatusWaiting, time.Date(2026, time.March, 7, 8, 0, 0, 0, newYork))
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.newChat(ctx, t, server, "0 9 * * *", "America/New_York")
+
+		var runs []time.Time
+		for range 3 {
+			run := f.cursor(ctx, t, automation.ID)
+			runs = append(runs, run)
+			f.advanceTo(ctx, t, run)
+			server.scanAutomationSchedules(ctx)
+			require.Equal(t, nextRun(t, "0 9 * * *", "America/New_York", run), f.cursor(ctx, t, automation.ID))
+		}
+		for _, run := range runs {
+			local := run.In(newYork)
+			require.Equal(t, 9, local.Hour())
+			require.Zero(t, local.Minute())
+		}
+		require.Equal(t, 23*time.Hour, runs[1].Sub(runs[0]), "the day clocks move forward is one hour short")
+		require.Equal(t, 24*time.Hour, runs[2].Sub(runs[1]))
+		require.Len(t, f.createdChats(ctx, t), 3)
+	})
+
+	t.Run("ExperimentOff", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		f.advanceTo(ctx, t, due)
+		f.experiment.off.Store(true)
+
+		// The scan drops the owner and leaves the cursor.
+		server.scanAutomationSchedules(ctx)
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+
+		// An experiment that turns off after the scan decided the owner is
+		// refused by Publish, which skips the occurrence.
+		row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		server.runAutomationOccurrence(ctx, row, f.clock.Now())
+		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
+	})
+}
+
+func TestAutomationScheduleLoopScansAtStart(t *testing.T) {
+	t.Parallel()
+	f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	automation := f.existingChat(ctx, t, f.newServer(t, Limits{}), "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+	server := f.newServer(t, Limits{})
+	f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(5*time.Minute))
+
+	// The loop scans before it creates its ticker, so the missed
+	// occurrence is skipped by the time the ticker exists.
+	tickerTrap := f.clock.Trap().NewTicker("chatworker", "automation-schedules")
+	defer tickerTrap.Close()
+	server.Start()
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+}

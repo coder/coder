@@ -247,6 +247,7 @@ type chatWorkerOptions struct {
 	AcquisitionBatchSize       int32
 	ArchiveInterval            time.Duration
 	ArchiveBatchSize           int32
+	AutomationScheduleInterval time.Duration
 	RunnerSyncInterval         time.Duration
 	HeartbeatInterval          time.Duration
 	HeartbeatCleanupInterval   time.Duration
@@ -288,6 +289,9 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	}
 	if o.ArchiveBatchSize <= 0 {
 		o.ArchiveBatchSize = defaultArchiveBatchSize
+	}
+	if o.AutomationScheduleInterval <= 0 {
+		o.AutomationScheduleInterval = automationScheduleInterval
 	}
 	if o.NotificationsEnqueuer == nil {
 		o.NotificationsEnqueuer = notifications.NewNoopEnqueuer()

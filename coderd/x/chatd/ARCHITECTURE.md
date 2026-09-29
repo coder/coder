@@ -1087,6 +1087,21 @@ By default, chatd runs up to five top-level chats and ten subagent chats at once
 
 The worker periodically archives old, unused chats.
 
+## Automation schedule loop
+
+Every coderd instance runs the schedule loop of its chat worker: one scan at start, then one scan every 30 seconds. A schedule automation stores its cron expression, its time zone, a `schedule_revision`, and a cursor, `schedule_next_run_at`, which is the next occurrence to run. The cursor is computed in the schedule's time zone, so a daily run keeps its wall-clock time across daylight-saving changes.
+
+A scan reads up to 500 enabled schedule automations whose cursor is at or before now, oldest cursor first, without taking locks. The read leaves out automations of deleted or inactive owners and `existing_chat` automations whose target chat is gone or archived; their cursors stay where they are. The scan decides the `chat-automations` experiment once per owner, outside any transaction, and drops the automations of owners who have it off without writing their cursors. The scan then handles each remaining automation in turn:
+
+- A cursor more than 60 seconds (the grace window) older than the scan time is missed. The scan moves the cursor to the first cron time after a fresh clock read and publishes nothing. Missed runs are never replayed.
+- Otherwise the scan publishes the saved prompt as the automation owner, through the same `SendMessage(m, queue)` or `Create` paths and `AdmitInTx` callbacks as a webhook with the same target mode, together with the revision and cursor it observed. Before the transaction, the publish checks the experiment for the owner again.
+
+Under the locks (the chat row first, then the automation), the callback requires the automation to still have the observed revision and cursor. It then reads the injected clock, after both locks are held rather than at transaction start, and requires the occurrence to be due and at most 60 seconds old at that time. Every other check is the same as for a webhook delivery. On acceptance, the callback moves the cursor to the first cron time after that clock read, in the same transaction as the message or the new chat. Every cursor write is conditional on the observed revision and cursor, so concurrent scans on several instances accept each occurrence exactly once, and an edit that changes the schedule (which increments the revision) rolls back an in-flight publish. A failed publish rolls back its message, its chat, and its cursor move together.
+
+When the publish is refused because the chat is busy and When busy is `skip`, because the queue or the automations' share of it is full, because a lifecycle hook denied the prompt, because the owner may no longer write the chat or create chats, because the experiment is off for the owner, or because the occurrence expired while the publish waited for a lock, the scan skips the occurrence: it moves the cursor to the first cron time after a fresh clock read, with the same conditional write. A stale, disabled, or deleted automation is left alone. Any other error leaves the cursor in place, so the next scan retries while the occurrence is within the grace window and treats it as missed after that. No occurrence is published before its cursor.
+
+A chat that a `new_chat` schedule automation creates is titled with the automation name followed by the acceptance time in the schedule's time zone (`2006-01-02 15:04 MST`).
+
 ## Manual compaction
 
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
@@ -53,6 +55,9 @@ var (
 	// ErrAutomationQueueShareFull is returned when automation messages
 	// already fill their share of the target chat's queue.
 	ErrAutomationQueueShareFull = xerrors.New("automation messages fill their share of the chat queue")
+	// ErrAutomationsExperimentDisabled is returned when the
+	// chat-automations experiment is off for the automation owner.
+	ErrAutomationsExperimentDisabled = xerrors.New("chat automations are disabled for the automation owner")
 )
 
 // AutomationQueueShareFullError carries the automations' share of the
@@ -96,6 +101,10 @@ type automationPublish struct {
 	// must equal secretVersion, and a single-use webhook is consumed.
 	webhook       bool
 	secretVersion int64
+	// occurrence marks a scheduled run: the locked automation must still
+	// have the observed schedule revision and cursor, and accepting the
+	// input moves the cursor past the occurrence.
+	occurrence *automationOccurrence
 }
 
 // PublishAutomationWebhook delivers a webhook event to the automation's
@@ -136,8 +145,15 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if in.webhook && automation.Kind != database.ChatAutomationKindWebhook {
 		return PublishAutomationResult{}, ErrAutomationNotFound
 	}
+	if in.occurrence != nil && automation.Kind != database.ChatAutomationKindSchedule {
+		return PublishAutomationResult{}, ErrAutomationNotFound
+	}
 	if !automation.Enabled {
 		return PublishAutomationResult{}, ErrAutomationDisabled
+	}
+	// Checked before any transaction or hook, for every publisher.
+	if !AutomationsEnabled(ctx, p.experimentEvaluator, automation.OwnerID) {
+		return PublishAutomationResult{}, ErrAutomationsExperimentDisabled
 	}
 	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
 	if err != nil {
@@ -206,14 +222,13 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 	}
 	// The input id is fixed per call, so a retried transaction reuses it.
 	inputID := uuid.New()
-	acceptedAt := p.clock.Now().UTC()
 	chat, err := p.CreateChat(ctx, CreateOptions{
 		OrganizationID: automation.OrganizationID,
 		OwnerID:        automation.OwnerID,
 		CreatedBy:      automation.OwnerID,
 		// The title is explicit and no title is generated, so the event
 		// data never becomes the chat title.
-		Title:              fmt.Sprintf("%s %s", automation.Name, acceptedAt.Format("2006-01-02 15:04 UTC")),
+		Title:              automationNewChatTitle(automation, p.clock.Now()),
 		ModelConfigID:      modelConfigID,
 		ReasoningEffort:    reasoningEffort,
 		ClientType:         database.ChatClientTypeApi,
@@ -248,7 +263,7 @@ func (p *Server) admitAutomation(
 	automationID, chatID uuid.UUID,
 	inputID uuid.UUID,
 ) (chatstate.AutomationProvenance, error) {
-	automation, err := lockAutomationInput(ctx, store, in, automationID)
+	automation, lockedAt, err := p.lockAutomationInput(ctx, store, in, automationID)
 	if err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
@@ -291,7 +306,7 @@ func (p *Server) admitAutomation(
 			return chatstate.AutomationProvenance{}, xerrors.Errorf("unknown when_busy %q", automation.WhenBusy.ChatAutomationWhenBusy)
 		}
 	}
-	return p.acceptAutomationInput(ctx, store, in, automation, inputID)
+	return p.acceptAutomationInput(ctx, store, in, automation, lockedAt, inputID)
 }
 
 // admitAutomationNewChat is the admission callback of
@@ -305,7 +320,7 @@ func (p *Server) admitAutomationNewChat(
 	automationID, modelConfigID, chatID uuid.UUID,
 	inputID uuid.UUID,
 ) (chatstate.AutomationProvenance, error) {
-	automation, err := lockAutomationInput(ctx, store, in, automationID)
+	automation, lockedAt, err := p.lockAutomationInput(ctx, store, in, automationID)
 	if err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
@@ -334,38 +349,65 @@ func (p *Server) admitAutomationNewChat(
 	if count != 1 {
 		return chatstate.AutomationProvenance{}, xerrors.Errorf("set chat automation id: updated %d chats, want 1", count)
 	}
-	return p.acceptAutomationInput(ctx, store, in, automation, inputID)
+	return p.acceptAutomationInput(ctx, store, in, automation, lockedAt, inputID)
 }
 
 // lockAutomationInput locks the automation and checks that it still
-// accepts in: it is enabled and, for a webhook delivery, still has the
-// verified secret and an unused single-use webhook.
-func lockAutomationInput(ctx context.Context, store database.Store, in automationPublish, automationID uuid.UUID) (database.ChatAutomation, error) {
+// accepts in: it is enabled, for a webhook delivery still has the
+// verified secret and an unused single-use webhook, and for a scheduled
+// occurrence still has the observed schedule and a timely occurrence. The
+// caller must hold the chat lock. It returns the locked automation and
+// the time read after the locks.
+func (p *Server) lockAutomationInput(ctx context.Context, store database.Store, in automationPublish, automationID uuid.UUID) (database.ChatAutomation, time.Time, error) {
 	locked, err := chatstate.LockAutomations(ctx, store, []uuid.UUID{automationID})
 	if err != nil {
-		return database.ChatAutomation{}, err
+		return database.ChatAutomation{}, time.Time{}, err
 	}
 	automation, ok := locked[automationID]
 	if !ok {
-		return database.ChatAutomation{}, ErrAutomationNotFound
+		return database.ChatAutomation{}, time.Time{}, ErrAutomationNotFound
 	}
 	if !automation.Enabled {
-		return database.ChatAutomation{}, ErrAutomationDisabled
+		return database.ChatAutomation{}, time.Time{}, ErrAutomationDisabled
 	}
 	if in.webhook {
 		if automation.Kind != database.ChatAutomationKindWebhook || automation.WebhookSecretVersion != in.secretVersion {
-			return database.ChatAutomation{}, ErrAutomationSecretChanged
+			return database.ChatAutomation{}, time.Time{}, ErrAutomationSecretChanged
 		}
 		if automationSingleUse(automation) && automation.WebhookConsumedAt.Valid {
-			return database.ChatAutomation{}, ErrAutomationWebhookConsumed
+			return database.ChatAutomation{}, time.Time{}, ErrAutomationWebhookConsumed
 		}
 	}
-	return automation, nil
+	// The injected clock is read after the chat and automation locks are
+	// held, deliberately not the transaction start time: an occurrence
+	// that expired while this publish waited for a lock is refused.
+	lockedAt := dbtime.Time(p.clock.Now())
+	if in.occurrence != nil {
+		if err := checkAutomationOccurrence(automation, *in.occurrence, lockedAt); err != nil {
+			return database.ChatAutomation{}, time.Time{}, err
+		}
+	}
+	return automation, lockedAt, nil
 }
 
-// acceptAutomationInput consumes a single-use webhook and returns the
-// provenance of the admitted input. automation must be locked.
-func (p *Server) acceptAutomationInput(ctx context.Context, store database.Store, in automationPublish, automation database.ChatAutomation, inputID uuid.UUID) (chatstate.AutomationProvenance, error) {
+// acceptAutomationInput consumes a single-use webhook, moves the schedule
+// cursor past an accepted occurrence, and returns the provenance of the
+// admitted input. automation must be locked, and lockedAt is the time
+// read after the locks.
+func (p *Server) acceptAutomationInput(ctx context.Context, store database.Store, in automationPublish, automation database.ChatAutomation, lockedAt time.Time, inputID uuid.UUID) (chatstate.AutomationProvenance, error) {
+	if in.occurrence != nil {
+		sched, err := cron.Standard(automation.ScheduleCron.String, automation.ScheduleTimeZone.String)
+		if err != nil {
+			return chatstate.AutomationProvenance{}, xerrors.Errorf("parse chat automation schedule: %w", err)
+		}
+		moved, err := advanceAutomationSchedule(ctx, store, automation.ID, *in.occurrence, sched.Next(lockedAt), lockedAt)
+		if err != nil {
+			return chatstate.AutomationProvenance{}, err
+		}
+		if !moved {
+			return chatstate.AutomationProvenance{}, ErrAutomationScheduleStale
+		}
+	}
 	if in.webhook && automationSingleUse(automation) {
 		// Consumed as the owner, like any other change to the owner's
 		// automation; the transaction rolls it back if the send fails.
@@ -459,6 +501,18 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 		return ErrAutomationForbidden
 	}
 	return nil
+}
+
+// automationNewChatTitle returns the title of a chat a new_chat
+// automation creates at acceptedAt. Schedule automations show the time in
+// the schedule's time zone, webhooks in UTC.
+func automationNewChatTitle(automation database.ChatAutomation, acceptedAt time.Time) string {
+	if automation.Kind == database.ChatAutomationKindSchedule && automation.ScheduleTimeZone.Valid {
+		if loc, err := time.LoadLocation(automation.ScheduleTimeZone.String); err == nil {
+			return fmt.Sprintf("%s %s", automation.Name, acceptedAt.In(loc).Format("2006-01-02 15:04 MST"))
+		}
+	}
+	return fmt.Sprintf("%s %s", automation.Name, acceptedAt.UTC().Format("2006-01-02 15:04 UTC"))
 }
 
 // automationEventText labels an event payload as untrusted data. body

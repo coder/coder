@@ -1538,6 +1538,24 @@ func (s *MethodTestSuite) TestChats() {
 		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
 		check.Args(automation.OrganizationID).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
 	}))
+	s.Run("GetDueChatAutomationSchedules", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.GetDueChatAutomationSchedulesParams{Now: dbtime.Now(), LimitCount: 10}
+		dbm.EXPECT().GetDueChatAutomationSchedules(gomock.Any(), arg).Return([]database.ChatAutomation{automation}, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args(arg).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
+	}))
+	s.Run("AdvanceChatAutomationScheduleCursor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.AdvanceChatAutomationScheduleCursorParams{
+			ID:                uuid.New(),
+			ScheduleRevision:  2,
+			ObservedNextRunAt: dbtime.Now(),
+			NextRunAt:         sql.NullTime{Time: dbtime.Now().Add(time.Hour), Valid: true},
+			UpdatedAt:         dbtime.Now(),
+		}
+		dbm.EXPECT().AdvanceChatAutomationScheduleCursor(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
