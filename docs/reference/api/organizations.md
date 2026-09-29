@@ -293,14 +293,14 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In    | Type         | Required | Description                                                                          |
-|----------------|-------|--------------|----------|--------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                      |
-| `limit`        | query | integer      | false    | Page limit                                                                           |
-| `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                            |
-| `status`       | query | string       | false    | Filter results by status                                                             |
-| `tags`         | query | string       | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
-| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                          |
+| Name           | In    | Type          | Required | Description                                                                          |
+|----------------|-------|---------------|----------|--------------------------------------------------------------------------------------|
+| `organization` | path  | string(uuid)  | true     | Organization ID                                                                      |
+| `limit`        | query | integer       | false    | Page limit                                                                           |
+| `ids`          | query | array[string] | false    | Filter results by job IDs (UUIDs)                                                    |
+| `status`       | query | string        | false    | Filter results by status                                                             |
+| `tags`         | query | string        | false    | Provisioner tags to filter by (JSON of the form `{'tag1':'value1','tag2':'value2'}`) |
+| `initiator`    | query | string(uuid)  | false    | Filter results by initiator                                                          |
 
 #### Enumerated Values
 
@@ -407,12 +407,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                        |
+|------------------------------|---------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                             |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                       |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

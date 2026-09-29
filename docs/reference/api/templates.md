@@ -572,6 +572,8 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 `GET /api/v2/organizations/{organization}/templates/{templatename}/versions/{templateversionname}/previous`
 
+Returns 204 with no body when the version has no previous version.
+
 ### Parameters
 
 | Name                  | In   | Type         | Required | Description           |
@@ -1487,12 +1489,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                        |
+|------------------------------|---------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                             |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                       |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1770,12 +1772,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                        |
+|------------------------------|---------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                             |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                       |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -828,7 +828,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
     "id": "string",
     "last_used": "2019-08-24T14:15:22Z",
     "lifetime_seconds": 0,
-    "login_type": "password",
+    "login_type": "",
     "scope": "all",
     "scopes": [
       "all"
@@ -873,7 +873,7 @@ Status Code **200**
 | Property     | Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 |--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `type`       | `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
-| `login_type` | `github`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `login_type` | ``, `github`, `none`, `oidc`, `password`, `token`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `scope`      | `all`, `application_connect`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -973,7 +973,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
   "id": "string",
   "last_used": "2019-08-24T14:15:22Z",
   "lifetime_seconds": 0,
-  "login_type": "password",
+  "login_type": "",
   "scope": "all",
   "scopes": [
     "all"
@@ -1029,7 +1029,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
   "id": "string",
   "last_used": "2019-08-24T14:15:22Z",
   "lifetime_seconds": 0,
-  "login_type": "password",
+  "login_type": "",
   "scope": "all",
   "scopes": [
     "all"

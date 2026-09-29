@@ -24,7 +24,7 @@ type TemplateBuilderModuleVariable struct {
 	Name        string                      `json:"name"`
 	Type        TemplateBuilderVariableType `json:"type"`
 	Description string                      `json:"description"`
-	Default     json.RawMessage             `json:"default,omitempty"`
+	Default     json.RawMessage             `json:"default,omitempty" swaggertype:"object"`
 	Required    bool                        `json:"required"`
 	Sensitive   bool                        `json:"sensitive"`
 }

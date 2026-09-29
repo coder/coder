@@ -79,15 +79,15 @@ type WorkspaceBuild struct {
 	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
 	TemplateVersionName     string               `json:"template_version_name"`
 	BuildNumber             int32                `json:"build_number"`
-	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
+	Transition              WorkspaceTransition  `json:"transition"`
 	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
 	InitiatorUsername       string               `json:"initiator_name"`
 	Job                     ProvisionerJob       `json:"job"`
-	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
+	Reason                  BuildReason          `db:"reason" json:"reason"`
 	Resources               []WorkspaceResource  `json:"resources"`
 	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
 	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
-	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	Status                  WorkspaceStatus      `json:"status"`
 	DailyCost               int32                `json:"daily_cost"`
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
@@ -100,7 +100,7 @@ type WorkspaceResource struct {
 	ID         uuid.UUID                   `json:"id" format:"uuid"`
 	CreatedAt  time.Time                   `json:"created_at" format:"date-time"`
 	JobID      uuid.UUID                   `json:"job_id" format:"uuid"`
-	Transition WorkspaceTransition         `json:"workspace_transition" enums:"start,stop,delete"`
+	Transition WorkspaceTransition         `json:"workspace_transition"`
 	Type       string                      `json:"type"`
 	Name       string                      `json:"name"`
 	Hide       bool                        `json:"hide"`
@@ -215,7 +215,7 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 // UpdateWorkspaceBuildStateRequest is the request body for updating the
 // provisioner state of a workspace build.
 type UpdateWorkspaceBuildStateRequest struct {
-	State []byte `json:"state"`
+	State []byte `json:"state" swaggertype:"string" format:"byte"`
 }
 
 // UpdateWorkspaceBuildState updates the provisioner state of the build without

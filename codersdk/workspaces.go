@@ -66,7 +66,7 @@ type Workspace struct {
 	// Health shows the health of the workspace and information about
 	// what is causing an unhealthy status.
 	Health           WorkspaceHealth  `json:"health"`
-	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates"`
 	// AllowRenames is the effective rename permission for this workspace,
 	// derived from the template's allow_workspace_renames setting and the
 	// deprecated deployment-wide flag.
@@ -122,7 +122,7 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
-	ProvisionerState  []byte              `json:"state,omitempty"`
+	ProvisionerState  []byte              `json:"state,omitempty" swaggertype:"string" format:"byte"`
 	// Orphan may be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
@@ -805,7 +805,7 @@ type WorkspaceUser struct {
 
 type SharedWorkspaceActor struct {
 	ID        uuid.UUID                `json:"id" format:"uuid"`
-	ActorType SharedWorkspaceActorType `json:"actor_type" enums:"group,user"`
+	ActorType SharedWorkspaceActorType `json:"actor_type"`
 	Name      string                   `json:"name"`
 	AvatarURL string                   `json:"avatar_url,omitempty" format:"uri"`
 	Roles     []WorkspaceRole          `json:"roles"`

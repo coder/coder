@@ -55,7 +55,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
 {
   "checks": {
     "property1": {
-      "action": "create",
+      "action": "application_connect",
       "object": {
         "any_org": true,
         "organization_id": "string",
@@ -65,7 +65,7 @@ curl -X POST http://coder-server:8080/api/v2/authcheck \
       }
     },
     "property2": {
-      "action": "create",
+      "action": "application_connect",
       "object": {
         "any_org": true,
         "organization_id": "string",

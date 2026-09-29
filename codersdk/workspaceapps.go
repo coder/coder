@@ -82,7 +82,7 @@ type WorkspaceApp struct {
 	Subdomain bool `json:"subdomain"`
 	// SubdomainName is the application domain exposed on the `coder server`.
 	SubdomainName string                   `json:"subdomain_name,omitempty"`
-	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,organization,public"`
+	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck,omitempty"`
 	Health      WorkspaceAppHealth `json:"health"`

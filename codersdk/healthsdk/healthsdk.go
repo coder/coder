@@ -103,7 +103,7 @@ type HealthcheckReport struct {
 	// Deprecated: use `Severity` instead
 	Healthy bool `json:"healthy"`
 	// Severity indicates the status of Coder health.
-	Severity health.Severity `json:"severity" enums:"ok,warning,error"`
+	Severity health.Severity `json:"severity"`
 
 	DERP               DERPHealthReport         `json:"derp"`
 	AccessURL          AccessURLReport          `json:"access_url"`
@@ -131,7 +131,7 @@ func (r *HealthcheckReport) Summarize(docsURL string) []string {
 // BaseReport holds fields common to various health reports.
 type BaseReport struct {
 	Error     *string          `json:"error,omitempty"`
-	Severity  health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Severity  health.Severity  `json:"severity"`
 	Warnings  []health.Message `json:"warnings"`
 	Dismissed bool             `json:"dismissed"`
 }
@@ -193,7 +193,7 @@ type DERPHealthReport struct {
 type DERPRegionReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy     bool                `json:"healthy"`
-	Severity    health.Severity     `json:"severity" enums:"ok,warning,error"`
+	Severity    health.Severity     `json:"severity"`
 	Warnings    []health.Message    `json:"warnings"`
 	Error       *string             `json:"error,omitempty"`
 	Region      *tailcfg.DERPRegion `json:"region"`
@@ -204,7 +204,7 @@ type DERPRegionReport struct {
 type DERPNodeReport struct {
 	// Healthy is deprecated and left for backward compatibility purposes, use `Severity` instead.
 	Healthy  bool             `json:"healthy"`
-	Severity health.Severity  `json:"severity" enums:"ok,warning,error"`
+	Severity health.Severity  `json:"severity"`
 	Warnings []health.Message `json:"warnings"`
 	Error    *string          `json:"error,omitempty"`
 

@@ -260,12 +260,12 @@ type AuditLogResponse struct {
 }
 
 type CreateTestAuditLogRequest struct {
-	Action           AuditAction     `json:"action,omitempty" enums:"create,write,delete,start,stop"`
-	ResourceType     ResourceType    `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
+	Action           AuditAction     `json:"action,omitempty"`
+	ResourceType     ResourceType    `json:"resource_type,omitempty"`
 	ResourceID       uuid.UUID       `json:"resource_id,omitempty" format:"uuid"`
-	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
+	AdditionalFields json.RawMessage `json:"additional_fields,omitempty" swaggertype:"object"`
 	Time             time.Time       `json:"time,omitempty" format:"date-time"`
-	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
+	BuildReason      BuildReason     `json:"build_reason,omitempty"`
 	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`
 	RequestID        uuid.UUID       `json:"request_id,omitempty" format:"uuid"`
 }

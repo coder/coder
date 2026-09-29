@@ -1288,9 +1288,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ```json
 {
-  "state": [
-    0
-  ]
+  "state": "string"
 }
 ```
 
@@ -1819,21 +1817,21 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                                                                                                                                                                                   |
-|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                        |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
-| `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout` |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                   |
-| `reason`                     | `autostart`, `autostop`, `initiator`                                                                                                                                                                                                       |
-| `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                         |
-| `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                       |
-| `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                         |
-| `state`                      | `complete`, `failure`, `idle`, `working`                                                                                                                                                                                                   |
-| `lifecycle_state`            | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                                                                               |
-| `startup_script_behavior`    | `blocking`, `non-blocking`                                                                                                                                                                                                                 |
-| `workspace_transition`       | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
-| `transition`                 | `delete`, `start`, `stop`                                                                                                                                                                                                                  |
+| Property                     | Value(s)                                                                                                                                                                                                                                              |
+|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                                                                                                                                                                                                   |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
+| `status`                     | `canceled`, `canceling`, `connected`, `connecting`, `deleted`, `deleting`, `disconnected`, `exit_failure`, `failed`, `ok`, `pending`, `pipes_left_open`, `running`, `starting`, `stopped`, `stopping`, `succeeded`, `timed_out`, `timeout`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`                                                                                                                                                                              |
+| `reason`                     | `autostart`, `autostop`, `cli`, `dashboard`, `dormancy`, `initiator`, `jetbrains_connection`, `ssh_connection`, `vscode_connection`                                                                                                                   |
+| `health`                     | `disabled`, `healthy`, `initializing`, `unhealthy`                                                                                                                                                                                                    |
+| `open_in`                    | `slim-window`, `tab`                                                                                                                                                                                                                                  |
+| `sharing_level`              | `authenticated`, `organization`, `owner`, `public`                                                                                                                                                                                                    |
+| `state`                      | `complete`, `failure`, `idle`, `working`                                                                                                                                                                                                              |
+| `lifecycle_state`            | `created`, `off`, `ready`, `shutdown_error`, `shutdown_timeout`, `shutting_down`, `start_error`, `start_timeout`, `starting`                                                                                                                          |
+| `startup_script_behavior`    | `blocking`, `non-blocking`                                                                                                                                                                                                                            |
+| `workspace_transition`       | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
+| `transition`                 | `delete`, `start`, `stop`                                                                                                                                                                                                                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1876,9 +1874,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "value": "string"
     }
   ],
-  "state": [
-    0
-  ],
+  "state": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"

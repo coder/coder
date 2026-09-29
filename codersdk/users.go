@@ -83,7 +83,7 @@ type ReducedUser struct {
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
 	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
 
-	Status           UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status" table:"status"`
 	LoginType        LoginType  `json:"login_type"`
 	IsServiceAccount bool       `json:"is_service_account,omitempty"`
 	// Deprecated: this value should be retrieved from
