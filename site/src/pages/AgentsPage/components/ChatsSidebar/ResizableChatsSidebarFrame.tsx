@@ -154,7 +154,7 @@ export const ResizableChatsSidebarFrame = ({
 				className={
 					viewportSlide === "out"
 						? "h-full w-(--agents-left-sidebar-width)"
-						: "size-full sm:w-(--agents-left-sidebar-width)"
+						: "size-full sm:w-(--agents-left-sidebar-width) sm:max-w-(--agents-left-sidebar-max-width)"
 				}
 			>
 				{children}
