@@ -28,10 +28,10 @@ func TestHeadersFromActor(t *testing.T) {
 		{
 			name: "configured supported attributes only",
 			actor: &context.Actor{
-				ID: "user-123",
+				ID:    "user-123",
+				Email: "alice@example.com",
 				Metadata: recorder.Metadata{
 					"Username": "alice",
-					"Email":    "alice@example.com",
 					"Count":    42,
 					"Role":     "admin",
 				},
@@ -50,19 +50,19 @@ func TestHeadersFromActor(t *testing.T) {
 		},
 		{
 			name:  "id omitted",
-			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
 			names: map[string]string{"username": "X-Downstream-Username", "email": "X-Downstream-Email"},
 			want:  map[string]string{"X-Downstream-Username": "alice", "X-Downstream-Email": "alice@example.com"},
 		},
 		{
 			name:  "username omitted",
-			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
 			names: map[string]string{"id": "X-Downstream-User-Id", "email": "X-Downstream-Email"},
 			want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Email": "alice@example.com"},
 		},
 		{
 			name:  "email omitted",
-			actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+			actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
 			names: map[string]string{"id": "X-Downstream-User-Id", "username": "X-Downstream-Username"},
 			want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Username": "alice"},
 		},
@@ -80,13 +80,7 @@ func TestHeadersFromActor(t *testing.T) {
 		},
 		{
 			name:  "empty email",
-			actor: &context.Actor{Metadata: recorder.Metadata{"Email": ""}},
-			names: map[string]string{"email": "X-Email"},
-			want:  map[string]string{},
-		},
-		{
-			name:  "non-string email",
-			actor: &context.Actor{Metadata: recorder.Metadata{"Email": 42}},
+			actor: &context.Actor{ID: "user-123"},
 			names: map[string]string{"email": "X-Email"},
 			want:  map[string]string{},
 		},

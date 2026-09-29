@@ -880,7 +880,11 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(authResponse, nil)
 			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
 			client.EXPECT().GetMCPServerConfigs(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPServerConfigsResponse{}, nil)
-			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
+			var recorded *proto.RecordInterceptionRequest
+			client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {
+				recorded = in
+				return &proto.RecordInterceptionResponse{}, nil
+			})
 			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes()
 
 			// Given: aibridged is started.
@@ -916,6 +920,11 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			} else {
 				assert.Equal(t, testEmail, receivedHeaders.Get(aibheaders.ActorMetadataHeader("Email")), "actor metadata email header should contain email")
 			}
+
+			// Email is forwarded upstream but never recorded.
+			require.NotNil(t, recorded, "interception should be recorded")
+			require.Contains(t, recorded.GetMetadata(), "Username")
+			require.NotContains(t, recorded.GetMetadata(), "Email")
 		})
 	}
 }

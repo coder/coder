@@ -118,14 +118,13 @@ func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]strin
 	if name := actorHeaderNames[ActorAttributeID]; name != "" {
 		headers[name] = actor.ID
 	}
-	for attribute, key := range map[string]string{ActorAttributeUsername: "Username", ActorAttributeEmail: "Email"} {
-		name := actorHeaderNames[attribute]
-		if name == "" {
-			continue
+	if name := actorHeaderNames[ActorAttributeUsername]; name != "" {
+		if username, ok := actor.Metadata["Username"].(string); ok && username != "" {
+			headers[name] = username
 		}
-		if value, ok := actor.Metadata[key].(string); ok && value != "" {
-			headers[name] = value
-		}
+	}
+	if name := actorHeaderNames[ActorAttributeEmail]; name != "" && actor.Email != "" {
+		headers[name] = actor.Email
 	}
 
 	return headers

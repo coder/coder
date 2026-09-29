@@ -543,7 +543,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}{
 			{
 				name:  "configured actor",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": "alice@example.com"}},
+				actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
 				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}, "X-Downstream-Email": {"alice@example.com"}},
 			},
 			{
@@ -555,16 +555,6 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				name:  "empty username",
 				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": ""}},
 				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
-			},
-			{
-				name:  "empty email",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": ""}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
-			},
-			{
-				name:  "non-string email",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice", "Email": 42}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
 			},
 			{
 				name: "nil actor",

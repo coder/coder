@@ -44,8 +44,8 @@ type (
 	CopilotConfig           = config.Copilot
 )
 
-func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
-	return aibcontext.AsActor(ctx, actorID, metadata)
+func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metadata) context.Context {
+	return aibcontext.AsActor(ctx, actorID, email, metadata)
 }
 
 // NewAnthropicProvider constructs the Anthropic provider. At most one of
