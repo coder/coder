@@ -40937,6 +40937,22 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const isWorkspaceBoundToChat = `-- name: IsWorkspaceBoundToChat :one
+SELECT EXISTS (
+	SELECT 1 FROM chats WHERE chats.workspace_id = $1 :: uuid
+) :: boolean
+`
+
+// Reports whether any chat, including archived ones, is bound to the
+// workspace. Workspaces bound to a chat are typically ephemeral workspaces
+// spawned by Coder Agents.
+func (q *sqlQuerier) IsWorkspaceBoundToChat(ctx context.Context, workspaceID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, isWorkspaceBoundToChat, workspaceID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const unfavoriteWorkspace = `-- name: UnfavoriteWorkspace :exec
 UPDATE workspaces SET favorite = false WHERE id = $1
 `

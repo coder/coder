@@ -4760,6 +4760,14 @@ func (m queryMetricsStore) IsChatHeartbeatStale(ctx context.Context, arg databas
 	return r0, r1
 }
 
+func (m queryMetricsStore) IsWorkspaceBoundToChat(ctx context.Context, workspaceID uuid.UUID) (bool, error) {
+	start := time.Now()
+	r0, r1 := m.s.IsWorkspaceBoundToChat(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("IsWorkspaceBoundToChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IsWorkspaceBoundToChat").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	start := time.Now()
 	r0, r1 := m.s.LinkChatFilesAfterLock(ctx, arg)

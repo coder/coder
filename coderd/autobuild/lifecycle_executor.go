@@ -330,6 +330,18 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}); err != nil {
 								return xerrors.Errorf("stamp autostop reminder marker: %w", err)
 							}
+							// Workspaces bound to a chat are usually ephemeral
+							// agent workspaces, so a stop reminder is noise. The
+							// marker is still stamped so the SQL pre-filter stops
+							// returning this build on every tick.
+							boundToChat, err := tx.IsWorkspaceBoundToChat(e.ctx, ws.ID)
+							if err != nil {
+								return xerrors.Errorf("check workspace chat binding: %w", err)
+							}
+							if boundToChat {
+								log.Debug(e.ctx, "skipping autostop reminder for chat workspace")
+								return nil
+							}
 							reminderDeadline = latestBuild.Deadline
 							reminderBuildID = latestBuild.ID
 							shouldRemind = true

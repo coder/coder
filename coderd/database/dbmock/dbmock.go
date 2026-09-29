@@ -8951,6 +8951,21 @@ func (mr *MockStoreMockRecorder) IsChatHeartbeatStale(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsChatHeartbeatStale", reflect.TypeOf((*MockStore)(nil).IsChatHeartbeatStale), ctx, arg)
 }
 
+// IsWorkspaceBoundToChat mocks base method.
+func (m *MockStore) IsWorkspaceBoundToChat(ctx context.Context, workspaceID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsWorkspaceBoundToChat", ctx, workspaceID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsWorkspaceBoundToChat indicates an expected call of IsWorkspaceBoundToChat.
+func (mr *MockStoreMockRecorder) IsWorkspaceBoundToChat(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsWorkspaceBoundToChat", reflect.TypeOf((*MockStore)(nil).IsWorkspaceBoundToChat), ctx, workspaceID)
+}
+
 // LinkChatFiles mocks base method.
 func (m *MockStore) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesParams) (int32, error) {
 	m.ctrl.T.Helper()

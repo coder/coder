@@ -1257,6 +1257,10 @@ type sqlcQuerier interface {
 	// time. chatstate calls this in a single query so the staleness check
 	// is atomic and does not depend on the caller's local clock.
 	IsChatHeartbeatStale(ctx context.Context, arg IsChatHeartbeatStaleParams) (bool, error)
+	// Reports whether any chat, including archived ones, is bound to the
+	// workspace. Workspaces bound to a chat are typically ephemeral workspaces
+	// spawned by Coder Agents.
+	IsWorkspaceBoundToChat(ctx context.Context, workspaceID uuid.UUID) (bool, error)
 	// LinkChatFilesAfterLock requires the chat row lock. When the batch would
 	// exceed the cap, the oldest files on the chat are deleted to make room; the
 	// cascade removes their links. A file links to at most one chat, so no other

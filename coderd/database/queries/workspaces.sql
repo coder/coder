@@ -982,6 +982,14 @@ WHERE
 	-- prebuilds reconciliation loop.
   	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
+-- name: IsWorkspaceBoundToChat :one
+-- Reports whether any chat, including archived ones, is bound to the
+-- workspace. Workspaces bound to a chat are typically ephemeral workspaces
+-- spawned by Coder Agents.
+SELECT EXISTS (
+	SELECT 1 FROM chats WHERE chats.workspace_id = @workspace_id :: uuid
+) :: boolean;
+
 -- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
     workspaces

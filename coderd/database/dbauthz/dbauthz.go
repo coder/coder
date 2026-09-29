@@ -6898,6 +6898,15 @@ func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatH
 	return q.db.IsChatHeartbeatStale(ctx, arg)
 }
 
+func (q *querier) IsWorkspaceBoundToChat(ctx context.Context, workspaceID uuid.UUID) (bool, error) {
+	// Reading the workspace authorizes the caller; the result only reveals
+	// whether a chat references it, not any chat contents.
+	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
+		return false, err
+	}
+	return q.db.IsWorkspaceBoundToChat(ctx, workspaceID)
+}
+
 func (q *querier) LinkChatFilesAfterLock(ctx context.Context, arg database.LinkChatFilesAfterLockParams) (int32, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return 0, err

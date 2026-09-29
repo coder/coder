@@ -1979,6 +1979,56 @@ func TestExecutorAutostopReminder(t *testing.T) {
 		require.Equal(t, workspace.OwnerID, sent[0].UserID)
 	})
 
+	// ChatWorkspaceNotReminded: workspaces bound to a chat (Coder Agents)
+	// never get an autostop reminder.
+	t.Run("ChatWorkspaceNotReminded", func(t *testing.T) {
+		t.Parallel()
+
+		timeTilNotify := 30 * time.Minute
+		notifyEnq := &notificationstest.FakeEnqueuer{}
+		_, db, tickCh, statsCh, workspace := setupAutostopReminderWorkspace(t, timeTilNotify, notifyEnq)
+		deadline := workspace.LatestBuild.Deadline.Time
+
+		// Bind the workspace to a chat, as Coder Agents does for the
+		// workspaces it spawns.
+		_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+			Provider:    "openai",
+			DisplayName: "OpenAI",
+		})
+		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:        "test-model",
+			ContextLimit: 8192,
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    workspace.OrganizationID,
+			OwnerID:           workspace.OwnerID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			LastModelConfigID: mc.ID,
+		})
+
+		// Two ticks inside the window: neither sends a reminder, and the
+		// marker stamped on the first keeps later ticks from re-evaluating.
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 2)
+		}()
+		stats := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		build, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.True(t, build.NotifiedAutostopDeadline.Equal(build.Deadline))
+
+		go func() {
+			tickCh <- deadline.Add(-timeTilNotify / 4)
+			close(tickCh)
+		}()
+		stats = testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, statsCh)
+		require.Len(t, stats.Errors, 0)
+		require.Empty(t, notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutostopReminder)))
+	})
+
 	// NotBeforeWindow: no reminder when the tick precedes the lead window.
 	t.Run("NotBeforeWindow", func(t *testing.T) {
 		t.Parallel()
