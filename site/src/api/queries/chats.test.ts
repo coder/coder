@@ -2372,9 +2372,9 @@ describe("chatSearch", () => {
 
 describe("chatDiffContents", () => {
 	it("requests the diff of the chat", async () => {
-		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue(
-			{} as TypesGen.ChatDiffContents,
-		);
+		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue({
+			chat_id: "chat-1",
+		});
 
 		await createTestQueryClient().fetchQuery(chatDiffContents("chat-1"));
 
