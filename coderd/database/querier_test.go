@@ -1684,6 +1684,39 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, chatOrganization), "got %v", err)
 	})
 
+	// Deleting a chat runs one ON DELETE SET NULL update per reference. The
+	// organization check must not re-validate the other, unchanged
+	// reference, which may point at a chat deleted by the same statement.
+	t.Run("DeleteReferencedChats", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		shared := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		target := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		creator := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+		sameChat := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: shared.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: shared.ID, Valid: true},
+		})
+		twoChats := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+			OrganizationID:  org.ID,
+			OwnerID:         owner.ID,
+			TargetChatID:    uuid.NullUUID{UUID: target.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
+		})
+		_, err := sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = $1`, shared.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id = ANY($1::uuid[])`, pq.Array([]uuid.UUID{target.ID, creator.ID}))
+		require.NoError(t, err)
+		for _, id := range []uuid.UUID{sameChat.ID, twoChats.ID} {
+			got, err := db.GetChatAutomationByID(ctx, id)
+			require.NoError(t, err)
+			require.False(t, got.TargetChatID.Valid)
+			require.False(t, got.CreatedByChatID.Valid)
+		}
+	})
+
 	// Queued-message provenance is all or nothing. No query writes these
 	// columns yet, so insert directly.
 	t.Run("QueuedMessagePartialProvenance", func(t *testing.T) {

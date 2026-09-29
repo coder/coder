@@ -60,7 +60,15 @@ CREATE FUNCTION enforce_chat_automation_chat_organization() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	IF NEW.target_chat_id IS NOT NULL AND NOT EXISTS (
+	-- Validate a reference only when it or organization_id changes. Chat
+	-- deletion runs one ON DELETE SET NULL update per reference, and the
+	-- other, unchanged reference may point at a chat the same statement is
+	-- deleting.
+	IF NEW.target_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.target_chat_id IS DISTINCT FROM OLD.target_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
 		SELECT 1 FROM chats
 		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
 	) THEN
@@ -68,7 +76,11 @@ BEGIN
 			USING ERRCODE = 'check_violation',
 			      CONSTRAINT = 'chat_automations_chat_organization';
 	END IF;
-	IF NEW.created_by_chat_id IS NOT NULL AND NOT EXISTS (
+	IF NEW.created_by_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.created_by_chat_id IS DISTINCT FROM OLD.created_by_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
 		SELECT 1 FROM chats
 		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
 	) THEN
