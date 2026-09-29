@@ -30,9 +30,9 @@ type EditFilesArgs struct {
 // EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
 // carries the path of the file it changes.
 type EditFilesEdit struct {
-	Path       string `json:"path" description:"Absolute path of the file to edit."`
-	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
-	NewText    string `json:"new_text" description:"Replacement text."`
+	Path       string `json:"path" description:"Absolute path of the file, for example /home/coder/project/main.go."`
+	OldText    string `json:"old_text" description:"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."`
+	NewText    string `json:"new_text" description:"Replacement text. Must differ from old_text."`
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
@@ -220,13 +220,13 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
 		return fantasy.NewTextErrorResponse(
 			"Send a flat list of edits where every edit has its own path, for example " + editFilesExample +
-				"; the files key is not supported; no files in this batch were applied",
+				"; the files key is not supported\nNo edits were applied.",
 		), nil
 	}
 	var args EditFilesArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
-			"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example %s; decoding failed (%s); no files in this batch were applied",
+			"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example %s; decoding failed (%s)\nNo edits were applied.",
 			editFilesExample, err,
 		)), nil
 	}
@@ -236,18 +236,11 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return editFilesTool{AgentTool: fantasy.NewAgentTool(
 		EditFilesName,
-		"Perform edits on one or more files by replacing old_text with"+
-			" new_text. Send a flat list of edits; each edit carries the"+
-			" absolute path of the file it changes, and edits to the same"+
-			" file apply in the order listed. Matching is fuzzy"+
-			" (tolerates whitespace and indentation differences) and preserves"+
-			" the file's existing indentation and line endings. Errors if"+
-			" old_text matches zero locations, or more than one unless"+
-			" replace_all is set. All edits in a batch are validated before"+
-			" any file is written.",
+		"Edit files by replacing old_text with new_text. Edits to the same"+
+			" file apply in order. If any edit fails, no file is changed.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
-				return fantasy.NewTextErrorResponse("Add at least one edit to edits; no files in this batch were applied"), nil
+				return fantasy.NewTextErrorResponse("Add at least one edit to edits\nNo edits were applied."), nil
 			}
 			var missingPath []string
 			args.Edits = NormalizeEditPaths(args.Edits)
@@ -259,7 +252,7 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 			if len(missingPath) > 0 {
 				return fantasy.NewTextErrorResponse(
 					"Set path to the absolute path of the file to edit in " + strings.Join(missingPath, ", ") +
-						"; no files in this batch were applied",
+						"\nNo edits were applied.",
 				), nil
 			}
 			var planPath string
@@ -308,7 +301,7 @@ func executeEditFilesTool(
 		hasPlanFileName := looksLikePlanFileName(edit.Path)
 		if hasPlanFileName && !isAbsolutePath(edit.Path) {
 			return fantasy.NewTextErrorResponse(
-				"plan files must use absolute paths; use the chat-specific absolute plan path; no files in this batch were applied",
+				"plan files must use absolute paths; use the chat-specific absolute plan path\nNo edits were applied.",
 			), nil
 		}
 		if resolvePlanPath == nil || !hasPlanFileName {
@@ -320,7 +313,7 @@ func executeEditFilesTool(
 		}
 		if resp, rejected := rejectSharedPlanPath(edit.Path, home, chatPath, planPathErr); rejected {
 			return fantasy.NewTextErrorResponse(
-				resp.Content + "; no files in this batch were applied",
+				resp.Content + "\nNo edits were applied.",
 			), nil
 		}
 	}
