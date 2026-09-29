@@ -1,4 +1,4 @@
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
@@ -32,7 +32,7 @@ type AnthropicAuthMethodFieldProps = {
 	onChange: (method: AnthropicAuthMethod) => void;
 };
 
-export const AnthropicAuthMethodField: FC<AnthropicAuthMethodFieldProps> = ({
+export const AnthropicAuthMethodField: React.FC<AnthropicAuthMethodFieldProps> = ({
 	value,
 	disabled = false,
 	onChange,
@@ -79,7 +79,7 @@ type ClaudePlatformFieldsProps = {
 	onCredentialFocus: (field: "apiKey") => void;
 };
 
-export const ClaudePlatformFields: FC<ClaudePlatformFieldsProps> = ({
+export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 	getFieldHelpers,
 	onRegionChange,
 	onCredentialBlur,
