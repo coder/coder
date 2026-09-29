@@ -16,7 +16,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
-func TestClampLogBufferSize(t *testing.T) {
+func TestClampFlightRecorderSize(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -26,11 +26,11 @@ func TestClampLogBufferSize(t *testing.T) {
 		{in: -1, want: 0},
 		{in: 0, want: 0},
 		{in: 1000, want: 1000},
-		{in: maxCLILogBufferSize, want: maxCLILogBufferSize},
-		{in: maxCLILogBufferSize + 1, want: maxCLILogBufferSize},
+		{in: maxCLIFlightRecorderSize, want: maxCLIFlightRecorderSize},
+		{in: maxCLIFlightRecorderSize + 1, want: maxCLIFlightRecorderSize},
 	}
 	for _, c := range cases {
-		require.Equal(t, c.want, clampLogBufferSize(c.in))
+		require.Equal(t, c.want, clampFlightRecorderSize(c.in))
 	}
 }
 
@@ -98,52 +98,52 @@ func TestDefaultSessionLogDir(t *testing.T) {
 		"got %q", defaultSessionLogDir())
 }
 
-func TestBufferedLogger_BuffersUntilError(t *testing.T) {
+func TestFlightRecorder_RecordsUntilError(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
 	r := &RootCmd{}
-	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
+	logger := r.flightRecorder(slog.Make(), sloghuman.Sink(&buf), 10)
 
 	ctx := context.Background()
-	logger.Debug(ctx, "buffered-debug")
+	logger.Debug(ctx, "recorded-debug")
 	logger.Sync()
-	require.NotContains(t, buf.String(), "buffered-debug",
-		"debug entry should be buffered, not written")
+	require.NotContains(t, buf.String(), "recorded-debug",
+		"debug entry should be recorded, not written")
 
-	// Logging an error flushes the buffered history before the error entry.
+	// Logging an error flushes the recorded history before the error entry.
 	logger.Error(ctx, "command failed for test")
 	logger.Sync()
 	got := buf.String()
-	require.Contains(t, got, "buffered-debug")
+	require.Contains(t, got, "recorded-debug")
 	require.Contains(t, got, "command failed for test")
 }
 
-func TestBufferedLogger_FlushEmitsBuffer(t *testing.T) {
+func TestFlightRecorder_FlushEmitsHistory(t *testing.T) {
 	t.Parallel()
 
-	// Flush is the path bufferedLoggerMiddleware uses to emit the buffered
+	// Flush is the path flightRecorderMiddleware uses to emit the recorded
 	// history on a returned error without logging a duplicate error line.
 	var buf bytes.Buffer
 	r := &RootCmd{}
-	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
+	logger := r.flightRecorder(slog.Make(), sloghuman.Sink(&buf), 10)
 
 	ctx := context.Background()
-	logger.Debug(ctx, "buffered-debug")
+	logger.Debug(ctx, "recorded-debug")
 	logger.Sync()
-	require.NotContains(t, buf.String(), "buffered-debug")
+	require.NotContains(t, buf.String(), "recorded-debug")
 
 	logger.Flush(ctx)
 	logger.Sync()
-	require.Contains(t, buf.String(), "buffered-debug")
+	require.Contains(t, buf.String(), "recorded-debug")
 }
 
-func TestBufferedLogger_VerboseWritesDebug(t *testing.T) {
+func TestFlightRecorder_VerboseWritesDebug(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
 	r := &RootCmd{verbose: true}
-	logger := r.bufferedLogger(slog.Make(), sloghuman.Sink(&buf), 10)
+	logger := r.flightRecorder(slog.Make(), sloghuman.Sink(&buf), 10)
 
 	logger.Debug(context.Background(), "verbose-debug")
 	logger.Sync()

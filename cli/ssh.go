@@ -313,10 +313,10 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
-				// Buffer debug detail in memory and write it to the log file only
+				// Record debug detail in memory and write it to the log file only
 				// when the command logs an error (via the deferred error log above),
 				// so normal operation stays quiet. Verbose writes debug directly.
-				logger = r.bufferedLogger(logger, sloghuman.Sink(dc), r.logBufferSize)
+				logger = r.flightRecorder(logger, sloghuman.Sink(dc), r.flightRecorderSize)
 
 				// Pruning is best effort, so surface any failures in the log file
 				// rather than aborting the session.

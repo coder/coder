@@ -14,30 +14,31 @@ import (
 )
 
 const (
-	// defaultCLILogBufferSize is the default number of log entries below the
+	// defaultCLIFlightRecorderSize is the default number of log entries below the
 	// current log level that a command keeps in memory and emits to stderr when
 	// it fails. It is intentionally small so a failure prints a few lines of
 	// context rather than flooding the terminal.
-	defaultCLILogBufferSize = 10
-	// maxCLILogBufferSize caps the configurable buffer size to bound memory use.
-	maxCLILogBufferSize = 10000
+	defaultCLIFlightRecorderSize = 10
+	// maxCLIFlightRecorderSize caps the configurable flight recorder size to bound
+	// memory use.
+	maxCLIFlightRecorderSize = 10000
 	// keepSessionLogFiles is the number of ssh session log files retained per log
 	// directory; older files are pruned when a new session starts.
 	keepSessionLogFiles = 50
 )
 
-// bufferedLogger returns logger writing to sink at the current display level
+// flightRecorder returns logger writing to sink at the current display level
 // (Info by default, Debug under --verbose) with a flight recorder attached. The
-// recorder buffers entries below the current level and emits them when an error
-// is logged, so the detail leading up to a failure is captured without logging
-// it during normal operation. The recorder is always attached so buffering keeps
-// working if the level changes; at Debug it simply has nothing to buffer.
-func (r *RootCmd) bufferedLogger(logger slog.Logger, sink slog.Sink, bufferSize int64) slog.Logger {
+// recorder keeps entries below the current level in memory and emits them when
+// an error is logged, so the detail leading up to a failure is captured without
+// logging it during normal operation. The recorder is always attached so it
+// keeps working if the level changes; at Debug it simply has nothing to record.
+func (r *RootCmd) flightRecorder(logger slog.Logger, sink slog.Sink, size int64) slog.Logger {
 	level := slog.LevelInfo
 	if r.verbose {
 		level = slog.LevelDebug
 	}
-	return logger.AppendSinks(sink).Leveled(level).FlightRecorder(int(clampLogBufferSize(bufferSize)))
+	return logger.AppendSinks(sink).Leveled(level).FlightRecorder(int(clampFlightRecorderSize(size)))
 }
 
 // defaultSessionLogDir returns the default directory for ssh session logs.
@@ -47,13 +48,13 @@ func defaultSessionLogDir() string {
 	return filepath.Join(xdg.StateHome, "coder", "logs")
 }
 
-// clampLogBufferSize bounds a requested buffer size to [0, maxCLILogBufferSize].
-func clampLogBufferSize(size int64) int64 {
+// clampFlightRecorderSize bounds a requested size to [0, maxCLIFlightRecorderSize].
+func clampFlightRecorderSize(size int64) int64 {
 	if size < 0 {
 		return 0
 	}
-	if size > maxCLILogBufferSize {
-		return maxCLILogBufferSize
+	if size > maxCLIFlightRecorderSize {
+		return maxCLIFlightRecorderSize
 	}
 	return size
 }

@@ -22,7 +22,7 @@ func (r *RootCmd) start() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationBufferedLogger, ""),
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "start <workspace>",
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(
@@ -42,8 +42,8 @@ func (r *RootCmd) start() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			// The invocation logger buffers debug detail and emits it to stderr
-			// only if the command fails (see bufferedLoggerMiddleware).
+			// The invocation logger records debug detail and emits it to stderr
+			// only if the command fails (see flightRecorderMiddleware).
 			client.SetLogger(inv.Logger)
 
 			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])

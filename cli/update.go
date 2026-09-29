@@ -16,7 +16,7 @@ func (r *RootCmd) update() *serpent.Command {
 		bflags         buildFlags
 	)
 	cmd := &serpent.Command{
-		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationBufferedLogger, ""),
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, "").Mark(annotationFlightRecorder, ""),
 		Use:         "update <workspace>",
 		Short:       "Will update and start a given workspace if it is out of date. If the workspace is already running, it will be stopped first.",
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
@@ -28,8 +28,8 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			// The invocation logger buffers debug detail and emits it to stderr
-			// only if the command fails (see bufferedLoggerMiddleware).
+			// The invocation logger records debug detail and emits it to stderr
+			// only if the command fails (see flightRecorderMiddleware).
 			client.SetLogger(inv.Logger)
 
 			workspace, err := client.ResolveWorkspace(inv.Context(), inv.Args[0])

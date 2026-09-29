@@ -57,6 +57,10 @@ variables or flags.
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
 
+      --flight-recorder-size int, $CODER_FLIGHT_RECORDER_SIZE (default: 10)
+          Number of log entries below the current log level to keep in memory
+          and emit on errors. Set to 0 to disable the flight recorder.
+
       --force-tty bool, $CODER_FORCE_TTY
           Force the use of a TTY.
 
@@ -72,10 +76,6 @@ variables or flags.
           requests. The command must output each header as `key=value` on its
           own line. If a header value is a JWT, it will be refreshed based on
           the value in its `exp` field.
-
-      --log-buffer-size int, $CODER_LOG_BUFFER_SIZE (default: 10)
-          Number of log entries below the current log level to keep in memory
-          and emit on errors. Set to 0 to disable buffering.
 
       --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.
