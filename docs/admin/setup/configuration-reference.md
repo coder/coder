@@ -330,7 +330,7 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as records a deployment has chosen not to store, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.
 
 - Environment variable: `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE`
-- CLI flag: [`--ai-gateway-structured-logging-source`](../../reference/cli/server.md#--ai-gateway-structured-logging-source)
+- CLI flag: [`--ai-gateway-structured-logging-source`](../../reference/cli/server/index.md#--ai-gateway-structured-logging-source)
 - YAML key: `ai_gateway.structured_logging_source`
 - Default value: `coderd`
 
