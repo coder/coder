@@ -423,7 +423,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			name: "with_all_token_details",
 			response: &oairesponses.Response{
 				ID:          "resp_full",
-				Model:       "gpt-5.6-luna",
+				Model:       "provider-model",
 				ServiceTier: oairesponses.ResponseServiceTierDefault,
 				Usage: oairesponses.ResponseUsage{
 					InputTokens:  10,
@@ -441,7 +441,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "resp_full",
-				ProviderModel:         "gpt-5.6-luna",
+				ProviderModel:         "provider-model",
 				Input:                 2, // 10 input - 5 cache read - 3 cache write
 				Output:                20,
 				CacheReadInputTokens:  5,

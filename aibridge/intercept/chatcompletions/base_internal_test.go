@@ -42,7 +42,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		{
 			name:          "with_all_token_details",
 			msgID:         "cmpl_full",
-			providerModel: "gpt-5.6-luna",
+			providerModel: "provider-model",
 			serviceTier:   "default",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
@@ -63,7 +63,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "cmpl_full",
-				ProviderModel:         "gpt-5.6-luna",
+				ProviderModel:         "provider-model",
 				Input:                 35, // 100 prompt - 40 cache read - 25 cache write
 				Output:                50,
 				CacheReadInputTokens:  40,
@@ -81,7 +81,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		{
 			name:          "all_tokens_cached",
 			msgID:         "cmpl_cached",
-			providerModel: "gpt-4o-2024-08-06",
+			providerModel: "provider-model",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 20,
@@ -92,7 +92,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:       id.String(),
 				MsgID:                "cmpl_cached",
-				ProviderModel:        "gpt-4o-2024-08-06",
+				ProviderModel:        "provider-model",
 				Input:                0, // 100 prompt - 100 cached
 				Output:               20,
 				CacheReadInputTokens: 100,

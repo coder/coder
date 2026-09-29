@@ -1589,7 +1589,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		{
 			name:          "without service tier or extra tokens",
 			msgID:         "msg_basic",
-			providerModel: "claude-sonnet-4-5-20250929",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              10,
 				OutputTokens:             20,
@@ -1600,7 +1600,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_basic",
-				ProviderModel:         "claude-sonnet-4-5-20250929",
+				ProviderModel:         "provider-model",
 				Input:                 10,
 				Output:                20,
 				CacheReadInputTokens:  3,
@@ -1611,7 +1611,7 @@ func TestRecordTokenUsage(t *testing.T) {
 		{
 			name:          "with service tier and all extra tokens",
 			msgID:         "msg_full",
-			providerModel: "claude-opus-4-7",
+			providerModel: "provider-model",
 			usage: anthropic.Usage{
 				InputTokens:              100,
 				OutputTokens:             200,
@@ -1629,7 +1629,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "msg_full",
-				ProviderModel:         "claude-opus-4-7",
+				ProviderModel:         "provider-model",
 				Input:                 100,
 				Output:                200,
 				CacheReadInputTokens:  30,

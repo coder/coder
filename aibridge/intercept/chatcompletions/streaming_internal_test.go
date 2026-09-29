@@ -71,13 +71,13 @@ func TestStreamProcessorUsage(t *testing.T) {
 		{
 			name: "model reported by the provider",
 			chunks: []string{
-				`{"id":"chatcmpl-model","model":"gpt-5.6-luna","choices":[{"index":0,"delta":{"content":"one"}}]}`,
-				`{"id":"chatcmpl-model","model":"gpt-5.6-luna","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{"content":"one"}}]}`,
+				`{"id":"chatcmpl-model","model":"provider-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
 			},
 			wantPromptTokens:     6000,
 			wantCompletionTokens: 30,
 			wantTotalTokens:      6030,
-			wantModel:            "gpt-5.6-luna",
+			wantModel:            "provider-model",
 		},
 	}
 
