@@ -509,7 +509,7 @@ func validateAutomationModelConfig(ctx context.Context, store database.Store, or
 	if config.OrganizationID != organizationID {
 		return automationFieldError("new_chat_model_config_id", "model config is not in the automation's organization")
 	}
-	if !config.Enabled || config.Deleted {
+	if !config.Enabled {
 		return automationFieldError("new_chat_model_config_id", "model config is disabled")
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,6 +21,12 @@ import (
 // chatAutomationNextRunCount is the number of upcoming schedule runs
 // returned with each automation.
 const chatAutomationNextRunCount = 5
+
+// chatAutomationResponse converts row to its SDK form with its upcoming
+// schedule runs after now.
+func chatAutomationResponse(row database.ChatAutomation, now time.Time) codersdk.ChatAutomation {
+	return db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount))
+}
 
 // requireChatAutomations returns 404 unless the chat-automations
 // experiment is on for the caller. The experiment is user-scoped, so it
@@ -58,7 +65,7 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 	now := api.Clock.Now()
 	automations := make([]codersdk.ChatAutomation, 0, len(rows))
 	for _, row := range rows {
-		automations = append(automations, db2sdk.ChatAutomation(row, chatd.AutomationNextRuns(row, now, chatAutomationNextRunCount)))
+		automations = append(automations, chatAutomationResponse(row, now))
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, automations)
 }
@@ -108,7 +115,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = automation
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
-		Automation:    db2sdk.ChatAutomation(automation, chatd.AutomationNextRuns(automation, api.Clock.Now(), chatAutomationNextRunCount)),
+		Automation:    chatAutomationResponse(automation, api.Clock.Now()),
 		WebhookSecret: secret,
 	})
 }
@@ -131,7 +138,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatAutomation(automation, chatd.AutomationNextRuns(automation, api.Clock.Now(), chatAutomationNextRunCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(automation, api.Clock.Now()))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -195,7 +202,7 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatAutomation(updated, chatd.AutomationNextRuns(updated, api.Clock.Now(), chatAutomationNextRunCount)))
+	httpapi.Write(ctx, rw, http.StatusOK, chatAutomationResponse(updated, api.Clock.Now()))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
