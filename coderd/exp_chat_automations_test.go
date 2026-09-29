@@ -568,7 +568,7 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
 
-		// Deleting disables first, so its queued messages go too.
+		// Deleting also removes the automation's queued messages.
 		require.NoError(t, env.member.DeleteChatAutomation(ctx, env.orgID, deletedID))
 		require.Equal(t, []int64{ordinary.ID}, env.queuedMessageIDs(t, chat.ID))
 	})
