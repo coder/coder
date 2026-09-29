@@ -57,7 +57,7 @@ export const SpendPageView: React.FC<SpendPageViewProps> = ({
 		<div className="flex max-w-[1100px] flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
-					User spend
+					Spend
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
