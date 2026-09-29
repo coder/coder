@@ -194,6 +194,57 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 	require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
 }
 
+// TestSyntheticCancellation_SendMessageE1 verifies that a send from E1
+// inserts synthetic tool-result rows before the rows it moves into
+// history.
+func TestSyntheticCancellation_SendMessageE1(t *testing.T) {
+	t.Parallel()
+
+	for _, behavior := range []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer} {
+		t.Run(string(behavior), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			created := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+			callID := "call_" + uuid.NewString()
+			commitAssistantToolCall(t, f, m,
+				nonDynamicAssistantToolCallMessage(t, f.Model.ID, callID))
+
+			// R0 -> R1 -> E1.
+			sendQueuedMessage(t, f, m, "queued")
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := tx.FinishError(chatstate.FinishErrorInput{
+					LastError: pqtype.NullRawMessage{
+						RawMessage: json.RawMessage(`{"message":"boom"}`),
+						Valid:      true,
+					},
+				})
+				return err
+			}))
+			require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
+
+			var send chatstate.SendMessageResult
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				var err error
+				send, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
+					BusyBehavior: behavior,
+					MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+				})
+				return err
+			}))
+
+			require.Len(t, send.InsertedMessages, 2, "synthetic cancel + user")
+			assertToolResultForCall(t, send.InsertedMessages[0], callID)
+			require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
+			require.Less(t, send.InsertedMessages[0].ID, send.InsertedMessages[1].ID,
+				"synthetic cancel is inserted before the user message")
+		})
+	}
+}
+
 func TestSyntheticCancellation_EditMessage(t *testing.T) {
 	t.Parallel()
 

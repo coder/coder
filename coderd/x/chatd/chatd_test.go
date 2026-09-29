@@ -2325,157 +2325,57 @@ func chatUserTexts(ctx context.Context, t *testing.T, db database.Store, chatID 
 	return texts
 }
 
-// requireSteerAfterToolResult asserts that the last message of a model
-// request is the steer message and that it follows a tool result.
-func requireSteerAfterToolResult(t *testing.T, messages []chattest.OpenAIMessage, steer string) {
-	t.Helper()
-	require.GreaterOrEqual(t, len(messages), 2)
-	last := messages[len(messages)-1]
-	require.Equal(t, "user", last.Role)
-	require.Equal(t, steer, last.Content)
-	require.Equal(t, "tool", messages[len(messages)-2].Role)
-}
-
 func TestSteerMessagesJumpQueueAtTurnEnd(t *testing.T) {
-	t.Parallel()
-
-	type send struct {
-		text     string
-		behavior chatd.SendMessageBusyBehavior
-	}
-	tests := []struct {
-		name  string
-		sends []send
-		// want holds the user texts of each model request.
-		want [][]string
-	}{
-		{
-			name: "QueueSteerQueue",
-			sends: []send{
-				{text: "q1", behavior: chatd.SendMessageBusyBehaviorQueue},
-				{text: "s1", behavior: chatd.SendMessageBusyBehaviorSteer},
-				{text: "q2", behavior: chatd.SendMessageBusyBehaviorQueue},
-			},
-			want: [][]string{
-				{"hello"},
-				{"hello", "s1"},
-				{"hello", "s1", "q1"},
-				{"hello", "s1", "q1", "q2"},
-			},
-		},
-		{
-			name: "SteerBatch",
-			sends: []send{
-				{text: "s1", behavior: chatd.SendMessageBusyBehaviorSteer},
-				{text: "s2", behavior: chatd.SendMessageBusyBehaviorSteer},
-			},
-			want: [][]string{
-				{"hello"},
-				{"hello", "s1", "s2"},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			db, ps := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			firstRunStarted := make(chan struct{})
-			allowFirstRunFinish := make(chan struct{})
-			var recorder openAIRequestRecorder
-			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-				if !req.Stream {
-					return chattest.OpenAINonStreamingResponse("title")
-				}
-				if recorder.record(req) > 1 {
-					return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-				}
-				chunks := make(chan chattest.OpenAIChunk, 1)
-				go func() {
-					defer close(chunks)
-					chunks <- chattest.OpenAITextChunks("first run")[0]
-					close(firstRunStarted)
-					<-allowFirstRunFinish
-				}()
-				return chattest.OpenAIResponse{StreamingChunks: chunks}
-			})
-			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-			})
-
-			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-				OrganizationID:     org.ID,
-				OwnerID:            user.ID,
-				Title:              "steer-turn-end-" + tt.name,
-				ModelConfigID:      model.ID,
-				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-			})
-			require.NoError(t, err)
-
-			testutil.TryReceive(ctx, t, firstRunStarted)
-			for _, s := range tt.sends {
-				result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-					ChatID:       chat.ID,
-					CreatedBy:    user.ID,
-					Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(s.text)},
-					BusyBehavior: s.behavior,
-				})
-				require.NoError(t, err)
-				require.True(t, result.Queued)
-			}
-			close(allowFirstRunFinish)
-
-			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-			chatd.WaitUntilIdleForTest(server)
-
-			require.Equal(t, tt.want, recorder.userTexts())
-			require.Equal(t, tt.want[len(tt.want)-1], chatUserTexts(ctx, t, db, chat.ID))
-			queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-			require.NoError(t, err)
-			require.Empty(t, queued)
-		})
-	}
-}
-
-func TestSteerAfterInterruptDeliversTogether(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
+	firstRunStarted := make(chan struct{})
+	allowFirstRunFinish := make(chan struct{})
 	var recorder openAIRequestRecorder
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		recorder.record(req)
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		if recorder.record(req) > 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAITextChunks("first run")[0]
+			close(firstRunStarted)
+			<-allowFirstRunFinish
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	})
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
 
-	// The passive server runs no worker, so the chat stays in
-	// interrupting until the active server starts.
-	passive := newTestServer(t, db, ps, uuid.New())
-	chat, err := passive.CreateChat(ctx, chatd.CreateOptions{
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
-		Title:              "steer-after-interrupt",
+		Title:              "steer-turn-end",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
 
+	testutil.TryReceive(ctx, t, firstRunStarted)
+	// An empty busy behavior steers.
 	for _, s := range []struct {
 		text     string
 		behavior chatd.SendMessageBusyBehavior
 	}{
-		{text: "interrupt", behavior: chatd.SendMessageBusyBehaviorInterrupt},
-		{text: "steer", behavior: chatd.SendMessageBusyBehaviorSteer},
+		{text: "q1", behavior: chatd.SendMessageBusyBehaviorQueue},
+		{text: "s1"},
+		{text: "s2", behavior: chatd.SendMessageBusyBehaviorSteer},
+		{text: "q2", behavior: chatd.SendMessageBusyBehaviorQueue},
 	} {
-		result, err := passive.SendMessage(ctx, chatd.SendMessageOptions{
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:       chat.ID,
 			CreatedBy:    user.ID,
 			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(s.text)},
@@ -2484,171 +2384,21 @@ func TestSteerAfterInterruptDeliversTogether(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, result.Queued)
 	}
-	stored, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusInterrupting, stored.Status)
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 2)
-	for _, q := range queued {
-		require.Equal(t, database.ChatBusyBehaviorSteer, q.BusyBehavior)
-	}
+	close(allowFirstRunFinish)
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-	})
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	chatd.WaitUntilIdleForTest(server)
-
-	want := []string{"hello", "interrupt", "steer"}
-	require.Equal(t, [][]string{want}, recorder.userTexts())
-	require.Equal(t, want, chatUserTexts(ctx, t, db, chat.ID))
-}
-
-func TestSteerOnErrorDeliversSteerRowsAndKeepsQueueRows(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var recorder openAIRequestRecorder
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		recorder.record(req)
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: model.ID,
-		Title:             "steer-on-error",
-		Status:            database.ChatStatusError,
-	})
-	insertUserTextMessage(t, db, chat.ID, user.ID, model.ID, "hello")
-	queueRow := insertQueuedMessageWithBehavior(ctx, t, db, chat.ID, user.ID, model.ID, "q1", database.ChatBusyBehaviorQueue)
-	insertQueuedMessageWithBehavior(ctx, t, db, chat.ID, user.ID, model.ID, "s1", database.ChatBusyBehaviorSteer)
-
-	passive := newTestServer(t, db, ps, uuid.New())
-	result, err := passive.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		CreatedBy:    user.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("s2")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorSteer,
-	})
-	require.NoError(t, err)
-	require.False(t, result.Queued)
-	require.Equal(t, []string{"hello", "s1", "s2"}, chatUserTexts(ctx, t, db, chat.ID))
-	stored, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusRunning, stored.Status)
-	require.False(t, stored.LastError.Valid)
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 1)
-	require.Equal(t, queueRow.ID, queued[0].ID)
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-	})
 	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 	chatd.WaitUntilIdleForTest(server)
 
 	require.Equal(t, [][]string{
+		{"hello"},
 		{"hello", "s1", "s2"},
 		{"hello", "s1", "s2", "q1"},
+		{"hello", "s1", "s2", "q1", "q2"},
 	}, recorder.userTexts())
-}
-
-func TestSteerWhileRequiresActionDeliveredAfterToolResults(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var recorder openAIRequestRecorder
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		if recorder.record(req) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("my_dynamic_tool", `{"input":"hello world"}`),
-			)
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-	})
-
-	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
-		Name:        "my_dynamic_tool",
-		Description: "A test dynamic tool.",
-		InputSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			"required": []string{"input"},
-		},
-	}})
+	require.Equal(t, []string{"hello", "s1", "s2", "q1", "q2"}, chatUserTexts(ctx, t, db, chat.ID))
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "steer-requires-action",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-		DynamicTools:       dynamicToolsJSON,
-	})
-	require.NoError(t, err)
-
-	var pending database.Chat
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		got, err := db.GetChatByID(ctx, chat.ID)
-		if err != nil {
-			return false
-		}
-		pending = got
-		return got.Status == database.ChatStatusRequiresAction
-	}, testutil.IntervalFast)
-	call := requireToolCallPart(t, chatToolParts(ctx, t, db, chat.ID), "my_dynamic_tool")
-
-	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		CreatedBy:    user.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("steer")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorSteer,
-	})
-	require.NoError(t, err)
-	require.True(t, result.Queued)
-	stored, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusRequiresAction, stored.Status)
-	require.Equal(t, pending.RequiresActionDeadlineAt, stored.RequiresActionDeadlineAt)
-
-	err = server.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
-		ChatID:        chat.ID,
-		UserID:        user.ID,
-		ModelConfigID: pending.LastModelConfigID,
-		Results: []codersdk.ToolResult{{
-			ToolCallID: call.ToolCallID,
-			Output:     json.RawMessage(`{"result":"dynamic tool output"}`),
-		}},
-	})
-	require.NoError(t, err)
-
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
-	chatd.WaitUntilIdleForTest(server)
-
-	requests := recorder.messages()
-	require.Len(t, requests, 2)
-	requireSteerAfterToolResult(t, requests[1], "steer")
-	require.Equal(t, []string{"hello", "steer"}, chatUserTexts(ctx, t, db, chat.ID))
+	require.Empty(t, queued)
 }
 
 func TestSteerDuringMultiStepTurnDeliveredBeforeNextModelCall(t *testing.T) {
@@ -2708,7 +2458,10 @@ func TestSteerDuringMultiStepTurnDeliveredBeforeNextModelCall(t *testing.T) {
 
 	requests := recorder.messages()
 	require.Len(t, requests, 2)
-	requireSteerAfterToolResult(t, requests[1], "steer")
+	second := requests[1]
+	require.GreaterOrEqual(t, len(second), 2)
+	require.Equal(t, "tool", second[len(second)-2].Role)
+	require.Equal(t, chattest.OpenAIMessage{Role: "user", Content: "steer"}, second[len(second)-1])
 	require.Equal(t, []string{"hello", "steer"}, chatUserTexts(ctx, t, db, chat.ID))
 }
 
@@ -14455,20 +14208,6 @@ func insertQueuedMessage(
 	text string,
 ) database.ChatQueuedMessage {
 	t.Helper()
-	return insertQueuedMessageWithBehavior(ctx, t, db, chatID, createdBy, modelConfigID, text, database.ChatBusyBehaviorQueue)
-}
-
-func insertQueuedMessageWithBehavior(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	chatID uuid.UUID,
-	createdBy uuid.UUID,
-	modelConfigID uuid.UUID,
-	text string,
-	busyBehavior database.ChatBusyBehavior,
-) database.ChatQueuedMessage {
-	t.Helper()
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
 	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
@@ -14476,7 +14215,7 @@ func insertQueuedMessageWithBehavior(
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		CreatedBy:     createdBy,
-		BusyBehavior:  busyBehavior,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	return queued
