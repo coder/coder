@@ -1251,6 +1251,133 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	require.Equal(t, otherRunnerID, latest.RunnerID.UUID)
 }
 
+func TestGenerationTask_CommitStepFinishesCompleteTurn(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	recorder := newTaskSideEffectRecorder()
+	starter := newTestTaskStarter(t, f, recorder)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	history, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+
+	err = starter.commitGenerationStep(
+		ctx,
+		chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
+		taskStartInputFor(acquired, workerID, runnerID),
+		acquired.GenerationAttempt,
+		generationActionGenerateAssistant,
+		generationPrepared{Chat: acquired, Messages: history},
+		stepMessagesForCommit{Messages: []chatstate.Message{taskAssistantTextMessage(t, f.model.ID, "done")}},
+		generationCommitHooks{},
+	)
+	require.NoError(t, err)
+
+	latest, err := f.db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, latest.Status)
+	require.Equal(t, workerID, latest.WorkerID.UUID)
+	// One transaction produced the committed step and the finished turn.
+	require.Equal(t, acquired.SnapshotVersion+1, latest.SnapshotVersion)
+	require.Equal(t, latest.SnapshotVersion, latest.HistoryVersion)
+	recorder.requireStateHintCount(t, 1)
+	recorder.requireStateHint(t, chat.ID, latest.SnapshotVersion, database.ChatStatusWaiting)
+	f.requireWatchEvent(t, chat.ID, codersdk.ChatWatchEventKindStatusChange)
+}
+
+func TestGenerationTask_CommitStepKeepsRunningWhenTurnContinues(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		arrange func(t *testing.T, f *taskTestFixture, chat database.Chat)
+		step    func(t *testing.T, f *taskTestFixture) chatstate.Message
+	}{
+		{
+			name:    "pending tool call",
+			arrange: func(*testing.T, *taskTestFixture, database.Chat) {},
+			step: func(t *testing.T, f *taskTestFixture) chatstate.Message {
+				return taskAssistantToolCallMessage(t, f.model.ID, "local_tool")
+			},
+		},
+		{
+			name: "queued message",
+			arrange: func(t *testing.T, f *taskTestFixture, chat database.Chat) {
+				machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+				require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.SendMessage(chatstate.SendMessageInput{
+						Message:      taskUserTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
+						BusyBehavior: chatstate.BusyBehaviorQueue,
+					})
+					return err
+				}))
+			},
+			step: func(t *testing.T, f *taskTestFixture) chatstate.Message {
+				return taskAssistantTextMessage(t, f.model.ID, "done")
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTaskTestFixture(t)
+			chat := f.createRunningChat(t)
+			workerID := uuid.New()
+			runnerID := uuid.New()
+			f.acquireChat(t, chat.ID, workerID, runnerID)
+			tc.arrange(t, f, chat)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			acquired, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			queuedBefore, err := f.db.CountChatQueuedMessages(ctx, chat.ID)
+			require.NoError(t, err)
+			recorder := newTaskSideEffectRecorder()
+			starter := newTestTaskStarter(t, f, recorder)
+			history, err := f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+			require.NoError(t, err)
+
+			err = starter.commitGenerationStep(
+				ctx,
+				chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
+				taskStartInputFor(acquired, workerID, runnerID),
+				acquired.GenerationAttempt,
+				generationActionGenerateAssistant,
+				generationPrepared{Chat: acquired, Messages: history},
+				stepMessagesForCommit{Messages: []chatstate.Message{tc.step(t, f)}},
+				generationCommitHooks{},
+			)
+			require.NoError(t, err)
+
+			latest, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusRunning, latest.Status)
+			require.Equal(t, acquired.SnapshotVersion+1, latest.SnapshotVersion)
+			require.Equal(t, latest.SnapshotVersion, latest.HistoryVersion)
+			queuedAfter, err := f.db.CountChatQueuedMessages(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, queuedBefore, queuedAfter)
+			recorder.requireStateHintCount(t, 1)
+		})
+	}
+}
+
+func taskStartInputFor(chat database.Chat, workerID, runnerID uuid.UUID) chatWorkerTaskStartInput {
+	return chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    chat.HistoryVersion,
+		GenerationAttempt: chat.GenerationAttempt,
+		Status:            chat.Status,
+		StopNudges:        &stopNudgeTracker{},
+	}
+}
+
 func TestRunner_StartsRealInterruptTask(t *testing.T) {
 	t.Parallel()
 
@@ -1498,6 +1625,19 @@ func taskUserTextMessage(t *testing.T, text string, createdBy uuid.UUID, modelCo
 		Visibility:     database.ChatMessageVisibilityBoth,
 		ContentVersion: chatprompt.CurrentContentVersion,
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
+	}
+}
+
+func taskAssistantTextMessage(t *testing.T, modelConfigID uuid.UUID, text string) chatstate.Message {
+	t.Helper()
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	require.NoError(t, err)
+	return chatstate.Message{
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        raw,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		ContentVersion: chatprompt.CurrentContentVersion,
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: true},
 	}
 }

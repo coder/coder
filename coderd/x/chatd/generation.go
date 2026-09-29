@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 
@@ -197,6 +198,23 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
+}
+
+// generationDecisionInputFor builds the decision input for a prepared
+// generation against the given chat row and history.
+func generationDecisionInputFor(prepared generationPrepared, chat database.Chat, messages []database.ChatMessage) generationDecisionInput {
+	return generationDecisionInput{
+		chat:                       chat,
+		messages:                   messages,
+		dynamicToolNames:           prepared.DynamicToolNames,
+		exclusiveToolNames:         prepared.ExclusiveToolNames,
+		stopAfterTools:             prepared.StopAfterTools,
+		maxSteps:                   prepared.MaxSteps,
+		compactionEnabled:          prepared.Compaction != nil,
+		compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+		compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+		compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+	}
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -470,18 +488,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			decision = generationDecision{kind: generationActionGenerateAssistant}
 		} else {
 			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
-				return decideGenerationAction(generationDecisionInput{
-					chat:                       prepared.Chat,
-					messages:                   prepared.Messages,
-					dynamicToolNames:           prepared.DynamicToolNames,
-					exclusiveToolNames:         prepared.ExclusiveToolNames,
-					stopAfterTools:             prepared.StopAfterTools,
-					maxSteps:                   prepared.MaxSteps,
-					compactionEnabled:          prepared.Compaction != nil,
-					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
-				})
+				return decideGenerationAction(generationDecisionInputFor(prepared, prepared.Chat, prepared.Messages))
 			})
 		}
 		if err != nil {
@@ -774,7 +781,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, prepared, messages, generationCommitHooks{})
 }
 
 func (s *taskStarter) admitStepToolCalls(
@@ -969,7 +976,7 @@ func (s *taskStarter) executeLocalTools(
 	case postDispatchErr != nil:
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostToolUse, postDispatchErr)
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
+	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, prepared, messages, generationCommitHooks{
 		PostCommitError: postCommitErr,
 	})
 }
@@ -1101,7 +1108,7 @@ func (s *taskStarter) generateCompaction(
 			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 		}
 	}
-	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, commitMessages, generationCommitHooks{
+	err = s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionCompact, prepared, commitMessages, generationCommitHooks{
 		PostCommitError: postCommitErr,
 	})
 	s.server.metrics.RecordCompaction(metricProvider, metricModel, err == nil, err)
@@ -1215,12 +1222,34 @@ type generationCommitHooks struct {
 	PostCommitError error
 }
 
+// stepFinishesTurn reports whether the decision pass that follows the
+// committed step would finish the turn. The pass only depends on the
+// history the transaction is inserting, so applying FinishTurn in the
+// same transaction saves a task iteration and a second lock acquisition
+// without changing the outcome. It stays false when the follow-up needs
+// work the step commit must not absorb: the stop hook runs between the
+// two transitions, and promoting a queued message (R1) can fail on
+// model config resolution, which must not roll back the step.
+func (s *taskStarter) stepFinishesTurn(
+	chat database.Chat,
+	from chatstate.ExecutionState,
+	prepared generationPrepared,
+	inserted []database.ChatMessage,
+) bool {
+	if s.server.hooks.Enabled() || from != chatstate.StateR0 {
+		return false
+	}
+	decision, err := decideGenerationAction(generationDecisionInputFor(prepared, chat, slices.Concat(prepared.Messages, inserted)))
+	return err == nil && decision.kind == generationActionFinishTurn
+}
+
 func (s *taskStarter) commitGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	attempt int64,
 	kind generationActionKind,
+	prepared generationPrepared,
 	messages stepMessagesForCommit,
 	commitHooks generationCommitHooks,
 ) error {
@@ -1248,14 +1277,21 @@ func (s *taskStarter) commitGenerationStep(
 		postCommitLastError, postCommitMessage = generationLastError(commitHooks.PostCommitError)
 	}
 	var committed database.Chat
+	finished := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if _, err := loadLockedChatForGeneration(tx, input, requireGenerationAttempt(attempt)); err != nil {
+		chat, err := loadLockedChatForGeneration(tx, input, requireGenerationAttempt(attempt))
+		if err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
-		if _, err := tx.CommitStep(chatstate.CommitStepInput{
+		_, from, err := tx.Current()
+		if err != nil {
+			return xerrors.Errorf("classify chat state: %w", err)
+		}
+		step, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages:                 messages.Messages,
 			ConsumeCompactionRequest: messages.ConsumeCompactionRequest,
-		}); err != nil {
+		})
+		if err != nil {
 			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}
 		// The fail-closed hook error must commit atomically with the
@@ -1266,6 +1302,18 @@ func (s *taskStarter) commitGenerationStep(
 				return xerrors.Errorf("tx.FinishError: %w", err)
 			}
 		}
+		// A consumed compaction request already wrote the row; a second
+		// write would re-run its FK checks, so that step keeps a separate
+		// FinishTurn transaction.
+		if !failClosed && !messages.ConsumeCompactionRequest && s.stepFinishesTurn(chat, from, prepared, step.InsertedMessages) {
+			finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+			if err != nil {
+				return xerrors.Errorf("tx.FinishTurn: %w", err)
+			}
+			committed = finishResult.Chat
+			finished = true
+			return nil
+		}
 		loadedChat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
@@ -1275,6 +1323,9 @@ func (s *taskStarter) commitGenerationStep(
 	})
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
+	}
+	if finished {
+		return s.completeGenerationTurn(ctx, input, committed)
 	}
 	if failClosed {
 		input.DebugTurn.RecordOutcome(chatdebug.StatusError)

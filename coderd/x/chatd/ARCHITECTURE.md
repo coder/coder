@@ -876,6 +876,8 @@ It inspects the chat's message history, and decides what's the next step to take
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.
 - `EnterRequiresAction`: applied when there are pending dynamic tool calls.
 
+TODO: when the committed step already decides the turn is complete (no stop hook, empty queue, no compaction request consumed), the generation goroutine applies `FinishTurn` in the same transaction as `CommitStep` instead of a separate task iteration. Describe this here.
+
 The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 
 When receiving streaming message parts from the LLM API, the generation goroutine adds them to the [Message part buffer](#message-part-buffer) in real time. Whenever it starts a new generation attempt, it must start a new episode in the buffer, and mark it as closed when the attempt is finished; either because the LLM API call returned a response, or the attempt was cancelled. If `AddPart` returns an error, the goroutine ignores it. Storing parts in the buffer is best-effort: if the buffer is full, or the episode is closed, the parts are dropped. A stale generation goroutine may keep on adding parts to the buffer until it is cancelled or exits.
