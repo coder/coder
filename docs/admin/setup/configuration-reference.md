@@ -262,13 +262,13 @@ Header name for the authenticated user's ID. Empty disables this header. Require
 - YAML key: `ai_gateway.actor_header_id`
 - Default value: `X-AI-Bridge-Actor-ID`
 
-### Actor header metadata username
+### Actor header username
 
 Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
 
-- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`
-- CLI flag: [`--ai-gateway-actor-header-meta-username`](../../reference/cli/server.md#--ai-gateway-actor-header-meta-username)
-- YAML key: `ai_gateway.actor_header_meta_username`
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`
+- CLI flag: [`--ai-gateway-actor-header-username`](../../reference/cli/server.md#--ai-gateway-actor-header-username)
+- YAML key: `ai_gateway.actor_header_username`
 - Default value: `X-AI-Bridge-Actor-Metadata-Username`
 
 ### Allow BYOK

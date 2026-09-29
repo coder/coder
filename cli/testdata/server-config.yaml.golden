@@ -1012,7 +1012,7 @@ ai_gateway:
   # Header name for the authenticated user's username. Empty disables this header.
   # Requires AI Gateway actor headers to be enabled.
   # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
-  actor_header_meta_username: X-AI-Bridge-Actor-Metadata-Username
+  actor_header_username: X-AI-Bridge-Actor-Metadata-Username
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.

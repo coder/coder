@@ -1769,7 +1769,7 @@ func TestAIBridgeActorHeaderNames(t *testing.T) {
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	dv.AI.BridgeConfig.SendActorHeaders = serpent.Bool(true)
 	dv.AI.BridgeConfig.ActorHeaderID = serpent.String(actorIDHeader)
-	dv.AI.BridgeConfig.ActorHeaderMetaUsername = serpent.String(actorUsernameHeader)
+	dv.AI.BridgeConfig.ActorHeaderUsername = serpent.String(actorUsernameHeader)
 
 	firstClient, _, api, firstUserResponse := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},

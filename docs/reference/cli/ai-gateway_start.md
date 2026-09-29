@@ -224,14 +224,14 @@ Add configured headers identifying the authenticated user to intercepted upstrea
 
 Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
 
-### --ai-gateway-actor-header-meta-username
+### --ai-gateway-actor-header-username
 
-|             |                                                           |
-|-------------|-----------------------------------------------------------|
-| Type        | <code>string</code>                                       |
-| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME</code> |
-| YAML        | <code>ai_gateway.actor_header_meta_username</code>        |
-| Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>          |
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME</code> |
+| YAML        | <code>ai_gateway.actor_header_username</code>        |
+| Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>     |
 
 Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
 

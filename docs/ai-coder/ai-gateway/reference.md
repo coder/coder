@@ -74,7 +74,7 @@ When enabled, AI Gateway emits these headers by default:
 | `username`      | `X-AI-Bridge-Actor-Metadata-Username` | The username from the authenticated Coder account. |
 
 Configure the ID header with `--ai-gateway-actor-header-id`, `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, or `ai_gateway.actor_header_id`.
-Configure the username header with `--ai-gateway-actor-header-meta-username`, `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`, or `ai_gateway.actor_header_meta_username`.
+Configure the username header with `--ai-gateway-actor-header-username`, `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`, or `ai_gateway.actor_header_username`.
 
 Each option uses its own precedence: the CLI flag overrides the environment variable, the environment variable overrides the YAML value, and the default applies when none is set.
 Set an option to an empty value to disable that actor attribute without disabling the other attribute.

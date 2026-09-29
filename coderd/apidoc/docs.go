@@ -17834,7 +17834,7 @@ const docTemplate = `{
                 "actor_header_id": {
                     "type": "string"
                 },
-                "actor_header_meta_username": {
+                "actor_header_username": {
                     "type": "string"
                 },
                 "allow_byok": {

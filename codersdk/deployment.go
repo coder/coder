@@ -2023,15 +2023,15 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "actor_header_id",
 	}
-	aiGatewayActorHeaderMetaUsername := serpent.Option{
-		Name:        "AI Gateway Actor Header Metadata Username",
+	aiGatewayActorHeaderUsername := serpent.Option{
+		Name:        "AI Gateway Actor Header Username",
 		Description: "Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
-		Flag:        "ai-gateway-actor-header-meta-username",
-		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME",
-		Value:       &c.AI.BridgeConfig.ActorHeaderMetaUsername,
+		Flag:        "ai-gateway-actor-header-username",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME",
+		Value:       &c.AI.BridgeConfig.ActorHeaderUsername,
 		Default:     "X-AI-Bridge-Actor-Metadata-Username",
 		Group:       &deploymentGroupAIGateway,
-		YAML:        "actor_header_meta_username",
+		YAML:        "actor_header_username",
 	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
@@ -4593,7 +4593,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		aiGatewaySendActorHeaders,
 		aiGatewayActorHeaderID,
-		aiGatewayActorHeaderMetaUsername,
+		aiGatewayActorHeaderUsername,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -4938,15 +4938,15 @@ Write out the current server config as YAML to stdout.`,
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-	InjectCoderMCPTools     serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
-	Retention               serpent.Duration `json:"retention" typescript:",notnull"`
-	MaxConcurrency          serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
-	RateLimit               serpent.Int64    `json:"rate_limit" typescript:",notnull"`
-	StructuredLogging       serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders        serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
-	ActorHeaderID           serpent.String   `json:"actor_header_id" typescript:",notnull"`
-	ActorHeaderMetaUsername serpent.String   `json:"actor_header_meta_username" typescript:",notnull"`
-	AllowBYOK               serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
+	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
+	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
+	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
+	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	ActorHeaderID       serpent.String   `json:"actor_header_id" typescript:",notnull"`
+	ActorHeaderUsername serpent.String   `json:"actor_header_username" typescript:",notnull"`
+	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
@@ -5069,7 +5069,7 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 		standard  string
 	}{
 		{"id", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
-		{"username", c.ActorHeaderMetaUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"username", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
 	}
 	seen := make(map[string]string, len(headers))
 	for _, header := range headers {

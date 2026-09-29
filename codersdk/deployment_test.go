@@ -579,9 +579,9 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 	t.Parallel()
 
 	defaults := [2]string{"X-AI-Bridge-Actor-ID", "X-AI-Bridge-Actor-Metadata-Username"}
-	keys := [2]string{"actor_header_id", "actor_header_meta_username"}
-	flags := [2]string{"ai-gateway-actor-header-id", "ai-gateway-actor-header-meta-username"}
-	envs := [2]string{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", "CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME"}
+	keys := [2]string{"actor_header_id", "actor_header_username"}
+	flags := [2]string{"ai-gateway-actor-header-id", "ai-gateway-actor-header-username"}
+	envs := [2]string{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME"}
 
 	type testCase struct {
 		name    string
@@ -623,14 +623,14 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 		testCase{
 			name:    "environment clears YAML username",
 			environ: serpent.Environ{{Name: envs[1], Value: ""}},
-			config:  "ai_gateway:\n  actor_header_meta_username: X-Yaml-Username\n",
+			config:  "ai_gateway:\n  actor_header_username: X-Yaml-Username\n",
 			want:    [2]string{defaults[0], ""},
 		},
 		testCase{
 			name:    "precedence is per attribute",
 			args:    []string{"--" + flags[1], "X-Flag-Username"},
 			environ: serpent.Environ{{Name: envs[1], Value: "X-Env-Username"}},
-			config:  "ai_gateway:\n  actor_header_id: X-Yaml-ID\n  actor_header_meta_username: X-Yaml-Username\n",
+			config:  "ai_gateway:\n  actor_header_id: X-Yaml-ID\n  actor_header_username: X-Yaml-Username\n",
 			want:    [2]string{"X-Yaml-ID", "X-Flag-Username"},
 		},
 		testCase{

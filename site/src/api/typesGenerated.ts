@@ -49,7 +49,7 @@ export interface AIBridgeConfig {
 	readonly structured_logging: boolean;
 	readonly send_actor_headers: boolean;
 	readonly actor_header_id: string;
-	readonly actor_header_meta_username: string;
+	readonly actor_header_username: string;
 	readonly allow_byok: boolean;
 	/**
 	 * Budget settings for AI Governance cost controls.

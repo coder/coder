@@ -245,7 +245,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		if name := cfg.ActorHeaderID.Value(); name != "" {
 			actorHeaderNames[aibheaders.ActorAttributeID] = name
 		}
-		if name := cfg.ActorHeaderMetaUsername.Value(); name != "" {
+		if name := cfg.ActorHeaderUsername.Value(); name != "" {
 			actorHeaderNames[aibheaders.ActorAttributeUsername] = name
 		}
 	}

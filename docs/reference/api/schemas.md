@@ -391,7 +391,7 @@ title: Schemas
 ```json
 {
   "actor_header_id": "string",
-  "actor_header_meta_username": "string",
+  "actor_header_username": "string",
   "allow_byok": true,
   "api_dump_dir": "string",
   "budget_period": "string",
@@ -416,7 +416,7 @@ title: Schemas
 | Name                                | Type    | Required | Restrictions | Description                                                                                                                                                            |
 |-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `actor_header_id`                   | string  | false    |              |                                                                                                                                                                        |
-| `actor_header_meta_username`        | string  | false    |              |                                                                                                                                                                        |
+| `actor_header_username`             | string  | false    |              |                                                                                                                                                                        |
 | `allow_byok`                        | boolean | false    |              |                                                                                                                                                                        |
 | `api_dump_dir`                      | string  | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping. |
 | `budget_period`                     | string  | false    |              |                                                                                                                                                                        |
@@ -1036,7 +1036,7 @@ title: Schemas
   },
   "bridge": {
     "actor_header_id": "string",
-    "actor_header_meta_username": "string",
+    "actor_header_username": "string",
     "allow_byok": true,
     "api_dump_dir": "string",
     "budget_period": "string",
@@ -7565,7 +7565,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       },
       "bridge": {
         "actor_header_id": "string",
-        "actor_header_meta_username": "string",
+        "actor_header_username": "string",
         "allow_byok": true,
         "api_dump_dir": "string",
         "budget_period": "string",
@@ -8200,7 +8200,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "bridge": {
       "actor_header_id": "string",
-      "actor_header_meta_username": "string",
+      "actor_header_username": "string",
       "allow_byok": true,
       "api_dump_dir": "string",
       "budget_period": "string",

@@ -215,9 +215,9 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				BaseURL: upstream.URL,
 				Keys:    []string{"upstream-key"},
 			}, codersdk.AIBridgeConfig{
-				SendActorHeaders:        serpent.Bool(tt.sendActorHeaders),
-				ActorHeaderID:           serpent.String(tt.actorHeaderID),
-				ActorHeaderMetaUsername: serpent.String(tt.actorHeaderName),
+				SendActorHeaders:    serpent.Bool(tt.sendActorHeaders),
+				ActorHeaderID:       serpent.String(tt.actorHeaderID),
+				ActorHeaderUsername: serpent.String(tt.actorHeaderName),
 			}, nil)
 			require.NoError(t, err)
 

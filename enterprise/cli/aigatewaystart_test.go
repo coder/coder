@@ -866,7 +866,7 @@ func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 	}{
 		{"unknown option", "introspection:\n  prometheus:\n    unknown_field: true\n", `unknown option "introspection.prometheus.unknown_field"`},
 		{"reserved actor header", "ai_gateway:\n  actor_header_id: Authorization\n", "reserved AI Gateway actor header name"},
-		{"reserved actor username header", "ai_gateway:\n  actor_header_meta_username: Content-Type\n", "reserved AI Gateway actor header name"},
+		{"reserved actor username header", "ai_gateway:\n  actor_header_username: Content-Type\n", "reserved AI Gateway actor header name"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

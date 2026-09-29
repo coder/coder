@@ -136,7 +136,7 @@ AI GATEWAY OPTIONS:
           Header name for the authenticated user's ID. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
 
-      --ai-gateway-actor-header-meta-username string, $CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME (default: X-AI-Bridge-Actor-Metadata-Username)
+      --ai-gateway-actor-header-username string, $CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME (default: X-AI-Bridge-Actor-Metadata-Username)
           Header name for the authenticated user's username. Empty disables this
           header. Requires AI Gateway actor headers to be enabled.
 

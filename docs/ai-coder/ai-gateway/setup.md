@@ -108,16 +108,16 @@ CODER_AI_GATEWAY_SEND_ACTOR_HEADERS=true
 ```
 
 You can also enable the setting with `--ai-gateway-send-actor-headers` or `ai_gateway.send_actor_headers`.
-Configure the ID and username header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID` and `CODER_AI_GATEWAY_ACTOR_HEADER_META_USERNAME`:
+Configure the ID and username header names independently with `CODER_AI_GATEWAY_ACTOR_HEADER_ID` and `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`:
 
 ```yaml
 ai_gateway:
   send_actor_headers: true
   actor_header_id: X-AI-Bridge-Actor-ID
-  actor_header_meta_username: X-AI-Bridge-Actor-Metadata-Username
+  actor_header_username: X-AI-Bridge-Actor-Metadata-Username
 ```
 
-The equivalent CLI options are `--ai-gateway-actor-header-id` and `--ai-gateway-actor-header-meta-username`.
+The equivalent CLI options are `--ai-gateway-actor-header-id` and `--ai-gateway-actor-header-username`.
 For defaults and precedence, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
 
 ## Data Retention
