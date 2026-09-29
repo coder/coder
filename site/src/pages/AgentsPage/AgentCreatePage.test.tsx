@@ -95,7 +95,6 @@ vi.mock("./components/AgentCreateForm", async (importOriginal) => {
 		mountedLockedOrganizationIds.push(lockedOrganizationId);
 		return (
 			<div>
-				<span data-testid="locked-organization">{lockedOrganizationId}</span>
 				<span data-testid="prefill-message">{prefill?.message}</span>
 				{header}
 				<button
@@ -152,18 +151,14 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 	useWebpushNotifications: () => ({ subscribed: false }),
 }));
 
-type LocationDisplayProps = Record<string, never>;
-
-const LocationDisplay: React.FC<LocationDisplayProps> = () => {
+const LocationDisplay: React.FC = () => {
 	const location = useLocation();
 	return <output>{location.pathname}</output>;
 };
 
 let navigateBack: (() => void) | undefined;
 
-type NavigationBackProps = Record<string, never>;
-
-const NavigationBack: React.FC<NavigationBackProps> = () => {
+const NavigationBack: React.FC = () => {
 	const navigate = useNavigate();
 	navigateBack = () => navigate(-1);
 	return null;
@@ -316,9 +311,7 @@ describe("AgentCreatePage project assignment", () => {
 		// The form binds attachments and remembered choices to its organization
 		// on mount, so it must never render against a provisional one.
 		await waitFor(() => {
-			expect(screen.getByTestId("locked-organization")).toHaveTextContent(
-				MockOrganization2.id,
-			);
+			expect(mountedLockedOrganizationIds.at(-1)).toBe(MockOrganization2.id);
 		});
 		expect(mountedLockedOrganizationIds).not.toContain(undefined);
 		await user.click(screen.getByRole("button", { name: "Create chat" }));
@@ -456,7 +449,7 @@ describe("AgentCreatePage project frame", () => {
 			debugWorkspaceBuildPrompt(failedBuild),
 		);
 		expect(mountedLockedOrganizationIds).not.toContain(undefined);
-		expect(screen.getByTestId("locked-organization")).toHaveTextContent(
+		expect(mountedLockedOrganizationIds.at(-1)).toBe(
 			MockChatProject.organization_id,
 		);
 		expect(screen.getByRole("status")).toHaveTextContent(
@@ -484,7 +477,7 @@ describe("AgentCreatePage project frame", () => {
 			"hi",
 		);
 		expect(mountedLockedOrganizationIds).not.toContain(undefined);
-		expect(screen.getByTestId("locked-organization")).toHaveTextContent(
+		expect(mountedLockedOrganizationIds.at(-1)).toBe(
 			MockChatProject.organization_id,
 		);
 	});

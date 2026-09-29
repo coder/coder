@@ -9,7 +9,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage, isApiError } from "#/api/errors";
+import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -90,9 +90,8 @@ const isConflictError = (error: unknown) =>
 	isApiError(error) && error.response.status === 409;
 
 /**
- * New-chat page. Serves both `/agents` and `/agents/projects/:projectId`; in
- * the latter case the composer is framed by the project and the created chat
- * joins it.
+ * New-chat page. When `projectId` is set, the composer is framed by the
+ * project and the created chat joins it.
  */
 const AgentCreatePage: React.FC = () => {
 	const queryClient = useQueryClient();
@@ -105,20 +104,14 @@ const AgentCreatePage: React.FC = () => {
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: chatProjectsEnabled && projectId !== undefined,
+		enabled: chatProjectsEnabled,
 	});
 	const selectedProject = projectQuery.data;
-	const isProjectMissing =
-		isApiError(projectQuery.error) &&
-		projectQuery.error.response.status === 404;
+	const isProjectMissing = getErrorStatus(projectQuery.error) === 404;
 	// A cached project stays usable when a background refetch fails; only a
 	// lookup with nothing to show blocks the composer.
 	const projectLookupError =
-		projectId !== undefined &&
-		chatProjectsEnabled &&
-		!selectedProject &&
-		projectQuery.error &&
-		!isProjectMissing
+		projectId !== undefined && !selectedProject && projectQuery.error
 			? projectQuery.error
 			: undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
@@ -420,7 +413,7 @@ const AgentCreatePage: React.FC = () => {
 						</Button>
 					}
 				/>
-			) : projectId !== undefined && chatProjectsEnabled && !selectedProject ? (
+			) : projectId !== undefined && !selectedProject ? (
 				// The form must not mount until its organization is known because its
 				// attachments and remembered choices are organization-scoped.
 				<Loader label="Loading project" />
@@ -488,7 +481,6 @@ const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 				ref={editButtonRef}
 				variant="subtle"
 				size="sm"
-				className="text-content-secondary"
 				onClick={() => {
 					updateProjectMutation.reset();
 					setIsEditing(true);

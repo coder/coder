@@ -11,7 +11,7 @@ export const ProjectComposerHeader: React.FC<ProjectComposerHeaderProps> = ({
 }) => (
 	<div className="mb-4 min-w-0 text-center">
 		<h1 className="m-0 flex items-center justify-center gap-2 break-words text-2xl font-semibold text-content-primary [overflow-wrap:anywhere]">
-			{project.icon && <ChatProjectIcon project={project} className="size-7" />}
+			<ChatProjectIcon project={project} className="size-7" />
 			<span className="min-w-0">{project.name}</span>
 		</h1>
 		{project.description && (

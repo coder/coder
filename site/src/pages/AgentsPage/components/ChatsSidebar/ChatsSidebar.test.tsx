@@ -196,6 +196,49 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() =>
 			expect(document.activeElement).toBe(projectActionsButton),
 		);
+
+		await user.click(projectActionsButton);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await screen.findByRole("dialog", { name: "Delete project" });
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(document.activeElement).toBe(projectActionsButton),
+		);
+	});
+
+	it("keeps project chats out of the chat sections while projects load", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const projectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			project_id: MockChatProject.id,
+		});
+		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={[projectChat, looseChat]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		await screen.findByRole("link", { name: /Loose chat/ });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
+
+		resolveProjects();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
 	it("creates a project when there are no chats", async () => {
@@ -241,7 +284,6 @@ describe("ChatsSidebar projects", () => {
 
 	it("uses the first accessible organization when no default is available", async () => {
 		const user = userEvent.setup();
-		const nonDefaultOrganization = MockOrganization2;
 		let requestBody: unknown;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
@@ -249,7 +291,7 @@ describe("ChatsSidebar projects", () => {
 				requestBody = await request.json();
 				return HttpResponse.json({
 					...MockChatProject,
-					organization_id: nonDefaultOrganization.id,
+					organization_id: MockOrganization2.id,
 				});
 			}),
 		);
@@ -257,7 +299,7 @@ describe("ChatsSidebar projects", () => {
 		render(
 			<Wrapper
 				experiments={["chat-projects"]}
-				organizations={[nonDefaultOrganization]}
+				organizations={[MockOrganization2]}
 			>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
@@ -275,7 +317,7 @@ describe("ChatsSidebar projects", () => {
 
 		await waitFor(() => {
 			expect(requestBody).toMatchObject({
-				organization_id: nonDefaultOrganization.id,
+				organization_id: MockOrganization2.id,
 			});
 		});
 	});
@@ -313,10 +355,13 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			http.delete("*", ({ request }) => {
-				deletedProjectID = request.url.split("/").at(-1);
-				return new HttpResponse(null, { status: 204 });
-			}),
+			http.delete(
+				"/api/experimental/chats/projects/:projectId",
+				({ params }) => {
+					deletedProjectID = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
 		);
 
 		render(
@@ -349,7 +394,7 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			http.delete("*", () =>
+			http.delete("/api/experimental/chats/projects/:projectId", () =>
 				HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
 			),
 		);

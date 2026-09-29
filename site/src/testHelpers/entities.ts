@@ -54,17 +54,6 @@ export const MockOrganization3: TypesGen.Organization = {
 	default_org_member_roles: ["organization-workspace-access"],
 };
 
-export const MockChatProject: TypesGen.ChatProject = {
-	id: "chat-project-1",
-	organization_id: MockDefaultOrganization.id,
-	owner_id: "test-user",
-	name: "Launch",
-	description: "Chats for the launch work.",
-	icon: "",
-	created_at: "2026-09-01T12:00:00Z",
-	updated_at: "2026-09-02T12:00:00Z",
-};
-
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
@@ -556,6 +545,17 @@ export const MockUserOwner: TypesGen.User = {
 	login_type: "password",
 	has_ai_seat: false,
 	name: "",
+};
+
+export const MockChatProject: TypesGen.ChatProject = {
+	id: "chat-project-1",
+	organization_id: MockDefaultOrganization.id,
+	owner_id: MockUserOwner.id,
+	name: "Launch",
+	description: "Chats for the launch work.",
+	icon: "",
+	created_at: "2026-09-01T12:00:00Z",
+	updated_at: "2026-09-02T12:00:00Z",
 };
 
 export const MockUserMember: TypesGen.User = {

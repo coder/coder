@@ -49,11 +49,8 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			projectId: string;
 			request: TypesGen.UpdateChatProjectRequest;
 		}) => API.experimental.updateChatProject(projectId, request),
-		onSettled: (_data, _error, { projectId }) =>
-			Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
-				queryClient.invalidateQueries({ queryKey: chatProjectKey(projectId) }),
-			]),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
 	});
 
 export const deleteChatProject = (queryClient: QueryClient) =>

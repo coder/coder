@@ -2504,18 +2504,16 @@ const projectChats = [
 	}),
 ];
 
-const projectQueries = [
-	{
-		key: chatProjectsKey(MockDefaultOrganization.id),
-		data: [MockChatProject],
-	},
-];
-
 export const ProjectFolderCollapsed: Story = {
 	args: { chats: projectChats },
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: projectQueries,
+		queries: [
+			{
+				key: chatProjectsKey(MockDefaultOrganization.id),
+				data: [MockChatProject],
+			},
+		],
 	},
 };
 
@@ -2523,7 +2521,12 @@ export const ProjectFolderExpanded: Story = {
 	args: { chats: projectChats },
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: projectQueries,
+		queries: [
+			{
+				key: chatProjectsKey(MockDefaultOrganization.id),
+				data: [MockChatProject],
+			},
+		],
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/projects/${MockChatProject.id}`,
@@ -2546,6 +2549,11 @@ export const ProjectChatWithoutLoadedProject: Story = {
 	},
 	parameters: {
 		experiments: ["chat-projects"],
-		queries: projectQueries,
+		queries: [
+			{
+				key: chatProjectsKey(MockDefaultOrganization.id),
+				data: [MockChatProject],
+			},
+		],
 	},
 };

@@ -38,10 +38,6 @@ const mockDeferredUpload = (): ((value: { id: string }) => void) => {
 	return deferred.resolve;
 };
 
-type ProbeProps = {
-	orgId: string;
-};
-
 describe("useFileAttachments org scoping", () => {
 	beforeEach(() => {
 		localStorage.clear();
@@ -132,7 +128,7 @@ describe("useFileAttachments org scoping", () => {
 		// intermediate commit between the org changing and the
 		// adoption effect running; that window must expose nothing.
 		const renderLog: { orgId: string; fileIds: string[] }[] = [];
-		const Probe: React.FC<ProbeProps> = ({ orgId }) => {
+		const Probe: React.FC<{ orgId: string }> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			renderLog.push({ orgId, fileIds: uploadedFileIds(result) });
 			return null;
@@ -159,7 +155,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		const log: { adopted: boolean; fileIds: string[] }[] = [];
-		const Probe: React.FC<ProbeProps> = ({ orgId }) => {
+		const Probe: React.FC<{ orgId: string }> = ({ orgId }) => {
 			const result = useFileAttachments(orgId, { persist: true });
 			log.push({
 				adopted: result.organizationAdopted,
@@ -284,7 +280,7 @@ describe("useFileAttachments org scoping", () => {
 			JSON.stringify([persistEntry("file-a", "a.txt", "org-a")]),
 		);
 		// Suspending after the hook runs simulates a render React abandons before commit.
-		const Suspender: React.FC<ProbeProps> = ({ orgId }) => {
+		const Suspender: React.FC<{ orgId: string }> = ({ orgId }) => {
 			useFileAttachments(orgId, { persist: true });
 			throw new Promise(() => {});
 		};

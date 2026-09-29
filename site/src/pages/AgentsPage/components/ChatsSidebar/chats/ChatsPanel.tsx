@@ -71,9 +71,14 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
-import { type ProjectDialogMode, ProjectFolders } from "./ProjectFolders";
+import {
+	type DeleteProject,
+	type OpenProjectDialog,
+	ProjectFolders,
+} from "./ProjectFolders";
 import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
+import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
@@ -84,8 +89,8 @@ type ChatsPanelProps = {
 	readonly isProjectsLoading: boolean;
 	readonly projectsError?: unknown;
 	readonly onRetryProjects: () => void;
-	readonly onOpenProjectDialog: (mode: ProjectDialogMode) => void;
-	readonly onDeleteProject: (project: ChatProject) => void;
+	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -208,13 +213,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	);
 	const boardGroups = board.groups;
 	const unpinnedOwnedChats = board.chats;
-	// Owned, unpinned chats render in their folder. A chat whose project is not
-	// loaded stays in the sections below so it never disappears.
 	const { chatsByProjectId, unfiledChats: unfiledOwnedChats } =
-		groupChatsByProject(
-			unpinnedOwnedChats,
-			chatProjectsEnabled ? projects : [],
-		);
+		groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -549,12 +549,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						/>
 					</ChatTreeContext>
 				)}
-				<div className="mx-2 pt-6 mb-1.5">
-					<div className="ml-2.5 flex h-7 items-center justify-between">
-						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
-							{chatsHeadingLabel}
-						</h2>
-						<div className="flex items-center gap-1">
+				<SidebarSectionHeader
+					title={chatsHeadingLabel}
+					actions={
+						<>
 							{onOpenSearchDialog && (
 								<Button
 									variant="subtle"
@@ -570,9 +568,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}
 							/>
-						</div>
-					</div>
-				</div>
+						</>
+					}
+				/>
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"

@@ -21,10 +21,7 @@ import {
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import {
-	permittedOrganizations,
-	permittedOrganizationsKey,
-} from "#/api/queries/organizations";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
@@ -640,7 +637,7 @@ describe("AgentCreateForm", () => {
 		await waitFor(() => {
 			expect(
 				queryClient.getQueryData(
-					permittedOrganizations(chatCreatePermission).queryKey,
+					permittedOrganizationsKey(chatCreatePermission),
 				),
 			).toBeDefined();
 		});
@@ -652,7 +649,7 @@ describe("AgentCreateForm", () => {
 		);
 		permittedOrganizationIds = new Set([MockDefaultOrganization.id]);
 		await queryClient.invalidateQueries({
-			queryKey: permittedOrganizations(chatCreatePermission).queryKey,
+			queryKey: permittedOrganizationsKey(chatCreatePermission),
 		});
 
 		await waitFor(() => {
