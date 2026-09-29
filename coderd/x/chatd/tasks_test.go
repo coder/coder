@@ -1702,10 +1702,9 @@ type taskPublishedEvent struct {
 }
 
 type taskRecordingPubsub struct {
-	inner dbpubsub.Pubsub
-	mu    sync.Mutex
-	sent  []taskPublishedEvent
-	// onPublish, when set, runs before each event is forwarded.
+	inner     dbpubsub.Pubsub
+	mu        sync.Mutex
+	sent      []taskPublishedEvent
 	onPublish func(channel string)
 }
 

@@ -353,10 +353,6 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 	}
 }
 
-// TestWorkerRunnerTurnSpan acquires a chat through a real worker and
-// drives the turn span its runner hands to tasks. A chat taken from a
-// stale owner opens its first turn without an acquisition stage, and
-// runner shutdown closes a turn that never finished as abandoned.
 func TestWorkerRunnerTurnSpan(t *testing.T) {
 	t.Parallel()
 
@@ -401,8 +397,6 @@ func TestWorkerRunnerTurnSpan(t *testing.T) {
 	}
 }
 
-// TestWorkerRunnerReleasesTurnOnTaskExit settles a turn from inside a
-// generation task. The turn is emitted only after the task returns.
 func TestWorkerRunnerReleasesTurnOnTaskExit(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)

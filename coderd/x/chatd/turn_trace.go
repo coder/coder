@@ -17,72 +17,46 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// turnToken identifies one turn. Methods that take a token act only on
-// that turn, and only until it is emitted, so a holder of a token for a
-// turn that has since been replaced cannot finish or invalidate the
-// replacement.
+// turnToken identifies one turn, so a stale holder cannot act on a
+// replacement turn. The zero token matches no turn.
 type turnToken uint64
 
-// runnerTurnSpan owns the chat_turn spans of one runner. A span opens
-// on the first Ensure call, not at construction, and one instance runs
-// several turns in sequence: each Ensure that finds no current turn, or
-// a current turn for an older trigger, starts a new span. At most one
-// turn is current, the one Ensure joins.
+// runnerTurnSpan owns the sequential chat_turn spans of one runner.
 //
-// A turn closes in two steps: Complete marks it finished and Settle
-// closes it, so stages still open at Complete end inside the turn's
-// span if they end before Settle. Closing fixes the turn's end time.
-// The span is emitted once the turn is closed and every task that
-// joined it has called Release, so an outcome recorded by a task that
-// is still unwinding reaches the turn it ran.
+// Closing a turn fixes its end time, but the span is emitted only once
+// every holder has called Release, so an unwinding task can still
+// record the outcome.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 
 	mu sync.Mutex
-	// turns holds every turn that has opened and is not yet emitted.
-	turns map[turnToken]*turnState
-	// current is the token of the turn Ensure joins, zero when none.
-	current turnToken
-	// lastToken advances every time a turn span is started.
+	// turns holds every turn not yet emitted.
+	turns     map[turnToken]*turnState
+	current   turnToken
 	lastToken turnToken
-	// shutDown is set by End. No turn opens after it.
-	shutDown bool
-	// lastAnchorAt is the anchor requested for the most recent turn:
-	// its trigger time, or this replica's clock for a turn that opened
-	// at now. A trigger ahead of this replica's clock is kept here even
-	// though the span itself starts at now.
+	shutDown  bool
+	// lastAnchorAt keeps a future trigger even though its span starts
+	// at now.
 	lastAnchorAt time.Time
-	// takenOver is set until the first turn opens on a runner that
-	// acquired its chat from a previous owner. That turn starts at now
-	// and records no acquisition.
+	// takenOver is cleared once the first turn opens.
 	takenOver bool
 }
 
-// turnState is one turn of a runnerTurnSpan, guarded by its mutex.
+// turnState is guarded by runnerTurnSpan.mu.
 type turnState struct {
 	token    turnToken
 	span     *chatloop.StageSpan
 	spanCtx  trace.SpanContext
 	chatKind chatloop.ChatKind
-	// triggerAt is the trigger time passed to the Ensure call that
-	// opened the turn, before any adjustment of the anchor.
-	triggerAt time.Time
-	// finished marks a turn that reached a terminal transition.
-	finished bool
-	// outcome is the classification Invalidate recorded, empty until
-	// then. Only the first Invalidate is kept.
-	outcome chatloop.TurnOutcome
-	// invalidErr is the error recorded alongside outcome. The span ends
-	// with it.
+	// triggerAt is unadjusted, unlike the span's anchor.
+	triggerAt  time.Time
+	finished   bool
+	outcome    chatloop.TurnOutcome
 	invalidErr error
 	closed     bool
 	endAt      time.Time
-	// closeErr is the error the span ends with when no outcome was
-	// recorded.
-	closeErr error
-	// holders are the tasks that joined the turn and have not called
-	// Release.
-	holders map[uuid.UUID]struct{}
+	closeErr   error
+	holders    map[uuid.UUID]struct{}
 }
 
 func newRunnerTurnSpan(stages *chatloop.StageTracer, takenOver bool) *runnerTurnSpan {
@@ -93,35 +67,9 @@ func newRunnerTurnSpan(stages *chatloop.StageTracer, takenOver bool) *runnerTurn
 	}
 }
 
-// Ensure returns a context parented to the current chat_turn span and
-// the token of that turn, starting the span when none is current, and
-// records taskID as holding the turn until Release. A zero taskID
-// holds nothing. triggerAt is the time of the event that triggered the
-// turn and becomes the span's start timestamp, and an acquisition stage
-// is recorded from it to now inside the turn. The acquisition stage
-// carries no model identity; none is known when the turn opens.
-//
-// A current turn that already reached a terminal transition, or that
-// was invalidated, is closed first. A current turn is also closed when
-// triggerAt is after the trigger it opened for, since the call runs a
-// newer prompt; it is counted as abandoned unless its task records an
-// outcome before releasing it.
-//
-// A new turn starts at now and records no acquisition in three cases:
-// it is the first turn on a runner that took the chat over from a
-// previous owner; triggerAt is at or before the previous turn's
-// anchor, which is also counted as a stale_anchor anomaly; or
-// triggerAt is zero because the chat has neither a user prompt nor a
-// compaction request.
-//
-// When ctx is done, Ensure returns ctx and the zero token, which no
-// turn matches, and leaves every turn untouched: a canceled task
-// cannot join, finish, or invalidate a turn it did not already hold.
-//
-// The span is a standalone trace root. The request that triggered the
-// turn is handled by a different goroutine, and often a different
-// replica, than the worker that runs it, so no inbound span context
-// is available here to link.
+// Ensure joins taskID to the current turn, or starts one anchored at
+// triggerAt. A newer triggerAt replaces the current turn. A canceled
+// ctx gets the zero token so it cannot act on a replacement turn.
 func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat database.Chat, triggerAt time.Time) (context.Context, turnToken) {
 	if t == nil {
 		return ctx, 0
@@ -157,9 +105,7 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat data
 	return turn.context(ctx), turn.token
 }
 
-// startLocked opens a chat_turn span anchored at startAt, or at now
-// when startAt is zero, makes it the current turn, and records the
-// acquisition stage from a nonzero startAt to now.
+// startLocked anchors at now, with no acquisition, when startAt is zero.
 func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, triggerAt, startAt time.Time) *turnState {
 	anchored := !startAt.IsZero()
 	if !anchored {
@@ -177,8 +123,6 @@ func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, tr
 	t.lastAnchorAt = startAt
 
 	chatID := attribute.String(chatloop.AttrChatID, chat.ID.String())
-	// The turn has no span yet, so context adds only the stage identity
-	// the chat_turn span reads.
 	turnCtx, span := t.stages.StartRootAt(turn.context(ctx), chatloop.StageChatTurn, startAt, chatID)
 	turn.span = span
 	turn.spanCtx = span.SpanContext()
@@ -195,11 +139,8 @@ func (turn *turnState) hold(taskID uuid.UUID) {
 	}
 }
 
-// context returns ctx carrying the turn's stage identity and, once the
-// span has started, its span context.
 func (turn *turnState) context(ctx context.Context) context.Context {
-	// The stage identity is set independently of the span context so
-	// stages run on this context keep it when tracing is not recording.
+	// Stage identity is needed even when tracing is not recording.
 	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, turn.chatKind)
 	if !turn.spanCtx.IsValid() {
 		return ctx
@@ -207,8 +148,8 @@ func (turn *turnState) context(ctx context.Context) context.Context {
 	return trace.ContextWithSpanContext(ctx, turn.spanCtx)
 }
 
-// Complete marks the turn identified by token as finished normally.
-// The turn stays open until Settle, or until a newer turn replaces it.
+// Complete marks the turn finished; it stays open until Settle so
+// in-flight stages end inside it.
 func (t *runnerTurnSpan) Complete(token turnToken) {
 	if t == nil {
 		return
@@ -220,12 +161,8 @@ func (t *runnerTurnSpan) Complete(token turnToken) {
 	}
 }
 
-// Invalidate records outcome and err against the turn identified by
-// token. outcome is chatloop.TurnOutcomeInterrupted or
-// TurnOutcomeError. The first call is kept and later ones are ignored,
-// as is a call after Complete: the finishing transition has committed
-// by then, so a later failure does not undo the turn. The span ends
-// with err and carries outcome.
+// Invalidate is ignored after Complete, since the finishing transition
+// has already committed. Only the first call is kept.
 func (t *runnerTurnSpan) Invalidate(token turnToken, outcome chatloop.TurnOutcome, err error) {
 	if t == nil || outcome == "" {
 		return
@@ -240,9 +177,7 @@ func (t *runnerTurnSpan) Invalidate(token turnToken, outcome chatloop.TurnOutcom
 	turn.invalidErr = err
 }
 
-// Settle closes the turn identified by token if Complete marked it
-// finished or Invalidate recorded an outcome for it. Any other turn is
-// left open.
+// Settle closes the turn only if it was completed or invalidated.
 func (t *runnerTurnSpan) Settle(token turnToken) {
 	if t == nil {
 		return
@@ -256,9 +191,8 @@ func (t *runnerTurnSpan) Settle(token turnToken) {
 	t.closeLocked(turn, nil)
 }
 
-// Release records that taskID no longer runs any turn, and emits every
-// closed turn it was the last holder of. Call it after the task has
-// returned, so every stage it started has ended.
+// Release must be called after the task returns so its stages have
+// ended before the turn is emitted.
 func (t *runnerTurnSpan) Release(taskID uuid.UUID) {
 	if t == nil || taskID == uuid.Nil {
 		return
@@ -271,9 +205,7 @@ func (t *runnerTurnSpan) Release(taskID uuid.UUID) {
 	}
 }
 
-// OpenToken returns the token of the current turn, or the zero token
-// when none is current. Like Ensure, it returns the zero token when ctx
-// is done, so a canceled task cannot act on the current turn.
+// OpenToken returns the zero token when ctx is done.
 func (t *runnerTurnSpan) OpenToken(ctx context.Context) turnToken {
 	if t == nil {
 		return 0
@@ -286,9 +218,8 @@ func (t *runnerTurnSpan) OpenToken(ctx context.Context) turnToken {
 	return t.current
 }
 
-// End closes the current turn with err and emits every turn not yet
-// emitted, whether or not its tasks released it. No turn opens after
-// End. Later calls are ignored.
+// End emits every pending turn regardless of holders. No turn opens
+// afterwards.
 func (t *runnerTurnSpan) End(err error) {
 	if t == nil {
 		return
@@ -309,7 +240,6 @@ func (t *runnerTurnSpan) End(err error) {
 	}
 }
 
-// pendingLocked returns the turns not yet emitted, oldest first.
 func (t *runnerTurnSpan) pendingLocked() []*turnState {
 	tokens := slices.Sorted(maps.Keys(t.turns))
 	turns := make([]*turnState, 0, len(tokens))
@@ -319,10 +249,6 @@ func (t *runnerTurnSpan) pendingLocked() []*turnState {
 	return turns
 }
 
-// closeLocked fixes the turn's end time at now and emits it if no task
-// holds it. A closed turn is no longer current. err is the error the
-// span ends with when no outcome is recorded. Closing a closed turn
-// does nothing.
 func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	if turn.closed {
 		return
@@ -336,12 +262,6 @@ func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	t.emitIfReleasedLocked(turn)
 }
 
-// emitIfReleasedLocked ends the span of a closed turn with no holders
-// at its end time, with exactly one turn_outcome. An outcome recorded
-// by Invalidate wins, and its error replaces the close error so the
-// root span reports the failure that stopped the turn. Without one, a
-// turn Complete marked finished is completed and any other turn is
-// abandoned.
 func (t *runnerTurnSpan) emitIfReleasedLocked(turn *turnState) {
 	if !turn.closed || len(turn.holders) > 0 {
 		return
@@ -359,11 +279,8 @@ func (t *runnerTurnSpan) emitIfReleasedLocked(turn *turnState) {
 	delete(t.turns, turn.token)
 }
 
-// triggerMessageTime returns the creation time of the message that
-// triggered the turn: the last user prompt, or a later tool result for
-// one of dynamicTools, which the client submits to resume a chat that
-// entered requires_action. It returns the zero time when history holds
-// neither.
+// triggerMessageTime also counts dynamic tool results, which the client
+// submits to resume a chat from requires_action.
 func triggerMessageTime(messages []database.ChatMessage, dynamicTools map[string]bool) time.Time {
 	var triggerAt time.Time
 	start := 0
@@ -392,9 +309,6 @@ func triggerMessageTime(messages []database.ChatMessage, dynamicTools map[string
 	return triggerAt
 }
 
-// turnTriggerTime returns the time of the event that triggered the
-// turn: the later of the trigger message's creation and a pending
-// compaction request. It returns the zero time when neither exists.
 func turnTriggerTime(chat database.Chat, messages []database.ChatMessage) time.Time {
 	triggerAt := triggerMessageTime(messages, dynamicToolNamesFromChat(chat))
 	if chat.CompactionRequestedAt.Valid && chat.CompactionRequestedAt.Time.After(triggerAt) {

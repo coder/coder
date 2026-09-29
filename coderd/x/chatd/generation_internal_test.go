@@ -127,8 +127,7 @@ func TestRecordGenerationFinishFailure(t *testing.T) {
 func TestRecordThinkingStages(t *testing.T) {
 	t.Parallel()
 
-	// The provider attribute is the model's wire protocol, which differs
-	// from the configured provider type for bedrock.
+	// For bedrock, provider is the wire protocol, not the provider type.
 	prepared := generationPrepared{
 		StageModel: chatloop.StageModel{Provider: "anthropic", ProviderType: "bedrock", Model: "claude", Effort: "high"},
 	}

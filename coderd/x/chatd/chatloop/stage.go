@@ -54,25 +54,16 @@ const (
 	AttrMCPServersFailed    = "mcp_servers_failed"
 )
 
-// TurnOutcome is how a chat turn closed, set as the turn_outcome
-// attribute on the chat_turn span.
+// TurnOutcome is how a chat turn closed.
 type TurnOutcome string
 
 // TurnOutcome values.
 const (
-	// TurnOutcomeCompleted is a turn that finished normally.
-	TurnOutcomeCompleted TurnOutcome = "completed"
-	// TurnOutcomeInterrupted is a turn stopped by an interrupt request,
-	// from a user, an API client, or a parent agent: the chat was
-	// interrupting while the turn was open. The span status stays unset.
+	TurnOutcomeCompleted   TurnOutcome = "completed"
 	TurnOutcomeInterrupted TurnOutcome = "interrupted"
-	// TurnOutcomeError is a turn stopped by a failure. The span ends
-	// with the failure's error status.
-	TurnOutcomeError TurnOutcome = "error"
-	// TurnOutcomeAbandoned is a turn closed before it finished for any
-	// other reason: a newer prompt such as a message edit, or runner
-	// exit, including shutdown and loss of ownership. The span status
-	// stays unset.
+	TurnOutcomeError       TurnOutcome = "error"
+	// TurnOutcomeAbandoned covers any other close, such as a newer prompt
+	// or runner exit.
 	TurnOutcomeAbandoned TurnOutcome = "abandoned"
 )
 
@@ -323,10 +314,8 @@ func (s *StageSpan) EndWithoutObservation(err error) {
 	s.closeSpan(err)
 }
 
-// EndTurn closes a chat_turn span at end and sets its turn_outcome.
-// Only a completed turn is observed on the stage histogram, so the
-// chat_turn histogram measures reply latency. Calls after the first
-// are ignored.
+// EndTurn closes a chat_turn span at end. Only completed turns are
+// observed on the histogram.
 func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	if s == nil || s.ended {
 		return
@@ -338,8 +327,6 @@ func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	}
 }
 
-// closeSpan ends the span now and returns its window; ok is false for
-// a nil span and for calls after the first.
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
 		return 0, false
@@ -347,7 +334,6 @@ func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	return s.closeSpanAt(err, s.tracer.Now()), true
 }
 
-// closeSpanAt ends an open span at end and returns its window.
 func (s *StageSpan) closeSpanAt(err error, end time.Time) time.Duration {
 	s.ended = true
 	if err != nil {
