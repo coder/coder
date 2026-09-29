@@ -62,3 +62,17 @@ DELETE FROM
     chat_automations
 WHERE
     id = @id::uuid;
+
+-- name: GetChatAutomationsByIDsForUpdate :many
+-- Locks the given automations in ascending id order so concurrent
+-- lockers always acquire automation row locks in the same order.
+-- Missing ids are not returned.
+SELECT
+    *
+FROM
+    chat_automations
+WHERE
+    id = ANY(@ids::uuid[])
+ORDER BY
+    id
+FOR UPDATE;

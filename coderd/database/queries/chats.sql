@@ -979,7 +979,9 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id
+        queued_message_id,
+        automation_id,
+        input_id
     )
     SELECT
         allocated.id,
@@ -1002,7 +1004,9 @@ inserted AS (
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
         NULLIF((@provider_response_id::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0),
+        NULLIF((@automation_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF((@input_id::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
     RETURNING *
 )
@@ -2834,14 +2838,19 @@ SELECT NOW()::timestamptz AS now;
 -- name: InsertChatQueuedMessageWithCreator :one
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
--- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+-- queued-message creator differs from the chat owner. The automation
+-- provenance columns are all NULL for ordinary messages and all set for
+-- automation messages.
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, automation_id, input_id, queue_generation)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid
+    @created_by::uuid,
+    sqlc.narg('automation_id')::uuid,
+    sqlc.narg('input_id')::uuid,
+    sqlc.narg('queue_generation')::bigint
 )
 RETURNING *;
 

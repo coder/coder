@@ -57,6 +57,10 @@ const (
 	// FinishInterruption case that exercises the precondition
 	// rejecting outstanding non-dynamic tool calls.
 	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
+	// scenarioStaleAutomation marks cases seeded with a stale
+	// automation row at the queue head, which the queue promotion
+	// guard drops.
+	scenarioStaleAutomation scenario = "stale_automation"
 )
 
 func transitionAllowed(tr chatstate.Transition, from chatstate.ExecutionState) bool {
@@ -925,6 +929,20 @@ func matrixCases() []transitionCaseSpec {
 		// lands in E0; Invalid with non-empty queue lands in E1.
 		reconcileInvalidStateCase(chatstate.StateE0, queueShapeDefault),
 		reconcileInvalidStateCase(chatstate.StateE1, queueShapeMulti),
+
+		// Queue promotion guard cases: a stale automation row at the
+		// queue head is dropped instead of promoted. See
+		// automation_test.go.
+		sendMessageStaleHeadCase(),
+		promoteStaleCase(chatstate.StateE1, chatstate.StateE0, staleOnly),
+		promoteStaleCase(chatstate.StateE1, chatstate.StateE1, staleThenOrdinary),
+		promoteStaleCase(chatstate.StateR1, chatstate.StateR0, staleOnly),
+		promoteStaleCase(chatstate.StateR1, chatstate.StateR1, staleThenOrdinary),
+		promoteStaleCase(chatstate.StateI1, chatstate.StateI0, staleOnly),
+		promoteStaleCase(chatstate.StateA1, chatstate.StateA0, staleOnly),
+		promoteStaleCase(chatstate.StateA1, chatstate.StateA1, staleThenOrdinary),
+		finishStaleQueueCase(chatstate.TransitionFinishTurn, chatstate.StateR1),
+		finishStaleQueueCase(chatstate.TransitionFinishInterruption, chatstate.StateI1),
 	}
 }
 

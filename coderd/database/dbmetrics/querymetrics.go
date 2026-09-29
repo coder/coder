@@ -1488,6 +1488,14 @@ func (m queryMetricsStore) GetChatAutomationByID(ctx context.Context, id uuid.UU
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationsByIDsForUpdate(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatAutomationsByIDsForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationsByIDsForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByID(ctx, id)

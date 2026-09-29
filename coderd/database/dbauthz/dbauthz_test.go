@@ -1473,6 +1473,12 @@ func (s *MethodTestSuite) TestChats() {
 		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
 		check.Args(automation.ID).Asserts(object, policy.ActionRead).Returns(automation)
 	}))
+	s.Run("GetChatAutomationsByIDsForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationsByIDsForUpdate(gomock.Any(), []uuid.UUID{automation.ID}).Return([]database.ChatAutomation{automation}, nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args([]uuid.UUID{automation.ID}).Asserts(object, policy.ActionRead).Returns([]database.ChatAutomation{automation})
+	}))
 	s.Run("DeleteChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()

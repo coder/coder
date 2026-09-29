@@ -1107,6 +1107,10 @@ type CreateOptions struct {
 	InlineMCPServers   []codersdk.InlineMCPServerRequest
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// AdmitInTx, when set, admits InitialUserContent as an automation
+	// message inside the creation transaction. See
+	// [chatstate.CreateChatInput.AdmitInTx].
+	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1134,6 +1138,10 @@ type SendMessageOptions struct {
 	MCPServerIDs    *[]uuid.UUID
 	// InlineMCPServers replaces the inline MCP servers. nil: no change.
 	InlineMCPServers *[]codersdk.InlineMCPServerRequest
+	// AdmitInTx, when set, admits Content as an automation message
+	// inside the send transaction. See
+	// [chatstate.SendMessageInput.AdmitInTx].
+	AdmitInTx chatstate.AdmitFunc
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1423,6 +1431,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		AdmitInTx:       opts.AdmitInTx,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1518,6 +1527,8 @@ func (p *Server) SendMessage(
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// Update may rerun this callback after a deadlock abort.
+		result = SendMessageResult{}
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -1582,6 +1593,7 @@ func (p *Server) SendMessage(
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
+			AdmitInTx:    opts.AdmitInTx,
 		})
 		if err != nil {
 			return err
@@ -2174,8 +2186,13 @@ func (p *Server) PromoteQueued(
 		refreshChat database.Chat
 		refreshedOK bool
 	)
+	rejected := false
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		// Update may rerun this callback after a deadlock abort.
+		result = PromoteQueuedResult{}
+		rejected = false
+		refreshedOK = false
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -2189,6 +2206,12 @@ func (p *Server) PromoteQueued(
 		})
 		if err != nil {
 			return err
+		}
+		if promoteResult.Rejected {
+			// Commit the guard's delete of the stale row, then
+			// report it as not found. The status is unchanged.
+			rejected = true
+			return nil
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
@@ -2206,6 +2229,9 @@ func (p *Server) PromoteQueued(
 	})
 	if updateErr != nil {
 		return PromoteQueuedResult{}, updateErr
+	}
+	if rejected {
+		return PromoteQueuedResult{}, chatstate.ErrQueuedMessageNotFound
 	}
 
 	if refreshedOK {

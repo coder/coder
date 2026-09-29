@@ -5513,6 +5513,69 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 	return i, err
 }
 
+const getChatAutomationsByIDsForUpdate = `-- name: GetChatAutomationsByIDsForUpdate :many
+SELECT
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+FROM
+    chat_automations
+WHERE
+    id = ANY($1::uuid[])
+ORDER BY
+    id
+FOR UPDATE
+`
+
+// Locks the given automations in ascending id order so concurrent
+// lockers always acquire automation row locks in the same order.
+// Missing ids are not returned.
+func (q *sqlQuerier) GetChatAutomationsByIDsForUpdate(ctx context.Context, ids []uuid.UUID) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationsByIDsForUpdate, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.WhenBusy,
+			&i.WebhookUse,
+			&i.WebhookSecretHash,
+			&i.WebhookSecretVersion,
+			&i.WebhookConsumedAt,
+			&i.Prompt,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleRevision,
+			&i.ScheduleNextRunAt,
+			&i.QueueGeneration,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertChatAutomation = `-- name: InsertChatAutomation :one
 INSERT INTO chat_automations (
     id,
@@ -11572,7 +11635,9 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id
+        queued_message_id,
+        automation_id,
+        input_id
     )
     SELECT
         allocated.id,
@@ -11595,7 +11660,9 @@ inserted AS (
         NULLIF(($17::bigint[])[allocated.ord], 0),
         NULLIF(($18::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF(($19::bigint[])[allocated.ord], 0)
+        NULLIF(($19::bigint[])[allocated.ord], 0),
+        NULLIF(($20::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid),
+        NULLIF(($21::uuid[])[allocated.ord], '00000000-0000-0000-0000-000000000000'::uuid)
     FROM allocated
     RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id
 )
@@ -11624,6 +11691,8 @@ type InsertChatMessagesParams struct {
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
 	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
 	QueuedMessageID     []int64                 `db:"queued_message_id" json:"queued_message_id"`
+	AutomationID        []uuid.UUID             `db:"automation_id" json:"automation_id"`
+	InputID             []uuid.UUID             `db:"input_id" json:"input_id"`
 }
 
 type InsertChatMessagesRow struct {
@@ -11681,6 +11750,8 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.RuntimeMs),
 		pq.Array(arg.ProviderResponseID),
 		pq.Array(arg.QueuedMessageID),
+		pq.Array(arg.AutomationID),
+		pq.Array(arg.InputID),
 	)
 	if err != nil {
 		return nil, err
@@ -11780,13 +11851,16 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, automation_id, input_id, queue_generation)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
-    $5::uuid
+    $5::uuid,
+    $6::uuid,
+    $7::uuid,
+    $8::bigint
 )
 RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, automation_id, input_id, queue_generation
 `
@@ -11797,11 +11871,16 @@ type InsertChatQueuedMessageWithCreatorParams struct {
 	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
+	AutomationID    uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	InputID         uuid.NullUUID           `db:"input_id" json:"input_id"`
+	QueueGeneration sql.NullInt64           `db:"queue_generation" json:"queue_generation"`
 }
 
 // Inserts a queued message that carries a position (from the default
 // sequence) and an explicit created_by reference. Use this when the
-// queued-message creator differs from the chat owner.
+// queued-message creator differs from the chat owner. The automation
+// provenance columns are all NULL for ordinary messages and all set for
+// automation messages.
 func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, insertChatQueuedMessageWithCreator,
 		arg.ChatID,
@@ -11809,6 +11888,9 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 		arg.CreatedBy,
+		arg.AutomationID,
+		arg.InputID,
+		arg.QueueGeneration,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(
