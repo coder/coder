@@ -150,6 +150,42 @@ func TestMiddleware(t *testing.T) {
 			wantCode: http.StatusCreated, wantMessage: "3", wantRuns: 3,
 		},
 		{
+			name: "RepeatKeepsRecord",
+			before: func(ctx context.Context, _ *testing.T, s *testServer, id uuid.UUID) {
+				s.do(ctx, "/run", chatA, id)
+				s.clock.Advance(50 * time.Minute)
+				s.do(ctx, "/run", chatA, id)
+				s.clock.Advance(20 * time.Minute)
+				s.do(ctx, "/run", chatA, uuid.New())
+			},
+			path:     "/run",
+			wantCode: http.StatusCreated, wantMessage: "1", wantRuns: 2,
+		},
+		{
+			name: "CancelKeepsRecord",
+			before: func(ctx context.Context, t *testing.T, s *testServer, id uuid.UUID) {
+				s.cancel(ctx, t, chatA, id)
+				s.clock.Advance(50 * time.Minute)
+				s.cancel(ctx, t, chatA, id)
+				s.clock.Advance(20 * time.Minute)
+				s.do(ctx, "/run", chatA, uuid.New())
+			},
+			path:     "/run",
+			wantCode: http.StatusConflict, wantMessage: "canceled", wantRuns: 1,
+		},
+		{
+			name: "RefusedRequestKeepsRecord",
+			before: func(ctx context.Context, t *testing.T, s *testServer, id uuid.UUID) {
+				s.cancel(ctx, t, chatA, id)
+				s.clock.Advance(50 * time.Minute)
+				s.do(ctx, "/run", chatA, id)
+				s.clock.Advance(20 * time.Minute)
+				s.do(ctx, "/run", chatA, uuid.New())
+			},
+			path:     "/run",
+			wantCode: http.StatusConflict, wantMessage: "canceled", wantRuns: 1,
+		},
+		{
 			// A repeat gets the saved 500 instead of waiting for a
 			// response the panicked run never saved.
 			name: "RepeatAfterPanicGetsUnknownOutcome",

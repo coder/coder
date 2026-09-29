@@ -29,8 +29,8 @@ var (
 	// kept before being automatically removed from the map. A tool
 	// call record is added before its process starts, and the process
 	// is kept at least this long after it exits, so for the first hour
-	// (agenttoolcall's forgetAfter) after a tool call is recorded, a
-	// retry can still read its process output.
+	// after a tool call is recorded, a retry can still read its process
+	// output.
 	exitedProcessReapAge = time.Hour
 )
 

@@ -19,10 +19,12 @@ import (
 	"github.com/coder/quartz"
 )
 
-// forgetAfter is how old a tool call record may get. Adding a record
-// deletes records older than this, to bound the table's memory. After
-// deletion, a retry of the tool call runs it again and a cancel responds
-// with received: false.
+// forgetAfter is how long a tool call record is kept after the last
+// request or cancel for it. Adding a record deletes records not requested
+// or canceled for longer than this, to bound the table's memory. chatd
+// resends unresolved tool calls on every retry, so a record is kept while
+// chatd still asks for it. After deletion, a retry of the tool call runs
+// it again and a cancel responds with received: false.
 const forgetAfter = time.Hour
 
 type key struct {
@@ -31,8 +33,10 @@ type key struct {
 }
 
 type entry struct {
-	added    time.Time
-	canceled bool
+	// expiresAt is when the record may be deleted: forgetAfter after the
+	// last request or cancel for it.
+	expiresAt time.Time
+	canceled  bool
 	// done is closed when the run finishes and resp is saved. It is nil
 	// when a cancel arrived before any request.
 	done chan struct{}
@@ -53,12 +57,12 @@ func New(clock quartz.Clock, kill func(ctx context.Context, chatID, id uuid.UUID
 	return &Table{clock: clock, kill: kill, entries: make(map[key]*entry)}
 }
 
-// add stores e under k and drops entries older than forgetAfter.
-// t.mu must be held.
+// add stores e under k and drops expired entries. t.mu must be held.
 func (t *Table) add(k key, e *entry) {
-	e.added = t.clock.Now()
+	now := t.clock.Now()
+	e.expiresAt = now.Add(forgetAfter)
 	for k, old := range t.entries {
-		if e.added.Sub(old.added) > forgetAfter {
+		if now.After(old.expiresAt) {
 			delete(t.entries, k)
 		}
 	}
@@ -82,7 +86,9 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 		t.mu.Lock()
 		e, found := t.entries[k]
 		canceled := found && e.canceled
-		if !found {
+		if found {
+			e.expiresAt = t.clock.Now().Add(forgetAfter)
+		} else {
 			e = &entry{done: make(chan struct{})}
 			t.add(k, e)
 		}
@@ -165,6 +171,7 @@ func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	e, found := t.entries[k]
 	if found {
 		e.canceled = true
+		e.expiresAt = t.clock.Now().Add(forgetAfter)
 	} else {
 		e = &entry{canceled: true}
 		t.add(k, e)
