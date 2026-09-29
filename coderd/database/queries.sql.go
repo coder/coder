@@ -7734,6 +7734,19 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
+SELECT COUNT(*)::bigint
+FROM chat_projects
+WHERE owner_id = $1::uuid
+`
+
+func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatProjectsByOwnerID, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
 DELETE FROM chat_projects
 WHERE id = $1::uuid
