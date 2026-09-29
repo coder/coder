@@ -1,13 +1,7 @@
 import Editor, { DiffEditor, loader } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import * as monaco from "monaco-editor";
-import {
-	type ComponentProps,
-	type FC,
-	useCallback,
-	useEffect,
-	useRef,
-} from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTheme } from "#/theme/context";
 import { useCoderTheme } from "./coderTheme";
 
@@ -16,7 +10,7 @@ loader.config({ monaco });
 // Shared editor props with onMount typed to accept either editor variant,
 // so callers don't need to know which underlying component will render.
 type CommonEditorProps = Omit<
-	ComponentProps<typeof Editor> & ComponentProps<typeof DiffEditor>,
+	React.ComponentProps<typeof Editor> & React.ComponentProps<typeof DiffEditor>,
 	"onMount"
 > & {
 	onMount?: (
@@ -34,7 +28,7 @@ type SyntaxHighlighterProps = {
 	compareWith?: string;
 };
 
-export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
+export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	value,
 	compareWith,
 	language,
@@ -93,7 +87,7 @@ type DiffFileProps = CommonEditorProps & {
 // the models mid-teardown (which throws), so we dispose them ourselves after
 // React has torn the editor down. Without this the models accumulate unbounded
 // as users open template versions until the tab runs out of memory.
-const DiffFile: FC<DiffFileProps> = ({
+const DiffFile: React.FC<DiffFileProps> = ({
 	original,
 	modified,
 	onMount,

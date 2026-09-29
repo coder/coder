@@ -1,5 +1,4 @@
 import { SquareArrowOutUpRightIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { reportWorkspaceBuildDebugClick } from "#/api/queries/workspaceBuilds";
 import type { WorkspaceBuild } from "#/api/typesGenerated";
@@ -14,9 +13,9 @@ type WorkspaceBuildFailedAlertProps = {
 	build: WorkspaceBuild;
 };
 
-export const WorkspaceBuildFailedAlert: FC<WorkspaceBuildFailedAlertProps> = ({
-	build,
-}) => {
+export const WorkspaceBuildFailedAlert: React.FC<
+	WorkspaceBuildFailedAlertProps
+> = ({ build }) => {
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
 	const { mutate: reportClick } = useMutation(reportWorkspaceBuildDebugClick());

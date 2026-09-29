@@ -114,6 +114,7 @@ func applySendMessageQueue(t *testing.T, f *testFixture, tx *chatstate.Tx, _ see
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-queue", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorQueue,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }
@@ -124,6 +125,7 @@ func applySendMessageInterrupt(t *testing.T, f *testFixture, tx *chatstate.Tx, _
 	result.sendMessage, err = tx.SendMessage(chatstate.SendMessageInput{
 		Message:      userTextMessage("sm-interrupt", f.User.ID, f.Model.ID),
 		BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 	})
 	return err
 }

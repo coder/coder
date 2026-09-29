@@ -2049,7 +2049,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	}
 
 	var key database.APIKey
-	oldKey, _, ok := httpmw.APIKeyFromRequest(ctx, api.Database, nil, r)
+	oldKey, _, ok := httpmw.APIKeyFromRequest(ctx, api.Database, api.Logger, nil, r)
 	if ok && oldKey != nil && isConvertLoginType {
 		// If this is a convert login type, and it succeeds, then delete the old
 		// session. Force the user to log back in.

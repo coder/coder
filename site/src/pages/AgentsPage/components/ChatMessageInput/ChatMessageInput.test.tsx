@@ -1,13 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-	createRef,
-	type FC,
-	type ReactNode,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -15,7 +8,7 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
 
 const renderWithQueryClient = (
-	children: ReactNode,
+	children: React.ReactNode,
 	queryClient: QueryClient = createTestQueryClient(),
 ) => {
 	return render(
@@ -23,7 +16,7 @@ const renderWithQueryClient = (
 	);
 };
 
-const InitialValueHarness: FC<{ initialValue: string }> = ({
+const InitialValueHarness: React.FC<{ initialValue: string }> = ({
 	initialValue,
 }) => {
 	const inputRef = useRef<ChatMessageInputRef>(null);
@@ -45,7 +38,7 @@ const InitialValueHarness: FC<{ initialValue: string }> = ({
 	);
 };
 
-const QueuedReplacementHarness: FC<{
+const QueuedReplacementHarness: React.FC<{
 	initialValue: string;
 	replacementValue: string;
 }> = ({ initialValue, replacementValue }) => {

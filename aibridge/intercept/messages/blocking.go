@@ -18,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -34,7 +35,7 @@ func NewBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -99,7 +100,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -141,6 +142,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		if prompt != nil {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				Prompt:         *prompt,
@@ -155,6 +157,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		// Capture any thinking blocks that were returned.
 		for _, t := range i.extractModelThoughts(resp) {
 			_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				Content:        t.Content,
 				Metadata:       t.Metadata,
@@ -176,6 +179,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			// If tool is not injected, track it since the client will be handling it.
 			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				ToolCallID:     toolUse.ID,
@@ -212,6 +216,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			res, err := tool.Call(ctx, tc.Input, i.tracer)
 
 			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+				CreatedAt:       time.Now().UTC(),
 				InterceptionID:  i.ID().String(),
 				MsgID:           resp.ID,
 				ToolCallID:      tc.ID,
@@ -346,10 +351,10 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 // pool fails over across keys, while BYOK and Bedrock authenticate with a
 // single, fixed credential baked into svc, so they make one attempt.
 func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService, opts []option.RequestOption) (*anthropic.Message, int, error) {
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		return i.newMessageWithKeyFailover(ctx, svc, cp, opts)
 	}
-	msg, err := i.newMessageWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc, opts...)
+	msg, err := i.newMessageWithKey(credential.WithCredentialInfo(ctx, i.cred), svc, opts...)
 	return msg, 0, err
 }
 
@@ -366,7 +371,7 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream message,
 // the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*anthropic.Message, int, error) {
+func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService, cp *credential.CentralizedPool, opts []option.RequestOption) (*anthropic.Message, int, error) {
 	walker := cp.Pool.Walker()
 	for {
 		key, keyPoolErr := cp.NextKey(walker)
@@ -374,7 +379,7 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 			return nil, walker.Attempts(), keyPoolErr
 		}
 
-		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		ctx = credential.WithCredentialInfo(ctx, i.cred)
 		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

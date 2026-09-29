@@ -70,7 +70,9 @@ We provide working example templates for Kubernetes, and Kubernetes with
 can view these templates in the
 [exectrace repo](https://github.com/coder/exectrace/tree/main/enterprise/templates).
 
-## Configuring custom templates to use workspace process logging
+<a id="configuring-custom-templates-to-use-workspace-process-logging"></a>
+
+## Configure custom templates to use workspace process logging
 
 If you have an existing Kubernetes or Kubernetes with `envbox` template that you
 would like to add workspace process logging to, follow these steps:
@@ -245,7 +247,9 @@ Once you have made these changes, you can push a new version of your template
 and workspace process logging will be enabled for all workspaces once they are
 restarted.
 
-## Viewing workspace process logs
+<a id="viewing-workspace-process-logs"></a>
+
+## View workspace process logs
 
 To view the process logs for a specific workspace you can use `kubectl` to print
 the logs:

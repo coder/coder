@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Response } from "./ChatElements/Response";
 
@@ -30,7 +29,7 @@ const isMarkdownPreview = (
 	return lower.endsWith(".md") || lower.endsWith(".markdown");
 };
 
-export const TextPreviewDialog: FC<TextPreviewDialogProps> = ({
+export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	content,
 	fileName,
 	mediaType,

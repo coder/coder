@@ -1,6 +1,5 @@
 import { isAxiosError } from "axios";
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ApiErrorResponse } from "#/api/errors";
 import type { ExternalAuthDevice } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
@@ -67,7 +66,7 @@ export const newRetryDelay = (initialInterval: number | undefined) => {
 	};
 };
 
-export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
+export const GitDeviceAuth: React.FC<GitDeviceAuthProps> = ({
 	externalAuthDevice,
 	deviceExchangeError,
 }) => {

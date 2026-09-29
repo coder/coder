@@ -37,18 +37,22 @@ type (
 	Metadata                = recorder.Metadata
 	ErrorType               = recorder.ErrorType
 
-	AnthropicConfig  = config.Anthropic
-	AWSBedrockConfig = config.AWSBedrock
-	OpenAIConfig     = config.OpenAI
-	CopilotConfig    = config.Copilot
+	AnthropicConfig         = config.Anthropic
+	AWSBedrockConfig        = config.AWSBedrock
+	AWSClaudePlatformConfig = config.AWSClaudePlatform
+	OpenAIConfig            = config.OpenAI
+	CopilotConfig           = config.Copilot
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
 	return aibcontext.AsActor(ctx, actorID, metadata)
 }
 
-func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (provider.Provider, error) {
-	return provider.NewAnthropic(ctx, cfg, bedrockCfg)
+// NewAnthropicProvider constructs the Anthropic provider. At most one of
+// bedrockCfg and claudePlatformCfg may be non-nil; both nil means direct
+// Anthropic API access.
+func NewAnthropicProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock, claudePlatformCfg *config.AWSClaudePlatform) (provider.Provider, error) {
+	return provider.NewAnthropic(ctx, cfg, bedrockCfg, claudePlatformCfg)
 }
 
 func NewBedrockProvider(ctx context.Context, cfg config.Anthropic, bedrockCfg config.AWSBedrock) (provider.Provider, error) {
@@ -75,11 +79,21 @@ func NewMetrics(reg prometheus.Registerer) *metrics.Metrics {
 	return metrics.NewMetrics(reg)
 }
 
-// NewRecorder creates a [Recorder] which logs each record and acquires a client
-// per call. clientFn receives the context of the call it serves.
-func NewRecorder(logger slog.Logger, tracer trace.Tracer, clientFn func(context.Context) (Recorder, error)) Recorder {
-	return recorder.ChainMiddleware(
-		recorder.WithLogging(logger),
-		recorder.WithTracing(tracer),
-	)(recorder.NewWrappedRecorder(clientFn))
+// NewRecorder creates a [Recorder] which logs each record and refuses
+// malformed ones before handing it to base.
+//
+// middleware is inserted below the logging and validating middleware, so that
+// every record is logged and checked before any of it runs, and above the
+// tracing middleware, which must stay immediately above the recorder its spans
+// measure. Policy that drops records, such as [recorder.WithoutRecords],
+// belongs here: it keeps NewRecorder to its own concerns and leaves the choice
+// to the caller.
+func NewRecorder(logger slog.Logger, tracer trace.Tracer, apiKeyID string, structured bool, base Recorder, middleware ...recorder.Middleware) Recorder {
+	chain := make([]recorder.Middleware, 0, len(middleware)+3)
+	chain = append(chain, recorder.WithLogging(logger, apiKeyID, structured))
+	chain = append(chain, recorder.WithValidation(logger))
+	chain = append(chain, middleware...)
+	chain = append(chain, recorder.WithTracing(tracer))
+
+	return recorder.ChainMiddleware(chain...)(base)
 }

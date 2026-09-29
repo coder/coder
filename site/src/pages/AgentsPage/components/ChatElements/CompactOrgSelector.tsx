@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -28,7 +28,7 @@ type CompactOrgSelectorProps = {
 	dropdownAlign?: "start" | "center" | "end";
 };
 
-export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
+export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	value,
 	onChange,
 	options,
