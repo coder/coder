@@ -17,8 +17,14 @@ import (
 )
 
 const (
+	// ActorAttributeID is the actor-header mapping key for the authenticated user ID.
+	ActorAttributeID = "id"
+	// ActorAttributeUsername is the actor-header mapping key for the username.
+	ActorAttributeUsername = "username"
+
 	// ActorHeaderPrefix prefixes every AI Bridge actor header.
 	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
+	ActorIDHeader          = ActorHeaderPrefix + "-ID"
 	actorHeaderPrefixLower = "x-ai-bridge-actor"
 
 	// AuthHeaderXAPIKey carries an API key.
@@ -87,11 +93,6 @@ var (
 	}
 )
 
-// ActorIDHeader returns the name of the header that carries the actor ID.
-func ActorIDHeader() string {
-	return fmt.Sprintf("%s-ID", ActorHeaderPrefix)
-}
-
 // ActorMetadataHeader returns the name of the header that carries the actor
 // metadata value for name.
 func ActorMetadataHeader(name string) string {
@@ -103,20 +104,24 @@ func IsActorHeader(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), actorHeaderPrefixLower)
 }
 
-// headersFromActor produces a map of headers from a given [aibcontext.Actor].
-func headersFromActor(actor *aibcontext.Actor) map[string]string {
+// headersFromActor maps supported actor attributes to configured header names.
+// Attributes with no destination and unknown mapping keys are ignored.
+// No headers are returned if actor is nil.
+func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]string) map[string]string {
 	if actor == nil {
 		return nil
 	}
 
-	headers := make(map[string]string, len(actor.Metadata)+1)
-
-	// Add actor ID.
-	headers[ActorIDHeader()] = actor.ID
-
-	// Add headers for provided metadata.
-	for k, v := range actor.Metadata {
-		headers[ActorMetadataHeader(k)] = fmt.Sprintf("%v", v)
+	headers := make(map[string]string, len(actorHeaderNames))
+	if name := actorHeaderNames[ActorAttributeID]; name != "" {
+		headers[name] = actor.ID
+	}
+	name := actorHeaderNames[ActorAttributeUsername]
+	if name == "" {
+		return headers
+	}
+	if username, ok := actor.Metadata["Username"].(string); ok && username != "" {
+		headers[name] = username
 	}
 
 	return headers
@@ -210,9 +215,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 // BuildUpstreamHeaders produces the header set for an upstream SDK request.
 // It starts from the prepared client headers, preserves provider auth, then
 // applies identity from the authenticated request actor.
-//
-//nolint:revive // sendActorHeaders carries the provider's SendActorHeaders setting.
-func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, sendActorHeaders bool, actor *aibcontext.Actor) http.Header {
+// A nil actorHeaderNames map leaves client identity headers unchanged. A non-nil
+// map enables identity cleanup, even when no attributes are selected.
+func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, actorHeaderNames map[string]string, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
 		headers = make(http.Header)
@@ -223,10 +228,17 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	if sendActorHeaders {
-		for name, value := range headersFromActor(actor) {
-			headers.Set(name, value)
-		}
+	if actorHeaderNames == nil {
+		return headers
+	}
+	for _, name := range []string{ActorIDHeader, ActorMetadataHeader("Username")} {
+		headers.Del(name)
+	}
+	for _, name := range actorHeaderNames {
+		headers.Del(name)
+	}
+	for name, value := range headersFromActor(actor, actorHeaderNames) {
+		headers.Set(name, value)
 	}
 	return headers
 }

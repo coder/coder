@@ -12,8 +12,12 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
+	aibtestutil "github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
+	testutil "github.com/coder/coder/v2/testutil"
 )
 
 var testTracer = otel.Tracer("copilot_test")
@@ -113,11 +117,11 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 	t.Run("ChatCompletions_ClientHeaders", func(t *testing.T) {
 		t.Parallel()
 
-		var receivedHeaders http.Header
+		receivedHeadersCh := make(chan http.Header, 1)
 
 		// Mock upstream that captures headers
 		mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			receivedHeaders = r.Header.Clone()
+			receivedHeadersCh <- r.Header.Clone()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"id":"chatcmpl-123","object":"chat.completion","created":1677652288,"model":"gpt-4","choices":[{"index":0,"message":{"role":"assistant","content":"Hello!"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":12,"total_tokens":21}}`))
@@ -134,6 +138,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer test-token")
 		req.Header.Set("Editor-Version", "vscode/1.85.0")
 		req.Header.Set("Copilot-Integration-Id", "test-integration")
+		req = req.WithContext(aibcontext.AsActor(req.Context(), "actor-id", recorder.Metadata{"Username": "actor-username"}))
 		w := httptest.NewRecorder()
 
 		interceptor, err := provider.CreateInterceptor(w, req, testTracer)
@@ -142,11 +147,14 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		// Setup and process request
 		logger := slog.Make()
-		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+		interceptor.Setup(logger, &aibtestutil.MockRecorder{}, nil)
 
 		processReq := httptest.NewRequest(http.MethodPost, routeCopilotChatCompletions, nil)
+		processReq = processReq.WithContext(req.Context())
 		err = interceptor.ProcessRequest(w, processReq)
 		require.NoError(t, err)
+
+		receivedHeaders := testutil.RequireReceive(testutil.Context(t, testutil.WaitLong), t, receivedHeadersCh)
 
 		// Verify Copilot-specific headers were forwarded.
 		assert.Equal(t, "vscode/1.85.0", receivedHeaders.Get("Editor-Version"))
@@ -154,6 +162,8 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		// Copilot uses per-user tokens: the client's Authorization must reach upstream as-is.
 		assert.Equal(t, "Bearer test-token", receivedHeaders.Get("Authorization"), "client Authorization must be used as provider key")
 		assert.Empty(t, receivedHeaders.Get("X-Api-Key"), "X-Api-Key must not be set upstream")
+		assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(aibheaders.ActorIDHeader))
+		assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(aibheaders.ActorMetadataHeader("Username")))
 	})
 
 	t.Run("Responses_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
@@ -233,7 +243,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		// Setup and process request
 		logger := slog.Make()
-		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+		interceptor.Setup(logger, &aibtestutil.MockRecorder{}, nil)
 
 		processReq := httptest.NewRequest(http.MethodPost, routeCopilotResponses, nil)
 		err = interceptor.ProcessRequest(w, processReq)
@@ -324,7 +334,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 
 		// Setup and process request.
 		logger := slog.Make()
-		interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+		interceptor.Setup(logger, &aibtestutil.MockRecorder{}, nil)
 
 		processReq := httptest.NewRequest(http.MethodPost, routeCopilotMessages, nil)
 		err = interceptor.ProcessRequest(w, processReq)

@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -283,8 +284,17 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	}
 
 	cbCfg := circuitBreakerConfig(cfg)
-	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
+	var actorHeaderNames map[string]string
+	if cfg.SendActorHeaders.Value() {
+		actorHeaderNames = map[string]string{}
+		if name := cfg.ActorHeaderID.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeID] = name
+		}
+		if name := cfg.ActorHeaderUsername.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeUsername] = name
+		}
+	}
 
 	// aibridge currently has native support for OpenAI and Anthropic
 	// only. The other ai_provider_type values (azure, google,
@@ -316,7 +326,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
+			ActorHeaderNames: actorHeaderNames,
 		}), nil
 
 	case database.AIProviderTypeAnthropic:
@@ -342,7 +352,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
+			ActorHeaderNames: actorHeaderNames,
 		}, nil, claudePlatform)
 
 	case database.AIProviderTypeBedrock:
@@ -359,7 +369,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			BaseURL:          spec.BaseURL,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
+			ActorHeaderNames: actorHeaderNames,
 		}, *bedrock)
 
 	case database.AIProviderTypeCopilot:

@@ -1963,7 +1963,29 @@ Stop recording the content of intercepted conversations. No user prompt, tool ca
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
+
+### --ai-gateway-actor-header-id
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>string</code>                            |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_ID</code> |
+| YAML        | <code>ai_gateway.actor_header_id</code>        |
+| Default     | <code>X-AI-Bridge-Actor-ID</code>              |
+
+Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+### --ai-gateway-actor-header-username
+
+|             |                                                      |
+|-------------|------------------------------------------------------|
+| Type        | <code>string</code>                                  |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME</code> |
+| YAML        | <code>ai_gateway.actor_header_username</code>        |
+| Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>     |
+
+Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
 
 ### --ai-gateway-dump-dir
 

@@ -85,7 +85,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}

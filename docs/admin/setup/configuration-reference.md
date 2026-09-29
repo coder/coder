@@ -253,6 +253,24 @@ Base directory for dumping AI Gateway request/response pairs to disk for debuggi
 - CLI flag: [`--ai-gateway-dump-dir`](../../reference/cli/server/index.md#--ai-gateway-dump-dir)
 - YAML key: `ai_gateway.api_dump_dir`
 
+### Actor header ID
+
+Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_ID`
+- CLI flag: [`--ai-gateway-actor-header-id`](../../reference/cli/server/index.md#--ai-gateway-actor-header-id)
+- YAML key: `ai_gateway.actor_header_id`
+- Default value: `X-AI-Bridge-Actor-ID`
+
+### Actor header username
+
+Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`
+- CLI flag: [`--ai-gateway-actor-header-username`](../../reference/cli/server/index.md#--ai-gateway-actor-header-username)
+- YAML key: `ai_gateway.actor_header_username`
+- Default value: `X-AI-Bridge-Actor-Metadata-Username`
+
 ### Allow BYOK
 
 Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
@@ -318,7 +336,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
 
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server/index.md#--ai-gateway-send-actor-headers)

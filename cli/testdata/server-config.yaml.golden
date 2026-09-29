@@ -1018,13 +1018,21 @@ ai_gateway:
   # to a SIEM instead.
   # (default: false, type: bool)
   disable_content_recording: false
-  # Once enabled, extra headers will be added to upstream requests to identify the
-  # user (actor) making requests to AI Gateway. This is only needed if you are using
-  # a proxy between AI Gateway and an upstream AI provider. This will send
-  # X-Ai-Bridge-Actor-Id (the ID of the user making the request) and
-  # X-Ai-Bridge-Actor-Metadata-Username (their username).
+  # Add configured headers identifying the authenticated user to intercepted
+  # upstream requests. Use this when a proxy between AI Gateway and an upstream AI
+  # provider needs user identity. When enabled, removes client-supplied headers at
+  # the standard ID and username names and any configured actor-header destinations
+  # before adding authenticated values.
   # (default: false, type: bool)
   send_actor_headers: false
+  # Header name for the authenticated user's ID. Empty disables this header.
+  # Requires AI Gateway actor headers to be enabled.
+  # (default: X-AI-Bridge-Actor-ID, type: string)
+  actor_header_id: X-AI-Bridge-Actor-ID
+  # Header name for the authenticated user's username. Empty disables this header.
+  # Requires AI Gateway actor headers to be enabled.
+  # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
+  actor_header_username: X-AI-Bridge-Actor-Metadata-Username
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.
