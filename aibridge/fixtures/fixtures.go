@@ -50,6 +50,9 @@ var (
 
 	//go:embed anthropic/max_tokens_truncated_injected_tool.txtar
 	AntMaxTokensTruncatedInjectedTool []byte
+
+	//go:embed anthropic/injected_tool_invalid_input.txtar
+	AntInjectedToolInvalidInput []byte
 )
 
 var (

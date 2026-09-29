@@ -208,35 +208,72 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
-	t.Run("streaming injected tool truncated by max_tokens", func(t *testing.T) {
+	// Injected MCP tools must never run on input the SDK accumulator rejected.
+	t.Run("streaming injected tool with invalid input", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
-		t.Cleanup(cancel)
+		cases := []struct {
+			name           string
+			fixture        []byte
+			expectedEvents []string
+			wantErr        bool
+		}{
+			{
+				name:           "stop_reason max_tokens",
+				fixture:        fixtures.AntMaxTokensTruncatedInjectedTool,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"},
+			},
+			{
+				name:           "stop_reason tool_use",
+				fixture:        fixtures.AntInjectedToolInvalidInput,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "error"},
+				wantErr:        true,
+			},
+		}
 
-		fix := fixtures.Parse(t, fixtures.AntMaxTokensTruncatedInjectedTool)
-		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
-		mockMCP := setupMCPForTest(t, defaultTracer)
-		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
-		require.NoError(t, err)
-		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
 
-		// The injected tool_use block is withheld from the client.
-		events := readSSEEvents(t, resp)
-		require.Equal(t, []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"}, sseEventTypes(events))
-		assert.Equal(t, "text", gjson.GetBytes(events[1].Data, "content_block.type").Str)
-		assert.Equal(t, "max_tokens", gjson.GetBytes(events[4].Data, "delta.stop_reason").Str)
+				fix := fixtures.Parse(t, tc.fixture)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				mockMCP := setupMCPForTest(t, defaultTracer)
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
 
-		assert.Empty(t, mockMCP.getCallsByTool(mockToolName))
-		assert.Empty(t, bridgeServer.Recorder.RecordedToolUsages())
-		assert.Len(t, upstream.ReceivedRequests(), 1)
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
 
-		requireInterceptionSucceeded(t, bridgeServer)
+				// The injected tool_use block is withheld from the client.
+				events := readSSEEvents(t, resp)
+				require.Equal(t, tc.expectedEvents, sseEventTypes(events))
+				assert.Equal(t, "text", gjson.GetBytes(events[1].Data, "content_block.type").Str)
+
+				assert.Empty(t, mockMCP.getCallsByTool(mockToolName))
+				assert.Empty(t, bridgeServer.Recorder.RecordedToolUsages())
+				assert.Len(t, upstream.ReceivedRequests(), 1)
+
+				if !tc.wantErr {
+					assert.Equal(t, "max_tokens", gjson.GetBytes(events[4].Data, "delta.stop_reason").Str)
+					requireInterceptionSucceeded(t, bridgeServer)
+					return
+				}
+
+				assert.Contains(t, gjson.GetBytes(events[4].Data, "error.message").Str, "accumulate event")
+				intcs := bridgeServer.Recorder.RecordedInterceptions()
+				require.Len(t, intcs, 1)
+				ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+				require.NotNil(t, ended, "interception should be ended")
+				assert.Equal(t, recorder.ErrorTypeServerError, ended.ErrorType)
+				assert.Contains(t, ended.ErrorMessage, "accumulate event")
+			})
+		}
 	})
 
 	// When the upstream's first response is an injected tool call with no
