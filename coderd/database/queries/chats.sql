@@ -1546,6 +1546,16 @@ WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
 
+-- name: UpdateChatAutomationIDByID :execrows
+-- Marks a chat as created by an automation. The mark is set once, when the
+-- automation creates the chat, and never changes afterwards.
+UPDATE chats
+SET
+    automation_id = @automation_id::uuid
+WHERE
+    id = @id::uuid
+    AND automation_id IS NULL;
+
 -- name: UpdateChatMCPServerIDs :one
 WITH updated_chat AS (
 UPDATE

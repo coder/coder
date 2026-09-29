@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -200,6 +201,29 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.NoError(t, err)
 
 		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
-		require.Equal(t, http.StatusNotImplemented, status, string(body))
+		require.Equal(t, http.StatusAccepted, status, string(body))
+		var res codersdk.ChatAutomationEventResponse
+		require.NoError(t, json.Unmarshal(body, &res))
+		require.NotEqual(t, env.memberChat.ID, res.ChatID)
+
+		chat, err := env.member.GetChat(ctx, res.ChatID)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(chat.Title, "Deploy hook "), chat.Title)
+		_, err = time.Parse("2006-01-02 15:04 UTC", strings.TrimPrefix(chat.Title, "Deploy hook "))
+		require.NoError(t, err, "the title ends with the acceptance time in UTC")
+		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+
+		messages, err := env.member.GetChatMessages(ctx, res.ChatID, nil)
+		require.NoError(t, err)
+		var content []codersdk.ChatMessagePart
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				require.Nil(t, content, "one user message")
+				content = message.Content
+			}
+		}
+		require.Len(t, content, 2)
+		require.Equal(t, "A deploy finished.", content[0].Text)
+		require.Contains(t, content[1].Text, string(event))
 	})
 }

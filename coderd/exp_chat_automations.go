@@ -372,7 +372,7 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Deliver chat automation webhook event
-// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent to the target chat as the owner; a running turn is never interrupted.
+// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent as the owner to the target chat, where a running turn is never interrupted, or as the first message of a new chat.
 // @ID deliver-chat-automation-event
 // @Accept json
 // @Produce json
@@ -388,7 +388,6 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 // @Failure 409 {object} codersdk.Response
 // @Failure 413 {object} codersdk.Response
 // @Failure 429 {object} codersdk.Response
-// @Failure 501 {object} codersdk.Response
 // @Failure 502 {object} codersdk.Response
 // @Router /api/experimental/chat-automations/{automation}/events [post]
 // @x-apidocgen {"skip": true}
@@ -499,7 +498,7 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 	case errors.Is(err, chatd.ErrAutomationOwnerInactive):
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "The owner of the chat automation is not active."})
 	case errors.Is(err, chatd.ErrAutomationForbidden), dbauthz.IsNotAuthorizedError(err):
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "The owner of the chat automation cannot send messages to the target chat."})
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "The owner of the chat automation may not send messages to the target chat or create chats."})
 	case errors.Is(err, chatd.ErrAutomationWebhookConsumed):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "This single-use webhook was already used."})
 	case errors.Is(err, chatd.ErrAutomationTargetUnavailable):
@@ -524,11 +523,8 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 		// The same response as a person's message gets; it is not a
 		// server error, so senders should not retry it.
 		writeNoLocalChatModelResponse(ctx, rw)
-	case errors.Is(err, chatd.ErrAutomationTargetNotSupported):
-		// new_chat targets are delivered by a follow-up change.
-		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
-			Message: "Chat automations that start a new chat cannot receive events yet.",
-		})
+	case errors.Is(err, chatd.ErrAutomationModelUnavailable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "The model of the chat automation is unavailable."})
 	default:
 		httpapi.InternalServerError(rw, err)
 	}

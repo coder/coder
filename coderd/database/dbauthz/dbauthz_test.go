@@ -1583,6 +1583,13 @@ func (s *MethodTestSuite) TestChats() {
 			modelObject, policy.ActionRead,
 		).Returns(automation)
 	}))
+	s.Run("UpdateChatAutomationIDByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.UpdateChatAutomationIDByIDParams{ID: chat.ID, AutomationID: uuid.New()}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAutomationIDByID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("UpdateChatAutomationWebhookSecretByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		arg := database.UpdateChatAutomationWebhookSecretByIDParams{ID: automation.ID, WebhookSecretHash: []byte("hash")}

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -15,11 +16,13 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // publishFixture is a chat owned by an agents-access member, with a
@@ -90,6 +93,50 @@ func (f publishFixture) requireNothingSaved(ctx context.Context, t *testing.T) {
 	queued, err := f.db.GetChatQueuedMessages(ctx, f.chat.ID)
 	require.NoError(t, err)
 	require.Empty(t, queued)
+}
+
+// newChatWebhook creates a webhook automation that starts a new chat for
+// every event.
+func (f publishFixture) newChatWebhook(ctx context.Context, t *testing.T, use codersdk.ChatAutomationWebhookUse) database.ChatAutomation {
+	t.Helper()
+	automation, _, err := f.server.CreateAutomation(ctx, chatd.CreateAutomationParams{
+		OrganizationID: f.org.ID,
+		OwnerID:        f.owner.ID,
+		Request: codersdk.CreateChatAutomationRequest{
+			Name:                 "Deploy hook",
+			Kind:                 codersdk.ChatAutomationKindWebhook,
+			TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: &f.model.ID,
+			ReasoningEffort:      ptr.Ref(string(database.ChatReasoningEffortHigh)),
+			Prompt:               "A deploy finished.",
+			WebhookUse:           &use,
+		},
+	})
+	require.NoError(t, err)
+	return automation
+}
+
+// createdChats returns the owner's chats other than the fixture chat.
+func (f publishFixture) createdChats(ctx context.Context, t *testing.T) []uuid.UUID {
+	t.Helper()
+	rows, err := f.sqlDB.QueryContext(ctx, "SELECT id FROM chats WHERE owner_id = $1 AND id <> $2", f.owner.ID, f.chat.ID)
+	require.NoError(t, err)
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		require.NoError(t, rows.Scan(&id))
+		ids = append(ids, id)
+	}
+	require.NoError(t, rows.Err())
+	return ids
+}
+
+func (f publishFixture) requireNotConsumed(ctx context.Context, t *testing.T, automation database.ChatAutomation) {
+	t.Helper()
+	stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+	require.NoError(t, err)
+	require.False(t, stored.WebhookConsumedAt.Valid, "a refused delivery does not use up a single-use webhook")
 }
 
 func TestPublishAutomationWebhook(t *testing.T) {
@@ -305,23 +352,144 @@ func TestPublishAutomationWebhook(t *testing.T) {
 
 	t.Run("HookDenied", func(t *testing.T) {
 		t.Parallel()
-		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
-		}))
-		t.Cleanup(consumer.Close)
+		for _, targetMode := range []codersdk.ChatAutomationTargetMode{
+			codersdk.ChatAutomationTargetModeExistingChat,
+			codersdk.ChatAutomationTargetModeNewChat,
+		} {
+			t.Run(string(targetMode), func(t *testing.T) {
+				t.Parallel()
+				consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
+				}))
+				t.Cleanup(consumer.Close)
+				f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
+				if targetMode == codersdk.ChatAutomationTargetModeNewChat {
+					automation = f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+				}
+
+				_, err := f.publish(ctx, automation)
+				var denied *chathooks.UserPromptDeniedError
+				require.ErrorAs(t, err, &denied)
+				f.requireNothingSaved(ctx, t)
+				require.Empty(t, f.createdChats(ctx, t))
+				f.requireNotConsumed(ctx, t, automation)
+			})
+		}
+	})
+
+	t.Run("NewChat", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		clock.Set(time.Date(2026, time.March, 4, 22, 7, 30, 0, time.FixedZone("CET", 3600)))
 		f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
-			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+			cfg.Clock = clock
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
-		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
 
-		_, err := f.publish(ctx, automation)
-		var denied *chathooks.UserPromptDeniedError
-		require.ErrorAs(t, err, &denied)
-		f.requireNothingSaved(ctx, t)
-		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
+		result, err := f.publish(ctx, automation)
 		require.NoError(t, err)
-		require.False(t, stored.WebhookConsumedAt.Valid, "a denied delivery does not use up a single-use webhook")
+		require.Equal(t, []uuid.UUID{result.ChatID}, f.createdChats(ctx, t))
+		chat, err := f.db.GetChatByID(ctx, result.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: automation.ID, Valid: true}, chat.AutomationID)
+		require.Equal(t, "Deploy hook 2026-03-04 21:07 UTC", chat.Title)
+		require.Equal(t, database.ChatClientTypeApi, chat.ClientType)
+		require.Equal(t, f.model.ID, chat.LastModelConfigID)
+		require.Empty(t, chat.MCPServerIDs)
+
+		var user []database.ChatMessage
+		for _, message := range chatMessages(ctx, t, f.db, chat.ID) {
+			if message.Role == database.ChatMessageRoleUser {
+				user = append(user, message)
+			}
+		}
+		require.Len(t, user, 1)
+		message := user[0]
+		require.Equal(t, uuid.NullUUID{UUID: automation.ID, Valid: true}, message.AutomationID)
+		require.Equal(t, uuid.NullUUID{UUID: result.InputID, Valid: true}, message.InputID)
+		require.Equal(t, uuid.NullUUID{UUID: f.owner.ID, Valid: true}, message.CreatedBy)
+		require.Equal(t, database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true}, message.ReasoningEffort)
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		require.Len(t, parts, 2)
+		require.Equal(t, codersdk.ChatMessageText("A deploy finished."), parts[0])
+		require.Contains(t, parts[1].Text, "<automation_event_data>\n{\"service\":\"api\"}\n</automation_event_data>")
+	})
+
+	t.Run("NewChatModelUnavailable", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name   string
+			update string
+		}{
+			{"Disabled", "UPDATE chat_model_configs SET enabled = false WHERE id = $1"},
+			{"Deleted", "UPDATE chat_model_configs SET deleted = true WHERE id = $1"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				f := newPublishFixture(t, database.ChatStatusWaiting)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+				_, err := f.sqlDB.ExecContext(ctx, tc.update, f.model.ID)
+				require.NoError(t, err)
+
+				_, err = f.publish(ctx, automation)
+				require.ErrorIs(t, err, chatd.ErrAutomationModelUnavailable)
+				require.Empty(t, f.createdChats(ctx, t))
+				f.requireNotConsumed(ctx, t, automation)
+			})
+		}
+	})
+
+	t.Run("NewChatOwnerCannotCreateChats", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
+		_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+			GrantedRoles: []string{},
+			UserID:       f.owner.ID,
+			OrgID:        f.org.ID,
+		})
+		require.NoError(t, err)
+		_, err = f.sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = '{}' WHERE id = $1", f.org.ID)
+		require.NoError(t, err)
+
+		_, err = f.publish(ctx, automation)
+		require.ErrorIs(t, err, chatd.ErrAutomationForbidden)
+		require.Empty(t, f.createdChats(ctx, t))
+	})
+
+	t.Run("NewChatSingleUseConcurrent", func(t *testing.T) {
+		t.Parallel()
+		f := newPublishFixture(t, database.ChatStatusWaiting)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+
+		const publishers = 8
+		errs := make([]error, publishers)
+		var wg sync.WaitGroup
+		for i := range publishers {
+			wg.Go(func() {
+				_, errs[i] = f.publish(ctx, automation)
+			})
+		}
+		wg.Wait()
+		accepted := 0
+		for _, err := range errs {
+			if err == nil {
+				accepted++
+				continue
+			}
+			require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
+		}
+		require.Equal(t, 1, accepted)
+		require.Len(t, f.createdChats(ctx, t), 1)
 	})
 }
 
