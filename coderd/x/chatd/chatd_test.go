@@ -11975,6 +11975,32 @@ func TestMCPToolSearchExperimentRules(t *testing.T) {
 		}
 	})
 
+	// Without MCP candidates find_tools is never offered, so the turn
+	// must not read the rules at all.
+	t.Run("no MCP tools skips the rules read", func(t *testing.T) {
+		t.Parallel()
+		store := &countingRulesStore{Store: experimentstest.Store{
+			StoredRules: map[codersdk.Experiment]experimentrules.StoredRule{
+				codersdk.ExperimentMCPToolSearch: experimentstest.StoredRule(t, experimentrules.Rule{Mode: experimentrules.ModeOn}),
+			},
+		}}
+		h := newHarness(t, codersdk.ExperimentsKnown, func(database.Store) experimentrules.Store { return store })
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := h.server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: h.org.ID,
+			OwnerID:        h.owner.ID,
+			Title:          "no mcp",
+			ModelConfigID:  h.model.ID,
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("hello"),
+			},
+		})
+		require.NoError(t, err)
+		require.NotContains(t, h.turnTools(t, 1), chattool.FindToolsName)
+		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
+		require.Zero(t, store.rules.Load())
+	})
+
 	t.Run("rule changes apply on the next turn", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t, withoutToolSearch, experimentrules.NewDBStore)
@@ -15370,4 +15396,15 @@ func setupWorkspaceContextAgentConn(
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+}
+
+// countingRulesStore counts experiment rule reads.
+type countingRulesStore struct {
+	experimentstest.Store
+	rules atomic.Int64
+}
+
+func (s *countingRulesStore) Rules(ctx context.Context) (map[codersdk.Experiment]experimentrules.StoredRule, error) {
+	s.rules.Add(1)
+	return s.Store.Rules(ctx)
 }
