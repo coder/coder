@@ -125,28 +125,26 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
    kubectl create secret generic coder-db-url -n coder --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
    ```
 
-1. Deploy Coder to AKS cluster:
+1. Get the application gateway's public IP address. Coder uses it as the access URL:
 
    ```sh
-   helm repo add coder-v2 https://helm.coder.com/v2
-   helm install coder coder-v2/coder \
-       --namespace coder \
-    --values values.yaml \
-    --version 2.25.2
+   az network public-ip show --name myPublicIp --resource-group myResourceGroup -o tsv --query "ipAddress"
    ```
 
-1. Clean up Azure resources:
-
-   ```sql
-   az group delete --name myResourceGroup
-   az group delete --name MC_myResourceGroup_myCluster_eastus
-   ```
-
-1. Deploy the gateway - this needs clarification
-
-1. After you deploy the gateway, add the following entries to Helm's `values.yaml` file before you deploy Coder:
+1. Create a `values.yaml` file for the Coder Helm chart.
+   Replace `<app-gateway-public-ip>` with the IP address from the previous step, or with a domain that resolves to it:
 
    ```yaml
+   coder:
+     env:
+       - name: CODER_PG_CONNECTION_URL
+         valueFrom:
+           secretKeyRef:
+             name: coder-db-url
+             key: url
+       - name: CODER_ACCESS_URL
+         value: "http://<app-gateway-public-ip>"
+
      service:
        enable: true
        type: ClusterIP
@@ -167,4 +165,31 @@ The steps here follow the Microsoft tutorial for a Coder deployment.
          enable: false
          secretName: ""
          wildcardSecretName: ""
+   ```
+
+   The application gateway ingress controller that you enabled earlier watches for Ingress resources with the `azure-application-gateway` class and configures the gateway to route traffic to the Coder service.
+
+1. Deploy Coder to AKS cluster:
+
+   ```sh
+   helm repo add coder-v2 https://helm.coder.com/v2
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.25.2
+   ```
+
+1. Verify that the Ingress was assigned the application gateway's public IP address:
+
+   ```sh
+   kubectl get ingress -n coder
+   ```
+
+   After the `ADDRESS` column shows the IP address, go to your access URL in a browser to create the first Coder user.
+
+1. When you no longer need the deployment, clean up Azure resources:
+
+   ```sql
+   az group delete --name myResourceGroup
+   az group delete --name MC_myResourceGroup_myCluster_eastus
    ```

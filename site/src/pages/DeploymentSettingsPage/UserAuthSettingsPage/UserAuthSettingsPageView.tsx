@@ -1,4 +1,3 @@
-import type { JSX } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { BadgeGroup } from "#/components/Badge/Badge";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
@@ -21,7 +20,7 @@ type UserAuthSettingsPageViewProps = {
 
 export const UserAuthSettingsPageView = ({
 	options,
-}: UserAuthSettingsPageViewProps): JSX.Element => {
+}: UserAuthSettingsPageViewProps): React.JSX.Element => {
 	const oidcEnabled = Boolean(
 		useDeploymentOptions(options, "OIDC Client ID")[0].value,
 	);

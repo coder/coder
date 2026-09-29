@@ -14,7 +14,9 @@ The needs of most workspaces fall somewhere in the middle, persisting user data
 like filesystem volumes, but deleting expensive, reproducible resources such as
 compute instances.
 
-## Disabling persistence
+<a id="disabling-persistence"></a>
+
+## Turn off persistence
 
 The Terraform
 [`coder_workspace` data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)

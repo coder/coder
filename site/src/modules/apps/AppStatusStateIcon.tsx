@@ -7,7 +7,6 @@ import {
 	PauseIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import type { FC } from "react";
 import type { WorkspaceAppStatusState } from "#/api/typesGenerated";
 import { Spinner } from "#/components/Spinner/Spinner";
 
@@ -18,7 +17,7 @@ type AppStatusStateIconProps = {
 	className?: string;
 };
 
-export const AppStatusStateIcon: FC<AppStatusStateIconProps> = ({
+export const AppStatusStateIcon: React.FC<AppStatusStateIconProps> = ({
 	state,
 	disabled,
 	latest,

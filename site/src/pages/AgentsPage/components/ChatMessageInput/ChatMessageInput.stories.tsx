@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { type PropsWithChildren, useEffect } from "react";
+import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -533,7 +533,7 @@ const clearMobileDropdownGeometry = () => {
 	}
 };
 
-const MobileFrame = ({ children }: PropsWithChildren) => {
+const MobileFrame = ({ children }: React.PropsWithChildren) => {
 	useEffect(() => {
 		setMobileDropdownGeometry();
 		return clearMobileDropdownGeometry;

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
@@ -9,7 +8,7 @@ const severityTextClasses = {
 } as const satisfies Record<UsageSeverity, string>;
 
 /** A spend amount in USD that takes the warning/exceeded color as it nears the limit; values in micros. */
-export const AIBudgetAmount: FC<{ spend: number; limit: number }> = ({
+export const AIBudgetAmount: React.FC<{ spend: number; limit: number }> = ({
 	spend,
 	limit,
 }) => (

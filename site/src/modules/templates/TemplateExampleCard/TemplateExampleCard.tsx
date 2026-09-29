@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { ComponentProps, FC } from "react";
 import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -7,13 +6,13 @@ import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Link } from "#/components/Link/Link";
 
-type TemplateExampleCardProps = ComponentProps<"div"> & {
+type TemplateExampleCardProps = React.ComponentProps<"div"> & {
 	example: TemplateExample;
 	activeTag?: string;
 	templateBuilderEnabled?: boolean;
 };
 
-export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
+export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
 	templateBuilderEnabled,

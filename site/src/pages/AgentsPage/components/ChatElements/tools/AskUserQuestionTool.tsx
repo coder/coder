@@ -4,7 +4,7 @@ import {
 	MessageCircleQuestionIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, type FormEvent, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -141,7 +141,7 @@ type SelectableAnswerOptionProps = {
 	isSubmitting: boolean;
 };
 
-const SelectableAnswerOption: FC<SelectableAnswerOptionProps> = ({
+const SelectableAnswerOption: React.FC<SelectableAnswerOptionProps> = ({
 	id,
 	value,
 	label,
@@ -184,7 +184,7 @@ type QuestionOptionProps = {
 	isSubmitting: boolean;
 };
 
-const QuestionOption: FC<QuestionOptionProps> = ({
+const QuestionOption: React.FC<QuestionOptionProps> = ({
 	questionIdBase,
 	option,
 	optionIndex,
@@ -213,7 +213,7 @@ type OtherQuestionOptionProps = {
 	onTextChange: (text: string) => void;
 };
 
-const OtherQuestionOption: FC<OtherQuestionOptionProps> = ({
+const OtherQuestionOption: React.FC<OtherQuestionOptionProps> = ({
 	questionHeader,
 	questionIdBase,
 	optionIndex,
@@ -264,7 +264,7 @@ type QuestionStepProps = {
 	onOtherTextChange: (text: string) => void;
 };
 
-const QuestionStep: FC<QuestionStepProps> = ({
+const QuestionStep: React.FC<QuestionStepProps> = ({
 	question,
 	questionIndex,
 	questionCount,
@@ -346,7 +346,7 @@ type AnsweredQuestionTextProps = {
 	idPrefix: string;
 };
 
-const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
+const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 	question,
 	questionIndex,
 	idPrefix,
@@ -368,7 +368,7 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 	);
 };
 
-export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
+export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
 	isError,
@@ -516,7 +516,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		submitAnswerMutation.mutate(outgoingMessage);
 	};
 
-	const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+	const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		if (!isInteractive) {
 			return;

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { InfoIcon, NetworkIcon } from "lucide-react";
-import { type FC, type KeyboardEvent, useState } from "react";
+import { useState } from "react";
 import { Link as RouterLink } from "react-router";
 import userAgentParser from "ua-parser-js";
 import type { AuditLog } from "#/api/typesGenerated";
@@ -31,7 +31,7 @@ type AuditLogRowProps = {
 	showOrgDetails: boolean;
 };
 
-export const AuditLogRow: FC<AuditLogRowProps> = ({
+export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 	auditLog,
 	defaultIsDiffOpen = false,
 	showOrgDetails,
@@ -74,7 +74,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 							role: "button",
 							"aria-expanded": isDiffOpen,
 							onClick: toggle,
-							onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+							onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
 								if (event.key === "Enter" || event.key === " ") {
 									event.preventDefault();
 									toggle();

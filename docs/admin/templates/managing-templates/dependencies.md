@@ -93,7 +93,7 @@ inside a folder containing the Terraform source code for a given template.
 
 This will create a new file named `.terraform.lock.hcl` in the current
 directory. When you next run
-[`coder templates push`](../../../reference/cli/templates_push.md), the lock
+[`coder templates push`](../../../reference/cli/templates/push.md), the lock
 file will be stored alongside with the other template source code.
 
 > [!NOTE]

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import {
 	deleteUserCompactionThreshold,
@@ -12,7 +11,7 @@ import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageVi
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
 
-const AgentSettingsCompactionPage: FC = () => {
+const AgentSettingsCompactionPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const { organizations } = useDashboard();
 	const organizationModels = useOrganizationChatModels(

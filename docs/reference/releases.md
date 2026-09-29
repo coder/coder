@@ -61,7 +61,9 @@ For more information, see the [Coder ESR announcement](https://coder.com/blog/es
 
 Release candidates give Coder a way to push out builds for customers and other users to try out new, under-development functionality without cutting a new minor version. Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support. They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.
 
-## Installing stable
+<a id="installing-stable"></a>
+
+## Install stable
 
 When installing Coder, we generally advise specifying the desired version from
 our GitHub [releases page](https://github.com/coder/coder/releases).

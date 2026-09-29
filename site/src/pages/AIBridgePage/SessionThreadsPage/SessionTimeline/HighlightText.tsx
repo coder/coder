@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { splitMatchSegments } from "./sessionSearch";
 
 type HighlightTextProps = {
@@ -7,7 +6,10 @@ type HighlightTextProps = {
 };
 
 // Renders text with query matches bolded in the primary color.
-export const HighlightText: FC<HighlightTextProps> = ({ text, highlight }) => {
+export const HighlightText: React.FC<HighlightTextProps> = ({
+	text,
+	highlight,
+}) => {
 	const segments = splitMatchSegments(text, highlight);
 	if (segments.length === 1 && !segments[0].match) {
 		return text;

@@ -1,5 +1,4 @@
 import { ChevronLeftIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -21,7 +20,7 @@ type AddNewLicenseProps = {
 	savingLicenseError?: unknown;
 };
 
-export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
+export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 	onSaveLicenseKey,
 	isSavingLicense,
 	savingLicenseError,

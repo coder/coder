@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CloudUploadIcon, FolderIcon, TrashIcon } from "lucide-react";
-import { type DragEvent, type FC, type ReactNode, useRef } from "react";
+import { useRef } from "react";
 import { Button } from "#/components/Button/Button";
 import { useClickable } from "#/hooks/useClickable";
 import { Spinner } from "../Spinner/Spinner";
@@ -13,11 +13,11 @@ type FileUploadProps = {
 	file?: File;
 	removeLabel: string;
 	title: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	extensions?: string[];
 };
 
-export const FileUpload: FC<FileUploadProps> = ({
+export const FileUpload: React.FC<FileUploadProps> = ({
 	isUploading,
 	onUpload,
 	onUnsupportedFile,
@@ -107,14 +107,14 @@ const useFileDrop = (
 	extensions?: string[],
 	onUnsupportedFile?: (file: File) => void,
 ): {
-	onDragOver: (e: DragEvent<HTMLDivElement>) => void;
-	onDrop: (e: DragEvent<HTMLDivElement>) => void;
+	onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+	onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
 } => {
-	const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+	const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
 	};
 
-	const onDrop = (e: DragEvent<HTMLDivElement>) => {
+	const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
 		e.preventDefault();
 		const file = e.dataTransfer.files[0] as File | undefined;
 

@@ -44,7 +44,7 @@ only the methods that apply to it.
 - A key in a YAML configuration file passed with ` + "`--config`" + `.
 
 For a full description of each option's accepted values and behavior, follow the
-flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server.md).
+flag link into the [` + "`coder server`" + ` CLI reference](../../reference/cli/server/index.md).
 
 Deprecated options are listed at the end of each section.
 
@@ -338,7 +338,7 @@ func renderOption(b *strings.Builder, opt option, level int) {
 		_, _ = fmt.Fprintf(b, "- Environment variable: `%s`\n", opt.env)
 	}
 	if opt.flagName != "" {
-		_, _ = fmt.Fprintf(b, "- CLI flag: [`%s`](../../reference/cli/server.md#%s)\n", opt.flagName, opt.flagAnchor)
+		_, _ = fmt.Fprintf(b, "- CLI flag: [`%s`](../../reference/cli/server/index.md#%s)\n", opt.flagName, opt.flagAnchor)
 	}
 	if opt.yaml != "" {
 		_, _ = fmt.Fprintf(b, "- YAML key: `%s`\n", opt.yaml)

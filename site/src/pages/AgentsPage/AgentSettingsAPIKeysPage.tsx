@@ -1,11 +1,10 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 
-const AgentSettingsAPIKeysPage: FC = () => {
+const AgentSettingsAPIKeysPage: React.FC = () => {
 	const { organizations } = useDashboard();
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),

@@ -9,7 +9,7 @@ import {
 	SettingsIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type FC, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import * as Yup from "yup";
 import type {
 	NullHCLString,
@@ -57,7 +57,7 @@ type DynamicParameterProps = {
 	autofill?: boolean;
 };
 
-export const DynamicParameter: FC<DynamicParameterProps> = ({
+export const DynamicParameter: React.FC<DynamicParameterProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -101,7 +101,7 @@ type ParameterLabelProps = {
 	id: string;
 };
 
-const ParameterLabel: FC<ParameterLabelProps> = ({
+const ParameterLabel: React.FC<ParameterLabelProps> = ({
 	parameter,
 	isPreset,
 	autofill,
@@ -243,7 +243,7 @@ type ParameterFieldProps = {
 	id: string;
 };
 
-const ParameterField: FC<ParameterFieldProps> = ({
+const ParameterField: React.FC<ParameterFieldProps> = ({
 	parameter,
 	value,
 	onChange,
@@ -487,7 +487,7 @@ type MaskableInputProps = Omit<React.ComponentProps<"input">, "onChange"> & {
 	masked?: boolean;
 };
 
-const MaskableInput: FC<MaskableInputProps> = ({
+const MaskableInput: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -535,7 +535,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	);
 };
 
-const MaskableTextArea: FC<MaskableInputProps> = ({
+const MaskableTextArea: React.FC<MaskableInputProps> = ({
 	id,
 	onChange,
 	value,
@@ -618,7 +618,7 @@ type OptionDisplayProps = {
 	option: PreviewParameterOption;
 };
 
-const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
+const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 	return (
 		<div className="flex items-center gap-2">
 			{option.icon && (
@@ -649,7 +649,7 @@ type ParameterDiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 };
 
-const ParameterDiagnostics: FC<ParameterDiagnosticsProps> = ({
+const ParameterDiagnostics: React.FC<ParameterDiagnosticsProps> = ({
 	diagnostics,
 }) => {
 	return (
@@ -916,7 +916,7 @@ type DiagnosticsProps = {
 	diagnostics: PreviewParameter["diagnostics"];
 };
 
-export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
+export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
 			{diagnostics.map((diagnostic, index) => (

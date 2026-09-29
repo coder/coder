@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { paginatedAudits } from "#/api/queries/audits";
 import { useFilter } from "#/components/Filter/Filter";
@@ -13,7 +12,7 @@ import { pageTitle } from "#/utils/page";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
-const AuditPage: FC = () => {
+const AuditPage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const feats = useFeatureVisibility();
 	// The "else false" is required if audit_log is undefined.

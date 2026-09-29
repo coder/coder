@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	Filter,
 	MenuSkeleton,
@@ -68,7 +67,11 @@ type UsersFilterProps = {
 	};
 };
 
-export const UsersFilter: FC<UsersFilterProps> = ({ filter, error, menus }) => {
+export const UsersFilter: React.FC<UsersFilterProps> = ({
+	filter,
+	error,
+	menus,
+}) => {
 	return (
 		<Filter
 			presets={PRESET_FILTERS}

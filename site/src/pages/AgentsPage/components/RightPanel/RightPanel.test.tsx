@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
@@ -15,7 +15,7 @@ type HarnessProps = {
  * Owns the open and expanded state around a RightPanel the way the chat
  * page does and reports every transition so tests can assert on them.
  */
-const RightPanelHarness: FC<HarnessProps> = ({
+const RightPanelHarness: React.FC<HarnessProps> = ({
 	onOpenChange,
 	onExpandedChange,
 	onVisualExpandedChange,
@@ -52,7 +52,7 @@ type SidebarHarnessProps = HarnessProps & {
  * Supplies the outlet context the panel uses to collapse the chats
  * sidebar while the pointer is at the left edge of the viewport.
  */
-const RightPanelWithSidebarHarness: FC<SidebarHarnessProps> = ({
+const RightPanelWithSidebarHarness: React.FC<SidebarHarnessProps> = ({
 	onSidebarCollapsedChange,
 	...harnessProps
 }) => {

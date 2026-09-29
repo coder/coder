@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -12,12 +11,12 @@ const RequiredMark = () => (
 	<span className="text-xs font-bold text-content-destructive">*</span>
 );
 
-export const Field: FC<{
-	label: ReactNode;
+export const Field: React.FC<{
+	label: React.ReactNode;
 	htmlFor?: string;
 	required?: boolean;
-	children: ReactNode;
-	description?: ReactNode;
+	children: React.ReactNode;
+	description?: React.ReactNode;
 	className?: string;
 }> = ({ label, htmlFor, required, children, description, className }) => {
 	return (
@@ -37,14 +36,14 @@ export const Field: FC<{
 	);
 };
 
-export const CollapsibleSection: FC<{
+export const CollapsibleSection: React.FC<{
 	title: string;
 	description: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
 	contentClassName?: string;
-	children: ReactNode;
+	children: React.ReactNode;
 }> = ({
 	title,
 	description,

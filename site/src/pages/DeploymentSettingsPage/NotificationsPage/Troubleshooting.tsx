@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -10,7 +9,7 @@ type TroubleshootingProps = {
 	canEdit?: boolean;
 };
 
-export const Troubleshooting: FC<TroubleshootingProps> = ({
+export const Troubleshooting: React.FC<TroubleshootingProps> = ({
 	canEdit = true,
 }) => {
 	const { mutate: sendTestNotificationApi, isPending } = useMutation({

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import { type FC, type ReactNode, useState } from "react";
+import { useState } from "react";
 import { Input } from "#/components/Input/Input";
 import {
 	Select,
@@ -22,7 +22,7 @@ type DurationFieldProps = {
 	label?: string;
 	disabled?: boolean;
 	error?: boolean;
-	helperText?: ReactNode;
+	helperText?: React.ReactNode;
 	className?: string;
 };
 
@@ -42,7 +42,7 @@ function toDisplayValue(ms: number, unit: TimeUnit): string {
 		: durationInDays(ms).toString();
 }
 
-export const DurationField: FC<DurationFieldProps> = ({
+export const DurationField: React.FC<DurationFieldProps> = ({
 	valueMs,
 	onChange,
 	label,

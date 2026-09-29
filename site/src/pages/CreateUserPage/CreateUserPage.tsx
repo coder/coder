@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -12,7 +11,7 @@ import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { pageTitle } from "#/utils/page";
 import { CreateUserForm } from "./CreateUserForm";
 
-const CreateUserPage: FC = () => {
+const CreateUserPage: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
