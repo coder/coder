@@ -19,6 +19,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
@@ -34,11 +36,11 @@ type interceptionBase struct {
 	req *ChatCompletionNewParamsWrapper
 
 	cfg  intercept.Config
-	cred intercept.Credential
+	cred credential.Credential
 
 	// bedrockMantle is nil for non-Bedrock providers. When set, upstream
-	// calls are SigV4-signed against the Bedrock Mantle endpoint instead of
-	// using a key pool or BYOK secret.
+	// calls target the Bedrock Mantle endpoint and are SigV4-signed, or
+	// bearer-authenticated when the request carries a user Bedrock API key.
 	bedrockMantle *awssig.MantleConfig
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -68,7 +70,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	} else {
 		// Only BYOK sets its credential here. Centralized keys are injected
 		// per-attempt in the failover loop.
-		if byok, ok := intercept.AsBYOK(i.cred); ok {
+		if byok, ok := credential.AsBYOK(i.cred); ok {
 			i.logger.Debug(ctx, "using byok auth",
 				slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 			)
@@ -82,7 +84,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -92,9 +94,9 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	// Bedrock mantle: install the SigV4 signing middleware last so it runs
-	// innermost (right before the HTTP send) and signs the request after all
-	// other headers are set.
+	// Bedrock mantle: install auth last so it runs innermost (right before the
+	// HTTP send) after all other headers are set. A user Bedrock API key is
+	// sent as a bearer token; otherwise the request is SigV4-signed.
 	if i.bedrockMantle != nil {
 		// Bedrock traffic carries Coder's PRM attribution marker. This runs
 		// before SigV4 signing so the marker is covered by the signature.
@@ -102,8 +104,14 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 			awssig.AppendPRMUserAgent(req)
 			return next(req)
 		}))
-		//nolint:bodyclose // SignMiddleware reads and closes only the request body.
-		opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		if byok, ok := credential.AsBYOK(i.cred); ok {
+			i.logger.Debug(ctx, "using byok auth", slog.F("key_hint", byok.Hint()))
+			//nolint:bodyclose // The middleware returns the upstream response for the SDK to close.
+			opts = append(opts, option.WithMiddleware(awssig.BearerMiddleware(byok.Secret)))
+		} else {
+			//nolint:bodyclose // SignMiddleware reads and closes only the request body.
+			opts = append(opts, option.WithMiddleware(awssig.SignMiddleware(i.bedrockMantle.Creds, i.bedrockMantle.Region, awssig.ServiceBedrockMantle)))
+		}
 	}
 
 	return openai.NewChatCompletionService(opts...)
@@ -113,7 +121,7 @@ func (i *interceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *interceptionBase) Credential() intercept.Credential {
+func (i *interceptionBase) Credential() credential.Credential {
 	return i.cred
 }
 
@@ -243,7 +251,7 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *int
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	cp, ok := intercept.AsCentralizedPool(i.cred)
+	cp, ok := credential.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}

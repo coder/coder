@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
 import { expect, fn, within } from "storybook/test";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import { mockSuccessResult } from "#/components/PaginationWidget/PaginationContainer.mocks";
@@ -10,7 +9,7 @@ import {
 } from "#/testHelpers/entities";
 import { UsersPageView } from "./UsersPageView";
 
-type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
+type FilterProps = React.ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps: FilterProps = {
 	...getDefaultFilterProps<FilterProps>({

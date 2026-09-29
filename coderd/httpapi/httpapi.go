@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -354,6 +355,26 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	<-chan struct{},
 	error,
 ) {
+	return newServerSentEventSender(quartz.NewReal(), rw, r)
+}
+
+// ServerSentEventSenderWithClock is ServerSentEventSender with the heartbeat
+// ticker driven by clk.
+func ServerSentEventSenderWithClock(clk quartz.Clock) EventSender {
+	return func(rw http.ResponseWriter, r *http.Request) (
+		func(sse codersdk.ServerSentEvent) error,
+		<-chan struct{},
+		error,
+	) {
+		return newServerSentEventSender(clk, rw, r)
+	}
+}
+
+func newServerSentEventSender(clk quartz.Clock, rw http.ResponseWriter, r *http.Request) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -376,7 +397,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := clk.NewTicker(HeartbeatInterval, "ServerSentEventSender")
 		defer ticker.Stop()
 
 		for {

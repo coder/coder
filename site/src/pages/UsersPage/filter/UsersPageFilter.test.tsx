@@ -47,7 +47,7 @@ describe("UsersPageFilter", () => {
 		const user = userEvent.setup();
 		const { update } = renderFilter(`role:owner ${lastSeenQuery}`);
 
-		await user.click(screen.getByRole("button", { name: "Toggle filters" }));
+		await user.click(screen.getByRole("button", { name: "Filters" }));
 		await user.click(
 			await screen.findByRole("option", { name: /Service account/ }),
 		);

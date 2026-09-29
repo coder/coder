@@ -1,11 +1,10 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { MCPServerIcon } from "./MCPServerIcon";
+import { MCPServerIcon } from "#/modules/mcpServers/MCPServerIcon";
 import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
 type MCPServerRowProps = {
@@ -13,7 +12,10 @@ type MCPServerRowProps = {
 	onClick?: () => void;
 };
 
-export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
+export const MCPServerRow: React.FC<MCPServerRowProps> = ({
+	server,
+	onClick,
+}) => {
 	const clickableProps = useClickableTableRow({
 		onClick: () => onClick?.(),
 	});
@@ -25,7 +27,6 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 				<div className="flex min-w-0 items-center gap-3">
 					<MCPServerIcon
 						iconUrl={server.icon_url}
-						name={server.display_name}
 						className={cn("size-10", !enabled && "opacity-50")}
 					/>
 					<span

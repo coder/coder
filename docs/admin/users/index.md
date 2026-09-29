@@ -7,7 +7,9 @@ deployments, we recommend using an SSO authentication provider with multi-factor
 authentication (MFA). It is your responsibility to ensure the auth provider
 enforces MFA correctly.
 
-## Configuring SSO
+<a id="configuring-sso"></a>
+
+## Configure SSO
 
 - [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
@@ -46,9 +48,8 @@ interact with Coder using CLI.
 
 ### Dormant user
 
-A user account is set to _dormant_ status when they have not yet logged in, or
-have not logged into the Coder platform for the past 90 days. Once the user logs
-in to the platform, the account status will switch to _active_.
+A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90&nbsp;days.
+Once the user logs in to the platform, the account status will switch to _active_.
 
 Dormant accounts do not count towards the total number of licensed seats in a
 Coder subscription, allowing organizations to optimize their license usage.
@@ -170,7 +171,9 @@ coder reset-password <username>
 > Resetting a user's password, e.g., the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
-### Resetting a password on Kubernetes
+<a id="resetting-a-password-on-kubernetes"></a>
+
+### Reset a password on Kubernetes
 
 ```sh
 kubectl exec -it deployment/coder -n coder -- /bin/bash
@@ -247,7 +250,7 @@ coder users list --output json | \
   jq -r '["username","email","created_at","status"], (.[] | [.username, .email, .created_at, .status]) | @csv' > users.csv
 ```
 
-Visit the [users list](../../reference/cli/users_list.md) documentation for more options.
+Visit the [users list](../../reference/cli/users/list.md) documentation for more options.
 
 ### API
 

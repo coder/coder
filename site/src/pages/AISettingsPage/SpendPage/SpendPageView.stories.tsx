@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
-import { MockMenu } from "#/components/Filter/storyHelpers";
+import { fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
+	MockAIProviders,
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendReport,
@@ -35,6 +36,11 @@ const mockPendingReportQuery = {
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPageView",
 	component: SpendPageView,
+	beforeEach: () => {
+		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
+		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
+		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
+	},
 	args: {
 		isEntitled: true,
 		isEnabled: true,
@@ -44,14 +50,16 @@ const meta = {
 		onOrganizationChange: fn(),
 		isOrganizationsLoading: false,
 		organizationsError: null,
-		dateRange: {
-			startDate: new Date("2026-02-10T00:00:00Z"),
-			endDate: new Date("2026-03-12T00:00:00Z"),
+		period: {
+			start: new Date("2026-02-10T00:00:00Z"),
+			end: new Date("2026-03-12T00:00:00Z"),
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
-		isRetentionLoading: false,
-		onDateRangeChange: fn(),
-		filterMenus: { provider: MockMenu, client: MockMenu, model: MockMenu },
+		onPeriodChange: fn(),
+		canFilterDimensions: true,
+		filterQuery: "",
+		onFilterQueryChange: fn(),
+		filterError: undefined,
 		reportQuery: mockReportQuery,
 	},
 } satisfies Meta<typeof SpendPageView>;
@@ -89,16 +97,28 @@ export const NoPermittedOrganizations: Story = {
 
 export const Loading: Story = {
 	args: {
-		dateRange: undefined,
-		isRetentionLoading: true,
+		period: {
+			start: new Date("2026-03-05T12:00:00Z"),
+			end: new Date("2026-03-12T12:00:00Z"),
+			preset: "last_7d",
+		},
+		minDate: undefined,
 		reportQuery: mockPendingReportQuery,
 	},
 };
 
 export const Users: Story = {};
 
+export const UnsupportedFreeText: Story = {
+	args: {
+		filterQuery: "provider_name:openai alice",
+		filterError:
+			"Free-text search isn't supported. Results reflect only the provider, client, and model filters.",
+	},
+};
+
 export const WithoutDimensionFilters: Story = {
-	args: { filterMenus: undefined },
+	args: { canFilterDimensions: false },
 };
 
 export const SingleOrganization: Story = {
@@ -120,7 +140,7 @@ export const RequestedOrganizationDenied: Story = {
 };
 
 export const Mobile: Story = {
-	globals: { viewport: { value: "mobile2", isRotated: false } },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 // The content width a 1024px viewport leaves beside the settings sidebar.

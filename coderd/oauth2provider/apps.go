@@ -80,14 +80,15 @@ func emptyRedirectURIsDetail(fromCallback string) string {
 // the scheme, cannot be saved until a request sends a list that passes.
 func validateAppRedirectURIFields(uris []string, clientType codersdk.OAuth2ClientType, fromCallback string) []codersdk.ValidationError {
 	// A failure on the request's callback_url is reported against that field
-	// and without a list index, since the caller never sent a list.
+	// and without a row number, since the caller never sent a list. Rows are
+	// numbered from one to match the labels the web UI shows.
 	invalid := func(i int, uri, detail string) []codersdk.ValidationError {
 		if uri != "" && uri == fromCallback {
 			return []codersdk.ValidationError{{Field: "callback_url", Detail: "callback URL " + detail}}
 		}
 		return []codersdk.ValidationError{{
 			Field:  "redirect_uris",
-			Detail: fmt.Sprintf("redirect URI at index %d %s", i, detail),
+			Detail: fmt.Sprintf("redirect URI %d %s", i+1, detail),
 		}}
 	}
 	if len(uris) == 0 {
@@ -166,9 +167,10 @@ func GetApp(accessURL *url.URL) http.HandlerFunc {
 	}
 }
 
-// scopeAllowlist wraps a scope list for storage. Every write path stores the
-// spelling as given; readers canonicalize. An empty list stores as an empty,
-// valid string, meaning no allowlist.
+// scopeAllowlist wraps a scope list for storage. The admin API stores the
+// caller's spelling, new DCR rows hold canonical catalog names, and an
+// unchanged RFC 7592 resend keeps what the row already held. An empty list
+// stores as an empty, valid string, meaning no allowlist.
 func scopeAllowlist(raw string) sql.NullString {
 	return sql.NullString{
 		String: raw,

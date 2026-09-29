@@ -1,24 +1,33 @@
 package messages
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/bedrock"
+	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -962,6 +971,25 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectKeptFields:    []string{"output_config", "output_config.effort"},
 			expectRemovedFields: []string{"output_config.format"},
 		},
+		{
+			name:                "unknown_model_keeps_thinking_block_binding_with_beta_flag",
+			bedrockModel:        "us.anthropic.claude-fable-6",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}}`,
+			clientBetaFlags:     "interleaved-thinking-2025-05-14,thinking-binding-controls-2026-08-01",
+			expectThinkingType:  "enabled",
+			expectBudgetTokens:  8000,
+			expectKeptFields:    []string{"thinking.block_binding.mismatch_behavior"},
+			expectRemovedFields: []string{"thinking.block_binding.prefix_mismatch_behavior"},
+			expectBetaValues:    []string{"interleaved-thinking-2025-05-14", "thinking-binding-controls-2026-08-01"},
+		},
+		{
+			name:                "opus_5_5_strips_thinking_block_binding_without_beta_flag",
+			bedrockModel:        "anthropic.claude-opus-5-5",
+			requestBody:         `{"max_tokens":10000,"thinking":{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}}`,
+			expectThinkingType:  "adaptive",
+			expectKeptFields:    []string{"thinking"},
+			expectRemovedFields: []string{"thinking.block_binding"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -1246,7 +1274,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &credential.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)
@@ -1352,6 +1380,152 @@ func TestBedrockMantleIsPassthrough(t *testing.T) {
 	_, err := i.newMessagesService(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, before, string(i.reqPayload))
+}
+
+// TestCredentialResolutionContext verifies Bedrock credential resolution is bounded
+// and that a streaming response remains live after the resolution bound expires.
+func TestCredentialResolutionContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("cancellation and deadline", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name          string
+			callerTimeout time.Duration
+			cancel        bool
+			wantErr       error
+		}{
+			{name: "caller cancellation", cancel: true, wantErr: context.Canceled},
+			{name: "resolution deadline", wantErr: context.DeadlineExceeded},
+			{name: "earlier caller deadline", callerTimeout: 5 * time.Second, wantErr: context.DeadlineExceeded},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					called := make(chan context.Context, 1)
+					creds := aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+						called <- ctx
+						<-ctx.Done()
+						return aws.Credentials{}, ctx.Err()
+					})
+					i := &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:         "us-east-1",
+						BaseURL:        "https://bedrock.example",
+						Model:          "anthropic.claude-opus-4-8",
+						SmallFastModel: "anthropic.claude-haiku-4-5",
+					}, creds)}
+					ctx := context.Background()
+					var cancel context.CancelFunc
+					if tt.callerTimeout > 0 {
+						//nolint:gocritic // Simulated deadline tests precedence over the credential timeout.
+						ctx, cancel = context.WithTimeout(ctx, tt.callerTimeout)
+					} else {
+						ctx, cancel = context.WithCancel(ctx)
+					}
+					defer cancel()
+					result := make(chan error, 1)
+					go func() {
+						_, err := i.newMessagesService(ctx)
+						result <- err
+					}()
+					resolvedCtx := <-called
+					deadline, ok := resolvedCtx.Deadline()
+					require.True(t, ok, "credential resolution must have a deadline")
+					remaining := time.Until(deadline)
+					require.Greater(t, remaining, time.Duration(0))
+					require.LessOrEqual(t, remaining, 30*time.Second)
+					if tt.callerTimeout > 0 {
+						require.LessOrEqual(t, remaining, tt.callerTimeout)
+					}
+					switch {
+					case tt.cancel:
+						cancel()
+					case tt.callerTimeout > 0:
+						<-time.NewTimer(tt.callerTimeout).C
+					default:
+						<-time.NewTimer(30 * time.Second).C
+					}
+					require.ErrorIs(t, <-result, tt.wantErr)
+				})
+			})
+		}
+	})
+
+	t.Run("stream survives resolution deadline", func(t *testing.T) {
+		t.Parallel()
+		for _, tt := range []struct {
+			name string
+			base func(string, aws.CredentialsProvider) *interceptionBase
+		}{
+			{
+				name: "bedrock invoke model",
+				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:         "us-east-1",
+						BaseURL:        url,
+						Model:          "anthropic.claude-opus-4-8",
+						SmallFastModel: "anthropic.claude-haiku-4-5",
+					}, creds)}
+				},
+			},
+			{
+				name: "bedrock mantle",
+				base: func(url string, creds aws.CredentialsProvider) *interceptionBase {
+					return &interceptionBase{bedrock: NewBedrockRuntime(config.AWSBedrock{
+						Region:   "us-east-1",
+						BaseURL:  url,
+						Protocol: config.BedrockProtocolMantle,
+					}, creds)}
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					reader, writer := io.Pipe()
+					defer reader.Close()
+					defer writer.Close()
+					var requestCtx context.Context
+					transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+						requestCtx = req.Context()
+						if req.Body != nil {
+							_ = req.Body.Close()
+						}
+						return &http.Response{
+							StatusCode: http.StatusOK,
+							Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+							Body:       reader,
+						}, nil
+					})
+					i := tt.base("https://upstream.example", credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""))
+					service, err := i.newMessagesService(context.Background(), option.WithHTTPClient(&http.Client{Transport: transport}))
+					require.NoError(t, err)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					stream := service.NewStreaming(ctx, anthropic.MessageNewParams{
+						Model: "claude-opus-4-8", MaxTokens: 1,
+						Messages: []anthropic.MessageParam{{Role: anthropic.MessageParamRoleUser, Content: []anthropic.ContentBlockParamUnion{anthropic.NewTextBlock("hello")}}},
+					})
+					done := make(chan bool, 1)
+					go func() { done <- stream.Next() }()
+					<-time.NewTimer(31 * time.Second).C
+					synctest.Wait()
+					require.NotNil(t, requestCtx)
+					require.NoError(t, requestCtx.Err(), "outgoing streaming request context must remain live")
+					_, err = writer.Write([]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{}}\n\n"))
+					require.NoError(t, err)
+					require.True(t, <-done)
+					require.NoError(t, stream.Err())
+					require.NoError(t, stream.Close())
+				})
+			})
+		}
+	})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 // TestAWSMantleOptionsValidation verifies the mantle protocol requires a
@@ -1499,4 +1673,135 @@ func TestRecordTokenUsage(t *testing.T) {
 			require.Equal(t, tc.expected, usages[0])
 		})
 	}
+}
+
+// capturedRequest holds the request seen by a captureNext MiddlewareNext and a
+// fully buffered copy of its body.
+type capturedRequest struct {
+	req  *http.Request
+	body []byte
+}
+
+// captureNext returns a MiddlewareNext that records the request it receives into
+// c, then returns a minimal 200 response.
+func captureNext(t *testing.T, c *capturedRequest) option.MiddlewareNext {
+	t.Helper()
+	return func(r *http.Request) (*http.Response, error) {
+		c.req = r
+		if r.Body != nil {
+			b, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			c.body = b
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(nil))}, nil
+	}
+}
+
+// TestBedrockInvokeModelBearerMiddleware verifies that a user-supplied Bedrock
+// API key authenticates via Authorization: Bearer, without SigV4 signing, while
+// still applying the InvokeModel wire transform (path rewrite, anthropic_version
+// injection, anthropic-beta header relocation, model/stream stripping).
+func TestBedrockInvokeModelBearerMiddleware(t *testing.T) {
+	t.Parallel()
+
+	const token = "bedrock-api-key-abc123" //nolint:gosec // G101: test-only fake credential.
+
+	tests := []struct {
+		name       string
+		stream     bool
+		wantMethod string
+	}{
+		{name: "blocking", stream: false, wantMethod: "invoke"},
+		{name: "streaming", stream: true, wantMethod: "invoke-with-response-stream"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, err := sjson.SetBytes([]byte(`{"max_tokens":1}`), "model", "anthropic.claude-x")
+			require.NoError(t, err)
+			body, err = sjson.SetBytes(body, "stream", tt.stream)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+				"https://bedrock-runtime.us-east-1.amazonaws.com/v1/messages", bytes.NewReader(body))
+			require.NoError(t, err)
+			req.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14")
+			req.Header.Set("User-Agent", "test-agent")
+
+			var c capturedRequest
+			//nolint:bodyclose // captureNext returns a synthetic no-op response body.
+			_, err = bedrockInvokeModelBearerMiddleware(token)(req, captureNext(t, &c))
+			require.NoError(t, err)
+			captured, capturedBody := c.req, c.body
+			require.NotNil(t, captured)
+
+			// Bearer auth, not SigV4.
+			require.Equal(t, "Bearer "+token, captured.Header.Get("Authorization"))
+			require.NotContains(t, captured.Header.Get("Authorization"), "AWS4-HMAC-SHA256")
+			require.Empty(t, captured.Header.Get("X-Amz-Date"))
+			require.Empty(t, captured.Header.Get("X-Amz-Security-Token"))
+
+			// InvokeModel path rewrite.
+			require.Equal(t, "/model/anthropic.claude-x/"+tt.wantMethod, captured.URL.Path)
+
+			// Body transform: model & stream stripped, anthropic_version added,
+			// anthropic-beta relocated to the body.
+			require.False(t, gjson.GetBytes(capturedBody, "model").Exists())
+			require.False(t, gjson.GetBytes(capturedBody, "stream").Exists())
+			require.Equal(t, bedrock.DefaultVersion, gjson.GetBytes(capturedBody, "anthropic_version").String())
+			require.Equal(t, "interleaved-thinking-2025-05-14", gjson.GetBytes(capturedBody, "anthropic_beta.0").String())
+			require.Empty(t, captured.Header.Get("anthropic-beta"))
+
+			// PRM attribution appended.
+			require.Contains(t, captured.Header.Get("User-Agent"), awssig.PRMUserAgent)
+		})
+	}
+}
+
+// TestWithBedrockBYOKOptions verifies option assembly and validation for the
+// BYOK (bearer token) Bedrock paths.
+func TestWithBedrockBYOKOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InvokeModelOK", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{
+			Region:         "us-east-1",
+			Model:          "anthropic.claude-x",
+			SmallFastModel: "anthropic.claude-haiku",
+		}}}
+		opts, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.NoError(t, err)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("MantleOK", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{
+			Region:   "us-east-1",
+			BaseURL:  "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+			Protocol: config.BedrockProtocolMantle,
+		}}}
+		opts, err := base.withBedrockMantleBYOKOptions("tok")
+		require.NoError(t, err)
+		require.NotEmpty(t, opts)
+	})
+
+	t.Run("NilRuntime", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{}
+		_, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.ErrorContains(t, err, "nil bedrock runtime")
+		_, err = base.withBedrockMantleBYOKOptions("tok")
+		require.ErrorContains(t, err, "nil bedrock runtime")
+	})
+
+	t.Run("InvalidConfig", func(t *testing.T) {
+		t.Parallel()
+		base := &interceptionBase{bedrock: &BedrockRuntime{Cfg: config.AWSBedrock{}}}
+		_, err := base.withBedrockInvokeModelBYOKOptions("tok")
+		require.Error(t, err)
+	})
 }

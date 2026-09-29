@@ -1,5 +1,5 @@
 import { CircleDotIcon, ShieldIcon, UsersIcon } from "lucide-react";
-import { type FC, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useQueryClient } from "react-query";
 import {
 	getValidationErrorMessage,
@@ -36,7 +36,7 @@ type UsersPageFilterProps = Readonly<{
 	onLastSeenChange: (value: DateTimeRangeValue) => void;
 }>;
 
-export const UsersPageFilter: FC<UsersPageFilterProps> = ({
+export const UsersPageFilter: React.FC<UsersPageFilterProps> = ({
 	filter,
 	error,
 	lastSeen,
@@ -44,20 +44,21 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 
-	const categories = useMemo<FilterCategory[]>(
-		() => [
+	const categories = useMemo(
+		(): FilterCategory[] => [
 			{
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
 				inlineOptions: true,
-				inlineOptionIcons: true,
+				inlineOptionsIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
 				key: "role",
 				label: "Role",
 				icon: <ShieldIcon />,
+				hideWhenSingleOption: true,
 				getOptions: (query) => getRoleFilterOptions(query, queryClient),
 			},
 			{
@@ -68,7 +69,7 @@ export const UsersPageFilter: FC<UsersPageFilterProps> = ({
 				chipKeys: USER_TYPE_CHIP_KEYS,
 				inlineOptions: true,
 				inlineOptionsLabel: "User type is…",
-				inlineOptionsLabelOnly: true,
+				chipLabelOnly: true,
 				getOptions: getUserTypeFilterOptions,
 			},
 		],

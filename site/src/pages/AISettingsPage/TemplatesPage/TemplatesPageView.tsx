@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	DetailedError,
 	getErrorDetail,
@@ -57,7 +56,7 @@ type TemplateRowProps = {
 	) => void;
 };
 
-const TemplateRow: FC<TemplateRowProps> = ({
+const TemplateRow: React.FC<TemplateRowProps> = ({
 	template,
 	isPending,
 	onToggleAgentsAllowed,
@@ -106,7 +105,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	filterState,
 	templates,
 	isLoading,

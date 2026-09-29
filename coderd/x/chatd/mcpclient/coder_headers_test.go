@@ -170,7 +170,7 @@ func TestConnectAll_RequestSigning(t *testing.T) {
 			})
 
 			tools, _, cleanup := mcpclient.ConnectAll(
-				ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+				ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 				coderHeaders, testMCPHTTPClient(nil),
 			)
 			t.Cleanup(cleanup)
@@ -237,7 +237,7 @@ func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 	}
 
 	tools, _, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
@@ -287,7 +287,7 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 	})
 
 	tools, _, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
@@ -330,7 +330,7 @@ func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 	})
 
 	tools, _, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
@@ -365,9 +365,7 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 	chatID := uuid.New()
 
 	cfg := makeConfig("hdr-apikey", ts.URL)
-	cfg.AuthType = "api_key"
-	cfg.APIKeyHeader = "X-Api-Key"
-	cfg.APIKeyValue = "sekret"
+	cfg.Headers = map[string]string{"X-Api-Key": "sekret"}
 	cfg.ForwardCoderHeaders = true
 
 	coderHeaders := chatprovider.CoderHeaders(database.Chat{
@@ -376,7 +374,7 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 	})
 
 	tools, _, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
@@ -409,7 +407,7 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 	cfgID := uuid.New()
 	cfg := makeConfig("hdr-oauth", ts.URL)
 	cfg.ID = cfgID
-	cfg.AuthType = "oauth2"
+	cfg.UserAuth = mcpclient.UserAuthOAuth2
 	cfg.ForwardCoderHeaders = true
 	token := database.MCPServerUserToken{
 		MCPServerConfigID: cfgID,
@@ -427,7 +425,7 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger,
-		[]database.MCPServerConfig{cfg},
+		[]mcpclient.Server{cfg},
 		[]database.MCPServerUserToken{token},
 		uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
@@ -465,11 +463,13 @@ func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
 	chatID := uuid.New()
 
 	cfg := makeConfig("hdr-custom", ts.URL)
-	cfg.AuthType = "custom_headers"
 	// Include both an unrelated custom header AND a case-variant of
 	// X-Coder-Owner-Id to exercise the case-insensitive conflict
 	// check. The admin-configured value MUST win.
-	cfg.CustomHeaders = `{"X-Tenant":"acme","x-coder-owner-id":"admin-controlled"}`
+	cfg.Headers = map[string]string{
+		"X-Tenant":         "acme",
+		"x-coder-owner-id": "admin-controlled",
+	}
 	cfg.ForwardCoderHeaders = true
 
 	coderHeaders := chatprovider.CoderHeaders(database.Chat{
@@ -478,7 +478,7 @@ func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
 	})
 
 	tools, _, cleanup := mcpclient.ConnectAll(
-		ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil,
+		ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil,
 		coderHeaders, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)

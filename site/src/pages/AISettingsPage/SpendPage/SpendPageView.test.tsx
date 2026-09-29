@@ -28,11 +28,17 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			onOrganizationChange={onOrganizationChange}
 			isOrganizationsLoading={false}
 			organizationsError={null}
-			dateRange={undefined}
+			period={{
+				start: new Date("2026-03-05T12:00:00Z"),
+				end: new Date("2026-03-12T12:00:00Z"),
+				preset: "last_7d",
+			}}
 			minDate={undefined}
-			isRetentionLoading
-			onDateRangeChange={vi.fn()}
-			filterMenus={undefined}
+			onPeriodChange={vi.fn()}
+			canFilterDimensions={false}
+			filterQuery=""
+			onFilterQueryChange={vi.fn()}
+			filterError={undefined}
 			reportQuery={pendingReportQuery}
 		/>,
 	);

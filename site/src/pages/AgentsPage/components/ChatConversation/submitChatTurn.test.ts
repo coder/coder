@@ -18,7 +18,6 @@ import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingSt
 import { NIL_UUID } from "../../utils/modelOptions";
 import { createChatStore } from "./chatStore";
 import {
-	lastModelConfigIDStorageKey,
 	resolveEditModelConfigID,
 	type SubmitChatTurnParams,
 	submitChatTurn,
@@ -229,9 +228,6 @@ describe("submitChatTurn", () => {
 		});
 		expect(scrollToEnd).toHaveBeenCalledWith({ behavior: "smooth" });
 		expect(sendMessage).not.toHaveBeenCalled();
-		expect(localStorage.getItem(lastModelConfigIDStorageKey)).toBe(
-			pickerModel.id,
-		);
 	});
 
 	it("omits reasoning effort on edit until the picker is dirty", async () => {
@@ -284,7 +280,7 @@ describe("submitChatTurn", () => {
 		expect(invalidateChat).toHaveBeenCalledWith("chat-1");
 	});
 
-	it("upserts a non-queued send, persists the model, and sets running", async () => {
+	it("upserts a non-queued send and sets running", async () => {
 		const store = createChatStore();
 		store.setActiveChatID("chat-1");
 		const inserted = { ...MockChatMessage, id: 9 };
@@ -310,9 +306,6 @@ describe("submitChatTurn", () => {
 		);
 		expect(upsertCacheMessages).toHaveBeenCalledWith([inserted]);
 		expect(store.getSnapshot().chatStatus).toBe("running");
-		expect(localStorage.getItem(lastModelConfigIDStorageKey)).toBe(
-			pickerModel.id,
-		);
 	});
 
 	it("reconciles a queued send", async () => {

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -34,7 +33,9 @@ type SpendUsersTableProps = {
 	reportQuery: SpendReportQuery;
 };
 
-export const SpendUsersTable: FC<SpendUsersTableProps> = ({ reportQuery }) => {
+export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
+	reportQuery,
+}) => {
 	const retryButton = (
 		<Button
 			variant="outline"
@@ -99,7 +100,7 @@ export const SpendUsersTable: FC<SpendUsersTableProps> = ({ reportQuery }) => {
 								</TableHead>
 							</TableRow>
 						</TableHeader>
-						<TableBody>
+						<TableBody size="lg">
 							{report.users.length === 0 ? (
 								<TableEmpty message="No AI Gateway spend found" isCompact />
 							) : (
@@ -119,12 +120,12 @@ type SpendUserRowProps = {
 	user: TypesGen.OrganizationAISpendUser;
 };
 
-const SpendUserRow: FC<SpendUserRowProps> = ({ user }) => (
+const SpendUserRow: React.FC<SpendUserRowProps> = ({ user }) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
 		<TableHead
 			scope="row"
-			className="border-0 border-t border-border border-solid py-2"
+			className="border-0 border-t border-border border-solid"
 		>
 			<AvatarData
 				truncate
@@ -158,7 +159,7 @@ type SpendTotalProps = {
 };
 
 // The total covers every matching user in the period, not only the page.
-const SpendTotal: FC<SpendTotalProps> = ({ report }) => (
+const SpendTotal: React.FC<SpendTotalProps> = ({ report }) => (
 	<div className="flex flex-col gap-1">
 		<span className="text-sm text-content-secondary">Total spend</span>
 		<span className="text-2xl font-semibold text-content-primary">

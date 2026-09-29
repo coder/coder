@@ -97,14 +97,12 @@ Kubernetes or in different availability zones of the same geographic region.
 
 Do not deploy in different geographic regions.
 
-Control plane instances need to be able to communicate with one another directly with low
-latency, under 10ms. Note that this is for the availability of the Coder API.
-Workspaces are not fault tolerant unless they are explicitly built that way at
-the template level.
+Control plane instances need to be able to communicate with one another directly with low latency, under 10&nbsp;ms.
+Note that this is for the availability of the Coder API.
+Workspaces are not fault tolerant unless they are explicitly built that way at the template level.
 
 Deploy control plane instances as geographically close to PostgreSQL as possible.
-Low-latency communication (under 10ms) with Postgres is essential for control
-plane performance.
+Low-latency communication (under 10&nbsp;ms) with Postgres is essential for control plane performance.
 
 ### Scaling
 
@@ -116,7 +114,7 @@ under ten instances, and opt for vertical scale over horizontal scale after
 meeting availability requirements.
 
 Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
+[validated architectures](../../install/plan/sizing/index.md)
 give specific sizing recommendations for various user scales. These are a useful
 starting point, but very few deployments will remain stable at a predetermined
 user level over the long term. We recommend monitoring and adjusting resources as needed.
@@ -143,7 +141,7 @@ maintenance window to minimize disruption.
 ### Locality
 
 We recommend that you run one or more
-[provisioner daemon deployments external to the control plane](../../admin/provisioners/index.md)
+[provisioner daemon deployments external to the control plane](../../install/operate/provisioners/index.md)
 and disable provisioner daemons within your control plane.
 This allows you to scale them independently of the control plane:
 
@@ -195,7 +193,7 @@ On a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring
 each has a unique `CODER_CACHE_DIRECTORY` value.
 
 Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
+[validated architectures](../../install/plan/sizing/index.md)
 give specific sizing recommendations for various user scales. Since the
 complexity of builds varies significantly depending on the workspace template,
 consider this a starting point. Monitor queue times and build times and adjust
@@ -209,15 +207,14 @@ the control plane.
 
 ### Locality
 
-Control plane instances must have low-latency connections (under 10ms) to
-PostgreSQL. If you use multiple PostgreSQL replicas in a clustered config, these
-must also be low-latency with respect to one another.
+Control plane instances must have low-latency connections (under 10&nbsp;ms) to PostgreSQL.
+If you use multiple PostgreSQL replicas in a clustered config, these must also be low-latency with respect to one another.
 
 ### Scaling
 
 Prefer scaling PostgreSQL vertically rather than horizontally for best
 performance. Coder's
-[validated architectures](../../admin/infrastructure/validated-architectures/index.md)
+[validated architectures](../../install/plan/sizing/index.md)
 give specific sizing recommendations for various user scales.
 
 ### Connection pool tuning
@@ -363,5 +360,5 @@ workspace proxy instances.
 
 ## Next steps
 
-- [Scale Tests and Utilities](../../admin/infrastructure/scale-utility.md)
-- [Scale Testing](../../admin/infrastructure/scale-testing.md)
+- [Scale Tests and Utilities](../../install/validate/scale-testing/utility.md)
+- [Scale Testing](../../install/validate/scale-testing.md)

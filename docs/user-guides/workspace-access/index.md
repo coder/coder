@@ -7,7 +7,7 @@ by the template configuration.
 
 Deployment operators can learn more about different types of workspace
 connections and performance in our
-[networking docs](../../admin/infrastructure/index.md).
+[networking docs](../../install/plan/index.md).
 
 You can see the primary methods of connecting to your workspace in the workspace
 dashboard.
@@ -31,7 +31,7 @@ customization options, keyboard shortcuts, and troubleshooting guides.
 ### Through the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
-deployment's [networking configuration](../../admin/infrastructure/index.md))
+deployment's [networking configuration](../../install/plan/index.md))
 when using the CLI:
 
 ```console
@@ -45,7 +45,9 @@ Or, you can configure plain SSH on your client below.
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
 
-### Running remote commands with quoting
+<a id="running-remote-commands-with-quoting"></a>
+
+### Run remote commands with quoting
 
 Arguments after `--` are joined with spaces into a single command
 string before being sent to the workspace agent (per
@@ -227,7 +229,7 @@ services or preview environments.
 > [!TIP]
 > For automatic access to all ports without manual configuration, use [Coder Desktop](../desktop/index.md).
 
-You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
+You can also [share ports](./port-forwarding.md#share-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through
 the CLI with `coder port-forward`. Read more in the
 [docs on workspace ports](./port-forwarding.md).

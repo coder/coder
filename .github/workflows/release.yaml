@@ -645,12 +645,24 @@ jobs:
           cp "build/coder_helm_${version}.tgz" build/helm
           cp "build/provisioner_helm_${version}.tgz" build/helm
           cp "build/ai-gateway_helm_${version}.tgz" build/helm
-          gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
-          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/ai-gateway_helm_${version}.tgz" gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+
+          # index.yaml is shared by every release, so two releases publishing
+          # concurrently would each merge only their own charts and the last
+          # writer would drop the other's entries. The if-generation-match
+          # precondition makes the loser fail instead; re-running the job
+          # merges against the fresh index.
+          index_url=gs://helm.coder.com/v2/index.yaml
+          generation="$(gsutil stat "$index_url" | awk '/^ *Generation:/ {print $2}')"
+          gsutil cp "$index_url" build/helm/index.yaml
+          helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
+          if ! gsutil -h "Cache-Control:no-cache,max-age=0" -h "x-goog-if-generation-match:${generation}" cp build/helm/index.yaml "$index_url"; then
+            echo "::error::index.yaml was modified by another release since it was read (generation $generation). Re-run this job to merge against the current index." >&2
+            exit 1
+          fi
+
           gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
           helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart

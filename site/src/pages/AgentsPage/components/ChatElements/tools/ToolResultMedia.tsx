@@ -1,8 +1,9 @@
-import type { FC } from "react";
 import { ToolResultImage } from "./ToolResultImage";
 import type { MediaToolResult } from "./utils";
 
-export const ToolResultMedia: FC<{ media: MediaToolResult }> = ({ media }) => (
+export const ToolResultMedia: React.FC<{ media: MediaToolResult }> = ({
+	media,
+}) => (
 	<>
 		{media.mimeType.startsWith("image/") ? (
 			<ToolResultImage

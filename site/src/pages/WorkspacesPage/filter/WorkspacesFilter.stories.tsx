@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
+import { templates } from "#/api/queries/templates";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
 	MockNoPermissions,
 	MockPermissions,
+	MockTemplate,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -62,7 +64,7 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		// The default `user:me` renders as a committed chip, not free text.
 		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
+			canvas.getByRole("button", { name: "Remove user:me" }),
 		).toBeVisible();
 	},
 };
@@ -72,18 +74,16 @@ export const SelectStatusOption: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
 		await userEvent.click(
 			await body.findByRole("option", { name: /running/i }),
 		);
 	},
 };
 
-// Regression guard: a user who cannot list others still gets an Owner category
-// (scoped to themselves), so `user` stays a chip key and the category list is
-// browsable instead of `user:me` collapsing into free text.
+// Regression guard: a user who cannot list others still gets User and Owner
+// categories (scoped to themselves), so `user` stays a chip key and the
+// category list is browsable instead of `user:me` collapsing into free text.
 export const OrdinaryUserKeepsUserChip: Story = {
 	args: { initialQuery: "user:me" },
 	parameters: { permissions: MockNoPermissions },
@@ -92,17 +92,15 @@ export const OrdinaryUserKeepsUserChip: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await expect(
-			canvas.getByRole("button", { name: "Remove owner:me" }),
+			canvas.getByRole("button", { name: "Remove user:me" }),
 		).toBeVisible();
 
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Toggle filters" }),
-		);
-		// Categories browse normally (Owner included) rather than being masked by
-		// free-text search.
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		// Categories browse normally (User and Owner included) rather than being
+		// masked by free-text search.
 		await waitFor(() => {
+			expect(body.getByRole("option", { name: /^User/ })).toBeVisible();
 			expect(body.getByRole("option", { name: /^Owner/ })).toBeVisible();
-			expect(body.getByRole("option", { name: /running/i })).toBeVisible();
 		});
 	},
 };
@@ -123,5 +121,21 @@ export const WithFilterError: Story = {
 		await expect(input).toHaveAttribute("aria-invalid", "true");
 		const alert = await canvas.findByRole("alert");
 		await expect(input).toHaveAttribute("aria-errormessage", alert.id);
+	},
+};
+
+// Owner and User each offer only the current user, and stay in the menu
+// because they do not set hideWhenSingleOption. Template has one option, so it
+// is hidden.
+export const OrdinaryUserSeesOwnerAndUser: Story = {
+	args: { initialQuery: "" },
+	parameters: {
+		permissions: MockNoPermissions,
+		queries: [{ key: templates().queryKey, data: [MockTemplate] }],
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
 	},
 };

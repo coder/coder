@@ -4,7 +4,7 @@ title: Configure control plane access
 
 The control plane's primary configuration is done via environment variables. For
 a full list of the options, run `coder server --help` or see our
-[CLI documentation](../../reference/cli/server.md).
+[CLI documentation](../../reference/cli/server/index.md).
 
 > [!TIP]
 > Need to look up an exact environment variable, CLI flag, or YAML key for a
@@ -65,8 +65,8 @@ If you are providing TLS certificates directly to the control plane, either
 1. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
-   [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
-   [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
+   [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and
+   [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
 
@@ -133,7 +133,9 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+<a id="migrating-from-the-built-in-database-to-an-external-database"></a>
+
+### Migrate from the built-in database to an external database
 
 To migrate from the built-in database to an external database, follow these
 steps:
@@ -148,7 +150,9 @@ steps:
 1. Start your Coder deployment with
    `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
-## Configuring Coder behind a proxy
+<a id="configuring-coder-behind-a-proxy"></a>
+
+## Configure Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase
@@ -168,4 +172,4 @@ more information.
 ## Up Next
 
 - [Setup and manage templates](../templates/index.md)
-- [Setup external provisioners](../provisioners/index.md)
+- [Setup external provisioners](../../install/operate/provisioners/index.md)

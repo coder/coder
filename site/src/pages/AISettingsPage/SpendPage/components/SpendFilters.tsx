@@ -1,61 +1,43 @@
-import { CalendarIcon } from "lucide-react";
-import type { FC } from "react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
-import {
-	DateRangePicker,
-	type DateRangeValue,
-} from "#/components/DateRangePicker/DateRangePicker";
+import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { Skeleton } from "#/components/Skeleton/Skeleton";
-import {
-	ClientFilter,
-	type ClientFilterMenu,
-} from "#/pages/AIBridgePage/filters/ClientFilter";
-import {
-	ModelFilter,
-	type ModelFilterMenu,
-} from "#/pages/AIBridgePage/filters/ModelFilter";
-import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "#/pages/AIBridgePage/filters/ProviderFilter";
-
-const FILTER_WIDTH = 150;
-
-export type SpendFilterMenus = {
-	provider: ProviderFilterMenu;
-	model: ModelFilterMenu;
-	client: ClientFilterMenu;
-};
+import { spendQuickPresets } from "../spendPeriod";
+import { spendFilterCategories } from "./spendFilterCategories";
 
 type SpendFiltersProps = {
 	organizations: readonly Organization[];
 	organization: Organization;
 	onOrganizationChange: (organization: Organization) => void;
-	menus: SpendFilterMenus | undefined;
+	canFilterDimensions: boolean;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	filterError: string | undefined;
 	now: Date | undefined;
-	dateRange: DateRangeValue | undefined;
+	period: DateTimeRangeValue;
 	minDate: Date | undefined;
-	isRetentionLoading: boolean;
-	onDateRangeChange: (value: DateRangeValue) => void;
+	onPeriodChange: (value: DateTimeRangeValue) => void;
 };
 
-export const SpendFilters: FC<SpendFiltersProps> = ({
+export const SpendFilters: React.FC<SpendFiltersProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,
-	menus,
+	canFilterDimensions,
+	filterQuery,
+	onFilterQueryChange,
+	filterError,
 	now,
-	dateRange,
+	period,
 	minDate,
-	isRetentionLoading,
-	onDateRangeChange,
+	onPeriodChange,
 }) => {
 	return (
-		<div className="flex flex-wrap gap-2">
+		<div className="flex flex-wrap items-start gap-2">
 			{organizations.length > 1 && (
 				<OrganizationAutocomplete
 					value={organization}
@@ -73,32 +55,26 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 					}}
 				/>
 			)}
-			{menus && (
-				<>
-					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
-				</>
-			)}
-			{isRetentionLoading ? (
-				// The retention bound arrives with the first report, so a picker
-				// shown before it could offer days the server rejects.
-				<Skeleton className="h-10 w-64" />
-			) : dateRange ? (
-				<DateRangePicker
-					now={now}
-					value={dateRange}
-					onChange={onDateRangeChange}
-					maxDays={MaxAISpendPeriodDays}
-					minDate={minDate}
-					size="lg"
-				/>
-			) : (
-				<div className="flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-secondary">
-					<CalendarIcon className="size-4" />
-					Current budget period
+			{canFilterDimensions && (
+				<div className="min-w-60 flex-1">
+					<FilterCombobox
+						value={filterQuery}
+						onChange={onFilterQueryChange}
+						categories={spendFilterCategories}
+						placeholder="Filter by provider, client, or model…"
+						errorMessage={filterError}
+					/>
 				</div>
 			)}
+			<DateTimeRangePicker
+				now={now}
+				value={period}
+				onChange={onPeriodChange}
+				presets={spendQuickPresets}
+				maxDays={MaxAISpendPeriodDays}
+				minDate={minDate}
+				size="lg"
+			/>
 		</div>
 	);
 };

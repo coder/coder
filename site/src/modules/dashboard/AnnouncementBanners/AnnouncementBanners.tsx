@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AnnouncementBannerView } from "./AnnouncementBannerView";
 
-export const AnnouncementBanners: FC = () => {
+export const AnnouncementBanners: React.FC = () => {
 	const { appearance, entitlements } = useDashboard();
 	const announcementBanners = appearance.announcement_banners;
 

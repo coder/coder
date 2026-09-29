@@ -16,7 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -39,7 +39,7 @@ func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingResponsesInterceptor {
@@ -50,7 +50,7 @@ func NewBedrockStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -62,7 +62,7 @@ func buildStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -136,7 +136,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -149,7 +149,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		// agentic continuation or a failover retry after the previous key was
 		// marked. BYOK has no pool and runs as a single attempt.
 		var walker *keypool.Walker
-		cp, isPool := intercept.AsCentralizedPool(i.cred)
+		cp, isPool := credential.AsCentralizedPool(i.cred)
 		if isPool {
 			walker = cp.Pool.Walker()
 		}
@@ -161,12 +161,6 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		for {
 			respCopy = responseCopier{}
 			opts := i.requestOptions(&respCopy)
-
-			// TODO(ssncferreira): inject actor headers directly in the client-header
-			//   middleware instead of using SDK options.
-			if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
-			}
 
 			var currentPoolKey *keypool.Key
 			if isPool && walker != nil {
@@ -181,7 +175,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
 
-				i.logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+				i.logger.Debug(credential.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 				currentPoolKey = key
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),

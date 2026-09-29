@@ -1,11 +1,4 @@
-import {
-	createContext,
-	type FC,
-	type PropsWithChildren,
-	useContext,
-	useRef,
-	useState,
-} from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import type { AttachmentFailure } from "../../utils/chatAttachments";
 
 type FileProbeContextValue = {
@@ -28,8 +21,8 @@ const FileProbeContext = createContext<FileProbeContextValue>({
 	setProbeResult: () => {},
 });
 
-export const FileProbeProvider: FC<
-	PropsWithChildren<{ evictedFileIds: ReadonlySet<string> }>
+export const FileProbeProvider: React.FC<
+	React.PropsWithChildren<{ evictedFileIds: ReadonlySet<string> }>
 > = ({ evictedFileIds, children }) => {
 	const [expiredFileIds, setExpiredFileIds] = useState<Set<string>>(
 		() => new Set(),

@@ -1,11 +1,9 @@
-import type { ReactNode } from "react";
-
 export type FilterOption = {
 	label: string;
 	/** Label used once the option is applied; defaults to `label`. */
 	appliedLabel?: string;
 	value: string;
-	startIcon?: ReactNode;
+	startIcon?: React.ReactNode;
 	subtitle?: string;
 	/**
 	 * Explicit chip token committed when this option is selected, overriding the
@@ -20,11 +18,9 @@ export type FilterCategory = {
 	key: string;
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
-	icon?: ReactNode;
+	icon?: React.ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
-	/** Fixed text at the end of the category row instead of an options sample. */
-	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
@@ -37,30 +33,20 @@ export type FilterCategory = {
 	/** Heading shown above top-level options. Defaults to `${label} is…`. */
 	inlineOptionsLabel?: string;
 	/** Keep option icons when rendering the category as top-level rows. */
-	inlineOptionIcons?: boolean;
+	inlineOptionsIcons?: boolean;
 	/** Selecting an option replaces another selected option from this category. */
 	inlineOptionsExclusive?: boolean;
 	/** Applied chips show only the option label, without the category prefix. */
-	inlineOptionsLabelOnly?: boolean;
+	chipLabelOnly?: boolean;
 	/**
-	 * Keep the category in the menu while it has at most one option. Such
-	 * categories are left out by default, since filtering by them would not
-	 * narrow the results. Does not apply to inline categories.
+	 * Leave the category out of the menu while `getOptions("")` returns at most
+	 * one option. When `getOptions("")` omits values the results can contain,
+	 * the row can hide while its one option would still narrow the results. Its
+	 * empty-query options are fetched when the filter renders. Until every
+	 * category with this flag finishes its first load, successfully or not, the
+	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
+	 * applied chip keeps it in the menu. A failed lookup keeps it until a retry
+	 * returns at most one option. Does not apply to inline categories.
 	 */
-	showWhenSingleOption?: boolean;
-	/**
-	 * Switch shown below the category's options, on by default. While on,
-	 * options commit under `chipKey` instead of the category key, e.g. Owner
-	 * committing `user:alice` (owned by or shared with alice) instead of
-	 * `owner:alice`. While the category has a chip, a pill after it shows
-	 * `pillLabel` while the switch is on, and removing the pill turns it off.
-	 * `chipKey` must also be listed in `chipKeys` so it parses as this
-	 * category's chip.
-	 */
-	scopeToggle?: {
-		/** Switch label for the category's applied value, if there is one. */
-		label: (value: string | undefined) => string;
-		chipKey: string;
-		pillLabel: string;
-	};
+	hideWhenSingleOption?: boolean;
 };

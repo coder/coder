@@ -7,7 +7,7 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
 import { CalendarIcon, MoveRightIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { DateRange as DayPickerDateRange } from "react-day-picker";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Calendar } from "#/components/Calendar/Calendar";
@@ -98,7 +98,7 @@ type DateRangePickerProps = {
  * rounded up to the next hour (if it falls on today) or to the start of
  * the following day.
  */
-export function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
+function toBoundary(from: Date, to: Date, now: Date): DateRangeValue {
 	const currentTime = dayjs(now);
 	const start = dayjs(from).startOf("day").toDate();
 	const end = dayjs(to).isSame(currentTime, "day")
@@ -127,7 +127,7 @@ function fromBoundary(value: DateRangeValue): DayPickerDateRange {
 	return { from, to };
 }
 
-export const DateRangePicker: FC<DateRangePickerProps> = ({
+export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 	value,
 	onChange,
 	now,

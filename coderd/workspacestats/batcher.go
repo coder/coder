@@ -160,7 +160,7 @@ func (b *DBBatcher) Add(
 	if overflow > 0 {
 		// A misbehaving agent hits this on every report, so alert on the
 		// counter and keep the log at debug.
-		b.log.Debug(context.Background(), "too many distinct session types, overflow counted under unknown",
+		b.log.Debug(context.Background(), "too many distinct session types, excess counted under overflow",
 			slog.F("agent_id", agentID),
 			slog.F("overflow", overflow),
 			slog.F("max", maxSessionCountEntries),

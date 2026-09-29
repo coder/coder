@@ -1,5 +1,4 @@
 import { BanIcon } from "lucide-react";
-import type { ReactNode } from "react";
 import type {
 	AIBridgeSessionNetworkCallSummary,
 	AIBridgeSessionNetworkDomain,
@@ -63,7 +62,7 @@ export const SessionSummaryTable = ({
 			? new Date(endTime).getTime() - new Date(startTime).getTime()
 			: undefined;
 
-	let networkCallsValue: ReactNode;
+	let networkCallsValue: React.ReactNode;
 	if (networkCalls === undefined) {
 		networkCallsValue = <NetworkMonitoringDisabled />;
 	} else if (networkCalls.total === 0) {

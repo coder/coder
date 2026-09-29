@@ -748,7 +748,8 @@ func SetupOrganization(t *testing.T, s *idpsync.AGPLIDPSync, db database.Store, 
 	org, err := db.GetOrganizationByID(context.Background(), orgID)
 	if xerrors.Is(err, sql.ErrNoRows) {
 		org = dbgen.Organization(t, db, database.Organization{
-			ID: orgID,
+			ID:                    orgID,
+			DefaultOrgMemberRoles: def.DefaultOrgMemberRoles,
 		})
 	}
 
@@ -835,6 +836,9 @@ type orgSetupDefinition struct {
 	GroupNames        map[string]bool
 	OrganizationRoles []string
 	CustomRoles       []string
+	// DefaultOrgMemberRoles overrides the organization's default member
+	// roles when non-empty.
+	DefaultOrgMemberRoles []string
 	// NotMember if true will ensure the user is not a member of the organization.
 	NotMember bool
 

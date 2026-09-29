@@ -644,23 +644,43 @@ WHERE
         ) = sqlc.narg('has_unread')::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length(@chat_statuses::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY(@chat_statuses::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
+    -- "none" matches chats with no pull request: no diff-status row, or a
+    -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN EXISTS (
-            SELECT 1
-            FROM chat_diff_statuses cds
-            WHERE cds.chat_id = chats_expanded.id
-                AND (
-                    CASE
-                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                        WHEN cds.pull_request_state = 'open' THEN 'open'
-                        ELSE cds.pull_request_state
-                    END
-                ) = ANY(@pull_request_statuses::text[])
+        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN (
+            (
+                'none' = ANY(@pull_request_statuses::text[])
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND NULLIF(cds.pull_request_state, '') IS NOT NULL
+                )
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM chat_diff_statuses cds
+                WHERE cds.chat_id = chats_expanded.id
+                    AND (
+                        CASE
+                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                            WHEN cds.pull_request_state = 'open' THEN 'open'
+                            ELSE cds.pull_request_state
+                        END
+                    ) = ANY(@pull_request_statuses::text[])
+            )
         )
         ELSE true
     END
@@ -954,7 +974,9 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id,
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -974,7 +996,10 @@ inserted AS (
         NULLIF((@cache_read_tokens::bigint[])[allocated.ord], 0),
         NULLIF((@context_limit::bigint[])[allocated.ord], 0),
         (@compressed::boolean[])[allocated.ord],
-        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0)
+        NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
+        NULLIF((@provider_response_id::text[])[allocated.ord], ''),
+        -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING *
 )
@@ -1801,8 +1826,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files;
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files;
 
 -- name: UpdateChatStatus :one
 WITH updated_chat AS (
@@ -2361,9 +2386,10 @@ ORDER BY workspace_id, updated_at DESC;
 
 -- name: UpdateChatLastReadMessageID :exec
 -- Updates the last read message ID for a chat. This is used to track
--- which messages the owner has seen, enabling unread indicators.
+-- which messages the owner has seen, enabling unread indicators. A NULL
+-- value clears the cursor, marking every message unread again.
 UPDATE chats
-SET last_read_message_id = @last_read_message_id::bigint
+SET last_read_message_id = sqlc.narg('last_read_message_id')::bigint
 WHERE id = @id::uuid;
 
 -- name: DeleteOldChats :execrows

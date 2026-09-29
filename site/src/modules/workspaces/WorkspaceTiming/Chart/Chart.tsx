@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC, HTMLProps } from "react";
 import React, { useEffect, useRef } from "react";
 import {
 	SearchField,
@@ -8,7 +7,7 @@ import {
 } from "#/components/SearchField/SearchField";
 import type { BarColors } from "./Bar";
 
-export const Chart = (props: HTMLProps<HTMLDivElement>) => {
+export const Chart = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
 		<div
 			{...props}
@@ -24,7 +23,9 @@ export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 	);
 };
 
-export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
+export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = (
+	props,
+) => {
 	const contentRef = useRef<HTMLDivElement>(null);
 
 	// Display a scroll mask when the content is scrollable and update its
@@ -71,7 +72,7 @@ export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	);
 };
 
-export const ChartToolbar = (props: HTMLProps<HTMLDivElement>) => {
+export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 	return (
 		<div
 			{...props}
@@ -93,7 +94,7 @@ type ChartBreadcrumbsProps = {
 	breadcrumbs: ChartBreadcrumb[];
 };
 
-export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
+export const ChartBreadcrumbs: React.FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
@@ -145,7 +146,7 @@ type ChartLegendsProps = {
 	legends: ChartLegend[];
 };
 
-export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
+export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 	return (
 		<ul className="m-0 flex list-none items-center gap-6 pr-(--section-padding) p-0">
 			{legends.map((l) => (

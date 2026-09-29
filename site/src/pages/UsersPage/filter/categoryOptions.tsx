@@ -1,4 +1,3 @@
-import type { ComponentProps } from "react";
 import type { QueryClient } from "react-query";
 import { roles } from "#/api/queries/roles";
 import type { UserStatus } from "#/api/typesGenerated";
@@ -19,7 +18,7 @@ const matches = (option: FilterOption, query: string): boolean => {
 const STATUS_OPTIONS: ReadonlyArray<{
 	value: UserStatus;
 	label: string;
-	variant: ComponentProps<typeof StatusIndicatorDot>["variant"];
+	variant: React.ComponentProps<typeof StatusIndicatorDot>["variant"];
 }> = [
 	{ value: "active", label: "Active", variant: "success" },
 	{ value: "dormant", label: "Dormant", variant: "warning" },

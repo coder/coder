@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, useState } from "react";
+import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
@@ -32,7 +32,9 @@ const mockWorkspaceSkillItems = mockWorkspaceSkills.map((skill) =>
 
 // Provides the composer-box element the menu anchors to, since the
 // menu is pinned above its anchor at the anchor's width.
-const MenuStoryHarness = (args: ComponentProps<typeof SkillsTriggerMenu>) => {
+const MenuStoryHarness = (
+	args: React.ComponentProps<typeof SkillsTriggerMenu>,
+) => {
 	const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
 	return (
 		<>
@@ -134,7 +136,7 @@ const manyPersonalSkillItems = Array.from({ length: 30 }, (_, index) =>
 // cmdk scrolls the controlled highlight into view only at mount, so the
 // selection must move after mount to exercise the menu's own scrolling.
 const SelectionScrollHarness = (
-	args: ComponentProps<typeof SkillsTriggerMenu>,
+	args: React.ComponentProps<typeof SkillsTriggerMenu>,
 ) => {
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);

@@ -29,11 +29,11 @@ func TitlePasteText(data []byte) string {
 	return string(data[:min(len(data), TitlePasteBytePrefix)])
 }
 
-// TitleText derives title-generation input from message parts. Text
-// and file-reference parts are joined in part order. When they yield
-// nothing, the content of synthetic pasted-text attachments is used
-// instead, looked up in pasteText by file ID and truncated to
-// syntheticPasteTitleBudget runes per file.
+// TitleText derives title-generation input from message parts. Text,
+// file-reference, and workspace-file-reference parts are joined in
+// part order. When they yield nothing, the content of synthetic
+// pasted-text attachments is used instead, looked up in pasteText by
+// file ID and truncated to syntheticPasteTitleBudget runes per file.
 //
 // The chat-creation fallback title and both title-generation paths
 // must derive their input through this function: auto-titling only
@@ -51,6 +51,14 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 			texts = append(texts, text)
 		case codersdk.ChatMessagePartTypeFileReference:
 			texts = append(texts, fileReferencePartToText(part))
+		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
+			// The file name alone: this text can become the visible
+			// fallback title, so it must not carry prompt markers.
+			name := strings.TrimSpace(part.WorkspaceFileName)
+			if name == "" {
+				continue
+			}
+			texts = append(texts, name)
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {
@@ -88,16 +96,22 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 	return ids
 }
 
+// DefaultChatTitle is the placeholder title for chats created without
+// any text to derive a title from (for example chats created with no
+// initial user message). It is always considered replaceable by
+// automatic title generation.
+const DefaultChatTitle = "New Chat"
+
 // FallbackTitle derives a deterministic chat title from title text:
 // the first six words, ellipsized when truncated, capped at 80 runes.
-// Empty input yields "New Chat".
+// Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
 	const maxWords = 6
 	const maxRunes = 80
 
 	words := strings.Fields(message)
 	if len(words) == 0 {
-		return "New Chat"
+		return DefaultChatTitle
 	}
 
 	truncated := false

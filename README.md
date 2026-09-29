@@ -29,6 +29,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/coder/coder)
 
 </div>
 
@@ -54,7 +55,7 @@
 Try Coder with the [install script](https://github.com/coder/coder/blob/main/install.sh) on Linux and macOS, or grab the latest binary or installer from [GitHub Releases](https://github.com/coder/coder/releases/) on Windows:
 
 ```shell
-curl -L https://coder.com/install.sh | sh
+curl -fsSL https://coder.com/install.sh | sh
 ```
 
 Start the server and open [http://localhost:3000](http://localhost:3000) to create your initial user, create a Docker template, and provision your first workspace:
@@ -118,7 +119,7 @@ New integrations are always in progress. Open an issue to request one. Contribut
 ## Contributing
 
 New contributors are always welcome. If you are new to the Coder codebase, see
-[the contribution guide](https://coder.com/docs/about/contributing/CONTRIBUTING) to get started.
+[the contribution guide](https://github.com/coder/coder/blob/main/CONTRIBUTING.md) to get started.
 
 ## Hiring
 

@@ -22,23 +22,24 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 77 rules.
-Automated tooling checks 8 of them, and 1 of those 8 doesn't run on published pages.
-The other 69 are yours to apply by reading, 70 on published pages, where the one-sentence-per-line rule is off.
+The guide documents 79 rules.
+Automated tooling checks 9 of them, and 1 of those 9 doesn't run on published pages.
+The other 70 are yours to apply by reading, 71 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
 
 ### Checks that run today
 
-| Check                              | Tool               | Severity  | Scope                                                       | What it catches                                                       |
-|------------------------------------|--------------------|-----------|-------------------------------------------------------------|-----------------------------------------------------------------------|
-| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`               | `Hashicorp` casing only, not the other brands in the word-choice list |
-| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | Headings that lead with a gerund                                      |
-| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`               | `click` and its inflections                                           |
-| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only | Sentence boundaries mid-line, on contributor docs only                |
-| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                | Heading increments, single H1, fence language, missing alt text       |
-| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                  | Em-dash, en-dash, and ` -- ` as punctuation                           |
+| Check                              | Tool               | Severity  | Scope                                                                                                                                                                           | What it catches                                                       |
+|------------------------------------|--------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `Coder.BrandNames`                 | Vale               | `error`   | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `Hashicorp` casing only, not the other brands in the word-choice list |
+| `Coder.GerundHeading`              | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings that lead with a gerund                                      |
+| `Coder.SelectClick`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                           |
+| `Coder.OneSentencePerLine`         | Vale               | `warning` | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                |
+| `Coder.UnitSpacing`                | Vale               | `warning` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit           |
+| `MD001`, `MD025`, `MD040`, `MD045` | markdownlint       | `error`   | All Markdown                                                                                                                                                                    | Heading increments, single H1, fence language, missing alt text       |
+| `scripts/check_emdash.sh`          | `make lint/emdash` | `error`   | Repository                                                                                                                                                                      | Em-dash, en-dash, and ` -- ` as punctuation                           |
 
 The markdownlint row lists only the rules that map to a rule in this guide.
 markdownlint runs its full default set minus the rules `.markdownlint.jsonc` disables, so it catches more than these 4.
@@ -58,9 +59,9 @@ The markdownlint and emdash checks do fail the build.
 | [Word choice](./word-choice.md)                                       | 16    | 2            | 9       | 5                  |
 | [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 13    | 2            | 3       | 8                  |
 | [Capitalization and punctuation](./capitalization-and-punctuation.md) | 11    | 2            | 6       | 3                  |
-| [Formatting](./formatting.md)                                         | 12    | 2            | 0       | 10                 |
-| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 0            | 5       | 0                  |
-| **Total**                                                             | 78    | 8            | 25      | 45                 |
+| [Formatting](./formatting.md)                                         | 13    | 2            | 0       | 11                 |
+| [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
+| **Total**                                                             | 79    | 9            | 24      | 46                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -175,13 +176,13 @@ This guide is itself exempt from the Coder rules: it demonstrates the violations
 Zero baseline is measured over `docs/` excluding `docs/.style/style-guide/`.
 Run `make lint/prose` to reproduce the baseline locally.
 
-## Relationship to `docs/about/contributing/documentation.md`
+## Relationship to `contributing/documentation.md`
 
-A public-facing prose summary lives today at [`docs/about/contributing/documentation.md`](../../about/contributing/documentation.md).
-A follow-up PR will redirect that page to this guide.
+A public-facing prose summary lives today at [`contributing/documentation.md`](https://github.com/coder/coder/blob/main/contributing/documentation.md) in the repository.
+A follow-up PR will fold that page into this guide.
 Until then, follow the public summary for anything the subpages of this guide don't cover.
 New prose rules land here.
-The public page is frozen pending the redirect.
+The public page is frozen pending that move.
 
 ## Third-party references
 

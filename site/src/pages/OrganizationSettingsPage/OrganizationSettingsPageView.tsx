@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	Organization,
 	ShareableWorkspaceOwners,
@@ -23,7 +22,7 @@ type OrganizationSettingsPageViewProps = {
 	isTogglingWorkspaceSharing?: boolean;
 };
 
-export const OrganizationSettingsPageView: FC<
+export const OrganizationSettingsPageView: React.FC<
 	OrganizationSettingsPageViewProps
 > = ({
 	organization,

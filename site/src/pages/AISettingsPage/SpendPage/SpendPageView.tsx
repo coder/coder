@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
@@ -13,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
+import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
@@ -28,15 +28,17 @@ type SpendPageViewProps = {
 	onOrganizationChange: (organization: TypesGen.Organization) => void;
 	isOrganizationsLoading: boolean;
 	organizationsError: unknown;
-	dateRange: DateRangeValue | undefined;
+	period: DateTimeRangeValue;
 	minDate: Date | undefined;
-	isRetentionLoading: boolean;
-	onDateRangeChange: (value: DateRangeValue) => void;
-	filterMenus: SpendFilterMenus | undefined;
+	onPeriodChange: (value: DateTimeRangeValue) => void;
+	canFilterDimensions: boolean;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	filterError: string | undefined;
 	reportQuery: SpendReportQuery;
 };
 
-export const SpendPageView: FC<SpendPageViewProps> = ({
+export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	...contentProps
@@ -54,12 +56,18 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	return (
 		<div className="flex max-w-[1100px] flex-col gap-4">
 			<SettingsHeader>
-				<SettingsHeaderTitle>User spend</SettingsHeaderTitle>
+				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
+					User spend
+				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			<Alert severity="warning">
+				This page is experimental. Reports may load slowly on large deployments,
+				and the page may change or be removed.
+			</Alert>
 			<SpendPageContent {...contentProps} />
 		</div>
 	);
@@ -70,18 +78,20 @@ type SpendPageContentProps = Omit<
 	"isEntitled" | "isEnabled"
 >;
 
-const SpendPageContent: FC<SpendPageContentProps> = ({
+const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	now,
 	organizations,
 	organization,
 	onOrganizationChange,
 	isOrganizationsLoading,
 	organizationsError,
-	dateRange,
+	period,
 	minDate,
-	isRetentionLoading,
-	onDateRangeChange,
-	filterMenus,
+	onPeriodChange,
+	canFilterDimensions,
+	filterQuery,
+	onFilterQueryChange,
+	filterError,
 	reportQuery,
 }) => {
 	if (isOrganizationsLoading) {
@@ -133,12 +143,14 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				organizations={organizations}
 				organization={organization}
 				onOrganizationChange={onOrganizationChange}
-				menus={filterMenus}
+				canFilterDimensions={canFilterDimensions}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				filterError={filterError}
 				now={now}
-				dateRange={dateRange}
+				period={period}
 				minDate={minDate}
-				isRetentionLoading={isRetentionLoading}
-				onDateRangeChange={onDateRangeChange}
+				onPeriodChange={onPeriodChange}
 			/>
 			<SpendUsersTable reportQuery={reportQuery} />
 		</>
