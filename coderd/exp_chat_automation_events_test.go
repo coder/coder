@@ -102,6 +102,21 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
 	})
 
+	t.Run("RateLimitedAcrossAutomations", func(t *testing.T) {
+		t.Parallel()
+		const limit = 2
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{APIRateLimit: limit}))
+
+		// Each request uses a fresh automation id, so only a limiter that
+		// ignores the id can refuse the last one.
+		for range limit {
+			status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+			require.Equal(t, http.StatusUnauthorized, status, string(body))
+		}
+		status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+		require.Equal(t, http.StatusTooManyRequests, status, string(body))
+	})
+
 	t.Run("ExperimentOffForOwner", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)

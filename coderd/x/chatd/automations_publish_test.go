@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -322,6 +323,34 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		stored, err := f.db.GetChatAutomationByID(ctx, automation.ID)
 		require.NoError(t, err)
 		require.False(t, stored.WebhookConsumedAt.Valid, "a denied delivery does not use up a single-use webhook")
+	})
+
+	t.Run("SingleUseConsumedSkipsHooks", func(t *testing.T) {
+		t.Parallel()
+		var hookCalls atomic.Int64
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hookCalls.Add(1)
+			_, _ = w.Write([]byte(`{"permission":{"decision":"deny"},"user_message":"blocked"}`))
+		}))
+		t.Cleanup(consumer.Close)
+		f := newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+			cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		automation := f.webhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle, codersdk.ChatAutomationWhenBusyQueue)
+		count, err := f.db.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
+			ID:  automation.ID,
+			Now: dbtestutil.NowInDefaultTimezone(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+
+		// A repeated request to a used webhook must not expose its payload
+		// to prompt hooks.
+		_, err = f.publish(ctx, automation)
+		require.ErrorIs(t, err, chatd.ErrAutomationWebhookConsumed)
+		require.Zero(t, hookCalls.Load())
+		f.requireNothingSaved(ctx, t)
 	})
 }
 

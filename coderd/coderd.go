@@ -1371,7 +1371,10 @@ func New(options *Options) *API {
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 		// Webhook callers authenticate with the automation's secret, not
 		// with a Coder session, so this route has no API key middleware.
-		r.Post("/chat-automations/{automation}/events", api.postChatAutomationEvent)
+		// The path limiter above gives each automation id its own bucket,
+		// so this limiter also bounds a caller across all ids.
+		r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
+			Post("/chat-automations/{automation}/events", api.postChatAutomationEvent)
 		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

@@ -138,6 +138,12 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if !automation.Enabled {
 		return PublishAutomationResult{}, ErrAutomationDisabled
 	}
+	// A used single-use webhook is refused before the send, so a repeated
+	// request never reaches the prompt hooks. admitAutomation rechecks it
+	// under lock for concurrent requests.
+	if in.webhook && isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
+		return PublishAutomationResult{}, ErrAutomationWebhookConsumed
+	}
 	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
 	if err != nil {
 		return PublishAutomationResult{}, err
@@ -177,7 +183,8 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		},
 	})
 	if err != nil {
-		if errors.Is(err, ErrChatArchived) {
+		// The chat can be archived or deleted after the check above.
+		if errors.Is(err, ErrChatArchived) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) {
 			err = ErrAutomationTargetUnavailable
 		}
 		var denied *chathooks.UserPromptDeniedError
@@ -211,7 +218,7 @@ func (p *Server) admitAutomation(
 	if !automation.Enabled {
 		return chatstate.AutomationProvenance{}, ErrAutomationDisabled
 	}
-	singleUse := automation.WebhookUse.Valid && automation.WebhookUse.ChatAutomationWebhookUse == database.ChatAutomationWebhookUseSingle
+	singleUse := isSingleUseWebhook(automation)
 	if in.webhook {
 		if automation.Kind != database.ChatAutomationKindWebhook || automation.WebhookSecretVersion != in.secretVersion {
 			return chatstate.AutomationProvenance{}, ErrAutomationSecretChanged
@@ -278,6 +285,12 @@ func (p *Server) admitAutomation(
 		InputID:         inputID,
 		QueueGeneration: automation.QueueGeneration,
 	}, nil
+}
+
+// isSingleUseWebhook reports whether a delivery consumes the automation's
+// webhook.
+func isSingleUseWebhook(automation database.ChatAutomation) bool {
+	return automation.WebhookUse.Valid && automation.WebhookUse.ChatAutomationWebhookUse == database.ChatAutomationWebhookUseSingle
 }
 
 // automationOwnerSubject returns the RBAC subject of an active automation
