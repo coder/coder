@@ -27,7 +27,7 @@ particularly with database migrations in high availability (HA) deployments.
   Contact [Coder support](../../../support/index.md) for guidance on your specific
   upgrade path.
 - **Check whether your deployment enforces quotas.**
-  A deployment that enforces [quotas](../../../admin/users/quotas.md) needs a short planned outage, not a rolling upgrade, when it first moves to a release that checks quota one build at a time.
+  A deployment that enforces [quotas](../../../admin/users/quotas.md) needs a short planned outage, not a rolling upgrade, when it upgrades from a release before v2.39.0 to v2.39.0 or later.
   Refer to [Upgrade a deployment that enforces quotas](../../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
 
 ## Pre-upgrade strategy for Kubernetes HA deployments

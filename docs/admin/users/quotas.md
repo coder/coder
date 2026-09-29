@@ -107,18 +107,18 @@ Form will never get held up by quota enforcement.
 
 ![build-log](../../images/admin/quota-buildlog.png)
 
-Coder checks quota for one build at a time for each user in each organization.
+Coder v2.39.0 and later check quota for one build at a time for each user in each organization.
 Builds that start together, such as several autostarts, are each checked against the credits that the builds before them consumed.
 
 ## Upgrade a deployment that enforces quotas
 
-Earlier releases of Coder check quota for concurrent builds in parallel, and current releases check one build at a time.
+Releases before Coder v2.39.0 check quota for concurrent builds in parallel, and v2.39.0 and later check one build at a time.
 The two methods aren't safe to run side by side.
-If an earlier and a current `coderd`, the process that runs the control plane, commit quota at the same time, users can get more workspaces than their budgets allow, and a build can pass a quota check that it should fail.
+`coderd` is the process that runs the control plane.
+If a `coderd` from before v2.39.0 and one from v2.39.0 or later commit quota at the same time, users can get more workspaces than their budgets allow, and a build can pass a quota check that it should fail.
 
-To upgrade an affected deployment from an earlier release to a current one, plan a short control plane outage with no overlap between earlier and current `coderd` processes.
-Later upgrades between current releases follow the usual upgrade process.
-If you aren't sure whether your current release checks quota one build at a time, follow this procedure.
+To upgrade an affected deployment from a release before v2.39.0 to v2.39.0 or later, plan a short control plane outage with no overlap between `coderd` processes of the earlier and the new release.
+Upgrades from v2.39.0 or later to a later release follow the usual upgrade process.
 
 ### Check whether your deployment is affected
 
@@ -145,7 +145,7 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 
 > [!WARNING]
 > Don't use a rolling upgrade for an affected deployment.
-> The default Kubernetes `RollingUpdate` strategy starts a new pod before the old pod stops, even with one replica, so earlier and current `coderd` processes overlap and quota can be granted beyond a user's budget.
+> The default Kubernetes `RollingUpdate` strategy starts a new pod before the old pod stops, even with one replica, so `coderd` processes of the earlier and the new release overlap and quota can be granted beyond a user's budget.
 >
 > Stopping every workspace doesn't make the upgrade safe.
 > Stop builds also commit quota, queued and running builds can remain, and autostart, prebuilt workspaces, and API requests keep creating builds until every `coderd` stops.
