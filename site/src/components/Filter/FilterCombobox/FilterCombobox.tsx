@@ -29,6 +29,8 @@ import {
 	FilterComboboxChips,
 	FilterComboboxChipsInput,
 	FilterComboboxContent,
+	FilterComboboxFlyoutContent,
+	FilterComboboxFlyoutRoot,
 	FilterComboboxGroup,
 	FilterComboboxInputGroup,
 	FilterComboboxItem,
@@ -65,9 +67,6 @@ const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
-
-const flyoutPanelClassName =
-	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:self-start";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.
@@ -501,35 +500,37 @@ export function FilterCombobox({
 							</div>
 						)
 					) : (
-						<div
-							className="relative flex items-start gap-1 overflow-visible"
-							onMouseLeave={() => {
-								updateFlyoutCategory(null);
-								actions.setHighlightedValue("");
-							}}
-						>
-							{!mainPanelEmpty && (
-								<MainPanel
-									drillIn={
-										isCoarsePointer ||
-										activeCategoryKey !== null ||
-										categoriesNarrowedByText
-									}
-									{...mainPanelProps}
-								/>
-							)}
-							{categoryOptionsList ??
-								(flyoutOptions && (
-									<FlyoutCategoryPanel
-										key={flyoutOptions.category.key}
-										offset={panelOffset}
-										flyout={flyoutOptions}
-										selectedTokens={chipValues}
-										onMouseEnter={cancelHoverSwitch}
-										onSelectOption={selectFlyoutOption}
+						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
+							<div
+								className="relative flex items-start gap-1 overflow-visible"
+								onMouseLeave={() => {
+									updateFlyoutCategory(null);
+									actions.setHighlightedValue("");
+								}}
+							>
+								{!mainPanelEmpty && (
+									<MainPanel
+										drillIn={
+											isCoarsePointer ||
+											activeCategoryKey !== null ||
+											categoriesNarrowedByText
+										}
+										{...mainPanelProps}
 									/>
-								))}
-						</div>
+								)}
+								{categoryOptionsList ??
+									(flyoutOptions && (
+										<FlyoutCategoryPanel
+											key={flyoutOptions.category.key}
+											offset={panelOffset}
+											flyout={flyoutOptions}
+											selectedTokens={chipValues}
+											onMouseEnter={cancelHoverSwitch}
+											onSelectOption={selectFlyoutOption}
+										/>
+									))}
+							</div>
+						</FilterComboboxFlyoutRoot>
 					)}
 				</FilterComboboxContent>
 			</FilterComboboxRoot>
@@ -911,44 +912,8 @@ function OptionsPanel({
 	onMouseEnter,
 	children,
 }: OptionsPanelProps) {
-	// A searchable panel is pinned to the top so its search field stays put.
-	const top = search ? 0 : offset;
-	const panelRef = useRef<HTMLDivElement>(null);
-	const [opensLeft, setOpensLeft] = useState(false);
-	// Radix keeps only the main menu inside the viewport, so the flyout moves to
-	// the menu's left side when it would run past the right edge.
-	useLayoutEffect(() => {
-		const panel = panelRef.current;
-		const menu = panel?.offsetParent;
-		if (embedded || !panel || !menu) {
-			return;
-		}
-		const { left, right } = menu.getBoundingClientRect();
-		const width = panel.offsetWidth;
-		setOpensLeft(
-			right + width > document.documentElement.clientWidth && left - width >= 0,
-		);
-	});
-	return (
-		<div
-			ref={panelRef}
-			onMouseEnter={onMouseEnter}
-			className={cn(
-				flyoutPanelClassName,
-				opensLeft && "sm:left-auto sm:right-[calc(100%-0.25rem)]",
-				"p-2",
-				embedded &&
-					"min-h-0 flex-1 w-full rounded-none border-0 bg-transparent p-0 shadow-none",
-			)}
-			style={
-				embedded
-					? undefined
-					: {
-							top,
-							maxHeight: `min(20rem, calc(var(--radix-popper-available-height) - ${top}px))`,
-						}
-			}
-		>
+	const content = (
+		<>
 			{search && category && (
 				<FlyoutSearch
 					label={category.label}
@@ -959,7 +924,19 @@ function OptionsPanel({
 			)}
 			{children}
 			{emptyMessage && <EmptyOptions message={emptyMessage} />}
-		</div>
+		</>
+	);
+	if (embedded) {
+		return <div className="flex min-h-0 w-full flex-1 flex-col">{content}</div>;
+	}
+	return (
+		<FilterComboboxFlyoutContent
+			onMouseEnter={onMouseEnter}
+			// A searchable panel is pinned to the top so its search field stays put.
+			alignOffset={search ? 0 : offset}
+		>
+			{content}
+		</FilterComboboxFlyoutContent>
 	);
 }
 

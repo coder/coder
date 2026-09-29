@@ -250,6 +250,63 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 	);
 };
 
+type FilterComboboxFlyoutRootProps = {
+	/** Fired when Escape is pressed while the flyout is shown. */
+	onDismiss: () => void;
+	/** The main menu, which the flyout is placed beside. */
+	children: React.ReactElement;
+};
+
+/**
+ * Anchors `FilterComboboxFlyoutContent` to the main menu. The flyout is a
+ * nested Radix layer, so it takes Escape from the popup and forwards it here.
+ */
+export const FilterComboboxFlyoutRoot: React.FC<
+	FilterComboboxFlyoutRootProps
+> = ({ onDismiss, children }) => {
+	return (
+		<Popover
+			open
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) {
+					onDismiss();
+				}
+			}}
+			modal={false}
+		>
+			<PopoverAnchor asChild>{children}</PopoverAnchor>
+		</Popover>
+	);
+};
+
+/**
+ * Side panel to the right of the main menu. Radix moves it to the left side
+ * when the right side has no room.
+ */
+export const FilterComboboxFlyoutContent: React.FC<
+	React.ComponentProps<typeof PopoverContent>
+> = ({ className, ...props }) => {
+	return (
+		<PopoverContent
+			disablePortal
+			side="right"
+			align="start"
+			sideOffset={-4}
+			collisionPadding={0}
+			onOpenAutoFocus={(event) => event.preventDefault()}
+			onCloseAutoFocus={(event) => event.preventDefault()}
+			// Outside presses are left to the popup's layer, which unmounts this
+			// one. Focus returning to the input must not close the flyout.
+			onInteractOutside={(event) => event.preventDefault()}
+			className={cn(
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				className,
+			)}
+			{...props}
+		/>
+	);
+};
+
 type FilterComboboxListProps = React.ComponentProps<
 	typeof CommandPrimitive.List
 >;
