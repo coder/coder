@@ -92,7 +92,6 @@ const categories: FilterCategory[] = [
 	{
 		key: "owner",
 		label: "Owner",
-		aliases: ["user"],
 		icon: <UserIcon />,
 		getOptions: async (query) => filterOptions(ownerOptions, query),
 	},
@@ -563,7 +562,6 @@ export const CrossCategoryValueSuggestions: Story = {
 				{
 					key: "owner",
 					label: "Owner",
-					aliases: ["user"],
 					icon: <UserIcon />,
 					getOptions: async (query) =>
 						filterOptions(
@@ -619,11 +617,101 @@ export const TypedInlinePrefix: Story = {
 	},
 };
 
+const scopedOwnerCategories: FilterCategory[] = [
+	{
+		key: "owner",
+		label: "Owner",
+		icon: <UserIcon />,
+		scopeToggle: {
+			label: (owner) =>
+				owner
+					? `Include workspaces shared with ${owner}`
+					: "Include shared workspaces",
+			widenedKey: "user",
+			pillLabel: "include shared",
+			pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+			searchPhrase: "shared with owner",
+		},
+		getOptions: async (query) => filterOptions(ownerOptions, query),
+	},
+];
+
+export const ScopeToggle: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.hover(await body.findByRole("option", { name: "Owner" }));
+		await body.findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+export const ScopeToggleTypedMatch: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const input = within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "shared");
+		await within(canvasElement.ownerDocument.body).findByRole("switch", {
+			name: "Include workspaces shared with alice",
+		});
+	},
+};
+
+export const ScopePillFullLabel: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alexandra-montgomery"
+			categories={scopedOwnerCategories}
+		/>
+	),
+};
+
+export const ScopeToggleWithSecondOwner: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery="user:alice owner:bob"
+			categories={scopedOwnerCategories}
+		/>
+	),
+	play: ScopeToggle.play,
+};
+
+export const ScopePillTruncatesWhenNarrow: Story = {
+	...ScopePillFullLabel,
+	parameters: {
+		layout: "fullscreen",
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const ScopePillTooltip: Story = {
+	...ScopeToggle,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("include shared"));
+		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
+	},
+};
+
 export const ClearAll: Story = {
 	render: () => (
 		<FilterComboboxHarness
-			initialQuery="owner:me template:docker status:running outdated:true"
-			categories={categoriesWithAttributes}
+			initialQuery="user:me template:docker status:running outdated:true"
+			categories={categoriesWithAttributes.map((category) =>
+				category.key === "owner" ? scopedOwnerCategories[0] : category,
+			)}
 		/>
 	),
 };
