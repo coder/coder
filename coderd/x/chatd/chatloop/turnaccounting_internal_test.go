@@ -88,7 +88,6 @@ func labelsOf(t *testing.T, registry *prometheus.Registry, family, label, value 
 func (f stageMetricsFixture) startTurn(t *testing.T) (context.Context, *StageSpan, time.Time) {
 	t.Helper()
 	ctx := ContextWithChatKind(t.Context(), ChatKindRoot)
-	ctx = ContextWithOrganization(ctx, "acme")
 	ctx = ContextWithTurnAccumulator(ctx, NewTurnAccumulator())
 	turnStart := f.clock.Now()
 	turnCtx, turnSpan := f.tracer.StartRootAt(ctx, StageChatTurn, turnStart)

@@ -264,7 +264,7 @@ func TestWaitGenerationRetryStage(t *testing.T) {
 				starter, clock, recorder, registry := newStarter(t)
 				trap := clock.Trap().NewTimer("chatworker", w.timer)
 				defer trap.Close()
-				turn := newRunnerTurnSpan(starter.server.stages, nil, false)
+				turn := newRunnerTurnSpan(starter.server.stages, false)
 				turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, clock.Now())
 
 				done := make(chan error, 1)

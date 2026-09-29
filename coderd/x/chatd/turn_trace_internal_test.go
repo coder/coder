@@ -933,7 +933,7 @@ func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
 	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	turnCtx, token := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now().Add(-2*time.Second))
@@ -983,7 +983,7 @@ func TestRunnerTurnSpanCountsStepRunningAtInterrupt(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	tracer, _, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	task := uuid.New()
 
@@ -1010,7 +1010,7 @@ func TestRunnerTurnSpanRetryContinuesTurn(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
 	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	triggerAt := clock.Now().Add(-time.Minute)
 
@@ -1037,7 +1037,7 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
 	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	turnCtx, completed := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
@@ -1098,7 +1098,7 @@ func TestRunnerTurnSpanLabelsSubagentTurns(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
 	tracer, _, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
 
 	turnCtx, token := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
