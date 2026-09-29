@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -416,37 +417,17 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 	return updated, nil
 }
 
-// DeleteAutomation disables an automation, which removes the messages it
-// queued, and then deletes it. A queued message that survives, for example
-// because the server stopped between the steps, is discarded when it would
-// be promoted, because its automation no longer exists.
+// DeleteAutomation deletes an automation and then removes the messages it
+// queued. Deleting the row is the cutoff: the queue promotion guard
+// discards every queued message whose automation no longer exists, so a
+// message that survives the cleanup, for example because the server
+// stopped between the steps, never runs. Unlike disabling, deleting needs
+// no update permission on the automation.
 func (p *Server) DeleteAutomation(ctx context.Context, id uuid.UUID) error {
-	now := dbtime.Time(p.clock.Now())
-	var disabled database.ChatAutomation
-	err := p.db.InTx(func(tx database.Store) error {
-		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
-		if err != nil {
-			return xerrors.Errorf("lock chat automation: %w", err)
-		}
-		if len(rows) == 0 {
-			return ErrAutomationNotFound
-		}
-		arg := automationUpdateParams(rows[0], now)
-		arg.Enabled = false
-		arg.QueueGeneration = rows[0].QueueGeneration + 1
-		disabled, err = tx.UpdateChatAutomationByID(ctx, arg)
-		if err != nil {
-			return xerrors.Errorf("disable chat automation: %w", err)
-		}
-		return nil
-	}, &database.TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "disable_chat_automation"})
-	if err != nil {
-		return err
-	}
-	p.deleteStaleAutomationQueuedMessages(ctx, disabled.ID, disabled.QueueGeneration)
 	if err := p.db.DeleteChatAutomationByID(ctx, id); err != nil {
 		return xerrors.Errorf("delete chat automation: %w", err)
 	}
+	p.deleteStaleAutomationQueuedMessages(ctx, id, math.MaxInt64)
 	return nil
 }
 
