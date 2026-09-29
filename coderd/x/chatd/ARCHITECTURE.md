@@ -546,7 +546,7 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 No other input states are supported.
 
-TODO (CODAGT-1209): automation disable and delete also use the `DeleteQueuedMessage` transition, as chatd, for queued rows whose `queue_generation` is below the automation's new cutoff, after a separate automation-only transaction bumps the generation. Describe this here.
+TODO (CODAGT-1209): automation disable and delete also use the `DeleteQueuedMessage` transition, as chatd. Disable deletes the automation's queued rows whose `queue_generation` is below the new cutoff, after a separate automation-only transaction bumps the generation. Delete removes the automation row first and then deletes all of its queued rows. Describe this here.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 

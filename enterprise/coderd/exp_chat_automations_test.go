@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
@@ -149,4 +151,52 @@ func logEntryText(entry slog.SinkEntry) string {
 		}
 	}
 	return b.String()
+}
+
+// TestChatAutomationsDeleteWithoutUpdate checks that deleting an
+// automation needs only read and delete permission: disabling it first is
+// part of the deletion, not a separate update.
+func TestChatAutomationsDeleteWithoutUpdate(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
+	client, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:   dv,
+			Database:           db,
+			Pubsub:             ps,
+			ChatWorkerDisabled: true,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureCustomRoles: 1},
+		},
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: owner.OrganizationID})
+	created, err := codersdk.NewExperimentalClient(client).CreateChatAutomation(ctx, owner.OrganizationID, codersdk.CreateChatAutomationRequest{
+		Name:                 "Nightly",
+		Kind:                 codersdk.ChatAutomationKindWebhook,
+		TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: &modelConfig.ID,
+		Prompt:               "Run the nightly checks.",
+	})
+	require.NoError(t, err)
+
+	//nolint:gocritic // Owner access isolates custom-role setup from the behavior under test.
+	role, err := client.CreateOrganizationRole(ctx, codersdk.Role{
+		Name:           "automation-deleter",
+		OrganizationID: owner.OrganizationID.String(),
+		OrganizationPermissions: codersdk.CreatePermissions(map[codersdk.RBACResource][]codersdk.RBACAction{
+			codersdk.ResourceChatAutomation: {codersdk.ActionRead, codersdk.ActionDelete},
+		}),
+	})
+	require.NoError(t, err)
+	deleter, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID,
+		rbac.RoleIdentifier{Name: role.Name, OrganizationID: owner.OrganizationID})
+
+	require.NoError(t, codersdk.NewExperimentalClient(deleter).DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
+	_, err = db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), created.Automation.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
