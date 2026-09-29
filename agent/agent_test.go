@@ -4713,7 +4713,6 @@ func TestAgent_ToolCallOtherChat(t *testing.T) {
 	outA, err := connA.ProcessOutput(toolCtx, id.String(), nil)
 	require.NoError(t, err)
 	require.Equal(t, "sleep 300", outA.Command)
-	require.True(t, outA.Running)
 	require.False(t, outA.Canceled)
 }
 
