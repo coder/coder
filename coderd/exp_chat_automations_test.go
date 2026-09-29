@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
@@ -131,11 +132,11 @@ func TestChatAutomations(t *testing.T) {
 		require.Equal(t, codersdk.ChatAutomationWebhookUseMulti, *webhook.Automation.WebhookUse)
 		require.Empty(t, webhook.Automation.NextRunTimes)
 
-		// Only the hash is stored.
+		// Only the SHA-256 hash of the full secret is stored.
 		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), webhook.Automation.ID)
 		require.NoError(t, err)
-		require.NotEmpty(t, stored.WebhookSecretHash)
-		require.NotContains(t, string(stored.WebhookSecretHash), webhook.WebhookSecret)
+		wantHash := sha256.Sum256([]byte(webhook.WebhookSecret))
+		require.Equal(t, wantHash[:], stored.WebhookSecretHash)
 
 		before := time.Now()
 		schedule, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
@@ -237,6 +238,12 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Renamed", updated.Name)
 
+		// The automation is not found under another organization's path,
+		// even for a caller who can read it.
+		otherOrg := dbgen.Organization(t, env.db, database.Organization{})
+		_, err = env.owner.ChatAutomation(ctx, otherOrg.ID, id)
+		requireSDKError(t, err, http.StatusNotFound)
+
 		require.NoError(t, orgAdmin.DeleteChatAutomation(ctx, env.orgID, id))
 		_, err = env.member.ChatAutomation(ctx, env.orgID, id)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -254,6 +261,23 @@ func TestChatAutomations(t *testing.T) {
 			ParentChatID:      uuid.NullUUID{UUID: env.memberChat.ID, Valid: true},
 			RootChatID:        uuid.NullUUID{UUID: env.memberChat.ID, Valid: true},
 		})
+
+		// The site owner can read the member's chat and the foreign model
+		// config, so these requests reach the ownership and organization
+		// checks rather than failing the lookup.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := env.owner.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "target_chat_id", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "owned by the automation owner")
+		foreignModelReq := env.scheduleRequest()
+		foreignModelReq.NewChatModelConfigID = &foreignModel.ID
+		_, err = env.owner.CreateChatAutomation(ctx, env.orgID, foreignModelReq)
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "new_chat_model_config_id", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "not in the automation's organization")
 
 		for _, tc := range []struct {
 			name   string
@@ -410,6 +434,13 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(2), stored.ScheduleRevision)
 		require.Equal(t, "Morning report", stored.Name)
+
+		// A prompt change bumps the revision.
+		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{Prompt: ptr.Ref("Summarize today.")})
+		require.NoError(t, err)
+		stored, err = env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), schedule.Automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(3), stored.ScheduleRevision)
 	})
 }
 
