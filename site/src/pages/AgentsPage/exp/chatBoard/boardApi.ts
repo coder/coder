@@ -60,7 +60,8 @@ export type NoteSlot = Readonly<{ index: number; side: "before" | "after" }>;
 /** Where a moved column lands relative to another column. */
 type ColumnSlot = Readonly<{ name: string; side: "before" | "after" }>;
 
-const cardOf = (state: BoardState, cardId: string) =>
+/** The card with the given id. */
+export const cardOf = (state: BoardState, cardId: string) =>
 	state.cards.find((card) => card.id === cardId);
 
 /** The card a chat belongs to, as primary or member. */

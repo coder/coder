@@ -8,7 +8,7 @@ import { cardAccent } from "./cardColor";
 import { UnreadBadge } from "./Openers";
 
 /** One minimized window as the tab bar shows it. */
-type WindowTab = Readonly<{
+export type WindowTab = Readonly<{
 	key: string;
 	title: string;
 	color: CardColor | undefined;
@@ -59,7 +59,7 @@ const Tab: React.FC<TabProps> = ({ tab, onRestore, onClose }) => (
 	<div
 		className={cn(
 			"flex h-8 w-56 shrink-0 items-center gap-2 overflow-hidden rounded-t-md border border-b-0 border-solid border-border bg-surface-primary pr-1 pl-2.5 text-[12.5px] font-medium text-content-primary transition-colors hover:bg-surface-tertiary",
-			tab.color && cardAccent({ color: tab.color }),
+			cardAccent({ color: tab.color }),
 		)}
 	>
 		<button

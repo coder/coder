@@ -4,6 +4,7 @@ import { AgentChatPageSkeleton } from "../../components/AgentsSkeletons";
 import {
 	type BoardState,
 	cardContext,
+	cardOf,
 	cardOfChat,
 	newChatLabels,
 } from "./boardApi";
@@ -11,7 +12,7 @@ import type { BoardCard, CardColor } from "./boardLabels";
 import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { DraftChat } from "./DraftChat";
-import { WindowTabs } from "./WindowTabs";
+import { type WindowTab, WindowTabs } from "./WindowTabs";
 
 // Lazy so the board loads without the chat page.
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
@@ -34,6 +35,39 @@ type BoardWindowsProps = {
 	readonly onDismissTop: () => void;
 	readonly onDraftCreated: (target: DraftTarget, chatId: string) => void;
 	readonly onCardAssistant: (card: BoardCard) => void;
+};
+
+/** What a window shows in its title bar and in its tab once minimized. */
+const summarizeWindow = (
+	win: ChatWindow,
+	board: BoardState,
+	chatsById: ReadonlyMap<string, Chat>,
+	colorByChatId: ReadonlyMap<string, CardColor>,
+): Omit<WindowTab, "key"> => {
+	if (win.kind === "chat") {
+		const chat = chatsById.get(win.chatId);
+		return {
+			title: chat?.title ?? "Chat",
+			color: colorByChatId.get(win.chatId),
+			chat,
+		};
+	}
+
+	const { target } = win;
+	if ("column" in target) {
+		return {
+			title: `New chat in ${target.column}`,
+			color: undefined,
+			chat: undefined,
+		};
+	}
+
+	const card = cardOf(board, target.cardId);
+	return {
+		title: `New chat in ${card?.title ?? "card"}`,
+		color: card?.color,
+		chat: undefined,
+	};
 };
 
 export const BoardWindows: React.FC<BoardWindowsProps> = ({
@@ -68,31 +102,18 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [hasWindows]);
 
-	const draftCard = (target: DraftTarget) =>
-		"cardId" in target
-			? board.cards.find((c) => c.id === target.cardId)
-			: undefined;
-
-	// Title and color are shared by a window's title bar and its tab.
-	const heading = (win: ChatWindow) => {
-		if (win.kind === "chat") {
-			return {
-				title: chatsById.get(win.chatId)?.title ?? "Chat",
-				color: colorByChatId.get(win.chatId),
-			};
-		}
-
-		const card = draftCard(win.target);
-		const place =
-			"column" in win.target ? win.target.column : (card?.title ?? "card");
-		return { title: `New chat in ${place}`, color: card?.color };
-	};
-
 	const frames = windows.map((win) => {
 		const key = windowKey(win);
+		const { title, color } = summarizeWindow(
+			win,
+			board,
+			chatsById,
+			colorByChatId,
+		);
 		const frame = {
 			window: win,
-			...heading(win),
+			title,
+			color,
 			onChange,
 			onClose: () => onClose(key),
 			onMinimize: () => onMinimize(key),
@@ -128,7 +149,10 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		// is nothing to draw.
 		if (!labels) return null;
 
-		const card = draftCard(target);
+		const card =
+			"cardId" in target
+				? board.cards.find((c) => c.id === target.cardId)
+				: undefined;
 		return (
 			<FloatingChat
 				// Keyed by target so a new target gets a fresh form, not the pending
@@ -155,8 +179,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		.filter((win) => win.minimized)
 		.map((win) => ({
 			key: windowKey(win),
-			...heading(win),
-			chat: win.kind === "chat" ? chatsById.get(win.chatId) : undefined,
+			...summarizeWindow(win, board, chatsById, colorByChatId),
 		}));
 
 	return (

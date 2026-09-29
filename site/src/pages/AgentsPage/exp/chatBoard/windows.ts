@@ -112,10 +112,6 @@ export const minimizeWindow = (
 	];
 };
 
-/** The window in front of every other visible one. */
-const frontWindow = (list: readonly ChatWindow[]) =>
-	list.findLast((w) => !w.minimized);
-
 /** Raises the window for `key`, pinning a preview; a key without a window is left alone. */
 export const raise = (list: readonly ChatWindow[], key: string) => {
 	const win = list.find((w) => windowKey(w) === key);
@@ -174,6 +170,8 @@ export const replaceDraftWithChat = (
 export const dismissTop = (list: readonly ChatWindow[]) => {
 	if (list.some((w) => !w.pinned)) return dropPreview(list);
 
-	const front = frontWindow(list);
-	return front ? list.filter((w) => w !== front) : list;
+	const front = list.findLast((w) => !w.minimized);
+	if (!front) return list;
+
+	return list.filter((w) => w !== front);
 };
