@@ -892,10 +892,10 @@ func runtimeModulePathFromSteps(
 	var address strings.Builder
 	for index, step := range steps {
 		if index > 0 {
-			address.WriteByte('.')
+			_ = address.WriteByte('.')
 		}
-		address.WriteString("module.")
-		address.WriteString(step.Name())
+		_, _ = address.WriteString("module.")
+		_, _ = address.WriteString(step.Name())
 		key, ok := runtimeInstanceKeyString(step.InstanceKey())
 		if !ok {
 			return tfaddr.ModulePath{}, xerrors.New(
@@ -903,9 +903,9 @@ func runtimeModulePathFromSteps(
 			)
 		}
 		if key != "" {
-			address.WriteByte('[')
-			address.WriteString(key)
-			address.WriteByte(']')
+			_ = address.WriteByte('[')
+			_, _ = address.WriteString(key)
+			_ = address.WriteByte(']')
 		}
 	}
 	return tfaddr.ParseModulePath(address.String())

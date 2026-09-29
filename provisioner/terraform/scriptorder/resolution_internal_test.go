@@ -823,7 +823,7 @@ func scriptOrderModuleFilteringFixture(phase string) *tfjson.StateModule {
 
 func scriptOrderTestScripts(
 	runtimeAddress string,
-	phase ScriptOrderPhase,
+	phase Phase,
 	addresses ...string,
 ) map[string]scriptOrderScript {
 	scripts := make(map[string]scriptOrderScript, len(addresses))

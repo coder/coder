@@ -174,7 +174,7 @@ func TestIndexHonorsCancellation(t *testing.T) {
 				func() (*gographviz.Graph, error) {
 					close(parserStarted)
 					<-parserRelease
-					return nil, nil
+					return &gographviz.Graph{}, nil
 				},
 			)
 			parserResult <- err

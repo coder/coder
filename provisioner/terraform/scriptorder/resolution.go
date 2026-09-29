@@ -32,8 +32,8 @@ type resolvedScriptOrderRule struct {
 	dataSourceAddress string
 	ruleIndex         int
 	runtimeAddress    string
-	phase             ScriptOrderPhase
-	requirement       ScriptOrderRequirement
+	phase             Phase
+	requirement       Requirement
 	run               []resolvedScriptOrderSelector
 	after             []resolvedScriptOrderSelector
 }
@@ -41,7 +41,7 @@ type resolvedScriptOrderRule struct {
 type scriptOrderPhaseFilterWarning struct {
 	dataSourceAddress                string
 	ruleIndex                        int
-	inferredPhase                    ScriptOrderPhase
+	inferredPhase                    Phase
 	moduleSelectorsWithOmissions     []string
 	additionalModuleSelectorsOmitted int
 }
@@ -80,8 +80,8 @@ type resolvedScriptOrder struct {
 
 type preparedScriptOrderRule struct {
 	identity    scriptOrderRuleIdentity
-	phase       ScriptOrderPhase
-	requirement ScriptOrderRequirement
+	phase       Phase
+	requirement Requirement
 	run         []resolvedScriptOrderSelector
 	after       []resolvedScriptOrderSelector
 }
@@ -108,23 +108,23 @@ const (
 // and lifecycle phase. Independent groups within the same runtime and
 // phase are disconnected components of the same graph.
 type ScriptOrder struct {
-	Graphs []ScriptOrderGraph
+	Graphs []Graph
 }
 
-// ScriptOrderGraph contains dependencies for one runtime and
+// Graph contains dependencies for one runtime and
 // lifecycle phase. Scripts in the graph are identified by the
 // dependent and prerequisite addresses in Dependencies.
-type ScriptOrderGraph struct {
+type Graph struct {
 	RuntimeAddress string
-	Phase          ScriptOrderPhase
-	Dependencies   []ScriptOrderDependency
+	Phase          Phase
+	Dependencies   []Dependency
 }
 
-// ScriptOrderDependency makes DependentAddress wait for PrerequisiteAddress.
-type ScriptOrderDependency struct {
+// Dependency makes DependentAddress wait for PrerequisiteAddress.
+type Dependency struct {
 	DependentAddress    string
 	PrerequisiteAddress string
-	Requirement         ScriptOrderRequirement
+	Requirement         Requirement
 }
 
 // prepareScriptOrder resolves selectors and lifecycle phases once, before
@@ -317,7 +317,7 @@ func validateScriptOrderSelectedScripts(
 func determineScriptOrderRulePhase(
 	declaration scriptOrderRuleDeclaration,
 	scripts map[string]scriptOrderScript,
-) (ScriptOrderPhase, bool, error) {
+) (Phase, bool, error) {
 	if declaration.declaredPhase != "" {
 		return declaration.declaredPhase, false, nil
 	}
@@ -379,7 +379,7 @@ func determineScriptOrderRulePhase(
 // scriptOrderObservedPhase records the first selector and script
 // address observed for a lifecycle phase.
 type scriptOrderObservedPhase struct {
-	phase    ScriptOrderPhase
+	phase    Phase
 	selector resolvedScriptOrderSelector
 	address  string
 }
@@ -395,7 +395,7 @@ func collectScriptOrderObservedPhases(
 	scripts map[string]scriptOrderScript,
 	kind scriptOrderSelectorKind,
 ) []scriptOrderObservedPhase {
-	observed := map[ScriptOrderPhase]scriptOrderObservedPhase{}
+	observed := map[Phase]scriptOrderObservedPhase{}
 	for _, selector := range slices.Concat(run, after) {
 		if selector.kind != kind {
 			continue
@@ -421,7 +421,7 @@ func collectScriptOrderObservedPhases(
 
 func validateScriptOrderResourceSelectorPhases(
 	declaration scriptOrderRuleDeclaration,
-	phase ScriptOrderPhase,
+	phase Phase,
 	scripts map[string]scriptOrderScript,
 ) error {
 	for _, selector := range slices.Concat(declaration.run, declaration.after) {
@@ -452,7 +452,7 @@ func validateScriptOrderResourceSelectorPhases(
 // were omitted.
 func filterScriptOrderModuleSelectorAddressesByPhase(
 	selectors []resolvedScriptOrderSelector,
-	phase ScriptOrderPhase,
+	phase Phase,
 	scripts map[string]scriptOrderScript,
 ) ([]resolvedScriptOrderSelector, []string) {
 	result := make([]resolvedScriptOrderSelector, 0, len(selectors))
@@ -642,7 +642,7 @@ func uniqueScriptOrderAddressSelections(
 	return result
 }
 
-func scriptOrderScriptPhase(script scriptOrderScript) ScriptOrderPhase {
+func scriptOrderScriptPhase(script scriptOrderScript) Phase {
 	switch {
 	case script.runOnStart && !script.runOnStop:
 		return ScriptOrderPhaseStart

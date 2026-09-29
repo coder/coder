@@ -27,7 +27,7 @@ func convertStateWithScriptOrder(
 	logger slog.Logger,
 	input *scriptOrderRuntimeBindingInput,
 ) (*scriptOrderGraphConversionResult, error) {
-	conversion, err := convertState(ctx, modules, rawGraph, logger, input)
+	conversion, err := convertStateWithInput(ctx, modules, rawGraph, logger, input)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func prepareScriptOrderRuntimeBindingInput(
 		return nil, err
 	}
 	if program == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // No program requires only ordinary conversion.
 	}
 	var runtimeProgram *agentruntime.Program
 	if source == scriptOrderConversionSourcePlan {

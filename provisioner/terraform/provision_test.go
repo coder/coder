@@ -363,7 +363,8 @@ init)
 	;;
 esac
 `, planPath, graphArgsPath, savedPlanGraphPath, graphPath)
-			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o600))
+			require.NoError(t, os.Chmod(binaryPath, 0o700))
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
@@ -483,7 +484,8 @@ plan|init)
 	;;
 esac
 `, showArgsPath, statePath, planPath, graphPath)
-	require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+	require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o600))
+	require.NoError(t, os.Chmod(binaryPath, 0o700))
 
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{
 		binaryPath: binaryPath,

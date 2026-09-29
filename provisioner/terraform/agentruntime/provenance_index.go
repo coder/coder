@@ -347,7 +347,6 @@ func (i *configIndex) indexRuntimeSourceFile(
 			moduleAddresses,
 			source,
 			diagnosticName,
-			jsonSource,
 			budget,
 		); err != nil {
 			return err
@@ -362,7 +361,6 @@ func (i *configIndex) indexRuntimeSourceBlock(
 	moduleAddresses []string,
 	source []byte,
 	filename string,
-	jsonSource bool,
 	budget *provenanceBudget,
 ) error {
 	var (
@@ -432,7 +430,7 @@ func (i *configIndex) indexRuntimeSourceBlock(
 			return err
 		}
 		expression := attributes[attributeName].Expr
-		if jsonSource {
+		if strings.HasSuffix(filename, ".tf.json") {
 			expression = runtimeJSONExpression(expression, source)
 		}
 		key := runtimeExpressionKey{
@@ -616,10 +614,10 @@ func runtimeConfigurationModuleAddress(steps []tfaddr.ModuleStep) string {
 	var address strings.Builder
 	for index, step := range steps {
 		if index > 0 {
-			address.WriteByte('.')
+			_ = address.WriteByte('.')
 		}
-		address.WriteString("module.")
-		address.WriteString(step.Name())
+		_, _ = address.WriteString("module.")
+		_, _ = address.WriteString(step.Name())
 	}
 	return address.String()
 }

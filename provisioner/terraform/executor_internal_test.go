@@ -81,6 +81,7 @@ func TestExecutorRunGraphOutputLimit(t *testing.T) {
 	}
 }
 
+//nolint:revive // The fake process must exit before the test harness writes to stdout.
 func TestTerraformGraphFakeBinary(t *testing.T) {
 	if len(os.Args) >= 3 && os.Args[len(os.Args)-2] == "--terraform-graph-output" {
 		_, err := os.Stdout.WriteString(os.Args[len(os.Args)-1])

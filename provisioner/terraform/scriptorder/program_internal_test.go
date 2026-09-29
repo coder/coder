@@ -2,12 +2,12 @@ package scriptorder
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 )
 
 func TestCollectScriptOrderRuleDeclarationsDeduplicatesSelectors(t *testing.T) {
@@ -151,7 +151,7 @@ func TestScriptOrderRuleErrorBoundsDiagnostic(t *testing.T) {
 	t.Parallel()
 
 	longDetail := strings.Repeat("a", maxScriptOrderRuleDiagnosticRunes+1)
-	cause := errors.New(longDetail)
+	cause := xerrors.New(longDetail)
 	err := scriptOrderRuleError("data.coder_script_order.order", 0, cause)
 
 	require.ErrorIs(t, err, cause)

@@ -386,7 +386,8 @@ func (b *scriptOrderRuntimeBinding) workspaceAgentForDevcontainer(
 		address string
 		err     error
 	)
-	if agentID != "" {
+	switch {
+	case agentID != "":
 		candidates := slices.Clone(b.workspaceAddressesByID[agentID])
 		slices.Sort(candidates)
 		switch len(candidates) {
@@ -404,7 +405,7 @@ func (b *scriptOrderRuntimeBinding) workspaceAgentForDevcontainer(
 				formatScriptOrderRuntimeCandidateAddresses(candidates),
 			)
 		}
-	} else if b.source == scriptOrderConversionSourcePlan {
+	case b.source == scriptOrderConversionSourcePlan:
 		if b.resolver == nil {
 			return nil, true, xerrors.New(
 				"planned devcontainer runtime resolver is unavailable",
@@ -415,7 +416,7 @@ func (b *scriptOrderRuntimeBinding) workspaceAgentForDevcontainer(
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, true, ctxErr
 		}
-	} else {
+	default:
 		err = xerrors.Errorf(
 			"devcontainer %q agent_id does not match any workspace agent",
 			stringutil.Truncate(resource.Address, 256, stringutil.TruncateWithEllipsis),

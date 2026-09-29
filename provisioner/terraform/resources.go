@@ -197,7 +197,7 @@ func ConvertState(
 	rawGraph string,
 	logger slog.Logger,
 ) (*State, error) {
-	result, err := convertState(ctx, modules, rawGraph, logger, nil)
+	result, err := convertStateWithInput(ctx, modules, rawGraph, logger, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func ConvertState(
 }
 
 // nolint:gocognit // This function makes more sense being large for now, until refactored.
-func convertState(
+func convertStateWithInput(
 	ctx context.Context,
 	modules []*tfjson.StateModule,
 	rawGraph string,

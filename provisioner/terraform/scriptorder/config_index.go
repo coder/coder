@@ -26,7 +26,7 @@ func newScriptOrderConfigIndex(
 	config *tfjson.Config,
 ) (*scriptOrderConfigIndex, error) {
 	if config == nil || config.RootModule == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Missing configuration is valid here.
 	}
 	index := &scriptOrderConfigIndex{
 		moduleCalls: map[scriptOrderModuleCallKey]struct{}{},

@@ -246,7 +246,11 @@ func TestRuntimeResolverLimits(t *testing.T) {
 
 func runtimeResolverCacheLimitTest(
 	t *testing.T,
-) (*Resolver, *tfjson.StateResource, *tfjson.StateResource) {
+) (
+	resultResolver *Resolver,
+	firstResource *tfjson.StateResource,
+	secondResource *tfjson.StateResource,
+) {
 	t.Helper()
 
 	resolver := runtimeResolverForTest(

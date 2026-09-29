@@ -169,20 +169,25 @@ func runtimeReferenceValues(
 func runtimeExpressionMetadata(
 	expression hcl.Expression,
 	budget *provenanceBudget,
-) (bool, bool, string, error) {
-	preservesIdentity, err := runtimeExpressionPreservesIdentity(
+) (
+	preservesIdentity bool,
+	usesEachValue bool,
+	resultSuffix string,
+	err error,
+) {
+	preservesIdentity, err = runtimeExpressionPreservesIdentity(
 		expression, budget,
 	)
 	if err != nil {
 		return false, false, "", err
 	}
-	usesEachValue, err := runtimeExpressionUsesEachValueAsValue(
+	usesEachValue, err = runtimeExpressionUsesEachValueAsValue(
 		expression, budget,
 	)
 	if err != nil {
 		return false, false, "", err
 	}
-	resultSuffix, err := runtimeExpressionResultSuffix(
+	resultSuffix, err = runtimeExpressionResultSuffix(
 		expression, budget,
 	)
 	if err != nil {

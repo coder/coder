@@ -16,13 +16,13 @@ import (
 // remains comparable for use as a map key.
 type scriptOrderGraphKey struct {
 	runtimeAddress string
-	phase          ScriptOrderPhase
+	phase          Phase
 }
 
 // scriptOrderEdge stores the dependency requirement and the Terraform
 // declaration retained for validation diagnostics.
 type scriptOrderEdge struct {
-	requirement       ScriptOrderRequirement
+	requirement       Requirement
 	dataSourceAddress string
 	ruleIndex         int
 	runSelector       string
@@ -37,11 +37,11 @@ type scriptOrderCycleEdge struct {
 
 // scriptOrderGraphAccumulator holds mutable construction state for
 // one runtime-and-phase graph before it is validated and converted to
-// ScriptOrderGraph.
+// Graph.
 type scriptOrderGraphAccumulator struct {
 	// Dependent address -> prerequisite address -> scriptOrderEdge
 	dependencies map[string]map[string]scriptOrderEdge
-	// Tracks unique edges for preallocating ScriptOrderGraph.Dependencies.
+	// Tracks unique edges for preallocating Graph.Dependencies.
 	dependencyCount int
 }
 
@@ -196,11 +196,11 @@ func addScriptOrderRuleEdges(
 func scriptOrderGraphResult(
 	key scriptOrderGraphKey,
 	graph *scriptOrderGraphAccumulator,
-) ScriptOrderGraph {
-	dependencies := make([]ScriptOrderDependency, 0, graph.dependencyCount)
+) Graph {
+	dependencies := make([]Dependency, 0, graph.dependencyCount)
 	for dependentAddr, prereq := range graph.dependencies {
 		for prereqAddr, edge := range prereq {
-			dependencies = append(dependencies, ScriptOrderDependency{
+			dependencies = append(dependencies, Dependency{
 				DependentAddress:    dependentAddr,
 				PrerequisiteAddress: prereqAddr,
 				Requirement:         edge.requirement,
@@ -208,14 +208,14 @@ func scriptOrderGraphResult(
 		}
 	}
 	// Dependency order has no runtime semantics; sort it for deterministic output.
-	slices.SortFunc(dependencies, func(a, b ScriptOrderDependency) int {
+	slices.SortFunc(dependencies, func(a, b Dependency) int {
 		return cmp.Or(
 			cmp.Compare(a.DependentAddress, b.DependentAddress),
 			cmp.Compare(a.PrerequisiteAddress, b.PrerequisiteAddress),
 			cmp.Compare(a.Requirement, b.Requirement),
 		)
 	})
-	return ScriptOrderGraph{
+	return Graph{
 		RuntimeAddress: key.runtimeAddress,
 		Phase:          key.phase,
 		Dependencies:   dependencies,

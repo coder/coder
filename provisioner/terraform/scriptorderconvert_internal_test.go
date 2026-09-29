@@ -67,11 +67,11 @@ func TestConvertStateWithScriptOrderFinalizesOrder(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, &scriptorder.ScriptOrder{
-		Graphs: []scriptorder.ScriptOrderGraph{
+		Graphs: []scriptorder.Graph{
 			{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          scriptorder.ScriptOrderPhaseStart,
-				Dependencies: []scriptorder.ScriptOrderDependency{{
+				Dependencies: []scriptorder.Dependency{{
 					DependentAddress:    "coder_script.start_work",
 					PrerequisiteAddress: "coder_script.start_prepare",
 					Requirement:         scriptorder.ScriptOrderRequirementSuccess,
@@ -80,7 +80,7 @@ func TestConvertStateWithScriptOrderFinalizesOrder(t *testing.T) {
 			{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          scriptorder.ScriptOrderPhaseStop,
-				Dependencies: []scriptorder.ScriptOrderDependency{{
+				Dependencies: []scriptorder.Dependency{{
 					DependentAddress:    "coder_script.stop_work",
 					PrerequisiteAddress: "coder_script.stop_prepare",
 					Requirement:         scriptorder.ScriptOrderRequirementSuccess,

@@ -9,22 +9,20 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// ScriptOrderRequirement describes the prerequisite outcome required
-// by a dependency.
-type ScriptOrderRequirement string
+// Requirement describes the prerequisite outcome required by a dependency.
+type Requirement string
 
 const (
-	ScriptOrderRequirementSuccess    ScriptOrderRequirement = "success"
-	ScriptOrderRequirementCompletion ScriptOrderRequirement = "completion"
+	ScriptOrderRequirementSuccess    Requirement = "success"
+	ScriptOrderRequirementCompletion Requirement = "completion"
 )
 
-// ScriptOrderPhase identifies the lifecycle phase, start or stop,
-// containing a graph.
-type ScriptOrderPhase string
+// Phase identifies the lifecycle phase, start or stop, containing a graph.
+type Phase string
 
 const (
-	ScriptOrderPhaseStart ScriptOrderPhase = "start"
-	ScriptOrderPhaseStop  ScriptOrderPhase = "stop"
+	ScriptOrderPhaseStart Phase = "start"
+	ScriptOrderPhaseStop  Phase = "stop"
 )
 
 type scriptOrderAttributes struct {
@@ -62,8 +60,8 @@ type scriptOrderRuleDeclaration struct {
 	dataSourceAddress string
 	// Rule's zero-based index in the data source, used for diagnostics.
 	ruleIndex     int
-	declaredPhase ScriptOrderPhase
-	requirement   ScriptOrderRequirement
+	declaredPhase Phase
+	requirement   Requirement
 	run           []resolvedScriptOrderSelector
 	after         []resolvedScriptOrderSelector
 }
@@ -154,8 +152,8 @@ func collectScriptOrderRuleDeclarationsWithExpansionLimit(
 	return decls, nil
 }
 
-func parseScriptOrderRequirement(raw string) (ScriptOrderRequirement, error) {
-	switch ScriptOrderRequirement(raw) {
+func parseScriptOrderRequirement(raw string) (Requirement, error) {
+	switch Requirement(raw) {
 	case "", ScriptOrderRequirementSuccess:
 		return ScriptOrderRequirementSuccess, nil
 	case ScriptOrderRequirementCompletion:
@@ -168,8 +166,8 @@ func parseScriptOrderRequirement(raw string) (ScriptOrderRequirement, error) {
 	}
 }
 
-func parseScriptOrderPhase(raw string) (ScriptOrderPhase, error) {
-	switch ScriptOrderPhase(raw) {
+func parseScriptOrderPhase(raw string) (Phase, error) {
+	switch Phase(raw) {
 	case "":
 		return "", nil
 	case ScriptOrderPhaseStart:

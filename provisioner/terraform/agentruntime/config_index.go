@@ -57,7 +57,7 @@ func newConfigIndex(
 	config *tfjson.Config,
 ) (*configIndex, error) {
 	if config == nil || config.RootModule == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Missing configuration is valid here.
 	}
 	index := &configIndex{
 		modules:                     map[string]configModule{},

@@ -39,10 +39,10 @@ func TestBuildScriptOrderGraphs(t *testing.T) {
 					`coder_script.setup["database"]`,
 				)},
 			)},
-			expected: ScriptOrder{Graphs: []ScriptOrderGraph{{
+			expected: ScriptOrder{Graphs: []Graph{{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          ScriptOrderPhaseStart,
-				Dependencies: []ScriptOrderDependency{
+				Dependencies: []Dependency{
 					scriptOrderGraphTestDependency(`coder_script.work["api"]`, `coder_script.setup["database"]`, ScriptOrderRequirementCompletion),
 					scriptOrderGraphTestDependency(`coder_script.work["api"]`, `coder_script.setup["repository"]`, ScriptOrderRequirementCompletion),
 					scriptOrderGraphTestDependency(`coder_script.work["worker"]`, `coder_script.setup["database"]`, ScriptOrderRequirementCompletion),
@@ -77,10 +77,10 @@ func TestBuildScriptOrderGraphs(t *testing.T) {
 					)},
 				),
 			},
-			expected: ScriptOrder{Graphs: []ScriptOrderGraph{{
+			expected: ScriptOrder{Graphs: []Graph{{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          ScriptOrderPhaseStart,
-				Dependencies: []ScriptOrderDependency{
+				Dependencies: []Dependency{
 					scriptOrderGraphTestDependency("coder_script.work[0]", "coder_script.a", ScriptOrderRequirementSuccess),
 					scriptOrderGraphTestDependency("coder_script.work[1]", "coder_script.a", ScriptOrderRequirementSuccess),
 				},
@@ -104,10 +104,10 @@ func TestBuildScriptOrderGraphs(t *testing.T) {
 					[]resolvedScriptOrderSelector{scriptOrderGraphTestSelector("after", "coder_script.c", "coder_script.c")},
 				),
 			},
-			expected: ScriptOrder{Graphs: []ScriptOrderGraph{{
+			expected: ScriptOrder{Graphs: []Graph{{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          ScriptOrderPhaseStart,
-				Dependencies: []ScriptOrderDependency{
+				Dependencies: []Dependency{
 					scriptOrderGraphTestDependency("coder_script.b", "coder_script.a", ScriptOrderRequirementSuccess),
 					scriptOrderGraphTestDependency("coder_script.d", "coder_script.c", ScriptOrderRequirementSuccess),
 				},
@@ -157,10 +157,10 @@ func TestBuildScriptOrderGraphs(t *testing.T) {
 					)},
 				),
 			},
-			expected: ScriptOrder{Graphs: []ScriptOrderGraph{{
+			expected: ScriptOrder{Graphs: []Graph{{
 				RuntimeAddress: "coder_agent.main",
 				Phase:          ScriptOrderPhaseStart,
-				Dependencies: []ScriptOrderDependency{
+				Dependencies: []Dependency{
 					scriptOrderGraphTestDependency("coder_script.b", "coder_script.a", ScriptOrderRequirementSuccess),
 					scriptOrderGraphTestDependency("coder_script.c", "coder_script.a", ScriptOrderRequirementSuccess),
 					scriptOrderGraphTestDependency("coder_script.c", "coder_script.b", ScriptOrderRequirementCompletion),
@@ -433,7 +433,7 @@ func TestBuildScriptOrderGraphsSeparatesRuntimeAndPhase(t *testing.T) {
 
 	actual, err := buildScriptOrderGraphs(rules)
 	require.NoError(t, err)
-	require.Equal(t, ScriptOrder{Graphs: []ScriptOrderGraph{
+	require.Equal(t, ScriptOrder{Graphs: []Graph{
 		scriptOrderGraphTestGraph(
 			"coder_agent.main", ScriptOrderPhaseStart,
 			"coder_script.start_b", "coder_script.start_a",
@@ -823,8 +823,8 @@ func scriptOrderGraphTestRule(
 	dataSourceAddress string,
 	ruleIndex int,
 	runtimeAddress string,
-	phase ScriptOrderPhase,
-	requirement ScriptOrderRequirement,
+	phase Phase,
+	requirement Requirement,
 	run []resolvedScriptOrderSelector,
 	after []resolvedScriptOrderSelector,
 ) resolvedScriptOrderRule {
@@ -842,9 +842,9 @@ func scriptOrderGraphTestRule(
 func scriptOrderGraphTestDependency(
 	dependentAddress string,
 	prerequisiteAddress string,
-	requirement ScriptOrderRequirement,
-) ScriptOrderDependency {
-	return ScriptOrderDependency{
+	requirement Requirement,
+) Dependency {
+	return Dependency{
 		DependentAddress:    dependentAddress,
 		PrerequisiteAddress: prerequisiteAddress,
 		Requirement:         requirement,
@@ -853,14 +853,14 @@ func scriptOrderGraphTestDependency(
 
 func scriptOrderGraphTestGraph(
 	runtimeAddress string,
-	phase ScriptOrderPhase,
+	phase Phase,
 	dependentAddress string,
 	prerequisiteAddress string,
-) ScriptOrderGraph {
-	return ScriptOrderGraph{
+) Graph {
+	return Graph{
 		RuntimeAddress: runtimeAddress,
 		Phase:          phase,
-		Dependencies: []ScriptOrderDependency{scriptOrderGraphTestDependency(
+		Dependencies: []Dependency{scriptOrderGraphTestDependency(
 			dependentAddress, prerequisiteAddress, ScriptOrderRequirementSuccess,
 		)},
 	}

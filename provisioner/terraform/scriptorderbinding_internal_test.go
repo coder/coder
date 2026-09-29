@@ -3,6 +3,7 @@ package terraform
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -72,7 +73,7 @@ func TestConvertStateRecordsScriptOrderRuntimeTargets(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, program)
 
-	conversion, err := convertState(
+	conversion, err := convertStateWithInput(
 		t.Context(),
 		[]*tfjson.StateModule{module},
 		scriptOrderRuntimeBindingTestConversionGraph(),
@@ -147,7 +148,7 @@ func TestConvertStateBindsPostApplyScriptRuntimes(t *testing.T) {
 			"coder_script.unselected", "unselected", "missing-id",
 		),
 	)
-	conversion, err := convertState(
+	conversion, err := convertStateWithInput(
 		t.Context(),
 		[]*tfjson.StateModule{module},
 		scriptOrderRuntimeBindingTestConversionGraph(),
@@ -241,8 +242,9 @@ func TestConvertStateRecordsPostApplyRuntimeErrors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			resources := append(
-				test.agents,
+			resources := slices.Clone(test.agents)
+			resources = append(
+				resources,
 				scriptOrderRuntimeBindingTestScript(
 					"coder_script.work", "work", test.runtimeID,
 				),
@@ -251,7 +253,7 @@ func TestConvertStateRecordsPostApplyRuntimeErrors(t *testing.T) {
 				),
 			)
 			module := scriptOrderRuntimeBindingTestModule(resources...)
-			conversion, err := convertState(
+			conversion, err := convertStateWithInput(
 				t.Context(),
 				[]*tfjson.StateModule{module},
 				test.graph,
@@ -345,7 +347,7 @@ func TestConvertStateResolvesPlannedScriptRuntimes(t *testing.T) {
 			}`
 			planGraph, err := tfgraph.Parse(t.Context(), rawGraph)
 			require.NoError(t, err)
-			conversion, err := convertState(
+			conversion, err := convertStateWithInput(
 				t.Context(),
 				[]*tfjson.StateModule{module},
 				rawGraph,
@@ -447,7 +449,7 @@ resource "coder_script" "prepare" {
 	}`
 	planGraph, err := tfgraph.Parse(t.Context(), rawGraph)
 	require.NoError(t, err)
-	conversion, err := convertState(
+	conversion, err := convertStateWithInput(
 		t.Context(),
 		[]*tfjson.StateModule{module},
 		rawGraph,

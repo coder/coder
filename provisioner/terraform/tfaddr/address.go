@@ -50,12 +50,12 @@ func (a ManagedResourceAddress) InstanceKey() cty.Value {
 func (a ManagedResourceAddress) ConfigurationAddress() string {
 	var address strings.Builder
 	if moduleAddress := a.modulePath.ConfigurationAddress(); moduleAddress != "" {
-		address.WriteString(moduleAddress)
-		address.WriteByte('.')
+		_, _ = address.WriteString(moduleAddress)
+		_ = address.WriteByte('.')
 	}
-	address.WriteString(a.resourceType)
-	address.WriteByte('.')
-	address.WriteString(a.resourceName)
+	_, _ = address.WriteString(a.resourceType)
+	_ = address.WriteByte('.')
+	_, _ = address.WriteString(a.resourceName)
 	return address.String()
 }
 
@@ -76,10 +76,10 @@ func (p ModulePath) ConfigurationAddress() string {
 	var address strings.Builder
 	for index, step := range p.steps {
 		if index > 0 {
-			address.WriteByte('.')
+			_ = address.WriteByte('.')
 		}
-		address.WriteString("module.")
-		address.WriteString(step.name)
+		_, _ = address.WriteString("module.")
+		_, _ = address.WriteString(step.name)
 	}
 	return address.String()
 }
@@ -255,9 +255,9 @@ func ParseConfigurationReference(raw string) (ConfigurationReference, error) {
 	partEndByteOffsets := make([]int, 0, len(parts))
 	for index, part := range parts {
 		if index > 0 {
-			address.WriteByte('.')
+			_ = address.WriteByte('.')
 		}
-		address.WriteString(part)
+		_, _ = address.WriteString(part)
 		partEndByteOffsets = append(partEndByteOffsets, address.Len())
 	}
 

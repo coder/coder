@@ -460,7 +460,7 @@ func parseNode(rawNodeID string) Node {
 	}
 }
 
-func addressOperation(raw string) (string, string) {
+func addressOperation(raw string) (address string, operation string) {
 	if !strings.HasSuffix(raw, ")") {
 		return raw, ""
 	}

@@ -28,7 +28,7 @@ func NewProgram(
 		return nil, err
 	}
 	if len(stateIndex.dataSources) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // No declarations disables script ordering.
 	}
 	configIndex, err := newScriptOrderConfigIndex(ctx, config)
 	if err != nil {
@@ -59,7 +59,7 @@ func NewProgram(
 		}
 	}
 	if len(dataSources) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil // Removed declarations disable script ordering.
 	}
 	return &Program{
 		stateIndex:  stateIndex,
