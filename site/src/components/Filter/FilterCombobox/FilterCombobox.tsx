@@ -461,13 +461,10 @@ export function FilterCombobox({
 											<Tooltip>
 												<TooltipTrigger asChild>
 													<span className="min-w-0 truncate">
-														{`${pillToggle.pillPrefix} `}
-														<span className="text-content-primary">
-															{value}
-														</span>
+														{pillToggle.pillLabel}
 													</span>
 												</TooltipTrigger>
-												<TooltipContent className="max-w-64 text-balance">
+												<TooltipContent>
 													{scopeState(category.key)?.label ?? ""}
 												</TooltipContent>
 											</Tooltip>

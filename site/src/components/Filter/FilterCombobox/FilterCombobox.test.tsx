@@ -30,7 +30,7 @@ const scopedOwnerCategory: FilterCategory = {
 				? `Include workspaces shared with ${owner}`
 				: "Include shared workspaces",
 		widenedKey: "user",
-		pillPrefix: "+ shared with",
+		pillLabel: "include shared",
 		pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
 		searchPhrase: "shared with owner",
 	},
@@ -2633,7 +2633,7 @@ describe("FilterCombobox", () => {
 				const { user } = setup([scopedOwnerCategory], {
 					initialValue: "user:alice",
 				});
-				await user.hover(screen.getByText(/^\+ shared with/));
+				await user.hover(screen.getByText("include shared"));
 
 				expect(await screen.findByRole("tooltip")).toHaveTextContent(
 					"Include workspaces shared with alice",

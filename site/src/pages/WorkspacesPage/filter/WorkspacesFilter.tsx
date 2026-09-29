@@ -62,7 +62,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 							? `Include workspaces shared with ${owner}`
 							: "Include shared workspaces",
 					widenedKey: "user",
-					pillPrefix: "+ shared with",
+					pillLabel: "include shared",
 					pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
 					searchPhrase: "shared with owner",
 				},

@@ -298,7 +298,7 @@ describe("chipDisplay", () => {
 					scopeToggle: {
 						label: (value: string | undefined) => `Include ${value}`,
 						widenedKey: "user",
-						pillPrefix: "+ shared with",
+						pillLabel: "include shared",
 						pillRemoveLabel: (owner: string) =>
 							`Hide workspaces shared with ${owner}`,
 						searchPhrase: "shared with owner",

@@ -628,7 +628,7 @@ const scopedOwnerCategories: FilterCategory[] = [
 					? `Include workspaces shared with ${owner}`
 					: "Include shared workspaces",
 			widenedKey: "user",
-			pillPrefix: "+ shared with",
+			pillLabel: "include shared",
 			pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
 			searchPhrase: "shared with owner",
 		},
@@ -700,7 +700,7 @@ export const ScopePillTooltip: Story = {
 	...ScopeToggle,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByText(/^\+ shared with/));
+		await userEvent.hover(canvas.getByText("include shared"));
 		await within(canvasElement.ownerDocument.body).findByRole("tooltip");
 	},
 };

@@ -61,8 +61,8 @@ export type FilterCategory = {
 		/** Switch label for the category's applied value, if there is one. */
 		label: (value: string | undefined) => string;
 		widenedKey: string;
-		/** Pill text before the applied value, e.g. `+ shared with`. */
-		pillPrefix: string;
+		/** Pill text, e.g. `include shared`. */
+		pillLabel: string;
 		/** Accessible name of the pill's remove button for the applied value. */
 		pillRemoveLabel: (value: string) => string;
 		/**
