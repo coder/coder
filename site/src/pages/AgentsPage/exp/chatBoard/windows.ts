@@ -97,7 +97,7 @@ export const toFront = (
 
 /**
  * Hides the window for `key` into the tab bar. It moves to the end of the
- * list so tabs read in the order they were minimized.
+ * list, so the list holds minimized windows in the order they were hidden.
  */
 export const minimizeWindow = (
 	list: readonly ChatWindow[],

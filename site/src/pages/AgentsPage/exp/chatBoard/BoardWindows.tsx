@@ -175,12 +175,15 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		);
 	});
 
+	// Newest first: the first minimized tab sits at the right edge and each
+	// later one lands to its left, nearest the board.
 	const tabs = windows
 		.filter((win) => win.minimized)
 		.map((win) => ({
 			key: windowKey(win),
 			...summarizeWindow(win, board, chatsById, colorByChatId),
-		}));
+		}))
+		.toReversed();
 
 	return (
 		<>
