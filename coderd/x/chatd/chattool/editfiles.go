@@ -474,7 +474,7 @@ func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult
 		}
 	}
 	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "Applied %d of %d edits.", applied, total)
+	_, _ = fmt.Fprintf(&sb, "Applied %d of %s.", applied, countEdits(total))
 	// The first heading follows the count on the same line; a later one
 	// starts its own line.
 	separator := " "

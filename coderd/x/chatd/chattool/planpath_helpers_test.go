@@ -13,7 +13,7 @@ func planPathVerificationMessage(requestedPath string) string {
 // editFilesOnlyEditRejectedMessage is the edit_files error result for
 // a call whose only edit, to path, was rejected with message.
 func editFilesOnlyEditRejectedMessage(path, message string) string {
-	return "Applied 0 of 1 edits. Not applied:\n- edits[0] (" + path + "): " + message +
+	return "Applied 0 of 1 edit. Not applied:\n- edits[0] (" + path + "): " + message +
 		". " + path + " is unchanged; fix and resend only these edits."
 }
 

@@ -764,7 +764,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			name:  "OneFileApplied",
 			input: `{"edits":[` + editA + `]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, resp: applied("/repo/a.go", diffA)}},
-			want:  `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
+			want:  `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":"` + diffAJSON + `"}]}`,
 		},
 		{
 			name:  "SeveralFilesApplied",
@@ -783,7 +783,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			name:  "EmptyDiff",
 			input: `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"x"}]}`,
 			calls: []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{{OldText: "x", NewText: "x"}}, resp: applied("/repo/a.go", "")}},
-			want:  `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+			want:  `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
 			// Agents that predate per-file results return none, so
@@ -899,14 +899,14 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			input:       `{"edits":[{"path":"a.txt","old_text":"x := 1","new_text":"x := 2"}]}`,
 			calls:       []fileCall{{path: "a.txt", edits: []workspacesdk.FileEdit{fileEditA}, err: xerrors.Errorf("do request: %w", detailed)}},
 			wantIsError: true,
-			want:        "Applied 0 of 1 edits. Not applied:\n- edits[0] (a.txt): file path must be absolute: \"a.txt\": Use an absolute path.: some detail. a.txt is unchanged; fix and resend only these edits.",
+			want:        "Applied 0 of 1 edit. Not applied:\n- edits[0] (a.txt): file path must be absolute: \"a.txt\": Use an absolute path.: some detail. a.txt is unchanged; fix and resend only these edits.",
 		},
 		{
 			name:        "OnlyUnknown",
 			input:       `{"edits":[` + editA + `]}`,
 			calls:       []fileCall{{path: "/repo/a.go", edits: []workspacesdk.FileEdit{fileEditA}, err: xerrors.New("do request: connection reset by peer")}},
 			wantIsError: true,
-			want: "Applied 0 of 1 edits. Unknown whether applied:\n" +
+			want: "Applied 0 of 1 edit. Unknown whether applied:\n" +
 				"- edits[0] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.",
 		},
 		{
