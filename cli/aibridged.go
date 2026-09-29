@@ -210,6 +210,13 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.ResolvedSmallFastModel = b.GetResolvedSmallFastModel()
 		spec.Bedrock = new(bedrock)
 	}
+	if cp := pp.GetClaudePlatformAws(); cp != nil {
+		claudePlatform := codersdk.AIProviderClaudePlatformAWSSettings{
+			Region:      cp.GetRegion(),
+			WorkspaceID: cp.GetWorkspaceId(),
+		}
+		spec.ClaudePlatformAWS = &claudePlatform
+	}
 	return spec
 }
 
@@ -227,6 +234,10 @@ type aiProviderSpec struct {
 	// Bedrock holds Bedrock-specific settings when the provider targets
 	// AWS Bedrock; nil otherwise.
 	Bedrock *codersdk.AIProviderBedrockSettings
+	// ClaudePlatformAWS holds Claude Platform for AWS settings when the
+	// provider targets Anthropic's AWS-hosted Messages API; nil otherwise.
+	// Mutually exclusive with Bedrock.
+	ClaudePlatformAWS *codersdk.AIProviderClaudePlatformAWSSettings
 }
 
 // buildProvider constructs the appropriate [aibridge.Provider] for a
@@ -274,9 +285,12 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		}), nil
 
 	case database.AIProviderTypeAnthropic:
+		claudePlatform := claudePlatformConfig(spec.BaseURL, spec.ClaudePlatformAWS)
 		// A bearer-token Anthropic without any key cannot make upstream calls.
-		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() {
-			return nil, xerrors.New("anthropic provider has no api keys and BYOK is not enabled")
+		// Claude Platform in IAM mode authenticates by signing, so it counts
+		// as configured here too.
+		if len(spec.Keys) == 0 && !cfg.AllowBYOK.Value() && claudePlatform == nil {
+			return nil, xerrors.New("anthropic provider has no api keys configured and BYOK is not enabled")
 		}
 		var pool *keypool.Pool
 		if len(spec.Keys) > 0 {
@@ -294,7 +308,7 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, nil, nil)
+		}, nil, claudePlatform)
 
 	case database.AIProviderTypeBedrock:
 		// A spec typed 'bedrock' authenticates exclusively via settings;
@@ -332,6 +346,22 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 // len(keys) > 0 first; keypool.New rejects empty input.
 func buildAIProviderKeyPool(providerName string, keys []string, metrics *aibridge.Metrics) (*keypool.Pool, error) {
 	return keypool.New(providerName, keys, quartz.NewReal(), metrics)
+}
+
+// claudePlatformConfig maps Claude Platform for AWS settings into the gateway
+// config. baseURL, when set, overrides the default regional endpoint; the
+// region still determines the SigV4 signing scope. Returns nil when the
+// settings are absent or incomplete, so the provider falls back to a plain
+// bearer-token Anthropic client.
+func claudePlatformConfig(baseURL string, cp *codersdk.AIProviderClaudePlatformAWSSettings) *aibridge.AWSClaudePlatformConfig {
+	if cp == nil || !cp.IsConfigured() {
+		return nil
+	}
+	return &aibridge.AWSClaudePlatformConfig{
+		Region:      cp.Region,
+		WorkspaceID: cp.WorkspaceID,
+		BaseURL:     baseURL,
+	}
 }
 
 // circuitBreakerConfig returns nil when the breaker is disabled.
