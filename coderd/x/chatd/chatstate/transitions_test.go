@@ -654,6 +654,30 @@ func TestSendMessageQueueCap(t *testing.T) {
 	}
 }
 
+func TestSendMessageSteerErrorQueueCap(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	seeded := seedQueue(t, f, chatstate.StateE1, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	chatBefore := f.readChat(ctx, t, seeded.chatID)
+
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+	err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
+			BusyBehavior: chatstate.BusyBehaviorSteer,
+			MaxQueueSize: 2,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
+
+	chatAfter := f.readChat(ctx, t, seeded.chatID)
+	require.Equal(t, database.ChatStatusError, chatAfter.Status)
+	require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion)
+	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
+}
+
 func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)

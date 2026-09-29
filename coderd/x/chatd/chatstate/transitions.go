@@ -633,6 +633,9 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 // sendMessageSteerE1 inserts the pending steer rows and then the new
 // message into history. Queue rows stay queued.
 func (tx *Tx) sendMessageSteerE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
+	if err := tx.requireQueueCapacity(input.MaxQueueSize); err != nil {
+		return SendMessageResult{}, err
+	}
 	queued, err := tx.store.GetChatQueuedMessagesByPosition(tx.ctx, tx.chatID)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("get queued messages: %w", err)
