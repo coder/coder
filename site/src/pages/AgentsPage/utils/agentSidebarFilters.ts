@@ -2,22 +2,20 @@ import type { SetURLSearchParams } from "react-router";
 import {
 	CHAT_LIST_PR_STATUS_ORDER,
 	CHAT_SOURCE_ORDER,
+	CHAT_STATUS_FILTER_ORDER,
+	CHAT_STATUS_GROUP_ORDER,
 	type ChatListPRStatusFilter,
-	type ChatListStatusFilter,
 	canonicalizeChatListPRStatuses,
 } from "#/api/queries/chats";
 
-export const AGENT_ARCHIVE_STATUS_ORDER = ["active", "archived"] as const;
-export const AGENT_CHAT_STATUS_ORDER = [
-	"unread",
-	"read",
-] as const satisfies readonly ChatListStatusFilter[];
+const AGENT_ARCHIVE_STATUS_ORDER = ["active", "archived"] as const;
+export const AGENT_CHAT_STATUS_ORDER = CHAT_STATUS_FILTER_ORDER;
+export const AGENT_CHAT_STATUS_GROUP_ORDER = CHAT_STATUS_GROUP_ORDER;
 export const AGENT_PR_STATUS_ORDER = CHAT_LIST_PR_STATUS_ORDER;
 export const AGENT_SOURCE_ORDER = CHAT_SOURCE_ORDER;
 
-export type AgentArchiveStatusFilter =
-	(typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
-export type AgentChatStatusFilter = ChatListStatusFilter;
+type AgentArchiveStatusFilter = (typeof AGENT_ARCHIVE_STATUS_ORDER)[number];
+export type AgentChatStatusFilter = (typeof AGENT_CHAT_STATUS_ORDER)[number];
 export type AgentPRStatusFilter = ChatListPRStatusFilter;
 export type AgentSidebarGroupBy = "date" | "chat_status";
 export type AgentSourceFilter = (typeof AGENT_SOURCE_ORDER)[number];
@@ -27,6 +25,9 @@ export type AgentSidebarFilters = Readonly<{
 	groupBy: AgentSidebarGroupBy;
 	prStatuses: readonly AgentPRStatusFilter[];
 	chatStatuses: readonly AgentChatStatusFilter[];
+	// Unread is not a chat status. It narrows the selected statuses
+	// to conversations with an unread assistant message.
+	unread: boolean;
 	sources: readonly AgentSourceFilter[];
 }>;
 
@@ -40,6 +41,7 @@ export const DEFAULT_AGENT_SIDEBAR_FILTERS: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	unread: false,
 	sources: ["created_by_me"],
 };
 
@@ -48,6 +50,7 @@ const clearSidebarFilterParams = (searchParams: URLSearchParams) => {
 	searchParams.delete("group_by");
 	searchParams.delete("pr_status");
 	searchParams.delete("chat_status");
+	searchParams.delete("unread");
 	searchParams.delete("source");
 };
 
@@ -69,8 +72,18 @@ const writeSidebarFilters = (
 		searchParams.set("pr_status", filters.prStatuses.join(","));
 	}
 
-	if (filters.chatStatuses.length === 1) {
-		searchParams.set("chat_status", filters.chatStatuses[0]);
+	const selectedChatStatuses = AGENT_CHAT_STATUS_ORDER.filter((status) =>
+		filters.chatStatuses.includes(status),
+	);
+	if (
+		selectedChatStatuses.length > 0 &&
+		selectedChatStatuses.length < AGENT_CHAT_STATUS_ORDER.length
+	) {
+		searchParams.set("chat_status", selectedChatStatuses.join(","));
+	}
+
+	if (filters.unread) {
+		searchParams.set("unread", "true");
 	}
 
 	if (
@@ -86,6 +99,7 @@ const writeSidebarFilters = (
 export const getAgentSidebarFilters = (
 	searchParams: URLSearchParams,
 	setSearchParams: SetURLSearchParams,
+	locationState: unknown,
 ): AgentSidebarFiltersResult => {
 	const prStatuses = canonicalizeChatListPRStatuses(
 		(searchParams.get("pr_status") ?? "").split(",").filter(Boolean),
@@ -115,6 +129,7 @@ export const getAgentSidebarFilters = (
 			chatStatuses.length > 0
 				? chatStatuses
 				: DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses,
+		unread: searchParams.get("unread") === "true",
 		sources:
 			sources.length > 0 ? sources : DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 	};
@@ -126,7 +141,7 @@ export const getAgentSidebarFilters = (
 				writeSidebarFilters(updated, next);
 				return updated;
 			},
-			{ replace: true },
+			{ replace: true, state: locationState },
 		);
 	};
 

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import {
 	DetailedError,
 	getErrorDetail,
@@ -13,6 +12,7 @@ import { Button } from "#/components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
@@ -31,9 +31,10 @@ import {
 	TemplatesFilter,
 } from "#/pages/TemplatesPage/TemplatesFilter";
 import { createDayString } from "#/utils/createDayString";
+import { docs } from "#/utils/docs";
 import { formatTemplateActiveDevelopersLabel } from "#/utils/templates";
 
-interface TemplatesPageViewProps {
+type TemplatesPageViewProps = {
 	filterState: TemplateFilterState;
 	templates: TypesGen.Template[] | undefined;
 	isLoading: boolean;
@@ -44,18 +45,18 @@ interface TemplatesPageViewProps {
 		agentsAllowed: boolean,
 	) => void;
 	pendingTemplateIDs: ReadonlySet<string>;
-}
+};
 
-interface TemplateRowProps {
+type TemplateRowProps = {
 	template: TypesGen.Template;
 	isPending: boolean;
 	onToggleAgentsAllowed: (
 		template: TypesGen.Template,
 		agentsAllowed: boolean,
 	) => void;
-}
+};
 
-const TemplateRow: FC<TemplateRowProps> = ({
+const TemplateRow: React.FC<TemplateRowProps> = ({
 	template,
 	isPending,
 	onToggleAgentsAllowed,
@@ -104,7 +105,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 	);
 };
 
-export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 	filterState,
 	templates,
 	isLoading,
@@ -121,7 +122,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 			<SettingsHeader>
 				<SettingsHeaderTitle>Templates</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Choose which templates Coder Agents can use to create workspaces.
+					Choose which templates Coder Agents can use to create workspaces.{" "}
+					<SettingsHeaderDocsLink
+						href={docs(
+							"/ai-coder/agents/platform-controls/template-optimization#restrict-available-templates",
+						)}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

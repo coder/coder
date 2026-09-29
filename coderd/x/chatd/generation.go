@@ -90,7 +90,7 @@ type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
 	// prepare time. Its model client is built in the compact action path,
 	// so construction failures cannot fail turns that never compact.
-	Override *resolvedCompactionOverride
+	Override *resolvedModelOverride
 	// ChatModelConfig is the chat model's config, used to detect provider
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
@@ -200,6 +200,9 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
+	if input.maxSteps < 1 {
+		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
+	}
 	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
@@ -248,7 +251,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if complete {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
-	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+	if currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -588,7 +591,7 @@ func loadGenerationState(
 	return chat, messages, nil
 }
 
-func (*taskStarter) recordGenerationRetry(
+func (s *taskStarter) recordGenerationRetry(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -602,7 +605,7 @@ func (*taskStarter) recordGenerationRetry(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		decision.generationAttempt = chat.GenerationAttempt
-		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(chatretry.MaxAttempts) {
+		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt > int64(s.server.chatLimits.MaxGenerationRetries) {
 			decision.retry = false
 			return errRetryStateDecisionOnly
 		}
@@ -743,6 +746,7 @@ func (s *taskStarter) generateAssistant(
 		CallTemplate:         prepared.CallTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
+		StreamSilenceTimeout: s.server.streamSilenceTimeout,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
@@ -1022,11 +1026,20 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
 		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
+		// Prompt caches are model-scoped and provider-native tools are
+		// model-specific, so unless the override resolves to the chat model
+		// itself its definitions buy the request nothing and can get it
+		// rejected.
+		if !sameCompactionProviderIdentity(prepared.Compaction.ChatModelConfig, overrideModel.dbConfig) ||
+			overrideModel.resolvedModel != prepared.Compaction.Options.ResolvedModel {
+			compactionOpts.ToolDefinitions = nil
+		}
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
+			overrideModel.resolvedProvider,
 			prepared.Compaction.ChatModelConfig,
 			overrideModel.dbConfig,
 		)
@@ -1582,6 +1595,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		ProviderResponseID:   step.ProviderResponseID,
 		BatchRuntime:         step.BatchRuntime,
 		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,

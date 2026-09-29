@@ -505,6 +505,11 @@ provisioning:
   # templates cannot opt back in.
   # (default: false, type: bool)
   disableModuleCache: false
+# Evaluate every resource in a template when rendering dynamic parameters, instead
+# of only the parameter, preset, and tag blocks and what they reference. Slower,
+# and only needed if a template renders incorrectly with the default.
+# (default: false, type: bool)
+dynamicParametersFullEvaluation: false
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -584,6 +589,11 @@ disableWorkspaceSharing: false
 # their chats.
 # (default: <unset>, type: bool)
 disableChatSharing: false
+# Disable caller-supplied tools in chats. Chat requests that include
+# unsafe_dynamic_tools or inline_mcp_servers are rejected, and existing chats run
+# without their dynamic tools and inline MCP servers.
+# (default: <unset>, type: bool)
+disableChatCallerSuppliedTools: false
 # Stop persisting workspace agent context snapshots (instructions, skills, and MCP
 # state used for pinned chat context). When set, coderd rejects agent context
 # pushes as unimplemented and agents stop sending them; chats cannot pin workspace
@@ -618,7 +628,7 @@ client:
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
-  # detected. By default it instructs users to update using 'curl -L
+  # detected. By default it instructs users to update using 'curl -fsSL
   # https://coder.com/install.sh | sh'.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""
@@ -846,10 +856,52 @@ chat:
   # control agent execution, so only enable this on a network you fully trust.
   # (default: false, type: bool)
   hookAllowInsecure: false
+  # Maximum number of steps in a chat turn. Each model response is one step;
+  # compaction summaries, advisor calls, and retried attempts do not count. A turn
+  # that reaches the limit runs the tools from the last response, then ends without
+  # an error. Must be at least 1.
+  # (default: 1200, type: int)
+  maxStepsPerTurn: 1200
+  # Maximum number of consecutive retries after a model generation fails with a
+  # transient error, such as a rate limit, an overloaded provider, or a stream that
+  # stops sending data. The count resets after each successful step. When the
+  # retries run out, the chat moves to the error state and shows the provider error.
+  # Advisor calls and the generation of chat titles, summaries, and turn status
+  # labels use the same limit. Must be at least 1.
+  # (default: 25, type: int)
+  maxGenerationRetries: 25
+  # Maximum number of messages that can be queued in a chat. Sending a message to a
+  # chat whose queue is full fails with HTTP 429. Must be at least 1.
+  # (default: 20, type: int)
+  maxQueuedMessagesPerChat: 20
+  # Maximum number of files linked to a chat, including user uploads, files the
+  # agent attaches, and desktop recordings and their thumbnails. Linking a file
+  # beyond the limit permanently deletes the chat's earliest-uploaded files, and
+  # earlier messages show them as expired. A message that includes more files than
+  # the limit is rejected with HTTP 400. Must be at least 1.
+  # (default: 50, type: int)
+  maxAttachmentsPerChat: 50
+  # Maximum size in bytes of the deployment system prompt, the plan mode
+  # instructions, and each user's custom prompt. Saving a longer prompt fails with
+  # HTTP 400. Lowering the limit does not affect prompts that are already saved.
+  # Must be at least 1.
+  # (default: 131072, type: int)
+  maxPromptBytes: 131072
+  # Maximum number of virtual desktop recordings that each Coder server stores at
+  # the same time. Each upload holds the recording and its thumbnail in memory, up
+  # to 110 MB. Additional recordings wait for a free slot and are discarded if none
+  # frees up within 90 seconds. Must be at least 1.
+  # (default: 25, type: int)
+  maxConcurrentRecordingUploads: 25
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value
   # has no effect. This option will be removed in a future release.
   # (default: true, type: bool)
   aiGatewayRoutingEnabled: true
+  # Maximum time to wait for the next streamed part from the chat model before the
+  # attempt is canceled and retried. This also bounds the time to first token. Set
+  # to 0 to disable. Must be no more than 24h.
+  # (default: 10m0s, type: duration)
+  streamSilenceTimeout: 10m0s
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.

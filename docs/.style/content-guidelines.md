@@ -72,11 +72,11 @@ Docs claims should be checked against the actual implementation, not approximati
 - Exact RBAC action names.
   Example: `template:view_insights`, not "view insights".
 - Real thresholds and defaults.
-  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150 ms".
+  Example: `green < 150ms, yellow 150-300ms, red ≥300ms`, not "around 150&nbsp;ms".
 - Full API paths.
   Example: `/api/v2/insights/templates`, not `/insights/templates`.
 
-*Why:* Precise values are what make accuracy checkable; "roughly 5 minutes" can't drift-fail, but `300s default` can.
+*Why:* Precise values are what make accuracy checkable; "roughly 5&nbsp;minutes" can't drift-fail, but `300s default` can.
 Whether an exact value belongs on the page at all is a separate question; refer to [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
@@ -138,7 +138,7 @@ Don't conflate them:
 - **Experiments** are the feature flagging system: the `--experiments` flag on `coder server` and the `CODER_EXPERIMENTS` environment variable.
   An experiment is either *safe* (ready for users to try) or *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early Access, Beta, or General Availability.
-  Refer to [Feature stages](../install/releases/feature-stages.md).
+  Refer to [Feature stages](../reference/feature-stages.md).
 
 Practical impact for docs:
 

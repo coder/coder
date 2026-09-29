@@ -31,6 +31,22 @@ end
     )
   end
 
+# claude-mythos-5-1: same situation as claude-mythos-5. Anthropic prices it
+# identically to claude-fable-5-1 (including the reduced cache-read rate),
+# so inject it as a copy with its own id and display name.
+# Ref: https://platform.claude.com/docs/en/about-claude/pricing#model-pricing
+| if (.anthropic.models | has("claude-fable-5-1") | not) then
+    error("overrides.jq: claude-fable-5-1 gone from upstream; the claude-mythos-5-1 copy has no source")
+  elif (.anthropic.models | has("claude-mythos-5-1")) then
+    error("overrides.jq: claude-mythos-5-1 now present upstream; drop the injection")
+  else
+    .anthropic.models."claude-mythos-5-1" = (
+      .anthropic.models."claude-fable-5-1"
+      | .id = "claude-mythos-5-1"
+      | .name = "Claude Mythos 5.1"
+    )
+  end
+
 # gpt-daybreak-blue-latest is an alias for gpt-5.6-sol. Copy its pricing
 # until models.dev includes the alias. Recheck the target when OpenAI updates it.
 # Ref: https://developers.openai.com/api/docs/pricing#cyber-models

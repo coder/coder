@@ -7,11 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // sessionCountsFromProto is what the batcher applies on ingest.
 func sessionCountsFromProto(st *agentproto.Stats) map[string]int64 {
-	return capSessionCounts(normalizedSessionCounts(st))
+	counts, _ := capSessionCounts(normalizedSessionCounts(st))
+	return counts
 }
 
 func TestSessionCountsFromProto(t *testing.T) {
@@ -37,6 +39,11 @@ func TestSessionCountsFromProto(t *testing.T) {
 			"DropsNonPositiveEntries",
 			&agentproto.Stats{SessionCounts: map[string]int64{"vscode": 1, "reconnecting_pty": 0, "bogus": -1}},
 			map[string]int64{"vscode": 1},
+		},
+		{
+			"ReportsClientOverflowAsUnknown",
+			&agentproto.Stats{SessionCounts: map[string]int64{"Overflow": 2, "unknown": 1}},
+			map[string]int64{"unknown": 3},
 		},
 		{
 			"MapTakesPrecedenceOverDeprecatedFields",
@@ -69,14 +76,14 @@ func TestCapSessionCounts(t *testing.T) {
 
 	got := sessionCountsFromProto(&agentproto.Stats{SessionCounts: counts})
 
-	require.Len(t, got, maxSessionCountEntries+1, "cap plus the unknown bucket")
+	require.Len(t, got, maxSessionCountEntries+1, "cap plus the overflow bucket")
 	require.EqualValues(t, 1, got["ssh"])
 	require.EqualValues(t, 1, got["vscode"])
 	require.EqualValues(t, 5, got["zzz_busy_ide"])
-	// Those three plus 61 more fill the cap; the other 139 sum into unknown.
+	// Those three plus 61 more fill the cap; the other 139 sum into overflow.
 	require.EqualValues(t, 2, got["0ide_000"])
 	require.NotContains(t, got, "0ide_199")
-	require.EqualValues(t, (overflowing-61)*2, got["unknown"])
+	require.EqualValues(t, (overflowing-61)*2, got[codersdk.AppNameOverflow])
 
 	var reported, stored int64
 	for _, count := range counts {

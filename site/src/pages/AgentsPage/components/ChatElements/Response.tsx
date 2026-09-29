@@ -3,7 +3,6 @@ import {
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
 import { cn } from "cn";
-import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -16,14 +15,14 @@ import { useTheme } from "#/theme/context";
 import { MarkdownImage } from "./MarkdownImage";
 import { MermaidDiagram } from "./MermaidDiagram";
 
-interface ResponseProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+type ResponseProps = Omit<React.ComponentProps<"div">, "children"> & {
 	children: string;
 	urlTransform?: UrlTransform;
 	/** Enable streaming-mode Streamdown with incomplete-markdown
 	 * preprocessing (remend). Pass true only for live-streaming
 	 * output. */
 	streaming?: boolean;
-}
+};
 
 // Omit rehype-raw so HTML-like syntax in LLM output is rendered as
 // escaped text instead of being parsed by the HTML5 engine. Without
@@ -49,7 +48,7 @@ type MarkdownComponentProps = {
 	href?: string;
 	src?: string;
 	alt?: string;
-	children?: ReactNode;
+	children?: React.ReactNode;
 	node?: HastNode;
 	type?: string;
 	checked?: boolean;

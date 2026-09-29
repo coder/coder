@@ -4,10 +4,10 @@
  * To change who appears in the game, edit the entries below.
  */
 
-interface RosterEntry {
+type RosterEntry = {
 	name: string;
 	role: string;
-}
+};
 
 export const ROSTER: RosterEntry[] = [
 	{ name: "Allen Lucke", role: "Senior Software Engineer (AI Solutions)" },

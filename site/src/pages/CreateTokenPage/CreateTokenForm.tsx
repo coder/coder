@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
-import { type FC, useEffect, useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "#/components/Button/Button";
 import {
@@ -32,7 +32,7 @@ import {
 
 dayjs.extend(utc);
 
-interface CreateTokenFormProps {
+type CreateTokenFormProps = {
 	form: FormikContextType<CreateTokenData>;
 	maxTokenLifetime?: number;
 	formError: unknown;
@@ -40,9 +40,9 @@ interface CreateTokenFormProps {
 	isCreating: boolean;
 	creationFailed: boolean;
 	now?: Date;
-}
+};
 
-export const CreateTokenForm: FC<CreateTokenFormProps> = ({
+export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 	form,
 	maxTokenLifetime,
 	formError,

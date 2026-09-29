@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -105,7 +106,11 @@ func main() {
 // neither a canonical provider nor an alias, which would silently hide the
 // field from every editor.
 func validateProviderScopes(schema Schema) error {
-	for _, f := range schema.General.Fields {
+	fields := slices.Clone(schema.General.Fields)
+	for _, fg := range schema.Providers {
+		fields = append(fields, fg.Fields...)
+	}
+	for _, f := range fields {
 		for _, provider := range f.VisibleForProviders {
 			if _, ok := schema.Providers[provider]; ok {
 				continue

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import type {
 	Group,
@@ -19,7 +18,7 @@ import { ExportPolicyButton } from "#/modules/idpSync/ExportPolicyButton";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 
-interface IdpSyncPageViewProps {
+type IdpSyncPageViewProps = {
 	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
@@ -34,9 +33,9 @@ interface IdpSyncPageViewProps {
 	error?: unknown;
 	onSubmitGroupSyncSettings: (data: GroupSyncSettings) => void;
 	onSubmitRoleSyncSettings: (data: RoleSyncSettings) => void;
-}
+};
 
-const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+const IdpSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 	tab,
 	groupSyncSettings,
 	roleSyncSettings,

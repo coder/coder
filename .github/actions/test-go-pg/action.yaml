@@ -88,15 +88,36 @@ runs:
           echo $! > "${RUNNER_TEMP}/iostat.pid"
         fi
 
+    - name: Resolve PostgreSQL path (Windows)
+      id: postgres-path
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+      run: |
+        $databasePath = $env:EMBEDDED_PG_PATH
+        if (-not $databasePath) {
+          $databasePath = Join-Path ([IO.Path]::GetTempPath()) 'coder-test-postgres'
+        }
+        "path=$databasePath" >> $env:GITHUB_OUTPUT
+
     - name: Setup Embedded Postgres (Windows/macOS)
       if: runner.os != 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
-        EMBEDDED_PG_PATH: ${{ inputs.embedded-pg-path }}
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
         EMBEDDED_PG_CACHE_DIR: ${{ inputs.embedded-pg-cache }}
       run: |
         go run scripts/embedded-pg/main.go -path "${EMBEDDED_PG_PATH}" -cache "${EMBEDDED_PG_CACHE_DIR}"
+
+    - name: Verify PostgreSQL diagnostics (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path }}
+      run: |
+        & ./.github/scripts/postgres-diagnostics.tests.ps1 -Native -NativeDatabasePath $env:EMBEDDED_PG_PATH -NativeOutputDirectory "$env:RUNNER_TEMP/postgres-diagnostics"
 
     - name: Run tests
       shell: bash
@@ -109,6 +130,7 @@ runs:
         TEST_PACKAGES: ${{ inputs.test-packages }}
         RACE_DETECTION: ${{ inputs.race-detection }}
         GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
+        EMBEDDED_PG_PATH: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}
         TS_DEBUG_DISCO: "true"
         TS_DEBUG_DERP: "true"
         LC_CTYPE: "en_US.UTF-8"
@@ -128,7 +150,16 @@ runs:
           fi
         fi
 
-        if [[ ${RACE_DETECTION} == true ]]; then
+        if [[ ${RUNNER_OS} == Windows ]]; then
+          target="test"
+          [[ ${RACE_DETECTION} == true ]] && target=test-race
+          export CODER_TEST_PSMODULEPATH_PRESENT="${PSModulePath+present}"
+          export CODER_TEST_PSMODULEPATH_PRESENT="${CODER_TEST_PSMODULEPATH_PRESENT:-absent}"
+          export CODER_TEST_PSMODULEPATH="${PSModulePath-}"
+          pwsh -NoProfile -File .github/scripts/test-with-postgres-diagnostics.ps1 \
+            -OutputDirectory "${RUNNER_TEMP}/postgres-diagnostics" \
+            -DatabasePath "${EMBEDDED_PG_PATH}" -Target "$target"
+        elif [[ ${RACE_DETECTION} == true ]]; then
           make test-race
         else
           make test
@@ -168,10 +199,19 @@ runs:
         if-no-files-found: ignore
         retention-days: 7
 
+    - name: Upload PostgreSQL diagnostics (Windows)
+      if: always() && runner.os == 'Windows' && !success()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: postgres-diagnostics-${{ github.job }}-${{ runner.os }}
+        path: ${{ runner.temp }}/postgres-diagnostics
+        if-no-files-found: ignore
+        retention-days: 7
+
     - name: Upload PostgreSQL logs (Windows/macOS)
       if: failure() && runner.os != 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: postgres-logs-${{ github.job }}-${{ runner.os }}
-        path: ${{ inputs.embedded-pg-path }}/data/log
+        path: ${{ steps.postgres-path.outputs.path || inputs.embedded-pg-path }}/data/log
         if-no-files-found: ignore

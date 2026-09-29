@@ -16,15 +16,19 @@ repository.
 
 ## Content
 
-Defer to our [Contributing/Documentation](../about/contributing/documentation.md) page
+Defer to our [documentation style guide](https://github.com/coder/coder/blob/main/contributing/documentation.md) page
 for rules on technical writing.
 
-### Adding Photos
+<a id="adding-photos"></a>
+
+### Add photos
 
 Use relative imports in the markdown and store photos in
 `docs/images/guides/<your_guide>/<image>.png`.
 
-### Setting the author data
+<a id="setting-the-author-data"></a>
+
+### Set the author data
 
 At the top of this example you will find a small html snippet that nicely
 renders the author's name and photo, while linking to their GitHub profile.
@@ -32,7 +36,9 @@ Before submitting your guide in a PR, replace `your_github_handle`,
 `your_github_profile_photo_url` and "Your Name". The entire `<img>` element can
 be omitted.
 
-## Setting up the routes
+<a id="setting-up-the-routes"></a>
+
+## Set up the routes
 
 Once you've written your guide, you'll need to add its route to
 `docs/manifest.json` under `Guides` > `"children"` at the bottom:

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	chipDisplay,
 	collectValueSuggestions,
 	composeFilterQuery,
 	dedupeChips,
@@ -223,14 +224,19 @@ describe("filterQuery", () => {
 			collectValueSuggestions("test", categories, optionsByKey, [
 				"owner:testuser01",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "owner:testuser01",
+			}),
+		]);
 	});
 
 	it("uses an option's explicit token when suggesting values", () => {
-		const categories = [{ key: "attributes", label: "Attributes" }];
+		const categories = [{ key: "attribute", label: "Attributes" }];
 		const optionsByKey = new Map([
 			[
-				"attributes",
+				"attribute",
 				[
 					{ label: "Outdated", value: "outdated", token: "outdated:true" },
 					{ label: "Dormant", value: "dormant", token: "dormant:true" },
@@ -243,11 +249,47 @@ describe("filterQuery", () => {
 				(suggestion) => suggestion.token,
 			),
 		).toEqual(["outdated:true"]);
-		// An already-applied attribute chip is filtered out by its token.
 		expect(
 			collectValueSuggestions("dormant", categories, optionsByKey, [
 				"dormant:true",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "dormant:true",
+			}),
+		]);
+	});
+});
+
+describe("chipDisplay", () => {
+	const categories = [
+		{ key: "owner" },
+		{ key: "attribute", chipKeys: ["outdated", "dormant", "shared"] },
+	];
+
+	it("shows single-key chips as-is", () => {
+		expect(chipDisplay("owner:me", categories)).toEqual({
+			key: "owner",
+			value: "me",
+		});
+	});
+
+	it("presents multi-key boolean chips under the category key", () => {
+		expect(chipDisplay("outdated:true", categories)).toEqual({
+			key: "attribute",
+			value: "outdated",
+		});
+		expect(chipDisplay("Dormant:true", categories)).toEqual({
+			key: "attribute",
+			value: "dormant",
+		});
+	});
+
+	it("passes through tokens without a separator", () => {
+		expect(chipDisplay("plain", categories)).toEqual({
+			key: "",
+			value: "plain",
+		});
 	});
 });

@@ -1,5 +1,4 @@
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
 import * as Yup from "yup";
 import type {
 	CreateTemplateVersionRequest,
@@ -21,7 +20,7 @@ import {
 	TemplateVariableField,
 } from "./TemplateVariableField";
 
-interface TemplateVariablesFormProps {
+type TemplateVariablesFormProps = {
 	templateVersion: TemplateVersion;
 	templateVariables: TemplateVersionVariable[];
 	onSubmit: (data: CreateTemplateVersionRequest) => void;
@@ -30,8 +29,8 @@ interface TemplateVariablesFormProps {
 	error?: unknown;
 	// Helpful to show field errors on Storybook
 	initialTouched?: FormikTouched<CreateTemplateVersionRequest>;
-}
-export const TemplateVariablesForm: FC<TemplateVariablesFormProps> = ({
+};
+export const TemplateVariablesForm: React.FC<TemplateVariablesFormProps> = ({
 	templateVersion,
 	templateVariables,
 	onSubmit,

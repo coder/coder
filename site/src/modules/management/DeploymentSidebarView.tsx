@@ -1,5 +1,4 @@
 import { ArrowUpRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { BuildInfoResponse } from "#/api/typesGenerated";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
@@ -8,19 +7,19 @@ import {
 } from "#/components/Sidebar/Sidebar";
 import type { Permissions } from "#/modules/permissions";
 
-interface DeploymentSidebarViewProps {
+type DeploymentSidebarViewProps = {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	showOrganizations: boolean;
 	hidePremiumTab: boolean;
 	buildInfo: BuildInfoResponse;
-}
+};
 
 /**
  * Displays navigation for deployment settings.  If active, highlight the main
  * menu heading.
  */
-export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
+export const DeploymentSidebarView: React.FC<DeploymentSidebarViewProps> = ({
 	permissions,
 	showOrganizations,
 	hidePremiumTab,

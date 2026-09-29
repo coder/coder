@@ -17,9 +17,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
+	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -36,7 +36,7 @@ func NewBlockingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -47,8 +47,8 @@ func NewBedrockBlockingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
-	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	cred credential.Credential,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -59,8 +59,8 @@ func buildBlockingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
 	cfg intercept.Config,
-	cred intercept.Credential,
-	bedrockMantle *bedrocksig.MantleConfig,
+	cred credential.Credential,
+	bedrockMantle *awssig.MantleConfig,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -114,7 +114,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -125,12 +125,6 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		var opts []option.RequestOption
 		opts = append(opts, option.WithRequestTimeout(time.Second*600))
-
-		// TODO(ssncferreira): inject actor headers directly in the client-header
-		//   middleware instead of using SDK options.
-		if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
-		}
 
 		var keyAttempts int
 		completion, keyAttempts, err = i.newChatCompletion(ctx, svc, opts)
@@ -316,10 +310,10 @@ func (i *BlockingInterception) marshalCompletion(completion *openai.ChatCompleti
 // centralized key pool fails over across keys, while BYOK authenticates with a
 // single, fixed credential baked into svc, so it makes one attempt.
 func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		return i.newChatCompletionWithKeyFailover(ctx, svc, cp, opts)
 	}
-	completion, err := i.newChatCompletionWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc, opts)
+	completion, err := i.newChatCompletionWithKey(credential.WithCredentialInfo(ctx, i.cred), svc, opts)
 	return completion, 0, err
 }
 
@@ -344,7 +338,7 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 // on 429 and permanent on 401/403. Errors that aren't key-specific don't
 // trigger failover and are returned to the caller. It returns the upstream
 // completion, the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
+func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, cp *credential.CentralizedPool, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
 	walker := cp.Pool.Walker()
 	for {
 		key, keyPoolErr := cp.NextKey(walker)
@@ -352,7 +346,7 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 			return nil, walker.Attempts(), keyPoolErr
 		}
 
-		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		ctx = credential.WithCredentialInfo(ctx, i.cred)
 		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,

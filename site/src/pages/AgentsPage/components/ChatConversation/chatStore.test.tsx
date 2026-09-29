@@ -32,7 +32,6 @@ const readInfiniteChats = (
 	return data?.pages.flat();
 };
 
-import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -199,7 +198,7 @@ const createMockSocket = (): MockSocket => {
 };
 
 const createWrapper =
-	(queryClient: QueryClient): FC<PropsWithChildren> =>
+	(queryClient: QueryClient): React.FC<React.PropsWithChildren> =>
 	({ children }) => (
 		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 	);
@@ -1263,25 +1262,27 @@ describe("useChatStore", () => {
 
 		type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 
-		const StreamProbe: FC<{ store: ChatStoreHandle }> = ({ store }) => {
+		const StreamProbe: React.FC<{ store: ChatStoreHandle }> = ({ store }) => {
 			useChatSelector(store, selectStreamState);
 			streamRenderCount += 1;
 			return null;
 		};
 
-		const QueueProbe: FC<{ store: ChatStoreHandle }> = ({ store }) => {
+		const QueueProbe: React.FC<{ store: ChatStoreHandle }> = ({ store }) => {
 			useChatSelector(store, selectQueuedMessages);
 			queueRenderCount += 1;
 			return null;
 		};
 
-		const OrderedIDsProbe: FC<{ store: ChatStoreHandle }> = ({ store }) => {
+		const OrderedIDsProbe: React.FC<{ store: ChatStoreHandle }> = ({
+			store,
+		}) => {
 			useChatSelector(store, selectOrderedMessageIDs);
 			orderedIDsRenderCount += 1;
 			return null;
 		};
 
-		const TestHarness: FC = () => {
+		const TestHarness: React.FC = () => {
 			const { store } = useChatStore({
 				chatID,
 				chatMessages: [existingMessage],

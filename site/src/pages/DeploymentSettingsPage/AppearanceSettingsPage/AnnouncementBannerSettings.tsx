@@ -1,5 +1,5 @@
 import { PlusIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
@@ -30,18 +30,18 @@ type NewBannerButtonProps = {
 	onClick: () => void;
 };
 
-const NewBannerButton: FC<NewBannerButtonProps> = ({ onClick }) => (
+const NewBannerButton: React.FC<NewBannerButtonProps> = ({ onClick }) => (
 	<Button onClick={onClick} variant="outline">
 		<PlusIcon />
 		New announcement
 	</Button>
 );
 
-interface AnnouncementBannersettingsProps {
+type AnnouncementBannersettingsProps = {
 	isEntitled: boolean;
 	announcementBanners: readonly BannerConfig[];
 	onSubmit: (banners: readonly BannerConfig[]) => Promise<void>;
-}
+};
 
 type EditingBanner = {
 	/** `null` means creating a new banner. */
@@ -49,7 +49,7 @@ type EditingBanner = {
 	banner: BannerConfig;
 };
 
-export const AnnouncementBannerSettings: FC<
+export const AnnouncementBannerSettings: React.FC<
 	AnnouncementBannersettingsProps
 > = ({ isEntitled, announcementBanners, onSubmit }) => {
 	const [banners, setBanners] = useState(announcementBanners);

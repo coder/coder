@@ -1,5 +1,4 @@
 import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import type { FC } from "react";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -73,7 +72,7 @@ export type PersonalSkillDeleteState = {
 	onClose: () => void;
 };
 
-export interface AgentSettingsPersonalSkillsPageViewProps {
+export type AgentSettingsPersonalSkillsPageViewProps = {
 	skills: readonly UserSkillMetadata[];
 	error: unknown;
 	isLoading: boolean;
@@ -88,7 +87,7 @@ export interface AgentSettingsPersonalSkillsPageViewProps {
 	isExportingAll?: boolean;
 	editorState?: PersonalSkillEditorState;
 	deleteState?: PersonalSkillDeleteState;
-}
+};
 
 const formatUpdatedAt = (value: string) => {
 	const date = new Date(value);
@@ -106,7 +105,7 @@ const formatUpdatedAt = (value: string) => {
 	});
 };
 
-const EditSkillDialog: FC<{
+const EditSkillDialog: React.FC<{
 	state: Extract<PersonalSkillEditorState, { mode: "edit" }>;
 }> = ({ state }) => {
 	const handleOpenChange = (open: boolean) => {
@@ -178,7 +177,7 @@ const EditSkillDialog: FC<{
 	);
 };
 
-const DeleteSkillDialog: FC<{ state: PersonalSkillDeleteState }> = ({
+const DeleteSkillDialog: React.FC<{ state: PersonalSkillDeleteState }> = ({
 	state,
 }) => {
 	return (
@@ -210,7 +209,7 @@ const DeleteSkillDialog: FC<{ state: PersonalSkillDeleteState }> = ({
 	);
 };
 
-export const AgentSettingsPersonalSkillsPageView: FC<
+export const AgentSettingsPersonalSkillsPageView: React.FC<
 	AgentSettingsPersonalSkillsPageViewProps
 > = ({
 	skills,

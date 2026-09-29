@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
@@ -8,7 +7,7 @@ import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPa
 /**
  * A sidebar for AI settings.
  */
-export const AISettingsSidebar: FC = () => {
+export const AISettingsSidebar: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);

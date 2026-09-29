@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
@@ -18,7 +17,7 @@ import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 const TEXTAREA_MAX_ROWS = 9;
 
-export interface InstructionsPageViewProps {
+export type InstructionsPageViewProps = {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
@@ -34,9 +33,9 @@ export interface InstructionsPageViewProps {
 	isSaving: boolean;
 	isSaveSystemPromptError: boolean;
 	isSavePlanModeInstructionsError: boolean;
-}
+};
 
-export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
+export const InstructionsPageView: React.FC<InstructionsPageViewProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
 	...formProps
@@ -59,7 +58,7 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	);
 };
 
-interface InstructionsFormProps {
+type InstructionsFormProps = {
 	systemPromptData: TypesGen.ChatSystemPromptResponse;
 	planModeInstructionsData: TypesGen.ChatPlanModeInstructionsResponse;
 	onSaveSystemPrompt: (
@@ -73,9 +72,9 @@ interface InstructionsFormProps {
 	isSaving: boolean;
 	isSaveSystemPromptError: boolean;
 	isSavePlanModeInstructionsError: boolean;
-}
+};
 
-const InstructionsForm: FC<InstructionsFormProps> = ({
+const InstructionsForm: React.FC<InstructionsFormProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
 	onSaveSystemPrompt,

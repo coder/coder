@@ -8,11 +8,11 @@ import type { AgentFirewallLog, AIBridgeThread } from "#/api/typesGenerated";
 
 const normalizeQuery = (query: string): string => query.trim().toLowerCase();
 
-interface ThreadSearchClassification {
+type ThreadSearchClassification = {
 	promptMatch: boolean;
 	/** IDs of tool calls whose tool name or input matched. */
 	toolCallIds: Set<string>;
-}
+};
 
 /**
  * Reports which search axis matched and which tool calls matched, in one
@@ -101,10 +101,10 @@ export const countSessionSearchMatches = (
 	return count;
 };
 
-interface MatchSegment {
+type MatchSegment = {
 	text: string;
 	match: boolean;
-}
+};
 
 // Splits the text into match and non-match segments for bold rendering.
 // Matches against the original text one window at a time rather than a

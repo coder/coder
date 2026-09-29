@@ -1,5 +1,4 @@
 import { ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -13,13 +12,13 @@ import {
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-interface CreateTemplateGalleryPageViewProps {
+type CreateTemplateGalleryPageViewProps = {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	templateBuilderEnabled: boolean;
 	error?: unknown;
-}
+};
 
-export const CreateTemplateGalleryPageView: FC<
+export const CreateTemplateGalleryPageView: React.FC<
 	CreateTemplateGalleryPageViewProps
 > = ({ starterTemplatesByTag, templateBuilderEnabled, error }) => {
 	return (

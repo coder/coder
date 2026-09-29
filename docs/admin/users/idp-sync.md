@@ -39,7 +39,7 @@ If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
 group sync, ensure that the `groups` claim is being sent by your OpenID
 provider. You might need to request an additional
-[scope](../../reference/cli/server.md#--oidc-scopes) or additional configuration
+[scope](../../reference/cli/server/index.md#--oidc-scopes) or additional configuration
 on the OpenID provider side.
 
 If group sync is enabled, the user's groups will be controlled by the OIDC
@@ -150,8 +150,8 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure group sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
+1. Configure the control plane to read groups from the claim name with the
+   [OIDC group field](../../reference/cli/server/index.md#--oidc-group-field) server
    flag:
 
    - Environment variable:
@@ -172,7 +172,7 @@ Visit the Coder UI to confirm these changes:
 1. For cases when an OIDC provider only returns group IDs or you want to have
    different group names in Coder than in your OIDC provider, you can configure
    mapping between the two with the
-   [OIDC group mapping](../../reference/cli/server.md#--oidc-group-mapping) server
+   [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server
    flag:
 
    - Environment variable:
@@ -205,7 +205,7 @@ Visit the Coder UI to confirm these changes:
 ### Group allowlist
 
 You can limit which groups from your identity provider can log in to Coder with
-[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server.md#--oidc-allowed-groups).
+[CODER_OIDC_ALLOWED_GROUPS](../../reference/cli/server/index.md#--oidc-allowed-groups).
 Users who are not in a matching group will see the following error:
 
 <img height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
@@ -297,11 +297,11 @@ Visit the Coder UI to confirm these changes:
 > Use server flags only with Coder deployments with a single organization.
 > You can use the dashboard to configure role sync instead.
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
+1. Configure the control plane to read groups from the claim name with the
+   [OIDC role field](../../reference/cli/server/index.md#--oidc-user-role-field)
    server flag:
 
-1. Set the following in your Coder server [configuration](../setup/index.md).
+1. Set the following in your control plane [configuration](../setup/index.md).
 
    ```dotenv
     # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
@@ -415,7 +415,7 @@ Some common issues when enabling group, role, or organization sync.
 
 If you are running into issues with a sync:
 
-1. View your Coder server logs and enable
+1. View your `coderd` logs and enable
    [verbose mode](../../reference/cli/index.md#-v---verbose).
 
 1. To reduce noise, you can filter for only logs related to group/role sync:
@@ -424,7 +424,7 @@ If you are running into issues with a sync:
    CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"
    ```
 
-1. Restart the server after changing these configuration values.
+1. Restart the control plane after changing these configuration values.
 
 1. Attempt to log in, preferably with a user who has the `Owner` role.
 

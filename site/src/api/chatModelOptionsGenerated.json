@@ -78,6 +78,16 @@
 				"required": false,
 				"input_type": "select",
 				"visible_for_providers": ["openai"]
+			},
+			{
+				"json_name": "openai_config.reasoning_model",
+				"go_name": "OpenaiConfig.ReasoningModel",
+				"type": "boolean",
+				"description": "Override whether this OpenAI-format model is treated as a reasoning model (reasoning effort and summary are sent, temperature and top_p are dropped). Leave unset to decide from the model name, true for models newer than the provider SDK knows, false to force plain sampling. Ignored for Anthropic models on Bedrock.",
+				"label": "Reasoning Model",
+				"required": false,
+				"input_type": "select",
+				"visible_for_providers": ["openai", "bedrock"]
 			}
 		]
 	},
@@ -364,6 +374,16 @@
 					"required": false,
 					"input_type": "input",
 					"hidden": true
+				},
+				{
+					"json_name": "reasoning_mode",
+					"go_name": "ReasoningMode",
+					"type": "string",
+					"description": "Supported from the GPT-5.6 Sol generation of OpenAI models. Requests fail when Pro is set on a model that does not support it. Pro increases model work, latency, and token usage.",
+					"required": false,
+					"enum": ["pro"],
+					"input_type": "select",
+					"visible_for_providers": ["openai"]
 				},
 				{
 					"json_name": "service_tier",

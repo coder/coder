@@ -2,9 +2,9 @@
 title: Configure control plane access
 ---
 
-Coder server's primary configuration is done via environment variables. For a
-full list of the options, run `coder server --help` or see our
-[CLI documentation](../../reference/cli/server.md).
+The control plane's primary configuration is done via environment variables. For
+a full list of the options, run `coder server --help` or see our
+[CLI documentation](../../reference/cli/server/index.md).
 
 > [!TIP]
 > Need to look up an exact environment variable, CLI flag, or YAML key for a
@@ -39,7 +39,7 @@ export CODER_TLS_ADDRESS=0.0.0.0:443
 ## Redirect from HTTP to HTTPS
 export CODER_REDIRECT_TO_ACCESS_URL=true
 
-# Start the Coder server
+# Start the control plane
 coder server
 ```
 
@@ -59,14 +59,14 @@ It requires a DNS record and TLS certificate for `*.example.com`.
 > browsers consider these "public" domains and will refuse Coder's cookies,
 > which are vital to the proper operation of this feature.
 
-If you are providing TLS certificates directly to the Coder server, either
+If you are providing TLS certificates directly to the control plane, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
 1. Configure multiple certificates and keys via
    [`coder.tls.secretNames`](../../../helm/coder/values.yaml)
    in the Helm Chart, or
-   [`--tls-cert-file`](../../reference/cli/server.md#--tls-cert-file) and
-   [`--tls-key-file`](../../reference/cli/server.md#--tls-key-file) command line
+   [`--tls-cert-file`](../../reference/cli/server/index.md#--tls-cert-file) and
+   [`--tls-key-file`](../../reference/cli/server/index.md#--tls-key-file) command line
    options (these both take a comma separated list of files; list certificates
    and their respective keys in the same order).
 
@@ -74,7 +74,7 @@ After you enable the wildcard access URL, you should [disable path-based apps](.
 
 ## TLS & Reverse Proxy
 
-The Coder server can directly use TLS certificates with `CODER_TLS_ENABLE` and
+The control plane can directly use TLS certificates with `CODER_TLS_ENABLE` and
 accompanying configuration flags. However, Coder can also run behind a
 reverse-proxy to terminate TLS certificates from LetsEncrypt.
 
@@ -133,7 +133,9 @@ $ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
-### Migrating from the built-in database to an external database
+<a id="migrating-from-the-built-in-database-to-an-external-database"></a>
+
+### Migrate from the built-in database to an external database
 
 To migrate from the built-in database to an external database, follow these
 steps:
@@ -148,11 +150,13 @@ steps:
 1. Start your Coder deployment with
    `CODER_PG_CONNECTION_URL=<external-connection-string>`.
 
-## Configuring Coder behind a proxy
+<a id="configuring-coder-behind-a-proxy"></a>
+
+## Configure Coder behind a proxy
 
 To configure Coder behind a corporate proxy, set the environment variables
-`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
-(e.g. `http_proxy`) are also respected in this case.
+`HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the control plane. Lowercase
+values (e.g. `http_proxy`) are also respected in this case.
 
 ## Continue your setup with external authentication
 
@@ -168,4 +172,4 @@ more information.
 ## Up Next
 
 - [Setup and manage templates](../templates/index.md)
-- [Setup external provisioners](../provisioners/index.md)
+- [Setup external provisioners](../../install/operate/provisioners/index.md)

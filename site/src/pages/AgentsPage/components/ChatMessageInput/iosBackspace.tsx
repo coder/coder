@@ -13,7 +13,7 @@ import {
 	type LexicalNode,
 	type RangeSelection,
 } from "lexical";
-import { type FC, useEffect } from "react";
+import { useEffect } from "react";
 
 function $containsDecoratorNode(node: LexicalNode | null): boolean {
 	if (!node) return false;
@@ -71,7 +71,7 @@ export function registerIOSBackspaceCommand(
 	);
 }
 
-const IOSBackspacePlugin: FC = function IOSBackspacePlugin() {
+const IOSBackspacePlugin: React.FC = function IOSBackspacePlugin() {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {

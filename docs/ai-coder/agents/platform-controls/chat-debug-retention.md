@@ -23,7 +23,7 @@ the cutoff.
 ## Configuration
 
 Navigate to **Admin settings** > **AI** > **Coder Agents** > **Lifecycle** to configure chat debug data retention.
-The default is 30 days.
+The default is 30&nbsp;days.
 Set the value to `0` to disable debug data retention entirely.
 The maximum value is `3650` days.
 
@@ -38,10 +38,10 @@ PUT  /api/v2/chats/config/debug-retention-days
 
 Conversation retention and debug data retention are orthogonal controls:
 
-| Control                | What it deletes                                             | Default |
-|------------------------|-------------------------------------------------------------|---------|
-| Conversation retention | Archived conversations and orphaned files                   | 30 days |
-| Debug data retention   | Debug runs and debug steps, based on debug run `updated_at` | 30 days |
+| Control                | What it deletes                                             | Default      |
+|------------------------|-------------------------------------------------------------|--------------|
+| Conversation retention | Archived conversations and orphaned files                   | 30&nbsp;days |
+| Debug data retention   | Debug runs and debug steps, based on debug run `updated_at` | 30&nbsp;days |
 
 Deleting a chat still deletes its debug data immediately via cascade, regardless
 of the debug retention window. Unarchiving a chat does not restore debug data

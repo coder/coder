@@ -207,8 +207,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Must send network traffic after a few seconds to surpass bump threshold.
-		time.Sleep(time.Second * 3)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()
@@ -245,8 +243,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close()
 
-		// Must send network traffic after a few seconds to surpass bump threshold.
-		time.Sleep(time.Second * 3)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
 		_ = sshConn.Close()

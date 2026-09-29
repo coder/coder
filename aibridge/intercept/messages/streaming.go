@@ -22,7 +22,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -40,7 +40,7 @@ func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -124,12 +124,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
 	defer streamCancel(xerrors.New("deferred"))
 
-	// TODO(ssncferreira): inject actor headers directly in the client-header
-	//   middleware instead of using SDK options.
 	var opts []option.RequestOption
-	if actor := aibcontext.ActorFromContext(ctx); actor != nil && i.cfg.SendActorHeaders {
-		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
-	}
 
 	svc, err := i.newMessagesService(streamCtx, opts...)
 	if err != nil {
@@ -154,7 +149,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -177,7 +172,7 @@ newStream:
 		// single attempt.
 		streamOpts := []option.RequestOption{i.withBody()}
 		var currentPoolKey *keypool.Key
-		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
+		if cp, isPool := credential.AsCentralizedPool(i.cred); isPool {
 			walker := cp.Pool.Walker()
 			key, keyPoolErr := cp.NextKey(walker)
 			if keyPoolErr != nil {
@@ -202,7 +197,7 @@ newStream:
 				break
 			}
 
-			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+			logger.Debug(credential.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 			currentPoolKey = key
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),

@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
@@ -82,13 +81,17 @@ export const useUserFilterMenu = ({
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-interface UserMenuProps {
+type UserMenuProps = {
 	menu: UserFilterMenu;
 	placeholder?: string;
 	width?: number;
-}
+};
 
-export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
+export const UserMenu: React.FC<UserMenuProps> = ({
+	menu,
+	width,
+	placeholder,
+}) => {
 	return (
 		<SelectFilter
 			label="Select user"

@@ -101,7 +101,7 @@ coder create oncall-sre/oncall-workspace \
 > needs pre-installed (e.g. monitoring dashboards for on-call, test runners
 > for QA). Set `subdomain = true` on workspace apps so that shared users can
 > access web-based tools without a 404. See
-> [Accessing workspace apps in shared workspaces](../user-guides/shared-workspaces.md#accessing-workspace-apps-in-shared-workspaces).
+> [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
 ## 4. Share the workspace
 
@@ -209,7 +209,9 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
    next login. All current members have access; removed members lose access
    after a workspace restart.
 
-## Finding shared workspaces
+<a id="finding-shared-workspaces"></a>
+
+## Find shared workspaces
 
 Shared users can find workspaces shared with them:
 
@@ -244,7 +246,7 @@ Access removal requires a workspace restart. Run
 
 Group membership changes in your IdP are not reflected until the user logs out
 and back in. Group sync runs at login time, not on a polling schedule. Check the
-Coder server logs with
+logs from `coderd`, the process that runs the control plane, with
 `CODER_LOG_FILTER=".*userauth.*|.*groups returned.*"` for details. See
 [Troubleshooting group sync](../admin/users/idp-sync.md#troubleshooting-grouproleorganization-sync)
 for more information.

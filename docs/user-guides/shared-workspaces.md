@@ -18,7 +18,9 @@ This is helpful in a number of scenarios, including:
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
 - AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/ai-coder/agents).)
 
-## Getting Started
+<a id="getting-started"></a>
+
+## Get started
 
 Workspaces can be shared through either the Coder CLI or UI.
 
@@ -56,9 +58,16 @@ To list shared workspaces:
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
 
+To list the workspaces you own together with the ones shared with you,
+directly or through a group:
+
+- `coder list --search user:me`
+
 ### UI
 
-#### Sharing your Workspace
+<a id="sharing-your-workspace"></a>
+
+#### Share your workspace
 
 1. Open a workspace that you own.
 
@@ -75,13 +84,17 @@ To list shared workspaces:
 - Neither role allows for the user to delete the workspace.
 - After removing a user/group, a workspace restart is required for the removal to take effect.
 
-#### Using a shared workspace
+<a id="using-a-shared-workspace"></a>
+
+#### Use a shared workspace
 
 Once a workspace is shared, you can find the shared workspace by filtering for "Shared" in the Workspaces page.
 
 ![Sharing with a user or group](../images/user-guides/workspace-sharing-shared-view.png)
 
-#### Accessing workspace apps in shared workspaces
+<a id="accessing-workspace-apps-in-shared-workspaces"></a>
+
+#### Access workspace apps in shared workspaces
 
 Sharing a workspace grants SSH and terminal access to other users. However,
 workspace apps like code-server may return a **404 page** for non-owners
@@ -120,8 +133,11 @@ allows other users to access them without additional configuration.
 
 There are several sharing policy levels that can be selected on a per-organization basis.
 
-- **Everyone** – Anybody can share their workspace with any individual or group in the same organization.
-- **Service Accounts Only** – Only workspaces owned by service accounts can be shared with any individual or group in the same organization.
-- **Disabled** – Workspaces within the organization cannot be shared.
+- **Everyone**: anybody can share their workspace with any individual or group in the same organization.
+- **Service Accounts Only**: only workspaces owned by service accounts can be shared with any individual or group in the same organization.
+- **Disabled**: workspaces within the organization cannot be shared.
+
+The **Disabled** policy applies to every workspace in the organization.
+It overrides the sharing permission of any role held by a member of that organization, including Organization Admin.
 
 The **Disabled** policy can also be applied to the entire deployment by [setting the `CODER_DISABLE_WORKSPACE_SHARING` environment variable, or by using the corresponding command argument or config value](https://coder.com/docs/reference/cli/server#--disable-workspace-sharing).

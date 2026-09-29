@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
 )
 
 // TestBuildBedrockCredentialsValidation covers the input validation that does
@@ -212,7 +212,7 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, "assumed-token", got.SessionToken)
 
 	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
-	require.Equal(t, bedrockSessionName, gotSessionName)
+	require.Equal(t, awsSessionName, gotSessionName)
 	// The STS client disables keep-alive so each AssumeRole opens a fresh
 	// connection; Go signals this with a Connection: close request header.
 	require.Equal(t, "close", gotConnection,
@@ -482,30 +482,6 @@ func TestBedrock_CircuitBreakerOpenErrorResponse(t *testing.T) {
 	assert.Equal(t, "service_unavailable", openAIEnvelope.Error.Code)
 }
 
-func TestBedrock_TypeAndName(t *testing.T) {
-	t.Parallel()
-
-	p := newTestBedrock(t, config.Anthropic{}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p.Type())
-	assert.Equal(t, config.ProviderBedrock, p.Name())
-
-	p2 := newTestBedrock(t, config.Anthropic{Name: "bedrock-custom"}, config.AWSBedrock{
-		Region:          "us-west-2",
-		AccessKey:       "test-key",
-		AccessKeySecret: "test-secret",
-		Model:           "m",
-		SmallFastModel:  "s",
-	})
-	assert.Equal(t, config.ProviderBedrock, p2.Type())
-	assert.Equal(t, "bedrock-custom", p2.Name())
-}
-
 func TestBedrock_KeyPool(t *testing.T) {
 	t.Parallel()
 
@@ -580,7 +556,7 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
-		wantCredentialKind intercept.CredentialKind
+		wantCredentialKind credential.Kind
 		wantCredentialHint string
 	}{
 		{
@@ -589,7 +565,7 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			name:               "bedrock_dynamic",
 			bedrockStatic:      false,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "<aws chain>",
 		},
 		{
@@ -597,21 +573,21 @@ func TestBedrock_CreateInterceptor_Credential(t *testing.T) {
 			name:               "bedrock_static",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{},
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			wantCredentialHint: "AKIA...MPLE",
 		},
 		{
 			name:               "byok_api_key",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...ey",
 		},
 		{
 			name:               "byok_bearer_token",
 			bedrockStatic:      true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-access-token"},
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 	}

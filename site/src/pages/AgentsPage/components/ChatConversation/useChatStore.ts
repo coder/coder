@@ -92,7 +92,7 @@ const shouldSurfaceReconnectState = (state: ChatStoreState): boolean =>
 		state.retryState !== null ||
 		isActiveChatStatus(state.chatStatus));
 
-interface UseChatStoreOptions {
+type UseChatStoreOptions = {
 	chatID: string | undefined;
 	chatMessages: readonly TypesGen.ChatMessage[] | undefined;
 	chatRecord: TypesGen.Chat | undefined;
@@ -102,7 +102,7 @@ interface UseChatStoreOptions {
 	setChatErrorReason: (chatID: string, reason: ChatDetailError) => void;
 	clearChatErrorReason: (chatID: string) => void;
 	aiGatewayDisabled?: boolean;
-}
+};
 
 export const useChatStore = (
 	options: UseChatStoreOptions,

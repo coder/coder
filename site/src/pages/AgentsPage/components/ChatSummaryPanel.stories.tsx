@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { FC } from "react";
 import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -48,7 +47,7 @@ const mockRequests = ({
 };
 
 // The Summary tab fills the right panel, so give stories a bounded height.
-const PanelFrame = (Story: FC) => (
+const PanelFrame = (Story: React.FC) => (
 	<div className="h-[420px] w-[420px] max-w-full border border-solid border-border-default">
 		<Story />
 	</div>

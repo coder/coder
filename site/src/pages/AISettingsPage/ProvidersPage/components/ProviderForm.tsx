@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type {
@@ -325,7 +325,7 @@ const baseUrlPlaceholder = (provider: string) =>
 	baseUrlPlaceholders[provider as keyof typeof baseUrlPlaceholders] ??
 	providerDefaults[provider as keyof typeof providerDefaults]?.baseUrl;
 
-export const ProviderForm: FC<ProviderFormProps> = ({
+export const ProviderForm: React.FC<ProviderFormProps> = ({
 	editing = false,
 	bedrockSavedAccessCredentials = false,
 	bedrockExternalId,

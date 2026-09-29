@@ -1,12 +1,45 @@
-import type { ReactNode } from "react";
 import {
 	FILTER_TOKEN_RE,
 	needsQuotes,
 	parseFilterTokens,
 } from "#/components/Filter/filterQuery";
-import type { FilterOption } from "./types";
+import type { FilterCategory, FilterOption } from "./types";
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
+
+/** Token an option commits under `key`: its explicit token, or `key:value`. */
+export const optionToken = (
+	key: string,
+	option: Pick<FilterOption, "token" | "value">,
+) => option.token ?? chipToken(key, option.value);
+
+type ChipDisplaySource = Pick<FilterCategory, "key" | "chipKeys">;
+
+/**
+ * Key and value to display for a chip token. Tokens owned by a multi-key
+ * category (`outdated:true` under Attributes) display under the category key
+ * (`attribute:outdated`); the query string itself is unchanged.
+ */
+export const chipDisplay = (
+	token: string,
+	categories: readonly ChipDisplaySource[],
+): { key: string; value: string } => {
+	const separatorIndex = token.indexOf(":");
+	if (separatorIndex <= 0) {
+		return { key: "", value: token };
+	}
+	const key = token.slice(0, separatorIndex);
+	const value = token.slice(separatorIndex + 1);
+	const owner = categories.find(
+		(category) =>
+			category.key !== key.toLowerCase() &&
+			category.chipKeys?.includes(key.toLowerCase()),
+	);
+	if (owner) {
+		return { key: owner.key, value: key.toLowerCase() };
+	}
+	return { key, value };
+};
 
 // Collapses a stream of key/value pairs to one chip per key, keeping each key's
 // first-seen position and its last-seen value. Shared by `queryToChips` (pairs
@@ -205,9 +238,30 @@ type CategoryValueSuggestion = {
 	option: {
 		label: string;
 		value: string;
-		startIcon?: ReactNode;
+		startIcon?: React.ReactNode;
 	};
+	selected: boolean;
 	token: string;
+};
+
+// `normalized` is trimmed and lowercased.
+const optionMatches = (
+	option: Pick<FilterOption, "label" | "value">,
+	normalized: string,
+) =>
+	option.label.toLowerCase().includes(normalized) ||
+	option.value.toLowerCase().includes(normalized);
+
+/** Options whose label or value contains `text`, ignoring case. */
+export const filterOptionsByText = (
+	options: readonly FilterOption[],
+	text: string,
+): readonly FilterOption[] => {
+	const normalized = text.trim().toLowerCase();
+	if (normalized.length === 0) {
+		return options;
+	}
+	return options.filter((option) => optionMatches(option, normalized));
 };
 
 const DEFAULT_SUGGESTIONS_PER_CATEGORY = 5;
@@ -243,15 +297,9 @@ export const collectValueSuggestions = (
 				break;
 			}
 
-			const token = option.token ?? chipToken(category.key, option.value);
-			if (selected.has(token)) {
-				continue;
-			}
+			const token = optionToken(category.key, option);
 
-			if (
-				!option.label.toLowerCase().includes(normalized) &&
-				!option.value.toLowerCase().includes(normalized)
-			) {
+			if (!optionMatches(option, normalized)) {
 				continue;
 			}
 
@@ -259,6 +307,7 @@ export const collectValueSuggestions = (
 				categoryKey: category.key,
 				categoryLabel: category.label,
 				option,
+				selected: selected.has(token),
 				token,
 			});
 			taken += 1;

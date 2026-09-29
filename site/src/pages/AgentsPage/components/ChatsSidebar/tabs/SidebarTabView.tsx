@@ -8,33 +8,25 @@ import {
 	PanelLeftIcon,
 	XIcon,
 } from "lucide-react";
-import {
-	type FC,
-	type ReactNode,
-	useEffect,
-	useEffectEvent,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 import { Button } from "#/components/Button/Button";
 import type { AgentsPageOutletContext } from "../../../AgentsPageLayout";
 
 /** A single tab definition for the sidebar panel. */
-export interface SidebarTab {
+export type SidebarTab = {
 	id: string;
 	/** Label shown in the tab button. */
 	label: string;
 	/** Optional icon shown before the label. */
-	icon?: ReactNode;
-	badge?: ReactNode;
+	icon?: React.ReactNode;
+	badge?: React.ReactNode;
 	/** The content to render when this tab is active. */
-	content: ReactNode;
+	content: React.ReactNode;
 	onClose?: () => void;
-}
+};
 
-interface SidebarTabViewProps {
+type SidebarTabViewProps = {
 	/** The tabs to display. */
 	tabs: SidebarTab[];
 	/** Whether the panel is in expanded/fullscreen mode. */
@@ -55,8 +47,8 @@ interface SidebarTabViewProps {
 	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
-	addTabControl?: ReactNode;
-}
+	addTabControl?: React.ReactNode;
+};
 
 const TAB_SCROLL_AMOUNT = 120;
 
@@ -115,13 +107,13 @@ function useTabScroll() {
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
-interface ScrollChevronButtonProps {
+type ScrollChevronButtonProps = {
 	direction: "left" | "right";
 	onClick: () => void;
 	ariaLabel: string;
-}
+};
 
-const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
+const ScrollChevronButton: React.FC<ScrollChevronButtonProps> = ({
 	direction,
 	onClick,
 	ariaLabel,
@@ -146,7 +138,7 @@ const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
 	);
 };
 
-export const SidebarTabView: FC<SidebarTabViewProps> = ({
+export const SidebarTabView: React.FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
 	onToggleExpanded,
@@ -167,10 +159,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
 
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
+	const allPanels: { id: string; content: React.ReactNode }[] = tabs.map(
+		(t) => ({
+			id: t.id,
+			content: t.content,
+		}),
+	);
 
 	if (tabs.length === 0) {
 		return (

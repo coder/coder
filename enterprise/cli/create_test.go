@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/notifications"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
@@ -303,6 +305,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		t *testing.T,
 		ctx context.Context,
 		db database.Store,
+		pb pubsub.Pubsub,
 		reconciler *prebuilds.StoreReconciler,
 		presets []codersdk.Preset,
 	) {
@@ -318,6 +321,19 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, actions)
 		require.NoError(t, reconciler.ReconcilePreset(ctx, *ps))
+
+		// StoreReconciler queues its "job posted" pubsub notification on an
+		// internal channel that only StoreReconciler.Run drains. These tests
+		// drive the reconciler directly and never start Run, so without this
+		// provisionerd would only see the job on its 30 second backup poll.
+		jobs, err := db.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
+		require.NoError(t, err)
+		for _, job := range jobs {
+			if job.JobStatus != database.ProvisionerJobStatusPending {
+				continue
+			}
+			require.NoError(t, provisionerjobs.PostJob(pb, job))
+		}
 	}
 
 	getRunningPrebuilds := func(
@@ -359,7 +375,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
-		}, testutil.IntervalSlow, "prebuilds not running")
+		}, testutil.IntervalMedium, "prebuilds not running")
 
 		return runningPrebuilds
 	}
@@ -426,7 +442,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		require.Equal(t, preset.Name, presets[0].Name)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspaces
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 		require.Equal(t, presets[0].ID, runningPrebuilds[0].CurrentPresetID.UUID)
@@ -537,7 +553,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 		require.Len(t, presets, 1)
 
 		// Given: Reconciliation loop runs and starts prebuilt workspaces
-		runReconciliationLoop(t, ctx, db, reconciler, presets)
+		runReconciliationLoop(t, ctx, db, pb, reconciler, presets)
 		runningPrebuilds := getRunningPrebuilds(t, ctx, db, int(prebuildInstances))
 		require.Len(t, runningPrebuilds, int(prebuildInstances))
 		require.Equal(t, presets[0].ID, runningPrebuilds[0].CurrentPresetID.UUID)

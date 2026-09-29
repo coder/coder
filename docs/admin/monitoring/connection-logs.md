@@ -23,8 +23,8 @@ performed via the dashboard.
 ## SSH and IDE Sessions
 
 The connection log aims to capture a record of all workspace SSH and IDE sessions.
-These events are reported by workspace agents, and their receipt by the server
-is not guaranteed.
+These events are reported by workspace agents, and their receipt by the control
+plane is not guaranteed.
 
 Agent-reported events do not identify the Coder user who connected. To
 attribute SSH and IDE activity to a user, correlate them with tunnel
@@ -72,7 +72,9 @@ You can filter connection logs by the following parameters:
      Some events are neither ongoing nor completed, such as the opening of a
      workspace app.
 
-## Capturing/Exporting Connection Logs
+<a id="capturingexporting-connection-logs"></a>
+
+## Capture and export connection logs
 
 In addition to the Coder dashboard, there are multiple ways to consume or query
 connection events.
@@ -89,7 +91,7 @@ for details.
 Connection events are also dispatched as service logs and can be captured and
 categorized using any log management tool such as [Splunk](https://splunk.com).
 
-Example of a [JSON formatted](../../reference/cli/server.md#--log-json)
+Example of a [JSON formatted](../../reference/cli/server/index.md#--log-json)
 connection log entry, when an SSH connection is made:
 
 ```json
@@ -122,7 +124,7 @@ connection log entry, when an SSH connection is made:
 }
 ```
 
-Example of a [human readable](../../reference/cli/server.md#--log-human)
+Example of a [human readable](../../reference/cli/server/index.md#--log-human)
 connection log entry, when `code-server` is opened:
 
 ```console
@@ -139,4 +141,4 @@ environment variable. For comprehensive configuration options, see
 
 ## How to Enable Connection Logs
 
-This feature is only available with a [Premium license](../licensing/index.md).
+This feature is only available with a [Premium license](../../install/prepare/licensing.md).

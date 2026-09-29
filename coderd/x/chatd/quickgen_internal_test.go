@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
@@ -27,6 +30,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -360,7 +364,7 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 
 			require.Contains(t, prompt, "Primary user objective:")
 			require.Contains(t, prompt, "Requirements:")
-			require.Contains(t, prompt, "- Return only the title text in 2-8 words.")
+			require.Contains(t, prompt, "- Keep the title to 2-8 words.")
 			require.Contains(t, prompt, "Do not answer the user or describe the title-writing task")
 			require.Contains(t, prompt, "stay close to the user's wording")
 			require.Contains(t, prompt, "same language as the user's messages")
@@ -581,7 +585,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	generated := &generatedChatTitle{}
-	server := &Server{db: db, pubsub: dbpubsub.NewInMemory()}
+	server := &Server{db: db, pubsub: dbpubsub.NewInMemory(), chatLimits: Limits{}.withDefaults()}
 	server.maybeGenerateChatTitle(
 		ctx,
 		chat,
@@ -591,7 +595,6 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 			model:    chatprovider.NewModel(model, nil),
 			dbConfig: database.ChatModelConfig{Model: "test-model"},
 		},
-		modelBuildOptions{},
 		generated,
 		logger,
 		nil,
@@ -609,6 +612,128 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	gotTitle, ok := generated.Load()
 	require.True(t, ok)
 	require.Equal(t, wantTitle, gotTitle)
+}
+
+// TestQuickgenFollowsConfiguredRetries verifies that title and summary
+// generation stop retrying at the server's configured retry limit. The
+// unconfigured default is not exercised because 25 real backoffs take minutes.
+func TestQuickgenFollowsConfiguredRetries(t *testing.T) {
+	t.Parallel()
+
+	limits := Limits{MaxGenerationRetries: 1}
+	rateLimited := &fantasy.ProviderError{StatusCode: http.StatusTooManyRequests, Message: "rate limited"}
+
+	t.Run("Title", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "test-model"})
+		userPrompt := "summarize failed workspace build logs"
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             chatprompt.FallbackTitle(userPrompt),
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+		})
+		message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+			codersdk.ChatMessageText(userPrompt))
+		message.ID = 1
+
+		var calls atomic.Int32
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				calls.Add(1)
+				return nil, rateLimited
+			},
+		}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerLimits(limits))
+		generated := &generatedChatTitle{}
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		server.maybeGenerateChatTitle(
+			ctx,
+			chat,
+			[]database.ChatMessage{message},
+			nil,
+			resolvedModelCall{
+				model:    chatprovider.NewModel(model, nil),
+				dbConfig: database.ChatModelConfig{Model: "test-model"},
+			},
+			generated,
+			logger,
+			nil,
+		)
+
+		require.EqualValues(t, 2, calls.Load(), "one configured retry allows exactly two model calls")
+		_, ok := generated.Load()
+		require.False(t, ok)
+	})
+
+	t.Run("Summary", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+		provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+			Type: database.AIProviderTypeOpenai,
+		}, "test-key")
+		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "gpt-4o-mini",
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: org.ID,
+		}, func(p *database.InsertChatModelConfigParams) {
+			p.Enabled = true
+		})
+
+		var requests atomic.Int32
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			requests.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited","type":"rate_limit_error"}}`)),
+			}, nil
+		})}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+			withInternalTestServerTransportFactory(factory),
+			withInternalTestServerLimits(limits),
+		)
+
+		ctx := chatdTestContext(t)
+		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "summary retries",
+			ClientType:        database.ChatClientTypeApi,
+			InitialMessages: []chatstate.Message{{
+				Role:           database.ChatMessageRoleUser,
+				Content:        mustMarshalText(t, strings.Repeat("Investigate the failing workspace build. ", 10)),
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ContentVersion: chatprompt.CurrentContentVersion,
+			}},
+		})
+		require.NoError(t, err)
+
+		server.generateAndStoreChatSummary(ctx, logger, created.Chat)
+
+		require.EqualValues(t, 2, requests.Load(), "one configured retry allows exactly two provider requests")
+		fetched, err := db.GetChatByID(ctx, created.Chat.ID)
+		require.NoError(t, err)
+		require.False(t, fetched.Summary.Valid)
+	})
 }
 
 func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
@@ -631,7 +756,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 		ModelName:    "gpt-4o-mini",
 		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.NotNil(t, call.MaxOutputTokens)
-			require.Equal(t, int64(256), *call.MaxOutputTokens)
+			require.Equal(t, titleMaxOutputTokens, *call.MaxOutputTokens)
 			providerOptions, ok := call.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
 			require.True(t, ok, "%T", call.ProviderOptions[fantasyopenai.Name])
 			require.NotNil(t, providerOptions.ReasoningEffort)
@@ -643,7 +768,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 	}
 
 	db := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: "Reasoning title",
@@ -665,7 +789,6 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 			dbConfig:        fallbackConfig,
 			providerOptions: chatprovider.ProviderOptionsForCall(fallbackModel, callConfig, nil),
 		},
-		modelBuildOptions{},
 		&generatedChatTitle{},
 		logger,
 		nil,
@@ -675,7 +798,7 @@ func TestMaybeGenerateChatTitleAppliesModelConfigReasoningEffort(t *testing.T) {
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
-	require.Contains(t, titleGenerationPrompt, "Return only the title text in 2-8 words")
+	require.Contains(t, titleGenerationPrompt, "Keep the title to 2-8 words")
 	require.Contains(t, titleGenerationPrompt, "Do not answer the user or describe the title-writing task")
 	require.Contains(t, titleGenerationPrompt, "stay close to the user's wording")
 	require.Contains(t, titleGenerationPrompt, "same language as the user's message")
@@ -717,6 +840,7 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.NoError(t, err)
 	require.Equal(t, "Refresh title", title)
@@ -755,6 +879,7 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.NoError(t, err)
 }
@@ -790,6 +915,7 @@ func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 		nil,
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 	)
 	require.ErrorContains(t, err, "generated title was empty")
 }
@@ -809,6 +935,19 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
 		require.True(t, ok)
 		require.Equal(t, preferredTitleModels[1].model, got.Model)
+	})
+
+	t.Run("matches dated snapshots of a preferred model", func(t *testing.T) {
+		t.Parallel()
+
+		for _, model := range []string{"claude-haiku-4-5-20251001", "Claude-Haiku-4-5-2025-10-01"} {
+			got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsByOrganizationRow{
+				{ChatModelConfig: database.ChatModelConfig{Model: "claude-haiku-4-5-preview"}, Provider: "anthropic"},
+				{ChatModelConfig: database.ChatModelConfig{Model: model}, Provider: "anthropic"},
+			})
+			require.True(t, ok, model)
+			require.Equal(t, model, got.Model)
+		}
 	})
 
 	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
@@ -918,6 +1057,7 @@ func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *
 		t.Context(),
 		model.LanguageModel(),
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -963,6 +1103,7 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 		t.Context(),
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"summarize failed workspace build logs",
 	)
@@ -970,6 +1111,102 @@ func TestGenerateStructuredTitleWithUsage_DropsRejectedTemperature(t *testing.T)
 	require.Equal(t, "Failed workspace logs", title)
 	require.Equal(t, []bool{true, false}, sawTemperature,
 		"generation should retry without temperature after the model rejects it")
+}
+
+// Mirrors Claude Opus 5.5, which rejects both the forced tool_choice of
+// tool-mode object generation and the temperature parameter.
+func TestGenerateStructuredTitleWithUsage_FallsBackToTextWhenToolChoiceRejected(t *testing.T) {
+	t.Parallel()
+
+	var textCallTemperatures []bool
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, &fantasy.ProviderError{
+				Title:      "bad request",
+				Message:    `tool_choice: type "tool" and "any" are not supported for this model.`,
+				StatusCode: http.StatusBadRequest,
+			}
+		},
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			textCallTemperatures = append(textCallTemperatures, call.Temperature != nil)
+			if call.Temperature != nil {
+				return nil, newTemperatureRejectedError()
+			}
+			return &fantasy.Response{
+				Content: fantasy.ResponseContent{fantasy.TextContent{Text: `{"title":"Failed workspace logs"}`}},
+			}, nil
+		},
+	}
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+	require.Equal(t, []bool{true, false}, textCallTemperatures,
+		"text-mode generation should also retry without a rejected temperature")
+}
+
+// Budget thinking would reject the forced tool_choice of tool-mode generation,
+// so no configured effort may turn it on for older Claude quickgen models.
+func TestQuickgenCallsKeepBudgetThinkingOff(t *testing.T) {
+	t.Parallel()
+
+	calls := map[string]func(resolvedModelCall) fantasy.ObjectCall{
+		"title":   titleObjectCall,
+		"summary": summaryObjectCall,
+		"label":   turnStatusLabelObjectCall,
+	}
+	efforts := []fantasyanthropic.Effort{
+		fantasyanthropic.EffortMinimal,
+		fantasyanthropic.EffortLow,
+		fantasyanthropic.EffortMedium,
+		fantasyanthropic.EffortHigh,
+		fantasyanthropic.EffortXHigh,
+		fantasyanthropic.EffortMax,
+	}
+	for name, newCall := range calls {
+		for _, effort := range efforts {
+			t.Run(name+"/"+string(effort), func(t *testing.T) {
+				t.Parallel()
+
+				requests := make(chan *chattest.AnthropicRequest, 1)
+				serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+					select {
+					case requests <- req:
+					default:
+					}
+					return chattest.AnthropicResponse{Error: &chattest.ErrorResponse{
+						StatusCode: http.StatusBadRequest,
+						Type:       "invalid_request_error",
+						Message:    "request captured",
+					}}
+				})
+				client, err := fantasyanthropic.New(
+					fantasyanthropic.WithAPIKey("test-key"),
+					fantasyanthropic.WithBaseURL(serverURL),
+				)
+				require.NoError(t, err)
+				model, err := client.LanguageModel(t.Context(), "claude-haiku-4-5")
+				require.NoError(t, err)
+
+				call := newCall(resolvedModelCall{providerOptions: fantasy.ProviderOptions{
+					fantasyanthropic.Name: &fantasyanthropic.ProviderOptions{Effort: &effort},
+				}})
+				call.Prompt = fantasy.Prompt{fantasy.NewUserMessage("fix the login bug")}
+				_, err = generateObject[generatedTitle](t.Context(), model, call)
+				require.Error(t, err)
+
+				req := testutil.RequireReceive(t.Context(), t, requests)
+				require.Empty(t, req.Thinking, "max_tokens %d enabled budget thinking", req.MaxTokens)
+			})
+		}
+	}
 }
 
 func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
@@ -989,6 +1226,7 @@ func TestGenerateStructuredTitleWithUsage_TruncatesOverlongTitle(t *testing.T) {
 		t.Context(),
 		model,
 		titleObjectCall(resolvedModelCall{}),
+		codersdk.DefaultChatMaxGenerationRetries,
 		titleGenerationPrompt,
 		"re-capture UI evidence for a Coder pull request",
 	)
@@ -1092,7 +1330,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 	})
@@ -1103,7 +1341,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
 		model := openAICompatTestModel(t, server.URL)
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model.LanguageModel(), turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Len(t, requests, 1)
@@ -1130,7 +1368,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
 		require.Equal(t, []bool{true, false}, sawTemperature,
@@ -1152,7 +1390,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "JSON schema is invalid")
 		require.Equal(t, 1, calls,
 			"bad requests unrelated to temperature should not trigger a second attempt")
@@ -1169,7 +1407,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "generated turn status label was invalid")
 	})
 
@@ -1177,7 +1415,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{}
-		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), turnStatusLabelPrompt, "  ")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelObjectCall(resolvedModelCall{}), codersdk.DefaultChatMaxGenerationRetries, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
 }
@@ -1246,6 +1484,31 @@ func TestIsTemperatureRejectedError(t *testing.T) {
 			require.Equal(t, tt.want, isTemperatureRejectedError(tt.err))
 		})
 	}
+}
+
+// Test_titleInput_DefaultTitleReplaceable verifies that the
+// DefaultChatTitle placeholder is always replaceable. Chats created
+// without an initial message keep the placeholder until their first
+// message, whose text does not match the placeholder's fallback
+// truncation.
+func Test_titleInput_DefaultTitleReplaceable(t *testing.T) {
+	t.Parallel()
+
+	message := mustChatMessage(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText("investigate flaky tests"),
+	)
+	messages := []database.ChatMessage{message}
+
+	text, ok := titleInput(database.Chat{Title: chatprompt.DefaultChatTitle}, messages, nil)
+	require.True(t, ok, "default placeholder title must be replaceable")
+	require.Equal(t, "investigate flaky tests", text)
+
+	_, ok = titleInput(database.Chat{Title: "custom title"}, messages, nil)
+	require.False(t, ok, "user-set titles must not be replaced")
+
+	text, ok = titleInput(database.Chat{Title: chatprompt.FallbackTitle("investigate flaky tests")}, messages, nil)
+	require.True(t, ok, "fallback truncation title remains replaceable")
+	require.Equal(t, "investigate flaky tests", text)
 }
 
 func mustChatMessage(

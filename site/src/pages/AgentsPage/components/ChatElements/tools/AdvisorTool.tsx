@@ -13,6 +13,8 @@ type AdvisorToolProps = {
 	isError: boolean;
 	resultType?: AdvisorToolResultType;
 	advice?: string;
+	/** Streamed advisor reasoning, present only while the advisor runs. */
+	reasoning?: string;
 	errorMessage?: string;
 	modelIntent?: string;
 };
@@ -23,16 +25,20 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 	isError,
 	resultType,
 	advice,
+	reasoning,
 	errorMessage,
 	modelIntent,
 }) => {
 	const questionText = question.trim() || "No question provided.";
 	const adviceText = advice?.trim() ?? "";
+	const reasoningText = reasoning?.trim() ?? "";
 	const effectiveErrorMessage =
 		errorMessage?.trim() || "Advisor could not return guidance.";
 	const isRunning = status === "running";
 	const showLimitReached = resultType === "limit_reached";
 	const showError = isError || resultType === "error";
+	const showThinking = isRunning && reasoningText.length > 0;
+	const showAdvice = adviceText.length > 0 || !isRunning;
 
 	const intent = formatModelIntentLabel(modelIntent);
 	const label = showLimitReached
@@ -94,7 +100,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 										You have reached the advisor limit for this conversation.
 									</p>
 								</div>
-							) : isRunning && adviceText.length === 0 ? (
+							) : !showThinking && !showAdvice ? (
 								<div
 									role="status"
 									className="text-[13px] text-content-secondary"
@@ -102,12 +108,39 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									Reviewing context and preparing guidance.
 								</div>
 							) : (
-								<Response
-									streaming={isRunning}
-									className="text-[13px] leading-5"
-								>
-									{adviceText || "Advisor returned no guidance."}
-								</Response>
+								<div className="space-y-3">
+									{showThinking && (
+										<section
+											aria-label="Advisor thinking"
+											className="space-y-1"
+										>
+											<p className="m-0 text-[13px] font-medium text-content-secondary">
+												Thinking
+											</p>
+											<Response
+												streaming
+												className="text-[13px] leading-5 text-content-secondary"
+											>
+												{reasoningText}
+											</Response>
+										</section>
+									)}
+									{showAdvice && (
+										<section aria-label="Advisor advice" className="space-y-1">
+											{showThinking && (
+												<p className="m-0 text-[13px] font-medium text-content-secondary">
+													Advice
+												</p>
+											)}
+											<Response
+												streaming={isRunning}
+												className="text-[13px] leading-5"
+											>
+												{adviceText || "Advisor returned no guidance."}
+											</Response>
+										</section>
+									)}
+								</div>
 							)}
 						</div>
 					</div>

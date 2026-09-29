@@ -25,10 +25,8 @@ import (
 
 const (
 	postCommitWatchPublishTimeout = 10 * time.Second
-	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
-	// silent provider streams fail through chat-specific retry handling
-	// before the runner retries the whole task.
-	defaultTaskTimeout = 15 * time.Minute
+	defaultTaskTimeout            = 15 * time.Minute
+	taskTimeoutMargin             = 5 * time.Minute
 )
 
 var (
@@ -156,9 +154,19 @@ func runTaskWithRetry(
 
 func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
 	attemptCtx, cancelCause := context.WithCancelCause(ctx)
+	tag := "task-timeout-" + string(kind)
 	timer := clock.AfterFunc(defaultTaskTimeout, func() {
 		cancelCause(errTaskTimeout)
-	}, "chatworker", "task-timeout-"+string(kind))
+	}, "chatworker", tag)
+	// A silent stream must fail through the silence guard rather than the
+	// watchdog, and a healthy long stream must not be cut off.
+	attemptCtx = chatloop.WithStreamWatchdog(attemptCtx, func(silence time.Duration) {
+		if silence < 0 {
+			timer.Stop()
+			return
+		}
+		timer.Reset(max(defaultTaskTimeout, silence+taskTimeoutMargin), "chatworker", tag)
+	})
 	return attemptCtx, func() {
 		timer.Stop()
 		cancelCause(nil)
@@ -355,6 +363,9 @@ func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome i
 
 func (s *taskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	if s.server.disableCallerSuppliedTools {
+		return s.cancelRequiresAction(ctx, machine, input, "Tool execution canceled because caller-supplied tools are disabled")
+	}
 	for {
 		decision, err := decideRequiresActionTimeout(ctx, machine, input)
 		if err != nil {
@@ -439,7 +450,7 @@ func (s *taskStarter) cancelRequiresAction(
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		if chat.RequiresActionDeadlineAt.Valid {
+		if !s.server.disableCallerSuppliedTools && chat.RequiresActionDeadlineAt.Valid {
 			now, err := store.GetDatabaseNow(ctx)
 			if err != nil {
 				return xerrors.Errorf("get database time: %w", err)

@@ -1,12 +1,5 @@
 import { cn } from "cn";
-import {
-	type FC,
-	type ReactNode,
-	type SyntheticEvent,
-	useId,
-	useMemo,
-	useState,
-} from "react";
+import { useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -60,7 +53,7 @@ import {
 	microsToDollars,
 } from "#/utils/currency";
 
-interface UserAIBudgetOverrideDialogProps {
+type UserAIBudgetOverrideDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	user: ReducedUser;
@@ -68,9 +61,9 @@ interface UserAIBudgetOverrideDialogProps {
 	effectiveGroupId?: string | null;
 	// When false, the budget is shown without the controls to change it.
 	canUpdate: boolean;
-}
+};
 
-export const UserAIBudgetOverrideDialog: FC<
+export const UserAIBudgetOverrideDialog: React.FC<
 	UserAIBudgetOverrideDialogProps
 > = ({
 	open,
@@ -117,7 +110,7 @@ export const UserAIBudgetOverrideDialog: FC<
 		userGroups: userGroupsQuery.data ?? [],
 	};
 
-	let body: ReactNode;
+	let body: React.ReactNode;
 	if (loadError) {
 		body = <ErrorAlert error={loadError} />;
 	} else if (isLoading) {
@@ -177,16 +170,16 @@ export const UserAIBudgetOverrideDialog: FC<
 	);
 };
 
-interface BudgetProps {
+type BudgetProps = {
 	user: ReducedUser;
 	currentGroup: Group;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
-}
+};
 
 /** The member's effective limit as a sentence, to place inside a paragraph. */
-const BudgetSummary: FC<BudgetProps> = ({
+const BudgetSummary: React.FC<BudgetProps> = ({
 	user,
 	currentGroup,
 	override,
@@ -227,24 +220,24 @@ const BudgetSummary: FC<BudgetProps> = ({
  * updating both the user and the group it charges, so group admins can read a
  * member's budget without being able to change it.
  */
-const ReadOnlyBudget: FC<BudgetProps> = (props) => (
+const ReadOnlyBudget: React.FC<BudgetProps> = (props) => (
 	<p className="m-0 text-sm text-content-secondary">
 		<BudgetSummary {...props} /> To update this limit, contact a Coder
 		administrator.
 	</p>
 );
 
-interface OverrideFormProps extends BudgetProps {
+type OverrideFormProps = BudgetProps & {
 	// Group marked "(default)" in the picker; null marks none.
 	defaultGroupId: string | null;
 	isSubmitting: boolean;
 	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
 	onRemove: () => Promise<unknown>;
 	onClose: () => void;
-}
+};
 
 /** Mounted only after budget data loads, so state seeds from it without a sync effect. */
-const OverrideForm: FC<OverrideFormProps> = ({
+const OverrideForm: React.FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
 	defaultGroupId,
@@ -303,7 +296,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 			? `${groupDisplayName(group)} (default)`
 			: groupDisplayName(group);
 
-	const handleSubmit = async (event: SyntheticEvent) => {
+	const handleSubmit = async (event: React.SyntheticEvent) => {
 		event.preventDefault();
 		if (!canSubmit) {
 			return;
@@ -481,7 +474,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	);
 };
 
-const Bold: FC<{ children: ReactNode }> = ({ children }) => (
+const Bold: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 	<span className="font-medium text-content-primary">{children}</span>
 );
 

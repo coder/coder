@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { type FormikTouched, useFormik } from "formik";
 import { LockIcon, TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import * as Yup from "yup";
 import {
 	CORSBehaviors,
@@ -66,7 +65,7 @@ export const validationSchema = Yup.object({
 	cors_behavior: Yup.string().oneOf(Object.values(CORSBehaviors)),
 });
 
-interface TemplateSettingsFormProps {
+type TemplateSettingsFormProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
 	onCancel: () => void;
@@ -77,9 +76,9 @@ interface TemplateSettingsFormProps {
 	accessControlEnabled: boolean;
 	advancedSchedulingEnabled: boolean;
 	portSharingControlsEnabled: boolean;
-}
+};
 
-export const TemplateSettingsForm: FC<TemplateSettingsFormProps> = ({
+export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 	template,
 	onSubmit,
 	onCancel,

@@ -23,6 +23,8 @@ As a rule, we **do not collect** the following types of information:
 For example, we do not collect parameters, environment variables, or user email
 addresses. We do collect the administrator email.
 
+Workspace agent statistics include session counts keyed by normalized application names, which can include custom IDE names that workspace agents report.
+
 ## Why we collect
 
 Telemetry helps us understand which features are most valuable, what use cases
@@ -39,7 +41,9 @@ build self-hosted, open-source software.
 In the event we discover a critical security issue with Coder, we will use
 telemetry to identify affected installations and notify their administrators.
 
-## Toggling
+<a id="toggling"></a>
+
+## Turn telemetry on or off
 
 You can turn telemetry on or off using either the
 `CODER_TELEMETRY_ENABLE=[true|false]` environment variable or the
