@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ComponentProps, useState } from "react";
+import { useState } from "react";
 import { FIXTURE_NOW, MockWorkingBlock } from "./storyFixtures";
 import {
 	didPrependIntoBlock,
@@ -9,7 +9,7 @@ import {
 } from "./WorkingBlockDisclosure";
 
 const ControlledDisclosure = (
-	props: Partial<ComponentProps<typeof WorkingBlockDisclosure>>,
+	props: Partial<React.ComponentProps<typeof WorkingBlockDisclosure>>,
 ) => {
 	const [expanded, setExpanded] = useState(props.expanded ?? false);
 	return (
