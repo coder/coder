@@ -69,14 +69,14 @@ type ProvisionerDaemon struct {
 
 	// Optional fields.
 	KeyName     *string                  `json:"key_name" table:"key name"`
-	Status      *ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
+	Status      *ProvisionerDaemonStatus `json:"status" table:"status"`
 	CurrentJob  *ProvisionerDaemonJob    `json:"current_job" table:"current job,recursive"`
 	PreviousJob *ProvisionerDaemonJob    `json:"previous_job" table:"previous job,recursive"`
 }
 
 type ProvisionerDaemonJob struct {
 	ID                  uuid.UUID            `json:"id" format:"uuid" table:"id"`
-	Status              ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
+	Status              ProvisionerJobStatus `json:"status" table:"status"`
 	TemplateName        string               `json:"template_name" table:"template name"`
 	TemplateIcon        string               `json:"template_icon" table:"template icon"`
 	TemplateDisplayName string               `json:"template_display_name" table:"template display name"`
@@ -196,8 +196,8 @@ type ProvisionerJob struct {
 	CompletedAt      *time.Time             `json:"completed_at,omitempty" format:"date-time" table:"completed at"`
 	CanceledAt       *time.Time             `json:"canceled_at,omitempty" format:"date-time" table:"canceled at"`
 	Error            string                 `json:"error,omitempty" table:"error"`
-	ErrorCode        JobErrorCode           `json:"error_code,omitempty" enums:"REQUIRED_TEMPLATE_VARIABLES,INSUFFICIENT_QUOTA" table:"error code"`
-	Status           ProvisionerJobStatus   `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
+	ErrorCode        JobErrorCode           `json:"error_code,omitempty" table:"error code"`
+	Status           ProvisionerJobStatus   `json:"status" table:"status"`
 	WorkerID         *uuid.UUID             `json:"worker_id,omitempty" format:"uuid" table:"worker id"`
 	WorkerName       string                 `json:"worker_name,omitempty" table:"worker name"`
 	FileID           uuid.UUID              `json:"file_id" format:"uuid" table:"file id"`
@@ -218,7 +218,7 @@ type ProvisionerJobLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	Source    LogSource `json:"log_source"`
-	Level     LogLevel  `json:"log_level" enums:"trace,debug,info,warn,error"`
+	Level     LogLevel  `json:"log_level"`
 	Stage     string    `json:"stage"`
 	Output    string    `json:"output"`
 }
