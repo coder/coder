@@ -120,7 +120,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
-- `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
+- `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state. If `qid` fails the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), it deletes `qid` instead and changes nothing else.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
@@ -132,18 +132,34 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
-- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
+- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`. The head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard); if the guard deletes every queued message, the transition lands in `waiting` as it does from `I0`.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
-- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
-- TODO (CODAGT-1208): `FinishTurn` (from `R1`), `FinishInterruption` (from `I1`), and `SendMessage` (from `E1`) now run the queue promotion guard on the head: a head whose automation is missing, disabled, or on another `queue_generation` is deleted and the next head is examined. If the guard empties the queue, `FinishTurn` and `FinishInterruption` land in `waiting` exactly as from `R0` and `I0`. The matrix gains `R1 -> FinishTurn -> W`, `I1 -> FinishInterruption -> W`, and `E1 -> SendMessage -> R0`. Describe this here and in the diagram.
+- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), inserts it into history as a user turn, and lands in `running`. If the guard deletes every queued message, it lands in `waiting` as it does from `R0`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
 
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
-TODO (CODAGT-1208): promotions also copy `automation_id` and `input_id` from the queued row to the history row. Lock order is the chat row first, then automations in ascending id order through `chatstate.LockAutomations` (the promotion guard and `AdmitInTx` callbacks both use it). `ChatMachine.Update` reruns the whole transaction, at most three attempts, when an attempt that took automation locks hits a PostgreSQL deadlock abort; attempts without automation locks are never retried. Describe this here.
+### Automation admission and the queue promotion guard
+
+Automations (rows in `chat_automations`) deliver messages to chats through the same `Create` and `SendMessage` transitions that users go through. Two mechanisms make that safe: an admission callback that runs inside the transition's transaction, and a guard that drops stale automation messages instead of promoting them.
+
+**Admission.** `Create` and `SendMessage` accept an optional `AdmitInTx` callback. The HTTP endpoints never set it, so ordinary requests behave as described elsewhere in this document. `Create` runs the callback after inserting the chat row and before writing the initial history. `SendMessage` runs it after validating the transition against the locked chat row and before writing anything. The callback receives the transaction's store and the chat ID. It may only do database work through that store and must not make network calls. It returns the message's automation provenance: the automation ID, the input ID (one webhook delivery or schedule occurrence), and the automation's current `queue_generation`. The transition requires both IDs to be set and the generation to be at least 1, then stamps the provenance on the admitted message. With a callback, `Create` requires the initial history to contain exactly one user message, and that message receives the provenance. If the callback returns an error, the whole transaction rolls back: no chat, history row, or queued row is written, and the status doesn't change.
+
+**Provenance.** Provenance is stored on the row that carries the message. A queued message stores `automation_id`, `input_id`, and `queue_generation`; an ordinary queued message leaves all three NULL. A history message stores `automation_id` and `input_id`. Every transition that promotes a queued message into history copies `automation_id` and `input_id` from the queue row to the history row, next to `queued_message_id`.
+
+**Guard.** Before a queued message with an `automation_id` is promoted into history, the queue promotion guard locks its automation and checks that the automation exists, is enabled, and has the same `queue_generation` as the queued message. A queued message that fails the check is stale and is deleted instead of promoted. Queued messages without an `automation_id` always pass, without extra queries. Transitions apply the guard in one of two ways:
+
+- Head promotion. `FinishTurn` from `R1`, `FinishInterruption` from `I1`, and `SendMessage` from `E1` promote the queue head. They delete stale heads one at a time until a head passes, then promote that head. Queued messages behind it are left in place even if they are stale; a later promotion checks them. If every queued message is stale, `FinishTurn` and `FinishInterruption` land in `waiting`, as they do from `R0` and `I0`. `SendMessage` from `E1` appends the new message before it picks the head, so it always has a message to promote. If the guard deletes every older queued message, the new message itself goes into history and the chat lands in `R0`.
+- Explicit promotion. `PromoteQueuedMessage(qid)` checks only `qid`. If `qid` is stale, the transition deletes it and changes nothing else: it doesn't reorder the queue, promote another message, interrupt active work, or change the status. It reports the rejection without an error so that the delete commits, and the endpoint then answers as if `qid` didn't exist.
+
+Deleting a stale queued message is an ordinary queue change: it advances `queue_version`, and the queue sub-state (`0` or `1`) follows the messages that remain. Any transition that promotes queued messages must run the guard on every message it promotes, including a transition that promotes several queued messages at once.
+
+**Lock order.** Every transition locks the chat row first. A transaction that also locks automations takes those locks after the chat row, in ascending automation ID order. All automation locks go through `chatstate.LockAutomations`, which sorts and deduplicates the IDs and locks the rows in one query. Admission callbacks must use it too. When head promotion finds a head with an `automation_id`, it locks the automations of every queued message up front, so deleting several stale heads never takes automation locks out of order. `LockAutomations` runs with chatd's own authorization, so the guard sees every automation no matter who triggered the transition.
+
+Transactions that lock automations can still deadlock, for example when an admission callback has locked its automation and the guard then needs an automation with a lower ID. PostgreSQL aborts one of the transactions. `ChatMachine.Update` treats that abort as retryable: if the aborted attempt locked automations, it reruns the whole transaction, including the callback, for at most three attempts in total. Each attempt has its own publish buffer, so an aborted attempt publishes nothing. An attempt that locked no automations is never retried, and neither is an `Update` nested inside another `Update`, because the outer transaction owns the retry. Callbacks passed to `Update` must therefore be safe to rerun.
 
 ### Execution state transition diagram
 
@@ -173,12 +189,15 @@ stateDiagram-v2
     E0 --> XE0: SetArchived(true)
 
     E1 --> R1: SendMessage
+    E1 --> R0: SendMessage / guard deleted every older queued
     E1 --> R0: EditMessage
     E1 --> R1: RequestCompaction
     E1 --> E0: DeleteQueuedMessage / removed last queued
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
     E1 --> R0: PromoteQueuedMessage / promoted last queued
     E1 --> R1: PromoteQueuedMessage / queue still non-empty
+    E1 --> E0: PromoteQueuedMessage / stale target was last queued
+    E1 --> E1: PromoteQueuedMessage / stale target, queue still non-empty
     E1 --> XE1: SetArchived(true)
 
     R0 --> R0: RecordGenerationAttempt
@@ -204,8 +223,11 @@ stateDiagram-v2
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
     R1 --> I1: PromoteQueuedMessage
+    R1 --> R0: PromoteQueuedMessage / stale target was last queued
+    R1 --> R1: PromoteQueuedMessage / stale target, queue still non-empty
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting head
+    R1 --> W: FinishTurn / guard deleted every queued
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
@@ -216,8 +238,10 @@ stateDiagram-v2
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
     I1 --> I1: PromoteQueuedMessage
+    I1 --> I0: PromoteQueuedMessage / stale target was last queued
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting head
+    I1 --> W: FinishInterruption / guard deleted every queued
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
@@ -236,6 +260,8 @@ stateDiagram-v2
     A1 --> A1: DeleteQueuedMessage / queue still non-empty
     A1 --> R0: PromoteQueuedMessage / promoted last queued
     A1 --> R1: PromoteQueuedMessage / queue still non-empty
+    A1 --> A0: PromoteQueuedMessage / stale target was last queued
+    A1 --> A1: PromoteQueuedMessage / stale target, queue still non-empty
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
@@ -455,7 +481,7 @@ This endpoint uses `Create(initialMessages)`:
 
 TODO (#27111): a request with an empty `content` array now takes `N -> Create(initialMessages) -> W`: the chat is created idle with system messages only and no worker picks it up, so clients can use the chat ID (for example for workspace file uploads) before the first `POST /api/v2/chats/{chat}/messages` starts generation. Describe this here.
 
-TODO (CODAGT-1208): `Create` accepts an optional `AdmitInTx` callback (no HTTP caller yet). It runs after the chat row is inserted and before the initial history is written, and stamps its automation provenance on the single initial user message. A callback error rolls back the whole creation. Describe this here.
+This endpoint never sets an admission callback. Automations create chats with the same `Create` transition and a callback, as described in [Automation admission and the queue promotion guard](#automation-admission-and-the-queue-promotion-guard).
 
 No other input states are supported.
 
@@ -509,7 +535,9 @@ When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted l
 
 The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
-TODO (CODAGT-1208): `SendMessage` accepts an optional `AdmitInTx` callback (no HTTP caller yet). It runs after the transition is validated against the locked chat and before the message is written, and its automation provenance lands on the history row (`automation_id`, `input_id`) or the queued row (`automation_id`, `input_id`, `queue_generation`). A callback error rolls back the send: no history row, no queue row, no status change. From `E1`, the promotion guard can drop every older row, in which case the new message goes straight into history (`E1 -> SendMessage -> R0`) and is not reported as queued. Describe this here.
+From `E1`, the promoted head is the first queued message that passes the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard), with either busy behavior. If the guard deletes every older queued message, the new message is promoted itself and the chat lands in `R0` instead of `R1`. The new message then goes straight into history, and the result reports no queued message.
+
+This endpoint never sets an admission callback. Automations send messages with the same `SendMessage` transition and a callback.
 
 Other input states are not supported.
 
@@ -563,7 +591,12 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 
 Either way, the resulting history message has `queued_message_id = qid`.
 
-TODO (CODAGT-1208): before reordering, `PromoteQueuedMessage` runs the queue promotion guard on `qid` only. If `qid` came from an automation that is missing, disabled, or on another `queue_generation`, the row is deleted and the endpoint answers 404. Nothing else changes: no reorder, no substitute message, no status change, and a running turn is not interrupted. The queue sub-state still follows the queue count, which adds `E1 -> E0/E1`, `R1 -> R0/R1`, `I1 -> I0/I1`, and `A1 -> A0/A1`. Describe this here.
+Before reordering, `PromoteQueuedMessage` runs the [queue promotion guard](#automation-admission-and-the-queue-promotion-guard) on `qid` only. If `qid` is stale, the transition deletes it, the transaction commits, and the endpoint answers `404 Not Found`, as it does for a queued message that doesn't exist. Nothing else changes: the queue isn't reordered, no other message is promoted, the status stays the same, and a running turn isn't interrupted. The queue sub-state follows the messages that remain:
+
+- `E1 -> PromoteQueuedMessage(qid) -> E0` if the stale `qid` was the last queued message, or `E1` otherwise
+- `R1 -> PromoteQueuedMessage(qid) -> R0` if the stale `qid` was the last queued message, or `R1` otherwise
+- `I1 -> PromoteQueuedMessage(qid) -> I0` if the stale `qid` was the last queued message, or `I1` otherwise
+- `A1 -> PromoteQueuedMessage(qid) -> A0` if the stale `qid` was the last queued message, or `A1` otherwise
 
 No other input states are supported.
 
