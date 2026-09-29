@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -432,6 +433,7 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	}
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		messages:                   messages,
 		compactionEnabled:          true,
 		compactionNeeded:           true,
@@ -440,6 +442,63 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionCompact, decision.kind)
+}
+
+func TestDecideGenerationActionMaxSteps(t *testing.T) {
+	t.Parallel()
+
+	// historyWithSteps returns a prompt followed by steps resolved tool
+	// calls, so the history is incomplete and only the step limit can
+	// finish the turn.
+	historyWithSteps := func(t *testing.T, steps int) []database.ChatMessage {
+		t.Helper()
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
+		}
+		for i := range steps {
+			callID := fmt.Sprintf("call-%d", i)
+			nextID := int64(len(messages) + 1)
+			messages = append(messages,
+				dbMessage(t, nextID, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall(callID, "tool", json.RawMessage(`{}`))),
+				dbMessage(t, nextID+1, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult(callID, "tool", json.RawMessage(`{}`), false, false)),
+			)
+		}
+		return messages
+	}
+
+	for _, maxSteps := range []int{1, 3, codersdk.DefaultChatMaxStepsPerTurn} {
+		t.Run(fmt.Sprintf("MaxSteps%d", maxSteps), func(t *testing.T) {
+			t.Parallel()
+
+			below, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, maxSteps-1),
+				maxSteps: maxSteps,
+			})
+			require.NoError(t, err)
+			require.Equal(t, generationActionGenerateAssistant, below.kind)
+
+			atLimit, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, maxSteps),
+				maxSteps: maxSteps,
+			})
+			require.NoError(t, err)
+			require.Equal(t, generationActionFinishTurn, atLimit.kind)
+			require.Equal(t, generationFinishReasonMaxSteps, atLimit.finishReason)
+		})
+	}
+
+	for name, maxSteps := range map[string]int{"RejectsZero": 0, "RejectsNegative": -1} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := decideGenerationAction(generationDecisionInput{
+				messages: historyWithSteps(t, 1),
+				maxSteps: maxSteps,
+			})
+			require.Error(t, err)
+			require.True(t, isTerminalGeneration(err), "a step limit below 1 cannot succeed on retry")
+		})
+	}
 }
 
 func TestBuildCompactionMessages_ManualSource(t *testing.T) {
@@ -490,6 +549,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -506,6 +566,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -531,11 +592,13 @@ func TestDecisionForcedCompaction(t *testing.T) {
 		}
 		// Only messages up to the boundary: strip the follow-up.
 		requested, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages[:3],
 		})
 		require.NoError(t, err)
 		unrequested, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     database.Chat{},
 			messages: messages[:3],
 		})
@@ -547,6 +610,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 		// With an uncompressed assistant after the boundary the
 		// forced compact fires again.
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     requestedChat,
 			messages: messages,
 		})
@@ -563,6 +627,7 @@ func TestDecisionForcedCompaction(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 		}
 		decision, err := decideGenerationAction(generationDecisionInput{
+			maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 			chat:     database.Chat{},
 			messages: messages,
 		})
@@ -675,6 +740,7 @@ func TestDecisionForcedCompactionRespectsClearBoundary(t *testing.T) {
 	messages = append(messages, clearBoundaryTriplet(t, 3)...)
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps: codersdk.DefaultChatMaxStepsPerTurn,
 		chat:     requestedChat,
 		messages: messages,
 	})
@@ -1400,6 +1466,7 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	}
 
 	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		messages:                   messages,
 		compactionEnabled:          true,
 		compactionNeeded:           false,
@@ -1410,6 +1477,7 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	require.Equal(t, generationActionGenerateAssistant, decision.kind)
 
 	decision, err = decideGenerationAction(generationDecisionInput{
+		maxSteps:                   codersdk.DefaultChatMaxStepsPerTurn,
 		chat:                       database.Chat{CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true}},
 		messages:                   messages,
 		compactionEnabled:          true,

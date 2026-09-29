@@ -1,5 +1,4 @@
 import type React from "react";
-import type { FC } from "react";
 import type { Workspace } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
@@ -33,10 +32,9 @@ type WorkspaceStatusIndicatorProps = {
 	children?: React.ReactNode;
 };
 
-export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
-	workspace,
-	children,
-}) => {
+export const WorkspaceStatusIndicator: React.FC<
+	WorkspaceStatusIndicatorProps
+> = ({ workspace, children }) => {
 	let { text, type } = getDisplayWorkspaceStatus(
 		workspace.latest_build.status,
 		workspace.latest_build.job,

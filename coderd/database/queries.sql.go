@@ -1230,8 +1230,8 @@ WITH per_request AS (
 			c.root_chat_id = $1::uuid
 			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
 		)
-		-- Restrict to aibridge.ClientCoderAgents so another client's session
-		-- reference cannot match a chat ID.
+		-- Restrict to aibridge/client.CoderAgents so another client's
+		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id
@@ -10101,71 +10101,91 @@ WHERE
         ) = $11::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($12::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
+    -- "none" matches chats with no pull request: no diff-status row, or a
+    -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN EXISTS (
-            SELECT 1
-            FROM chat_diff_statuses cds
-            WHERE cds.chat_id = chats_expanded.id
-                AND (
-                    CASE
-                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                        WHEN cds.pull_request_state = 'open' THEN 'open'
-                        ELSE cds.pull_request_state
-                    END
-                ) = ANY($12::text[])
+        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN (
+            (
+                'none' = ANY($13::text[])
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND NULLIF(cds.pull_request_state, '') IS NOT NULL
+                )
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM chat_diff_statuses cds
+                WHERE cds.chat_id = chats_expanded.id
+                    AND (
+                        CASE
+                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                            WHEN cds.pull_request_state = 'open' THEN 'open'
+                            ELSE cds.pull_request_state
+                        END
+                    ) = ANY($13::text[])
+            )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $13::int != 0 THEN EXISTS (
+        WHEN $14::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $13
+                AND cds.pr_number = $14
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $14::text != '' THEN EXISTS (
+        WHEN $15::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $14 || '%'
-                    OR cds.url ILIKE '%' || $14 || '%'
+                    cds.git_remote_origin ILIKE '%' || $15 || '%'
+                    OR cds.url ILIKE '%' || $15 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $15::text != '' THEN EXISTS (
+        WHEN $16::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $15 || '%'
+                AND cds.pull_request_title ILIKE '%' || $16 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $16::text != '' THEN (
+        WHEN $17::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $16)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $17)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $16)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $17)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -10179,18 +10199,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $17))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $17))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $16 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $17 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $16::bigint
+                        AND cds.pr_number = $17::bigint
                 )
                 ELSE false
             END
@@ -10213,11 +10233,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $17
+OFFSET $18
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($18 :: int, 0), 50)
+    COALESCE(NULLIF($19 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -10232,6 +10252,7 @@ type GetChatsParams struct {
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
 	TitleQuery          string                `db:"title_query" json:"title_query"`
 	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	ChatStatuses        []string              `db:"chat_statuses" json:"chat_statuses"`
 	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
 	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
 	RepoQuery           string                `db:"repo_query" json:"repo_query"`
@@ -10259,6 +10280,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.DiffURL,
 		arg.TitleQuery,
 		arg.HasUnread,
+		pq.Array(arg.ChatStatuses),
 		pq.Array(arg.PullRequestStatuses),
 		arg.PrNumber,
 		arg.RepoQuery,
@@ -11634,8 +11656,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files
 `
 
 type LinkChatFilesAfterLockParams struct {
@@ -11651,9 +11673,9 @@ type LinkChatFilesAfterLockParams struct {
 // exceeds the cap.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
 	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, pq.Array(arg.FileIds), arg.MaxFileLinks, arg.ChatID)
-	var rejected_new_files int32
-	err := row.Scan(&rejected_new_files)
-	return rejected_new_files, err
+	var rejected_files int32
+	err := row.Scan(&rejected_files)
+	return rejected_files, err
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
@@ -13180,12 +13202,13 @@ WHERE id = $2::uuid
 `
 
 type UpdateChatLastReadMessageIDParams struct {
-	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
-	ID                uuid.UUID `db:"id" json:"id"`
+	LastReadMessageID sql.NullInt64 `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
 }
 
 // Updates the last read message ID for a chat. This is used to track
-// which messages the owner has seen, enabling unread indicators.
+// which messages the owner has seen, enabling unread indicators. A NULL
+// value clears the cursor, marking every message unread again.
 func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
 	return err
@@ -14379,7 +14402,8 @@ const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+	client_session_id
 )
 SELECT
     u.id,
@@ -14399,7 +14423,8 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.client_session_id, '')
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -14418,7 +14443,8 @@ FROM (
         unnest($14::text[]) AS slug_or_port,
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
-        unnest($17::timestamptz[]) AS disconnect_time
+        unnest($17::timestamptz[]) AS disconnect_time,
+        unnest($18::text[]) AS client_session_id
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -14467,6 +14493,7 @@ type BatchUpsertConnectionLogsParams struct {
 	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	ClientSessionID  []string         `db:"client_session_id" json:"client_session_id"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -14488,6 +14515,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.ConnectionID),
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
+		pq.Array(arg.ClientSessionID),
 	)
 	return err
 }
@@ -14670,7 +14698,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -14884,6 +14912,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.ClientSessionID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -26833,6 +26862,59 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getExperimentRule = `-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || $1::text
+`
+
+func (q *sqlQuerier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExperimentRule, experiment)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getExperimentRules = `-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key
+`
+
+type GetExperimentRulesRow struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+// GetExperimentRules returns every stored runtime experiment rule, keyed by
+// the experiment name. starts_with is used instead of LIKE because '_' is a
+// LIKE wildcard.
+func (q *sqlQuerier) GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExperimentRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExperimentRulesRow
+	for rows.Next() {
+		var i GetExperimentRulesRow
+		if err := rows.Scan(&i.Experiment, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getHealthSettings = `-- name: GetHealthSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
@@ -27215,6 +27297,22 @@ type UpsertDefaultProxyParams struct {
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
+	return err
+}
+
+const upsertExperimentRule = `-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || $1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+`
+
+type UpsertExperimentRuleParams struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error {
+	_, err := q.db.ExecContext(ctx, upsertExperimentRule, arg.Experiment, arg.Value)
 	return err
 }
 
@@ -31515,6 +31613,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -31525,7 +31625,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE
@@ -31785,6 +31889,23 @@ func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const getUserCollapseAssistantSteps = `-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_collapse_assistant_steps'
+`
+
+func (q *sqlQuerier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserCollapseAssistantSteps, userID)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const getUserCount = `-- name: GetUserCount :one
@@ -32419,6 +32540,33 @@ func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg Upda
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const updateUserCollapseAssistantSteps = `-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_collapse_assistant_steps', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps
+`
+
+type UpdateUserCollapseAssistantStepsParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	CollapseAssistantSteps bool      `db:"collapse_assistant_steps" json:"collapse_assistant_steps"`
+}
+
+func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCollapseAssistantSteps, arg.UserID, arg.CollapseAssistantSteps)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec

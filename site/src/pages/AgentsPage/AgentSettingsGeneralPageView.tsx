@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatFullWidthSettings } from "./components/ChatFullWidthSettings";
@@ -11,6 +10,7 @@ import {
 import { PersonalInstructionsSettings } from "./components/PersonalInstructionsSettings";
 import { SectionHeader } from "./components/SectionHeader";
 import { UserChatDebugLoggingSettings } from "./components/UserChatDebugLoggingSettings";
+import { ChatBoardSettings } from "./exp/chatBoard/ChatBoardSettings";
 
 export type AgentSettingsGeneralPageViewProps = {
 	userPromptData: TypesGen.UserChatCustomPrompt | undefined;
@@ -31,9 +31,10 @@ export type AgentSettingsGeneralPageViewProps = {
 	>;
 	isSavingUserDebugLogging: boolean;
 	isSaveUserDebugLoggingError: boolean;
+	chatBoardAvailable: boolean;
 };
 
-export const AgentSettingsGeneralPageView: FC<
+export const AgentSettingsGeneralPageView: React.FC<
 	AgentSettingsGeneralPageViewProps
 > = ({
 	userPromptData,
@@ -44,6 +45,7 @@ export const AgentSettingsGeneralPageView: FC<
 	onSaveUserDebugLogging,
 	isSavingUserDebugLogging,
 	isSaveUserDebugLoggingError,
+	chatBoardAvailable,
 }) => {
 	return (
 		<div className="flex flex-col gap-8">
@@ -69,6 +71,7 @@ export const AgentSettingsGeneralPageView: FC<
 				isSavingUserSetting={isSavingUserDebugLogging}
 				isSaveUserSettingError={isSaveUserDebugLoggingError}
 			/>
+			{chatBoardAvailable && <ChatBoardSettings />}
 		</div>
 	);
 };

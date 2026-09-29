@@ -17,7 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
@@ -178,7 +178,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 		// remaining expectations are then ignored.
 		wantErr            error
 		wantAuthorization  string
-		wantCredentialKind intercept.CredentialKind
+		wantCredentialKind credential.Kind
 		wantCredentialHint string
 	}{
 		{
@@ -189,7 +189,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
 			wantAuthorization:  "Bearer user-token",
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 		{
@@ -200,7 +200,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			pool:               true,
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			// The pool hasn't handed out a key at CreateInterceptor, so the
 			// hint is a placeholder until the failover loop selects one.
 			wantCredentialHint: "<failover key>",
@@ -213,7 +213,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
 			wantAuthorization:  "Bearer user-token",
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 		{
@@ -224,7 +224,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			pool:               true,
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
-			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialKind: credential.KindCentralized,
 			// The pool hasn't handed out a key at CreateInterceptor, so the
 			// hint is a placeholder until the failover loop selects one.
 			wantCredentialHint: "<failover key>",
@@ -242,7 +242,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 				"X-Api-Key":     "some-key",
 			},
 			wantAuthorization:  "Bearer user-token",
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 		{
@@ -256,7 +256,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 				"X-Api-Key":     "some-key",
 			},
 			wantAuthorization:  "Bearer user-token",
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 		{
@@ -268,7 +268,7 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			pool:               false,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
 			wantAuthorization:  "Bearer user-token",
-			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialKind: credential.KindBYOK,
 			wantCredentialHint: "us...en",
 		},
 		{

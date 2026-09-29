@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { API } from "#/api/api";
 import type { AIBridgeProvider } from "#/api/typesGenerated";
 import { ComboboxInput } from "#/components/Combobox/Combobox";
@@ -52,7 +51,10 @@ type ProviderFilterProps = {
 	width?: number;
 };
 
-export const ProviderFilter: FC<ProviderFilterProps> = ({ menu, width }) => {
+export const ProviderFilter: React.FC<ProviderFilterProps> = ({
+	menu,
+	width,
+}) => {
 	return (
 		<SelectFilter
 			label="Select provider"

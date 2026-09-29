@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -57,7 +57,9 @@ export const getOrganizationLabel = (
 	return displayName;
 };
 
-export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
+export const OrganizationAutocomplete: React.FC<
+	OrganizationAutocompleteProps
+> = ({
 	value,
 	onChange,
 	options,
@@ -163,7 +165,7 @@ type OrganizationValueProps = {
 	className?: string;
 };
 
-const OrganizationValue: FC<OrganizationValueProps> = ({
+const OrganizationValue: React.FC<OrganizationValueProps> = ({
 	organization,
 	labelOrganizations,
 	id,
@@ -210,7 +212,7 @@ type OrganizationFieldProps = {
 	required?: boolean;
 };
 
-export const OrganizationField: FC<OrganizationFieldProps> = ({
+export const OrganizationField: React.FC<OrganizationFieldProps> = ({
 	id,
 	organization,
 	organizations,

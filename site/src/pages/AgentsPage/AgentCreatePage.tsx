@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ import { WebPushButton } from "./components/WebPushButton";
 import { isAbortError } from "./utils/chatAttachments";
 import { toWorkspaceFileReferencePart } from "./utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
+import { type DeepLinkState, readDeepLinkState } from "./utils/deepLinkState";
 import { buildAgentChatPath } from "./utils/navigation";
 import {
 	debugWorkspaceBuildLogsFileName,
@@ -47,25 +48,14 @@ import {
 	formatWorkspaceBuildLogsForDebug,
 } from "./utils/workspaceBuildDebug";
 
-// The deep link's build ID moves from the URL into this entry's history state
-// on arrival, because the layout's links forward location.search and the
-// next composer must be a plain one.
-type DebugLinkState = { debugWorkspaceBuildId: string };
-
-const readDebugLinkState = (state: unknown): string | null =>
-	typeof state === "object" &&
-	state !== null &&
-	"debugWorkspaceBuildId" in state &&
-	typeof state.debugWorkspaceBuildId === "string"
-		? state.debugWorkspaceBuildId
-		: null;
+const promptSearchParam = "prompt";
 
 type DebugWorkspaceBuildAlertProps = {
 	error: unknown;
 	build: TypesGen.WorkspaceBuild | undefined;
 };
 
-const DebugWorkspaceBuildAlert: FC<DebugWorkspaceBuildAlertProps> = ({
+const DebugWorkspaceBuildAlert: React.FC<DebugWorkspaceBuildAlertProps> = ({
 	error,
 	build,
 }) => {
@@ -144,7 +134,7 @@ const cleanupFailureMessage = (error: unknown) =>
 		? "Failed to clean up the unused chat."
 		: getErrorMessage(error, "Failed to clean up the unused chat.");
 
-const AgentCreatePage: FC = () => {
+const AgentCreatePage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const location = useLocation();
 	const navigate = useNavigate();
@@ -249,29 +239,48 @@ const AgentCreatePage: FC = () => {
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
 
+	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
-	const debugLinkValue = debugLinkParam ?? readDebugLinkState(location.state);
+	const debugLinkValue = debugLinkParam ?? linkState.debugWorkspaceBuildId;
 	const debugBuildId =
-		debugLinkValue !== null &&
+		debugLinkValue !== undefined &&
 		isUUID(debugLinkValue) &&
 		experiments.includes("enable-ai-workspace-debug")
 			? debugLinkValue
 			: null;
+	const promptParam = searchParams.get(promptSearchParam);
+	const promptValue = promptParam ?? linkState.prompt;
+	// The debug link wins when both are present.
+	const linkPrompt =
+		debugBuildId === null && promptValue?.trim() ? promptValue : undefined;
+	// One navigation removes both parameters: separate navigations would each
+	// rebuild the URL from the same snapshot and restore the other parameter.
 	useEffect(() => {
-		if (debugLinkParam === null) {
+		if (debugLinkParam === null && promptParam === null) {
 			return;
 		}
 		const search = new URLSearchParams(searchParams);
 		search.delete(debugWorkspaceBuildSearchParam);
-		const state: DebugLinkState | undefined =
+		search.delete(promptSearchParam);
+		const state: DeepLinkState | undefined =
 			debugBuildId !== null
 				? { debugWorkspaceBuildId: debugBuildId }
-				: undefined;
+				: linkPrompt !== undefined
+					? { prompt: linkPrompt }
+					: undefined;
 		navigate(
 			{ pathname: location.pathname, search: search.toString() },
 			{ replace: true, state },
 		);
-	}, [debugLinkParam, debugBuildId, location.pathname, navigate, searchParams]);
+	}, [
+		debugLinkParam,
+		promptParam,
+		debugBuildId,
+		linkPrompt,
+		location.pathname,
+		navigate,
+		searchParams,
+	]);
 	const debugBuildQuery = useQuery({
 		...workspaceBuildById(debugBuildId ?? ""),
 		enabled: debugBuildId !== null,
@@ -287,7 +296,7 @@ const AgentCreatePage: FC = () => {
 		enabled: debugBuildFailed,
 	});
 	const prefillError = debugBuildQuery.error ?? debugBuildLogsQuery.error;
-	const prefill: AgentCreatePrefill | undefined =
+	const debugPrefill: AgentCreatePrefill | undefined =
 		debugBuild && debugBuildFailed && debugBuildLogsQuery.data
 			? {
 					message: debugWorkspaceBuildPrompt(debugBuild),
@@ -300,6 +309,15 @@ const AgentCreatePage: FC = () => {
 					},
 				}
 			: undefined;
+	const prefill: AgentCreatePrefill | undefined =
+		debugPrefill ??
+		(linkPrompt
+			? {
+					message: linkPrompt,
+					warning:
+						"Use caution before running this prompt. Malicious content could trick Coder Agents into attempting harmful actions or sharing your data.",
+				}
+			: undefined);
 	// Hold the form until the prefill is ready: AgentCreateForm reads message
 	// and attachment only on mount.
 	const isPrefillLoading =
@@ -511,7 +529,13 @@ const AgentCreatePage: FC = () => {
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : (
 				<AgentCreateForm
-					key={prefill ? debugBuildId : "draft"}
+					key={
+						debugPrefill
+							? debugBuildId
+							: linkPrompt
+								? `prompt:${linkPrompt}`
+								: "draft"
+					}
 					onCreateChat={handleCreateChat}
 					isCreating={createMutation.isPending}
 					createError={submitError}

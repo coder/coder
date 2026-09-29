@@ -1,9 +1,10 @@
 import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
+	infiniteQueryOptions,
 	type QueryClient,
+	type QueryKey,
 	queryOptions,
-	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -41,13 +42,48 @@ const chatAnalyticsKey = ["chats", "analytics"] as const;
 
 const chatConfigKey = ["chats", "config"] as const;
 
-export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
-export type ChatListStatusFilter = "read" | "unread";
+export type ChatListPRStatusFilter =
+	| "draft"
+	| "open"
+	| "merged"
+	| "closed"
+	| "none";
+type ChatListStatusFilter = "read" | "unread";
+// Interrupting is a brief stop-in-progress state, so it is not its own
+// filter. Selecting Working includes it.
+export const CHAT_STATUS_FILTER_ORDER = [
+	"requires_action",
+	"error",
+	"running",
+	"waiting",
+] as const satisfies readonly Exclude<TypesGen.ChatStatus, "interrupting">[];
+export const CHAT_STATUS_GROUP_ORDER = [
+	"requires_action",
+	"error",
+	"running",
+	"interrupting",
+	"waiting",
+] as const satisfies readonly TypesGen.ChatStatus[];
+type _Assert<T extends true> = T;
+type _ChatStatusFilterCovers = _Assert<
+	Exclude<
+		TypesGen.ChatStatus,
+		"interrupting"
+	> extends (typeof CHAT_STATUS_FILTER_ORDER)[number]
+		? true
+		: false
+>;
+type _ChatStatusGroupCovers = _Assert<
+	TypesGen.ChatStatus extends (typeof CHAT_STATUS_GROUP_ORDER)[number]
+		? true
+		: false
+>;
 
 type ChatListParams = Readonly<{
 	archived: boolean;
 	prStatuses: readonly ChatListPRStatusFilter[];
 	status: ChatListStatusFilter | "all";
+	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
 }>;
 
@@ -55,6 +91,7 @@ export type ChatListInput = Readonly<{
 	archived?: boolean;
 	prStatuses?: readonly ChatListPRStatusFilter[];
 	chatStatus?: ChatListStatusFilter;
+	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
 }>;
 
@@ -68,10 +105,14 @@ export const CHAT_LIST_PR_STATUS_ORDER = [
 	"open",
 	"merged",
 	"closed",
+	"none",
 ] as const satisfies readonly ChatListPRStatusFilter[];
 
 const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(
 	CHAT_LIST_PR_STATUS_ORDER,
+);
+const chatStatusFilterSet = new Set<TypesGen.ChatStatus>(
+	CHAT_STATUS_FILTER_ORDER,
 );
 
 type InfiniteChatsCacheData = InfiniteData<TypesGen.Chat[]>;
@@ -93,6 +134,23 @@ export const canonicalizeChatListPRStatuses = (
 	return CHAT_LIST_PR_STATUS_ORDER.filter((status) => selected.has(status));
 };
 
+/** Shared ordering keeps URL serialization stable. */
+const canonicalizeChatListStatuses = (
+	statuses: Iterable<unknown>,
+): readonly TypesGen.ChatStatus[] => {
+	const selected = new Set<TypesGen.ChatStatus>();
+	for (const status of statuses) {
+		if (
+			typeof status === "string" &&
+			chatStatusFilterSet.has(status as TypesGen.ChatStatus)
+		) {
+			selected.add(status as TypesGen.ChatStatus);
+		}
+	}
+
+	return CHAT_STATUS_FILTER_ORDER.filter((status) => selected.has(status));
+};
+
 const canonicalWorkspaceIds = (
 	workspaceIds: readonly string[],
 ): readonly string[] => {
@@ -101,11 +159,12 @@ const canonicalWorkspaceIds = (
 
 export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	const sorted = canonicalWorkspaceIds(workspaceIds);
-	return {
+	return queryOptions({
 		queryKey: chatsByWorkspaceKey(sorted),
-		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		queryFn: ({ signal }) =>
+			API.experimental.getChatsByWorkspace(sorted, signal),
 		enabled: sorted.length > 0,
-	};
+	});
 };
 
 // The selection is a pure function of the latest build's agents, so
@@ -146,9 +205,8 @@ export const updateInfiniteChatsCache = (
  * in the cache, but only if the chat doesn't already exist in any
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
- * runs independently on each page. Lists whose archived filter
- * conflicts with the chat's archive state are skipped, so an active
- * chat is never inserted into an archived-only list.
+ * runs independently on each page. Lists whose archive or status
+ * filters exclude the chat are skipped.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
@@ -160,6 +218,24 @@ export const prependToInfiniteChatsCache = (
 	for (const [queryKey] of queries) {
 		const archivedFilter = archivedFilterForChatListKey(queryKey);
 		if (archivedFilter !== undefined && archivedFilter !== chat.archived) {
+			continue;
+		}
+		const params = queryKey[chatListFamilyKey.length];
+		const statuses =
+			queryKey.length === chatListFamilyKey.length + 1 &&
+			params !== null &&
+			typeof params === "object" &&
+			"statuses" in params &&
+			Array.isArray(params.statuses)
+				? canonicalizeChatListStatuses(params.statuses)
+				: [];
+		if (
+			statuses.length > 0 &&
+			statuses.length < CHAT_STATUS_FILTER_ORDER.length &&
+			!statuses.includes(
+				chat.status === "interrupting" ? "running" : chat.status,
+			)
+		) {
 			continue;
 		}
 		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, (prev) => {
@@ -1111,6 +1187,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	archived: input?.archived ?? false,
 	prStatuses: canonicalizeChatListPRStatuses(input?.prStatuses ?? []),
 	status: input?.chatStatus ?? "all",
+	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
 });
 
@@ -1127,6 +1204,15 @@ export const getChatListQueryString = (
 	if (params.status !== "all") {
 		qParts.push(`has_unread:${params.status === "unread"}`);
 	}
+	if (
+		params.statuses.length > 0 &&
+		params.statuses.length < CHAT_STATUS_FILTER_ORDER.length
+	) {
+		const statuses = params.statuses.flatMap((status) =>
+			status === "running" ? (["running", "interrupting"] as const) : [status],
+		);
+		qParts.push(`status:${statuses.join(",")}`);
+	}
 	if (params.sources.length) {
 		qParts.push(`source:${params.sources.join(",")}`);
 	}
@@ -1141,7 +1227,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 	const params = toChatListParams(input);
 	const q = getChatListQueryString(params);
 
-	return {
+	return infiniteQueryOptions({
 		queryKey: chatListKey(params),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
@@ -1150,19 +1236,18 @@ export const infiniteChats = (input?: ChatListInput) => {
 			return pages.length + 1;
 		},
 		initialPageParam: 0,
-		queryFn: ({ pageParam }: { pageParam: unknown }) => {
-			if (typeof pageParam !== "number") {
-				throw new Error("pageParam must be a number");
-			}
-			return API.experimental.getChats({
-				limit,
-				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-				q,
-			});
-		},
-		refetchOnWindowFocus: true as const,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
 		retry: 3,
-	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
+	});
 };
 
 const chatSearchKey = (params: ChatSearchParams) =>
@@ -1171,17 +1256,18 @@ const chatSearchKey = (params: ChatSearchParams) =>
 export const chatSearch = (params: ChatSearchParams) =>
 	queryOptions({
 		queryKey: chatSearchKey(params),
-		queryFn: () =>
-			API.experimental.getChats({
-				limit: CHAT_SEARCH_LIMIT,
-				q: params.q,
-			}),
+		queryFn: ({ signal }) =>
+			API.experimental.getChats(
+				{ limit: CHAT_SEARCH_LIMIT, q: params.q },
+				signal,
+			),
 	});
 
-export const chat = (chatId: string) => ({
-	queryKey: chatEntityKey(chatId),
-	queryFn: () => API.experimental.getChat(chatId),
-});
+export const chat = (chatId: string) =>
+	queryOptions({
+		queryKey: chatEntityKey(chatId),
+		queryFn: ({ signal }) => API.experimental.getChat(chatId, signal),
+	});
 
 export const getOpenChatPollInterval = (
 	data: TypesGen.Chat | undefined,
@@ -1490,6 +1576,158 @@ export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	},
 });
 
+/**
+ * Chat lists apply their read-status filter server-side, so a read-state
+ * change can move a chat out of a list entirely. The filter params are the
+ * last segment of the list query key.
+ */
+const chatListStatusFromKey = (
+	queryKey: QueryKey,
+): ChatListStatusFilter | "all" => {
+	const params = queryKey[chatListFamilyKey.length];
+	if (params && typeof params === "object" && "status" in params) {
+		const { status } = params;
+		if (status === "read" || status === "unread") {
+			return status;
+		}
+	}
+	return "all";
+};
+
+type ChatListSnapshot = ReadonlyArray<
+	readonly [QueryKey, InfiniteChatsCacheData]
+>;
+
+/**
+ * Applies a read-state change across every cached chat list, dropping the
+ * chat from lists whose read-status filter it no longer satisfies. Returns
+ * the replaced cache entries so a failed mutation can restore them without
+ * depending on a refetch.
+ */
+const applyChatReadStateToLists = (
+	queryClient: QueryClient,
+	chatId: string,
+	read: boolean,
+): ChatListSnapshot => {
+	const snapshot: Array<readonly [QueryKey, InfiniteChatsCacheData]> = [];
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatListFamilyKey,
+	});
+
+	for (const [queryKey, data] of queries) {
+		if (!data?.pages) {
+			continue;
+		}
+		const excluded =
+			chatListStatusFromKey(queryKey) === (read ? "unread" : "read");
+		let changed = false;
+		const pages = data.pages.map((page) => {
+			let pageChanged = false;
+			const nextPage: TypesGen.Chat[] = [];
+			for (const chat of page) {
+				if (chat.id === chatId) {
+					pageChanged = true;
+					if (!excluded) {
+						nextPage.push({ ...chat, has_unread: !read });
+					}
+					continue;
+				}
+				// Subagent chats are nested under their root and the list
+				// filter only applies to roots, so patch them in place.
+				if (chat.children?.some((child) => child.id === chatId)) {
+					pageChanged = true;
+					nextPage.push({
+						...chat,
+						children: chat.children.map((child) =>
+							child.id === chatId ? { ...child, has_unread: !read } : child,
+						),
+					});
+					continue;
+				}
+				nextPage.push(chat);
+			}
+			if (!pageChanged) {
+				return page;
+			}
+			changed = true;
+			return nextPage;
+		});
+		if (!changed) {
+			continue;
+		}
+		snapshot.push([queryKey, data]);
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, {
+			...data,
+			pages,
+		});
+	}
+
+	return snapshot;
+};
+
+const restoreChatLists = (
+	queryClient: QueryClient,
+	snapshot: ChatListSnapshot,
+) => {
+	for (const [queryKey, data] of snapshot) {
+		queryClient.setQueryData<InfiniteChatsCacheData>(queryKey, data);
+	}
+};
+
+type SetChatReadStateContext = {
+	readonly previousChat?: TypesGen.Chat;
+	readonly previousLists: ChatListSnapshot;
+};
+
+/**
+ * Moves the owner's read cursor for a chat, which drives the sidebar's
+ * unread indicator. Opening a chat marks it read on its own, so this
+ * only exists for explicitly marking a chat read or unread.
+ */
+const setChatReadState = (queryClient: QueryClient, read: boolean) => ({
+	mutationFn: (chatId: string) => API.experimental.updateChat(chatId, { read }),
+	onMutate: async (chatId: string): Promise<SetChatReadStateContext> => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		const previousLists = applyChatReadStateToLists(queryClient, chatId, read);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				has_unread: !read,
+			});
+		}
+		return { previousChat, previousLists };
+	},
+	onError: (
+		_error: unknown,
+		chatId: string,
+		context: SetChatReadStateContext | undefined,
+	) => {
+		// Restore before invalidating so a failed refetch still leaves the
+		// rejected read state off the screen.
+		if (context) {
+			restoreChatLists(queryClient, context.previousLists);
+		}
+		if (context?.previousChat) {
+			patchChatEntity(queryClient, chatId, () => context.previousChat);
+		}
+		void invalidateChatListQueries(queryClient);
+	},
+	onSettled: async (_data: unknown, _error: unknown, chatId: string) => {
+		await invalidateChatListQueries(queryClient);
+		await invalidateChatEntity(queryClient, chatId);
+	},
+});
+
+export const markChatRead = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, true);
+
+export const markChatUnread = (queryClient: QueryClient) =>
+	setChatReadState(queryClient, false);
+
 export const pinChat = (queryClient: QueryClient) => ({
 	mutationFn: (chatId: string) =>
 		API.experimental.updateChat(chatId, { pin_order: 1 }),
@@ -1738,7 +1976,7 @@ export const createChat = (queryClient: QueryClient) => ({
 		signal,
 	}: {
 		req: TypesGen.CreateChatRequest;
-		signal: AbortSignal;
+		signal?: AbortSignal;
 	}) => API.experimental.createChat(req, signal),
 	onSuccess: () => {
 		void invalidateChatCollections(queryClient);
@@ -1947,10 +2185,12 @@ export const promoteChatQueuedMessage = (
 export const chatDiffContentsKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "diff-contents"] as const;
 
-export const chatDiffContents = (chatId: string) => ({
-	queryKey: chatDiffContentsKey(chatId),
-	queryFn: () => API.experimental.getChatDiffContents(chatId),
-});
+export const chatDiffContents = (chatId: string) =>
+	queryOptions({
+		queryKey: chatDiffContentsKey(chatId),
+		queryFn: ({ signal }) =>
+			API.experimental.getChatDiffContents(chatId, signal),
+	});
 
 const chatSystemPromptKey = [...chatConfigKey, "system-prompt"] as const;
 
@@ -2508,11 +2748,12 @@ const GATEWAY_REQUEST_STALE_MS = 30_000;
 export const chatCostTreeKey = (rootChatId: string) =>
 	[...chatAnalyticsKey, "cost", "tree", rootChatId] as const;
 
-export const chatCost = (rootChatId: string) => ({
-	queryKey: chatCostTreeKey(rootChatId),
-	queryFn: () => API.experimental.getChatCost(rootChatId),
-	staleTime: GATEWAY_REQUEST_STALE_MS,
-});
+export const chatCost = (rootChatId: string) =>
+	queryOptions({
+		queryKey: chatCostTreeKey(rootChatId),
+		queryFn: ({ signal }) => API.experimental.getChatCost(rootChatId, signal),
+		staleTime: GATEWAY_REQUEST_STALE_MS,
+	});
 
 const organizationChatModelOverridesKey = (organizationId: string) =>
 	[...chatConfigKey, "model-overrides", organizationId] as const;

@@ -1,56 +1,54 @@
-import type { FC } from "react";
 import { MaxAISpendPeriodDays, type Organization } from "#/api/typesGenerated";
 import { DateTimeRangePicker } from "#/components/DateTimeRangePicker/DateTimeRangePicker";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
 import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import {
-	ClientFilter,
-	type ClientFilterMenu,
-} from "#/pages/AIBridgePage/filters/ClientFilter";
-import {
-	ModelFilter,
-	type ModelFilterMenu,
-} from "#/pages/AIBridgePage/filters/ModelFilter";
-import {
-	ProviderFilter,
-	type ProviderFilterMenu,
-} from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { spendQuickPresets } from "../spendPeriod";
-
-const FILTER_WIDTH = 150;
-
-export type SpendFilterMenus = {
-	provider: ProviderFilterMenu;
-	model: ModelFilterMenu;
-	client: ClientFilterMenu;
-};
+import { spendFilterCategories } from "./spendFilterCategories";
 
 type SpendFiltersProps = {
 	organizations: readonly Organization[];
 	organization: Organization;
 	onOrganizationChange: (organization: Organization) => void;
-	menus: SpendFilterMenus | undefined;
+	canFilterDimensions: boolean;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	filterError: string | undefined;
 	now: Date | undefined;
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
 };
 
-export const SpendFilters: FC<SpendFiltersProps> = ({
+export const SpendFilters: React.FC<SpendFiltersProps> = ({
 	organizations,
 	organization,
 	onOrganizationChange,
-	menus,
+	canFilterDimensions,
+	filterQuery,
+	onFilterQueryChange,
+	filterError,
 	now,
 	period,
 	minDate,
 	onPeriodChange,
 }) => {
 	return (
-		<div className="flex flex-wrap gap-2">
+		<div className="flex flex-wrap items-start gap-2">
+			{canFilterDimensions && (
+				<div className="min-w-60 flex-1">
+					<FilterCombobox
+						value={filterQuery}
+						onChange={onFilterQueryChange}
+						categories={spendFilterCategories}
+						placeholder="Filter by provider, client, or model…"
+						errorMessage={filterError}
+					/>
+				</div>
+			)}
 			{organizations.length > 1 && (
 				<OrganizationAutocomplete
 					value={organization}
@@ -59,7 +57,7 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 						organizations,
 					)}`}
 					options={organizations}
-					triggerClassName="basis-[150px] grow"
+					triggerClassName="w-full sm:w-60"
 					optionsTabbable
 					onChange={(next) => {
 						if (next) {
@@ -67,13 +65,6 @@ export const SpendFilters: FC<SpendFiltersProps> = ({
 						}
 					}}
 				/>
-			)}
-			{menus && (
-				<>
-					<ProviderFilter menu={menus.provider} width={FILTER_WIDTH} />
-					<ModelFilter menu={menus.model} width={FILTER_WIDTH} />
-					<ClientFilter menu={menus.client} width={FILTER_WIDTH} />
-				</>
 			)}
 			<DateTimeRangePicker
 				now={now}

@@ -183,14 +183,15 @@ The startup probe is disabled by default.
 
 Standalone replicas use the standard Coder logging options.
 Configure them on every replica or through `coder.env` in the AI Gateway Helm chart.
-Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway_start.md#-l---log-filter) for configuration details.
+Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-gateway/start.md#-l---log-filter) for configuration details.
 
 ### Structured interception logs
 
 AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
-The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, and the standalone gateway does not consume it.
-Standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
-Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
+`CODER_AI_GATEWAY_STRUCTURED_LOGGING` enables the records, and `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE` selects which process emits them.
+Under the default source, `coderd`, standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
+Set the source to `gateway` or `both` on every process to have the gateway emit its own records, and ship the gateway's logs as well as `coderd`'s.
+Refer to [structured logging](./setup.md#structured-logging) for configuration and record types, and [choose which process emits the records](./setup.md#choose-which-process-emits-the-records) for the trade-offs between the sources.
 
 ## Export data
 
@@ -242,9 +243,8 @@ Refer to the [API documentation](../../reference/api/aigateway.md) for full deta
 
 ## Data retention
 
-AI Gateway data is retained for **60 days by default**. Configure the retention
-period to balance storage costs with your organization's compliance and analysis
-needs.
+AI Gateway data is retained for **60&nbsp;days by default**.
+Configure the retention period to balance storage costs with your organization's compliance and analysis needs.
 
 For configuration options and details, refer to [Data Retention](./setup.md#data-retention)
 in the AI Gateway setup guide.
@@ -263,7 +263,7 @@ The exporter always dials without TLS, so an `https://` endpoint is still contac
 Set only the Honeycomb key to export to Honeycomb alone, or set both to export to Honeycomb and an OTLP collector.
 
 The embedded and standalone gateways support the same tracing configuration options, but each standalone replica must be configured separately.
-Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
+Refer to the [`coder server` tracing options](../../reference/cli/server/index.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway/start.md#--trace) for standalone replicas.
 Configure tracing on every standalone process or through `coder.env` in the AI Gateway Helm chart.
 
 The following minimal configuration enables tracing and exports spans over OTLP/gRPC:

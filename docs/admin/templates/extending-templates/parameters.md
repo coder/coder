@@ -251,7 +251,9 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
-## Validating parameters
+<a id="validating-parameters"></a>
+
+## Validate parameters
 
 Coder supports parameters with multiple validation modes: min, max,
 monotonic numbers, and regular expressions.

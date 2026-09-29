@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, GlobeIcon } from "lucide-react";
-import type { FC } from "react";
 import { ToolCall } from "./ToolCall";
 
 type WebSearchSourcesProps = {
@@ -8,7 +7,7 @@ type WebSearchSourcesProps = {
 };
 
 /** Collapsible web-search result pills, styled as a ToolCall row. */
-const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
+const WebSearchSources: React.FC<WebSearchSourcesProps> = ({ sources }) => {
 	// Deduplicate sources by URL, keeping the first occurrence.
 	const unique = (() => {
 		const seen = new Set<string>();
@@ -53,7 +52,7 @@ const WebSearchSources: FC<WebSearchSourcesProps> = ({ sources }) => {
  * A single source citation pill. Shows a favicon from Google's S2
  * service, a truncated title, and an external-link icon on hover.
  */
-const SourcePill: FC<{ source: { url: string; title: string } }> = ({
+const SourcePill: React.FC<{ source: { url: string; title: string } }> = ({
 	source,
 }) => {
 	let hostname: string;

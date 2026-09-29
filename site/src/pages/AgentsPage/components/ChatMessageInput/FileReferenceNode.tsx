@@ -9,7 +9,7 @@ import {
 	type SerializedLexicalNode,
 	type Spread,
 } from "lexical";
-import { type FC, type ReactNode, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { EditableFileReferenceChip } from "./FileReferenceChip";
 import { getFileReferenceSiblingSpacing } from "./fileReferenceDisplay";
 
@@ -23,7 +23,7 @@ type SerializedFileReferenceNode = Spread<
 	SerializedLexicalNode
 >;
 
-export class FileReferenceNode extends DecoratorNode<ReactNode> {
+export class FileReferenceNode extends DecoratorNode<React.ReactNode> {
 	__fileName: string;
 	__startLine: number;
 	__endLine: number;
@@ -96,7 +96,7 @@ export class FileReferenceNode extends DecoratorNode<ReactNode> {
 		return true;
 	}
 
-	decorate(_editor: LexicalEditor): ReactNode {
+	decorate(_editor: LexicalEditor): React.ReactNode {
 		return (
 			<FileReferenceChipWrapper
 				editor={_editor}
@@ -134,7 +134,7 @@ const useFileReferenceSpacing = (editor: LexicalEditor, nodeKey: NodeKey) => {
 	};
 };
 
-const FileReferenceChipWrapper: FC<{
+const FileReferenceChipWrapper: React.FC<{
 	editor: LexicalEditor;
 	nodeKey: NodeKey;
 	fileName: string;

@@ -4,7 +4,7 @@ import {
 	renderHook as renderHookBase,
 	waitFor,
 } from "@testing-library/react";
-import { act, createElement, type ReactNode } from "react";
+import { act, createElement } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
@@ -39,7 +39,7 @@ const renderHook: typeof renderHookBase = (callback, options) => {
 	});
 	return renderHookBase(callback, {
 		...options,
-		wrapper: ({ children }: { children: ReactNode }) =>
+		wrapper: ({ children }: { children: React.ReactNode }) =>
 			createElement(QueryClientProvider, { client: queryClient }, children),
 	});
 };

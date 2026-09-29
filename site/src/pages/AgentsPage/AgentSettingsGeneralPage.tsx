@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatUserCustomPrompt,
@@ -7,9 +6,11 @@ import {
 	userChatDebugLogging,
 } from "#/api/queries/chats";
 import { AgentSettingsGeneralPageView } from "./AgentSettingsGeneralPageView";
+import { useChatBoardAvailable } from "./exp/chatBoard/chatBoardFlag";
 
-const AgentSettingsGeneralPage: FC = () => {
+const AgentSettingsGeneralPage: React.FC = () => {
 	const queryClient = useQueryClient();
+	const chatBoardAvailable = useChatBoardAvailable();
 	const userPromptQuery = useQuery(chatUserCustomPrompt());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const saveUserPromptMutation = useMutation(
@@ -29,6 +30,7 @@ const AgentSettingsGeneralPage: FC = () => {
 			onSaveUserDebugLogging={saveUserDebugLoggingMutation.mutate}
 			isSavingUserDebugLogging={saveUserDebugLoggingMutation.isPending}
 			isSaveUserDebugLoggingError={saveUserDebugLoggingMutation.isError}
+			chatBoardAvailable={chatBoardAvailable}
 		/>
 	);
 };

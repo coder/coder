@@ -1,5 +1,4 @@
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
-import type { FC } from "react";
 import { Badge } from "#/components/Badge/Badge";
 import {
 	Tooltip,
@@ -16,7 +15,7 @@ type TokenBadgesProps = {
 	tokenUsageMetadata?: Record<string, unknown>;
 };
 
-export const TokenBadges: FC<TokenBadgesProps> = ({
+export const TokenBadges: React.FC<TokenBadgesProps> = ({
 	inputTokens,
 	outputTokens,
 	tokenUsageMetadata,

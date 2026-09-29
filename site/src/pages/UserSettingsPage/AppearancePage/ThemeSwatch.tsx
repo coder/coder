@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -17,7 +16,7 @@ type ThemeSwatchProps = {
 	onPreviewEnd?: () => void;
 };
 
-export const ThemeSwatch: FC<ThemeSwatchProps> = ({
+export const ThemeSwatch: React.FC<ThemeSwatchProps> = ({
 	name,
 	theme,
 	selected,
