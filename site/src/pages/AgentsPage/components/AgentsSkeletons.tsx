@@ -2,7 +2,7 @@ import { cn } from "cn";
 import { useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
+import { loadClampedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 import {
 	RIGHT_PANEL_OPEN_KEY,
 	RIGHT_PANEL_WIDTH_KEY,
@@ -31,7 +31,7 @@ function getRightPanelState(): { open: boolean; width: number } {
  * immediately instead of a fullscreen spinner.
  */
 export const AgentsPageLayoutSkeleton: React.FC = () => {
-	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
+	const [leftSidebarWidth] = useState(() => loadClampedLeftSidebarWidth());
 
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
