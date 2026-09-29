@@ -908,8 +908,6 @@ func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	require.Equal(t, promoted, turn.OpenToken(t.Context()))
 }
 
-// turnCategorySeconds returns the turn_time_seconds_total value of a
-// root chat's turns for category and outcome, zero without a series.
 func turnCategorySeconds(t *testing.T, registry *prometheus.Registry, category chatloop.TurnCategory, outcome chatloop.TurnOutcome) float64 {
 	t.Helper()
 	return promhelp.MetricValue(t, registry, "coderd_chatd_turn_time_seconds_total", prometheus.Labels{
@@ -919,8 +917,6 @@ func turnCategorySeconds(t *testing.T, registry *prometheus.Registry, category c
 	}).GetCounter().GetValue()
 }
 
-// turnOutcomeCount returns the turn_outcomes_total value of a root
-// chat's turns for outcome, zero without a series.
 func turnOutcomeCount(t *testing.T, registry *prometheus.Registry, outcome chatloop.TurnOutcome) float64 {
 	t.Helper()
 	return promhelp.MetricValue(t, registry, "coderd_chatd_turn_outcomes_total", prometheus.Labels{
@@ -937,8 +933,7 @@ func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 
 	turnCtx, token := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now().Add(-2*time.Second))
-	// The finishing transition runs inside the step, so Complete
-	// arrives while the step's stage is still open.
+	// Complete arrives while the step is still open.
 	stepCtx, step := tracer.Start(turnCtx, chatloop.StageGenerationStep)
 	step.SetGenerationAction(chatloop.GenerationActionExecuteLocalTools)
 	clock.Advance(3 * time.Second)
@@ -969,15 +964,12 @@ func TestRunnerTurnSpanCountsFinishingStep(t *testing.T) {
 		}
 	}
 
-	// Settle closed the turn; the runner's End has nothing left.
 	turn.End(nil)
 	require.Len(t, turnSpansByStart(t, recorder), 1)
 }
 
-// TestRunnerTurnSpanCountsStepRunningAtInterrupt settles an interrupted
-// turn while the canceled task's tool step is still running. The turn
-// is emitted when the task releases it, and the step counts as tool
-// execution up to the interrupt, not as unattributed time.
+// TestRunnerTurnSpanCountsStepRunningAtInterrupt counts a step still
+// running at the interrupt as tool execution up to the interrupt.
 func TestRunnerTurnSpanCountsStepRunningAtInterrupt(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -1014,13 +1006,11 @@ func TestRunnerTurnSpanRetryContinuesTurn(t *testing.T) {
 	chat := database.Chat{ID: uuid.New()}
 	triggerAt := clock.Now().Add(-time.Minute)
 
-	// A retryable failure does not invalidate the turn; the task only
-	// settles, which leaves an unfinished turn open.
+	// A retryable failure only settles, leaving the unfinished turn open.
 	_, token := turn.Ensure(t.Context(), uuid.Nil, chat, triggerAt)
 	turn.Settle(token)
 
-	// The retried task runs the same prompt, so it continues the same
-	// turn and records no second acquisition.
+	// Same prompt, so same turn and no second acquisition.
 	_, retried := turn.Ensure(t.Context(), uuid.Nil, chat, triggerAt)
 	require.Equal(t, token, retried)
 	turn.Complete(retried)
@@ -1047,16 +1037,14 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	turn.Complete(completed)
 	turn.Settle(completed)
 
-	// An errored turn is counted as an error even though it was later
-	// finished.
+	// Invalidate wins over a later Complete.
 	_, errored := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
 	clock.Advance(time.Second)
 	turn.Invalidate(errored, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 	turn.Complete(errored)
 	turn.Settle(errored)
 
-	// An interrupted turn is closed by the next Ensure, which counts it
-	// once; the turn that Ensure opens is later counted as completed.
+	// The next Ensure closes the interrupted turn.
 	_, interrupted := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
 	clock.Advance(time.Second)
 	turn.Invalidate(interrupted, chatloop.TurnOutcomeInterrupted, xerrors.Errorf("generation action: %w", context.Canceled))
@@ -1067,8 +1055,6 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 	turn.Complete(afterInterrupt)
 	turn.Settle(afterInterrupt)
 
-	// A turn that ends before it finished is abandoned, and keeps the
-	// time of the step it ran.
 	abandonedCtx, _ := turn.Ensure(t.Context(), uuid.Nil, chat, clock.Now())
 	_, step := tracer.Start(abandonedCtx, chatloop.StageGenerationStep)
 	clock.Advance(time.Second)
@@ -1084,7 +1070,6 @@ func TestRunnerTurnSpanCountsOutcomes(t *testing.T) {
 		require.Equal(t, count, turnOutcomeCount(t, registry, outcome), outcome)
 	}
 	require.Len(t, turnSpansByStart(t, recorder), 5, "outcomes sum to closed turns")
-	// Every turn lasted one second and recorded its partition.
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryStreaming, chatloop.TurnOutcomeCompleted))
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeCompleted))
 	require.Equal(t, 1.0, turnCategorySeconds(t, registry, chatloop.TurnCategoryUnattributed, chatloop.TurnOutcomeError))

@@ -807,9 +807,8 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
-	// A nil tracer still times the window TTFTSeconds observes. Its stage
-	// starts on a context with no turn accumulator, so the window is not
-	// reported to a turn on parent.
+	// A nil tracer still times the window for TTFTSeconds, but must not
+	// report it to the turn on parent.
 	ttftCtx := parent
 	if stages == nil {
 		stages = NewStageTracer(nil, nil, WithClock(clock))

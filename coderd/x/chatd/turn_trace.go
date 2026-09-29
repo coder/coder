@@ -23,12 +23,9 @@ type turnToken uint64
 
 // runnerTurnSpan owns the sequential chat_turn spans of one runner.
 //
-// A turn closes in two steps: Complete marks it finished and Settle
-// closes it, so stages still open at Complete end inside the turn's
-// span and count in its accounting if they end before Settle. Closing fixes the turn's end time.
-// The span is emitted once the turn is closed and every task that
-// joined it has called Release, so an outcome recorded by a task that
-// is still unwinding reaches the turn it ran.
+// Closing a turn fixes its end time, but the span is emitted only once
+// every holder has called Release, so an unwinding task can still
+// record the outcome.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
 
@@ -109,9 +106,7 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat data
 	return turn.context(ctx), turn.token
 }
 
-// startLocked opens a chat_turn span anchored at startAt, or at now
-// when startAt is zero, makes it the current turn, and records the
-// acquisition stage from a nonzero startAt to now.
+// startLocked anchors at now, with no acquisition, when startAt is zero.
 func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, triggerAt, startAt time.Time) *turnState {
 	anchored := !startAt.IsZero()
 	if !anchored {
@@ -130,8 +125,6 @@ func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, tr
 	t.lastAnchorAt = startAt
 
 	chatID := attribute.String(chatloop.AttrChatID, chat.ID.String())
-	// The turn has no span yet, so context adds only the stage identity
-	// and accumulator the chat_turn span reads.
 	turnCtx, span := t.stages.StartRootAt(turn.context(ctx), chatloop.StageChatTurn, startAt, chatID)
 	turn.span = span
 	turn.spanCtx = span.SpanContext()
@@ -148,12 +141,9 @@ func (turn *turnState) hold(taskID uuid.UUID) {
 	}
 }
 
-// context returns ctx carrying the turn's stage identity and
-// accumulator and, once the span has started, its span context.
 func (turn *turnState) context(ctx context.Context) context.Context {
-	// The stage identity and accumulator are set independently of the
-	// span context so stages run on this context keep them when tracing
-	// is not recording.
+	// Stage identity and accumulator are needed even when tracing is not
+	// recording.
 	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, turn.chatKind)
 	ctx = chatloop.ContextWithTurnAccumulator(ctx, turn.acc)
 	if !turn.spanCtx.IsValid() {
@@ -162,8 +152,8 @@ func (turn *turnState) context(ctx context.Context) context.Context {
 	return trace.ContextWithSpanContext(ctx, turn.spanCtx)
 }
 
-// Complete marks the turn identified by token as finished normally.
-// The turn stays open until Settle, or until a newer turn replaces it.
+// Complete marks the turn finished; it stays open until Settle so
+// in-flight stages end inside it.
 func (t *runnerTurnSpan) Complete(token turnToken) {
 	if t == nil {
 		return
@@ -175,12 +165,8 @@ func (t *runnerTurnSpan) Complete(token turnToken) {
 	}
 }
 
-// Invalidate records outcome and err against the turn identified by
-// token. outcome is chatloop.TurnOutcomeInterrupted or
-// TurnOutcomeError. The first call is kept and later ones are ignored,
-// as is a call after Complete: the finishing transition has committed
-// by then, so a later failure does not undo the turn. The span ends
-// with err and carries outcome.
+// Invalidate is ignored after Complete, since the finishing transition
+// has already committed. Only the first call is kept.
 func (t *runnerTurnSpan) Invalidate(token turnToken, outcome chatloop.TurnOutcome, err error) {
 	if t == nil || outcome == "" {
 		return
@@ -267,11 +253,6 @@ func (t *runnerTurnSpan) pendingLocked() []*turnState {
 	return turns
 }
 
-// closeLocked fixes the turn's end time at now, which also limits the
-// time its stages report from then on, and emits it if no task holds
-// it. A closed turn is no longer current. err is the error the
-// span ends with when no outcome is recorded. Closing a closed turn
-// does nothing.
 func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	if turn.closed {
 		return
@@ -286,13 +267,6 @@ func (t *runnerTurnSpan) closeLocked(turn *turnState, err error) {
 	t.emitIfReleasedLocked(turn)
 }
 
-// emitIfReleasedLocked ends the span of a closed turn with no holders
-// at its end time, with exactly one turn_outcome, which also labels the
-// turn's outcome count and time partition. An outcome recorded
-// by Invalidate wins, and its error replaces the close error so the
-// root span reports the failure that stopped the turn. Without one, a
-// turn Complete marked finished is completed and any other turn is
-// abandoned.
 func (t *runnerTurnSpan) emitIfReleasedLocked(turn *turnState) {
 	if !turn.closed || len(turn.holders) > 0 {
 		return

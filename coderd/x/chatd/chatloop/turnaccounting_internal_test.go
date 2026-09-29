@@ -17,9 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 )
 
-// sums returns the value of each series of a counter family, or the
-// sample sum of each series of a histogram family, keyed by the value
-// of the named label and summed across the other labels.
+// sums totals a counter, or a histogram's sample sums, by label.
 func sums[K ~string](t *testing.T, registry *prometheus.Registry, family, label string) map[K]float64 {
 	t.Helper()
 	families, err := registry.Gather()
@@ -94,8 +92,6 @@ func (f stageMetricsFixture) startTurn(t *testing.T) (context.Context, *StageSpa
 	return turnCtx, turnSpan, turnStart
 }
 
-// syntheticTurn runs one completed turn that exercises every category
-// and returns its duration.
 func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.Duration {
 	t.Helper()
 	turnCtx, turnSpan, turnStart := f.startTurn(t)
@@ -103,8 +99,6 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	f.clock.Advance(2 * time.Second)
 	f.tracer.Record(turnCtx, StageAcquisition, StageModel{}, turnStart, f.clock.Now(), nil)
 
-	// A generate_assistant step; its one second after the commit is
-	// chatd_overhead.
 	stepCtx, step := f.tracer.Start(turnCtx, StageGenerationStep)
 	step.SetGenerationAction("generate_assistant")
 	step.SetModel(model)
@@ -126,9 +120,7 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	f.clock.Advance(time.Second)
 	step.End(nil)
 
-	// An execute_local_tools step: the time between its prepare and its
-	// commit is the tool execution, which the tool_call stage inside it
-	// does not change.
+	// tool_call is not attributing, so it does not reduce tool_execution.
 	toolStepCtx, toolStep := f.tracer.Start(turnCtx, StageGenerationStep)
 	toolStep.SetGenerationAction(GenerationActionExecuteLocalTools)
 	_, toolPrepare := f.tracer.Start(toolStepCtx, StagePrepare)
@@ -142,9 +134,6 @@ func (f stageMetricsFixture) syntheticTurn(t *testing.T, model StageModel) time.
 	toolCommit.End(nil)
 	toolStep.End(nil)
 
-	// A retried step: its failed first-token window is provider_error,
-	// and the rest of its stream, which ends without an error, is
-	// streaming.
 	retriedStepCtx, retriedStep := f.tracer.Start(turnCtx, StageGenerationStep)
 	retriedStep.SetGenerationAction("generate_assistant")
 	noTokenStreamCtx, noTokenStream := f.tracer.Start(retriedStepCtx, StageStream)
@@ -249,10 +238,8 @@ func TestTurnAccountingEmitsEveryOutcome(t *testing.T) {
 	}
 }
 
-// TestTurnAccountingStreamWithoutFirstToken covers streams whose
-// first-token window closes with an error: at the attempt's release
-// when no part arrived, or at an error part. Either way the whole
-// stream is provider error time, counted once.
+// TestTurnAccountingStreamWithoutFirstToken counts the whole stream as
+// provider error, once.
 func TestTurnAccountingStreamWithoutFirstToken(t *testing.T) {
 	t.Parallel()
 
@@ -336,8 +323,7 @@ func TestTurnAccountingStreamFailsAfterFirstToken(t *testing.T) {
 	require.Error(t, err)
 	turnSpan.EndTurn(TurnOutcomeError, err, turnSpan.tracer.Now())
 
-	// The first-token window closed with an output part; the rest of the
-	// failed stream is provider error.
+	// A first token arrived, so only the rest of the stream is provider error.
 	categories := turnCategories(t, fixture.registry)
 	require.InDelta(t, 2, categories[TurnCategoryTimeToFirstToken], 0.001)
 	require.InDelta(t, 3, categories[TurnCategoryProviderError], 0.001)
@@ -345,9 +331,6 @@ func TestTurnAccountingStreamFailsAfterFirstToken(t *testing.T) {
 	require.InDelta(t, fixture.clock.Now().Sub(turnStart).Seconds(), categoryTotal(categories), 0.001)
 }
 
-// TestTurnAccountingCanceledStream covers a stream canceled with its
-// context, as when the chat is stopped: neither its first-token window
-// nor the rest of it is provider error.
 func TestTurnAccountingCanceledStream(t *testing.T) {
 	t.Parallel()
 
@@ -411,10 +394,8 @@ func TestTurnAccountingCanceledStream(t *testing.T) {
 	}
 }
 
-// TestTurnAccountingNilTracerStream runs a stream without a tracer, as
-// the compaction summary does, inside a compaction stage. Its
-// first-token window is not reported to the turn, so all of the time is
-// compaction.
+// TestTurnAccountingNilTracerStream checks a nil-tracer stream does not
+// report its first-token window, so all of the time stays compaction.
 func TestTurnAccountingNilTracerStream(t *testing.T) {
 	t.Parallel()
 	fixture := newStageMetricsFixture(t)
@@ -463,8 +444,6 @@ func TestTurnAccountingSchedulingIsAcquisitionOnly(t *testing.T) {
 	require.Empty(t, stageAnomalies(t, fixture.registry))
 }
 
-// TestTurnAccountingRecordedStageUnderStep covers a recorded stage
-// under an attributing stage: its window leaves the step's own time.
 func TestTurnAccountingRecordedStageUnderStep(t *testing.T) {
 	t.Parallel()
 	fixture := newStageMetricsFixture(t)
@@ -493,9 +472,7 @@ func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
 	step.SetGenerationAction("generate_assistant")
 	fixture.clock.Advance(time.Second)
 
-	// Detached work derives its context from the step's but runs in the
-	// background scope, so the accumulator it inherits must not receive
-	// its stages.
+	// Background stages must not report to the inherited accumulator.
 	backgroundCtx := ContextWithScope(stepCtx, ScopeBackground)
 	bgCtx, bgStream := fixture.tracer.Start(backgroundCtx, StageStream)
 	_, bgTTFT := fixture.tracer.Start(bgCtx, StageTimeToFirstToken)
@@ -513,8 +490,6 @@ func TestTurnAccountingIgnoresWorkOutsideTheTurn(t *testing.T) {
 	require.Zero(t, categories[TurnCategoryStreaming])
 	require.Zero(t, categories[TurnCategoryTimeToFirstToken])
 	require.Zero(t, categories[TurnCategoryScheduling])
-	// The step's own time is intact: the background stream did not
-	// report itself as the step's child.
 	require.Equal(t, 8.0, categories[TurnCategoryChatdOverhead])
 }
 
@@ -523,9 +498,7 @@ func TestTurnAccountingNonAttributingStages(t *testing.T) {
 	fixture := newStageMetricsFixture(t)
 	turnCtx, turnSpan, _ := fixture.startTurn(t)
 
-	// Parallel tool calls overlap each other and the step that runs
-	// them, and a provider attempt runs under one of them. None of them
-	// takes time from the step.
+	// Overlapping non-attributing stages take no time from the step.
 	stepCtx, step := fixture.tracer.Start(turnCtx, StageGenerationStep)
 	step.SetGenerationAction(GenerationActionExecuteLocalTools)
 	firstCtx, first := fixture.tracer.Start(stepCtx, StageToolCall)
@@ -545,10 +518,6 @@ func TestTurnAccountingNonAttributingStages(t *testing.T) {
 	require.Empty(t, stageAnomalies(t, fixture.registry))
 }
 
-// TestTurnAccountingConcurrentStageEnds runs the turn's concurrent
-// writers: parallel tool calls set the turn's model on their own
-// goroutines, and a stale step ends while the turn closes on another
-// goroutine.
 func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
 	t.Parallel()
 	fixture := newStageMetricsFixture(t)
@@ -575,9 +544,8 @@ func TestTurnAccountingConcurrentStageEnds(t *testing.T) {
 	wg.Go(func() { turnSpan.EndTurn(TurnOutcomeInterrupted, nil, turnSpan.tracer.Now()) })
 	wg.Wait()
 
-	// The step's own time is chatd_overhead when it ends first and
-	// unattributed when the turn closes first; the partition sums to the
-	// turn either way.
+	// Which category gets the step depends on whether it ends before the
+	// turn closes.
 	categories := turnCategories(t, fixture.registry)
 	require.Equal(t, 2.0, categories[TurnCategoryChatdOverhead]+categories[TurnCategoryUnattributed])
 	require.Equal(t, 2.0, categoryTotal(categories))
@@ -598,8 +566,7 @@ func TestTurnAccountingAnomalies(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 		turnCtx, turnSpan, _ := fixture.startTurn(t)
-		// Two steps overlapping in wall time each report their full
-		// duration, so the categories exceed the turn.
+		// Overlapping steps each report their full duration.
 		_, first := fixture.tracer.Start(turnCtx, StageGenerationStep)
 		_, second := fixture.tracer.Start(turnCtx, StageGenerationStep)
 		fixture.clock.Advance(4 * time.Second)
@@ -653,8 +620,6 @@ func TestTurnAccountingStampsModelOnRoot(t *testing.T) {
 	require.NotContains(t, labels, "model", "the model is a span attribute on the turn, not a metric label")
 }
 
-// TestTurnMetricsEnabled covers that the turn families follow the stage
-// metrics option and that the recorders accept calls either way.
 func TestTurnMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
@@ -692,9 +657,6 @@ func TestTurnMetricsEnabled(t *testing.T) {
 	}
 }
 
-// TestTurnAccountingClampsToTurnEnd ends stages after their turn's end
-// time was fixed. Each counts only its window before the end time, and
-// the partition sums to the turn.
 func TestTurnAccountingClampsToTurnEnd(t *testing.T) {
 	t.Parallel()
 

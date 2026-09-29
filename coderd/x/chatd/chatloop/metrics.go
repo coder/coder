@@ -34,21 +34,10 @@ const (
 	StageAnomalyNegativeElapsed  StageAnomaly = "negative_elapsed"
 	StageAnomalyInvertedWindow   StageAnomaly = "inverted_window"
 	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
-	// StageAnomalyFutureStart counts a stage whose explicit start was
-	// ahead of this replica's clock; the stage is measured from now.
-	StageAnomalyFutureStart StageAnomaly = "future_start"
-	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
-	// not follow the previous turn's anchor on the same runner; the
-	// turn starts now and records no acquisition.
-	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
-	// StageAnomalyNonPositiveTurn counts a closed turn whose duration
-	// was not positive; its outcome is counted and its partition is not
-	// recorded.
-	StageAnomalyNonPositiveTurn StageAnomaly = "nonpositive_turn"
-	// StageAnomalyOverattributed counts a closed turn whose categories
-	// summed to more than its duration; the categories are emitted as
-	// measured, with no unattributed remainder.
-	StageAnomalyOverattributed StageAnomaly = "overattributed"
+	StageAnomalyFutureStart      StageAnomaly = "future_start"
+	StageAnomalyStaleAnchor      StageAnomaly = "stale_anchor"
+	StageAnomalyNonPositiveTurn  StageAnomaly = "nonpositive_turn"
+	StageAnomalyOverattributed   StageAnomaly = "overattributed"
 )
 
 // observedStages get histogram samples; other stages are span-only.
@@ -271,8 +260,6 @@ func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 }
 
-// recordStageAnomaly counts a stage observation that was dropped,
-// adjusted, or inconsistent, by reason. No-op when m is nil.
 func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
@@ -280,9 +267,7 @@ func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	m.stageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
 }
 
-// RecordTurnCategory adds one category of a closed turn's time
-// partition to the category counter. Categories with no time are
-// recorded as zero so every category has a series. No-op when m is nil.
+// RecordTurnCategory adds a closed turn's time in one category.
 func (m *Metrics) RecordTurnCategory(category TurnCategory, chatKind ChatKind, outcome TurnOutcome, elapsed time.Duration) {
 	if m == nil || elapsed < 0 {
 		return
@@ -290,8 +275,7 @@ func (m *Metrics) RecordTurnCategory(category TurnCategory, chatKind ChatKind, o
 	m.TurnTimeSecondsTotal.WithLabelValues(string(category), string(chatKind), string(outcome)).Add(elapsed.Seconds())
 }
 
-// RecordTurnOutcome counts one closed turn by outcome. No-op when m is
-// nil.
+// RecordTurnOutcome counts a closed turn by outcome.
 func (m *Metrics) RecordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
 	if m == nil {
 		return

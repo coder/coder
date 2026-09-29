@@ -35,12 +35,10 @@ const (
 )
 
 // GenerationActionExecuteLocalTools is the generation_action value of
-// a step that runs local tools. The own time of a step with this action
-// is tool_execution.
+// a step that runs local tools.
 const GenerationActionExecuteLocalTools = "execute_local_tools"
 
-// Span attribute keys. Keys are lowercase snake_case and shared by
-// every stage that carries the value.
+// Span attribute keys.
 const (
 	AttrProvider            = "provider"
 	AttrProviderType        = "provider_type"
@@ -172,11 +170,8 @@ func (m StageModel) attributes() []attribute.KeyValue {
 	return attrs
 }
 
-// StageSpan is an in-flight stage. Close it with End, which records
-// the duration, or EndWithoutObservation, which does not; calls after
-// the first are ignored. Both report a turn-scoped stage's time to its
-// turn's accounting. Close a chat_turn span with EndTurn. A StageSpan
-// is not safe for concurrent use.
+// StageSpan is an in-flight stage. Only the first End call takes
+// effect. Not safe for concurrent use.
 type StageSpan struct {
 	tracer   *StageTracer
 	stage    Stage
@@ -186,11 +181,8 @@ type StageSpan struct {
 	span     trace.Span
 	start    time.Time
 	ended    bool
-	// acc is the turn a turn-scoped stage reports to; nil otherwise.
-	acc *TurnAccumulator
-	// node is the stage's place in the turn's attribution tree, nil
-	// for stages that do not partition turn time.
-	node *stageNode
+	acc      *TurnAccumulator
+	node     *stageNode
 }
 
 type stageScopeKey struct{}
@@ -311,10 +303,8 @@ func (s *StageSpan) SetAttributes(attrs ...attribute.KeyValue) {
 	s.span.SetAttributes(attrs...)
 }
 
-// SetModel records the model identity on the span and on the
-// duration observation End makes, for stages that learn the model
-// after they start. The first model set on a turn-scoped stage is
-// stamped on its chat_turn span when the turn ends.
+// SetModel sets the model for the span and its histogram sample.
+// The first model set in a turn is also stamped on the chat_turn span.
 func (s *StageSpan) SetModel(model StageModel) {
 	if s == nil || s.ended {
 		return
@@ -324,9 +314,8 @@ func (s *StageSpan) SetModel(model StageModel) {
 	s.span.SetAttributes(model.attributes()...)
 }
 
-// SetGenerationAction records the action a generation step took, on
-// the span and on the step's turn attribution, where it decides
-// whether the step's own time counts as tool execution.
+// SetGenerationAction sets the step's generation_action, which also
+// decides whether its own time counts as tool execution.
 func (s *StageSpan) SetGenerationAction(action string) {
 	if s == nil || s.ended {
 		return
@@ -335,8 +324,7 @@ func (s *StageSpan) SetGenerationAction(action string) {
 	s.span.SetAttributes(attribute.String(AttrGenerationAction, action))
 }
 
-// SpanContext returns the span context of the stage span, which is
-// invalid when tracing is not configured.
+// SpanContext returns the span context of the stage span.
 func (s *StageSpan) SpanContext() trace.SpanContext {
 	if s == nil {
 		return trace.SpanContext{}
@@ -344,12 +332,8 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 	return s.span.SpanContext()
 }
 
-// End closes the stage span, records its duration, reports it to the
-// turn's accounting, and marks the span as errored when err is non-nil.
-// It returns the span's elapsed window whether or not the stage is
-// observed. Calls after the first are ignored and return zero, so a
-// deferred End cannot double-count a stage. A chat_turn span is closed
-// with EndTurn.
+// End closes the span, records its duration, and returns the elapsed
+// window. Calls after the first return zero.
 func (s *StageSpan) End(err error) time.Duration {
 	elapsed, ok := s.closeSpan(err)
 	if !ok {
@@ -360,17 +344,14 @@ func (s *StageSpan) End(err error) time.Duration {
 	return elapsed
 }
 
-// EndWithoutObservation closes the span like End but records no
-// duration observation, for stages whose truncated window would skew
-// the histogram. The stage is still reported to the turn's accounting.
+// EndWithoutObservation closes the span without recording a duration.
+// The stage still counts toward its turn.
 func (s *StageSpan) EndWithoutObservation(err error) {
 	if elapsed, ok := s.closeSpan(err); ok {
 		s.report(elapsed, err)
 	}
 }
 
-// closeSpan ends the span now and returns its window; ok is false for
-// a nil span and for calls after the first.
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
 		return 0, false
@@ -388,14 +369,8 @@ func (s *StageSpan) closeSpanAt(err error, end time.Time) time.Duration {
 	return end.Sub(s.start)
 }
 
-// Record emits an already-finished stage span with explicit start and
-// end timestamps. It is for stages whose boundaries are only known
-// after the fact, such as durations reconstructed from persisted
-// timestamps. The stage takes the scope and chat kind on ctx.
-// Windows with an unset timestamp or an end before the start are
-// dropped and, for observed stages, counted as anomalies; a zero-width
-// window is observed. A turn-scoped stage in recordedStageCategories
-// adds its duration to the turn on ctx.
+// Record emits a finished stage span with explicit timestamps. Windows
+// with a zero timestamp or end before start are dropped as anomalies.
 func (t *StageTracer) Record(
 	ctx context.Context,
 	stage Stage,
@@ -431,8 +406,7 @@ func (t *StageTracer) Record(
 	}
 }
 
-// RecordAnomaly counts a stage observation that was dropped, adjusted,
-// or inconsistent, for reason. It is safe to call on a nil tracer.
+// RecordAnomaly counts a dropped or adjusted stage observation.
 func (t *StageTracer) RecordAnomaly(reason StageAnomaly) {
 	if t == nil || t.metrics == nil {
 		return

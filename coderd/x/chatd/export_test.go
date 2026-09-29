@@ -12,16 +12,13 @@ var StageAnomalyCount = anomalyCount
 // DefaultTaskTimeout is the per-attempt task timeout.
 const DefaultTaskTimeout = defaultTaskTimeout
 
-// TurnCategorySeconds returns the coderd_chatd_turn_time_seconds_total
-// value of a root chat's turns for category and outcome.
+// TurnCategorySeconds returns a root chat's turn time for category and outcome.
 var TurnCategorySeconds = turnCategorySeconds
 
-// TurnOutcomeCount returns the coderd_chatd_turn_outcomes_total value
-// of a root chat's turns for outcome.
+// TurnOutcomeCount returns a root chat's turn count for outcome.
 var TurnOutcomeCount = turnOutcomeCount
 
-// SpanAttr returns the emitted value of the span attribute key, or an
-// empty string when the span does not carry it.
+// SpanAttr returns the span attribute key, or "" when unset.
 func SpanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
 	t.Helper()
 	value, ok := spanAttribute(t, span, key)
