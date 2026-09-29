@@ -49,6 +49,13 @@ var staleReasons = []staleReason{
 			`UPDATE chat_automations SET enabled = false, queue_generation = queue_generation + 1 WHERE id = $1`, id)
 		require.NoError(t, err)
 	}},
+	// DisabledSameGeneration isolates the enabled check: "Disabled" also
+	// bumps the generation, so it alone cannot tell the checks apart.
+	{name: "DisabledSameGeneration", apply: func(ctx context.Context, t *testing.T, f *testFixture, id uuid.UUID) {
+		_, err := f.SQLDB.ExecContext(ctx,
+			`UPDATE chat_automations SET enabled = false WHERE id = $1`, id)
+		require.NoError(t, err)
+	}},
 	{name: "GenerationMismatch", apply: func(ctx context.Context, t *testing.T, f *testFixture, id uuid.UUID) {
 		_, err := f.SQLDB.ExecContext(ctx,
 			`UPDATE chat_automations SET queue_generation = queue_generation + 1 WHERE id = $1`, id)
@@ -308,6 +315,9 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 				liveProvenance := provenanceFor(live)
 				liveRow := queueAutomationMessage(t, f, m, "live", liveProvenance)
 				sendQueuedMessage(t, f, m, "ordinary")
+				// A stale row behind the promoted head must survive:
+				// the guard deletes only rejected heads.
+				queueAutomationMessage(t, f, m, "stale behind", provenanceFor(stale))
 				if path.enter != nil {
 					require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 						return path.enter(tx)
@@ -327,7 +337,7 @@ func TestQueuePromotionGuard_HeadPromotion(t *testing.T) {
 				requireQueuedMessageLink(t, got, liveRow.ID)
 				requireAutomationProvenance(t, got, liveProvenance)
 				requireQueuedMessageDeleted(ctx, t, f, chat.Chat.ID, staleRow.ID)
-				assertQueueBodiesInOrder(ctx, t, f, chat.Chat.ID, append([]string{"ordinary"}, path.tail...))
+				assertQueueBodiesInOrder(ctx, t, f, chat.Chat.ID, append([]string{"ordinary", "stale behind"}, path.tail...))
 				require.Equal(t, chatstate.StateR1, f.classify(ctx, t, chat.Chat.ID))
 			})
 		}
@@ -588,15 +598,23 @@ func TestLockAutomations_AsChatd(t *testing.T) {
 }
 
 // deadlockStore injects a PostgreSQL deadlock abort into the first
-// failures calls that lock automations.
+// failures calls that lock automations, and counts the real deadlock
+// aborts those calls hit.
 type deadlockStore struct {
 	database.Store
-	failures *atomic.Int32
+	failures  *atomic.Int32
+	deadlocks *atomic.Int32
+}
+
+func newDeadlockStore(store database.Store, failures int32) *deadlockStore {
+	s := &deadlockStore{Store: store, failures: &atomic.Int32{}, deadlocks: &atomic.Int32{}}
+	s.failures.Store(failures)
+	return s
 }
 
 func (s *deadlockStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(&deadlockStore{Store: tx, failures: s.failures})
+		return fn(&deadlockStore{Store: tx, failures: s.failures, deadlocks: s.deadlocks})
 	}, opts)
 }
 
@@ -604,7 +622,11 @@ func (s *deadlockStore) GetChatAutomationsByIDsForUpdate(ctx context.Context, id
 	if s.failures.Add(-1) >= 0 {
 		return nil, &pq.Error{Code: "40P01", Message: "deadlock detected"}
 	}
-	return s.Store.GetChatAutomationsByIDsForUpdate(ctx, ids)
+	rows, err := s.Store.GetChatAutomationsByIDsForUpdate(ctx, ids)
+	if database.IsDeadlockError(err) {
+		s.deadlocks.Add(1)
+	}
+	return rows, err
 }
 
 // TestChatMachine_Update_RetriesAutomationDeadlocks covers the bounded
@@ -631,9 +653,7 @@ func TestChatMachine_Update_RetriesAutomationDeadlocks(t *testing.T) {
 			provenance := provenanceFor(f.newAutomation(t))
 			queued := queueAutomationMessage(t, f, m, "queued", provenance)
 
-			failures := &atomic.Int32{}
-			failures.Store(tc.failures)
-			retrying := chatstate.NewChatMachine(&deadlockStore{Store: f.DB, failures: failures}, f.Pub, chat.Chat.ID)
+			retrying := chatstate.NewChatMachine(newDeadlockStore(f.DB, tc.failures), f.Pub, chat.Chat.ID)
 			attempts := 0
 			var promoted *database.ChatMessage
 			err := retrying.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
@@ -672,9 +692,10 @@ func TestChatMachine_Update_RetriesAutomationDeadlocks(t *testing.T) {
 
 // TestQueuePromotionGuard_Concurrency runs admissions, promotions, and
 // disables against chats whose queues mix rows from several automations
-// in no particular id order. No deadlock abort may surface: every
-// transaction takes the chat lock first and automation locks in
-// ascending id order, and aborts that do happen are retried.
+// in no particular id order. Every transaction takes the chat lock first
+// and automation locks in ascending id order, so no deadlock abort may
+// happen at all. The test counts aborts below Update because its retry
+// would otherwise hide a lock order regression.
 func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
@@ -755,8 +776,9 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 		defer mu.Unlock()
 		errs = append(errs, err)
 	}
+	counting := newDeadlockStore(f.DB, 0)
 	for i, chatID := range chatIDs {
-		m := chatstate.NewChatMachine(f.DB, f.Pub, chatID)
+		m := chatstate.NewChatMachine(counting, f.Pub, chatID)
 		wg.Add(3)
 		go func() {
 			defer wg.Done()
@@ -809,6 +831,7 @@ func TestQueuePromotionGuard_Concurrency(t *testing.T) {
 	}()
 	wg.Wait()
 	require.Empty(t, errs)
+	require.Zero(t, counting.deadlocks.Load(), "ordered automation locking must never deadlock")
 	for _, chatID := range chatIDs {
 		require.NotEqual(t, chatstate.StateInvalid, f.classify(ctx, t, chatID))
 	}
