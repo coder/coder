@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -130,6 +131,21 @@ func (f publishFixture) createdChats(ctx context.Context, t *testing.T) []uuid.U
 	}
 	require.NoError(t, rows.Err())
 	return ids
+}
+
+// removeAgentsAccess leaves the owner with no organization roles, so the
+// owner may neither write the fixture chat nor create chats.
+func (f publishFixture) removeAgentsAccess(ctx context.Context) error {
+	_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+		GrantedRoles: []string{},
+		UserID:       f.owner.ID,
+		OrgID:        f.org.ID,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = f.sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = '{}' WHERE id = $1", f.org.ID)
+	return err
 }
 
 func (f publishFixture) requireNotConsumed(ctx context.Context, t *testing.T, automation database.ChatAutomation) {
@@ -287,14 +303,7 @@ func TestPublishAutomationWebhook(t *testing.T) {
 				require.NoError(t, f.db.UpdateUserDeletedByID(ctx, f.owner.ID))
 			}, chatd.ErrAutomationOwnerInactive},
 			{"NoAgentsAccess", func(ctx context.Context, t *testing.T, f publishFixture) {
-				_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
-					GrantedRoles: []string{},
-					UserID:       f.owner.ID,
-					OrgID:        f.org.ID,
-				})
-				require.NoError(t, err)
-				_, err = f.sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = '{}' WHERE id = $1", f.org.ID)
-				require.NoError(t, err)
+				require.NoError(t, f.removeAgentsAccess(ctx))
 			}, chatd.ErrAutomationForbidden},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -453,18 +462,56 @@ func TestPublishAutomationWebhook(t *testing.T) {
 		f := newPublishFixture(t, database.ChatStatusWaiting)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseMulti)
-		_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
-			GrantedRoles: []string{},
-			UserID:       f.owner.ID,
-			OrgID:        f.org.ID,
-		})
-		require.NoError(t, err)
-		_, err = f.sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = '{}' WHERE id = $1", f.org.ID)
-		require.NoError(t, err)
+		require.NoError(t, f.removeAgentsAccess(ctx))
 
-		_, err = f.publish(ctx, automation)
+		_, err := f.publish(ctx, automation)
 		require.ErrorIs(t, err, chatd.ErrAutomationForbidden)
 		require.Empty(t, f.createdChats(ctx, t))
+	})
+
+	t.Run("NewChatRefusedUnderLock", func(t *testing.T) {
+		t.Parallel()
+		// The user_prompt_submit hook runs after the checks made before
+		// the create, so a change made while it runs is caught only by
+		// the checks repeated under the automation lock, after the chat
+		// row is inserted.
+		for _, tc := range []struct {
+			name   string
+			change func(publishFixture, context.Context) error
+			want   error
+		}{
+			{"ModelDisabled", func(f publishFixture, ctx context.Context) error {
+				_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET enabled = false WHERE id = $1", f.model.ID)
+				return err
+			}, chatd.ErrAutomationModelUnavailable},
+			{"NoAgentsAccess", publishFixture.removeAgentsAccess, chatd.ErrAutomationForbidden},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				var (
+					f    publishFixture
+					once sync.Once
+				)
+				consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					once.Do(func() {
+						assert.NoError(t, tc.change(f, r.Context()))
+					})
+					// No permission decision lets the input through unchanged.
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				t.Cleanup(consumer.Close)
+				f = newPublishFixture(t, database.ChatStatusWaiting, func(cfg *chatd.Config) {
+					cfg.HookDispatcher = newHookDispatcher(t, nil, consumer)
+				})
+				ctx := testutil.Context(t, testutil.WaitLong)
+				automation := f.newChatWebhook(ctx, t, codersdk.ChatAutomationWebhookUseSingle)
+
+				_, err := f.publish(ctx, automation)
+				require.ErrorIs(t, err, tc.want)
+				require.Empty(t, f.createdChats(ctx, t))
+				f.requireNotConsumed(ctx, t, automation)
+			})
+		}
 	})
 
 	t.Run("NewChatSingleUseConcurrent", func(t *testing.T) {
