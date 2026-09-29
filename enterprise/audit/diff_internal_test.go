@@ -2,6 +2,7 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -694,6 +695,39 @@ func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
 		require.NotContains(t, string(raw), secret)
 	}
 	require.Contains(t, string(raw), "client-id")
+}
+
+func Test_chatAutomationWebhookSecretHashRedacted(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, Action(ActionSecret), AuditableResources[structName(reflect.TypeFor[database.ChatAutomation]())]["webhook_secret_hash"])
+
+	oldHash := []byte("old-webhook-secret-hash")
+	newHash := []byte("new-webhook-secret-hash")
+	left := database.ChatAutomation{
+		ID:                   uuid.UUID{1},
+		Name:                 "deploy-hook",
+		Kind:                 database.ChatAutomationKindWebhook,
+		WebhookSecretHash:    oldHash,
+		WebhookSecretVersion: 1,
+	}
+	right := left
+	right.WebhookSecretHash = newHash
+	right.WebhookSecretVersion = 2
+
+	diff := diffValues(left, right, AuditableResources)
+	require.Equal(t, audit.Map{
+		"webhook_secret_hash":    audit.OldNew{Old: []byte(nil), New: []byte(nil), Secret: true},
+		"webhook_secret_version": audit.OldNew{Old: int64(1), New: int64(2)},
+	}, diff)
+
+	// The persisted diff is JSON; neither hash may appear in any encoding.
+	raw, err := json.Marshal(diff)
+	require.NoError(t, err)
+	for _, hash := range [][]byte{oldHash, newHash} {
+		require.NotContains(t, string(raw), string(hash))
+		require.NotContains(t, string(raw), base64.StdEncoding.EncodeToString(hash))
+	}
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

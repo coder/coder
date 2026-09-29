@@ -155,6 +155,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.ID.String()[:8]
 	case database.ChatModelConfig:
 		return cmp.Or(typed.DisplayName, typed.ID.String())
+	case database.ChatAutomation:
+		return typed.Name
 	case database.MCPServerConfig:
 		// Updates can persist an empty display name; fall back to the slug, or
 		// the ID if both are empty, so the audit entry stays identifiable.
@@ -264,6 +266,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatModelConfig:
 		return typed.ID
+	case database.ChatAutomation:
+		return typed.ID
 	case database.MCPServerConfig:
 		return typed.ID
 	case database.UserSecret:
@@ -346,6 +350,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChat
 	case database.ChatModelConfig:
 		return database.ResourceTypeChatModelConfig
+	case database.ChatAutomation:
+		return database.ResourceTypeChatAutomation
 	case database.MCPServerConfig:
 		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
@@ -439,6 +445,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// migration 000467).
 		return true
 	case database.ChatModelConfig:
+		return true
+	case database.ChatAutomation:
 		return true
 	case database.MCPServerConfig:
 		// MCP server configs always carry a non-null organization_id.

@@ -187,6 +187,13 @@ func (c Chat) RBACObject() rbac.Object {
 		WithGroupACL(c.GroupACL.RBACACL())
 }
 
+func (a ChatAutomation) RBACObject() rbac.Object {
+	return rbac.ResourceChatAutomation.
+		WithID(a.ID).
+		InOrg(a.OrganizationID).
+		WithOwner(a.OwnerID.String())
+}
+
 func (m MCPServerConfig) RBACObject() rbac.Object {
 	return rbac.ResourceMCPServerConfig.
 		WithID(m.ID).

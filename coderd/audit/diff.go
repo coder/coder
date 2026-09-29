@@ -39,6 +39,7 @@ type Auditable interface {
 		database.AIGatewayKey |
 		database.Chat |
 		database.ChatModelConfig |
+		database.ChatAutomation |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |

@@ -114,6 +114,65 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	return chat
 }
 
+// ChatAutomation inserts a chat automation. It defaults to a multi-use
+// webhook that targets an existing chat and queues when busy, and fills
+// the shape-required columns for whichever kind and target mode the seed
+// selects. Callers must supply OrganizationID and OwnerID, and
+// NewChatModelConfigID for new_chat targets.
+func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomation) database.ChatAutomation {
+	t.Helper()
+
+	kind := takeFirst(seed.Kind, database.ChatAutomationKindWebhook)
+	webhookUse := seed.WebhookUse
+	scheduleCron := seed.ScheduleCron
+	scheduleTimeZone := seed.ScheduleTimeZone
+	switch kind {
+	case database.ChatAutomationKindWebhook:
+		if !webhookUse.Valid {
+			webhookUse = database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseMulti, Valid: true}
+		}
+	case database.ChatAutomationKindSchedule:
+		if !scheduleCron.Valid {
+			scheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+		}
+		if !scheduleTimeZone.Valid {
+			scheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+		}
+	}
+
+	targetMode := takeFirst(seed.TargetMode, database.ChatAutomationTargetModeExistingChat)
+	whenBusy := seed.WhenBusy
+	if targetMode == database.ChatAutomationTargetModeExistingChat && !whenBusy.Valid {
+		whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
+	}
+
+	automation, err := db.InsertChatAutomation(genCtx, database.InsertChatAutomationParams{
+		ID:                   takeFirst(seed.ID, uuid.New()),
+		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
+		Name:                 takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedByChatID:      seed.CreatedByChatID,
+		Kind:                 kind,
+		Enabled:              seed.Enabled,
+		TargetMode:           targetMode,
+		TargetChatID:         seed.TargetChatID,
+		NewChatModelConfigID: seed.NewChatModelConfigID,
+		ReasoningEffort:      seed.ReasoningEffort,
+		WhenBusy:             whenBusy,
+		WebhookUse:           webhookUse,
+		WebhookSecretHash:    seed.WebhookSecretHash,
+		WebhookSecretVersion: seed.WebhookSecretVersion,
+		Prompt:               takeFirst(seed.Prompt, "Summarize the latest activity."),
+		ScheduleCron:         scheduleCron,
+		ScheduleTimeZone:     scheduleTimeZone,
+		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
+		CreatedAt:            takeFirst(seed.CreatedAt, dbtime.Now()),
+		UpdatedAt:            takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert chat automation")
+	return automation
+}
+
 func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) database.ChatMessage {
 	t.Helper()
 

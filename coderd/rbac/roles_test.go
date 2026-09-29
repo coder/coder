@@ -265,7 +265,8 @@ func TestAgentsAccessRole(t *testing.T) {
 	require.Empty(t, role.User)
 	require.Empty(t, role.ByOrgID[orgID.String()].Org)
 	require.ElementsMatch(t, rbac.Permissions(map[string][]policy.Action{
-		rbac.ResourceChat.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+		rbac.ResourceChat.Type:           {policy.ActionCreate, policy.ActionRead, policy.ActionShare, policy.ActionUpdate},
+		rbac.ResourceChatAutomation.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 	}), role.ByOrgID[orgID.String()].Member)
 
 	// The role is organization scoped only.
@@ -1479,6 +1480,48 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
 				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Members need agents-access in the automation's org to manage
+			// their own automations; the member role alone grants nothing.
+			Name:     "ChatAutomationOwnCRUD",
+			Actions:  crud,
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAgentsAccessUser},
+				false: {setOtherOrg, memberMe, orgMemberMe, auditor, orgAuditor, userAdmin, orgUserAdmin, templateAdmin, orgTemplateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// Automations are always org-scoped. An object missing its org
+			// must not fall through to the member role's user-level perms.
+			Name:     "ChatAutomationOwnWithoutOrgCRUD",
+			Actions:  crud,
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, userAdmin, templateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatAutomationOtherOwnerCRUD",
+			Actions:  crud,
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, orgAuditor, userAdmin, orgUserAdmin, templateAdmin, orgTemplateAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			// agents-access in one org grants nothing in another org, even
+			// for the member's own automations.
+			Name:     "ChatAutomationOwnOtherOrgCRUD",
+			Actions:  crud,
+			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(otherOrg).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, otherOrgAdmin},
+				false: {orgAdmin, memberMe, orgMemberMe, orgAgentsAccessUser, auditor, orgAuditor, otherOrgAuditor, userAdmin, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, orgWorkspaceAccessUser},
 			},
 		},
 		{

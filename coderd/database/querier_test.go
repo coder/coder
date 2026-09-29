@@ -1531,6 +1531,126 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+// TestChatAutomationShapeConstraints checks the schema invariants that later
+// automation services rely on instead of re-validating every row.
+func TestChatAutomationShapeConstraints(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
+	otherOrgModelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: otherOrg.ID})
+
+	webhook := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
+	got, err := db.GetChatAutomationByID(ctx, webhook.ID)
+	require.NoError(t, err)
+	require.Equal(t, webhook, got)
+	require.NoError(t, db.DeleteChatAutomationByID(ctx, webhook.ID))
+	_, err = db.GetChatAutomationByID(ctx, webhook.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:       org.ID,
+		OwnerID:              owner.ID,
+		Kind:                 database.ChatAutomationKindSchedule,
+		TargetMode:           database.ChatAutomationTargetModeNewChat,
+		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+	})
+
+	valid := func() database.InsertChatAutomationParams {
+		return database.InsertChatAutomationParams{
+			ID:             uuid.New(),
+			OrganizationID: org.ID,
+			OwnerID:        owner.ID,
+			Name:           "automation",
+			Kind:           database.ChatAutomationKindWebhook,
+			TargetMode:     database.ChatAutomationTargetModeExistingChat,
+			WhenBusy:       database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true},
+			WebhookUse:     database.NullChatAutomationWebhookUse{ChatAutomationWebhookUse: database.ChatAutomationWebhookUseSingle, Valid: true},
+			Prompt:         "prompt",
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+		}
+	}
+	for _, tc := range []struct {
+		name  string
+		munge func(*database.InsertChatAutomationParams)
+		check database.CheckConstraint
+		fkey  database.ForeignKeyConstraint
+	}{
+		{
+			name:  "EmptyName",
+			munge: func(p *database.InsertChatAutomationParams) { p.Name = "" },
+			check: database.CheckChatAutomationsNameLength,
+		},
+		{
+			name: "ExistingChatWithNewChatModel",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "NewChatWithWhenBusy",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: modelCfg.ID, Valid: true}
+			},
+			check: database.CheckChatAutomationsTargetShape,
+		},
+		{
+			name: "WebhookWithCron",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "ScheduleWithWebhookSecret",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.Kind = database.ChatAutomationKindSchedule
+				p.WebhookUse = database.NullChatAutomationWebhookUse{}
+				p.WebhookSecretHash = []byte{0x01}
+				p.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+				p.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+			},
+			check: database.CheckChatAutomationsKindShape,
+		},
+		{
+			name: "NewChatModelFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetMode = database.ChatAutomationTargetModeNewChat
+				p.WhenBusy = database.NullChatAutomationWhenBusy{}
+				p.NewChatModelConfigID = uuid.NullUUID{UUID: otherOrgModelCfg.ID, Valid: true}
+			},
+			fkey: database.ForeignKeyChatAutomationsNewChatModelConfig,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			params := valid()
+			tc.munge(&params)
+			_, err := db.InsertChatAutomation(ctx, params)
+			require.Error(t, err)
+			if tc.check != "" {
+				require.True(t, database.IsCheckViolation(err, tc.check), "want %s, got %v", tc.check, err)
+			} else {
+				require.True(t, database.IsForeignKeyViolation(err, tc.fkey), "want %s, got %v", tc.fkey, err)
+			}
+		})
+	}
+}
+
 func TestChatContextHydration(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

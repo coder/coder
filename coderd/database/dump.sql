@@ -285,7 +285,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'chat_automation:*',
+    'chat_automation:create',
+    'chat_automation:read',
+    'chat_automation:update',
+    'chat_automation:delete'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -330,6 +335,26 @@ CREATE TYPE build_reason AS ENUM (
     'ssh_connection',
     'vscode_connection',
     'jetbrains_connection'
+);
+
+CREATE TYPE chat_automation_kind AS ENUM (
+    'webhook',
+    'schedule'
+);
+
+CREATE TYPE chat_automation_target_mode AS ENUM (
+    'existing_chat',
+    'new_chat'
+);
+
+CREATE TYPE chat_automation_webhook_use AS ENUM (
+    'single',
+    'multi'
+);
+
+CREATE TYPE chat_automation_when_busy AS ENUM (
+    'queue',
+    'skip'
 );
 
 CREATE TYPE chat_client_type AS ENUM (
@@ -616,7 +641,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'chat_automation'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1902,6 +1928,52 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_automations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    name text NOT NULL,
+    created_by_chat_id uuid,
+    kind chat_automation_kind NOT NULL,
+    enabled boolean DEFAULT false NOT NULL,
+    target_mode chat_automation_target_mode NOT NULL,
+    target_chat_id uuid,
+    new_chat_model_config_id uuid,
+    reasoning_effort chat_reasoning_effort,
+    when_busy chat_automation_when_busy,
+    webhook_use chat_automation_webhook_use,
+    webhook_secret_hash bytea,
+    webhook_secret_version bigint DEFAULT 0 NOT NULL,
+    webhook_consumed_at timestamp with time zone,
+    prompt text NOT NULL,
+    schedule_cron text,
+    schedule_time_zone text,
+    schedule_revision bigint DEFAULT 1 NOT NULL,
+    schedule_next_run_at timestamp with time zone,
+    queue_generation bigint DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_automations_kind_shape CHECK ((((kind = 'webhook'::chat_automation_kind) AND (webhook_use IS NOT NULL) AND (schedule_cron IS NULL)) OR ((kind = 'schedule'::chat_automation_kind) AND (webhook_use IS NULL) AND (webhook_secret_hash IS NULL) AND (schedule_cron IS NOT NULL) AND (schedule_time_zone IS NOT NULL)))),
+    CONSTRAINT chat_automations_name_length CHECK (((char_length(name) >= 1) AND (char_length(name) <= 128))),
+    CONSTRAINT chat_automations_target_shape CHECK ((((target_mode = 'existing_chat'::chat_automation_target_mode) AND (new_chat_model_config_id IS NULL) AND (when_busy IS NOT NULL)) OR ((target_mode = 'new_chat'::chat_automation_target_mode) AND (target_chat_id IS NULL) AND (new_chat_model_config_id IS NOT NULL) AND (when_busy IS NULL))))
+);
+
+COMMENT ON TABLE chat_automations IS 'Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.';
+
+COMMENT ON COLUMN chat_automations.target_chat_id IS 'Target chat for existing_chat automations. Set to NULL when the target chat is deleted.';
+
+COMMENT ON COLUMN chat_automations.webhook_secret_hash IS 'Hash of the webhook bearer secret. The plaintext secret is never stored.';
+
+COMMENT ON COLUMN chat_automations.webhook_secret_version IS 'Incremented each time the webhook secret is rotated.';
+
+COMMENT ON COLUMN chat_automations.webhook_consumed_at IS 'Single-use webhook marker. Set once when the webhook is consumed and never reset.';
+
+COMMENT ON COLUMN chat_automations.schedule_revision IS 'Incremented whenever the schedule changes, so work computed from an older schedule can be detected as stale.';
+
+COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.';
+
+COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.';
+
 CREATE TABLE chat_context_resources (
     chat_id uuid NOT NULL,
     source text NOT NULL,
@@ -2068,7 +2140,9 @@ CREATE TABLE chat_messages (
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
     search_tsv_config chat_message_search_tsv_config,
-    queued_message_id bigint
+    queued_message_id bigint,
+    automation_id uuid,
+    input_id uuid
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
@@ -2078,6 +2152,10 @@ COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL i
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 COMMENT ON COLUMN chat_messages.queued_message_id IS 'ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.';
+
+COMMENT ON COLUMN chat_messages.automation_id IS 'Automation that delivered this message. No foreign key by design.';
+
+COMMENT ON COLUMN chat_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that delivered this message.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2138,10 +2216,20 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    automation_id uuid,
+    input_id uuid,
+    queue_generation bigint,
+    CONSTRAINT chat_queued_messages_automation_shape CHECK ((((automation_id IS NULL) AND (input_id IS NULL) AND (queue_generation IS NULL)) OR ((automation_id IS NOT NULL) AND (input_id IS NOT NULL) AND (queue_generation IS NOT NULL))))
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.automation_id IS 'Automation that queued this message. No foreign key by design.';
+
+COMMENT ON COLUMN chat_queued_messages.input_id IS 'Automation input (webhook delivery or schedule occurrence) that queued this message.';
+
+COMMENT ON COLUMN chat_queued_messages.queue_generation IS 'chat_automations.queue_generation at queue time. A lower value than the automation''s current generation marks the message stale.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2233,6 +2321,7 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    automation_id uuid,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2257,6 +2346,8 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.automation_id IS 'Automation that created this chat. No foreign key by design.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2356,7 +2447,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.automation_id
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -4305,6 +4397,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
 
@@ -4707,7 +4802,17 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_next_run_at) WHERE ((kind = 'schedule'::chat_automation_kind) AND enabled);
+
+CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
+
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX chat_messages_automation_idx ON chat_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
+
+CREATE INDEX chat_queued_messages_automation_idx ON chat_queued_messages USING btree (automation_id) WHERE (automation_id IS NOT NULL);
+
+CREATE INDEX chats_automation_idx ON chats USING btree (automation_id) WHERE (automation_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5163,6 +5268,21 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_created_by_chat_id_fkey FOREIGN KEY (created_by_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_new_chat_model_config_fkey FOREIGN KEY (organization_id, new_chat_model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_automations
+    ADD CONSTRAINT chat_automations_target_chat_id_fkey FOREIGN KEY (target_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_context_resources
     ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

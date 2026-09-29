@@ -440,7 +440,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceChatAutomation, ResourceAiSeat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -730,8 +730,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// ActionDelete is intentionally excluded because hard-deletion goes through
-		// ResourceSystem in dbpurge.
+		// Chat ActionDelete is intentionally excluded because hard-deletion goes
+		// through ResourceSystem in dbpurge. Members manage their own chat
+		// automations in full, including deletion.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -747,6 +748,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionRead,
 								policy.ActionShare,
 								policy.ActionUpdate,
+							},
+							ResourceChatAutomation.Type: {
+								policy.ActionCreate,
+								policy.ActionRead,
+								policy.ActionUpdate,
+								policy.ActionDelete,
 							},
 						}),
 					},
