@@ -5271,6 +5271,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-board"
 	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
 	| "enable-ai-workspace-debug"
@@ -5289,6 +5290,7 @@ export const Experiments: Experiment[] = [
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-board",
 	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",
 	"enable-ai-workspace-debug",
