@@ -245,6 +245,134 @@ func TestPreToolUseHookMalformedToolInputStaysRecoverable(t *testing.T) {
 	require.False(t, failed.LastError.Valid, "the turn must not fail as a hook dispatch error")
 }
 
+// A tool call cut off by the output token limit gets exactly one error result,
+// never a second malformed-input result from hook admission.
+func TestPreToolUseHookOutputLimitTruncatedToolCallResolvedOnce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// blockStopped reports whether the provider closed the tool_use block,
+		// so the call arrives with truncated input instead of being dropped.
+		blockStopped bool
+	}{
+		{name: "TruncatedInput", blockStopped: true},
+		{name: "UnfinishedInput", blockStopped: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var modelCalls atomic.Int32
+			var replay atomic.Pointer[chattest.AnthropicRequest]
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				if !req.Stream {
+					return chattest.AnthropicNonStreamingResponse("title")
+				}
+				if modelCalls.Add(1) > 1 {
+					replay.Store(req)
+					return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("split it")...)
+				}
+				var chunks []chattest.AnthropicChunk
+				for _, chunk := range chattest.AnthropicToolCallChunks("write_file", `{"path":"/tmp/big.txt","content":"abc`) {
+					switch chunk.Type {
+					case "content_block_start":
+						chunk.ContentBlock.ID = "toolu_truncated"
+					case "content_block_stop":
+						if !tt.blockStopped {
+							continue
+						}
+					case "message_delta":
+						chunk.StopReason = "max_tokens"
+					}
+					chunks = append(chunks, chunk)
+				}
+				return chattest.AnthropicStreamingResponse(chunks...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+			var hookCalls atomic.Int32
+			consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+				hookCalls.Add(1)
+				return `{}`
+			})
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "pre-tool-use-output-limit-" + tt.name,
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("write a big file"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			require.Zero(t, hookCalls.Load())
+			require.Equal(t, int32(2), modelCalls.Load(), "generation must continue after the truncated call")
+
+			parts := chatToolParts(ctx, t, db, chat.ID)
+			var results []codersdk.ChatMessagePart
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult {
+					results = append(results, part)
+				}
+			}
+			require.Len(t, results, 1)
+			require.Equal(t, "toolu_truncated", results[0].ToolCallID)
+			require.True(t, results[0].IsError)
+			require.Contains(t, string(results[0].Result), "reached the output token limit")
+			require.Contains(t, string(results[0].Result), "while writing its input. Split the content into smaller tool calls.")
+			call := requireToolCallPart(t, parts, "write_file")
+			require.Equal(t, "toolu_truncated", call.ToolCallID)
+			require.Nil(t, call.Args)
+
+			replayed := replay.Load()
+			require.NotNil(t, replayed)
+			var toolUses, toolResults []string
+			for _, message := range replayed.Messages {
+				var blocks []struct {
+					Type      string          `json:"type"`
+					ID        string          `json:"id"`
+					Input     json.RawMessage `json:"input"`
+					ToolUseID string          `json:"tool_use_id"`
+				}
+				if json.Unmarshal(message.Content, &blocks) != nil {
+					continue
+				}
+				for _, block := range blocks {
+					switch block.Type {
+					case "tool_use":
+						toolUses = append(toolUses, block.ID+" "+string(block.Input))
+					case "tool_result":
+						toolResults = append(toolResults, block.ToolUseID)
+					}
+				}
+			}
+			require.Equal(t, []string{"toolu_truncated {}"}, toolUses)
+			require.Equal(t, []string{"toolu_truncated"}, toolResults)
+		})
+	}
+}
+
 // Duplicate tool-use IDs make a hook decision unattributable, so the batch
 // must be rejected even when filtering would otherwise hide the duplication.
 func TestPreToolUseHookDuplicateToolUseIDWithMalformedSiblingFailsClosed(t *testing.T) {

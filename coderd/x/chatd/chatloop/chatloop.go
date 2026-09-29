@@ -275,6 +275,9 @@ type stepResult struct {
 	toolResultCreatedAt  map[string]time.Time
 	reasoningStartedAt   []time.Time
 	reasoningCompletedAt []time.Time
+	// unfinishedToolCalls holds local calls whose input started streaming
+	// but never completed into a ToolCall.
+	unfinishedToolCalls []fantasy.ToolCallContent
 }
 
 // reasoningState accumulates reasoning content and provider
@@ -367,6 +370,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	if result.finishReason == fantasy.FinishReasonLength {
+		resolveOutputLimitToolCalls(&result, call.MaxOutputTokens, opts.Clock, publishMessagePart)
+	}
 	// A content-filter finish without user-visible output means the
 	// provider's safety classifiers blocked the whole response (e.g.
 	// Anthropic stop_reason "refusal"). The refusal can arrive after
@@ -397,6 +403,62 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
 		FinishReason: result.finishReason,
 	}, nil
+}
+
+// resolveOutputLimitToolCalls gives every call whose input the output token
+// limit cut off an error result, so the model learns why the call failed
+// instead of retrying the same oversized input or silently losing the call.
+func resolveOutputLimitToolCalls(
+	result *stepResult,
+	maxOutputTokens *int64,
+	clock quartz.Clock,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	limit := "the output token limit"
+	if maxOutputTokens != nil && *maxOutputTokens > 0 {
+		limit = fmt.Sprintf("the output token limit (%d tokens)", *maxOutputTokens)
+	}
+	message := "This tool call was not executed because the response reached " + limit +
+		" while writing its input. Split the content into smaller tool calls."
+	appendResult := func(toolCall fantasy.ToolCallContent) {
+		toolResult := fantasy.ToolResultContent{
+			ToolCallID: toolCall.ToolCallID,
+			ToolName:   toolCall.ToolName,
+			Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(message)},
+		}
+		result.content = append(result.content, toolResult)
+		now := clockNow(clock)
+		if result.toolResultCreatedAt == nil {
+			result.toolResultCreatedAt = make(map[string]time.Time)
+		}
+		result.toolResultCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolResult)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleTool, part)
+	}
+
+	var truncated []fantasy.ToolCallContent
+	for _, block := range result.content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && !toolCall.ProviderExecuted && !json.Valid([]byte(toolCall.Input)) {
+			truncated = append(truncated, toolCall)
+		}
+	}
+	for _, toolCall := range truncated {
+		appendResult(toolCall)
+	}
+	for _, toolCall := range result.unfinishedToolCalls {
+		result.content = append(result.content, toolCall)
+		now := clockNow(clock)
+		if result.toolCallCreatedAt == nil {
+			result.toolCallCreatedAt = make(map[string]time.Time)
+		}
+		result.toolCallCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolCall)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, part)
+		appendResult(toolCall)
+	}
 }
 
 func wrapProviderStreamError(provider string, err error) error {
@@ -852,6 +914,7 @@ func processStepStream(
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
+	var startedToolInputIDs []string
 
 	for part := range stream {
 		switch part.Type {
@@ -910,6 +973,9 @@ func processStepStream(
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
+			if _, exists := providerExecutedCalls[part.ID]; !exists {
+				startedToolInputIDs = append(startedToolInputIDs, part.ID)
+			}
 			providerExecutedCalls[part.ID] = part.ProviderExecuted
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
@@ -1011,6 +1077,17 @@ func processStepStream(
 		case fantasy.StreamPartTypeError:
 			return result, part.Error
 		}
+	}
+
+	for _, id := range startedToolInputIDs {
+		providerExecuted, unfinished := providerExecutedCalls[id]
+		if !unfinished || providerExecuted {
+			continue
+		}
+		result.unfinishedToolCalls = append(result.unfinishedToolCalls, fantasy.ToolCallContent{
+			ToolCallID: id,
+			ToolName:   toolNames[id],
+		})
 	}
 
 	return result, nil
