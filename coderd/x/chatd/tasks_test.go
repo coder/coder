@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -907,6 +908,16 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	require.NoError(t, err)
 	assistantID := messages[len(messages)-1].ID
 
+	// Each cancel answers only after the agent received every cancel, so
+	// cancels sent one at a time wait until the interrupt's context ends
+	// and commit no real result.
+	var pending atomic.Int64
+	for _, tc := range tests {
+		if !tc.agentless {
+			pending.Add(1)
+		}
+	}
+	allReceived := make(chan struct{})
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 	conn.EXPECT().SetExtraHeaders(gomock.Any())
 	for _, tc := range tests {
@@ -914,7 +925,17 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 			continue
 		}
 		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)
-		conn.EXPECT().CancelToolCall(gomock.Any(), id).Return(tc.cancel, tc.cancelErr)
+		conn.EXPECT().CancelToolCall(gomock.Any(), id).DoAndReturn(func(ctx context.Context, _ uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+			if pending.Add(-1) == 0 {
+				close(allReceived)
+			}
+			select {
+			case <-allReceived:
+				return tc.cancel, tc.cancelErr
+			case <-ctx.Done():
+				return workspacesdk.CancelToolCallResponse{}, ctx.Err()
+			}
+		})
 		if tc.output != nil || tc.outputErr != nil {
 			var output workspacesdk.ProcessOutputResponse
 			if tc.output != nil {

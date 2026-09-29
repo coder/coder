@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
@@ -33,8 +34,11 @@ const (
 	defaultTaskTimeout            = 15 * time.Minute
 	taskTimeoutMargin             = 5 * time.Minute
 	// interruptCancelTimeout bounds the agent dial and all tool call
-	// cancels of one interrupt, which wait for running edits to finish.
-	interruptCancelTimeout = 10 * time.Second
+	// cancels of one interrupt. The agent answers a cancel only after the
+	// call's running handler finishes, so waiting longer gives running tool
+	// calls a chance to finish and the interrupt records their real result
+	// instead of an unknown one.
+	interruptCancelTimeout = 30 * time.Second
 )
 
 var (
@@ -742,18 +746,28 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 	defer release()
 	// The agent keys tool call IDs by chat.
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
+	// Send the cancels concurrently so a slow call does not use up the
+	// timeout of the others.
+	responses := make([]fantasy.ToolResponse, len(calls))
+	errs := make([]error, len(calls))
+	var wg sync.WaitGroup
+	for i, call := range calls {
+		wg.Go(func() {
+			responses[i], errs[i] = chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
+		})
+	}
+	wg.Wait()
 	results := make(map[string]fantasy.ToolResponse, len(calls))
-	for _, call := range calls {
-		resp, err := chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
-		if err != nil {
+	for i, call := range calls {
+		if errs[i] != nil {
 			logger.Warn(ctx, "cancel tool call on agent",
 				slog.F("tool_call_id", call.ToolCallID),
 				slog.F("tool_name", call.ToolName),
-				slog.Error(err),
+				slog.Error(errs[i]),
 			)
 			continue
 		}
-		results[call.ToolCallID] = resp
+		results[call.ToolCallID] = responses[i]
 	}
 	return results
 }
