@@ -13,9 +13,6 @@ globalThis.Blob = NativeBlob;
 
 globalThis.ResizeObserver = ResizeObserver;
 
-// JSDOM has no `CSS` namespace at all. `CSS.escape` is baseline in every
-// browser, so production code calls it directly and only the tests need
-// this.
 if (typeof globalThis.CSS === "undefined") {
 	globalThis.CSS = { escape: cssEscape } as typeof CSS;
 }
