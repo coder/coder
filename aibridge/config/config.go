@@ -150,9 +150,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// ActorHeaderNames maps actor attributes to upstream header names.
-	// Nil turns forwarding off; an empty map enables cleanup without injection.
-	ActorHeaderNames map[string]string
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

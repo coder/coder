@@ -159,6 +159,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 
 	tests := []struct {
 		name                string
+		providerType        database.AIProviderType
 		sendActorHeaders    bool
 		actorHeaderID       string
 		actorHeaderName     string
@@ -167,20 +168,31 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 	}{
 		{
 			name:                "disabled with configured destinations",
+			providerType:        database.AIProviderTypeOpenai,
 			actorHeaderID:       customIDHeader,
 			actorHeaderName:     customNameHeader,
 			wantStandardHeaders: true,
 		},
 		{
 			name:             "enabled with empty destinations",
+			providerType:     database.AIProviderTypeOpenai,
 			sendActorHeaders: true,
 		},
 		{
 			name:              "enabled with selected destinations",
+			providerType:      database.AIProviderTypeOpenai,
 			sendActorHeaders:  true,
 			actorHeaderID:     customIDHeader,
 			actorHeaderName:   customNameHeader,
 			wantCustomHeaders: true,
+		},
+		{
+			name:                "Copilot ignores configured destinations",
+			providerType:        database.AIProviderTypeCopilot,
+			sendActorHeaders:    true,
+			actorHeaderID:       customIDHeader,
+			actorHeaderName:     customNameHeader,
+			wantStandardHeaders: true,
 		},
 	}
 
@@ -197,8 +209,8 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			t.Cleanup(upstream.Close)
 
 			provider, err := buildProvider(t.Context(), aiProviderSpec{
-				Type:    database.AIProviderTypeOpenai,
-				Name:    "openai",
+				Type:    tt.providerType,
+				Name:    string(tt.providerType),
 				Enabled: true,
 				BaseURL: upstream.URL,
 				Keys:    []string{"upstream-key"},
@@ -211,6 +223,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 
 			request := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`))
 			request = request.WithContext(aibridge.AsActor(request.Context(), actorID, aibridge.Metadata{"Username": actorUsername}))
+			request.Header.Set("Authorization", "Bearer client-key")
 			request.Header.Set(headers.ActorIDHeader(), clientID)
 			request.Header.Set(headers.ActorMetadataHeader("Username"), clientName)
 
@@ -227,15 +240,15 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				assert.Equal(t, actorID, receivedHeaders.Get(customIDHeader))
 				assert.Equal(t, actorUsername, receivedHeaders.Get(customNameHeader))
 			} else {
-				assert.NotContains(t, receivedHeaders, customIDHeader)
+				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(customIDHeader))
 				assert.NotContains(t, receivedHeaders, customNameHeader)
 			}
 			if tt.wantStandardHeaders {
 				assert.Equal(t, clientID, receivedHeaders.Get(headers.ActorIDHeader()))
 				assert.Equal(t, clientName, receivedHeaders.Get(headers.ActorMetadataHeader("Username")))
 			} else {
-				assert.NotContains(t, receivedHeaders, headers.ActorIDHeader())
-				assert.NotContains(t, receivedHeaders, headers.ActorMetadataHeader("Username"))
+				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader()))
+				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
 			}
 		})
 	}

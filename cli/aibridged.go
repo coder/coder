@@ -326,11 +326,10 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 		// Copilot is always BYOK; the per-user token is supplied on each
 		// request via the Authorization header, so no keypool is built.
 		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
-			Name:             spec.Name,
-			BaseURL:          spec.BaseURL,
-			APIDumpDir:       dumpDir,
-			CircuitBreaker:   cbCfg,
-			ActorHeaderNames: actorHeaderNames,
+			Name:           spec.Name,
+			BaseURL:        spec.BaseURL,
+			APIDumpDir:     dumpDir,
+			CircuitBreaker: cbCfg,
 		}), nil
 
 	default:

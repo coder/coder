@@ -145,10 +145,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
 	// It is always BYOK: the per-user key arrives in the Authorization header.
 	cfg := intercept.Config{
-		ProviderName:     p.Name(),
-		BaseURL:          p.cfg.BaseURL,
-		APIDumpDir:       p.cfg.APIDumpDir,
-		ActorHeaderNames: p.cfg.ActorHeaderNames,
+		ProviderName: p.Name(),
+		BaseURL:      p.cfg.BaseURL,
+		APIDumpDir:   p.cfg.APIDumpDir,
 	}
 	cred := credential.BYOK{Secret: key, Header: aibheaders.AuthHeaderAuthorization}
 
