@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
 	"time"
 
 	"github.com/adrg/xdg"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 )
@@ -57,32 +59,38 @@ func clampLogBufferSize(size int64) int64 {
 }
 
 // pruneSessionLogs removes the oldest coder-*.log files in dir, keeping at most
-// keep of the most recent. Errors are ignored: pruning is best effort.
-func pruneSessionLogs(dir string, keep int) {
+// keep of the most recent. It is best effort: it continues past individual
+// failures and returns them joined so the caller can surface them.
+func pruneSessionLogs(dir string, keep int) error {
 	matches, err := filepath.Glob(filepath.Join(dir, "coder-*.log"))
 	if err != nil {
-		return
+		return xerrors.Errorf("glob session logs in %q: %w", dir, err)
 	}
 	type logFile struct {
 		path    string
 		modTime time.Time
 	}
+	var errs []error
 	files := make([]logFile, 0, len(matches))
 	for _, path := range matches {
 		info, err := os.Stat(path)
 		if err != nil {
+			errs = append(errs, xerrors.Errorf("stat %q: %w", path, err))
 			continue
 		}
 		files = append(files, logFile{path: path, modTime: info.ModTime()})
 	}
 	if len(files) <= keep {
-		return
+		return errors.Join(errs...)
 	}
 	// Newest first, then remove everything past the keep threshold.
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].modTime.After(files[j].modTime)
 	})
 	for _, f := range files[keep:] {
-		_ = os.Remove(f.path)
+		if err := os.Remove(f.path); err != nil {
+			errs = append(errs, xerrors.Errorf("remove %q: %w", f.path, err))
+		}
 	}
+	return errors.Join(errs...)
 }

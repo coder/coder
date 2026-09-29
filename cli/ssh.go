@@ -273,7 +273,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 				if err := os.MkdirAll(logDir, 0o700); err != nil {
 					return xerrors.Errorf("create log dir %q: %w", logDir, err)
 				}
-				pruneSessionLogs(logDir, keepSessionLogFiles)
+				pruneErr := pruneSessionLogs(logDir, keepSessionLogFiles)
 
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
@@ -317,6 +317,12 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// when the command logs an error (via the deferred error log above),
 				// so normal operation stays quiet. Verbose writes debug directly.
 				logger = r.bufferedLogger(logger, sloghuman.Sink(dc), r.logBufferSize)
+
+				// Pruning is best effort, so surface any failures in the log file
+				// rather than aborting the session.
+				if pruneErr != nil {
+					logger.Warn(ctx, "failed to prune old session logs", slog.Error(pruneErr))
+				}
 
 				// log HTTP requests
 				client.SetLogger(logger)

@@ -51,7 +51,8 @@ func TestPruneSessionLogs(t *testing.T) {
 	other := filepath.Join(dir, "unrelated.txt")
 	require.NoError(t, os.WriteFile(other, []byte("x"), 0o600))
 
-	pruneSessionLogs(dir, keepSessionLogFiles)
+	pruneErr := pruneSessionLogs(dir, keepSessionLogFiles)
+	require.NoError(t, pruneErr)
 
 	remaining, err := filepath.Glob(filepath.Join(dir, "coder-*.log"))
 	require.NoError(t, err)
@@ -60,6 +61,33 @@ func TestPruneSessionLogs(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(dir, "coder-ssh-000.log"))
 	require.FileExists(t, filepath.Join(dir, fmt.Sprintf("coder-ssh-%03d.log", total-1)))
 	require.FileExists(t, other)
+}
+
+func TestPruneSessionLogs_ReturnsRemoveErrors(t *testing.T) {
+	t.Parallel()
+
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions, so os.Remove would not fail")
+	}
+
+	dir := t.TempDir()
+	base := time.Now()
+	const total = 3
+	for i := 0; i < total; i++ {
+		path := filepath.Join(dir, fmt.Sprintf("coder-ssh-%03d.log", i))
+		require.NoError(t, os.WriteFile(path, []byte("x"), 0o600))
+		modTime := base.Add(time.Duration(i) * time.Minute)
+		require.NoError(t, os.Chtimes(path, modTime, modTime))
+	}
+
+	// Removing a file requires write permission on the containing directory, so a
+	// read-only dir forces os.Remove to fail. Restore perms before t.TempDir's
+	// cleanup (which runs after this LIFO-ordered cleanup) tries to remove it.
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	err := pruneSessionLogs(dir, 1)
+	require.Error(t, err, "prune should return the remove failures")
 }
 
 func TestDefaultSessionLogDir(t *testing.T) {
