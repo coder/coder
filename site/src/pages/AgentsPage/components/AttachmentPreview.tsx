@@ -41,7 +41,7 @@ export const ImageThumbnail: React.FC<{
 		src={previewUrl}
 		alt={name}
 		className={cn(
-			"size-16 rounded-md border border-border-default object-cover",
+			"size-16 rounded-md border border-border object-cover",
 			className,
 		)}
 		onError={onError}
@@ -128,7 +128,7 @@ export const AttachmentPreview: React.FC<{
 	);
 
 	return (
-		<div className="border-b border-border-default/50">
+		<div className="border-b border-border/50">
 			<div className="flex gap-2 overflow-x-auto px-3 py-2">
 				{attachments.map((file, index) => {
 					const uploadState = uploadStates?.get(file);
@@ -174,7 +174,7 @@ export const AttachmentPreview: React.FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex size-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}

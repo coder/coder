@@ -42,7 +42,7 @@ const dialogVariants = cva(
 	{
 		variants: {
 			variant: {
-				default: "border-border-primary",
+				default: "border-border",
 				destructive: "border-border-destructive",
 			},
 		},

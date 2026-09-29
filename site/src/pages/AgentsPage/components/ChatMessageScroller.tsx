@@ -75,7 +75,7 @@ const EarlierMessages: React.FC<EarlierMessagesProps> = ({
 				aria-label="Loading earlier messages"
 				className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center"
 			>
-				<div className="flex items-center gap-2 rounded-full border border-border-default bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
+				<div className="flex items-center gap-2 rounded-full border border-border bg-surface-primary px-3 py-1.5 text-xs text-content-secondary shadow-xs">
 					<Spinner className="size-4" loading aria-hidden />
 					Loading earlier messages
 				</div>

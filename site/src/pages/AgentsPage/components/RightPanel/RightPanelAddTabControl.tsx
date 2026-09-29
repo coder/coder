@@ -116,7 +116,7 @@ export const RightPanelAddTabControl: React.FC<{
 	);
 
 	return (
-		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">
+		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-content-secondary">
 			<Button
 				variant="subtle"
 				size="icon"
@@ -124,7 +124,7 @@ export const RightPanelAddTabControl: React.FC<{
 				disabled={!canCreateTerminal}
 				aria-label="New terminal tab"
 				title="New terminal tab"
-				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border-default"
+				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border"
 			>
 				<PlusIcon className="size-3.5" />
 			</Button>

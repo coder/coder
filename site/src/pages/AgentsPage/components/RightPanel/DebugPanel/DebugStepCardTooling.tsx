@@ -65,7 +65,7 @@ export const ToolEventCard: React.FC<ToolEventCardProps> = ({
 	copyLabel,
 }) => {
 	return (
-		<div className="rounded-md border border-solid border-border-default/40 bg-surface-secondary/10 p-2.5">
+		<div className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5">
 			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				<ToolBadge label={badgeLabel} />
 				{toolCallId ? (

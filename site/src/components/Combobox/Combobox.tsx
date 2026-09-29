@@ -112,7 +112,7 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"flex w-auto flex-col overflow-y-hidden border-border-default text-sm",
+				"flex w-auto flex-col overflow-y-hidden border-border text-sm",
 				className,
 			)}
 			{...props}

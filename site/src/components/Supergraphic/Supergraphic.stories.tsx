@@ -6,7 +6,7 @@ const meta: Meta<typeof Supergraphic> = {
 	component: Supergraphic,
 	decorators: [
 		(Story) => (
-			<div className="relative h-64 w-96 rounded-lg border border-solid border-border-default overflow-hidden">
+			<div className="relative h-64 w-96 rounded-lg border border-solid border-border overflow-hidden">
 				<Story />
 			</div>
 		),

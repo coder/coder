@@ -22,7 +22,7 @@ export const WorkspaceFileChip: React.FC<{
 		<TooltipTrigger asChild>
 			<button
 				type="button"
-				className="flex max-w-64 cursor-default items-center gap-1.5 rounded-md border border-solid border-border-default bg-surface-tertiary px-2.5 py-1.5 text-left text-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="flex max-w-64 cursor-default items-center gap-1.5 rounded-md border border-solid border-border bg-surface-tertiary px-2.5 py-1.5 text-left text-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
 				<HardDriveIcon
 					aria-hidden="true"

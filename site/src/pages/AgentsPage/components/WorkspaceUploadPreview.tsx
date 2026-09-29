@@ -50,7 +50,7 @@ export const WorkspaceUploadPreview: React.FC<{
 				return (
 					<div
 						key={upload.id}
-						className="flex max-w-64 items-center gap-2 rounded-md border border-solid border-border-default bg-surface-tertiary px-2.5 py-1.5 text-xs"
+						className="flex max-w-64 items-center gap-2 rounded-md border border-solid border-border bg-surface-tertiary px-2.5 py-1.5 text-xs"
 					>
 						{upload.status === "uploading" ? (
 							<Spinner

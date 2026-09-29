@@ -236,7 +236,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 							</Alert>
 						)}
 
-						<div className="flex flex-col gap-3 rounded-md border border-border-default p-4">
+						<div className="flex flex-col gap-3 rounded-md border border-border p-4">
 							<div className="flex flex-col gap-1">
 								<Label htmlFor={importId}>Import from SKILL.md</Label>
 								<p className="m-0 text-xs text-content-secondary">
@@ -383,7 +383,7 @@ export const PersonalSkillEditor: React.FC<PersonalSkillEditorProps> = ({
 						</div>
 					</div>
 
-					<DialogFooter className="border-t border-border-default px-6 py-4">
+					<DialogFooter className="border-t border-border px-6 py-4">
 						<Button
 							variant="outline"
 							disabled={isSubmitting}
