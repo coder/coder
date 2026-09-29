@@ -7692,6 +7692,12 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 			break
 		}
 	}
+	supportsAmbientCredentials := false
+	// A corrupt settings blob only costs the ambient-credential capability hint;
+	// the gateway remains responsible for actual authentication.
+	if settings, err := db2sdk.AIProviderSettings(provider.Settings); err == nil {
+		supportsAmbientCredentials = aiProviderSupportsAmbientCredentials(settings)
+	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
@@ -7700,6 +7706,7 @@ func (api *API) configuredProviderFromAIProviderKeys(provider database.AIProvide
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		AllowCentralAPIKeyFallback: true,
+		SupportsAmbientCredentials: supportsAmbientCredentials,
 	}
 }
 
@@ -7834,6 +7841,16 @@ func (api *API) chatModelProviderDescriptors(
 			}
 		}
 		hasUserKey := userKeyStatus[provider.ID]
+		// Some provider configurations support ambient credentials rather than a
+		// stored key. Actual credential availability is checked by the gateway.
+		supportsAmbientCredentials := provider.Type == database.AIProviderTypeBedrock
+		if !supportsAmbientCredentials {
+			settings, err := db2sdk.AIProviderSettings(provider.Settings)
+			if err != nil {
+				return nil, xerrors.Errorf("decode AI provider settings: %w", err)
+			}
+			supportsAmbientCredentials = aiProviderSupportsAmbientCredentials(settings)
+		}
 		out = append(out, codersdk.ChatModelProviderDescriptor{
 			ID:                 provider.ID,
 			Type:               string(provider.Type),
@@ -7842,11 +7859,17 @@ func (api *API) chatModelProviderDescriptors(
 			Enabled:            provider.Enabled,
 			HasAPIKey:          hasKey,
 			HasUserAPIKey:      hasUserKey,
-			HasEffectiveAPIKey: hasKey || hasUserKey || provider.Type == database.AIProviderTypeBedrock,
+			HasEffectiveAPIKey: hasKey || hasUserKey || supportsAmbientCredentials,
 			AllowUserAPIKey:    api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		})
 	}
 	return out, nil
+}
+
+// aiProviderSupportsAmbientCredentials reports whether the provider's settings
+// support ambient credentials. It does not verify that credentials are available.
+func aiProviderSupportsAmbientCredentials(settings codersdk.AIProviderSettings) bool {
+	return settings.Bedrock != nil || settings.ClaudePlatformAWS != nil
 }
 
 func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {
