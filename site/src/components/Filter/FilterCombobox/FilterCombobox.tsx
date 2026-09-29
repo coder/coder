@@ -67,7 +67,7 @@ const labelOnlyChipClassName =
 	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
 
 const flyoutPanelClassName =
-	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:max-w-80 sm:self-start";
+	"relative flex w-(--radix-popover-trigger-width) max-w-full shrink-0 flex-col rounded-md border border-border bg-surface-primary shadow-md sm:absolute sm:left-[calc(100%-0.25rem)] sm:z-10 sm:w-max sm:min-w-40 sm:max-w-[min(100%,20rem)] sm:self-start";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.

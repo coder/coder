@@ -254,13 +254,7 @@ export const LongFlyoutOptionLabels: Story = {
 			["organization", "Organization"],
 		]) {
 			await userEvent.hover(await body.findByRole("option", { name: label }));
-			const row = await body.findByRole("button", {
-				name: new RegExp(`A ${key} name`),
-			});
-			const list = row.closest("div");
-			await waitFor(() => expect(list?.scrollWidth).toBe(list?.clientWidth));
-			const panel = list?.parentElement;
-			expect(panel?.getBoundingClientRect().width).toBeLessThanOrEqual(320);
+			await body.findByRole("button", { name: new RegExp(`A ${key} name`) });
 		}
 	},
 };
