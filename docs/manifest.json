@@ -562,7 +562,7 @@
 							"state": ["premium"]
 						},
 						{
-							"title": "API & session tokens",
+							"title": "API \u0026 session tokens",
 							"description": "Manage authentication tokens for API access and configure session duration policies",
 							"path": "./admin/users/sessions-tokens.md"
 						}
@@ -1138,7 +1138,7 @@
 							"path": "./ai-coder/agents/chat-search-syntax.md"
 						},
 						{
-							"title": "Licensing & usage",
+							"title": "Licensing \u0026 usage",
 							"description": "Compare Coder Agents licenses and learn how Coder measures and reports Agent Time usage.",
 							"path": "./ai-coder/agents/licensing-usage.md"
 						},
