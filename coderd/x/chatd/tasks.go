@@ -768,6 +768,13 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 	var wg sync.WaitGroup
 	for i, call := range calls {
 		wg.Go(func() {
+			// executeTaskSafely recovers only the task goroutine, so a panic
+			// here would crash the process.
+			defer func() {
+				if r := recover(); r != nil {
+					errs[i] = xerrors.Errorf("cancel panicked: %v", r)
+				}
+			}()
 			responses[i], errs[i] = chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
 		})
 	}

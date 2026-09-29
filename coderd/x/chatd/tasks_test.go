@@ -868,10 +868,12 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		agentless bool
 		cancel    workspacesdk.CancelToolCallResponse
 		cancelErr error
-		output    *workspacesdk.ProcessOutputResponse
-		outputErr error
-		wantError bool
-		want      string
+		// cancelPanics makes the agent connection's cancel panic.
+		cancelPanics bool
+		output       *workspacesdk.ProcessOutputResponse
+		outputErr    error
+		wantError    bool
+		want         string
 	}{
 		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), want: `"error":"not run: canceled before the agent received it"`},
 		// The agent forgot the call, but its process outlives the record
@@ -886,6 +888,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		// A result over the 64 KB default budget is capped and stays JSON.
 		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},
 		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "CancelPanic", toolName: "execute", cancelPanics: true, wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "OtherTool", toolName: "read_file", agentless: true, wantError: true, want: interruptedToolResultErrorMessage},
 	}
 
@@ -931,6 +934,9 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 			}
 			select {
 			case <-allReceived:
+				if tc.cancelPanics {
+					panic("cancel panicked")
+				}
 				return tc.cancel, tc.cancelErr
 			case <-ctx.Done():
 				return workspacesdk.CancelToolCallResponse{}, ctx.Err()
