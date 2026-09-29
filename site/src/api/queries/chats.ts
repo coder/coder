@@ -626,16 +626,16 @@ const diffStatusesEqual = (
 };
 
 const mergeDiffStatuses = (
-	cached: readonly TypesGen.ChatDiffStatus[] | undefined,
-	incoming: readonly TypesGen.ChatDiffStatus[] | undefined,
+	cached: readonly TypesGen.ChatDiffStatus[] = [],
+	incoming: readonly TypesGen.ChatDiffStatus[],
 	primary?: TypesGen.ChatDiffStatus,
 	removedRef?: TypesGen.DiffStatusRef,
 ): TypesGen.ChatDiffStatus[] | undefined => {
 	const merged = new Map(
-		(cached ?? []).map((status) => [diffStatusRefKey(status), status]),
+		cached.map((status) => [diffStatusRefKey(status), status]),
 	);
 
-	for (const status of incoming ?? []) {
+	for (const status of incoming) {
 		merged.set(diffStatusRefKey(status), status);
 	}
 
@@ -715,7 +715,7 @@ export const mergeWatchedChatSummary = (
 	const changedIsTombstone =
 		changedStatus !== undefined && isDiffStatusTombstone(changedStatus);
 
-	let incomingRows: readonly TypesGen.ChatDiffStatus[] | undefined;
+	let incomingRows: readonly TypesGen.ChatDiffStatus[] = [];
 	let removedRef: TypesGen.DiffStatusRef | undefined;
 	if (changedIsTombstone) {
 		removedRef = changedDiffStatus?.ref;
