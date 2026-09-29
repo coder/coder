@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 /**
- * Where the side-by-side panel is in its slide. "closing" and "slidingOut"
- * keep the panel laid out until their animation ends; "closed" hides it with
- * display: none so hidden content, such as a terminal, stops rendering.
+ * Where the side-by-side panel is in its slide. "opening", "closing" (a
+ * width transition), and "slidingOut" (a keyframe animation) last until the
+ * panel's running animations settle. "closed" means no slide is running;
+ * RightPanel decides what to hide from the phase and whether it is open.
  */
 export type PanelSlidePhase =
 	| "opening"
@@ -16,7 +17,7 @@ type PanelSlideInputs = {
 	isOpen: boolean;
 	isExpanded: boolean;
 	isBelowLg: boolean;
-	isDragging: boolean;
+	isPointerResizing: boolean;
 };
 
 const isSideBySide = ({ isOpen, isExpanded, isBelowLg }: PanelSlideInputs) =>
@@ -30,8 +31,10 @@ export const nextPanelSlidePhase = (
 ): PanelSlidePhase => {
 	const wasSideBySide = isSideBySide(prev);
 	if (isSideBySide(next) && !wasSideBySide) {
-		// Leaving expanded mode has nothing to animate from.
-		return prev.isOpen || next.isDragging ? "open" : "opening";
+		// Only a closed panel slides open. Leaving expanded mode or widening
+		// past lg has no start width to animate from, and a drag sets the
+		// width directly.
+		return prev.isOpen || next.isPointerResizing ? "open" : "opening";
 	}
 	if (wasSideBySide && !isSideBySide(next)) {
 		// Crossing below lg drops the lg: width, so a keyframe slides it out.
@@ -41,26 +44,33 @@ export const nextPanelSlidePhase = (
 		if (next.isOpen) {
 			return "open";
 		}
-		return next.isDragging ? "closed" : "closing";
+		return next.isPointerResizing ? "closed" : "closing";
 	}
-	if (prev.isOpen && !next.isOpen && !wasSideBySide && phase !== "slidingOut") {
-		return "closed";
-	}
-	if (phase === "opening" && next.isDragging) {
-		// A drag removes the transition, so no transitionend will arrive.
+	if (!prev.isOpen && next.isOpen) {
+		// Opening the overlay or expanded panel ends any slide.
 		return "open";
 	}
-	if (phase === "slidingOut" && !next.isBelowLg) {
-		return next.isOpen ? "open" : "closed";
+	if (prev.isOpen && !next.isOpen && phase !== "slidingOut") {
+		// The page closes the panel a render after the lg crossing, so a
+		// slide-out keeps running through that close.
+		return "closed";
 	}
 	return phase;
 };
 
+const settledPhase = (phase: PanelSlidePhase): PanelSlidePhase =>
+	phase === "opening" ? "open" : "closed";
+
 /**
- * Tracks the right panel's slide phase and returns the end handlers that
- * advance it once a transition or animation on the panel itself finishes.
+ * Tracks the right panel's slide phase. A slide ends when the panel's own
+ * animations settle, or at once when none are running, so a transition that
+ * never starts (a class change, a missing browser feature) cannot leave the
+ * phase stuck.
  */
-export const usePanelSlidePhase = (inputs: PanelSlideInputs) => {
+export const usePanelSlidePhase = (
+	panelRef: React.RefObject<HTMLElement | null>,
+	inputs: PanelSlideInputs,
+): PanelSlidePhase => {
 	const [prev, setPrev] = useState(inputs);
 	const [phase, setPhase] = useState<PanelSlidePhase>(
 		inputs.isOpen ? "open" : "closed",
@@ -69,7 +79,7 @@ export const usePanelSlidePhase = (inputs: PanelSlideInputs) => {
 		prev.isOpen !== inputs.isOpen ||
 		prev.isExpanded !== inputs.isExpanded ||
 		prev.isBelowLg !== inputs.isBelowLg ||
-		prev.isDragging !== inputs.isDragging;
+		prev.isPointerResizing !== inputs.isPointerResizing;
 	let currentPhase = phase;
 	if (changed) {
 		currentPhase = nextPanelSlidePhase(phase, prev, inputs);
@@ -77,19 +87,32 @@ export const usePanelSlidePhase = (inputs: PanelSlideInputs) => {
 		setPhase(currentPhase);
 	}
 
-	const onTransitionEnd = (e: React.TransitionEvent) => {
-		if (e.target !== e.currentTarget || e.propertyName !== "width") {
+	const { isOpen } = inputs;
+	useLayoutEffect(() => {
+		// A slide-out waits for the close that applies its animation.
+		if (
+			phase === "open" ||
+			phase === "closed" ||
+			(phase === "slidingOut" && isOpen)
+		) {
 			return;
 		}
-		setPhase((p) =>
-			p === "opening" ? "open" : p === "closing" ? "closed" : p,
-		);
-	};
-	const onAnimationEnd = (e: React.AnimationEvent) => {
-		if (e.target === e.currentTarget) {
-			setPhase((p) => (p === "slidingOut" ? "closed" : p));
+		const settle = () => setPhase(settledPhase(phase));
+		const animations = panelRef.current?.getAnimations?.() ?? [];
+		if (animations.length === 0) {
+			settle();
+			return;
 		}
-	};
+		let cancelled = false;
+		void Promise.allSettled(animations.map((a) => a.finished)).then(() => {
+			if (!cancelled) {
+				settle();
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [phase, isOpen, panelRef]);
 
-	return { phase: currentPhase, onTransitionEnd, onAnimationEnd };
+	return currentPhase;
 };
