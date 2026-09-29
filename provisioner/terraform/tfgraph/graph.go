@@ -28,6 +28,7 @@ const (
 // NodeID identifies a node within one Index. Its representation is opaque and
 // remains stable for the lifetime of that index.
 type NodeID struct {
+	index    *Index
 	position int
 }
 
@@ -94,7 +95,7 @@ func (i *Index) Node(id NodeID) (Node, bool) {
 func (i *Index) Nodes() iter.Seq2[NodeID, Node] {
 	return func(yield func(NodeID, Node) bool) {
 		for position, node := range i.nodes {
-			if !yield(nodeID(position), node) {
+			if !yield(nodeID(i, position), node) {
 				return
 			}
 		}
@@ -214,7 +215,7 @@ func parseWithLimits(
 		}
 		retainedAddressBytes += len(node.address)
 
-		id := nodeID(position)
+		id := nodeID(index, position)
 		nodeIDByRawID[rawNodeID] = id
 		index.nodes = append(index.nodes, node)
 		index.dependencies = append(index.dependencies, nil)
@@ -470,13 +471,14 @@ func addressOperation(raw string) (string, string) {
 	return raw[:operationStart], raw[operationStart+2 : len(raw)-1]
 }
 
-func nodeID(position int) NodeID {
-	return NodeID{position: position + 1}
+func nodeID(index *Index, position int) NodeID {
+	return NodeID{index: index, position: position + 1}
 }
 
 func (i *Index) nodePosition(id NodeID) (int, bool) {
 	position := id.position - 1
-	return position, position >= 0 && position < len(i.nodes)
+	return position,
+		id.index == i && position >= 0 && position < len(i.nodes)
 }
 
 func exceedsLimit(used, additional, limit int) bool {
