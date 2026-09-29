@@ -199,8 +199,9 @@ type ChatProject struct {
 	ID             uuid.UUID `json:"id" format:"uuid"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	OwnerID        uuid.UUID `json:"owner_id" format:"uuid"`
-	Name           string    `json:"name"`
-	Description    string    `json:"description"`
+	// Name is a display label and is not unique; ID identifies the project.
+	Name        string `json:"name"`
+	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
 	Icon      string    `json:"icon"`
@@ -208,12 +209,12 @@ type ChatProject struct {
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }
 
-// CreateChatProjectRequest creates an organization-scoped chat project.
+// CreateChatProjectRequest creates a chat project in the organization named
+// by the route.
 type CreateChatProjectRequest struct {
-	OrganizationID uuid.UUID `json:"organization_id" validate:"required" format:"uuid"`
-	Name           string    `json:"name" validate:"required"`
-	Description    string    `json:"description"`
-	Icon           string    `json:"icon,omitempty"`
+	Name        string `json:"name" validate:"required"`
+	Description string `json:"description"`
+	Icon        string `json:"icon,omitempty"`
 }
 
 // UpdateChatProjectRequest updates a chat project.
@@ -225,29 +226,21 @@ type UpdateChatProjectRequest struct {
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
-	ID                uuid.UUID  `json:"id" format:"uuid"`
-	ProjectID         uuid.UUID  `json:"project_id" format:"uuid"`
-	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
-	Name              string     `json:"name"`
-	Description       string     `json:"description"`
-	Body              string     `json:"body"`
-	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
-	CreatedBy         uuid.UUID  `json:"created_by" format:"uuid"`
-	CreatedByUsername string     `json:"created_by_username"`
-	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
+	ID                uuid.UUID `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID `json:"organization_id" format:"uuid"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	Body              string    `json:"body"`
+	CreatedBy         uuid.UUID `json:"created_by" format:"uuid"`
+	CreatedByUsername string    `json:"created_by_username"`
+	CreatedAt         time.Time `json:"created_at" format:"date-time"`
 }
 
 type CreateChatProjectMemoryRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description" validate:"required"`
 	Body        string `json:"body" validate:"required"`
-}
-
-type UpdateChatProjectMemoryRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Body        *string `json:"body,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has
@@ -2221,9 +2214,18 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ListChatProjects lists chat projects in an organization.
-func (c *ExperimentalClient) ListChatProjects(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects?organization=%s", organizationID), nil)
+func chatProjectsPath(organizationID uuid.UUID) string {
+	return fmt.Sprintf("/api/experimental/organizations/%s/chats/projects", organizationID)
+}
+
+func chatProjectPath(organizationID, projectID uuid.UUID) string {
+	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
+}
+
+// ListChatProjects lists the authenticated user's chat projects across all
+// organizations.
+func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2235,9 +2237,9 @@ func (c *ExperimentalClient) ListChatProjects(ctx context.Context, organizationI
 	return projects, ReadBodyAsJSON(res, &projects)
 }
 
-// CreateChatProject creates a chat project.
-func (c *ExperimentalClient) CreateChatProject(ctx context.Context, req CreateChatProjectRequest) (ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/projects", req)
+// CreateChatProject creates a chat project in an organization.
+func (c *ExperimentalClient) CreateChatProject(ctx context.Context, organizationID uuid.UUID, req CreateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectsPath(organizationID), req)
 	if err != nil {
 		return ChatProject{}, err
 	}
@@ -2250,8 +2252,8 @@ func (c *ExperimentalClient) CreateChatProject(ctx context.Context, req CreateCh
 }
 
 // GetChatProject gets a chat project.
-func (c *ExperimentalClient) GetChatProject(ctx context.Context, projectID uuid.UUID) (ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
+func (c *ExperimentalClient) GetChatProject(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {
 		return ChatProject{}, err
 	}
@@ -2264,8 +2266,8 @@ func (c *ExperimentalClient) GetChatProject(ctx context.Context, projectID uuid.
 }
 
 // UpdateChatProject updates a chat project.
-func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, projectID uuid.UUID, req UpdateChatProjectRequest) (ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), req)
+func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req UpdateChatProjectRequest) (ChatProject, error) {
+	res, err := c.Request(ctx, http.MethodPatch, chatProjectPath(organizationID, projectID), req)
 	if err != nil {
 		return ChatProject{}, err
 	}
@@ -2278,8 +2280,8 @@ func (c *ExperimentalClient) UpdateChatProject(ctx context.Context, projectID uu
 }
 
 // DeleteChatProject deletes a chat project and detaches its chats.
-func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s", projectID), nil)
+func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organizationID, projectID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, chatProjectPath(organizationID, projectID), nil)
 	if err != nil {
 		return err
 	}
@@ -2291,8 +2293,8 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, projectID uu
 }
 
 // ListChatProjectMemories lists memories for a chat project.
-func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, projectID uuid.UUID) ([]ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), nil)
+func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, organizationID, projectID uuid.UUID) ([]ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, chatProjectPath(organizationID, projectID)+"/memories", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2305,8 +2307,8 @@ func (c *ExperimentalClient) ListChatProjectMemories(ctx context.Context, projec
 }
 
 // CreateChatProjectMemory creates a project memory.
-func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/projects/%s/memories", projectID), req)
+func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, organizationID, projectID uuid.UUID, req CreateChatProjectMemoryRequest) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatProjectPath(organizationID, projectID)+"/memories", req)
 	if err != nil {
 		return ChatProjectMemory{}, err
 	}
@@ -2319,22 +2321,8 @@ func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, projec
 }
 
 // GetChatProjectMemory gets a project memory.
-func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
-	if err != nil {
-		return ChatProjectMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProjectMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatProjectMemory
-	return memory, ReadBodyAsJSON(res, &memory)
-}
-
-// UpdateChatProjectMemory updates a project memory.
-func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID, req UpdateChatProjectMemoryRequest) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), req)
+func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
 	if err != nil {
 		return ChatProjectMemory{}, err
 	}
@@ -2347,8 +2335,8 @@ func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, projec
 }
 
 // DeleteChatProjectMemory deletes a project memory.
-func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, projectID, memoryID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/projects/%s/memories/%s", projectID, memoryID), nil)
+func (c *ExperimentalClient) DeleteChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
 	if err != nil {
 		return err
 	}

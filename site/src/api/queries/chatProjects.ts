@@ -1,65 +1,68 @@
-import {
-	mutationOptions,
-	type QueryClient,
-	queryOptions,
-	skipToken,
-} from "react-query";
+import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { invalidateChatListQueries } from "./chats";
 
-const chatProjectsFamilyKey = ["chat-projects"] as const;
+export const chatProjectsKey = ["chat-projects"] as const;
 
-export const chatProjectsKey = (organizationId: string | undefined) =>
-	[...chatProjectsFamilyKey, organizationId] as const;
-
-const chatProjectKey = (projectId: string | undefined) =>
-	[...chatProjectsFamilyKey, "project", projectId] as const;
-
-export const chatProjects = (organizationId: string | undefined) =>
+/** Lists the current user's chat projects across all organizations. */
+export const chatProjects = () =>
 	queryOptions({
-		queryKey: chatProjectsKey(organizationId),
-		queryFn: organizationId
-			? () => API.experimental.getChatProjects(organizationId)
-			: skipToken,
+		queryKey: chatProjectsKey,
+		queryFn: () => API.experimental.getChatProjects(),
 	});
 
+/**
+ * Finds one project in the project list. Project reads are scoped to the
+ * project's organization, and the list is already loaded for the sidebar, so
+ * a page that only knows the project ID reads it from there. The result is
+ * null once the list has loaded without the project.
+ */
 export const chatProject = (projectId: string | undefined) =>
 	queryOptions({
-		queryKey: chatProjectKey(projectId),
-		queryFn: projectId
-			? () => API.experimental.getChatProject(projectId)
-			: skipToken,
+		...chatProjects(),
+		select: (projects) =>
+			projects.find((project) => project.id === projectId) ?? null,
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
-		mutationFn: (request: TypesGen.CreateChatProjectRequest) =>
-			API.experimental.createChatProject(request),
+		mutationFn: ({
+			organizationId,
+			request,
+		}: {
+			organizationId: string;
+			request: TypesGen.CreateChatProjectRequest;
+		}) => API.experimental.createChatProject(organizationId, request),
 		onSettled: () =>
-			queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
+			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
 export const updateChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: ({
-			projectId,
+			project,
 			request,
 		}: {
-			projectId: string;
+			project: TypesGen.ChatProject;
 			request: TypesGen.UpdateChatProjectRequest;
-		}) => API.experimental.updateChatProject(projectId, request),
+		}) =>
+			API.experimental.updateChatProject(
+				project.organization_id,
+				project.id,
+				request,
+			),
 		onSettled: () =>
-			queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
+			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
-		mutationFn: (projectId: string) =>
-			API.experimental.deleteChatProject(projectId),
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.deleteChatProject(project.organization_id, project.id),
 		onSettled: () =>
 			Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatProjectsFamilyKey }),
+				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 				invalidateChatListQueries(queryClient),
 			]),
 	});

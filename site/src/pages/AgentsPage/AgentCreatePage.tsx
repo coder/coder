@@ -9,7 +9,7 @@ import {
 	useSearchParams,
 } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProject, updateChatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
@@ -104,10 +104,12 @@ const AgentCreatePage: React.FC = () => {
 	const chatProjectsEnabled = experiments.includes("chat-projects");
 	const projectQuery = useQuery({
 		...chatProject(projectId),
-		enabled: chatProjectsEnabled,
+		enabled: chatProjectsEnabled && projectId !== undefined,
 	});
-	const selectedProject = projectQuery.data;
-	const isProjectMissing = getErrorStatus(projectQuery.error) === 404;
+	const selectedProject = projectQuery.data ?? undefined;
+	// The project comes from the user's project list, so a project that is
+	// absent once the list loads is missing or not the user's.
+	const isProjectMissing = projectQuery.data === null;
 	// A cached project stays usable when a background refetch fails; only a
 	// lookup with nothing to show blocks the composer.
 	const projectLookupError =
@@ -499,7 +501,7 @@ const ProjectComposerFooter: React.FC<ProjectComposerFooterProps> = ({
 				error={updateProjectMutation.error}
 				onSubmit={(request) => {
 					updateProjectMutation.mutate(
-						{ projectId: project.id, request },
+						{ project, request },
 						{ onSuccess: closeDialog },
 					);
 				}}

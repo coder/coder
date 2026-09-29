@@ -74,7 +74,6 @@ const (
 	APIKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	APIKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 	APIKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
-	APIKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"

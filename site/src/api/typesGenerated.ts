@@ -47,6 +47,11 @@ export interface AIBridgeConfig {
 	readonly max_concurrency: number;
 	readonly rate_limit: number;
 	readonly structured_logging: boolean;
+	/**
+	 * StructuredLoggingSource selects which process emits the records that
+	 * StructuredLogging enables. See AIStructuredLoggingSource.
+	 */
+	readonly structured_logging_source?: string;
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
@@ -69,6 +74,13 @@ export interface AIBridgeConfig {
 	 * the provider. Empty disables dumping.
 	 */
 	readonly api_dump_dir: string;
+	/**
+	 * DisableContentRecording stops user prompts, tool calls and model
+	 * reasoning from being recorded, including tool names and their arguments.
+	 * Interceptions and token usage are still recorded, so cost controls,
+	 * budget enforcement and spend reporting are unaffected.
+	 */
+	readonly disable_content_recording: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -492,6 +504,36 @@ export interface AIProviderBedrockSettings {
  */
 export const AIProviderBedrockSettingsVersion = 1;
 
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettings configures providers that authenticate
+ * against Claude Platform for AWS: Anthropic's native Messages API hosted on
+ * AWS. It speaks the standard Messages wire format with standard Anthropic
+ * model IDs, so it is an authentication and routing variant of
+ * AIProviderTypeAnthropic rather than a provider type of its own.
+ * Requests use a client or provider API key when available, otherwise the
+ * gateway signs with its ambient AWS credentials.
+ */
+export interface AIProviderClaudePlatformAWSSettings {
+	/**
+	 * Region selects the default regional endpoint and SigV4 signing scope.
+	 * Required even when BaseURL points at a proxy.
+	 */
+	readonly region: string;
+	/**
+	 * WorkspaceID is sent as the anthropic-workspace-id header on every
+	 * request. Required regardless of the credential used.
+	 */
+	readonly workspace_id: string;
+}
+
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettingsVersion is the current schema version of
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderClaudePlatformAWSSettingsVersion = 1;
+
 // From codersdk/aiproviders.go
 /**
  * AIProviderKey is a single API key registered on a provider. The
@@ -534,6 +576,11 @@ export interface AIProviderKeyMutation {
  * fields. The custom (Un)MarshalJSON implementations on this type
  * handle the routing automatically; callers should never marshal the
  * concrete settings struct directly.
+ *
+ * AIProviderTypeBedrock is a distinct provider type for historical reasons.
+ * New Anthropic *authentication methods* do not get provider types: they are
+ * settings variants on AIProviderTypeAnthropic, which is why
+ * ClaudePlatformAWS has no matching AIProviderType.
  */
 export interface AIProviderSettings {}
 
@@ -543,6 +590,13 @@ export interface AIProviderSettings {}
  * AIProviderBedrockSettings.
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderSettingsTypeClaudePlatformAWS is the _type discriminator value for
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderSettingsTypeClaudePlatformAWS = "claude_platform_aws";
 
 // From codersdk/aiproviders.go
 /**
@@ -608,6 +662,15 @@ export interface AISpendPeriodWindow {
 	 */
 	readonly period_end: string;
 }
+
+// From codersdk/deployment.go
+export type AIStructuredLoggingSource = "both" | "coderd" | "gateway";
+
+export const AIStructuredLoggingSources: AIStructuredLoggingSource[] = [
+	"both",
+	"coderd",
+	"gateway",
+];
 
 // From codersdk/allowlist.go
 /**
@@ -706,7 +769,6 @@ export type APIKeyScope =
 	| "chat_project_memory:create"
 	| "chat_project_memory:delete"
 	| "chat_project_memory:read"
-	| "chat_project_memory:update"
 	| "chat_project:read"
 	| "chat_project:update"
 	| "chat:read"
@@ -963,7 +1025,6 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:create",
 	"chat_project_memory:delete",
 	"chat_project_memory:read",
-	"chat_project_memory:update",
 	"chat_project:read",
 	"chat_project:update",
 	"chat:read",
@@ -3334,6 +3395,9 @@ export interface ChatProject {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	/**
+	 * Name is a display label and is not unique; ID identifies the project.
+	 */
 	readonly name: string;
 	readonly description: string;
 	/**
@@ -3356,11 +3420,9 @@ export interface ChatProjectMemory {
 	readonly name: string;
 	readonly description: string;
 	readonly body: string;
-	readonly source_chat_id?: string;
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -4076,10 +4138,10 @@ export interface CreateChatProjectMemoryRequest {
 
 // From codersdk/chats.go
 /**
- * CreateChatProjectRequest creates an organization-scoped chat project.
+ * CreateChatProjectRequest creates a chat project in the organization named
+ * by the route.
  */
 export interface CreateChatProjectRequest {
-	readonly organization_id: string;
 	readonly name: string;
 	readonly description: string;
 	readonly icon?: string;
@@ -5306,6 +5368,7 @@ export type Experiment =
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
+	| "chat-board"
 	| "chat-inline-mcp-servers"
 	| "chat-projects"
 	| "chat-virtual-desktop"
@@ -5319,12 +5382,74 @@ export type Experiment =
 	| "workspace-capable-licensing"
 	| "workspace-usage";
 
+// From codersdk/experimentrules.go
+/**
+ * ExperimentRule is the stored runtime rule of one experiment.
+ */
+export interface ExperimentRule {
+	/**
+	 * Mode is one of the ExperimentRuleMode values, or empty when the
+	 * stored rule is malformed. A malformed rule decides off until it is
+	 * replaced. It is a plain string so that clients can represent the
+	 * malformed state.
+	 */
+	readonly mode: string;
+	/**
+	 * Condition is the CEL expression of a condition rule.
+	 */
+	readonly condition?: string;
+	/**
+	 * Revision increases on every change and starts at 1. Zero means the
+	 * stored rule has no readable positive revision, so it is malformed.
+	 */
+	readonly revision: number;
+	readonly updated_by: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/experimentrules.go
+/**
+ * ExperimentRuleEntry describes the runtime rule state of one experiment.
+ */
+export interface ExperimentRuleEntry {
+	/**
+	 * Experiment is the experiment name. Ignored entries can name
+	 * experiments this version does not know, so it is a plain string.
+	 */
+	readonly experiment: string;
+	/**
+	 * StaticDefault reports whether the experiment is in the startup
+	 * --experiments list of the replica that answered.
+	 */
+	readonly static_default: boolean;
+	/**
+	 * Rule is null when no rule was ever stored.
+	 */
+	readonly rule: ExperimentRule | null;
+	/**
+	 * Ignored is true for a stored rule of an experiment that does not
+	 * accept runtime rules. Such a rule has no effect.
+	 */
+	readonly ignored: boolean;
+}
+
+// From codersdk/experimentrules.go
+export type ExperimentRuleMode = "condition" | "inherit" | "off" | "on";
+
+export const ExperimentRuleModes: ExperimentRuleMode[] = [
+	"condition",
+	"inherit",
+	"off",
+	"on",
+];
+
 export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",
+	"chat-board",
 	"chat-inline-mcp-servers",
 	"chat-projects",
 	"chat-virtual-desktop",
@@ -8403,6 +8528,25 @@ export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"unregistered",
 ];
 
+// From codersdk/experimentrules.go
+/**
+ * PutExperimentRuleRequest replaces the runtime rule of one experiment.
+ */
+export interface PutExperimentRuleRequest {
+	readonly mode: ExperimentRuleMode;
+	/**
+	 * Condition is required for the condition mode and must be empty
+	 * otherwise.
+	 */
+	readonly condition?: string;
+	/**
+	 * ExpectedRevision must equal the current revision of the stored rule,
+	 * or zero when no rule is stored or the stored rule has no readable
+	 * positive revision. A different revision fails with 409 Conflict.
+	 */
+	readonly expected_revision: number;
+}
+
 // From codersdk/workspaces.go
 /**
  * PutExtendWorkspaceRequest is a request to extend the deadline of
@@ -8714,6 +8858,7 @@ export type ResourceType =
 	| "chat_project_memory"
 	| "convert_login"
 	| "custom_role"
+	| "experiment_rule"
 	| "git_ssh_key"
 	| "group"
 	| "group_ai_budget"
@@ -8758,6 +8903,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_project_memory",
 	"convert_login",
 	"custom_role",
+	"experiment_rule",
 	"git_ssh_key",
 	"group",
 	"group_ai_budget",
@@ -10345,13 +10491,6 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
-}
-
-// From codersdk/chats.go
-export interface UpdateChatProjectMemoryRequest {
-	readonly name?: string;
-	readonly description?: string;
-	readonly body?: string;
 }
 
 // From codersdk/chats.go

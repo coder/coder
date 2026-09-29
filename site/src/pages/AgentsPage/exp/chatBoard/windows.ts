@@ -78,14 +78,39 @@ export const draftWindow = (
 export const dropPreview = (list: readonly ChatWindow[]) =>
 	list.filter((w) => w.pinned);
 
-/** Pins `win` and moves it to the front, replacing any window with the same key. */
+/**
+ * Pins `win`, restores it if minimized, and moves it to the front, replacing
+ * any window with the same key.
+ */
 export const toFront = (
 	list: readonly ChatWindow[],
 	win: ChatWindow,
-): ChatWindow[] => [
-	...list.filter((w) => windowKey(w) !== windowKey(win)),
-	{ ...win, pinned: true },
-];
+): ChatWindow[] => {
+	// Drop the flag rather than set it false, so a shown window carries none.
+	const { minimized: _, ...shown } = win;
+
+	return [
+		...list.filter((w) => windowKey(w) !== windowKey(win)),
+		{ ...shown, pinned: true },
+	];
+};
+
+/**
+ * Hides the window for `key` into the tab bar. It moves to the end of the
+ * list so tabs read in the order they were minimized.
+ */
+export const minimizeWindow = (
+	list: readonly ChatWindow[],
+	key: string,
+): readonly ChatWindow[] => {
+	const win = list.find((w) => windowKey(w) === key);
+	if (!win) return list;
+
+	return [
+		...list.filter((w) => w !== win),
+		{ ...win, pinned: true, minimized: true },
+	];
+};
 
 /** Raises the window for `key`, pinning a preview; a key without a window is left alone. */
 export const raise = (list: readonly ChatWindow[], key: string) => {
@@ -136,11 +161,19 @@ export const replaceDraftWithChat = (
 					width: w.width,
 					height: w.height,
 					pinned: true,
+					// A draft minimized while its chat was created stays in the tab bar.
+					minimized: w.minimized,
 				}
 			: w,
 	);
 };
 
-/** Escape: the preview goes first, else the frontmost window. */
-export const dismissTop = (list: readonly ChatWindow[]) =>
-	list.some((w) => !w.pinned) ? dropPreview(list) : list.slice(0, -1);
+/** Escape: the preview goes first, else the frontmost visible window. */
+export const dismissTop = (list: readonly ChatWindow[]) => {
+	if (list.some((w) => !w.pinned)) return dropPreview(list);
+
+	const front = list.findLast((w) => !w.minimized);
+	if (!front) return list;
+
+	return list.filter((w) => w !== front);
+};

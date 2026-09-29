@@ -7525,7 +7525,7 @@ func (q *sqlQuerier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :exec
+const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :execrows
 DELETE FROM chat_project_memories
 WHERE project_id = $1::uuid
     AND lower(name) = lower($2::text)
@@ -7536,19 +7536,22 @@ type DeleteChatProjectMemoryByNameParams struct {
 	Name      string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
-	return err
+func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.project_id = $1::uuid
-ORDER BY chat_project_memories.updated_at DESC
+ORDER BY lower(chat_project_memories.name)
 `
 
 type GetChatProjectMemoriesByProjectIDRow struct {
@@ -7572,10 +7575,8 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 			&i.ChatProjectMemory.Name,
 			&i.ChatProjectMemory.Description,
 			&i.ChatProjectMemory.Body,
-			&i.ChatProjectMemory.SourceChatID,
 			&i.ChatProjectMemory.CreatedBy,
 			&i.ChatProjectMemory.CreatedAt,
-			&i.ChatProjectMemory.UpdatedAt,
 			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
@@ -7593,7 +7594,7 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 
 const getChatProjectMemoryByID = `-- name: GetChatProjectMemoryByID :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7615,10 +7616,8 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
-		&i.ChatProjectMemory.SourceChatID,
 		&i.ChatProjectMemory.CreatedBy,
 		&i.ChatProjectMemory.CreatedAt,
-		&i.ChatProjectMemory.UpdatedAt,
 		&i.CreatedByUsername,
 	)
 	return i, err
@@ -7626,7 +7625,7 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 
 const getChatProjectMemoryByName = `-- name: GetChatProjectMemoryByName :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7654,10 +7653,8 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
-		&i.ChatProjectMemory.SourceChatID,
 		&i.ChatProjectMemory.CreatedBy,
 		&i.ChatProjectMemory.CreatedAt,
-		&i.ChatProjectMemory.UpdatedAt,
 		&i.CreatedByUsername,
 	)
 	return i, err
@@ -7671,7 +7668,6 @@ INSERT INTO chat_project_memories (
     name,
     description,
     body,
-    source_chat_id,
     created_by
 )
 VALUES (
@@ -7681,10 +7677,9 @@ VALUES (
     $4::text,
     $5::text,
     $6::text,
-    $7::uuid,
-    $8::uuid
+    $7::uuid
 )
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
+RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
 `
 
 type InsertChatProjectMemoryParams struct {
@@ -7694,7 +7689,6 @@ type InsertChatProjectMemoryParams struct {
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
@@ -7706,7 +7700,6 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		arg.Name,
 		arg.Description,
 		arg.Body,
-		arg.SourceChatID,
 		arg.CreatedBy,
 	)
 	var i ChatProjectMemory
@@ -7717,115 +7710,8 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		&i.Name,
 		&i.Description,
 		&i.Body,
-		&i.SourceChatID,
 		&i.CreatedBy,
 		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateChatProjectMemoryByID = `-- name: UpdateChatProjectMemoryByID :one
-UPDATE chat_project_memories
-SET
-    name = $1::text,
-    description = $2::text,
-    body = $3::text,
-    updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
-`
-
-type UpdateChatProjectMemoryByIDParams struct {
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Body        string    `db:"body" json:"body"`
-	ID          uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProjectMemoryByID,
-		arg.Name,
-		arg.Description,
-		arg.Body,
-		arg.ID,
-	)
-	var i ChatProjectMemory
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Description,
-		&i.Body,
-		&i.SourceChatID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertChatProjectMemoryByName = `-- name: UpsertChatProjectMemoryByName :one
-INSERT INTO chat_project_memories (
-    project_id,
-    organization_id,
-    name,
-    description,
-    body,
-    source_chat_id,
-    created_by
-)
-VALUES (
-    $1::uuid,
-    $2::uuid,
-    $3::text,
-    $4::text,
-    $5::text,
-    $6::uuid,
-    $7::uuid
-)
-ON CONFLICT (project_id, lower(name)) DO UPDATE
-SET
-    description = EXCLUDED.description,
-    body = EXCLUDED.body,
-    source_chat_id = EXCLUDED.source_chat_id,
-    updated_at = now()
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
-`
-
-type UpsertChatProjectMemoryByNameParams struct {
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-}
-
-func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryByName,
-		arg.ProjectID,
-		arg.OrganizationID,
-		arg.Name,
-		arg.Description,
-		arg.Body,
-		arg.SourceChatID,
-		arg.CreatedBy,
-	)
-	var i ChatProjectMemory
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Description,
-		&i.Body,
-		&i.SourceChatID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -7862,15 +7748,15 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 	return i, err
 }
 
-const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
+const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
 FROM chat_projects
-WHERE organization_id = $1::uuid
-ORDER BY lower(name)
+WHERE owner_id = $1::uuid
+ORDER BY lower(name), id
 `
 
-func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsByOrganizationID, organizationID)
+func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -27401,6 +27287,59 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getExperimentRule = `-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || $1::text
+`
+
+func (q *sqlQuerier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExperimentRule, experiment)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getExperimentRules = `-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key
+`
+
+type GetExperimentRulesRow struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+// GetExperimentRules returns every stored runtime experiment rule, keyed by
+// the experiment name. starts_with is used instead of LIKE because '_' is a
+// LIKE wildcard.
+func (q *sqlQuerier) GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExperimentRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExperimentRulesRow
+	for rows.Next() {
+		var i GetExperimentRulesRow
+		if err := rows.Scan(&i.Experiment, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getHealthSettings = `-- name: GetHealthSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
@@ -27783,6 +27722,22 @@ type UpsertDefaultProxyParams struct {
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
+	return err
+}
+
+const upsertExperimentRule = `-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || $1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+`
+
+type UpsertExperimentRuleParams struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error {
+	_, err := q.db.ExecContext(ctx, upsertExperimentRule, arg.Experiment, arg.Value)
 	return err
 }
 

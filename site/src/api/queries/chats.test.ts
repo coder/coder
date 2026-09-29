@@ -45,6 +45,7 @@ import {
 	chatCostTreeKey,
 	chatDebugRunKey,
 	chatDebugRunsKey,
+	chatDiffContents,
 	chatDiffContentsKey,
 	chatEntitiesFamilyKey,
 	chatEntityKey,
@@ -132,6 +133,7 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
+			getChatDiffContents: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -1380,8 +1382,11 @@ describe("chat cost query factories", () => {
 			"tree",
 			chatId,
 		]);
-		await query.queryFn();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
+		await createTestQueryClient().fetchQuery(query);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			chatId,
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2256,115 +2261,92 @@ describe("chatsByWorkspace", () => {
 	it("fetches with the sorted, deduplicated workspace IDs", async () => {
 		const getChatsByWorkspace = vi.mocked(API.experimental.getChatsByWorkspace);
 		getChatsByWorkspace.mockResolvedValue({});
-		await chatsByWorkspace(["ws-b", "ws-a", "ws-b"]).queryFn();
-		expect(getChatsByWorkspace).toHaveBeenCalledWith(["ws-a", "ws-b"]);
+		await createTestQueryClient().fetchQuery(
+			chatsByWorkspace(["ws-b", "ws-a", "ws-b"]),
+		);
+		expect(getChatsByWorkspace).toHaveBeenCalledWith(
+			["ws-a", "ws-b"],
+			expect.any(AbortSignal),
+		);
 	});
 });
 
 describe("infiniteChats", () => {
 	const PAGE_LIMIT = 50;
 
-	describe("getNextPageParam", () => {
-		it("returns undefined when lastPage has fewer items than the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+	it("requests the next page only after a full page", async () => {
+		const fullPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+			makeChat(`chat-${i}`),
+		);
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage.slice(1));
+
+		await createTestQueryClient().fetchInfiniteQuery({
+			...infiniteChats(),
+			pages: 4,
 		});
 
-		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			const pages = [lastPage];
-			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
-		});
+		expect(getChats).toHaveBeenCalledTimes(3);
+		expect(getChats).toHaveBeenNthCalledWith(
+			1,
+			{ limit: PAGE_LIMIT, offset: 0, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			2,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			3,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT * 2, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
 	});
 
-	describe("queryFn", () => {
-		it("computes offset 0 for pageParam 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: 0 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
+	it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 
-		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: -1 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
-
-		it("computes correct offset for subsequent pages", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-
-			await queryFn({ pageParam: 2 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT,
-				q: "archived:false",
-			});
-
-			await queryFn({ pageParam: 3 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT * 2,
-				q: "archived:false",
-			});
-		});
-
-		it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
 				sources: ["created_by_me", "shared_with_me"],
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:true pr_status:draft,open,merged has_unread:true source:created_by_me,shared_with_me",
-			});
-		});
+			},
+			expect.any(AbortSignal),
+		);
+	});
 
-		it("builds q for read chat status", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+	it("builds q for read chat status", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: false,
 				chatStatus: "read",
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:false has_unread:false",
-			});
-		});
-
-		it("throws when pageParam is not a number", () => {
-			const { queryFn } = infiniteChats();
-			expect(() => queryFn({ pageParam: "bad" })).toThrow(
-				"pageParam must be a number",
-			);
-		});
+			},
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2381,10 +2363,25 @@ describe("chatSearch", () => {
 			{ q: "title:fix" },
 		]);
 		await queryClient.fetchQuery(query);
-		expect(API.experimental.getChats).toHaveBeenCalledWith({
-			limit: 50,
-			q: "title:fix",
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{ limit: 50, q: "title:fix" },
+			expect.any(AbortSignal),
+		);
+	});
+});
+
+describe("chatDiffContents", () => {
+	it("requests the diff of the chat", async () => {
+		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue({
+			chat_id: "chat-1",
 		});
+
+		await createTestQueryClient().fetchQuery(chatDiffContents("chat-1"));
+
+		expect(API.experimental.getChatDiffContents).toHaveBeenCalledWith(
+			"chat-1",
+			expect.any(AbortSignal),
+		);
 	});
 });
 

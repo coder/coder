@@ -17,7 +17,6 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
-	MockDefaultOrganization,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -2510,7 +2509,7 @@ export const ProjectFolderCollapsed: Story = {
 		experiments: ["chat-projects"],
 		queries: [
 			{
-				key: chatProjectsKey(MockDefaultOrganization.id),
+				key: chatProjectsKey,
 				data: [MockChatProject],
 			},
 		],
@@ -2523,7 +2522,7 @@ export const ProjectFolderExpanded: Story = {
 		experiments: ["chat-projects"],
 		queries: [
 			{
-				key: chatProjectsKey(MockDefaultOrganization.id),
+				key: chatProjectsKey,
 				data: [MockChatProject],
 			},
 		],
@@ -2551,7 +2550,7 @@ export const ProjectChatWithoutLoadedProject: Story = {
 		experiments: ["chat-projects"],
 		queries: [
 			{
-				key: chatProjectsKey(MockDefaultOrganization.id),
+				key: chatProjectsKey,
 				data: [MockChatProject],
 			},
 		],

@@ -538,7 +538,6 @@ const (
 	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
-	ApiKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
@@ -830,7 +829,6 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
@@ -1090,7 +1088,6 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
@@ -3697,6 +3694,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
 	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
 )
@@ -3778,6 +3776,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory:
 		return true
@@ -3827,6 +3826,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory,
 	}
@@ -5313,18 +5313,16 @@ type ChatProject struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Organization-scoped durable memories for chat projects.
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
 type ChatProjectMemory struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {

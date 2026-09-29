@@ -244,12 +244,17 @@ describe("ChatsSidebar projects", () => {
 	it("creates a project when there are no chats", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json(MockChatProject);
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json(MockChatProject);
+				},
+			),
 		);
 
 		render(
@@ -273,8 +278,8 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
+			expect(requestOrganizationID).toBe(MockDefaultOrganization.id);
 			expect(requestBody).toEqual({
-				organization_id: MockDefaultOrganization.id,
 				name: "New project name",
 				description: "Project description",
 				icon: "",
@@ -285,15 +290,20 @@ describe("ChatsSidebar projects", () => {
 	it("uses the first accessible organization when no default is available", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json({
-					...MockChatProject,
-					organization_id: MockOrganization2.id,
-				});
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json({
+						...MockChatProject,
+						organization_id: MockOrganization2.id,
+					});
+				},
+			),
 		);
 
 		render(
@@ -316,9 +326,8 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(requestBody).toMatchObject({
-				organization_id: MockOrganization2.id,
-			});
+			expect(requestOrganizationID).toBe(MockOrganization2.id);
+			expect(requestBody).toMatchObject({ name: "Accessible project" });
 		});
 	});
 
@@ -356,7 +365,7 @@ describe("ChatsSidebar projects", () => {
 				HttpResponse.json([MockChatProject]),
 			),
 			http.delete(
-				"/api/experimental/chats/projects/:projectId",
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
 				({ params }) => {
 					deletedProjectID = String(params.projectId);
 					return new HttpResponse(null, { status: 204 });
@@ -394,8 +403,10 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			http.delete("/api/experimental/chats/projects/:projectId", () =>
-				HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				() =>
+					HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
 			),
 		);
 

@@ -117,13 +117,13 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	const { organizations, experiments } = useDashboard();
 	const organizationId: string | undefined =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
-	// Projects need an organization: the sidebar lists and creates them in the
-	// default one.
+	// The sidebar lists the user's projects across organizations and creates
+	// new ones in the default organization.
 	const chatProjectsEnabled =
 		experiments.includes("chat-projects") && organizationId !== undefined;
 	const queryClient = useQueryClient();
 	const projectsQuery = useQuery({
-		...chatProjects(organizationId),
+		...chatProjects(),
 		enabled: chatProjectsEnabled,
 	});
 	const createProjectMutation = useMutation(createChatProject(queryClient));
@@ -188,14 +188,14 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	}) => {
 		if (projectDialog.mode === "edit") {
 			updateProjectMutation.mutate(
-				{ projectId: projectDialog.project.id, request },
+				{ project: projectDialog.project, request },
 				{ onSuccess: closeProjectDialog },
 			);
 			return;
 		}
 		if (organizationId) {
 			createProjectMutation.mutate(
-				{ organization_id: organizationId, ...request },
+				{ organizationId, request },
 				{ onSuccess: closeProjectDialog },
 			);
 		}
@@ -204,7 +204,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		if (!projectPendingDelete) {
 			return;
 		}
-		deleteProjectMutation.mutate(projectPendingDelete.id, {
+		deleteProjectMutation.mutate(projectPendingDelete, {
 			onSuccess: closeDeleteProjectDialog,
 			onError: (error) => {
 				toast.error(getErrorMessage(error, "Failed to delete project."));

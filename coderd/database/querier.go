@@ -161,7 +161,7 @@ type sqlcQuerier interface {
 	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatProjectByID(ctx context.Context, id uuid.UUID) error
 	DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID) error
-	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error
+	DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (int64, error)
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
@@ -530,7 +530,7 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
-	GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error)
+	GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -615,6 +615,11 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsByOrganizationRow, error)
 	GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
+	GetExperimentRule(ctx context.Context, experiment string) (string, error)
+	// GetExperimentRules returns every stored runtime experiment rule, keyed by
+	// the experiment name. starts_with is used instead of LIKE because '_' is a
+	// LIKE wildcard.
+	GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
 	// non-deleted external agents on the latest build of every running workspace
 	// of the given template. "Running" means the latest build has
@@ -1547,7 +1552,6 @@ type sqlcQuerier interface {
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
-	UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error)
 	// Stores the client-visible retry payload. retry_state_version is
 	// assigned by trigger from the current snapshot_version.
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
@@ -1725,7 +1729,6 @@ type sqlcQuerier interface {
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
-	UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error)
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
@@ -1735,6 +1738,7 @@ type sqlcQuerier interface {
 	// So we need to store it's configuration here for display purposes.
 	// The functional values are immutable and controlled implicitly.
 	UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error
+	UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error
 	UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIBudgetParams) (GroupAIBudget, error)
 	UpsertHealthSettings(ctx context.Context, value string) error
 	UpsertLastUpdateCheck(ctx context.Context, value string) error

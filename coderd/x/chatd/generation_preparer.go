@@ -647,7 +647,7 @@ func (server *Server) prepareGeneration(
 	}
 	tools, _ = appendCurrentSkillTools(tools)
 	if hasMemory {
-		tools = append(tools, chattool.ReadMemory(memoryStore, memoryEntries), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName))
+		tools = append(tools, chattool.ReadMemory(memoryStore, memoryEntries), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
@@ -745,8 +745,20 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
+	// The owner is the subject: only the owner posts turns and descendant
+	// chats inherit it. Preparation runs for every step, so the first step
+	// with MCP candidates decides and later steps of the same turn reuse
+	// that decision; otherwise a rule change mid-turn would reject
+	// find_tools calls the model already issued. Without candidates
+	// find_tools is never offered, so skip the read.
+	toolSearchEnabled := false
+	if len(deferredCandidates) > 0 {
+		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
+			return server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
+		})
+	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		experimentEnabled: toolSearchEnabled,
 		candidates:        deferredCandidates,
 		dynamicToolNames:  dynamicToolNames,
 	}) {

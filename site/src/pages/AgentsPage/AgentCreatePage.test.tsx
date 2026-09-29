@@ -138,11 +138,15 @@ vi.mock("./components/ChimeButton", () => ({
 vi.mock("./components/WebPushButton", () => ({
 	WebPushButton: () => null,
 }));
-vi.mock("#/hooks/useAuthenticated", () => ({
-	useAuthenticated: () => ({
-		permissions: { createChat: true, editDeploymentConfig: false },
-	}),
-}));
+vi.mock("#/hooks/useAuthenticated", async () => {
+	const { MockUserOwner } = await import("#/testHelpers/entities");
+	return {
+		useAuthenticated: () => ({
+			user: MockUserOwner,
+			permissions: { createChat: true, editDeploymentConfig: false },
+		}),
+	};
+});
 vi.mock("#/hooks/useEmbeddedMetadata", async (importOriginal) => ({
 	...(await importOriginal<typeof embeddedMetadata>()),
 	useAIGatewayEnabled: () => true,
@@ -289,9 +293,9 @@ describe("AgentCreatePage project assignment", () => {
 		let projectRequested = false;
 		let requestBody: unknown;
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () => {
+			http.get("/api/experimental/chats/projects", () => {
 				projectRequested = true;
-				return HttpResponse.json(nonDefaultProject);
+				return HttpResponse.json([nonDefaultProject]);
 			}),
 			http.post("/api/v2/chats", async ({ request }) => {
 				requestBody = await request.json();
@@ -353,14 +357,14 @@ describe("AgentCreatePage project assignment", () => {
 		let lookupCount = 0;
 		let requestBody: unknown;
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () => {
+			http.get("/api/experimental/chats/projects", () => {
 				lookupCount++;
 				return lookupCount === 1
 					? HttpResponse.json(
 							{ message: "Project lookup failed" },
 							{ status: 500 },
 						)
-					: HttpResponse.json(MockChatProject);
+					: HttpResponse.json([MockChatProject]);
 			}),
 			http.post("/api/v2/chats", async ({ request }) => {
 				requestBody = await request.json();
@@ -388,9 +392,7 @@ describe("AgentCreatePage project assignment", () => {
 
 	it("redirects to the new chat page when the project is missing", async () => {
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json({ message: "Not found." }, { status: 404 }),
-			),
+			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 		);
 
 		render(
@@ -427,8 +429,8 @@ describe("AgentCreatePage project frame", () => {
 			}),
 		);
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(MockChatProject),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
 			),
 		);
 
@@ -459,8 +461,8 @@ describe("AgentCreatePage project frame", () => {
 
 	it("prefills the project composer from a prompt link", async () => {
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(MockChatProject),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
 			),
 		);
 
@@ -499,13 +501,11 @@ describe("AgentCreatePage project frame", () => {
 		let patchedProjectId: string | undefined;
 		let requestBody: unknown;
 		server.use(
-			http.get("/api/experimental/chats/projects/:projectId", ({ params }) =>
-				HttpResponse.json(
-					params.projectId === projectA.id ? projectA : projectB,
-				),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([projectA, projectB]),
 			),
 			http.patch(
-				"/api/experimental/chats/projects/:projectId",
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
 				async ({ params, request }) => {
 					patchedProjectId = String(params.projectId);
 					requestBody = await request.json();
@@ -550,11 +550,11 @@ describe("AgentCreatePage project frame", () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
 		server.use(
-			http.get(`/api/experimental/chats/projects/${MockChatProject.id}`, () =>
-				HttpResponse.json(MockChatProject),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
 			),
 			http.patch(
-				`/api/experimental/chats/projects/${MockChatProject.id}`,
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/${MockChatProject.id}`,
 				async ({ request }) => {
 					requestBody = await request.json();
 					return HttpResponse.json({ ...MockChatProject, name: "Renamed" });

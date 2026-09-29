@@ -154,7 +154,6 @@ var (
 	//  - "ActionCreate" :: create a chat project memory
 	//  - "ActionDelete" :: delete a chat project memory
 	//  - "ActionRead" :: read chat project memories
-	//  - "ActionUpdate" :: update a chat project memory
 	ResourceChatProjectMemory = Object{
 		Type: "chat_project_memory",
 	}

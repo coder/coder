@@ -3220,9 +3220,11 @@ class ExperimentalApiMethods {
 
 	getChatsByWorkspace = async (
 		workspaceIds: readonly string[],
+		signal?: AbortSignal,
 	): Promise<Record<string, string>> => {
 		const res = await this.axios.get("/api/v2/chats/by-workspace", {
 			params: { workspace_ids: workspaceIds.join(",") },
+			signal,
 		});
 		return res.data;
 	};
@@ -3294,58 +3296,62 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChatProjects = async (
-		organizationId: string,
-	): Promise<TypesGen.ChatProject[]> => {
+	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
 		const response = await this.axios.get<TypesGen.ChatProject[]>(
-			getURLWithSearchParams("/api/experimental/chats/projects", {
-				organization: organizationId,
-			}),
+			"/api/experimental/chats/projects",
 		);
 		return response.data;
 	};
 
 	createChatProject = async (
+		organizationId: string,
 		req: TypesGen.CreateChatProjectRequest,
 	): Promise<TypesGen.ChatProject> => {
 		const response = await this.axios.post<TypesGen.ChatProject>(
-			"/api/experimental/chats/projects",
+			`/api/experimental/organizations/${organizationId}/chats/projects`,
 			req,
-		);
-		return response.data;
-	};
-
-	getChatProject = async (projectId: string): Promise<TypesGen.ChatProject> => {
-		const response = await this.axios.get<TypesGen.ChatProject>(
-			`/api/experimental/chats/projects/${projectId}`,
 		);
 		return response.data;
 	};
 
 	updateChatProject = async (
+		organizationId: string,
 		projectId: string,
 		req: TypesGen.UpdateChatProjectRequest,
 	): Promise<TypesGen.ChatProject> => {
 		const response = await this.axios.patch<TypesGen.ChatProject>(
-			`/api/experimental/chats/projects/${projectId}`,
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
 			req,
 		);
 		return response.data;
 	};
 
-	deleteChatProject = async (projectId: string): Promise<void> => {
-		await this.axios.delete(`/api/experimental/chats/projects/${projectId}`);
+	deleteChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
 	};
 
-	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+	getChat = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,
+			{ signal },
 		);
 		return response.data;
 	};
-	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+	getChatCost = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatCost> => {
 		const response = await this.axios.get<TypesGen.ChatCost>(
 			`/api/v2/chats/${chatId}/cost`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -3480,9 +3486,11 @@ class ExperimentalApiMethods {
 
 	getChatDiffContents = async (
 		chatId: string,
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
+			{ signal },
 		);
 		return response.data;
 	};

@@ -6,6 +6,7 @@ import {
 	dismissTop,
 	draftWindow,
 	dropPreview,
+	minimizeWindow,
 	raise,
 	replaceDraftWithChat,
 	toFront,
@@ -128,6 +129,36 @@ describe("window list", () => {
 		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
 	});
 
+	it("minimizes to the end of the list, so tabs keep their order", () => {
+		const list = [win("a"), win("b"), win("c")];
+
+		const minimized = minimizeWindow(list, "a");
+
+		expect(minimized.map(windowKey)).toEqual(["b", "c", "a"]);
+		expect(minimized.at(-1)?.minimized).toBe(true);
+		expect(minimizeWindow(list, "nope")).toBe(list);
+	});
+
+	it("closes the frontmost visible window on escape, skipping minimized ones", () => {
+		const list = [win("b"), win("c"), { ...win("a"), minimized: true }];
+
+		expect(dismissTop(list).map(windowKey)).toEqual(["b", "a"]);
+	});
+
+	it("restores a minimized window to the front and leaves the others hidden", () => {
+		const list = [
+			win("b"),
+			{ ...win("c"), minimized: true },
+			{ ...win("a"), minimized: true },
+		];
+
+		const restored = raise(list, "a");
+
+		expect(restored.map(windowKey)).toEqual(["b", "c", "a"]);
+		expect(restored.at(-1)).toEqual(win("a"));
+		expect(restored[1]?.minimized).toBe(true);
+	});
+
 	it("keeps one draft, keyed apart from chats, and toggles its option in place", () => {
 		viewport(1400, 900);
 		const draft = draftWindow({ column: "Doing" });
@@ -144,6 +175,17 @@ describe("window list", () => {
 		});
 		expect(closeWindow(toggled, "draft")).toEqual([win("a")]);
 		expect(raise(toggled, "draft").at(-1)?.kind).toBe("draft");
+	});
+
+	it("keeps a draft minimized while its chat was being created", () => {
+		viewport(1400, 900);
+		const draft = { ...draftWindow({ cardId: "p" }), x: 30, y: 40 };
+		const list = minimizeWindow([draft, win("a")], "draft");
+
+		expect(replaceDraftWithChat(list, { cardId: "p" }, "n")).toEqual([
+			win("a"),
+			{ ...win("n"), x: 30, y: 40, width: 520, height: 640, minimized: true },
+		]);
 	});
 
 	it("hands the draft's frame to the chat it created, else opens the chat centred", () => {
