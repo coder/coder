@@ -875,15 +875,15 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		wantError    bool
 		want         string
 	}{
-		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), want: `"error":"not run: canceled before the agent received it"`},
+		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"not run: canceled before the agent received it"}`},
 		// The agent forgot the call, but its process outlives the record
 		// and the cancel killed it.
-		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `"error":"canceled by the user"`},
+		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"canceled by the user","exit_code":-1,"output":"partial","success":false}`},
 		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
-		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true,"wall_duration_ms":0}`},
+		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true}`},
 		{name: "EditApplied", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"d"}]}`), want: `{"files":[{"diff":"d","path":"/a"}],"ok":true}`},
 		// A result over the 64 KB default budget is capped and stays JSON.
 		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},

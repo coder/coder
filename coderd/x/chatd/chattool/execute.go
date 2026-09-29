@@ -80,7 +80,7 @@ type ExecuteResult struct {
 	Success             bool                            `json:"success"`
 	Output              string                          `json:"output,omitempty"`
 	ExitCode            int                             `json:"exit_code"`
-	WallDurationMs      int64                           `json:"wall_duration_ms"`
+	WallDurationMs      int64                           `json:"wall_duration_ms,omitempty"`
 	Error               string                          `json:"error,omitempty"`
 	Truncated           *workspacesdk.ProcessTruncation `json:"truncated,omitempty"`
 	Note                string                          `json:"note,omitempty"`
@@ -88,6 +88,8 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
+	// Canceled is true when the user's interrupt killed the command.
+	Canceled bool `json:"canceled,omitempty"`
 }
 
 // ExecuteOptions configures the execute tool.

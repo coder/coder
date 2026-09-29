@@ -76,14 +76,14 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 	var sdkErr *codersdk.Error
 	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-		return errorResult("not run: canceled before the agent received it"), nil
+		return fantasy.NewTextErrorResponse("not run: canceled before the agent received it"), nil
 	}
 	if err != nil {
 		return fantasy.ToolResponse{}, xerrors.Errorf("read process output: %w", err)
 	}
 	exited := exitedResult(output)
 	if output.Canceled {
-		exited.Success, exited.ExitCode, exited.Error = false, -1, "canceled by the user"
+		exited.Success, exited.ExitCode, exited.Error, exited.Canceled = false, -1, "canceled by the user", true
 	}
 	return marshalToolResponse(exited), nil
 }

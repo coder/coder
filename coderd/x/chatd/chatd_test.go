@@ -14035,7 +14035,9 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	writeResult := results["write_file"]
 	require.False(t, writeResult.IsError, "write_file result: %s", writeResult.Result)
 	require.JSONEq(t, `{"ok":true}`, string(writeResult.Result))
-	require.Contains(t, string(results["execute"].Result), "canceled by the user")
+	executeResult := results["execute"]
+	require.False(t, executeResult.IsError, "execute result: %s", executeResult.Result)
+	require.JSONEq(t, `{"canceled":true,"error":"canceled by the user","exit_code":-1,"success":false}`, string(executeResult.Result))
 }
 
 // TestEditMessageWithModelConfigOverride verifies that callers can
