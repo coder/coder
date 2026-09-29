@@ -218,7 +218,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
-								<span className="text-content-tertiary">
+								<span className="text-content-secondary">
 									{" "}
 									({devcontainer.container.name})
 								</span>
