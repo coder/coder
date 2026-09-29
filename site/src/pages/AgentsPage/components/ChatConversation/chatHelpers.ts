@@ -88,10 +88,8 @@ export const getLatestContextUsage = (
 	return null;
 };
 
-export const getParentChatID = (
-	chat: TypesGen.Chat | undefined,
-): string | undefined => {
-	return asNonEmptyString(chat?.parent_chat_id);
+export const getParentChatID = (chat: TypesGen.Chat): string | undefined => {
+	return asNonEmptyString(chat.parent_chat_id);
 };
 
 /**
