@@ -21,15 +21,15 @@ import (
 func TestEditFiles(t *testing.T) {
 	t.Parallel()
 
-	// fantasy cannot express minItems, so validation enforces at least
-	// one edit.
+	// The schema declares minItems; validation also rejects an empty
+	// edits list.
 	t.Run("SchemaIsFlatEditsList", func(t *testing.T) {
 		t.Parallel()
 		info := chattool.EditFiles(chattool.EditFilesOptions{}).Info()
 
 		parameters, err := json.Marshal(info.Parameters)
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"edits":{"type":"array","items":{
+		assert.JSONEq(t, `{"edits":{"type":"array","minItems":1,"items":{
 			"type":"object","required":["path","old_text","new_text"],"properties":{
 				"path":{"type":"string","description":"Absolute path of the file, for example /home/coder/project/main.go."},
 				"old_text":{"type":"string","description":"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."},
@@ -44,12 +44,14 @@ func TestEditFiles(t *testing.T) {
 
 	t.Run("RejectedInputNamesWhatToChange", func(t *testing.T) {
 		t.Parallel()
-		const example = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
+		const (
+			example = `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},{"path":"/repo/b.go","old_text":"foo()","new_text":"bar()"}]}`
+			shape   = "Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example: " + example
+		)
 		cases := []struct {
-			name         string
-			input        string
-			wantErr      string
-			wantContains []string
+			name    string
+			input   string
+			wantErr string
 		}{
 			{
 				name: "EveryMissingPathListed",
@@ -58,42 +60,57 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo edits were applied.",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2].\nNo edits were applied.",
 			},
 			{
 				name:    "EmptyEdits",
 				input:   `{"edits":[]}`,
-				wantErr: "Add at least one edit to edits\nNo edits were applied.",
+				wantErr: "Add at least one edit to edits.\nNo edits were applied.",
 			},
 			{
 				name:    "MissingEdits",
 				input:   `{}`,
-				wantErr: "Add at least one edit to edits\nNo edits were applied.",
+				wantErr: "Add at least one edit to edits.\nNo edits were applied.",
 			},
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send edits as a list where each edit has path, old_text and new_text, for example: " + example + "; the files key is not supported\nNo edits were applied.",
+				wantErr: "Send edits as a list where each edit has path, old_text and new_text, for example: " + example + "; the files key is not supported.\nNo edits were applied.",
+			},
+			// A value of the wrong JSON type is named by its field in the
+			// input, never by Go type names. chatloop decodes a string
+			// holding an array of objects before the tool runs, so the
+			// string in EditsNotAnArray holds something else.
+			{
+				name:    "EditsNotAnArray",
+				input:   `{"edits":"not json"}`,
+				wantErr: shape + "; edits must be an array, not a string.\nNo edits were applied.",
 			},
 			{
-				// fantasy's own decode error names Go types and does
-				// not say that edits must be an array. chatloop decodes
-				// a string holding an array of objects before the tool
-				// runs, so this string holds something else.
-				name:  "EditsNotAnArray",
-				input: `{"edits":"not json"}`,
-				wantContains: []string{
-					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
-					"\nNo edits were applied.",
-				},
+				name:    "EditNotAnObject",
+				input:   `{"edits":[1]}`,
+				wantErr: shape + "; edits[] must be an object, not a number.\nNo edits were applied.",
 			},
 			{
-				name:  "InputNotAnObject",
-				input: `[]`,
-				wantContains: []string{
-					"Send edits as a JSON array of objects",
-					"\nNo edits were applied.",
-				},
+				name:    "OldTextNotAString",
+				input:   `{"edits":[{"path":"/repo/a.go","old_text":1,"new_text":"x"}]}`,
+				wantErr: shape + "; edits[].old_text must be a string, not a number.\nNo edits were applied.",
+			},
+			{
+				name:    "ReplaceAllNotABoolean",
+				input:   `{"edits":[{"path":"/repo/a.go","old_text":"x","new_text":"y","replace_all":"yes"}]}`,
+				wantErr: shape + "; edits[].replace_all must be a boolean, not a string.\nNo edits were applied.",
+			},
+			{
+				name:    "InputNotAnObject",
+				input:   `[]`,
+				wantErr: shape + "; the input must be an object, not an array.\nNo edits were applied.",
+			},
+			{
+				// Other decode errors add no detail.
+				name:    "InputNotJSON",
+				input:   `{"edits":`,
+				wantErr: shape + ".\nNo edits were applied.",
 			},
 		}
 		for _, tc := range cases {
@@ -114,12 +131,7 @@ func TestEditFiles(t *testing.T) {
 				})
 				require.NoError(t, err)
 				assert.True(t, resp.IsError)
-				if tc.wantErr != "" {
-					assert.Equal(t, tc.wantErr, resp.Content)
-				}
-				for _, want := range tc.wantContains {
-					assert.Contains(t, resp.Content, want)
-				}
+				assert.Equal(t, tc.wantErr, resp.Content)
 			})
 		}
 	})
