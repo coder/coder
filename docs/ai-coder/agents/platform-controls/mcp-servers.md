@@ -1,5 +1,5 @@
 ---
-title: MCP Servers
+title: MCP servers
 ---
 
 Organization admins can register external MCP servers that provide additional

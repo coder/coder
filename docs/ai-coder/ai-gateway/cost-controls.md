@@ -1,5 +1,5 @@
 ---
-title: AI Governance Cost Control
+title: AI Governance cost control
 ---
 
 > [!NOTE]
