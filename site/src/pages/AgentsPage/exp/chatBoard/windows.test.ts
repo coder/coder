@@ -6,6 +6,7 @@ import {
 	dismissTop,
 	draftWindow,
 	dropPreview,
+	minimizeWindow,
 	raise,
 	replaceDraftWithChat,
 	toFront,
@@ -126,6 +127,20 @@ describe("window list", () => {
 		expect(dropPreview(list)).toEqual([win("a")]);
 		expect(dismissTop(list)).toEqual([win("a")]);
 		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
+	});
+
+	it("minimizes to the end of the list and restores to the front", () => {
+		const list = [win("a"), win("b"), win("c")];
+		const minimized = minimizeWindow(list, "a");
+		expect(minimized.map(windowKey)).toEqual(["b", "c", "a"]);
+		expect(minimized.at(-1)?.minimized).toBe(true);
+		expect(minimizeWindow(list, "nope")).toBe(list);
+		// Escape skips hidden windows and closes the frontmost visible one.
+		expect(dismissTop(minimized).map(windowKey)).toEqual(["b", "a"]);
+		const restored = raise(minimizeWindow(minimized, "c"), "a");
+		expect(restored.map(windowKey)).toEqual(["b", "c", "a"]);
+		expect(restored.at(-1)).toEqual(win("a"));
+		expect(restored[1]?.minimized).toBe(true);
 	});
 
 	it("keeps one draft, keyed apart from chats, and toggles its option in place", () => {

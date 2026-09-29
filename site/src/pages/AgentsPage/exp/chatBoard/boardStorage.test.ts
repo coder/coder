@@ -47,6 +47,7 @@ describe("boardStorage", () => {
 				emptyColumns: ["Later", 7],
 				windows: [
 					pinned,
+					{ ...pinned, chatId: "hidden", minimized: true },
 					{ ...pinned, chatId: "preview", pinned: false },
 					{ ...pinned, chatId: "broken", width: "wide" },
 					{
@@ -63,7 +64,7 @@ describe("boardStorage", () => {
 		expect(readBoardStorage(USER)).toEqual({
 			columnOrder: ["Inbox", "Done"],
 			emptyColumns: [],
-			windows: [pinned],
+			windows: [pinned, { ...pinned, chatId: "hidden", minimized: true }],
 			effortFilter: null,
 		});
 	});

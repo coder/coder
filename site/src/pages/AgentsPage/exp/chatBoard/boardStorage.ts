@@ -12,6 +12,8 @@ type WindowFrame = Readonly<{
 	y: number;
 	width: number;
 	height: number;
+	/** Hidden from the board and shown as a tab in the bottom bar until restored. */
+	minimized?: boolean;
 }>;
 
 /**
@@ -85,6 +87,7 @@ const readChatWindow = (value: unknown): ChatWindow | undefined => {
 		width: obj.width,
 		height: obj.height,
 		pinned: true,
+		...(obj.minimized === true && { minimized: true }),
 	};
 };
 

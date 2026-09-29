@@ -11,6 +11,7 @@ import type { BoardCard, CardColor } from "./boardLabels";
 import { type ChatWindow, type DraftTarget, windowKey } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { DraftChat } from "./DraftChat";
+import { WindowTabs } from "./WindowTabs";
 
 // Lazy so the board loads without the chat page.
 const AgentChatPage = lazy(() => import("../../AgentChatPage"));
@@ -23,6 +24,9 @@ type BoardWindowsProps = {
 	readonly board: BoardState;
 	readonly onChange: (next: ChatWindow) => void;
 	readonly onClose: (key: string) => void;
+	readonly onMinimize: (key: string) => void;
+	/** A tab was clicked: the minimized window comes back in front. */
+	readonly onRestore: (key: string) => void;
 	readonly onRaise: (key: string) => void;
 	readonly onPreviewEnter: () => void;
 	readonly onPreviewLeave: () => void;
@@ -39,6 +43,8 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 	board,
 	onChange,
 	onClose,
+	onMinimize,
+	onRestore,
 	onRaise,
 	onPreviewEnter,
 	onPreviewLeave,
@@ -62,12 +68,33 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [hasWindows]);
 
-	return windows.map((win) => {
+	// Title and color are shared by a window's title bar and its tab.
+	const heading = (win: ChatWindow) => {
+		if (win.kind === "chat") {
+			return {
+				title: chatsById.get(win.chatId)?.title ?? "Chat",
+				color: colorByChatId.get(win.chatId),
+			};
+		}
+		const { target } = win;
+		const card =
+			"cardId" in target
+				? board.cards.find((c) => c.id === target.cardId)
+				: undefined;
+		return {
+			title: `New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`,
+			color: card?.color,
+		};
+	};
+
+	const frames = windows.map((win) => {
 		const key = windowKey(win);
 		const frame = {
 			window: win,
+			...heading(win),
 			onChange,
 			onClose: () => onClose(key),
+			onMinimize: () => onMinimize(key),
 			onInteract: () => onRaise(key),
 			onPreviewEnter,
 			onPreviewLeave,
@@ -79,8 +106,6 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 				<FloatingChat
 					key={key}
 					{...frame}
-					title={chatsById.get(win.chatId)?.title ?? "Chat"}
-					color={colorByChatId.get(win.chatId)}
 					cardAssistant={
 						card && {
 							cardTitle: card.title,
@@ -113,8 +138,6 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 						: `${key}:column:${target.column}`
 				}
 				{...frame}
-				title={`New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`}
-				color={card?.color}
 			>
 				<DraftChat
 					labels={labels}
@@ -126,4 +149,26 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 			</FloatingChat>
 		);
 	});
+
+	return (
+		<>
+			{frames}
+			<WindowTabs
+				tabs={windows.flatMap((win) =>
+					win.minimized
+						? [
+								{
+									key: windowKey(win),
+									...heading(win),
+									chat:
+										win.kind === "chat" ? chatsById.get(win.chatId) : undefined,
+								},
+							]
+						: [],
+				)}
+				onRestore={onRestore}
+				onClose={onClose}
+			/>
+		</>
+	);
 };
