@@ -233,11 +233,13 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 			sideOffset={sideOffset}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
-				// Controls beside the field, such as Clear all, keep the menu open
-				// like the field itself.
+				// Clear all shares the field's wrapper and keeps the menu open like
+				// the field. The root is not used: it spans the page width.
 				if (
 					event.target instanceof Node &&
-					anchorRef?.current?.closest("[cmdk-root]")?.contains(event.target)
+					anchorRef?.current
+						?.closest('[data-slot="filter-combobox-field"]')
+						?.contains(event.target)
 				) {
 					event.preventDefault();
 				}

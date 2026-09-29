@@ -327,7 +327,10 @@ export function FilterCombobox({
 			>
 				{/* Sized by `className` so Clear all aligns with the field's right
 				    edge. */}
-				<div className={cn("flex flex-col", className)}>
+				<div
+					data-slot="filter-combobox-field"
+					className={cn("flex flex-col", className)}
+				>
 					<FilterComboboxInputGroup
 						className={cn(mobileOverlay && mobileOverlayClassName)}
 					>
