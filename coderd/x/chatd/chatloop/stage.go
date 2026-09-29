@@ -43,7 +43,6 @@ const (
 	AttrReasoningEffort   = "reasoning_effort"
 	AttrChatID            = "chat_id"
 	AttrChatKind          = "chat_kind"
-	AttrOrganizationName  = "organization_name"
 	AttrGenerationAttempt = "generation_attempt"
 	AttrGenerationAction  = "generation_action"
 	AttrToolName          = "tool_name"
@@ -192,10 +191,6 @@ type stageScopeKey struct{}
 // stageChatKindKey keys the chat kind carried by a context.
 type stageChatKindKey struct{}
 
-// stageOrganizationKey keys the organization name carried by a
-// context.
-type stageOrganizationKey struct{}
-
 // ContextWithScope returns ctx carrying scope for the stages started
 // on it. The scope is a plain context value rather than a property of
 // the span in ctx, so it survives configurations where spans are not
@@ -208,13 +203,6 @@ func ContextWithScope(ctx context.Context, scope Scope) context.Context {
 // on it and on contexts derived from it.
 func ContextWithChatKind(ctx context.Context, kind ChatKind) context.Context {
 	return context.WithValue(ctx, stageChatKindKey{}, kind)
-}
-
-// ContextWithOrganization returns ctx carrying the name of the
-// organization that owns the chat for the stages started on it and on
-// contexts derived from it.
-func ContextWithOrganization(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, stageOrganizationKey{}, name)
 }
 
 // scopeFromContext reads the scope ContextWithScope put on ctx.
@@ -233,14 +221,6 @@ func scopeFromContext(ctx context.Context) Scope {
 func chatKindFromContext(ctx context.Context) ChatKind {
 	kind, _ := ctx.Value(stageChatKindKey{}).(ChatKind)
 	return kind
-}
-
-// organizationFromContext reads the organization name
-// ContextWithOrganization put on ctx. It is empty when the stage runs
-// without a known chat.
-func organizationFromContext(ctx context.Context) string {
-	name, _ := ctx.Value(stageOrganizationKey{}).(string)
-	return name
 }
 
 // Start begins a stage span as a child of the span in ctx and returns
@@ -300,7 +280,7 @@ func (t *StageTracer) startSpan(
 	}
 	opts = append(opts, trace.WithTimestamp(start))
 	chatKind := chatKindFromContext(ctx)
-	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind, organizationFromContext(ctx))...))
+	opts = append(opts, trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...))
 	ctx, span := t.otelTracer().Start(ContextWithScope(ctx, scope), string(stage), opts...)
 	return ctx, &StageSpan{
 		tracer:   t,
@@ -313,14 +293,11 @@ func (t *StageTracer) startSpan(
 }
 
 // stageIdentityAttributes returns the attributes every stage span
-// carries; an unknown chat kind or organization is omitted.
-func stageIdentityAttributes(scope Scope, chatKind ChatKind, organization string) []attribute.KeyValue {
+// carries; an unknown chat kind is omitted.
+func stageIdentityAttributes(scope Scope, chatKind ChatKind) []attribute.KeyValue {
 	attrs := []attribute.KeyValue{attribute.String(AttrScope, string(scope))}
 	if chatKind != "" {
 		attrs = append(attrs, attribute.String(AttrChatKind, string(chatKind)))
-	}
-	if organization != "" {
-		attrs = append(attrs, attribute.String(AttrOrganizationName, organization))
 	}
 	return attrs
 }
@@ -411,12 +388,11 @@ func (t *StageTracer) Record(
 	}
 	scope := scopeFromContext(ctx)
 	chatKind := chatKindFromContext(ctx)
-	organization := organizationFromContext(ctx)
 	_, span := t.otelTracer().Start(ctx, string(stage),
 		trace.WithTimestamp(start),
 		trace.WithAttributes(attrs...),
 		trace.WithAttributes(model.attributes()...),
-		trace.WithAttributes(stageIdentityAttributes(scope, chatKind, organization)...),
+		trace.WithAttributes(stageIdentityAttributes(scope, chatKind)...),
 	)
 	if err != nil {
 		span.RecordError(err)
