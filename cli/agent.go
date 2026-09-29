@@ -177,8 +177,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// Below-level (debug) entries are kept in a rolling in-memory history and
 			// emitted when an error is logged (see agent.runLoop), so the detail
 			// leading up to a failure is available without logging debug during
-			// normal operation. At Debug the recorder has nothing to buffer. Driving
-			// this off the level keeps working if a log-level flag is added later.
+			// normal operation. At Debug the recorder has nothing to buffer.
 			level := slog.LevelInfo
 			if r.verbose {
 				level = slog.LevelDebug
