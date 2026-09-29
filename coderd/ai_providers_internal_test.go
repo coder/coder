@@ -134,10 +134,10 @@ func TestMergeAIProviderSettingsClaudePlatform(t *testing.T) {
 	})
 }
 
-// TestAIProviderUsesAmbientCredentials pins which settings variants can
-// authenticate without a stored key, which drives has_effective_api_key and
-// the chat model picker.
-func TestAIProviderUsesAmbientCredentials(t *testing.T) {
+// TestAIProviderSupportsAmbientCredentials pins which settings variants
+// support ambient credentials, which drives has_effective_api_key and the
+// chat model picker.
+func TestAIProviderSupportsAmbientCredentials(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -164,7 +164,7 @@ func TestAIProviderUsesAmbientCredentials(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, aiProviderUsesAmbientCredentials(tc.settings))
+			require.Equal(t, tc.want, aiProviderSupportsAmbientCredentials(tc.settings))
 		})
 	}
 }
