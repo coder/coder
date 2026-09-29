@@ -446,10 +446,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// runGenerationStep runs one step of a turn: preparation, the action
-// decision, and the action itself. again reports that another step is
-// required after reloading state; next carries the history version the
-// step advanced to.
+// runGenerationStep runs one step of a turn. again means reload state
+// and run another step.
 func (s *taskStarter) runGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,

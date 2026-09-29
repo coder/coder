@@ -14,10 +14,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// TestServerStageMetricsFollowExperiment checks that the chat-stage-metrics
-// experiment decides whether the stage families reach the server's
-// registry. A family with no series is absent from a gather, so one
-// observation is recorded first.
 func TestServerStageMetricsFollowExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -34,6 +30,7 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 				withInternalTestServerExperiments(experiments),
 				withInternalTestServerRegistry(registry),
 			)
+			// A family with no series is absent from a gather.
 			_, span := chatloop.NewStageTracer(nil, server.metrics).Start(t.Context(), chatloop.StageCommit)
 			span.End(nil)
 

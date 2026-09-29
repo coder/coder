@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// knownStages lists every Stage value.
 var knownStages = map[Stage]struct{}{
 	StageChatTurn:         {},
 	StageQueueWait:        {},
@@ -28,8 +27,7 @@ var knownStages = map[Stage]struct{}{
 	StageRetryBackoff:     {},
 }
 
-// metricHelp returns the help string of the named family, which must
-// have at least one series in registry.
+// metricHelp requires the family to have at least one series.
 func metricHelp(t *testing.T, registry *prometheus.Registry, name string) string {
 	t.Helper()
 	families, err := registry.Gather()
@@ -43,13 +41,10 @@ func metricHelp(t *testing.T, registry *prometheus.Registry, name string) string
 	return ""
 }
 
-// namesWord reports whether help contains word as a whole word.
 func namesWord(help, word string) bool {
 	return regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`).MatchString(help)
 }
 
-// TestStageSetsConsistent checks that the stage sets agree with each
-// other and with the help text that documents them.
 func TestStageSetsConsistent(t *testing.T) {
 	t.Parallel()
 
@@ -64,7 +59,6 @@ func TestStageSetsConsistent(t *testing.T) {
 	metrics := NewMetricsWithOptions(registry, MetricsOptions{StageMetrics: true})
 	metrics.recordStageDuration(StageStream, ScopeTurn, ChatKindRoot, StageModel{ProviderType: "p", Model: "m"}, time.Second)
 
-	// The stage family help lists exactly the observed stages.
 	help := metricHelp(t, registry, "coderd_chatd_stage_duration_seconds")
 	match := regexp.MustCompile(`Observed: ([a-z_, ]+); other stages are span-only`).FindStringSubmatch(help)
 	require.Len(t, match, 2, "stage help has no observed list")
@@ -74,7 +68,6 @@ func TestStageSetsConsistent(t *testing.T) {
 	}
 	require.Equal(t, observedStages, listed)
 
-	// The model family help names the model stages and no other stage.
 	modelHelp := metricHelp(t, registry, "coderd_chatd_model_stage_duration_seconds")
 	for stage := range knownStages {
 		_, want := modelStages[stage]

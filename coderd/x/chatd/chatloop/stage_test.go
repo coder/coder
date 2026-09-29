@@ -20,8 +20,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// stageFixture wires a stage tracer to an in-memory span recorder and
-// a private metrics registry.
 type stageFixture struct {
 	tracer   *chatloop.StageTracer
 	clock    *quartz.Mock
@@ -34,8 +32,7 @@ func newStageFixture(t *testing.T) stageFixture {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() {
-		// The test context is already canceled during cleanup, so the
-		// flush uses a fresh one.
+		// t.Context() is canceled before cleanup runs.
 		require.NoError(t, provider.Shutdown(context.Background()))
 	})
 	registry := prometheus.NewRegistry()
@@ -48,14 +45,10 @@ func newStageFixture(t *testing.T) stageFixture {
 	}
 }
 
-// newStageMetrics returns metrics with the stage families registered
-// on registry.
 func newStageMetrics(registry *prometheus.Registry) *chatloop.Metrics {
 	return chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true})
 }
 
-// turnRootContext returns a context whose stages are turn scoped and
-// belong to a root chat.
 func turnRootContext(t *testing.T) context.Context {
 	t.Helper()
 	return chatloop.ContextWithChatKind(
@@ -64,14 +57,12 @@ func turnRootContext(t *testing.T) context.Context {
 	)
 }
 
-// stageKey identifies one stage_duration_seconds series.
 type stageKey struct {
 	stage    chatloop.Stage
 	scope    chatloop.Scope
 	chatKind chatloop.ChatKind
 }
 
-// modelStageKey identifies one model_stage_duration_seconds series.
 type modelStageKey struct {
 	stage        chatloop.Stage
 	providerType string
@@ -79,8 +70,6 @@ type modelStageKey struct {
 	model        string
 }
 
-// stageObservations returns the observation count per stage series
-// recorded on coderd_chatd_stage_duration_seconds.
 func (f stageFixture) stageObservations(t *testing.T) map[stageKey]uint64 {
 	t.Helper()
 	counts := map[stageKey]uint64{}
@@ -95,8 +84,6 @@ func (f stageFixture) stageObservations(t *testing.T) map[stageKey]uint64 {
 	return counts
 }
 
-// modelStageObservations returns the observation count per series
-// recorded on coderd_chatd_model_stage_duration_seconds.
 func (f stageFixture) modelStageObservations(t *testing.T) map[modelStageKey]uint64 {
 	t.Helper()
 	counts := map[modelStageKey]uint64{}
@@ -123,8 +110,6 @@ func (f stageFixture) stageSum(t *testing.T, stage chatloop.Stage) float64 {
 	return 0
 }
 
-// spanDuration returns the duration of the single ended span named
-// after stage.
 func (f stageFixture) spanDuration(t *testing.T, stage chatloop.Stage) time.Duration {
 	t.Helper()
 	var found []sdktrace.ReadOnlySpan
@@ -137,8 +122,7 @@ func (f stageFixture) spanDuration(t *testing.T, stage chatloop.Stage) time.Dura
 	return found[0].EndTime().Sub(found[0].StartTime())
 }
 
-// gatherFamily returns the metrics of the named family, or nil when
-// the family has no series.
+// gatherFamily returns nil when the family has no series.
 func gatherFamily(t *testing.T, registry *prometheus.Registry, name string) []*dto.Metric {
 	t.Helper()
 	families, err := registry.Gather()
@@ -160,8 +144,6 @@ func labelValue(metric *dto.Metric, name string) string {
 	return ""
 }
 
-// anomalyCount returns the coderd_chatd_stage_anomalies_total value for
-// reason, or 0 when the series does not exist.
 func (f stageFixture) anomalyCount(t *testing.T, reason chatloop.StageAnomaly) float64 {
 	t.Helper()
 	for _, metric := range gatherFamily(t, f.registry, "coderd_chatd_stage_anomalies_total") {
@@ -198,7 +180,6 @@ func TestStageTracerStart(t *testing.T) {
 		require.Equal(t, map[stageKey]uint64{
 			{stage: chatloop.StageCommit, scope: chatloop.ScopeBackground}: 1,
 		}, fixture.stageObservations(t))
-		// The span and the observation share the tracer clock's window.
 		require.Equal(t, 5*time.Second, fixture.spanDuration(t, chatloop.StageCommit))
 		require.InDelta(t, 5.0, fixture.stageSum(t, chatloop.StageCommit), 0.001)
 	})
@@ -225,8 +206,7 @@ func TestStageTracerStart(t *testing.T) {
 		stream.End(xerrors.New("stream failed"))
 		_, ttft := fixture.tracer.Start(t.Context(), chatloop.StageTimeToFirstToken)
 		ttft.EndWithoutObservation(xerrors.New("stream ended before the first token"))
-		// The first end wins, so a later End cannot revive the
-		// observation.
+		// No-op: the first end wins.
 		ttft.End(nil)
 
 		ended := fixture.spans.Ended()
@@ -272,7 +252,6 @@ func TestStageTracerStartRootAtIgnoresParent(t *testing.T) {
 	require.Equal(t, string(chatloop.StageChatTurn), turn.Name())
 	require.False(t, turn.Parent().IsValid())
 	require.NotEqual(t, step.SpanContext().TraceID(), turn.SpanContext().TraceID())
-	// A zero start opens the span now.
 	require.Equal(t, time.Second, fixture.spanDuration(t, chatloop.StageChatTurn))
 }
 
@@ -299,8 +278,6 @@ func TestStageTracerStartRootAt(t *testing.T) {
 	require.Equal(t, start.UTC(), chatTurn.StartTime().UTC())
 	require.False(t, acquisition.StartTime().Before(chatTurn.StartTime()))
 	require.Equal(t, chatTurn.SpanContext().SpanID(), acquisition.Parent().SpanID())
-	// A root turn span opens a turn, and stages recorded inside it
-	// inherit the turn scope from its context.
 	require.Contains(t, chatTurn.Attributes(),
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)))
 	require.Contains(t, acquisition.Attributes(),
@@ -309,8 +286,6 @@ func TestStageTracerStartRootAt(t *testing.T) {
 		{stage: chatloop.StageChatTurn, scope: chatloop.ScopeTurn}:    1,
 		{stage: chatloop.StageAcquisition, scope: chatloop.ScopeTurn}: 1,
 	}, fixture.stageObservations(t))
-	// The histogram observation runs from the explicit start, so it
-	// covers the same window the span reports.
 	require.InDelta(t, 45.0, fixture.stageSum(t, chatloop.StageChatTurn), 0.001)
 	require.Equal(t, 45*time.Second, fixture.spanDuration(t, chatloop.StageChatTurn))
 	require.Zero(t, fixture.anomalyCount(t, chatloop.StageAnomalyFutureStart))
@@ -323,8 +298,6 @@ func TestStageTracerStartRootAtFutureStart(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
-		// A start stamped ahead of this replica's clock begins now and
-		// is counted, so cross-host skew stays visible.
 		_, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, fixture.clock.Now().Add(time.Minute))
 		fixture.clock.Advance(2 * time.Second)
 		turn.End(nil)
@@ -338,8 +311,6 @@ func TestStageTracerStartRootAtFutureStart(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
-		// A span-only stage has no observation to adjust, so it adds no
-		// anomaly.
 		_, step := fixture.tracer.StartRootAt(t.Context(), chatloop.StageGenerationStep, fixture.clock.Now().Add(time.Minute))
 		fixture.clock.Advance(2 * time.Second)
 		step.End(nil)
@@ -355,8 +326,6 @@ func TestStageTracerDetachedScope(t *testing.T) {
 	fixture := newStageFixture(t)
 
 	turnCtx, turn := fixture.tracer.StartRootAt(t.Context(), chatloop.StageChatTurn, time.Time{})
-	// Background work detaches from the turn by stripping the span
-	// and marking the context background scoped.
 	detachedCtx := chatloop.ContextWithScope(
 		trace.ContextWithSpanContext(turnCtx, trace.SpanContext{}),
 		chatloop.ScopeBackground,
@@ -449,9 +418,8 @@ func TestStageTracerModelLabels(t *testing.T) {
 		step.End(nil)
 		turn.End(nil)
 
-		// The stage histogram carries no model; the model histogram
-		// carries the stream, whose duration is the provider's work,
-		// but not the generation step, which only wraps it.
+		// generation_step is span-only, so only the stream reaches the
+		// model histogram.
 		require.Equal(t, map[stageKey]uint64{
 			{stage: chatloop.StageChatTurn, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindRoot}: 1,
 			{stage: chatloop.StageStream, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindRoot}:   1,
@@ -532,8 +500,6 @@ func TestStageTracerModelLabels(t *testing.T) {
 		t.Parallel()
 		fixture := newStageFixture(t)
 
-		// A turn-scoped model stage with a provider type but no model
-		// stays off the model histogram.
 		start := fixture.clock.Now().Add(-time.Second)
 		fixture.tracer.Record(chatloop.ContextWithScope(t.Context(), chatloop.ScopeTurn), chatloop.StageStream,
 			chatloop.StageModel{ProviderType: model.ProviderType}, start, fixture.clock.Now(), nil)
@@ -579,8 +545,7 @@ func TestStageTracerRecord(t *testing.T) {
 		fixture.tracer.Record(t.Context(), chatloop.StageAcquisition, chatloop.StageModel{}, time.Time{}, now, nil)
 		fixture.tracer.Record(t.Context(), chatloop.StageAcquisition, chatloop.StageModel{}, now, time.Time{}, nil)
 		fixture.tracer.Record(t.Context(), chatloop.StageAcquisition, chatloop.StageModel{}, now, now.Add(-time.Second), nil)
-		// Span-only stages have no observation to drop, so they add no
-		// anomaly.
+		// Span-only stages count no anomalies.
 		fixture.tracer.Record(t.Context(), chatloop.StageCompaction, chatloop.StageModel{}, time.Time{}, now, nil)
 		fixture.tracer.Record(t.Context(), chatloop.StageThinking, chatloop.StageModel{}, now, now.Add(-time.Second), nil)
 
@@ -624,8 +589,7 @@ func TestStageTracerRecord(t *testing.T) {
 func TestStageDurationBuckets(t *testing.T) {
 	t.Parallel()
 
-	// Alert thresholds are written against these edges, so the ladder
-	// must contain them as round numbers rather than a generated ladder.
+	// Alert thresholds depend on these exact edges.
 	alertEdges := []float64{1, 5, 10, 30, 60, 300, 3600}
 	registry := prometheus.NewRegistry()
 	tracer := chatloop.NewStageTracer(nil, newStageMetrics(registry))
@@ -646,7 +610,6 @@ func TestStageDurationBuckets(t *testing.T) {
 			modelBuckets = family.GetMetric()[0].GetHistogram().GetBucket()
 		}
 	}
-	// Both histograms use the same ladder.
 	require.Len(t, modelBuckets, len(buckets))
 	edges := make([]float64, 0, len(buckets))
 	for i, bucket := range buckets {
@@ -656,7 +619,7 @@ func TestStageDurationBuckets(t *testing.T) {
 	for _, want := range alertEdges {
 		require.Contains(t, edges, want, "bucket edge %v missing", want)
 	}
-	// A 45 minute stream falls in the 1800 to 3600 bucket, not +Inf.
+	// 45 minutes lands in the 3600 bucket, not +Inf.
 	for _, bucket := range buckets {
 		if bucket.GetUpperBound() < 3600 {
 			require.Zero(t, bucket.GetCumulativeCount(), "le=%v", bucket.GetUpperBound())
@@ -666,9 +629,6 @@ func TestStageDurationBuckets(t *testing.T) {
 	}
 }
 
-// TestStageMembership pins which stages each histogram observes. A
-// turn-scoped observation with a known model reaches every histogram
-// its stage belongs to.
 func TestStageMembership(t *testing.T) {
 	t.Parallel()
 
@@ -685,7 +645,7 @@ func TestStageMembership(t *testing.T) {
 		{stage: chatloop.StageMCPConnect, observed: true},
 		{stage: chatloop.StageProviderAttempt, observed: true, model: true},
 		{stage: chatloop.StageStream, observed: true, model: true},
-		// Per-model time to first token is ttft_seconds.
+		// Per-model TTFT is ttft_seconds.
 		{stage: chatloop.StageTimeToFirstToken, observed: true},
 		{stage: chatloop.StageThinking},
 		{stage: chatloop.StageToolCall, observed: true},
@@ -716,12 +676,10 @@ func TestStageMembership(t *testing.T) {
 	require.Equal(t, wantModelStages, fixture.modelStageObservations(t))
 }
 
-// TestStageMetricsEnabled covers which stage families are exposed with
-// and without the stage metrics option. Both settings must accept every
-// recorder call, since the tracer does not know the setting.
 func TestStageMetricsEnabled(t *testing.T) {
 	t.Parallel()
 
+	// Recorders must work whether or not the stage families are registered.
 	record := func(t *testing.T, m *chatloop.Metrics) {
 		clock := quartz.NewMock(t)
 		tracer := chatloop.NewStageTracer(nil, m, chatloop.WithClock(clock))
@@ -730,8 +688,7 @@ func TestStageMetricsEnabled(t *testing.T) {
 		tracer.Record(ctx, chatloop.StageStream, chatloop.StageModel{ProviderType: "p", Model: "m"},
 			start, start.Add(time.Second), nil)
 		_, commit := tracer.Start(ctx, chatloop.StageCommit)
-		// Span-only stages are filtered before the elapsed check, so
-		// this step adds no anomaly.
+		// Span-only, so its negative window counts no anomaly.
 		_, step := tracer.Start(ctx, chatloop.StageGenerationStep)
 		clock.Set(start.Add(-time.Second))
 		commit.End(nil)
@@ -749,9 +706,8 @@ func TestStageMetricsEnabled(t *testing.T) {
 			fixture := stageFixture{registry: registry}
 			require.Equal(t, enabled, len(fixture.stageObservations(t)) > 0)
 			require.Equal(t, enabled, len(fixture.modelStageObservations(t)) > 0)
-			// The commit span that ends before it starts counts as
-			// negative_elapsed; the inverted recorded window counts as
-			// inverted_window.
+			// commit ends before it starts; the recorded commit window
+			// is inverted.
 			anomalies := map[chatloop.StageAnomaly]float64{}
 			for _, metric := range gatherFamily(t, registry, "coderd_chatd_stage_anomalies_total") {
 				anomalies[chatloop.StageAnomaly(labelValue(metric, "reason"))] = metric.GetCounter().GetValue()
@@ -768,12 +724,11 @@ func TestStageMetricsEnabled(t *testing.T) {
 	}
 }
 
-// TestStageTracerWithoutProvider covers a metrics-only deployment: a
-// no-op tracer produces invalid span contexts, and the scope must still
-// follow the turn.
 func TestStageTracerWithoutProvider(t *testing.T) {
 	t.Parallel()
 
+	// A no-op tracer yields invalid span contexts; scope must still follow
+	// the turn.
 	registry := prometheus.NewRegistry()
 	clock := quartz.NewMock(t)
 	tracer := chatloop.NewStageTracer(nil, newStageMetrics(registry), chatloop.WithClock(clock))
@@ -795,8 +750,6 @@ func TestStageTracerWithoutProvider(t *testing.T) {
 func TestNilStageTracer(t *testing.T) {
 	t.Parallel()
 
-	// A nil tracer and the nil span it returns discard everything and
-	// must not panic.
 	var tracer *chatloop.StageTracer
 	now := tracer.Now()
 	_, span := tracer.Start(t.Context(), chatloop.StageToolCall)
