@@ -4676,8 +4676,9 @@ func TestAgent_ToolCall(t *testing.T) {
 	}
 }
 
-// TestAgent_ToolCallOtherChat checks that a chat cannot take over or kill
-// another chat's process by reusing its tool call ID.
+// TestAgent_ToolCallOtherChat checks that two chats that start the same
+// tool call ID get independent processes, and that a chat's cancel
+// kills only its own.
 func TestAgent_ToolCallOtherChat(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -4691,26 +4692,29 @@ func TestAgent_ToolCallOtherChat(t *testing.T) {
 
 	id := uuid.New()
 	toolCtx := workspacesdk.WithToolCallID(ctx, id)
-	start := workspacesdk.StartProcessRequest{Command: "sleep 300"}
-	_, err := connA.StartProcess(toolCtx, start)
+	_, err := connA.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "sleep 300"})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, err := connA.CancelToolCall(workspacesdk.WithToolCallID(context.Background(), id), id)
 		assert.NoError(t, err)
 	})
 
-	_, err = connB.StartProcess(toolCtx, start)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+	_, err = connB.StartProcess(toolCtx, workspacesdk.StartProcessRequest{Command: "printf b"})
+	require.NoError(t, err)
+	outB, err := connB.ProcessOutput(toolCtx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
+	require.NoError(t, err)
+	require.Equal(t, "printf b", outB.Command)
+	require.Equal(t, "b", outB.Output)
 
 	_, err = connB.CancelToolCall(toolCtx, id)
 	require.NoError(t, err)
 	// A cancel marks a process it kills canceled before it answers, so
 	// this read would see a wrong kill.
-	out, err := connA.ProcessOutput(toolCtx, id.String(), nil)
+	outA, err := connA.ProcessOutput(toolCtx, id.String(), nil)
 	require.NoError(t, err)
-	require.False(t, out.Canceled)
+	require.Equal(t, "sleep 300", outA.Command)
+	require.True(t, outA.Running)
+	require.False(t, outA.Canceled)
 }
 
 func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {

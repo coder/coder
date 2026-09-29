@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
@@ -36,7 +37,6 @@ type process struct {
 	command    string
 	workDir    string
 	background bool
-	chatID     string
 	cmd        *exec.Cmd
 	cancel     context.CancelFunc
 	buf        *HeadTailBuffer
@@ -76,6 +76,13 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 	return p.buf.Output()
 }
 
+// procKey identifies a process by the chat that started it and its
+// process ID. Requests without a chat ID use uuid.Nil as the chat ID.
+type procKey struct {
+	chatID uuid.UUID
+	id     string
+}
+
 // manager tracks processes spawned by the agent.
 type manager struct {
 	mu         sync.Mutex
@@ -83,7 +90,7 @@ type manager struct {
 	execer     agentexec.Execer
 	fs         afero.Fs
 	clock      quartz.Clock
-	procs      map[string]*process
+	procs      map[procKey]*process
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -103,38 +110,39 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		execer:     execer,
 		fs:         fs,
 		clock:      quartz.NewReal(),
-		procs:      make(map[string]*process),
+		procs:      make(map[procKey]*process),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
 	}
 }
 
-// start spawns a new process with the given ID, or returns the
-// process that already has it: a repeated tool call start attaches to
-// its process and keeps its waitUntil. It refuses an ID whose process
-// belongs to another chat. Both foreground and background
-// processes use a long-lived context so the process survives the HTTP
-// request lifecycle. The background flag only affects client-side
-// polling behavior.
-func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string) (*process, error) {
+// start spawns a new process with the given chat ID and process ID, or
+// returns the process that already has them: a repeated tool call start
+// attaches to its process and keeps its waitUntil. The lookup and the
+// insert are separate critical sections, so two concurrent starts of one
+// key would both run. None happen: the tool call middleware lets one
+// request per chat ID and tool call ID through at a time, and a start
+// without a tool call ID gets a random process ID. Both foreground and
+// background processes use a long-lived context so the process survives
+// the HTTP request lifecycle. The background flag only affects
+// client-side polling behavior.
+func (m *manager) start(req workspacesdk.StartProcessRequest, chatID uuid.UUID, id string) (*process, error) {
+	k := procKey{chatID: chatID, id: id}
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return nil, xerrors.New("manager is closed")
 	}
-	if proc, ok := m.procs[id]; ok {
+	if proc, ok := m.procs[k]; ok {
 		m.mu.Unlock()
-		if proc.chatID != chatID {
-			return nil, xerrors.Errorf("process %q belongs to another chat", id)
-		}
 		return proc, nil
 	}
 	m.mu.Unlock()
 
 	logger := m.logger
-	if chatID != "" {
-		logger = logger.With(slog.F("chat_id", chatID))
+	if chatID != uuid.Nil {
+		logger = logger.With(slog.F("chat_id", chatID.String()))
 	}
 
 	// Use a cancellable context so Close() can terminate
@@ -181,7 +189,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string)
 	}
 	// Propagate the chat ID so child processes (e.g.
 	// GIT_ASKPASS) can send it back to the server.
-	if chatID != "" {
+	if chatID != uuid.Nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_CHAT_ID=%s", chatID))
 	}
 
@@ -196,7 +204,6 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string)
 		command:    req.Command,
 		workDir:    cmd.Dir,
 		background: req.Background,
-		chatID:     chatID,
 		cmd:        cmd,
 		cancel:     cancel,
 		buf:        buf,
@@ -218,7 +225,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string)
 		_ = cmd.Wait()
 		return nil, xerrors.New("manager is closed")
 	}
-	m.procs[id] = proc
+	m.procs[k] = proc
 	m.mu.Unlock()
 
 	go func() {
@@ -257,37 +264,35 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID, id string)
 	return proc, nil
 }
 
-// get returns a process by ID.
-func (m *manager) get(id string) (*process, bool) {
+// get returns the process of chat chatID with process ID id.
+func (m *manager) get(chatID uuid.UUID, id string) (*process, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	proc, ok := m.procs[id]
+	proc, ok := m.procs[procKey{chatID: chatID, id: id}]
 	return proc, ok
 }
 
-// list returns info about all tracked processes. Exited
-// processes older than exitedProcessReapAge are removed.
-// If chatID is non-empty, only processes belonging to that
-// chat are returned.
-func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
+// list returns info about the processes of chat chatID. Exited
+// processes of every chat older than exitedProcessReapAge are
+// removed.
+func (m *manager) list(chatID uuid.UUID) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	now := m.clock.Now()
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
-	for id, proc := range m.procs {
+	for k, proc := range m.procs {
 		info := proc.info()
 		// Reap processes that exited more than 5 minutes ago
 		// to prevent unbounded map growth.
 		if !info.Running && info.ExitedAt != nil {
 			exitedAt := time.Unix(*info.ExitedAt, 0)
 			if now.Sub(exitedAt) > exitedProcessReapAge {
-				delete(m.procs, id)
+				delete(m.procs, k)
 				continue
 			}
 		}
-		// Filter by chatID if provided.
-		if chatID != "" && proc.chatID != chatID {
+		if k.chatID != chatID {
 			continue
 		}
 		infos = append(infos, info)
@@ -298,10 +303,8 @@ func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 // signal sends a signal to a running process. It returns
 // sentinel errors errProcessNotFound and errProcessNotRunning
 // so callers can distinguish failure modes.
-func (m *manager) signal(id string, sig string) error {
-	m.mu.Lock()
-	proc, ok := m.procs[id]
-	m.mu.Unlock()
+func (m *manager) signal(chatID uuid.UUID, id string, sig string) error {
+	proc, ok := m.get(chatID, id)
 
 	if !ok {
 		return errProcessNotFound

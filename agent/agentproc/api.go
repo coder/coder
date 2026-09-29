@@ -90,16 +90,13 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var chatID string
-	id := uuid.New()
-	if chatContext, ok := agentchat.FromContext(ctx); ok {
-		chatID = chatContext.ID.String()
-		if chatContext.ToolCallID != uuid.Nil {
-			id = chatContext.ToolCallID
-		}
+	chat, _ := agentchat.FromContext(ctx)
+	id := chat.ToolCallID
+	if id == uuid.Nil {
+		id = uuid.New()
 	}
 
-	proc, err := api.manager.start(req, chatID, id.String())
+	proc, err := api.manager.start(req, chat.ID, id.String())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to start process.",
@@ -131,16 +128,12 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleListProcesses lists all tracked processes.
+// handleListProcesses lists the processes of the requester's chat.
 func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var chatID string
-	if chatContext, ok := agentchat.FromContext(ctx); ok {
-		chatID = chatContext.ID.String()
-	}
-
-	infos := api.manager.list(chatID)
+	chat, _ := agentchat.FromContext(ctx)
+	infos := api.manager.list(chat.ID)
 
 	// Sort by running state (running first), then by started_at
 	// descending so the most recent processes appear first.
@@ -168,24 +161,13 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	id := chi.URLParam(r, "id")
-	proc, ok := api.manager.get(id)
+	chat, _ := agentchat.FromContext(ctx)
+	proc, ok := api.manager.get(chat.ID, id)
 	if !ok {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Process %q not found.", id),
 		})
 		return
-	}
-
-	// Enforce chat ID isolation. If the request carries
-	// a chat context, only allow access to processes
-	// belonging to that chat.
-	if chatContext, ok := agentchat.FromContext(ctx); ok {
-		if proc.chatID != "" && proc.chatID != chatContext.ID.String() {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("Process %q not found.", id),
-			})
-			return
-		}
 	}
 
 	// Check for blocking mode via query params.
@@ -239,11 +221,11 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// KillToolCall kills the running process of tool call id if chat chatID
-// owns it, and marks it canceled.
+// KillToolCall kills the running process of chat chatID with tool call
+// id, and marks it canceled.
 func (api *API) KillToolCall(ctx context.Context, chatID, id uuid.UUID) {
-	proc, ok := api.manager.get(id.String())
-	if !ok || proc.chatID != chatID.String() {
+	proc, ok := api.manager.get(chatID, id.String())
+	if !ok {
 		return
 	}
 	proc.mu.Lock()
@@ -262,17 +244,6 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id := chi.URLParam(r, "id")
-
-	// Enforce chat ID isolation.
-	if chatContext, ok := agentchat.FromContext(ctx); ok {
-		proc, procOK := api.manager.get(id)
-		if procOK && proc.chatID != "" && proc.chatID != chatContext.ID.String() {
-			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-				Message: fmt.Sprintf("Process %q not found.", id),
-			})
-			return
-		}
-	}
 
 	var req workspacesdk.SignalProcessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -300,7 +271,8 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := api.manager.signal(id, req.Signal); err != nil {
+	chat, _ := agentchat.FromContext(ctx)
+	if err := api.manager.signal(chat.ID, id, req.Signal); err != nil {
 		switch {
 		case errors.Is(err, errProcessNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
