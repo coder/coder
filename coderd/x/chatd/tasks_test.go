@@ -941,7 +941,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 			if tc.output != nil {
 				output = *tc.output
 			}
-			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Nil()).Return(output, tc.outputErr)
+			conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), &workspacesdk.ProcessOutputOptions{Wait: true}).Return(output, tc.outputErr)
 		}
 	}
 	batch.starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {

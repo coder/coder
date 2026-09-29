@@ -70,8 +70,10 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	}
 	// Read the output even when the agent has no record of the call: a
 	// process started with the tool call ID outlives the record, and the
-	// cancel killed it.
-	output, err := conn.ProcessOutput(ctx, id.String(), nil)
+	// cancel killed it. The agent answers the cancel once it sends the
+	// kill, and collects the last output when the process exits, so wait
+	// for the exit. ctx bounds the wait.
+	output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 	var sdkErr *codersdk.Error
 	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
 		return errorResult("not run: canceled before the agent received it"), nil
