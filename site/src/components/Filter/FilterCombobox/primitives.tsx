@@ -420,7 +420,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 			data-slot="combobox-chip"
 			svgSize="sm"
 			className={cn(
-				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				"group/chip min-w-0 max-w-full pl-2 font-medium text-content-secondary hover:text-content-primary",
 				chipRowItemHeightClassName,
 				className,
 			)}

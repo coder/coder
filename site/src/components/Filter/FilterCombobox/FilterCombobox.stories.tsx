@@ -322,6 +322,12 @@ export const WrappedChipsKeepIconsOnFirstRow: Story = {
 	},
 };
 
+export const LongChipValue: Story = {
+	render: () => (
+		<FilterComboboxHarness initialQuery="owner:me template:a-template-name-long-enough-to-overflow-the-search-field-width-on-desktop-viewports" />
+	),
+};
+
 // Backspace with an empty input removes the last committed chip.
 export const BackspaceRemovesLastChip: Story = {
 	render: () => (
