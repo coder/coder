@@ -26,6 +26,9 @@ particularly with database migrations in high availability (HA) deployments.
   the `api_keys` table—upgrading to v2.26.6 first can help mitigate this.
   Contact [Coder support](../../../support/index.md) for guidance on your specific
   upgrade path.
+- **Check whether your deployment enforces quotas.**
+  A deployment that enforces [quotas](../../../admin/users/quotas.md) needs a short planned outage, not a rolling upgrade, when it first moves to a release that checks quota one build at a time.
+  Refer to [Upgrade a deployment that enforces quotas](../../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
 
 ## Pre-upgrade strategy for Kubernetes HA deployments
 
@@ -54,6 +57,8 @@ prevent the new pod from acquiring necessary locks.
      ```sh
      kubectl scale deployment coder --replicas=1
      ```
+
+     Don't scale to one when old and new replicas must not overlap, such as in the [quota upgrade](../../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
 
 1. **Perform upgrade:** Run your standard Helm upgrade command. When scaling to
    zero, this will bring up a fresh pod that can run migrations without

@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
@@ -46,7 +47,19 @@ func (c *committer) CommitQuota(
 		permit   bool
 	)
 	err = c.Database.InTx(func(s database.Store) error {
-		var err error
+		// Reset the result on every attempt so a rolled back attempt cannot
+		// leak its permit into the response.
+		consumed, budget, permit = 0, 0, false
+
+		// Quota commits for the same owner and organization take turns. The
+		// lock is held until commit, and READ COMMITTED gives each statement
+		// below a fresh snapshot, so the reads include every cost committed
+		// by the previous lock holder.
+		err := s.AcquireLock(ctx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
+		if err != nil {
+			return xerrors.Errorf("acquire workspace quota lock: %w", err)
+		}
+
 		consumed, err = s.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
 			OwnerID:        workspace.OwnerID,
 			OrganizationID: workspace.OrganizationID,
@@ -104,7 +117,7 @@ func (c *committer) CommitQuota(
 		consumed = newConsumed
 		return nil
 	}, &database.TxOptions{
-		Isolation:    sql.LevelSerializable,
+		Isolation:    sql.LevelReadCommitted,
 		TxIdentifier: "commit_quota",
 	})
 	if err != nil {

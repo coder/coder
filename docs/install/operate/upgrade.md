@@ -11,6 +11,8 @@ This article describes how to upgrade your Coder deployment.
 For upgrade recommendations and troubleshooting, see
 [Upgrading Best Practices](./upgrade/best-practices.md).
 
+If your deployment enforces quotas, check whether it needs a planned outage for this upgrade in [Upgrade a deployment that enforces quotas](../../admin/users/quotas.md#upgrade-a-deployment-that-enforces-quotas).
+
 ## Reinstall Coder to upgrade
 
 To upgrade your Coder deployment, reinstall Coder using your original method
