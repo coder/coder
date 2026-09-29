@@ -853,7 +853,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					BaseURL: upstreamSrv.URL,
 					KeyPool: singleKeyPool(t, "openai", "test-key"),
 					ActorHeaderNames: map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					},
 				}),
@@ -861,7 +861,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					BaseURL: upstreamSrv.URL,
 					KeyPool: singleKeyPool(t, "anthropic", "test-key"),
 					ActorHeaderNames: map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					},
 				}, nil),
@@ -906,7 +906,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			require.NotEmpty(t, receivedHeaders, "upstream server should have received headers")
 
 			// Verify the actor ID header is present with the correct value.
-			actorIDHeader := receivedHeaders.Get(aibheaders.ActorIDHeader())
+			actorIDHeader := receivedHeaders.Get(aibheaders.ActorIDHeader)
 			assert.Equal(t, testUserID.String(), actorIDHeader, "actor ID header should contain user ID")
 			// Verify the actor metadata header for username is present.
 			usernameHeader := receivedHeaders.Get(aibheaders.ActorMetadataHeader("Username"))

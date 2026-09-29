@@ -24,6 +24,7 @@ const (
 
 	// ActorHeaderPrefix prefixes every AI Bridge actor header.
 	ActorHeaderPrefix      = "X-AI-Bridge-Actor"
+	ActorIDHeader          = ActorHeaderPrefix + "-ID"
 	actorHeaderPrefixLower = "x-ai-bridge-actor"
 
 	// AuthHeaderXAPIKey carries an API key.
@@ -91,11 +92,6 @@ var (
 		"X-Coder-Agent-Firewall-Sequence-Number",
 	}
 )
-
-// ActorIDHeader returns the name of the header that carries the actor ID.
-func ActorIDHeader() string {
-	return fmt.Sprintf("%s-ID", ActorHeaderPrefix)
-}
 
 // ActorMetadataHeader returns the name of the header that carries the actor
 // metadata value for name.
@@ -235,7 +231,7 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 	if actorHeaderNames == nil {
 		return headers
 	}
-	for _, name := range []string{ActorIDHeader(), ActorMetadataHeader("Username")} {
+	for _, name := range []string{ActorIDHeader, ActorMetadataHeader("Username")} {
 		headers.Del(name)
 	}
 	for _, name := range actorHeaderNames {

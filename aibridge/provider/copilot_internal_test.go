@@ -162,7 +162,7 @@ func TestCopilot_CreateInterceptor(t *testing.T) {
 		// Copilot uses per-user tokens: the client's Authorization must reach upstream as-is.
 		assert.Equal(t, "Bearer test-token", receivedHeaders.Get("Authorization"), "client Authorization must be used as provider key")
 		assert.Empty(t, receivedHeaders.Get("X-Api-Key"), "X-Api-Key must not be set upstream")
-		assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(aibheaders.ActorIDHeader()))
+		assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(aibheaders.ActorIDHeader))
 		assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(aibheaders.ActorMetadataHeader("Username")))
 	})
 

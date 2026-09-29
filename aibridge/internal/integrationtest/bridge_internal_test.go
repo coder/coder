@@ -2850,7 +2850,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2866,7 +2866,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2882,7 +2882,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2898,7 +2898,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := openAICfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2914,7 +2914,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := anthropicCfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2930,7 +2930,7 @@ func TestActorHeaders(t *testing.T) {
 				cfg := anthropicCfg(url, key)
 				if sendHeaders {
 					cfg.ActorHeaderNames = map[string]string{
-						"id":       aibheaders.ActorIDHeader(),
+						"id":       aibheaders.ActorIDHeader,
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					}
 				}
@@ -2986,7 +2986,7 @@ func TestActorHeaders(t *testing.T) {
 				}
 
 				if send {
-					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader())], []string{defaultActorID})
+					require.Equal(t, found[strings.ToLower(aibheaders.ActorIDHeader)], []string{defaultActorID})
 					require.Equal(t, found[strings.ToLower(aibheaders.ActorMetadataHeader(metadataKey))], []string{actorUsername})
 				} else {
 					require.Empty(t, found)

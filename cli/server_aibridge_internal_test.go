@@ -224,7 +224,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`))
 			request = request.WithContext(aibridge.AsActor(request.Context(), actorID, aibridge.Metadata{"Username": actorUsername}))
 			request.Header.Set("Authorization", "Bearer client-key")
-			request.Header.Set(headers.ActorIDHeader(), clientID)
+			request.Header.Set(headers.ActorIDHeader, clientID)
 			request.Header.Set(headers.ActorMetadataHeader("Username"), clientName)
 
 			interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), request, noop.NewTracerProvider().Tracer("test"))
@@ -244,10 +244,10 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				assert.NotContains(t, receivedHeaders, customNameHeader)
 			}
 			if tt.wantStandardHeaders {
-				assert.Equal(t, clientID, receivedHeaders.Get(headers.ActorIDHeader()))
+				assert.Equal(t, clientID, receivedHeaders.Get(headers.ActorIDHeader))
 				assert.Equal(t, clientName, receivedHeaders.Get(headers.ActorMetadataHeader("Username")))
 			} else {
-				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader()))
+				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader))
 				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
 			}
 		})

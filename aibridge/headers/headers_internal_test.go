@@ -18,7 +18,7 @@ func TestHeadersFromActor(t *testing.T) {
 		names map[string]string
 		want  map[string]string
 	}{
-		{name: "nil actor", names: map[string]string{"id": ActorIDHeader()}},
+		{name: "nil actor", names: map[string]string{"id": ActorIDHeader}},
 		{
 			name:  "id only",
 			actor: &context.Actor{ID: "user-123"},
