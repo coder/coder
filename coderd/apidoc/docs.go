@@ -30855,6 +30855,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "reasoning_effort": {
+                    "description": "ReasoningEffort sets the effort of new chats. An empty string clears\nthe override, so new chats use the model's default.",
                     "type": "string"
                 },
                 "schedule_cron": {
