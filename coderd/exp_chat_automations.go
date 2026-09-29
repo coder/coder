@@ -379,6 +379,7 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 // @Tags Chats
 // @Param automation path string true "Automation ID" format(uuid)
 // @Param Authorization header string true "Bearer followed by the webhook secret"
+// @Param request body interface{} true "Event data: any JSON value up to 256 KiB"
 // @Success 202 {object} codersdk.ChatAutomationEventResponse
 // @Failure 400 {object} codersdk.Response
 // @Failure 401 {object} codersdk.Response

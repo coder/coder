@@ -1339,6 +1339,14 @@ func New(options *Options) *API {
 		clients.Delete("/clients/{client_id}", api.deleteOAuth2ClientConfiguration()) // Delete client
 	})
 
+	// Webhook callers authenticate with the automation's secret, not with a
+	// Coder session, so this route has no API key middleware. It lives
+	// outside the /api/experimental group because that group's rate limiter
+	// keys unauthenticated callers by path, which gives every automation id
+	// a fresh bucket; this limiter keys by caller alone.
+	r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
+		Post("/api/experimental/chat-automations/{automation}/events", api.postChatAutomationEvent)
+
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
 		api.ExperimentalHandler = r
@@ -1369,12 +1377,6 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
-		// Webhook callers authenticate with the automation's secret, not
-		// with a Coder session, so this route has no API key middleware.
-		// The path limiter above gives each automation id its own bucket,
-		// so this limiter also bounds a caller across all ids.
-		r.With(httpmw.RateLimitByEndpointKey(options.APIRateLimit, time.Minute, "chat-automation-events")).
-			Post("/chat-automations/{automation}/events", api.postChatAutomationEvent)
 		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

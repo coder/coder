@@ -135,26 +135,6 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if in.webhook && automation.Kind != database.ChatAutomationKindWebhook {
 		return PublishAutomationResult{}, ErrAutomationNotFound
 	}
-	if !automation.Enabled {
-		return PublishAutomationResult{}, ErrAutomationDisabled
-	}
-	// A rotated secret or a used single-use webhook is refused before the
-	// send, so such a request never reaches the prompt hooks.
-	// admitAutomation rechecks both under lock for concurrent requests.
-	if in.webhook && automation.WebhookSecretVersion != in.secretVersion {
-		return PublishAutomationResult{}, ErrAutomationSecretChanged
-	}
-	if in.webhook && isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
-		return PublishAutomationResult{}, ErrAutomationWebhookConsumed
-	}
-	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
-	if err != nil {
-		return PublishAutomationResult{}, err
-	}
-	// Everything from here runs as the owner, so the owner's chat, model
-	// config, and MCP server permissions apply to the send.
-	ownerCtx := dbauthz.As(ctx, owner)
-
 	switch automation.TargetMode {
 	case database.ChatAutomationTargetModeExistingChat:
 	case database.ChatAutomationTargetModeNewChat:
@@ -166,14 +146,38 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		return PublishAutomationResult{}, ErrAutomationTargetUnavailable
 	}
 	chatID := automation.TargetChatID.UUID
-	// Check before the send so a refusal happens before any hook runs.
-	if _, err := p.checkAutomationTarget(ctx, p.db, owner, automation, chatID); err != nil {
+	logger := p.logger.With(slog.F("automation_id", automation.ID), slog.F("chat_id", chatID))
+	owner, err := automationOwnerSubject(ctx, p.db, automation.OwnerID)
+	if err != nil {
+		return PublishAutomationResult{}, err
+	}
+	// Everything from here runs as the owner, so the owner's chat, model
+	// config, and MCP server permissions apply to the send.
+	ownerCtx := dbauthz.As(ctx, owner)
+
+	// Decide admission on unlocked reads before the send, so a refused
+	// input never reaches the prompt hooks. admitAutomation repeats the
+	// same checks on locked rows and decides.
+	chat, err := p.checkAutomationTarget(ctx, p.db, owner, automation, chatID)
+	if err != nil {
+		return PublishAutomationResult{}, err
+	}
+	//nolint:gocritic // The owner's write access to the chat was checked above.
+	queued, err := p.db.GetChatQueuedMessagesByPosition(dbauthz.AsChatd(ctx), chatID)
+	if err != nil {
+		return PublishAutomationResult{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	queuedAutomations, err := readQueuedAutomations(ctx, p.db, automation, queued)
+	if err != nil {
+		return PublishAutomationResult{}, err
+	}
+	if err := p.checkAdmission(in, automation, chat, queued, queuedAutomations); err != nil {
+		logAutomationRefusal(ctx, logger, err)
 		return PublishAutomationResult{}, err
 	}
 
 	// The input id is fixed per call, so a retried transaction reuses it.
 	inputID := uuid.New()
-	logger := p.logger.With(slog.F("automation_id", automation.ID), slog.F("chat_id", chatID))
 	_, err = p.SendMessage(ownerCtx, SendMessageOptions{
 		ChatID:    chatID,
 		CreatedBy: automation.OwnerID,
@@ -190,14 +194,20 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 		if errors.Is(err, ErrChatArchived) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) {
 			err = ErrAutomationTargetUnavailable
 		}
-		var denied *chathooks.UserPromptDeniedError
-		if errors.Is(err, ErrAutomationChatBusy) || errors.Is(err, ErrAutomationQueueShareFull) ||
-			errors.Is(err, chatstate.ErrMessageQueueFull) || errors.As(err, &denied) {
-			logger.Info(ctx, "chat automation input refused", slog.Error(err))
-		}
+		logAutomationRefusal(ctx, logger, err)
 		return PublishAutomationResult{}, err
 	}
 	return PublishAutomationResult{InputID: inputID, ChatID: chatID}, nil
+}
+
+// logAutomationRefusal logs the refusals that depend on the target chat's
+// activity or on hooks, so operators can tell why an input was dropped.
+func logAutomationRefusal(ctx context.Context, logger slog.Logger, err error) {
+	var denied *chathooks.UserPromptDeniedError
+	if errors.Is(err, ErrAutomationChatBusy) || errors.Is(err, ErrAutomationQueueShareFull) ||
+		errors.Is(err, chatstate.ErrMessageQueueFull) || errors.As(err, &denied) {
+		logger.Info(ctx, "chat automation input refused", slog.Error(err))
+	}
 }
 
 // admitAutomation is the admission callback of publishAutomation. It runs
@@ -233,22 +243,6 @@ func (p *Server) admitAutomation(
 	if !ok {
 		return chatstate.AutomationProvenance{}, ErrAutomationNotFound
 	}
-	if !automation.Enabled {
-		return chatstate.AutomationProvenance{}, ErrAutomationDisabled
-	}
-	singleUse := isSingleUseWebhook(automation)
-	if in.webhook {
-		if automation.Kind != database.ChatAutomationKindWebhook || automation.WebhookSecretVersion != in.secretVersion {
-			return chatstate.AutomationProvenance{}, ErrAutomationSecretChanged
-		}
-		if singleUse && automation.WebhookConsumedAt.Valid {
-			return chatstate.AutomationProvenance{}, ErrAutomationWebhookConsumed
-		}
-	}
-	if automation.TargetMode != database.ChatAutomationTargetModeExistingChat ||
-		automation.TargetChatID != (uuid.NullUUID{UUID: chatID, Valid: true}) {
-		return chatstate.AutomationProvenance{}, ErrAutomationTargetUnavailable
-	}
 	// Re-enabling an automation does not revalidate its owner or target,
 	// so both are checked for every input.
 	owner, err := automationOwnerSubject(ctx, store, automation.OwnerID)
@@ -259,24 +253,10 @@ func (p *Server) admitAutomation(
 	if err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
-	// Idle chats take the message directly; every other state queues it.
-	state := chatstate.ClassifyExecutionState(chat, len(queued) > 0, true)
-	if state != chatstate.StateW && state != chatstate.StateE0 {
-		switch automation.WhenBusy.ChatAutomationWhenBusy {
-		case database.ChatAutomationWhenBusySkip:
-			return chatstate.AutomationProvenance{}, ErrAutomationChatBusy
-		case database.ChatAutomationWhenBusyQueue:
-			// Automations get half of the queue, so people can still
-			// queue messages while automations fill theirs.
-			share := int64(max(1, p.chatLimits.MaxQueuedMessagesPerChat/2))
-			if countPromotableAutomationRows(queued, locked) >= share {
-				return chatstate.AutomationProvenance{}, &AutomationQueueShareFullError{Max: share}
-			}
-		default:
-			return chatstate.AutomationProvenance{}, xerrors.Errorf("unknown when_busy %q", automation.WhenBusy.ChatAutomationWhenBusy)
-		}
+	if err := p.checkAdmission(in, automation, chat, queued, locked); err != nil {
+		return chatstate.AutomationProvenance{}, err
 	}
-	if in.webhook && singleUse {
+	if in.webhook && isSingleUseWebhook(automation) {
 		// Consumed as the owner, like any other change to the owner's
 		// automation; the transaction rolls it back if the send fails.
 		count, err := store.ConsumeChatAutomationWebhookByID(ctx, database.ConsumeChatAutomationWebhookByIDParams{
@@ -297,23 +277,105 @@ func (p *Server) admitAutomation(
 	}, nil
 }
 
-// countPromotableAutomationRows counts the queued automation rows that
-// promotion would still deliver. Rows of a deleted or disabled automation,
-// or of an older queue generation, are dropped at promotion, so they do
-// not count toward the automations' share. It mirrors chatstate's
-// promotion guard; every automation of a row must be in locked.
-func countPromotableAutomationRows(rows []database.ChatQueuedMessage, locked map[uuid.UUID]database.ChatAutomation) int64 {
-	var count int64
-	for _, row := range rows {
+// checkAdmission decides whether the automation input is admitted to
+// chat. publishAutomation calls it on unlocked reads before the send, so a
+// refused input never reaches the prompt hooks, and admitAutomation calls
+// it again on the locked rows. queued are the chat's queued rows, and
+// automations must hold every existing automation of those rows.
+func (p *Server) checkAdmission(
+	in automationPublish,
+	automation database.ChatAutomation,
+	chat database.Chat,
+	queued []database.ChatQueuedMessage,
+	automations map[uuid.UUID]database.ChatAutomation,
+) error {
+	if !automation.Enabled {
+		return ErrAutomationDisabled
+	}
+	if in.webhook {
+		if automation.Kind != database.ChatAutomationKindWebhook || automation.WebhookSecretVersion != in.secretVersion {
+			return ErrAutomationSecretChanged
+		}
+		if isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
+			return ErrAutomationWebhookConsumed
+		}
+	}
+	if automation.TargetMode != database.ChatAutomationTargetModeExistingChat ||
+		automation.TargetChatID != (uuid.NullUUID{UUID: chat.ID, Valid: true}) {
+		return ErrAutomationTargetUnavailable
+	}
+	// Promotion drops queued rows it would not deliver, so only the rows
+	// it keeps make the chat busy or fill the automations' share.
+	var promotable, promotableAutomation int64
+	for _, row := range queued {
+		if !queuedRowPromotable(row, automations) {
+			continue
+		}
+		promotable++
+		if row.AutomationID.Valid {
+			promotableAutomation++
+		}
+	}
+	// Idle chats take the message directly; every other state queues it.
+	state := chatstate.ClassifyExecutionState(chat, promotable > 0, true)
+	if state == chatstate.StateW || state == chatstate.StateE0 {
+		return nil
+	}
+	switch automation.WhenBusy.ChatAutomationWhenBusy {
+	case database.ChatAutomationWhenBusySkip:
+		return ErrAutomationChatBusy
+	case database.ChatAutomationWhenBusyQueue:
+		// Automations get half of the queue, so people can still queue
+		// messages while automations fill theirs.
+		share := int64(max(1, p.chatLimits.MaxQueuedMessagesPerChat/2))
+		if promotableAutomation >= share {
+			return &AutomationQueueShareFullError{Max: share}
+		}
+		return nil
+	default:
+		return xerrors.Errorf("unknown when_busy %q", automation.WhenBusy.ChatAutomationWhenBusy)
+	}
+}
+
+// queuedRowPromotable reports whether promotion would deliver the queued
+// row: rows of a deleted or disabled automation, or of an older queue
+// generation, are dropped. It mirrors chatstate's promotion guard.
+func queuedRowPromotable(row database.ChatQueuedMessage, automations map[uuid.UUID]database.ChatAutomation) bool {
+	if !row.AutomationID.Valid {
+		return true
+	}
+	automation, ok := automations[row.AutomationID.UUID]
+	if !ok || !automation.Enabled {
+		return false
+	}
+	return row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration
+}
+
+// readQueuedAutomations reads, without locking, the automations of the
+// queued rows, keyed by id, starting from the already loaded automation.
+// Deleted automations are left out. The chat queue is capped, so the
+// reads are bounded.
+func readQueuedAutomations(ctx context.Context, store database.Store, automation database.ChatAutomation, queued []database.ChatQueuedMessage) (map[uuid.UUID]database.ChatAutomation, error) {
+	automations := map[uuid.UUID]database.ChatAutomation{automation.ID: automation}
+	for _, row := range queued {
 		if !row.AutomationID.Valid {
 			continue
 		}
-		automation, ok := locked[row.AutomationID.UUID]
-		if ok && automation.Enabled && row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration {
-			count++
+		id := row.AutomationID.UUID
+		if _, ok := automations[id]; ok {
+			continue
 		}
+		//nolint:gocritic // Queued rows of any automation decide whether the chat is busy.
+		queuedAutomation, err := store.GetChatAutomationByID(dbauthz.AsChatd(ctx), id)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("get queued chat automation: %w", err)
+		}
+		automations[id] = queuedAutomation
 	}
-	return count
+	return automations, nil
 }
 
 // isSingleUseWebhook reports whether a delivery consumes the automation's

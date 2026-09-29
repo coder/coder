@@ -183,6 +183,13 @@ const docTemplate = `{
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "description": "Event data: any JSON value up to 256 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {}
                     }
                 ],
                 "responses": {
