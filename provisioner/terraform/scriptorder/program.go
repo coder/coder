@@ -72,6 +72,7 @@ func NewProgram(
 // finalize script-order rules.
 type Script struct {
 	RuntimeAddress string
+	RuntimeError   string
 	RunOnStart     bool
 	RunOnStop      bool
 	Cron           string
@@ -130,6 +131,7 @@ func internalScriptOrderScripts(scripts map[string]Script) map[string]scriptOrde
 	for address, script := range scripts {
 		result[address] = scriptOrderScript{
 			runtimeAddress: script.RuntimeAddress,
+			runtimeError:   script.RuntimeError,
 			runOnStart:     script.RunOnStart,
 			runOnStop:      script.RunOnStop,
 			cron:           script.Cron,

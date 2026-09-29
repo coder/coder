@@ -14,6 +14,7 @@ type scriptOrderScript struct {
 	// the workspace agent or devcontainer subagent that executes the
 	// script, such as "coder_agent.main".
 	runtimeAddress string
+	runtimeError   string
 	// runOnStart and runOnStop mirror coder_script attributes so
 	// validation can distinguish scripts configured for both
 	// lifecycle phases or neither.
@@ -456,11 +457,21 @@ func validateScriptOrderRuleRuntime(
 	// selected scripts share one runtime.
 	firstAddr := addrs[0]
 	firstScript := scripts[firstAddr]
+	if firstScript.runtimeError != "" {
+		return "", scriptOrderRuntimeResolutionError(
+			identity, firstAddr, run, after, firstScript.runtimeError,
+		)
+	}
 	if firstScript.runtimeAddress == "" {
 		return "", scriptOrderMissingRuntimeError(identity, firstAddr, run, after)
 	}
 	for _, addr := range addrs[1:] {
 		script := scripts[addr]
+		if script.runtimeError != "" {
+			return "", scriptOrderRuntimeResolutionError(
+				identity, addr, run, after, script.runtimeError,
+			)
+		}
 		if script.runtimeAddress == "" {
 			return "", scriptOrderMissingRuntimeError(identity, addr, run, after)
 		}
@@ -481,6 +492,27 @@ func validateScriptOrderRuleRuntime(
 		}
 	}
 	return firstScript.runtimeAddress, nil
+}
+
+func scriptOrderRuntimeResolutionError(
+	identity scriptOrderRuleIdentity,
+	address string,
+	run []resolvedScriptOrderSelector,
+	after []resolvedScriptOrderSelector,
+	runtimeError string,
+) error {
+	selector := findResolvedScriptOrderSelector(address, run, after)
+	return scriptOrderRuleError(
+		identity.dataSourceAddress,
+		identity.ruleIndex,
+		xerrors.Errorf(
+			"%s selector %q selects script %q, but its agent runtime could not be resolved: %s",
+			selector.field,
+			selector.raw,
+			address,
+			truncateScriptOrderDiagnosticValue(runtimeError),
+		),
+	)
 }
 
 func scriptOrderMissingRuntimeError(

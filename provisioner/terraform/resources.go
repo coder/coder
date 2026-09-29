@@ -492,6 +492,11 @@ func convertState(
 			}
 		}
 	}
+	if scriptOrderBinding != nil {
+		if err := scriptOrderBinding.resolveSelectedScriptRuntimes(ctx); err != nil {
+			return nil, xerrors.Errorf("resolve script order runtimes: %w", err)
+		}
+	}
 
 	// Manually associate agents with instance IDs.
 	for _, resource := range sortedResources["coder_agent_instance"] {
@@ -710,6 +715,10 @@ func convertState(
 			RunOnStart:       attrs.RunOnStart,
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
+		}
+		if scriptOrderBinding != nil &&
+			scriptOrderBinding.handleSelectedScript(resource, script) {
+			continue
 		}
 
 	scriptAgentLoop:
