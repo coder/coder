@@ -177,19 +177,12 @@ func ApplyAdmittedToolCalls(content []fantasy.Content, preflight PreToolUseExecu
 }
 
 // PendingToolCalls returns the calls a step leaves for Coder to run. Hooks
-// never see provider-executed calls because the provider runs them itself,
-// nor calls the step already resolved with a result.
+// never see provider-executed calls because the provider runs them itself.
 func PendingToolCalls(content []fantasy.Content) []fantasy.ToolCallContent {
-	resolved := make(map[string]bool)
-	for _, block := range content {
-		if toolResult, ok := asToolResultContent(block); ok {
-			resolved[toolResult.ToolCallID] = true
-		}
-	}
 	toolCalls := make([]fantasy.ToolCallContent, 0, len(content))
 	for _, block := range content {
 		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
-		if !ok || toolCall.ProviderExecuted || resolved[toolCall.ToolCallID] {
+		if !ok || toolCall.ProviderExecuted {
 			continue
 		}
 		toolCalls = append(toolCalls, toolCall)

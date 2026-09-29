@@ -255,9 +255,13 @@ func TestPreToolUseHookOutputLimitTruncatedToolCallResolvedOnce(t *testing.T) {
 		// blockStopped reports whether the provider closed the tool_use block,
 		// so the call arrives with truncated input instead of being dropped.
 		blockStopped bool
+		// duplicateID precedes the truncated call with a complete call that
+		// reuses its tool-use ID, which must still fail the batch closed.
+		duplicateID bool
 	}{
 		{name: "TruncatedInput", blockStopped: true},
 		{name: "UnfinishedInput", blockStopped: false},
+		{name: "DuplicateIDFailsClosed", blockStopped: true, duplicateID: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -277,6 +281,17 @@ func TestPreToolUseHookOutputLimitTruncatedToolCallResolvedOnce(t *testing.T) {
 				}
 				var chunks []chattest.AnthropicChunk
 				for _, chunk := range chattest.AnthropicToolCallChunks("write_file", `{"path":"/tmp/big.txt","content":"abc`) {
+					if tt.duplicateID && chunk.Type == "content_block_start" {
+						for _, valid := range chattest.AnthropicToolCallChunks("write_file", `{"path":"/tmp/small.txt","content":"ok"}`) {
+							if strings.HasPrefix(valid.Type, "content_block_") {
+								valid.ContentBlock.ID = "toolu_truncated"
+								chunks = append(chunks, valid)
+							}
+						}
+					}
+					if tt.duplicateID && strings.HasPrefix(chunk.Type, "content_block_") {
+						chunk.Index = 1
+					}
 					switch chunk.Type {
 					case "content_block_start":
 						chunk.ContentBlock.ID = "toolu_truncated"
@@ -324,6 +339,15 @@ func TestPreToolUseHookOutputLimitTruncatedToolCallResolvedOnce(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
+			if tt.duplicateID {
+				failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+				require.Zero(t, hookCalls.Load())
+				require.Equal(t, int32(1), modelCalls.Load())
+				var chatErr codersdk.ChatError
+				require.NoError(t, json.Unmarshal(failed.LastError.RawMessage, &chatErr))
+				require.Contains(t, chatErr.Message, "duplicate tool use ID")
+				return
+			}
 			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
 
 			require.Zero(t, hookCalls.Load())

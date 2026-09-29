@@ -796,8 +796,9 @@ func (s *taskStarter) admitStepToolCalls(
 	if !s.server.hooks.Enabled() {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
-	toolCalls := chathooks.PendingToolCalls(content)
-	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
+	pending := chathooks.PendingToolCalls(content)
+	toolCalls := withoutResolvedToolCalls(content, pending)
+	if len(pending) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
 	// An admission error discards the whole batch before it can be
@@ -813,9 +814,10 @@ func (s *taskStarter) admitStepToolCalls(
 			}
 		}
 	}
-	// Check the full batch first: a call removed below still occupies its ID
-	// in the step, so filtering before this would hide the collision.
-	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+	// Check the full batch first: a call removed below or already resolved
+	// still occupies its ID in the step, so filtering before this would hide
+	// the collision.
+	if err := chathooks.RejectDuplicateToolUseIDs(pending); err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
@@ -841,6 +843,28 @@ func (s *taskStarter) admitStepToolCalls(
 		}
 	}
 	return preflight, nil
+}
+
+// withoutResolvedToolCalls drops calls the step already answered with a result,
+// such as calls cut off by the output token limit. Execution skips them the
+// same way, so admission must not dispatch or deny them again.
+func withoutResolvedToolCalls(content []fantasy.Content, toolCalls []fantasy.ToolCallContent) []fantasy.ToolCallContent {
+	resolved := make(map[string]bool)
+	for _, block := range content {
+		if toolResult, ok := asToolResultContent(block); ok {
+			resolved[toolResult.ToolCallID] = true
+		}
+	}
+	if len(resolved) == 0 {
+		return toolCalls
+	}
+	unresolved := make([]fantasy.ToolCallContent, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		if !resolved[toolCall.ToolCallID] {
+			unresolved = append(unresolved, toolCall)
+		}
+	}
+	return unresolved
 }
 
 // bufferToolBillingRecorder translates a dispatch index in the filtered batch
