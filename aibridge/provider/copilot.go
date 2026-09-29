@@ -148,7 +148,6 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 	cred := credential.BYOK{Secret: key, Header: aibheaders.AuthHeaderAuthorization}

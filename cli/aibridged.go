@@ -238,14 +238,16 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 	}
 
 	cbCfg := circuitBreakerConfig(cfg)
-	sendActorHeaders := cfg.SendActorHeaders.Value()
 	dumpDir := cfg.APIDumpDir.Value()
-	actorHeaderNames := map[string]string{}
-	if name := cfg.ActorHeaderID.Value(); name != "" {
-		actorHeaderNames[aibheaders.ActorAttributeID] = name
-	}
-	if name := cfg.ActorHeaderMetaUsername.Value(); name != "" {
-		actorHeaderNames[aibheaders.ActorAttributeUsername] = name
+	var actorHeaderNames map[string]string
+	if cfg.SendActorHeaders.Value() {
+		actorHeaderNames = map[string]string{}
+		if name := cfg.ActorHeaderID.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeID] = name
+		}
+		if name := cfg.ActorHeaderMetaUsername.Value(); name != "" {
+			actorHeaderNames[aibheaders.ActorAttributeUsername] = name
+		}
 	}
 
 	// aibridge currently has native support for OpenAI and Anthropic
@@ -278,7 +280,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
 			ActorHeaderNames: actorHeaderNames,
 		}), nil
 
@@ -301,7 +302,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
 			ActorHeaderNames: actorHeaderNames,
 		}, nil)
 
@@ -319,7 +319,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			BaseURL:          spec.BaseURL,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
 			ActorHeaderNames: actorHeaderNames,
 		}, *bedrock)
 
@@ -331,7 +330,6 @@ func buildProvider(ctx context.Context, spec aiProviderSpec, cfg codersdk.AIBrid
 			BaseURL:          spec.BaseURL,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
-			SendActorHeaders: sendActorHeaders,
 			ActorHeaderNames: actorHeaderNames,
 		}), nil
 

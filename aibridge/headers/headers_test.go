@@ -380,7 +380,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":    {"claude-code/1.0"},
 		}
 
-		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", nil, nil)
 
 		assert.Equal(t, "Bearer sk-provider-key", result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -398,7 +398,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"Anthropic-Beta": {"prompt-caching-2024-07-31"},
 		}
 
-		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key", false, nil, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "X-Api-Key", nil, nil)
 
 		assert.Equal(t, "sk-ant-provider-key", result.Get("X-Api-Key"))
 		assert.Empty(t, result.Get("Authorization"))
@@ -420,7 +420,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent":        {"claude-code/1.0"},
 		}
 
-		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", nil, nil)
 
 		assert.Empty(t, result.Get("Connection"))
 		assert.Empty(t, result.Get("Host"))
@@ -438,7 +438,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 			"User-Agent": {"claude-code/1.0"},
 		}
 
-		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil, nil)
+		result := headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", nil, nil)
 
 		assert.Empty(t, result.Get("Authorization"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
@@ -457,13 +457,13 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy := sdkHeader.Clone()
 		clientCopy := clientHeaders.Clone()
 
-		_ = headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", false, nil, nil)
+		_ = headers.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization", nil, nil)
 
 		require.Equal(t, sdkCopy, sdkHeader)
 		require.Equal(t, clientCopy, clientHeaders)
 	})
 
-	t.Run("actor forwarding off ignores SDK actor headers and preserves client values", func(t *testing.T) {
+	t.Run("actor forwarding gate", func(t *testing.T) {
 		t.Parallel()
 
 		sdkHeaders := http.Header{}
@@ -476,13 +476,42 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		clientHeaders.Set(headers.ActorMetadataHeader("Username"), "client-name")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
-		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", false, nil, nil)
-
-		require.Equal(t, "client-id", result.Get(headers.ActorIDHeader()))
-		require.Equal(t, "client-name", result.Get(headers.ActorMetadataHeader("Username")))
-		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
-		require.Equal(t, sdkCopy, sdkHeaders)
-		require.Equal(t, clientCopy, clientHeaders)
+		for _, tc := range []struct {
+			name  string
+			names map[string]string
+			want  http.Header
+		}{
+			{
+				name: "off preserves client values",
+				want: http.Header{
+					"Authorization":                       {"Bearer provider-key"},
+					"X-Ai-Bridge-Actor-Id":                {"client-id"},
+					"X-Ai-Bridge-Actor-Metadata-Username": {"client-name"},
+				},
+			},
+			{
+				name:  "on with no attributes removes client values",
+				names: map[string]string{},
+				want:  http.Header{"Authorization": {"Bearer provider-key"}},
+			},
+			{
+				name:  "on injects configured attributes",
+				names: map[string]string{"id": headers.ActorIDHeader()},
+				want: http.Header{
+					"Authorization":        {"Bearer provider-key"},
+					"X-Ai-Bridge-Actor-Id": {"user-123"},
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
+				result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", tc.names, actor)
+				require.Equal(t, tc.want, result)
+				require.Equal(t, sdkCopy, sdkHeaders)
+				require.Equal(t, clientCopy, clientHeaders)
+			})
+		}
 	})
 
 	t.Run("mapped actor destinations replace defaults and stale values", func(t *testing.T) {
@@ -526,7 +555,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				clientHeaders.Set("X-Downstream-Username", "client-name")
 				sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
-				result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", true, map[string]string{
+				result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{
 					"id":       "X-Downstream-User-Id",
 					"username": "X-Downstream-Username",
 				}, tc.actor)
@@ -551,7 +580,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		clientHeaders.Set("X-Unrelated", "preserved")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
-		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", true, map[string]string{"id": "X-Downstream-User-Id"}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}})
+		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{"id": "X-Downstream-User-Id"}, &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}})
 
 		require.Equal(t, "user-123", result.Get("X-Downstream-User-Id"))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorIDHeader()))
@@ -577,7 +606,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 		actor := &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}}
 
-		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", true, map[string]string{
+		result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{
 			"id":       headers.ActorIDHeader(),
 			"username": headers.ActorMetadataHeader("Username"),
 		}, actor)
@@ -595,18 +624,18 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		actor := &context.Actor{ID: "user-123"}
 		for _, tc := range []struct {
 			name  string
-			send  bool
 			actor *context.Actor
+			names map[string]string
 			want  string
 		}{
-			{name: "enabled", send: true, actor: actor, want: actor.ID},
+			{name: "enabled", names: map[string]string{"id": headers.ActorIDHeader()}, actor: actor, want: actor.ID},
 			{name: "disabled", actor: actor},
-			{name: "nil actor", send: true},
+			{name: "nil actor", names: map[string]string{"id": headers.ActorIDHeader()}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				result := headers.BuildUpstreamHeaders(nil, nil, "Authorization", tc.send, map[string]string{"id": headers.ActorIDHeader()}, tc.actor)
+				result := headers.BuildUpstreamHeaders(nil, nil, "Authorization", tc.names, tc.actor)
 				require.Equal(t, tc.want, result.Get(headers.ActorIDHeader()))
 			})
 		}

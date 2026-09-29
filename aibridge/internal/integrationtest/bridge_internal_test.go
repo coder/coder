@@ -2848,10 +2848,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2863,10 +2864,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIChatCompletions,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2878,10 +2880,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2893,10 +2896,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathOpenAIResponses,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := openAICfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return provider.NewOpenAI(cfg)
 			},
@@ -2908,10 +2912,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
@@ -2923,10 +2928,11 @@ func TestActorHeaders(t *testing.T) {
 			path: pathAnthropicMessages,
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
-				cfg.SendActorHeaders = sendHeaders
-				cfg.ActorHeaderNames = map[string]string{
-					"id":       aibheaders.ActorIDHeader(),
-					"username": aibheaders.ActorMetadataHeader("Username"),
+				if sendHeaders {
+					cfg.ActorHeaderNames = map[string]string{
+						"id":       aibheaders.ActorIDHeader(),
+						"username": aibheaders.ActorMetadataHeader("Username"),
+					}
 				}
 				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},

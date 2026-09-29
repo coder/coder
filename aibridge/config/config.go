@@ -22,10 +22,11 @@ type Anthropic struct {
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
-	SendActorHeaders bool
+	KeyPool        *keypool.Pool
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	// ActorHeaderNames maps actor attributes to upstream header names.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
 }
 
@@ -135,20 +136,22 @@ type OpenAI struct {
 	BaseURL string
 	// KeyPool holds the centralized keys, with automatic key failover. BYOK
 	// credentials are resolved per request from the incoming headers.
-	KeyPool          *keypool.Pool
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
-	SendActorHeaders bool
+	KeyPool        *keypool.Pool
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	// ActorHeaderNames maps actor attributes to upstream header names.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
 }
 
 type Copilot struct {
 	// Name is the provider instance name. If empty, defaults to "copilot".
-	Name             string
-	BaseURL          string
-	APIDumpDir       string
-	CircuitBreaker   *CircuitBreaker
-	SendActorHeaders bool
+	Name           string
+	BaseURL        string
+	APIDumpDir     string
+	CircuitBreaker *CircuitBreaker
+	// ActorHeaderNames maps actor attributes to upstream header names.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
 	ActorHeaderNames map[string]string
 }
 

@@ -809,7 +809,7 @@ func (h *mockHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 // TestServeHTTP_ActorHeaders validates that actor headers are correctly forwarded to
-// upstream AI providers when SendActorHeaders is enabled in the provider configuration.
+// upstream AI providers when configured.
 // These headers allow upstream providers to identify the user making the request for
 // tracking and auditing purposes.
 func TestServeHTTP_ActorHeaders(t *testing.T) {
@@ -843,26 +843,23 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			}))
 			t.Cleanup(upstreamSrv.Close)
 
-			// Setup with SendActorHeaders enabled.
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 
-			// Create providers with SendActorHeaders=true.
+			// Create providers with actor headers configured.
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "openai", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "openai", "test-key"),
 					ActorHeaderNames: map[string]string{
 						"id":       aibheaders.ActorIDHeader(),
 						"username": aibheaders.ActorMetadataHeader("Username"),
 					},
 				}),
 				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
-					BaseURL:          upstreamSrv.URL,
-					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
-					SendActorHeaders: true,
+					BaseURL: upstreamSrv.URL,
+					KeyPool: singleKeyPool(t, "anthropic", "test-key"),
 					ActorHeaderNames: map[string]string{
 						"id":       aibheaders.ActorIDHeader(),
 						"username": aibheaders.ActorMetadataHeader("Username"),

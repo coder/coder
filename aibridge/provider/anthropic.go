@@ -145,7 +145,6 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		ProviderName:     p.Name(),
 		BaseURL:          p.cfg.BaseURL,
 		APIDumpDir:       p.cfg.APIDumpDir,
-		SendActorHeaders: p.cfg.SendActorHeaders,
 		ActorHeaderNames: p.cfg.ActorHeaderNames,
 	}
 	cred, err := p.resolveCredential(r)

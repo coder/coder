@@ -208,9 +208,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 // BuildUpstreamHeaders produces the header set for an upstream SDK request.
 // It starts from the prepared client headers, preserves provider auth, then
 // applies identity from the authenticated request actor.
-//
-//nolint:revive // sendActorHeaders carries the provider's SendActorHeaders setting.
-func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, sendActorHeaders bool, actorHeaderNames map[string]string, actor *aibcontext.Actor) http.Header {
+// A nil actorHeaderNames map leaves client identity headers unchanged. A non-nil
+// map enables identity cleanup, even when no attributes are selected.
+func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, authHeaderName string, actorHeaderNames map[string]string, actor *aibcontext.Actor) http.Header {
 	headers := PrepareClientHeaders(clientHeaders)
 	if headers == nil {
 		headers = make(http.Header)
@@ -221,7 +221,7 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	if !sendActorHeaders {
+	if actorHeaderNames == nil {
 		return headers
 	}
 	for _, name := range []string{ActorIDHeader(), ActorMetadataHeader("Username")} {
