@@ -57,3 +57,12 @@ Show the response time of each pong in local time.
 | Type | <code>bool</code> |
 
 Show the response time of each pong in UTC (implies --time).
+
+### -o, --output
+
+|         |                          |
+|---------|--------------------------|
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
+
+Output format. Available formats: table, json.

@@ -1,12 +1,16 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/testutil"
@@ -115,5 +119,40 @@ func TestPing(t *testing.T) {
 				<-cmdDone
 			})
 		}
+	})
+
+	t.Run("JSON", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		inv, root := clitest.New(t, "ping", "-n", "1", "-o", "json", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		out := bytes.NewBuffer(nil)
+		inv.Stdout = out
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// stdout must contain nothing but the JSON document; diagnostic
+		// and per-attempt lines are redirected to stderr in JSON mode.
+		var result cli.PingJSONOutput
+		require.NoError(t, json.Unmarshal(out.Bytes(), &result))
+		assert.Equal(t, workspace.Name, result.Workspace)
+		require.Len(t, result.Pongs, 1)
+		assert.Equal(t, 1, result.Pongs[0].Sequence)
+		assert.Empty(t, result.Pongs[0].Error)
+		require.NotNil(t, result.Pongs[0].LatencyMS)
+		require.NotNil(t, result.Pongs[0].Direct)
+		assert.Equal(t, 1, result.Summary.Total)
+		assert.Equal(t, 1, result.Summary.Successful)
+		require.NotNil(t, result.Summary.MinMS)
+		require.NotNil(t, result.Summary.AvgMS)
+		require.NotNil(t, result.Summary.MaxMS)
 	})
 }

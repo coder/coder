@@ -10,6 +10,9 @@ OPTIONS:
           Specifies the number of pings to perform. By default, pings will
           continue until interrupted.
 
+  -o, --output table|json (default: table)
+          Output format. Available formats: table, json.
+
       --time bool
           Show the response time of each pong in local time.
 
