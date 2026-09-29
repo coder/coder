@@ -42,7 +42,24 @@ func (r *RootCmd) aiGatewayKeys() *serpent.Command {
 }
 
 func (r *RootCmd) aiGatewayKeysCreate() *serpent.Command {
-	return &serpent.Command{
+	formatter := cliui.NewOutputFormatter(
+		cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+			typed, ok := data.(codersdk.CreateAIGatewayKeyResponse)
+			if !ok {
+				return "", xerrors.Errorf("expected CreateAIGatewayKeyResponse, got %T", data)
+			}
+			return fmt.Sprintf(
+				"Successfully created AI Gateway key %s (ID: %s, Prefix: %s).\nSave this authentication token, it will not be shown again.\n\n%s",
+				cliui.Keyword(typed.Name),
+				typed.ID,
+				typed.KeyPrefix,
+				cliui.Keyword(typed.Key),
+			), nil
+		}),
+		cliui.JSONFormat(),
+	)
+
+	cmd := &serpent.Command{
 		Use:   "create <name>",
 		Short: "Create an AI Gateway key",
 		Middleware: serpent.Chain(
@@ -61,17 +78,17 @@ func (r *RootCmd) aiGatewayKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create AI Gateway key %q: %w", inv.Args[0], err)
 			}
 
-			_, _ = fmt.Fprintf(
-				inv.Stdout,
-				"Successfully created AI Gateway key %s (ID: %s, Prefix: %s).\nSave this authentication token, it will not be shown again.\n\n%s\n",
-				cliui.Keyword(res.Name),
-				res.ID,
-				res.KeyPrefix,
-				cliui.Keyword(res.Key),
-			)
-			return nil
+			out, err := formatter.Format(inv.Context(), res)
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
+
+	formatter.AttachOptions(&cmd.Options)
+	return cmd
 }
 
 func (r *RootCmd) aiGatewayKeysList() *serpent.Command {
