@@ -5,6 +5,7 @@ import {
 	AGENTS_MAIN_PANEL_MIN_WIDTH,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
 
@@ -143,9 +144,17 @@ describe("ResizableChatsSidebarFrame", () => {
 		expect(handle).toHaveAttribute("aria-valuenow", resizedWidth);
 	});
 
-	it.each(["ArrowRight", "End"])(
-		"keeps the saved width when %s hits a squeezed cap",
-		(key) => {
+	it.each([
+		{ key: "ArrowRight", expected: 500 },
+		{ key: "End", expected: 500 },
+		{
+			key: "ArrowLeft",
+			expected:
+				700 - AGENTS_MAIN_PANEL_MIN_WIDTH - LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+		},
+	])(
+		"saves $expected when $key resizes a squeezed sidebar",
+		({ key, expected }) => {
 			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "500");
 			const handle = renderHandle();
 
@@ -155,8 +164,8 @@ describe("ResizableChatsSidebarFrame", () => {
 			vi.stubGlobal("innerWidth", 1440);
 			fireEvent(window, new Event("resize"));
 
-			expect(handle).toHaveAttribute("aria-valuenow", "500");
-			expect(persistedWidth()).toBe(500);
+			expect(handle).toHaveAttribute("aria-valuenow", String(expected));
+			expect(persistedWidth()).toBe(expected);
 		},
 	);
 
