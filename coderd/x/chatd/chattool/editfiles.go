@@ -323,12 +323,13 @@ func executeEditFilesTool(
 	resp, err := conn.EditFiles(ctx, request)
 	if err != nil {
 		if agentWroteNothing(err, len(request.Files)) {
-			return fantasy.NewTextErrorResponse(
-				editFilesNoneApplied + " " + agentAPIErrorMessage(err) + "\nFix the failing edit and resend all edits.",
-			), nil
+			return fantasy.NewTextErrorResponse(fmt.Sprintf(
+				"Applied 0 of %d edits: %s\nFix the failing edit and resend all edits.",
+				len(args.Edits), agentAPIErrorMessage(err),
+			)), nil
 		}
 		return fantasy.NewTextErrorResponse(
-			"It is unknown whether any files were applied. " + agentAPIErrorMessage(err) + "\nRe-read the files before resending edits.",
+			"It is unknown whether any edits were applied. " + agentAPIErrorMessage(err) + "\nRe-read the files before resending edits.",
 		), nil
 	}
 
@@ -343,19 +344,14 @@ func executeEditFilesTool(
 			Diff:   file.Diff,
 		})
 	}
-	// Agents that predate per-file results return none on success,
-	// having written every file in the request.
-	applied := len(resp.Files)
-	if applied == 0 {
-		applied = len(request.Files)
-	}
-	result.Message = fmt.Sprintf("Applied edits to %d %s.", applied, pluralFiles(applied))
+	// The request is all or nothing, so success means every edit was
+	// applied.
+	result.Message = fmt.Sprintf("Applied %d of %d edits.", len(args.Edits), len(args.Edits))
 	return marshalToolResponse(result), nil
 }
 
-// editFilesNoneApplied appears in every edit_files error result for a
-// call that is known to have written nothing.
-const editFilesNoneApplied = "No files were applied."
+// editFilesNoneApplied ends every whole-call rejection.
+const editFilesNoneApplied = "No edits were applied."
 
 const editFilesStatusApplied = "applied"
 
@@ -371,13 +367,6 @@ type editFilesFileResult struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
 	Diff   string `json:"diff"`
-}
-
-func pluralFiles(n int) string {
-	if n == 1 {
-		return "file"
-	}
-	return "files"
 }
 
 // rejectEditFiles returns a whole-call rejection decided before any

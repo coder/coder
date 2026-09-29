@@ -138,7 +138,7 @@ describe("Tool edit_files rows", () => {
 			name: "result with status: applied",
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [
 					{ path: "/repo/a.go", status: "applied", diff: diffA },
 					{ path: "/repo/b.go", status: "applied", diff: diffB },
@@ -166,6 +166,6 @@ describe("Tool edit_files rows", () => {
 			["Diff of /repo/a.go", "x := 2 // server a\n"],
 			["Diff of /repo/b.go", "bar() // server b\n"],
 		]);
-		expect(screen.queryByText("Applied edits to 2 files.")).toBeNull();
+		expect(screen.queryByText("Applied 2 of 2 edits.")).toBeNull();
 	});
 });

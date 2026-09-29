@@ -58,22 +58,22 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo files were applied.",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo edits were applied.",
 			},
 			{
 				name:    "EmptyEdits",
 				input:   `{"edits":[]}`,
-				wantErr: "Add at least one edit to edits\nNo files were applied.",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "MissingEdits",
 				input:   `{}`,
-				wantErr: "Add at least one edit to edits\nNo files were applied.",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo edits were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -84,7 +84,7 @@ func TestEditFiles(t *testing.T) {
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
-					"\nNo files were applied.",
+					"\nNo edits were applied.",
 				},
 			},
 			{
@@ -92,7 +92,7 @@ func TestEditFiles(t *testing.T) {
 				input: `[]`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects",
-					"\nNo files were applied.",
+					"\nNo edits were applied.",
 				},
 			},
 		}
@@ -137,7 +137,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "ResolverNotConfigured",
 				options: chattool.EditFilesOptions{},
-				wantErr: "workspace connection resolver is not configured\nNo files were applied.",
+				wantErr: "workspace connection resolver is not configured\nNo edits were applied.",
 			},
 			{
 				name: "ConnectionFails",
@@ -146,7 +146,7 @@ func TestEditFiles(t *testing.T) {
 						return nil, xerrors.New("workspace agent is not connected")
 					},
 				},
-				wantErr: "workspace agent is not connected\nNo files were applied.",
+				wantErr: "workspace agent is not connected\nNo edits were applied.",
 			},
 			{
 				name: "PlanPathResolveFails",
@@ -156,7 +156,7 @@ func TestEditFiles(t *testing.T) {
 					},
 					IsPlanTurn: true,
 				},
-				wantErr: "resolve chat-specific plan path: workspace unavailable\nNo files were applied.",
+				wantErr: "resolve chat-specific plan path: workspace unavailable\nNo edits were applied.",
 			},
 		}
 		for _, tt := range tests {
@@ -275,50 +275,50 @@ func TestEditFiles(t *testing.T) {
 				name:     "BadRequestOmitsTransportNoise",
 				input:    `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
 				agentErr: xerrors.Errorf("do request: %w", detailed),
-				wantErr:  "No files were applied. file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 1 edits: file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
 			},
 			{
 				name:     "BadRequestSeveralFiles",
 				input:    twoFiles,
 				agentErr: agentError(http.StatusBadRequest, "edit /repo/b.go: search string not found in file"),
-				wantErr:  "No files were applied. edit /repo/b.go: search string not found in file\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 2 edits: edit /repo/b.go: search string not found in file\nFix the failing edit and resend all edits.",
 			},
 			{
 				name:     "NotFoundSeveralFiles",
 				input:    twoFiles,
 				agentErr: agentError(http.StatusNotFound, "open /repo/b.go: file does not exist"),
-				wantErr:  "No files were applied. open /repo/b.go: file does not exist\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 2 edits: open /repo/b.go: file does not exist\nFix the failing edit and resend all edits.",
 			},
 			{
 				name:     "ServerErrorOneFile",
 				input:    oneFile,
 				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
-				wantErr:  "No files were applied. write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 1 edits: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
 			},
 			{
 				// Two edits to one file are still a single-file request.
 				name:     "ServerErrorOneFileTwoEdits",
 				input:    `{"edits":[{"path":"/repo/a.go","old_text":"old","new_text":"new"},{"path":"/repo/a.go","old_text":"foo()","new_text":"bar()"}]}`,
 				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
-				wantErr:  "No files were applied. write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 2 edits: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
 			},
 			{
 				name:     "ServerErrorSeveralFiles",
 				input:    twoFiles,
 				agentErr: agentError(http.StatusInternalServerError, "write /repo/b.go: no space left on device"),
-				wantErr:  "It is unknown whether any files were applied. write /repo/b.go: no space left on device\nRe-read the files before resending edits.",
+				wantErr:  "It is unknown whether any edits were applied. write /repo/b.go: no space left on device\nRe-read the files before resending edits.",
 			},
 			{
 				name:     "ForbiddenSeveralFiles",
 				input:    twoFiles,
 				agentErr: agentError(http.StatusForbidden, "open /repo/.b.go.tmp.1234abcd: permission denied"),
-				wantErr:  "It is unknown whether any files were applied. open /repo/.b.go.tmp.1234abcd: permission denied\nRe-read the files before resending edits.",
+				wantErr:  "It is unknown whether any edits were applied. open /repo/.b.go.tmp.1234abcd: permission denied\nRe-read the files before resending edits.",
 			},
 			{
 				name:     "TransportError",
 				input:    oneFile,
 				agentErr: xerrors.New("do request: connection reset by peer"),
-				wantErr:  "It is unknown whether any files were applied. do request: connection reset by peer\nRe-read the files before resending edits.",
+				wantErr:  "It is unknown whether any edits were applied. do request: connection reset by peer\nRe-read the files before resending edits.",
 			},
 		}
 		for _, tt := range tests {
@@ -370,7 +370,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo edits were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -401,7 +401,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo edits were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -507,7 +507,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns\nNo files were applied.", resp.Content)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns\nNo edits were applied.", resp.Content)
 	})
 
 	t.Run("RejectsPlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {
@@ -615,7 +615,7 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
 		assert.False(t, resolvePlanPathCalled)
-		assert.Equal(t, "Use the chat-specific absolute plan path; plan files must use absolute paths\nNo files were applied.", resp.Content)
+		assert.Equal(t, "Use the chat-specific absolute plan path; plan files must use absolute paths\nNo edits were applied.", resp.Content)
 	})
 
 	t.Run("PerChatPlanPathIsAllowed", func(t *testing.T) {
@@ -850,7 +850,7 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
 				{Path: "/repo/a.go", Diff: diffA},
 			}},
-			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[` +
+			want: `{"status":"applied","message":"Applied 1 of 1 edits.","files":[` +
 				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"}]}`,
 		},
 		{
@@ -863,7 +863,7 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 				{Path: "/repo/a.go", Diff: diffA},
 				{Path: "/repo/b.go", Diff: diffB},
 			}},
-			want: `{"status":"applied","message":"Applied edits to 2 files.","files":[` +
+			want: `{"status":"applied","message":"Applied 2 of 2 edits.","files":[` +
 				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"},` +
 				`{"path":"/repo/b.go","status":"applied","diff":"--- /repo/b.go\n+++ /repo/b.go\n@@ -1 +1 @@\n-foo()\n+bar()\n"}]}`,
 		},
@@ -875,12 +875,12 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
 				{Path: "/repo/a.go"},
 			}},
-			want: `{"status":"applied","message":"Applied edits to 1 file.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+			want: `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
-			// Agents that predate per-file results return none; the
-			// count then comes from the files in the request, not the
-			// edits.
+			// Agents that predate per-file results return none. The
+			// count is of edits, so it does not depend on the files the
+			// agent reports.
 			name: "AgentWithoutPerFileResults",
 			input: `{"edits":[` +
 				`{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 2"},` +
@@ -888,7 +888,7 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 				`{"path":"/repo/a.go","old_text":"y := 1","new_text":"y := 2"}` +
 				`]}`,
 			agentResp: workspacesdk.FileEditResponse{},
-			want:      `{"status":"applied","message":"Applied edits to 2 files.","files":[]}`,
+			want:      `{"status":"applied","message":"Applied 3 of 3 edits.","files":[]}`,
 		},
 	}
 	for _, tt := range tests {
