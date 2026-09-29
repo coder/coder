@@ -491,14 +491,29 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
 			actor *context.Actor
-			want  map[string]string
+			want  http.Header
 		}{
 			{
 				name:  "configured actor",
 				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-				want:  map[string]string{"X-Downstream-User-Id": "user-123", "X-Downstream-Username": "alice"},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
 			},
-			{name: "nil actor", want: map[string]string{}},
+			{
+				name:  "missing username",
+				actor: &context.Actor{ID: "user-123"},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+			},
+			{
+				name:  "empty username",
+				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": ""}},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+			},
+			{
+				name:  "non-string username",
+				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": 42}},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+			},
+			{name: "nil actor", want: http.Header{}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -516,15 +531,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 					"username": "X-Downstream-Username",
 				}, tc.actor)
 
-				if tc.actor == nil {
-					require.NotContains(t, result, "X-Downstream-User-Id")
-					require.NotContains(t, result, "X-Downstream-Username")
-				} else {
-					require.Equal(t, tc.want, map[string]string{
-						"X-Downstream-User-Id":  result.Get("X-Downstream-User-Id"),
-						"X-Downstream-Username": result.Get("X-Downstream-Username"),
-					})
-				}
+				require.Equal(t, tc.want, result)
 				require.Equal(t, sdkCopy, sdkHeaders)
 				require.Equal(t, clientCopy, clientHeaders)
 			})
