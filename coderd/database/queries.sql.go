@@ -1477,7 +1477,7 @@ func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAI
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -1510,6 +1510,8 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.CacheReadPriceMicros,
 			&i.CacheWritePriceMicros,
 			&i.CostMicros,
+			&i.ProviderModel,
+			&i.PricedModel,
 		); err != nil {
 			return nil, err
 		}
@@ -1726,12 +1728,12 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
-  $10, $11, $12, $13, $14, $15
+  $10, $11, $12, $13, $14, $15, $16, $17
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 `
 
 type InsertAIBridgeTokenUsageParams struct {
@@ -1750,6 +1752,8 @@ type InsertAIBridgeTokenUsageParams struct {
 	CacheReadPriceMicros  sql.NullInt64   `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64   `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64   `db:"cost_micros" json:"cost_micros"`
+	ProviderModel         sql.NullString  `db:"provider_model" json:"provider_model"`
+	PricedModel           sql.NullString  `db:"priced_model" json:"priced_model"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -1769,6 +1773,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.CacheReadPriceMicros,
 		arg.CacheWritePriceMicros,
 		arg.CostMicros,
+		arg.ProviderModel,
+		arg.PricedModel,
 	)
 	var i AIBridgeTokenUsage
 	err := row.Scan(
@@ -1787,6 +1793,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.CacheReadPriceMicros,
 		&i.CacheWritePriceMicros,
 		&i.CostMicros,
+		&i.ProviderModel,
+		&i.PricedModel,
 	)
 	return i, err
 }
@@ -2588,7 +2596,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 FROM
 	aibridge_token_usages
 WHERE
@@ -2623,6 +2631,8 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.CacheReadPriceMicros,
 			&i.CacheWritePriceMicros,
 			&i.CostMicros,
+			&i.ProviderModel,
+			&i.PricedModel,
 		); err != nil {
 			return nil, err
 		}
@@ -2953,20 +2963,28 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
-WHERE provider = $1 AND model = $2
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+WHERE provider = $1 AND model IN ($2, $3)
+ORDER BY
+	CASE WHEN model = $2 THEN 0 ELSE 1 END ASC,
+	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1
 `
 
 type GetAIModelPriceByProviderModelParams struct {
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
+	Provider      string `db:"provider" json:"provider"`
+	Model         string `db:"model" json:"model"`
+	ProviderModel string `db:"provider_model" json:"provider_model"`
 }
 
-// Returns the price in effect for the model, preferring a custom price over
-// the price book.
+// Returns the price in effect for the requested model, falling back to the
+// model reported by the provider when the requested model has no price.
+// Rows are ordered by model first, then by source, so the lookup order is:
+//  1. Custom price for the requested model.
+//  2. Price book price for the requested model.
+//  3. Custom price for the provider-reported model.
+//  4. Price book price for the provider-reported model.
 func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
-	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
+	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model, arg.ProviderModel)
 	var i AIModelPrice
 	err := row.Scan(
 		&i.Provider,

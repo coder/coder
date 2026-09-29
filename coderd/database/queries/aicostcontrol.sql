@@ -37,12 +37,19 @@ WHERE (
 );
 
 -- name: GetAIModelPriceByProviderModel :one
--- Returns the price in effect for the model, preferring a custom price over
--- the price book.
+-- Returns the price in effect for the requested model, falling back to the
+-- model reported by the provider when the requested model has no price.
+-- Rows are ordered by model first, then by source, so the lookup order is:
+--   1. Custom price for the requested model.
+--   2. Price book price for the requested model.
+--   3. Custom price for the provider-reported model.
+--   4. Price book price for the provider-reported model.
 SELECT *
 FROM ai_model_prices
-WHERE provider = @provider AND model = @model
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+WHERE provider = @provider AND model IN (@model, @provider_model)
+ORDER BY
+	CASE WHEN model = @model THEN 0 ELSE 1 END ASC,
+	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1;
 
 -- name: GetAIModelPrices :many

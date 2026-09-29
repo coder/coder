@@ -366,6 +366,7 @@ func (s *Server) RecordTokenUsage(ctx context.Context, in *proto.RecordTokenUsag
 			slog.F("record_type", recorder.RecordTypeTokenUsage),
 			slog.F("interception_id", intcID.String()),
 			slog.F("msg_id", in.GetMsgId()),
+			slog.F("provider_model", in.GetProviderModel()),
 			slog.F("input_tokens", in.GetInputTokens()),
 			slog.F("output_tokens", in.GetOutputTokens()),
 			slog.F("cache_read_input_tokens", in.GetCacheReadInputTokens()),
@@ -439,6 +440,8 @@ func (s *Server) recordTokenUsageAndSpend(ctx context.Context, intc database.AIB
 			CacheReadPriceMicros:  cost.cacheReadPriceMicros,
 			CacheWritePriceMicros: cost.cacheWritePriceMicros,
 			CostMicros:            cost.costMicros,
+			ProviderModel:         sql.NullString{String: in.GetProviderModel(), Valid: in.GetProviderModel() != ""},
+			PricedModel:           cost.pricedModel,
 		}); err != nil {
 			return xerrors.Errorf("insert token usage: %w", err)
 		}

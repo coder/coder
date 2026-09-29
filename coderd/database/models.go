@@ -4823,6 +4823,10 @@ type AIBridgeTokenUsage struct {
 	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	// The model reported by the upstream provider. NULL when the provider did not report one.
+	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
+	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
+	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge

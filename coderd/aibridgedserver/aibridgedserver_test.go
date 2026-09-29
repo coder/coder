@@ -1863,7 +1863,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A priced model does not increment unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Nil(t, promhelp.MetricValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2010,7 +2010,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2259,7 +2259,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// A missing price row increments unpriced_token_usage_records_total.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "anthropic", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2425,7 +2425,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				// The metric names the provider that failed to resolve.
 				assertMetrics: func(t *testing.T, reg *prometheus.Registry) {
 					require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
-						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "unknown", "model": "claude-sonnet-4-6"}))
+						prometheus.Labels{"provider": "anthropic-eu", "provider_type": "unknown", "model": "claude-sonnet-4-6", "provider_model": ""}))
 				},
 			},
 			{
@@ -2765,67 +2765,117 @@ func TestBudgetNotificationAuthorized(t *testing.T) {
 func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 	t.Parallel()
 
-	const provider, model = "anthropic", "claude-sonnet-4-6"
+	const provider, model, providerModel = "anthropic", "requested-model", "provider-model"
 
-	priceSeed := func(input, output, cacheRead, cacheWrite int64) json.RawMessage {
-		seed, err := json.Marshal([]map[string]any{{
-			"provider":          provider,
-			"model":             model,
-			"input_price":       input,
-			"output_price":      output,
-			"cache_read_price":  cacheRead,
-			"cache_write_price": cacheWrite,
-		}})
+	type modelPrice struct {
+		model                                string
+		input, output, cacheRead, cacheWrite int64
+		cost                                 int64
+	}
+
+	var (
+		requestedDefault = modelPrice{model: model, input: 3_000_000, output: 6_000_000, cacheRead: 300_000, cacheWrite: 4_000_000, cost: 1555}         // 300 + 1200 + 15 + 40
+		requestedCustom  = modelPrice{model: model, input: 9_000_000, output: 12_000_000, cacheRead: 900_000, cacheWrite: 8_000_000, cost: 3425}        // 900 + 2400 + 45 + 80
+		providerDefault  = modelPrice{model: providerModel, input: 2_000_000, output: 4_000_000, cacheRead: 200_000, cacheWrite: 1_000_000, cost: 1020} // 200 + 800 + 10 + 10
+		providerCustom   = modelPrice{model: providerModel, input: 1_000_000, output: 2_000_000, cacheRead: 100_000, cacheWrite: 500_000, cost: 510}    // 100 + 400 + 5 + 5
+	)
+
+	priceSeed := func(prices []modelPrice) json.RawMessage {
+		rows := make([]map[string]any, 0, len(prices))
+		for _, p := range prices {
+			rows = append(rows, map[string]any{
+				"provider":          provider,
+				"model":             p.model,
+				"input_price":       p.input,
+				"output_price":      p.output,
+				"cache_read_price":  p.cacheRead,
+				"cache_write_price": p.cacheWrite,
+			})
+		}
+		seed, err := json.Marshal(rows)
 		require.NoError(t, err)
 		return seed
 	}
 
 	tests := []struct {
-		name        string
-		defaultSeed json.RawMessage
-		customSeed  json.RawMessage
-		want        database.AIBridgeTokenUsage
+		name          string
+		providerModel string
+		defaultPrices []modelPrice
+		customPrices  []modelPrice
+		want          *modelPrice
 	}{
 		{
-			name:        "DefaultOnly",
-			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 3_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 6_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 300_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 4_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 300 + 1200 + 15 + 40.
-				CostMicros: sql.NullInt64{Int64: 1555, Valid: true},
-			},
+			name:          "RequestedCustomOnly",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
 		},
 		{
-			// A model the price book does not cover, priced through the API.
-			name:       "CustomOnly",
-			customSeed: priceSeed(2_000_000, 4_000_000, 200_000, 1_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 2_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 4_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 200_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 200 + 800 + 10 + 10.
-				CostMicros: sql.NullInt64{Int64: 1020, Valid: true},
-			},
+			name:          "RequestedDefaultOnly",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			want:          &requestedDefault,
 		},
 		{
-			name:        "CustomWinsOverDefault",
-			defaultSeed: priceSeed(3_000_000, 6_000_000, 300_000, 4_000_000),
-			customSeed:  priceSeed(9_000_000, 12_000_000, 900_000, 8_000_000),
-			want: database.AIBridgeTokenUsage{
-				InputPriceMicros:      sql.NullInt64{Int64: 9_000_000, Valid: true},
-				OutputPriceMicros:     sql.NullInt64{Int64: 12_000_000, Valid: true},
-				CacheReadPriceMicros:  sql.NullInt64{Int64: 900_000, Valid: true},
-				CacheWritePriceMicros: sql.NullInt64{Int64: 8_000_000, Valid: true},
-				// 100 input, 200 output, 50 cache read, and 10 cache write
-				// tokens, priced per million: 900 + 2400 + 45 + 80.
-				CostMicros: sql.NullInt64{Int64: 3425, Valid: true},
-			},
+			name:          "ProviderCustomOnly",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{providerCustom},
+			want:          &providerCustom,
+		},
+		{
+			name:          "ProviderDefaultOnly",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			want:          &providerDefault,
+		},
+		{
+			name:          "RequestedCustomWinsOverRequestedDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedCustomWinsOverProviderCustom",
+			providerModel: providerModel,
+			customPrices:  []modelPrice{requestedCustom, providerCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedCustomWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			customPrices:  []modelPrice{requestedCustom},
+			want:          &requestedCustom,
+		},
+		{
+			name:          "RequestedDefaultWinsOverProviderCustom",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault},
+			customPrices:  []modelPrice{providerCustom},
+			want:          &requestedDefault,
+		},
+		{
+			name:          "RequestedDefaultWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{requestedDefault, providerDefault},
+			want:          &requestedDefault,
+		},
+		{
+			name:          "ProviderCustomWinsOverProviderDefault",
+			providerModel: providerModel,
+			defaultPrices: []modelPrice{providerDefault},
+			customPrices:  []modelPrice{providerCustom},
+			want:          &providerCustom,
+		},
+		{
+			name:          "Unpriced",
+			providerModel: providerModel,
+		},
+		{
+			name:          "ProviderModelNotReported",
+			defaultPrices: []modelPrice{requestedDefault},
+			want:          &requestedDefault,
 		},
 	}
 
@@ -2842,15 +2892,15 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			user := dbgen.User(t, rawDB, database.User{})
 			dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
 
-			if tt.defaultSeed != nil {
+			if len(tt.defaultPrices) > 0 {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-					Seed:   tt.defaultSeed,
+					Seed:   priceSeed(tt.defaultPrices),
 					Source: database.AIModelPriceSourceDefault,
 				}), "seed model prices")
 			}
-			if tt.customSeed != nil {
+			if len(tt.customPrices) > 0 {
 				require.NoError(t, rawDB.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
-					Seed:   tt.customSeed,
+					Seed:   priceSeed(tt.customPrices),
 					Source: database.AIModelPriceSourceCustom,
 				}), "set custom model price")
 			}
@@ -2866,6 +2916,7 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 				Model:        model,
 			}, nil)
 
+			reg := prometheus.NewRegistry()
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
 				Store:         authzDB,
 				AISeatTracker: agplaiseats.Noop{},
@@ -2874,12 +2925,14 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 				Experiments:   requiredExperiments,
 				Logger:        logger,
 				Clock:         quartz.NewReal(),
+				Metrics:       aibridgedserver.NewMetrics(reg),
 			})
 			require.NoError(t, err)
 
 			_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 				InterceptionId:        intc.ID.String(),
 				MsgId:                 "msg_price_resolution",
+				ProviderModel:         tt.providerModel,
 				InputTokens:           100,
 				OutputTokens:          200,
 				CacheReadInputTokens:  50,
@@ -2888,16 +2941,35 @@ func TestRecordTokenUsageModelPriceResolution(t *testing.T) {
 			})
 			require.NoError(t, err, "record token usage")
 
+			var want database.AIBridgeTokenUsage
+			if tt.want != nil {
+				want = database.AIBridgeTokenUsage{
+					PricedModel:           sql.NullString{String: tt.want.model, Valid: true},
+					InputPriceMicros:      sql.NullInt64{Int64: tt.want.input, Valid: true},
+					OutputPriceMicros:     sql.NullInt64{Int64: tt.want.output, Valid: true},
+					CacheReadPriceMicros:  sql.NullInt64{Int64: tt.want.cacheRead, Valid: true},
+					CacheWritePriceMicros: sql.NullInt64{Int64: tt.want.cacheWrite, Valid: true},
+					CostMicros:            sql.NullInt64{Int64: tt.want.cost, Valid: true},
+				}
+			}
+
 			tokenUsages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
 			require.NoError(t, err)
 			require.Len(t, tokenUsages, 1)
 
 			tokenUsage := tokenUsages[0]
-			require.Equal(t, tt.want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
-			require.Equal(t, tt.want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
-			require.Equal(t, tt.want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
-			require.Equal(t, tt.want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
-			require.Equal(t, tt.want.CostMicros, tokenUsage.CostMicros, "cost")
+			require.Equal(t, sql.NullString{String: tt.providerModel, Valid: tt.providerModel != ""}, tokenUsage.ProviderModel, "provider model")
+			require.Equal(t, want.PricedModel, tokenUsage.PricedModel, "priced model")
+			require.Equal(t, want.InputPriceMicros, tokenUsage.InputPriceMicros, "input price")
+			require.Equal(t, want.OutputPriceMicros, tokenUsage.OutputPriceMicros, "output price")
+			require.Equal(t, want.CacheReadPriceMicros, tokenUsage.CacheReadPriceMicros, "cache read price")
+			require.Equal(t, want.CacheWritePriceMicros, tokenUsage.CacheWritePriceMicros, "cache write price")
+			require.Equal(t, want.CostMicros, tokenUsage.CostMicros, "cost")
+
+			if tt.want == nil {
+				require.Equal(t, 1, promhelp.CounterValue(t, reg, "cost_control_unpriced_token_usage_records_total",
+					prometheus.Labels{"provider": aiProvider.Name, "provider_type": provider, "model": model, "provider_model": tt.providerModel}))
+			}
 		})
 	}
 }
