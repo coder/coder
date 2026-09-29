@@ -167,13 +167,11 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 		// Bedrock wraps the anthropic client, so it shares the same
 		// file-part acceptance, including text/* as native documents.
 		return isImage || isText || isPDF
-	case fantasyopenai.Name, fantasyazure.Name:
+	case fantasyopenai.Name, fantasyazure.Name, fantasyopenaicompat.Name:
 		// Chat Completions accepts text and audio as native file parts.
 		if m.transport.UsesResponses() {
 			return isImage || isPDF
 		}
-		return isImage || isText || isAudio || isPDF
-	case fantasyopenaicompat.Name:
 		return isImage || isText || isAudio || isPDF
 	case fantasyopenrouter.Name, fantasyvercel.Name:
 		return isImage || isAudio || isPDF
@@ -851,9 +849,14 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
+		// Resolved the same way NewModel records the transport, so the
+		// client and the recorded transport cannot disagree.
+		useResponses := chatopenai.TransportFor(provider, modelID, openAIResponsesAPIOverride(openAIConfig)).UsesResponses()
 		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
+			fantasyopenaicompat.WithUseResponsesAPI(),
+			fantasyopenaicompat.WithResponsesAPIFunc(func(string) bool { return useResponses }),
 			fantasyopenaicompat.WithUserAgent(userAgent),
 		}
 		if len(extraHeaders) > 0 {

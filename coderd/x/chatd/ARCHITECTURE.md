@@ -947,6 +947,8 @@ Debug recording replaces the wrapped client and preserves the resolved transport
 
 Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so the transport keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
 
+TODO (#30070): openai-compat no longer always speaks Chat Completions. It has no known-model list, so unset `use_responses_api` keeps Chat Completions, but true now forces the Responses API for the compat client, and `Model.AcceptsFilePartMediaType` follows that transport. Update the paragraph above. Describe this here.
+
 Both transports read the same `provider_options.openai` config, but not every field applies to both wire formats. The table below records, per field, which transport honors it; `TestProviderOptionsTransportParity` fails when a field is honored on one transport and silently ignored on the other without being recorded there as intentional.
 
 | `provider_options.openai` field | Responses | Chat Completions |

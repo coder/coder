@@ -41,7 +41,8 @@ func (t Transport) UsesResponses() bool {
 // TransportFor resolves the wire format for a provider and model. override,
 // when non-nil, forces the choice instead of consulting the provider SDK's
 // known-model list. Azure follows the known-model list because its provider
-// exposes no equivalent hook.
+// exposes no equivalent hook. OpenAI-compatible endpoints have no known-model
+// list to consult, so they speak Chat Completions unless the override opts in.
 func TransportFor(provider, modelID string, override *bool) Transport {
 	var useResponses bool
 	switch provider {
@@ -50,8 +51,7 @@ func TransportFor(provider, modelID string, override *bool) Transport {
 	case fantasyazure.Name:
 		useResponses = fantasyopenai.IsResponsesModel(modelID)
 	case fantasyopenaicompat.Name:
-		// chatd never builds an openai-compat client with Responses enabled.
-		return TransportChatCompletions
+		useResponses = override != nil && *override
 	default:
 		return TransportNotApplicable
 	}

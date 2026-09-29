@@ -138,7 +138,12 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 		{"azure-ignores-forced-responses", "azure", nonResponsesModel, "text/plain", true, &forceResponses},
 
 		{"anthropic-ignores-override", "anthropic", "", "text/plain", true, &forceResponses},
-		{"openaicompat-ignores-override", "openai-compat", "", "text/plain", true, &forceResponses},
+
+		// OpenAI-compatible endpoints default to Chat Completions and only
+		// switch to Responses when the config opts in.
+		{"openaicompat-default-text", "openai-compat", responsesModel, "text/plain", true, nil},
+		{"openaicompat-forced-responses-text", "openai-compat", "", "text/plain", false, &forceResponses},
+		{"openaicompat-forced-responses-image", "openai-compat", "", "image/png", true, &forceResponses},
 	}
 
 	for _, tc := range cases {
