@@ -454,7 +454,7 @@ export function FilterCombobox({
 						<Button
 							variant="subtle"
 							size="sm"
-							className="-mr-2 h-auto min-w-0 self-end py-1 text-sm"
+							className="-mr-2 h-auto min-w-0 self-end py-1"
 							// A click does not move focus to the button, so a focused
 							// input keeps it.
 							onMouseDown={(event) => event.preventDefault()}
