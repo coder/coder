@@ -911,9 +911,9 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	require.NoError(t, err)
 	assistantID := messages[len(messages)-1].ID
 
-	// Each cancel answers only after the agent received every cancel, so
-	// cancels sent one at a time wait until the interrupt's context ends
-	// and commit no real result.
+	// The agent responds to each cancel only after it received every
+	// cancel, so cancels sent one at a time wait until the interrupt's
+	// context ends and commit no real result.
 	var pending atomic.Int64
 	for _, tc := range tests {
 		if !tc.agentless {

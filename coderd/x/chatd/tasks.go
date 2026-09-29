@@ -34,10 +34,10 @@ const (
 	defaultTaskTimeout            = 15 * time.Minute
 	taskTimeoutMargin             = 5 * time.Minute
 	// interruptCancelTimeout bounds the agent dial and all tool call
-	// cancels of one interrupt. The agent answers a cancel only after the
-	// call's running handler finishes, so waiting longer gives running tool
-	// calls a chance to finish and the interrupt records their real result
-	// instead of an unknown one.
+	// cancels of one interrupt. The agent responds to a cancel only after
+	// the call's running handler finishes, so waiting longer gives running
+	// tool calls a chance to finish and the interrupt records their real
+	// result instead of an unknown one.
 	interruptCancelTimeout = 30 * time.Second
 )
 
@@ -715,9 +715,10 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 // cancelableToolCalls returns the chat's unresolved tool calls that can be
 // canceled on its agent, with their tool call IDs by provider tool call ID.
 // Call it with the store of the chat's locked read so the calls belong to
-// the state the interrupt task started for. A failed read fails the locked
-// read, since the transaction cannot commit after it. Unparsable history
-// logs a warning and returns no calls.
+// the state the interrupt task started for. If the messages cannot be
+// read, it returns the error and the interrupt task retries. Continuing
+// without the cancels would not help: the commit reads the same messages.
+// Unparsable history logs a warning and returns no calls.
 func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.Store, chat database.Chat) ([]fantasy.ToolCallContent, map[string]uuid.UUID, error) {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
 		return nil, nil, nil
@@ -742,10 +743,10 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 }
 
 // cancelUnresolvedToolCalls cancels calls, the chat's unresolved tool
-// calls from cancelableToolCalls, on its agent and returns the results the
-// agent's answers give, by provider tool call ID. ids holds the calls'
-// tool call IDs. Calls without a result keep the generic interrupted
-// result, and a warning says why.
+// calls from cancelableToolCalls, on its agent and returns the results
+// from the agent's responses, by provider tool call ID. ids holds the
+// calls' tool call IDs. Calls without a result keep the generic
+// interrupted result, and a warning says why.
 func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat, calls []fantasy.ToolCallContent, ids map[string]uuid.UUID) map[string]fantasy.ToolResponse {
 	if len(calls) == 0 {
 		return nil

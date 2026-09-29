@@ -48,7 +48,7 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 
 // CancelToolCall cancels the execute, edit_files, or write_file call with
 // tool call ID id on the agent and returns the call's result. An error
-// means the agent gave no usable answer, including the 404 of an agent
+// means the agent gave no usable response, including the 404 of an agent
 // without the cancel route.
 func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
 	canceled, err := conn.CancelToolCall(ctx, id)
@@ -70,9 +70,9 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	}
 	// Read the output even when the agent has no record of the call: a
 	// process started with the tool call ID outlives the record, and the
-	// cancel killed it. The agent answers the cancel once it sends the
-	// kill, and collects the last output when the process exits, so wait
-	// for the exit. ctx bounds the wait.
+	// cancel killed it. The agent responds to the cancel request after it
+	// sends the kill, which can be before the process exits, so wait for
+	// the exit to read all of its output. ctx bounds the wait.
 	output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 	var sdkErr *codersdk.Error
 	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
