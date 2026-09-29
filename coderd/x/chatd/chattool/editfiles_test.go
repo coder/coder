@@ -977,6 +977,43 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			want:        "Applied 0 of 2 edits. Not applied:\n- edits[0], edits[1] (/repo/a.go): " + noOpLines,
 		},
 		{
+			// The files entry of a file of several no-ops uses the plural
+			// reason.
+			name:  "SeveralNoOpsFileEntryIsPlural",
+			input: `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},{"path":"/repo/a.go","old_text":"y","new_text":"y"},` + editB + `]}`,
+			calls: []fileCall{{path: "/repo/b.go", edits: []workspacesdk.FileEdit{fileEditB}, resp: applied("/repo/b.go", diffB)}},
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 3 edits. Not applied:\n- edits[0], edits[1] (/repo/a.go): ` + noOpLines + `",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"rejected","edits":[0,1],"error":"old_text equals new_text in each, so they would change nothing"},` +
+				`{"path":"/repo/b.go","status":"applied","diff":"` + diffBJSON + `"}]}`,
+		},
+		{
+			// Dropped no-ops are reported beside an unknown outcome for the
+			// rest of their file and beside a file applied by an agent that
+			// returns no per-file results.
+			name: "NoOpsBesideUnknownAndUnreportedDiff",
+			input: `{"edits":[` +
+				`{"path":"/repo/a.go","old_text":"x","new_text":"x"},` +
+				`{"path":"/repo/a.go","old_text":"y","new_text":"z"},` +
+				`{"path":"/repo/b.go","old_text":"q","new_text":"q"},` +
+				`{"path":"/repo/b.go","old_text":"p","new_text":"r"}` +
+				`]}`,
+			calls: []fileCall{
+				{path: "/repo/a.go", edits: []workspacesdk.FileEdit{{OldText: "y", NewText: "z"}}, err: xerrors.New("do request: connection reset by peer")},
+				{path: "/repo/b.go", edits: []workspacesdk.FileEdit{{OldText: "p", NewText: "r"}}},
+			},
+			want: `{"status":"partial",` +
+				`"message":"Applied 1 of 4 edits. Not applied:\n` +
+				`- edits[0] (/repo/a.go): ` + noOpLine + `\n` +
+				`- edits[2] (/repo/b.go): ` + noOpLine + `\n` +
+				`Unknown whether applied:\n` +
+				`- edits[1] (/repo/a.go): do request: connection reset by peer. Re-read /repo/a.go before resending these edits.",` +
+				`"files":[` +
+				`{"path":"/repo/a.go","status":"unknown","edits":[1],"error":"do request: connection reset by peer"},` +
+				`{"path":"/repo/b.go","status":"applied"}]}`,
+		},
+		{
 			name:        "NoOpReplaceAllIsNotSent",
 			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1","replace_all":true}]}`,
 			wantIsError: true,

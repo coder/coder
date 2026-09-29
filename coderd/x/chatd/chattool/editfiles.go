@@ -426,6 +426,9 @@ func executeEditFilesTool(
 			noOpResult := editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: noOps, Error: editFilesNoOpError,
 			}
+			if len(noOps) > 1 {
+				noOpResult.Error = editFilesNoOpsError
+			}
 			if len(sent.Edits) == 0 {
 				reject(noOpResult)
 				continue
@@ -502,10 +505,10 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
 			rejected = append(rejected, prefix+reason+".")
-		case file.Error == editFilesNoOpError && len(file.Edits) == 1:
-			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend the edit with the new text.")
 		case file.Error == editFilesNoOpError:
-			rejected = append(rejected, prefix+"old_text equals new_text in each, so they would change nothing. If you meant to change this text, resend these edits with the new text.")
+			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend the edit with the new text.")
+		case file.Error == editFilesNoOpsError:
+			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend these edits with the new text.")
 		default:
 			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}
@@ -537,10 +540,14 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 // its line has no resend instruction.
 const editFilesInterruptedError = "not sent because the tool call was interrupted"
 
-// editFilesNoOpError is the error of edits whose old_text equals
-// new_text. They were not sent, so their line says to resend them only
-// if a change was meant.
-const editFilesNoOpError = "old_text equals new_text, so it would change nothing"
+// editFilesNoOpError and editFilesNoOpsError are the errors of one and
+// of several edits in a file whose old_text equals new_text. Those
+// edits were not sent, so their line says to resend them only if a
+// change was meant.
+const (
+	editFilesNoOpError  = "old_text equals new_text, so it would change nothing"
+	editFilesNoOpsError = "old_text equals new_text in each, so they would change nothing"
+)
 
 // formatEditIndexes renders indexes as "edits[1], edits[3]".
 func formatEditIndexes(indexes []int) string {
@@ -575,7 +582,8 @@ type editFilesFileResult struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
 	// Edits holds the edits[i] indexes of a file that was not applied.
-	// The agent does not say which edit failed, so it lists them all.
+	// The agent does not say which edit failed, so it lists every edit
+	// sent for that file. For a file of only no-ops it lists those.
 	Edits []int  `json:"edits,omitempty"`
 	Error string `json:"error,omitempty"`
 	// Diff is the agent's diff for an applied file, nil when the agent
