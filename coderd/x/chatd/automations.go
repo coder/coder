@@ -274,7 +274,6 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 // deleteStaleAutomationQueuedMessages. Re-enabling a schedule moves its
 // cursor to the next future occurrence, so missed occurrences never run.
 func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest) (database.ChatAutomation, error) {
-	now := dbtime.Time(p.clock.Now())
 	disabling := req.Enabled != nil && !*req.Enabled
 	var updated database.ChatAutomation
 	err := p.db.InTx(func(tx database.Store) error {
@@ -286,6 +285,9 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			return ErrAutomationNotFound
 		}
 		row := rows[0]
+		// Read the time after the lock wait, so a cursor computed below is
+		// never already in the past when the update commits.
+		now := dbtime.Time(p.clock.Now())
 		// Administrators can stop someone else's automation, but every
 		// other change, including enabling it again, is the owner's.
 		disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
