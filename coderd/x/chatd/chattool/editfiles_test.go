@@ -31,12 +31,15 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"edits":{"type":"array","items":{
 			"type":"object","required":["path","old_text","new_text"],"properties":{
-				"path":{"type":"string","description":"Absolute path of the file to edit."},
-				"old_text":{"type":"string","description":"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."},
-				"new_text":{"type":"string","description":"Replacement text."},
+				"path":{"type":"string","description":"Absolute path of the file, for example /home/coder/project/main.go."},
+				"old_text":{"type":"string","description":"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."},
+				"new_text":{"type":"string","description":"Replacement text. Must differ from old_text."},
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
+		assert.Equal(t,
+			"Edit files by replacing old_text with new_text. Edits to the same file apply in order. If any edit fails, no file is changed.",
+			info.Description)
 	})
 
 	t.Run("RejectedInputNamesWhatToChange", func(t *testing.T) {
@@ -55,22 +58,22 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]; no files in this batch were applied",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo edits were applied.",
 			},
 			{
 				name:    "EmptyEdits",
 				input:   `{"edits":[]}`,
-				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "MissingEdits",
 				input:   `{}`,
-				wantErr: "Add at least one edit to edits; no files in this batch were applied",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported; no files in this batch were applied",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo edits were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -81,7 +84,7 @@ func TestEditFiles(t *testing.T) {
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
-					"no files in this batch were applied",
+					"\nNo edits were applied.",
 				},
 			},
 			{
@@ -89,7 +92,7 @@ func TestEditFiles(t *testing.T) {
 				input: `[]`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects",
-					"no files in this batch were applied",
+					"\nNo edits were applied.",
 				},
 			},
 		}
