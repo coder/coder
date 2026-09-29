@@ -219,7 +219,7 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	}
 	if err := json.Unmarshal([]byte(call.Input), &retired); err == nil && retired.Files != nil {
 		return fantasy.NewTextErrorResponse(
-			"Send a flat list of edits where every edit has its own path, for example " + editFilesExample +
+			"Send edits as a list where each edit has path, old_text and new_text, for example: " + editFilesExample +
 				"; the files key is not supported\nNo edits were applied.",
 		), nil
 	}
