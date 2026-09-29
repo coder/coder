@@ -23,6 +23,7 @@ import {
 import {
 	useWorkspaceUploadAgent,
 	workspaceUploadAgentLookupFailedMessage,
+	workspaceUploadNoEligibleAgentMessage,
 } from "../hooks/useWorkspaceUploadAgent";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
@@ -568,10 +569,13 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		canUpload: canUploadWorkspaceFiles,
 		isResolved,
 		lookupFailed,
+		noEligibleAgent,
 	} = useWorkspaceUploadAgent(selectedWorkspace);
 	const workspaceUploadBlockedMessage = lookupFailed
 		? workspaceUploadAgentLookupFailedMessage
-		: workspaceUploadUnavailableMessage;
+		: noEligibleAgent
+			? workspaceUploadNoEligibleAgentMessage
+			: workspaceUploadUnavailableMessage;
 	// A selected workspace missing from a loading list is as unknown as
 	// a pending agent selection.
 	const isWorkspaceUploadTargetResolved =
