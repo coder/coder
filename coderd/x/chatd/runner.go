@@ -89,6 +89,7 @@ func (r *runner) run() {
 		case <-r.ctx.Done():
 			r.cancelActiveTask()
 			r.waitForTasks()
+			r.workspace.close()
 			r.closeDebugTurn()
 			return
 		}

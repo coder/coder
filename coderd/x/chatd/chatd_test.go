@@ -1971,6 +1971,74 @@ func TestPlanPathHomeDirectoryCachedAcrossSteps(t *testing.T) {
 	require.Equal(t, int32(1), lsCalls.Load(), "the home directory should be read from the agent once")
 }
 
+// TestAgentConnHeldAcrossGenerationSteps checks that the steps of one turn
+// share one workspace agent connection, released when the turn ends.
+func TestAgentConnHeldAcrossGenerationSteps(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var streamedCalls atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if streamedCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"echo hi"}`),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
+	mockConn.EXPECT().StartProcess(gomock.Any(), gomock.Any()).
+		Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil).AnyTimes()
+	exitCode := 0
+	mockConn.EXPECT().ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+		Return(workspacesdk.ProcessOutputResponse{Output: "hi\n", ExitCode: &exitCode}, nil).AnyTimes()
+
+	var dials, releases atomic.Int32
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			dials.Add(1)
+			return mockConn, func() { releases.Add(1) }, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		Title:          "held-agent-conn",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Run echo hi."),
+		},
+	})
+	require.NoError(t, err)
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+	require.Equal(t, int32(2), streamedCalls.Load(), "expected a tool call step and a reply step")
+	require.Equal(t, int32(1), dials.Load(), "the steps of one turn should share one agent connection")
+	require.Eventually(t, func() bool {
+		return releases.Load() == 1
+	}, testutil.WaitShort, testutil.IntervalFast, "the connection should be released when the turn ends")
+}
+
 func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	t.Parallel()
 
