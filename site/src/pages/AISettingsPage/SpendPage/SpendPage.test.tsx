@@ -213,7 +213,8 @@ it("applies a date preset and resets pagination", async () => {
 });
 
 it("keeps the retention bound while a filtered report is pending", async () => {
-	const user = userEvent.setup();
+	// Synthetic hover events read as leaving the menu and close the flyout.
+	const user = userEvent.setup({ skipHover: true });
 	const retentionStart = fixedNow.subtract(10, "day");
 	const { spendSpy } = renderSpend(initialSearch, {
 		retention_start: retentionStart.toISOString(),
@@ -226,7 +227,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 		screen.getByRole("combobox", { name: /Filter by provider/ }),
 	);
 	await user.click(await screen.findByRole("option", { name: /^Provider/ }));
-	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
+	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -327,7 +328,8 @@ it.each([
 ])(
 	"applies and removes the $category filter and resets pagination",
 	async ({ category, option, key, value }) => {
-		const user = userEvent.setup();
+		// Synthetic hover events read as leaving the menu and close the flyout.
+		const user = userEvent.setup({ skipHover: true });
 		const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 		await screen.findByRole("table", { name: "Spend by user" });
 		await user.click(
@@ -336,7 +338,7 @@ it.each([
 		await user.click(
 			await screen.findByRole("option", { name: new RegExp(`^${category}`) }),
 		);
-		await user.click(await screen.findByRole("option", { name: option }));
+		await user.click(await screen.findByRole("button", { name: option }));
 		await waitFor(() =>
 			expect(spendSpy).toHaveBeenCalledWith(
 				MockOrganization.id,

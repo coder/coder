@@ -125,6 +125,7 @@
 		"prefer-node-protocol": "error",
 		"prefer-const": ["error", { "destructuring": "all" }],
 		"consistent-type-definitions": ["error", "type"],
+		"prefer-template": "error",
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
@@ -214,7 +215,6 @@
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
-		"prefer-template": "off", // style/useTemplate (small)
 		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
 		"exhaustive-deps": "off", // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
 		"no-restricted-imports": [

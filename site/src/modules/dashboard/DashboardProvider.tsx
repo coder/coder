@@ -37,9 +37,9 @@ export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => {
 	const { metadata } = useEmbeddedMetadata();
-	const { permissions } = useAuthenticated();
+	const { user, permissions } = useAuthenticated();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
-	const experimentsQuery = useQuery(experiments(metadata.experiments));
+	const experimentsQuery = useQuery(experiments(user.id, metadata));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const organizationsQuery = useQuery(organizations(metadata.organizations));
@@ -47,7 +47,9 @@ export const DashboardProvider: React.FC<React.PropsWithChildren> = ({
 	const error =
 		entitlementsQuery.error ||
 		appearanceQuery.error ||
-		experimentsQuery.error ||
+		// Experiments refetch in the background; keep the last list when a
+		// refetch fails instead of replacing the dashboard with an error.
+		(!experimentsQuery.data && experimentsQuery.error) ||
 		buildInfoQuery.error ||
 		organizationsQuery.error;
 

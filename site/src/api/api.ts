@@ -3220,9 +3220,11 @@ class ExperimentalApiMethods {
 
 	getChatsByWorkspace = async (
 		workspaceIds: readonly string[],
+		signal?: AbortSignal,
 	): Promise<Record<string, string>> => {
 		const res = await this.axios.get("/api/v2/chats/by-workspace", {
 			params: { workspace_ids: workspaceIds.join(",") },
+			signal,
 		});
 		return res.data;
 	};
@@ -3294,15 +3296,23 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChat = async (chatId: string): Promise<TypesGen.Chat> => {
+	getChat = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.Chat> => {
 		const response = await this.axios.get<TypesGen.Chat>(
 			`/api/v2/chats/${chatId}`,
+			{ signal },
 		);
 		return response.data;
 	};
-	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+	getChatCost = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<TypesGen.ChatCost> => {
 		const response = await this.axios.get<TypesGen.ChatCost>(
 			`/api/v2/chats/${chatId}/cost`,
+			{ signal },
 		);
 		return response.data;
 	};
@@ -3437,9 +3447,11 @@ class ExperimentalApiMethods {
 
 	getChatDiffContents = async (
 		chatId: string,
+		signal?: AbortSignal,
 	): Promise<TypesGen.ChatDiffContents> => {
 		const response = await this.axios.get<TypesGen.ChatDiffContents>(
 			`/api/v2/chats/${chatId}/diff`,
+			{ signal },
 		);
 		return response.data;
 	};

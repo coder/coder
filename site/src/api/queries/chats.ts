@@ -1,10 +1,10 @@
 import isEqual from "lodash/isEqual";
 import {
 	type InfiniteData,
+	infiniteQueryOptions,
 	type QueryClient,
 	type QueryKey,
 	queryOptions,
-	type UseInfiniteQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -159,11 +159,12 @@ const canonicalWorkspaceIds = (
 
 export const chatsByWorkspace = (workspaceIds: readonly string[]) => {
 	const sorted = canonicalWorkspaceIds(workspaceIds);
-	return {
+	return queryOptions({
 		queryKey: chatsByWorkspaceKey(sorted),
-		queryFn: () => API.experimental.getChatsByWorkspace(sorted),
+		queryFn: ({ signal }) =>
+			API.experimental.getChatsByWorkspace(sorted, signal),
 		enabled: sorted.length > 0,
-	};
+	});
 };
 
 /**
@@ -1208,7 +1209,7 @@ export const infiniteChats = (input?: ChatListInput) => {
 	const params = toChatListParams(input);
 	const q = getChatListQueryString(params);
 
-	return {
+	return infiniteQueryOptions({
 		queryKey: chatListKey(params),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
@@ -1217,19 +1218,18 @@ export const infiniteChats = (input?: ChatListInput) => {
 			return pages.length + 1;
 		},
 		initialPageParam: 0,
-		queryFn: ({ pageParam }: { pageParam: unknown }) => {
-			if (typeof pageParam !== "number") {
-				throw new Error("pageParam must be a number");
-			}
-			return API.experimental.getChats({
-				limit,
-				offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-				q,
-			});
-		},
-		refetchOnWindowFocus: true as const,
+		queryFn: ({ pageParam, signal }) =>
+			API.experimental.getChats(
+				{
+					limit,
+					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+					q,
+				},
+				signal,
+			),
+		refetchOnWindowFocus: true,
 		retry: 3,
-	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
+	});
 };
 
 const chatSearchKey = (params: ChatSearchParams) =>
@@ -1238,17 +1238,18 @@ const chatSearchKey = (params: ChatSearchParams) =>
 export const chatSearch = (params: ChatSearchParams) =>
 	queryOptions({
 		queryKey: chatSearchKey(params),
-		queryFn: () =>
-			API.experimental.getChats({
-				limit: CHAT_SEARCH_LIMIT,
-				q: params.q,
-			}),
+		queryFn: ({ signal }) =>
+			API.experimental.getChats(
+				{ limit: CHAT_SEARCH_LIMIT, q: params.q },
+				signal,
+			),
 	});
 
-export const chat = (chatId: string) => ({
-	queryKey: chatEntityKey(chatId),
-	queryFn: () => API.experimental.getChat(chatId),
-});
+export const chat = (chatId: string) =>
+	queryOptions({
+		queryKey: chatEntityKey(chatId),
+		queryFn: ({ signal }) => API.experimental.getChat(chatId, signal),
+	});
 
 export const getOpenChatPollInterval = (
 	data: TypesGen.Chat | undefined,
@@ -2149,10 +2150,12 @@ export const promoteChatQueuedMessage = (
 export const chatDiffContentsKey = (chatId: string) =>
 	[...chatEntityKey(chatId), "diff-contents"] as const;
 
-export const chatDiffContents = (chatId: string) => ({
-	queryKey: chatDiffContentsKey(chatId),
-	queryFn: () => API.experimental.getChatDiffContents(chatId),
-});
+export const chatDiffContents = (chatId: string) =>
+	queryOptions({
+		queryKey: chatDiffContentsKey(chatId),
+		queryFn: ({ signal }) =>
+			API.experimental.getChatDiffContents(chatId, signal),
+	});
 
 const chatSystemPromptKey = [...chatConfigKey, "system-prompt"] as const;
 
@@ -2710,11 +2713,12 @@ const GATEWAY_REQUEST_STALE_MS = 30_000;
 export const chatCostTreeKey = (rootChatId: string) =>
 	[...chatAnalyticsKey, "cost", "tree", rootChatId] as const;
 
-export const chatCost = (rootChatId: string) => ({
-	queryKey: chatCostTreeKey(rootChatId),
-	queryFn: () => API.experimental.getChatCost(rootChatId),
-	staleTime: GATEWAY_REQUEST_STALE_MS,
-});
+export const chatCost = (rootChatId: string) =>
+	queryOptions({
+		queryKey: chatCostTreeKey(rootChatId),
+		queryFn: ({ signal }) => API.experimental.getChatCost(rootChatId, signal),
+		staleTime: GATEWAY_REQUEST_STALE_MS,
+	});
 
 const organizationChatModelOverridesKey = (organizationId: string) =>
 	[...chatConfigKey, "model-overrides", organizationId] as const;

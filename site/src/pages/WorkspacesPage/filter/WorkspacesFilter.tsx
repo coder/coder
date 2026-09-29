@@ -4,7 +4,6 @@ import {
 	LayoutPanelTopIcon,
 	TagIcon,
 	UserIcon,
-	UserKeyIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useQueryClient } from "react-query";
@@ -41,40 +40,42 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 	const { permissions, user: me } = useAuthenticated();
 	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` is the wrong capability
 	// for listing users. It is carried over from the legacy page; replace it with
-	// a list-users capability check. Users without it still get User and Owner
-	// categories scoped to themselves (below) so `user:me` keeps working.
+	// a list-users capability check. Users without it still get an Owner
+	// category scoped to themselves (below) so `user:me` keeps working.
 	const canListUsers = permissions.viewDeploymentConfig;
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
 	const queryClient = useQueryClient();
 
 	const categories = useMemo(() => {
-		// Always expose User and Owner so both stay recognized chip keys and the
-		// page's default `user:me` renders as a chip rather than free text.
+		// Always expose Owner so `owner` and `user` stay recognized chip keys and
+		// the page's default `user:me` renders as a chip rather than free text.
 		// Users who cannot list others only see themselves.
-		const getUserOptions = canListUsers
-			? (query: string) => getUserFilterOptions(query, me, queryClient)
-			: (query: string) => getSelfUserFilterOptions(query, me);
 		const next: FilterCategory[] = [
 			{
 				key: "owner",
 				label: "Owner",
-				hint: "me",
-				icon: <UserKeyIcon />,
-				getOptions: getUserOptions,
-			},
-			{
-				// Workspaces the user owns or that are shared with them.
-				key: "user",
-				label: "User",
-				hint: "me",
 				icon: <UserIcon />,
-				getOptions: getUserOptions,
+				scopeToggle: {
+					label: (owner) =>
+						owner
+							? `Include workspaces shared with ${owner}`
+							: "Include shared workspaces",
+					widenedKey: "user",
+					pillLabel: "include shared",
+					pillRemoveLabel: (owner) => `Hide workspaces shared with ${owner}`,
+					searchPhrase: "shared with owner",
+				},
+				getOptions: canListUsers
+					? (query) => getUserFilterOptions(query, me, queryClient)
+					: (query) => getSelfUserFilterOptions(query, me),
 			},
 			{
 				key: "status",
 				label: "Status",
 				icon: <CircleDotIcon />,
+				inlineOptions: true,
+				inlineOptionsIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
@@ -85,12 +86,19 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 				// Boolean workspace filters live under their own keys, so the
 				// category owns them for chip parsing.
 				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				inlineOptions: true,
+				inlineOptionsLabel: "Workspace is…",
+				inlineOptionsExclusive: true,
+				chipLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
 			{
 				key: "template",
 				label: "Template",
+				// Deprecated templates are not offered, so the row can hide while
+				// its one active template would still narrow the results.
+				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
@@ -100,6 +108,9 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			next.push({
 				key: "organization",
 				label: "Organization",
+				// Only organizations with `audit_log:read` are offered, so the row
+				// can hide while its one option would still narrow the results.
+				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
@@ -113,14 +124,15 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div className="flex min-w-0 flex-col gap-2">
 			<FilterCombobox
 				value={filter.query}
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
-				// Starts at a compact width and widens to fit chips before wrapping.
-				className="w-auto min-w-lg max-w-full self-start"
+				// Full width on mobile. From `sm` up it starts at a compact width
+				// and widens to fit chips before wrapping.
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined
 				}

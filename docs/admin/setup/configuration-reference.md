@@ -253,6 +253,32 @@ Base directory for dumping AI Gateway request/response pairs to disk for debuggi
 - CLI flag: [`--ai-gateway-dump-dir`](../../reference/cli/server/index.md#--ai-gateway-dump-dir)
 - YAML key: `ai_gateway.api_dump_dir`
 
+### Actor header email
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`
+- CLI flag: [`--ai-gateway-actor-header-email`](../../reference/cli/server/index.md#--ai-gateway-actor-header-email)
+- YAML key: `ai_gateway.actor_header_email`
+
+### Actor header ID
+
+Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_ID`
+- CLI flag: [`--ai-gateway-actor-header-id`](../../reference/cli/server/index.md#--ai-gateway-actor-header-id)
+- YAML key: `ai_gateway.actor_header_id`
+- Default value: `X-AI-Bridge-Actor-ID`
+
+### Actor header username
+
+Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`
+- CLI flag: [`--ai-gateway-actor-header-username`](../../reference/cli/server/index.md#--ai-gateway-actor-header-username)
+- YAML key: `ai_gateway.actor_header_username`
+- Default value: `X-AI-Bridge-Actor-Metadata-Username`
+
 ### Allow BYOK
 
 Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.
@@ -279,6 +305,15 @@ Length of time to retain data such as interceptions and all related records (tok
 - CLI flag: [`--ai-gateway-retention`](../../reference/cli/server/index.md#--ai-gateway-retention)
 - YAML key: `ai_gateway.retention`
 - Default value: `60d`
+
+### Disable content recording
+
+Stop recording the content of intercepted conversations. No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.
+
+- Environment variable: `CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING`
+- CLI flag: [`--ai-gateway-disable-content-recording`](../../reference/cli/server/index.md#--ai-gateway-disable-content-recording)
+- YAML key: `ai_gateway.disable_content_recording`
+- Default value: `false`
 
 ### Enabled
 
@@ -309,7 +344,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. Client headers starting with X-AI-Bridge-Actor are always removed.
 
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server/index.md#--ai-gateway-send-actor-headers)
@@ -324,6 +359,15 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 - CLI flag: [`--ai-gateway-structured-logging`](../../reference/cli/server/index.md#--ai-gateway-structured-logging)
 - YAML key: `ai_gateway.structured_logging`
 - Default value: `false`
+
+### Structured logging source
+
+Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as those dropped by --ai-gateway-disable-content-recording, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.
+
+- Environment variable: `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE`
+- CLI flag: [`--ai-gateway-structured-logging-source`](../../reference/cli/server/index.md#--ai-gateway-structured-logging-source)
+- YAML key: `ai_gateway.structured_logging_source`
+- Default value: `coderd`
 
 ## AI Gateway Proxy
 

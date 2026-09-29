@@ -99,6 +99,40 @@ for Anthropic-compatible brokers.
 Anthropic does not allow [API keys](https://console.anthropic.com/settings/keys)
 to have restricted permissions at the time of writing (June 2026).
 
+#### Claude Platform for AWS
+
+Claude Platform for AWS is Anthropic's own Messages API hosted on AWS. It
+is an authentication method on the `anthropic` provider type, not a
+separate provider type: requests and responses are the standard Anthropic
+format with standard Anthropic model IDs, and only routing and
+authentication differ. It is distinct from
+[Amazon Bedrock](#amazon-bedrock), which is a separate provider type.
+
+Every Claude Platform provider requires:
+
+- A **region**, for example `us-east-1`. It selects the default endpoint
+  `https://aws-external-anthropic.<region>.api.aws` and, for IAM
+  authentication, the signing scope. Set it explicitly even when you
+  override the endpoint, so requests routed through a proxy are still
+  signed for the correct region.
+- A **workspace ID**, sent as the `anthropic-workspace-id` header on
+  every request. AI Gateway sets the header from provider configuration
+  and strips any value a client sends, so a client cannot choose which
+  workspace its traffic is attributed to.
+
+AI Gateway chooses authentication from the credentials available for each request:
+
+1. When [Bring Your Own Key](#bring-your-own-key) is enabled, a client key takes precedence over stored provider keys and IAM signing.
+2. Otherwise, AI Gateway uses the provider's stored API-key collection, with key pooling, rotation, masking, and [key failover](#key-failover).
+3. When no client or stored provider key is available, AI Gateway signs the request with AWS SigV4 for the `aws-external-anthropic` service using its ambient AWS credentials.
+
+Configure the AWS identity on the gateway process through the default AWS credential chain, such as an instance profile, container identity, or `AWS_PROFILE`.
+Individual Claude Platform provider settings do not select an AWS identity or authentication mode.
+Adding a stored key selects API-key authentication; removing the last stored key allows requests without a client key to use IAM.
+
+A supplied key that fails authentication does not trigger a fallback to IAM.
+A client sending an ordinary Anthropic key to a Claude Platform provider receives an upstream authentication error.
+
 ### Amazon Bedrock
 
 Bedrock providers serve Anthropic models hosted on AWS and authenticate

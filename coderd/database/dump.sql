@@ -616,7 +616,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat_instruction_settings',
     'mcp_server_config',
     'chat_model_config',
-    'chat_operational_settings'
+    'chat_operational_settings',
+    'experiment_rule'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1731,6 +1732,8 @@ CREATE TABLE aibridge_token_usages (
     cache_read_price_micros bigint,
     cache_write_price_micros bigint,
     cost_micros bigint,
+    provider_model text,
+    priced_model text,
     CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
     CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
@@ -1741,6 +1744,10 @@ CREATE TABLE aibridge_token_usages (
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
 
 COMMENT ON COLUMN aibridge_token_usages.provider_response_id IS 'The ID for the response in which the tokens were used, produced by the provider.';
+
+COMMENT ON COLUMN aibridge_token_usages.provider_model IS 'The model reported by the upstream provider. NULL when the provider did not report one.';
+
+COMMENT ON COLUMN aibridge_token_usages.priced_model IS 'The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.';
 
 CREATE TABLE aibridge_tool_usages (
     id uuid NOT NULL,

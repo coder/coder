@@ -157,7 +157,7 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),
-		workspaceAgent(),
+		r.workspaceAgent(),
 	}
 }
 
@@ -172,6 +172,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.rptyCommand(),
 		r.syncCommand(),
 		r.updateUserEmail(),
+		r.experimentRulesCommand(),
 	}
 }
 

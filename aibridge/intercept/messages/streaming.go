@@ -264,7 +264,7 @@ newStream:
 				start := event.AsMessageStart()
 				serviceTier = start.Message.Usage.ServiceTier
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
-				i.recordTokenUsage(streamCtx, message.ID, start.Message.Usage)
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, start.Message.Usage)
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -277,7 +277,7 @@ newStream:
 				accumulateUsage(&cumulativeUsage, delta.Usage)
 
 				// Only output tokens should change in message_delta.
-				i.recordTokenUsage(streamCtx, message.ID, anthropic.Usage{
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, anthropic.Usage{
 					OutputTokens: delta.Usage.OutputTokens,
 					ServiceTier:  serviceTier,
 				})
@@ -315,6 +315,7 @@ newStream:
 				// Capture any thinking blocks that were returned.
 				for _, t := range i.extractModelThoughts(&message) {
 					_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+						CreatedAt:      time.Now().UTC(),
 						InterceptionID: i.ID().String(),
 						Content:        t.Content,
 						Metadata:       t.Metadata,
@@ -366,6 +367,7 @@ newStream:
 						res, err := tool.Call(streamCtx, input, i.tracer)
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:       time.Now().UTC(),
 							InterceptionID:  i.ID().String(),
 							MsgID:           message.ID,
 							ToolCallID:      id,
@@ -490,6 +492,7 @@ newStream:
 						}
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:      time.Now().UTC(),
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
@@ -521,6 +524,7 @@ newStream:
 
 		if promptFound {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          message.ID,
 				Prompt:         prompt,

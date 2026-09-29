@@ -94,6 +94,56 @@ func TestAppNameFamily(t *testing.T) {
 	}
 }
 
+// IDE clients report these names, so each must resolve to a registry key in
+// its family. The VS Code extension sends vscode.env.uriScheme.
+func TestIDEAppNamesAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		reported    string
+		appName     string
+		family      codersdk.AppFamilyName
+		displayName string
+	}{
+		{"vscode", "vscode", codersdk.AppFamilyVSCode, "VS Code"},
+		{"vscode-insiders", "vscode_insiders", codersdk.AppFamilyVSCode, "VS Code Insiders"},
+		{"code-oss", "code_oss", codersdk.AppFamilyVSCode, "Code - OSS"},
+		{"vscodium", "vscodium", codersdk.AppFamilyVSCode, "VSCodium"},
+		{"vscodium-insiders", "vscodium_insiders", codersdk.AppFamilyVSCode, "VSCodium Insiders"},
+		{"positron", "positron", codersdk.AppFamilyVSCode, "Positron"},
+		{"cursor", "cursor", codersdk.AppFamilyVSCode, "Cursor"},
+		{"devin", "devin", codersdk.AppFamilyVSCode, "Devin Desktop"},
+		{"devin-next", "devin_next", codersdk.AppFamilyVSCode, "Devin Desktop Next"},
+		{"windsurf", "windsurf", codersdk.AppFamilyVSCode, "Windsurf"},
+		{"antigravity", "antigravity", codersdk.AppFamilyVSCode, "Antigravity"},
+		{"trae", "trae", codersdk.AppFamilyVSCode, "Trae"},
+		{"trae-cn", "trae_cn", codersdk.AppFamilyVSCode, "Trae CN"},
+		{"kiro", "kiro", codersdk.AppFamilyVSCode, "Kiro"},
+		// The JetBrains plugins map the IDE's product code to one name per IDE.
+		{"intellij", "intellij", codersdk.AppFamilyJetBrains, "IntelliJ IDEA"},
+		{"pycharm", "pycharm", codersdk.AppFamilyJetBrains, "PyCharm"},
+		{"goland", "goland", codersdk.AppFamilyJetBrains, "GoLand"},
+		{"webstorm", "webstorm", codersdk.AppFamilyJetBrains, "WebStorm"},
+		{"phpstorm", "phpstorm", codersdk.AppFamilyJetBrains, "PhpStorm"},
+		{"rubymine", "rubymine", codersdk.AppFamilyJetBrains, "RubyMine"},
+		{"clion", "clion", codersdk.AppFamilyJetBrains, "CLion"},
+		{"rider", "rider", codersdk.AppFamilyJetBrains, "Rider"},
+		{"rustrover", "rustrover", codersdk.AppFamilyJetBrains, "RustRover"},
+		{"datagrip", "datagrip", codersdk.AppFamilyJetBrains, "DataGrip"},
+		{"dataspell", "dataspell", codersdk.AppFamilyJetBrains, "DataSpell"},
+		{"mps", "mps", codersdk.AppFamilyJetBrains, "MPS"},
+		{"android_studio", "android_studio", codersdk.AppFamilyJetBrains, "Android Studio"},
+	} {
+		t.Run(tc.reported, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.appName, codersdk.NormalizeAppName(tc.reported))
+			require.Equal(t, tc.family, codersdk.AppNameFamily(tc.reported))
+			app := codersdk.SessionCountApps(map[string]int64{tc.appName: 1})[tc.appName]
+			require.Equal(t, tc.displayName, app.DisplayName)
+		})
+	}
+}
+
 // Family sets are derived from the one registry, so callers that need the app
 // names in a family do not need a second list.
 func TestRegistryFamilySets(t *testing.T) {

@@ -96,8 +96,14 @@ export const SubagentTreeCost: Story = {
 		expect(
 			canvas.getByText(/Cost covers this agent's whole chat/),
 		).toBeInTheDocument();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(ROOT_CHAT_ID);
-		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			ROOT_CHAT_ID,
+			expect.any(AbortSignal),
+		);
+		expect(API.experimental.getChatCost).not.toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 	},
 };
 
