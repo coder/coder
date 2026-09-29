@@ -507,6 +507,14 @@ func TestChatAutomations(t *testing.T) {
 		stored, err = env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), schedule.Automation.ID)
 		require.NoError(t, err)
 		require.Equal(t, int64(3), stored.ScheduleRevision)
+
+		// An empty reasoning effort clears the override.
+		withEffort, err := env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{ReasoningEffort: ptr.Ref("high")})
+		require.NoError(t, err)
+		require.Equal(t, ptr.Ref("high"), withEffort.ReasoningEffort)
+		cleared, err := env.member.UpdateChatAutomation(ctx, env.orgID, schedule.Automation.ID, codersdk.UpdateChatAutomationRequest{ReasoningEffort: ptr.Ref("")})
+		require.NoError(t, err)
+		require.Nil(t, cleared.ReasoningEffort)
 	})
 
 	t.Run("DisableAndDeleteRemoveQueuedMessages", func(t *testing.T) {
