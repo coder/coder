@@ -155,6 +155,90 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
+	// A tool_use block truncated by max_tokens carries invalid input JSON
+	// which the SDK accumulator rejects; the stream must still be relayed.
+	t.Run("streaming builtin tool truncated by max_tokens", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name           string
+			fixture        []byte
+			expectedEvents []string
+		}{
+			{
+				name:           "with content_block_stop",
+				fixture:        fixtures.AntMaxTokensTruncatedTool,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"},
+			},
+			{
+				name:           "without content_block_stop",
+				fixture:        fixtures.AntMaxTokensTruncatedToolNoBlockStop,
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "message_delta", "message_stop"},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+				t.Cleanup(cancel)
+
+				fix := fixtures.Parse(t, tc.fixture)
+				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL)
+
+				reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+				require.NoError(t, err)
+				resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				require.Equal(t, tc.expectedEvents, sseEventTypes(readSSEEvents(t, resp)))
+
+				toolUsages := bridgeServer.Recorder.RecordedToolUsages()
+				require.Len(t, toolUsages, 1)
+				assert.Equal(t, "Read", toolUsages[0].Tool)
+				assert.Equal(t, "toolu_01TruncatedRead00000001", toolUsages[0].ToolCallID)
+				assert.Equal(t, `{"file_path": "/tmp/bl`, toolUsages[0].Args)
+
+				requireInterceptionSucceeded(t, bridgeServer)
+			})
+		}
+	})
+
+	t.Run("streaming injected tool truncated by max_tokens", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntMaxTokensTruncatedInjectedTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+		mockMCP := setupMCPForTest(t, defaultTracer)
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
+
+		reqBody, err := sjson.SetBytes(fix.Request(), "stream", true)
+		require.NoError(t, err)
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// The injected tool_use block is withheld from the client.
+		events := readSSEEvents(t, resp)
+		require.Equal(t, []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "message_delta", "message_stop"}, sseEventTypes(events))
+		assert.Equal(t, "text", gjson.GetBytes(events[1].Data, "content_block.type").Str)
+		assert.Equal(t, "max_tokens", gjson.GetBytes(events[4].Data, "delta.stop_reason").Str)
+
+		assert.Empty(t, mockMCP.getCallsByTool(mockToolName))
+		assert.Empty(t, bridgeServer.Recorder.RecordedToolUsages())
+		assert.Len(t, upstream.ReceivedRequests(), 1)
+
+		requireInterceptionSucceeded(t, bridgeServer)
+	})
+
 	// When the upstream's first response is an injected tool call with no
 	// text preamble and the next upstream call fails, the response must
 	// remain a well-formed SSE stream. The upstream error is relayed as a
@@ -198,6 +282,38 @@ func TestAnthropicMessages(t *testing.T) {
 
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
+}
+
+// readSSEEvents drains resp and returns its SSE events in order.
+func readSSEEvents(t *testing.T, resp *http.Response) []ssestream.Event {
+	t.Helper()
+
+	var events []ssestream.Event
+	decoder := ssestream.NewDecoder(resp)
+	for decoder.Next() {
+		events = append(events, decoder.Event())
+	}
+	require.NoError(t, decoder.Err())
+	return events
+}
+
+func sseEventTypes(events []ssestream.Event) []string {
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	return types
+}
+
+func requireInterceptionSucceeded(t *testing.T, bridgeServer *bridgeTestServer) {
+	t.Helper()
+
+	intcs := bridgeServer.Recorder.RecordedInterceptions()
+	require.Len(t, intcs, 1)
+	ended := bridgeServer.Recorder.RecordedInterceptionEnd(intcs[0].ID)
+	require.NotNil(t, ended, "interception should be ended")
+	assert.Empty(t, ended.ErrorType)
+	assert.Empty(t, ended.ErrorMessage)
 }
 
 func TestAnthropicMessagesModelThoughts(t *testing.T) {

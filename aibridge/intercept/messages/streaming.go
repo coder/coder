@@ -225,12 +225,19 @@ newStream:
 		// sent any event downstream.
 		var iterationStarted bool
 
+		// accumulateErr is the first accumulation failure in this iteration.
+		// Events are still relayed, but injected tools cannot trust the input.
+		var accumulateErr error
+
 		for stream.Next() {
 			iterationStarted = true
 			event := stream.Current()
-			if err := message.Accumulate(event); err != nil {
-				logger.Warn(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
-				lastErr = xerrors.Errorf("accumulate event: %w", err)
+			if err := message.Accumulate(event); err != nil && accumulateErr == nil {
+				logger.Warn(ctx, "failed to accumulate streaming event", slog.Error(err), slog.F("event_type", event.Type), slog.F("event_index", event.Index))
+				accumulateErr = err
+			}
+			if accumulateErr != nil && len(pendingToolCalls) > 0 && event.Type == string(constant.ValueOf[constant.MessageStop]()) {
+				lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
 				break
 			}
 
@@ -281,6 +288,12 @@ newStream:
 					OutputTokens: delta.Usage.OutputTokens,
 					ServiceTier:  serviceTier,
 				})
+
+				// A turn that did not stop for tool use (e.g. max_tokens) may carry
+				// truncated tool input, so injected tools must not run.
+				if delta.Delta.StopReason != anthropic.StopReasonToolUse {
+					clear(pendingToolCalls)
+				}
 
 				// Don't relay message_delta events which indicate injected tool use.
 				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(lastToolName) != nil {
@@ -491,13 +504,19 @@ newStream:
 							continue
 						}
 
+						// A failed accumulation leaves the block's raw JSON, and so
+						// variant.Input, stale; block.Input holds the streamed input.
+						var args recorder.ToolArgs = block.Input
+						if !json.Valid(block.Input) {
+							args = string(block.Input)
+						}
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
 							CreatedAt:      time.Now().UTC(),
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
 							Tool:           variant.Name,
-							Args:           variant.Input,
+							Args:           args,
 							Injected:       false,
 						})
 					}

@@ -41,6 +41,15 @@ var (
 
 	//go:embed anthropic/haiku_simple.txtar
 	AntHaikuSimple []byte
+
+	//go:embed anthropic/max_tokens_truncated_tool.txtar
+	AntMaxTokensTruncatedTool []byte
+
+	//go:embed anthropic/max_tokens_truncated_tool_no_block_stop.txtar
+	AntMaxTokensTruncatedToolNoBlockStop []byte
+
+	//go:embed anthropic/max_tokens_truncated_injected_tool.txtar
+	AntMaxTokensTruncatedInjectedTool []byte
 )
 
 var (
