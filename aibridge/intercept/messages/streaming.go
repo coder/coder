@@ -264,7 +264,7 @@ newStream:
 				start := event.AsMessageStart()
 				serviceTier = start.Message.Usage.ServiceTier
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
-				i.recordTokenUsage(streamCtx, message.ID, start.Message.Usage)
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, start.Message.Usage)
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -277,7 +277,7 @@ newStream:
 				accumulateUsage(&cumulativeUsage, delta.Usage)
 
 				// Only output tokens should change in message_delta.
-				i.recordTokenUsage(streamCtx, message.ID, anthropic.Usage{
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, anthropic.Usage{
 					OutputTokens: delta.Usage.OutputTokens,
 					ServiceTier:  serviceTier,
 				})

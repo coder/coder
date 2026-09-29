@@ -32,16 +32,18 @@ func TestRecordTokenUsage(t *testing.T) {
 	id := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
-		name        string
-		msgID       string
-		usage       openai.CompletionUsage
-		serviceTier string
-		expected    *recorder.TokenUsageRecord
+		name          string
+		msgID         string
+		providerModel string
+		usage         openai.CompletionUsage
+		serviceTier   string
+		expected      *recorder.TokenUsageRecord
 	}{
 		{
-			name:        "with_all_token_details",
-			msgID:       "cmpl_full",
-			serviceTier: "default",
+			name:          "with_all_token_details",
+			msgID:         "cmpl_full",
+			providerModel: "gpt-5.6-luna",
+			serviceTier:   "default",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
@@ -61,6 +63,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:        id.String(),
 				MsgID:                 "cmpl_full",
+				ProviderModel:         "gpt-5.6-luna",
 				Input:                 35, // 100 prompt - 40 cache read - 25 cache write
 				Output:                50,
 				CacheReadInputTokens:  40,
@@ -76,8 +79,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 		{
-			name:  "all_tokens_cached",
-			msgID: "cmpl_cached",
+			name:          "all_tokens_cached",
+			msgID:         "cmpl_cached",
+			providerModel: "gpt-4o-2024-08-06",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 20,
@@ -88,6 +92,7 @@ func TestRecordTokenUsage(t *testing.T) {
 			expected: &recorder.TokenUsageRecord{
 				InterceptionID:       id.String(),
 				MsgID:                "cmpl_cached",
+				ProviderModel:        "gpt-4o-2024-08-06",
 				Input:                0, // 100 prompt - 100 cached
 				Output:               20,
 				CacheReadInputTokens: 100,
@@ -145,7 +150,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				logger:   slog.Make(),
 			}
 
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage, tc.serviceTier)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.providerModel, tc.usage, tc.serviceTier)
 
 			tokens := rec.RecordedTokenUsages()
 			require.Len(t, tokens, 1)
