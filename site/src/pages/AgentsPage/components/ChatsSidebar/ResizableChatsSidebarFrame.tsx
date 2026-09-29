@@ -49,13 +49,14 @@ export const ResizableChatsSidebarFrame = ({
 	const startWidth = useRef(0);
 
 	const setUserWidth = (nextWidth: number) => {
-		// A request at the cap keeps a wider saved width so it can grow back.
-		const clampedWidth =
+		// A request at or past the cap keeps a wider saved width, so the sidebar
+		// grows back to it when the window widens.
+		const nextUserWidth =
 			nextWidth >= maxWidth
 				? Math.max(userWidth, maxWidth)
 				: clampLeftSidebarWidth(nextWidth);
-		setUserWidthState(clampedWidth);
-		persistLeftSidebarWidth(clampedWidth);
+		setUserWidthState(nextUserWidth);
+		persistLeftSidebarWidth(nextUserWidth);
 	};
 
 	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

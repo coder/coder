@@ -143,18 +143,22 @@ describe("ResizableChatsSidebarFrame", () => {
 		expect(handle).toHaveAttribute("aria-valuenow", resizedWidth);
 	});
 
-	it("keeps the saved width when resizing against a squeezed cap", () => {
-		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "500");
-		const handle = renderHandle();
+	it.each(["ArrowRight", "End"])(
+		"keeps the saved width when %s hits a squeezed cap",
+		(key) => {
+			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "500");
+			const handle = renderHandle();
 
-		vi.stubGlobal("innerWidth", 700);
-		fireEvent(window, new Event("resize"));
-		fireEvent.keyDown(handle, { key: "ArrowRight" });
-		vi.stubGlobal("innerWidth", 1440);
-		fireEvent(window, new Event("resize"));
+			vi.stubGlobal("innerWidth", 700);
+			fireEvent(window, new Event("resize"));
+			fireEvent.keyDown(handle, { key });
+			vi.stubGlobal("innerWidth", 1440);
+			fireEvent(window, new Event("resize"));
 
-		expect(handle).toHaveAttribute("aria-valuenow", "500");
-	});
+			expect(handle).toHaveAttribute("aria-valuenow", "500");
+			expect(persistedWidth()).toBe(500);
+		},
+	);
 
 	it("reports the end of its own slide but not of a child animation", () => {
 		const onViewportSlideEnd = vi.fn();
