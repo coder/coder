@@ -1,13 +1,17 @@
 package terraform
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/provisioner/terraform/agentruntime"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
+	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -275,6 +279,201 @@ func TestConvertStateRecordsPostApplyRuntimeErrors(t *testing.T) {
 	}
 }
 
+func TestConvertStateResolvesPlannedScriptRuntimes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name                 string
+		devcontainer         bool
+		scriptReference      string
+		expectedRuntime      string
+		expectedDevcontainer bool
+	}{
+		{
+			name:            "WorkspaceAgent",
+			scriptReference: "coder_agent.main.id",
+			expectedRuntime: "coder_agent.main",
+		},
+		{
+			name:                 "DevcontainerSubagent",
+			devcontainer:         true,
+			scriptReference:      "coder_devcontainer.repo.subagent_id",
+			expectedRuntime:      "coder_devcontainer.repo",
+			expectedDevcontainer: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			resources := []*tfjson.StateResource{
+				scriptOrderRuntimeBindingTestAgent(
+					"coder_agent.main", "main", "",
+				),
+				scriptOrderRuntimeBindingTestScript(
+					"coder_script.work", "work", "",
+				),
+				scriptOrderRuntimeBindingTestScript(
+					"coder_script.prepare", "prepare", "",
+				),
+			}
+			configResources := []*tfjson.ConfigResource{
+				scriptOrderRuntimeBindingTestConfigResource(
+					"coder_script", "work", test.scriptReference,
+				),
+				scriptOrderRuntimeBindingTestConfigResource(
+					"coder_script", "prepare", test.scriptReference,
+				),
+			}
+			if test.devcontainer {
+				resources = append(resources,
+					scriptOrderRuntimeBindingTestDevcontainer(
+						"coder_devcontainer.repo", "repo", "", "",
+					),
+				)
+				configResources = append(configResources,
+					scriptOrderRuntimeBindingTestConfigResource(
+						"coder_devcontainer", "repo", "coder_agent.main.id",
+					),
+				)
+			}
+			module := scriptOrderRuntimeBindingTestModule(resources...)
+			rawGraph := `digraph {
+				"[root] docker_container.workspace" [label = "docker_container.workspace"]
+				"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+				"[root] coder_devcontainer.repo (expand)" [label = "coder_devcontainer.repo"]
+				"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+			}`
+			planGraph, err := tfgraph.Parse(t.Context(), rawGraph)
+			require.NoError(t, err)
+			conversion, err := convertState(
+				t.Context(),
+				[]*tfjson.StateModule{module},
+				rawGraph,
+				slogtest.Make(t, nil),
+				&scriptOrderRuntimeBindingInput{
+					source: scriptOrderConversionSourcePlan,
+					program: scriptOrderRuntimeBindingTestProgramWithConfig(
+						t, module, configResources...,
+					),
+					runtimeProgram: scriptOrderRuntimeBindingTestAgentRuntimeProgram(
+						t, configResources...,
+					),
+					planGraph: planGraph,
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(
+				t,
+				test.expectedRuntime,
+				conversion.scriptOrder.scripts["coder_script.work"].RuntimeAddress,
+			)
+
+			agents := scriptOrderRuntimeBindingTestAgents(conversion.state)
+			require.Len(t, agents, 1)
+			if test.expectedDevcontainer {
+				require.Empty(t, agents[0].Scripts)
+				require.Len(t, agents[0].Devcontainers, 1)
+				require.Len(t, agents[0].Devcontainers[0].Scripts, 2)
+				return
+			}
+			require.Len(t, agents[0].Scripts, 2)
+		})
+	}
+}
+
+func TestConvertStateResolvesIndirectPlannedScriptRuntime(t *testing.T) {
+	t.Parallel()
+
+	workdir := t.TempDir()
+	require.NoError(t, os.WriteFile(
+		filepath.Join(workdir, "locals.tf"),
+		[]byte(`locals {
+  parent_agent_id = coder_devcontainer.repo.agent_id
+}
+
+resource "coder_agent" "main" {}
+
+resource "coder_devcontainer" "repo" {
+  agent_id = coder_agent.main.id
+}
+
+resource "coder_script" "work" {
+  agent_id = local.parent_agent_id
+}
+
+resource "coder_script" "prepare" {
+  agent_id = local.parent_agent_id
+}
+`),
+		0o600,
+	))
+	module := scriptOrderRuntimeBindingTestModule(
+		scriptOrderRuntimeBindingTestAgent(
+			"coder_agent.main", "main", "",
+		),
+		scriptOrderRuntimeBindingTestDevcontainer(
+			"coder_devcontainer.repo", "repo", "", "",
+		),
+		scriptOrderRuntimeBindingTestScript(
+			"coder_script.work", "work", "",
+		),
+		scriptOrderRuntimeBindingTestScript(
+			"coder_script.prepare", "prepare", "",
+		),
+	)
+	configResources := []*tfjson.ConfigResource{
+		scriptOrderRuntimeBindingTestConfigResource(
+			"coder_devcontainer", "repo", "coder_agent.main.id",
+		),
+		scriptOrderRuntimeBindingTestConfigResource(
+			"coder_script", "work", "local.parent_agent_id",
+		),
+		scriptOrderRuntimeBindingTestConfigResource(
+			"coder_script", "prepare", "local.parent_agent_id",
+		),
+	}
+	program := scriptOrderRuntimeBindingTestProgramWithConfig(
+		t, module, configResources...,
+	)
+	runtimeProgram := scriptOrderRuntimeBindingTestAgentRuntimeProgram(
+		t, configResources...,
+	)
+	require.NoError(t, runtimeProgram.LoadProvenance(t.Context(), workdir))
+	rawGraph := `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] coder_devcontainer.repo (expand)" [label = "coder_devcontainer.repo"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+	planGraph, err := tfgraph.Parse(t.Context(), rawGraph)
+	require.NoError(t, err)
+	conversion, err := convertState(
+		t.Context(),
+		[]*tfjson.StateModule{module},
+		rawGraph,
+		slogtest.Make(t, nil),
+		&scriptOrderRuntimeBindingInput{
+			source:         scriptOrderConversionSourcePlan,
+			program:        program,
+			runtimeProgram: runtimeProgram,
+			planGraph:      planGraph,
+		},
+	)
+	require.NoError(t, err)
+	require.Empty(
+		t,
+		conversion.scriptOrder.scripts["coder_script.work"].RuntimeError,
+	)
+	require.Equal(
+		t,
+		"coder_agent.main",
+		conversion.scriptOrder.scripts["coder_script.work"].RuntimeAddress,
+	)
+	agents := scriptOrderRuntimeBindingTestAgents(conversion.state)
+	require.Len(t, agents, 1)
+	require.Len(t, agents[0].Scripts, 2)
+}
+
 func scriptOrderRuntimeBindingTestModule(
 	resources ...*tfjson.StateResource,
 ) *tfjson.StateModule {
@@ -359,34 +558,87 @@ func scriptOrderRuntimeBindingTestProgram(
 ) *scriptorder.Program {
 	t.Helper()
 
-	resources := []*tfjson.ConfigResource{{
-		Address: "data.coder_script_order.order",
-		Mode:    tfjson.DataResourceMode,
-		Type:    "coder_script_order",
-		Name:    "order",
-	}}
+	var configResources []*tfjson.ConfigResource
 	for _, resource := range module.Resources {
 		if resource.Mode != tfjson.ManagedResourceMode ||
 			resource.Type != "coder_script" {
 			continue
 		}
-		resources = append(resources, &tfjson.ConfigResource{
+		configResources = append(configResources, &tfjson.ConfigResource{
 			Address: resource.Address,
 			Mode:    resource.Mode,
 			Type:    resource.Type,
 			Name:    resource.Name,
 		})
 	}
+	return scriptOrderRuntimeBindingTestProgramWithConfig(
+		t, module, configResources...,
+	)
+}
+
+func scriptOrderRuntimeBindingTestProgramWithConfig(
+	t *testing.T,
+	module *tfjson.StateModule,
+	configResources ...*tfjson.ConfigResource,
+) *scriptorder.Program {
+	t.Helper()
+
+	config := scriptOrderRuntimeBindingTestConfig(configResources...)
 	program, err := scriptorder.NewProgram(
-		t.Context(),
-		[]*tfjson.StateModule{module},
-		&tfjson.Config{RootModule: &tfjson.ConfigModule{
-			Resources: resources,
-		}},
+		t.Context(), []*tfjson.StateModule{module}, config,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, program)
 	return program
+}
+
+func scriptOrderRuntimeBindingTestAgentRuntimeProgram(
+	t *testing.T,
+	configResources ...*tfjson.ConfigResource,
+) *agentruntime.Program {
+	t.Helper()
+
+	program, err := agentruntime.NewProgram(
+		t.Context(), scriptOrderRuntimeBindingTestConfig(configResources...),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, program)
+	return program
+}
+
+func scriptOrderRuntimeBindingTestConfig(
+	configResources ...*tfjson.ConfigResource,
+) *tfjson.Config {
+	resources := []*tfjson.ConfigResource{{
+		Address: "data.coder_script_order.order",
+		Mode:    tfjson.DataResourceMode,
+		Type:    "coder_script_order",
+		Name:    "order",
+	}}
+	resources = append(resources, configResources...)
+	return &tfjson.Config{RootModule: &tfjson.ConfigModule{
+		Resources: resources,
+	}}
+}
+
+func scriptOrderRuntimeBindingTestConfigResource(
+	resourceType string,
+	name string,
+	references ...string,
+) *tfjson.ConfigResource {
+	return &tfjson.ConfigResource{
+		Address: resourceType + "." + name,
+		Mode:    tfjson.ManagedResourceMode,
+		Type:    resourceType,
+		Name:    name,
+		Expressions: map[string]*tfjson.Expression{
+			"agent_id": {
+				ExpressionData: &tfjson.ExpressionData{
+					References: references,
+				},
+			},
+		},
+	}
 }
 
 func scriptOrderRuntimeBindingTestConversionGraph() string {

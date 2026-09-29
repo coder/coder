@@ -461,13 +461,54 @@ func convertState(
 		agents = append(agents, agent)
 		resourceAgents[agentResource.Label] = agents
 	}
+	if scriptOrderBinding != nil {
+		if err := scriptOrderBinding.resolveSelectedScriptRuntimes(
+			ctx, sortedResources["coder_devcontainer"],
+		); err != nil {
+			return nil, xerrors.Errorf("resolve script order runtimes: %w", err)
+		}
+	}
 
 	// Associate Dev Containers with agents.
 	for _, resource := range sortedResources["coder_devcontainer"] {
 		var attrs agentDevcontainerAttributes
-		err = mapstructure.Decode(resource.AttributeValues, &attrs)
-		if err != nil {
-			return nil, xerrors.Errorf("decode devcontainer attributes: %w", err)
+		record, decoded := scriptOrderDevcontainerRecord{}, false
+		if scriptOrderBinding != nil {
+			record, decoded = scriptOrderBinding.devcontainerRecords[resource.Address]
+		}
+		if decoded {
+			attrs = record.attributes
+		} else {
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode devcontainer attributes: %w", err)
+			}
+		}
+		if scriptOrderBinding != nil {
+			parentAgent, handled, err := scriptOrderBinding.workspaceAgentForDevcontainer(
+				ctx, resource, attrs.AgentID,
+			)
+			if err != nil {
+				return nil, xerrors.Errorf("bind devcontainer runtime: %w", err)
+			}
+			if handled {
+				if parentAgent != nil {
+					devcontainer := &proto.Devcontainer{
+						Id:              attrs.ID,
+						Name:            resource.Name,
+						WorkspaceFolder: attrs.WorkspaceFolder,
+						ConfigPath:      attrs.ConfigPath,
+						SubagentId:      attrs.SubAgentID,
+					}
+					parentAgent.Devcontainers = append(
+						parentAgent.Devcontainers, devcontainer,
+					)
+					scriptOrderBinding.recordDevcontainer(
+						resource.Address, devcontainer,
+					)
+				}
+				continue
+			}
 		}
 		for _, agents := range resourceAgents {
 			for _, agent := range agents {
@@ -492,12 +533,6 @@ func convertState(
 			}
 		}
 	}
-	if scriptOrderBinding != nil {
-		if err := scriptOrderBinding.resolveSelectedScriptRuntimes(ctx); err != nil {
-			return nil, xerrors.Errorf("resolve script order runtimes: %w", err)
-		}
-	}
-
 	// Manually associate agents with instance IDs.
 	for _, resource := range sortedResources["coder_agent_instance"] {
 		agentIDRaw, valid := resource.AttributeValues["agent_id"]

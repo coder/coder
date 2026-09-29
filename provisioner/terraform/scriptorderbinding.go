@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -11,7 +12,9 @@ import (
 	"golang.org/x/xerrors"
 
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/provisioner/terraform/agentruntime"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
+	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -19,12 +22,15 @@ type scriptOrderConversionSource int
 
 const (
 	_ scriptOrderConversionSource = iota
+	scriptOrderConversionSourcePlan
 	scriptOrderConversionSourceState
 )
 
 type scriptOrderRuntimeBindingInput struct {
-	source  scriptOrderConversionSource
-	program *scriptorder.Program
+	source         scriptOrderConversionSource
+	program        *scriptorder.Program
+	runtimeProgram *agentruntime.Program
+	planGraph      *tfgraph.Index
 }
 
 type scriptOrderConversionResult struct {
@@ -40,6 +46,10 @@ type scriptOrderScriptRecord struct {
 	selected   bool
 }
 
+type scriptOrderDevcontainerRecord struct {
+	attributes agentDevcontainerAttributes
+}
+
 type scriptOrderRuntimeTarget struct {
 	workspaceAgent *proto.Agent
 	devcontainer   *proto.Devcontainer
@@ -48,13 +58,21 @@ type scriptOrderRuntimeTarget struct {
 // scriptOrderRuntimeBinding records the Terraform and conversion objects used
 // to associate selected scripts with agent runtimes. It is request-local.
 type scriptOrderRuntimeBinding struct {
+	source         scriptOrderConversionSource
+	runtimeProgram *agentruntime.Program
+	planGraph      *tfgraph.Index
+
 	prepared       *scriptorder.Prepared
 	scripts        map[string]scriptorder.Script
 	scriptRecords  map[string]scriptOrderScriptRecord
 	runtimeTargets map[string]scriptOrderRuntimeTarget
 
+	selectedDevcontainers     map[string]struct{}
+	devcontainerRecords       map[string]scriptOrderDevcontainerRecord
 	workspaceAddressesByID    map[string][]string
 	devcontainerAddressesByID map[string][]string
+	devcontainerRuntimeErrors map[string]string
+	resolver                  *agentruntime.Resolver
 }
 
 func newScriptOrderRuntimeBinding(
@@ -65,7 +83,20 @@ func newScriptOrderRuntimeBinding(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if input.source != scriptOrderConversionSourceState {
+	switch input.source {
+	case scriptOrderConversionSourcePlan:
+		if input.runtimeProgram == nil {
+			return nil, xerrors.New(
+				"agent runtime program is required for plan-time script ordering",
+			)
+		}
+	case scriptOrderConversionSourceState:
+		if input.planGraph != nil {
+			return nil, xerrors.New(
+				"saved plan graph must not be used for post-apply script ordering",
+			)
+		}
+	default:
 		return nil, xerrors.Errorf(
 			"unknown script order conversion source %d", input.source,
 		)
@@ -114,13 +145,20 @@ func newScriptOrderRuntimeBinding(
 	}
 
 	return &scriptOrderRuntimeBinding{
+		source:         input.source,
+		runtimeProgram: input.runtimeProgram,
+		planGraph:      input.planGraph,
+
 		prepared:       prepared,
 		scripts:        scripts,
 		scriptRecords:  records,
 		runtimeTargets: map[string]scriptOrderRuntimeTarget{},
 
+		selectedDevcontainers:     map[string]struct{}{},
+		devcontainerRecords:       map[string]scriptOrderDevcontainerRecord{},
 		workspaceAddressesByID:    map[string][]string{},
 		devcontainerAddressesByID: map[string][]string{},
+		devcontainerRuntimeErrors: map[string]string{},
 	}, nil
 }
 
@@ -145,35 +183,130 @@ func (b *scriptOrderRuntimeBinding) recordDevcontainer(
 	b.runtimeTargets[address] = scriptOrderRuntimeTarget{
 		devcontainer: devcontainer,
 	}
-	if devcontainer.SubagentId != "" {
-		b.devcontainerAddressesByID[devcontainer.SubagentId] = append(
-			b.devcontainerAddressesByID[devcontainer.SubagentId], address,
-		)
-	}
 }
 
 func (b *scriptOrderRuntimeBinding) resolveSelectedScriptRuntimes(
 	ctx context.Context,
+	devcontainerResources []*tfjson.StateResource,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	for index, address := range b.prepared.SelectedScriptAddresses() {
+	devcontainerAddresses := make([]string, 0, len(devcontainerResources))
+	for index, resource := range devcontainerResources {
 		if index%256 == 0 {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
 		}
-		runtimeID := b.scriptRecords[address].attributes.AgentID
-		if runtimeID == "" {
+		if resource == nil || resource.Mode != tfjson.ManagedResourceMode {
 			continue
 		}
-		runtimeAddress, err := b.runtimeAddressForID(runtimeID)
+		var attributes agentDevcontainerAttributes
+		if err := mapstructure.Decode(
+			resource.AttributeValues, &attributes,
+		); err != nil {
+			return xerrors.Errorf(
+				"decode devcontainer %q attributes: %w", resource.Address, err,
+			)
+		}
+		b.devcontainerRecords[resource.Address] = scriptOrderDevcontainerRecord{
+			attributes: attributes,
+		}
+		devcontainerAddresses = append(devcontainerAddresses, resource.Address)
+		if attributes.SubAgentID != "" {
+			b.devcontainerAddressesByID[attributes.SubAgentID] = append(
+				b.devcontainerAddressesByID[attributes.SubAgentID],
+				resource.Address,
+			)
+		}
+	}
+
+	selectedAddresses := b.prepared.SelectedScriptAddresses()
+	unresolved := make([]string, 0, len(selectedAddresses))
+	for index, address := range selectedAddresses {
+		if index%256 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		attributes := b.scriptRecords[address].attributes
+		if attributes.AgentID == "" {
+			if b.source == scriptOrderConversionSourcePlan {
+				unresolved = append(unresolved, address)
+			}
+			continue
+		}
+		runtimeAddress, err := b.runtimeAddressForID(attributes.AgentID)
 		if err != nil {
 			b.setScriptRuntimeError(address, err)
 			continue
 		}
 		b.setScriptRuntimeAddress(address, runtimeAddress)
+	}
+
+	needsResolver := len(unresolved) > 0
+	if !needsResolver && b.source == scriptOrderConversionSourcePlan {
+		for address := range b.selectedDevcontainers {
+			if b.devcontainerRecords[address].attributes.AgentID == "" {
+				needsResolver = true
+				break
+			}
+		}
+	}
+	if needsResolver {
+		if b.planGraph == nil {
+			return xerrors.New(
+				"saved plan graph is required for plan-time script ordering",
+			)
+		}
+		targets := make(
+			[]agentruntime.Target,
+			0,
+			len(b.runtimeTargets)+len(devcontainerAddresses),
+		)
+		for _, address := range slices.Sorted(maps.Keys(b.runtimeTargets)) {
+			target := b.runtimeTargets[address]
+			switch {
+			case target.workspaceAgent != nil:
+				targets = append(targets, agentruntime.Target{
+					Kind: agentruntime.KindWorkspaceAgent, Address: address,
+				})
+			case target.devcontainer != nil:
+				targets = append(targets, agentruntime.Target{
+					Kind: agentruntime.KindDevcontainer, Address: address,
+				})
+			}
+		}
+		for _, address := range devcontainerAddresses {
+			targets = append(targets, agentruntime.Target{
+				Kind: agentruntime.KindDevcontainer, Address: address,
+			})
+		}
+		resolver, err := agentruntime.NewResolver(
+			ctx, b.planGraph, b.runtimeProgram, targets,
+		)
+		if err != nil {
+			return err
+		}
+		b.resolver = resolver
+	}
+
+	for _, address := range unresolved {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		runtimeTarget, err := b.resolver.ResolveResourceRuntime(
+			ctx, b.scriptRecords[address].resource,
+		)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			b.setScriptRuntimeError(address, err)
+			continue
+		}
+		b.setScriptRuntimeAddress(address, runtimeTarget.Address)
 	}
 	return nil
 }
@@ -209,6 +342,9 @@ func (b *scriptOrderRuntimeBinding) setScriptRuntimeAddress(
 	script.RuntimeAddress = runtimeAddress
 	script.RuntimeError = ""
 	b.scripts[scriptAddress] = script
+	if _, ok := b.devcontainerRecords[runtimeAddress]; ok {
+		b.selectedDevcontainers[runtimeAddress] = struct{}{}
+	}
 }
 
 func (b *scriptOrderRuntimeBinding) setScriptRuntimeError(
@@ -218,6 +354,70 @@ func (b *scriptOrderRuntimeBinding) setScriptRuntimeError(
 	script := b.scripts[scriptAddress]
 	script.RuntimeError = err.Error()
 	b.scripts[scriptAddress] = script
+}
+
+func (b *scriptOrderRuntimeBinding) workspaceAgentForDevcontainer(
+	ctx context.Context,
+	resource *tfjson.StateResource,
+	agentID string,
+) (*proto.Agent, bool, error) {
+	if _, selected := b.selectedDevcontainers[resource.Address]; !selected {
+		return nil, false, nil
+	}
+
+	var (
+		address string
+		err     error
+	)
+	if agentID != "" {
+		candidates := slices.Clone(b.workspaceAddressesByID[agentID])
+		slices.Sort(candidates)
+		switch len(candidates) {
+		case 1:
+			address = candidates[0]
+		case 0:
+			err = xerrors.Errorf(
+				"devcontainer %q agent_id does not match any workspace agent",
+				stringutil.Truncate(resource.Address, 256, stringutil.TruncateWithEllipsis),
+			)
+		default:
+			err = xerrors.Errorf(
+				"devcontainer %q agent_id matches multiple workspace agents: %s",
+				stringutil.Truncate(resource.Address, 256, stringutil.TruncateWithEllipsis),
+				formatScriptOrderRuntimeCandidateAddresses(candidates),
+			)
+		}
+	} else if b.source == scriptOrderConversionSourcePlan {
+		if b.resolver == nil {
+			return nil, true, xerrors.New(
+				"planned devcontainer runtime resolver is unavailable",
+			)
+		}
+		runtimeTarget, resolveErr := b.resolver.ResolveWorkspaceAgent(ctx, resource)
+		address, err = runtimeTarget.Address, resolveErr
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, true, ctxErr
+		}
+	} else {
+		err = xerrors.Errorf(
+			"devcontainer %q agent_id does not match any workspace agent",
+			stringutil.Truncate(resource.Address, 256, stringutil.TruncateWithEllipsis),
+		)
+	}
+	if err != nil {
+		b.devcontainerRuntimeErrors[resource.Address] = err.Error()
+		return nil, true, nil
+	}
+	target := b.runtimeTargets[address]
+	if target.workspaceAgent == nil {
+		b.devcontainerRuntimeErrors[resource.Address] = fmt.Sprintf(
+			"devcontainer %q resolves to unavailable workspace agent %q",
+			stringutil.Truncate(resource.Address, 256, stringutil.TruncateWithEllipsis),
+			stringutil.Truncate(address, 256, stringutil.TruncateWithEllipsis),
+		)
+		return nil, true, nil
+	}
+	return target.workspaceAgent, true, nil
 }
 
 func (b *scriptOrderRuntimeBinding) handleSelectedScript(
@@ -232,6 +432,10 @@ func (b *scriptOrderRuntimeBinding) handleSelectedScript(
 		return false
 	}
 	facts := b.scripts[resource.Address]
+	if runtimeError := b.devcontainerRuntimeErrors[facts.RuntimeAddress]; runtimeError != "" {
+		facts.RuntimeError = runtimeError
+		b.scripts[resource.Address] = facts
+	}
 	if facts.RuntimeError != "" || facts.RuntimeAddress == "" {
 		return true
 	}
