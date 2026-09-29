@@ -1,12 +1,15 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Experiment } from "#/api/typesGenerated";
 import {
 	saveChatBoardOptIn,
 	useChatBoardEnabled,
 	useChatBoardOptIn,
 } from "./chatBoardFlag";
 
-const dashboard = vi.hoisted(() => ({ experiments: [] as string[] }));
+const dashboard = vi.hoisted((): { experiments: Experiment[] } => ({
+	experiments: [],
+}));
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ experiments: dashboard.experiments }),

@@ -1,10 +1,13 @@
 import { screen } from "@testing-library/react";
 import { createMemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Experiment } from "#/api/typesGenerated";
 import { renderWithRouter } from "#/testHelpers/renderHelpers";
 import ChatBoardRoute from "./ChatBoardRoute";
 
-const dashboard = vi.hoisted(() => ({ experiments: [] as string[] }));
+const dashboard = vi.hoisted((): { experiments: Experiment[] } => ({
+	experiments: [],
+}));
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ experiments: dashboard.experiments }),
