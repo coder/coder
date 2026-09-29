@@ -172,7 +172,7 @@ The concurrent agent pools described above are licensing limits, not deployment 
 ### Git providers
 
 Coder Agents leverages your existing
-[external authentication](../../../admin/external-auth/index.md) configuration
+[external authentication](../../../admin/external-auth.md) configuration
 to power the in-chat diff viewer. Self-hosted GitHub Enterprise deployments
 require additional configuration for this feature.
 
