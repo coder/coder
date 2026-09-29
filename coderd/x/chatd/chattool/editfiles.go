@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -211,9 +212,20 @@ func isJSONArrayOfObjects(text string) bool {
 	return true
 }
 
+// Info adds minItems to edits, which the schema fantasy generates from
+// struct tags cannot declare.
+func (t editFilesTool) Info() fantasy.ToolInfo {
+	info := t.AgentTool.Info()
+	if edits, ok := info.Parameters["edits"].(map[string]any); ok {
+		edits["minItems"] = 1
+	}
+	return info
+}
+
 // Run rejects the retired files shape and input that does not decode
 // into EditFilesArgs. Both messages start with what to change and show
-// the accepted shape; the decode message also carries the decode error.
+// the accepted shape; for a value of the wrong JSON type, the decode
+// message also names the field.
 func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	var retired struct {
 		Files json.RawMessage `json:"files"`
@@ -226,12 +238,54 @@ func (t editFilesTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.
 	}
 	var args EditFilesArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
-		return rejectEditFiles(fmt.Sprintf(
-			"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example %s; decoding failed (%s)",
-			editFilesExample, err,
-		)), nil
+		reason := "Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example: " + editFilesExample
+		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok {
+			reason += "; " + describeTypeError(typeErr)
+		}
+		return rejectEditFiles(reason), nil
 	}
 	return t.AgentTool.Run(ctx, call)
+}
+
+// describeTypeError names the input field with the wrong JSON type and
+// the type it needs, in terms of the input rather than Go types, for
+// example "edits[].old_text must be a string, not a number".
+func describeTypeError(err *json.UnmarshalTypeError) string {
+	field := err.Field
+	switch {
+	case field == "":
+		field = "the input"
+	case field == "edits" && err.Type.Kind() != reflect.Slice:
+		// The error is for one element of edits.
+		field = "edits[]"
+	default:
+		field = strings.Replace(field, "edits.", "edits[].", 1)
+	}
+	var want string
+	switch err.Type.Kind() {
+	case reflect.String:
+		want = "a string"
+	case reflect.Bool:
+		want = "a boolean"
+	case reflect.Slice, reflect.Array:
+		want = "an array"
+	case reflect.Struct, reflect.Map:
+		want = "an object"
+	default:
+		want = "a number"
+	}
+	// Value is the JSON type found, with a literal appended for some
+	// numbers, for example "number 1e400".
+	got, _, _ := strings.Cut(err.Value, " ")
+	switch got {
+	case "array", "object":
+		got = "an " + got
+	case "bool":
+		got = "a boolean"
+	default:
+		got = "a " + got
+	}
+	return field + " must be " + want + ", not " + got
 }
 
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
@@ -372,7 +426,7 @@ type editFilesFileResult struct {
 // rejectEditFiles returns a whole-call rejection decided before any
 // edit request reached the agent, so no file was written.
 func rejectEditFiles(reason string) fantasy.ToolResponse {
-	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
+	return fantasy.NewTextErrorResponse(reason + ".\n" + editFilesNoneApplied)
 }
 
 // agentWroteNothing reports whether an EditFiles error proves that the
