@@ -647,14 +647,8 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			name: "all disabled",
 			args: []string{"--" + flags[0], "", "--" + flags[1], ""},
 		},
-		testCase{
-			name: "explicit standard username",
-			args: []string{"--" + flags[1], "x-ai-bridge-actor-metadata-username"},
-			want: [2]string{defaults[0], "x-ai-bridge-actor-metadata-username"},
-		},
 		testCase{name: "invalid", args: []string{"--" + flags[1], "Bad: Header"}, wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
 		testCase{name: "duplicate", args: []string{"--" + flags[0], "X-User", "--" + flags[1], "x-user"}, wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_ID and CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
-		testCase{name: "legacy metadata", args: []string{"--" + flags[0], "X-AI-Bridge-Actor-Metadata-Other"}, wantErr: "reserved"},
 	)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -695,6 +689,39 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			require.True(t, called, "configuration must reach validation")
 		})
 	}
+
+	t.Run("actor prefix", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			id       string
+			username string
+			reserved string
+		}{
+			{name: "own standard names", id: "x-aI-bRiDgE-aCtOr-iD", username: "x-aI-bRiDgE-aCtOr-mEtAdAtA-uSeRnAmE"},
+			{name: "ID uses username header", id: "x-ai-bridge-actor-metadata-username", reserved: "x-ai-bridge-actor-metadata-username"},
+			{name: "username uses ID header", username: "x-ai-bridge-actor-id", reserved: "x-ai-bridge-actor-id"},
+			{name: "mixed-case metadata prefix", id: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr", reserved: "x-aI-bRiDgE-aCtOr-mEtAdAtA-oThEr"},
+			{name: "exact prefix", username: "x-aI-bRiDgE-aCtOr", reserved: "x-aI-bRiDgE-aCtOr"},
+			{name: "prefix without separator", username: "x-aI-bRiDgE-aCtOrOther", reserved: "x-aI-bRiDgE-aCtOrOther"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{
+					ActorHeaderID:       serpent.String(tc.id),
+					ActorHeaderUsername: serpent.String(tc.username),
+				}
+				err := cfg.ValidateActorHeaderNames()
+				if tc.reserved != "" {
+					require.EqualError(t, err, fmt.Sprintf("reserved AI Gateway actor header name %q", tc.reserved))
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
 
 	t.Run("reserved names", func(t *testing.T) {
 		t.Parallel()
