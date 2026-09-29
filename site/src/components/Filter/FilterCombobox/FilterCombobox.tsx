@@ -325,159 +325,155 @@ export function FilterCombobox({
 				label={placeholder}
 				className={cn(mobileOverlay && "min-h-10")}
 			>
-				<FilterComboboxInputGroup
-					className={cn(className, mobileOverlay && mobileOverlayClassName)}
-				>
-					<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid border-border p-0">
-						<InputGroupButton
-							type="button"
-							variant="subtle"
-							aria-label="Filters"
-							aria-expanded={open}
-							aria-haspopup="listbox"
-							className={cn(
-								"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
-								chipValues.length > 0 && "text-content-primary",
+				{/* Sized by `className` so Clear all aligns with the field's right
+				    edge. */}
+				<div className={cn("flex flex-col", className)}>
+					<FilterComboboxInputGroup
+						className={cn(mobileOverlay && mobileOverlayClassName)}
+					>
+						<InputGroupAddon className="self-stretch items-start border-0 border-r border-solid border-border p-0">
+							<InputGroupButton
+								type="button"
+								variant="subtle"
+								aria-label="Filters"
+								aria-expanded={open}
+								aria-haspopup="listbox"
+								className={cn(
+									"h-9.5 min-w-0 shrink-0 rounded-none rounded-l-md pl-2.5 pr-3 text-sm [&>svg]:p-0",
+									chipValues.length > 0 && "text-content-primary",
+								)}
+								onMouseDown={(event) => {
+									// Keeps focus in the combobox input, which both menu
+									// actions focus, so aria-activedescendant navigation works.
+									event.preventDefault();
+								}}
+								onClick={(event) => {
+									// Keyboard and assistive-technology activation (detail 0)
+									// only opens the menu; pointer clicks toggle it.
+									if (event.detail === 0) {
+										actions.showAllFilters();
+										return;
+									}
+									actions.toggleMenu();
+								}}
+							>
+								<span className="flex size-5 shrink-0 items-center justify-center">
+									{chipValues.length > 0 ? (
+										<ListFilterActiveIcon
+											aria-hidden
+											data-testid="filter-active-icon"
+											className="size-5!"
+										/>
+									) : (
+										<ListFilterIcon aria-hidden className="size-icon-sm" />
+									)}
+								</span>
+							</InputGroupButton>
+						</InputGroupAddon>
+						<InputGroupAddon className="h-9.5 self-start px-2">
+							<SearchIcon aria-hidden className="size-icon-sm" />
+						</InputGroupAddon>
+						<FilterComboboxChips>
+							{chipValues.map((token) => {
+								const display = chipDisplay(token, categories);
+								const category = categories.find(
+									(entry) => entry.key === display.key,
+								);
+								const labelOnly = category?.chipLabelOnly === true;
+								const labelOption =
+									labelOnly && category
+										? unfilteredOptionsByKey
+												.get(category.key)
+												?.find(
+													(option) =>
+														optionToken(category.key, option) === token,
+												)
+										: undefined;
+								// Applied tokens read as query syntax, so they are always
+								// lowercase even when the menu shows a display label.
+								const prefix = (labelOnly ? "" : display.key).toLowerCase();
+								const value = (
+									labelOption?.appliedLabel ??
+									labelOption?.label ??
+									display.value
+								).toLowerCase();
+								const displayText = prefix ? chipToken(prefix, value) : value;
+								return (
+									<FilterComboboxChip
+										key={token}
+										value={token}
+										removeLabel={`Remove ${displayText}`}
+										className={cn(labelOnly && labelOnlyChipClassName)}
+									>
+										<ChipLabel prefix={prefix} value={value} />
+									</FilterComboboxChip>
+								);
+							})}
+							{activeCategory && typedFreeText.length > 0 && (
+								<Badge
+									variant="outline"
+									size="md"
+									data-slot="combobox-chip-search"
+									className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
+								>
+									{typedFreeText}
+								</Badge>
 							)}
-							onMouseDown={(event) => {
-								// Keeps focus in the combobox input, which both menu
-								// actions focus, so aria-activedescendant navigation works.
-								event.preventDefault();
-							}}
-							onClick={(event) => {
-								// Keyboard and assistive-technology activation (detail 0)
-								// only opens the menu; pointer clicks toggle it.
-								if (event.detail === 0) {
-									actions.showAllFilters();
-									return;
+							{/* Decorative draft prefix: the live region already announces
+							    "Filtering by <category>", so this stays hidden. */}
+							{activeCategory && (
+								<Badge
+									variant="dashed"
+									size="md"
+									data-slot="combobox-chip-draft"
+									className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
+									aria-hidden
+								>
+									{`${activeCategory.key}:`}
+								</Badge>
+							)}
+							<FilterComboboxChipsInput
+								className="focus:placeholder:text-transparent"
+								ref={setInputRef}
+								aria-label={placeholder}
+								aria-invalid={invalid || undefined}
+								aria-errormessage={invalid ? errorId : undefined}
+								placeholder={
+									open || chipValues.length > 0 || activeCategory
+										? ""
+										: placeholder
 								}
-								actions.toggleMenu();
+								onFocus={actions.onInputFocus}
+								// A click on the already focused input reopens a dismissed menu.
+								onClick={actions.onInputFocus}
+								onKeyDown={actions.onInputKeyDown}
+							/>
+						</FilterComboboxChips>
+					</FilterComboboxInputGroup>
+					{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
+						<Button
+							variant="subtle"
+							size="sm"
+							className="-mr-2 h-auto min-w-0 self-end py-1 text-sm"
+							// A click does not move focus to the button, so a focused
+							// input keeps it.
+							onMouseDown={(event) => event.preventDefault()}
+							onClick={(event) => {
+								// The button unmounts, as does an open category's search
+								// field on wider viewports, so focus either held moves to
+								// the input instead of the page body. On mobile, focusing
+								// the input would open the keyboard.
+								const hadFocus = document.activeElement === event.currentTarget;
+								actions.clearAll();
+								if (hadFocus || (activeCategoryKey !== null && !isMobile)) {
+									actions.focusInput();
+								}
 							}}
 						>
-							<span className="flex size-5 shrink-0 items-center justify-center">
-								{chipValues.length > 0 ? (
-									<ListFilterActiveIcon
-										aria-hidden
-										data-testid="filter-active-icon"
-										className="size-5!"
-									/>
-								) : (
-									<ListFilterIcon aria-hidden className="size-icon-sm" />
-								)}
-							</span>
-						</InputGroupButton>
-					</InputGroupAddon>
-					<InputGroupAddon className="h-9.5 self-start px-2">
-						<SearchIcon aria-hidden className="size-icon-sm" />
-					</InputGroupAddon>
-					<FilterComboboxChips>
-						{chipValues.map((token) => {
-							const display = chipDisplay(token, categories);
-							const category = categories.find(
-								(entry) => entry.key === display.key,
-							);
-							const labelOnly = category?.chipLabelOnly === true;
-							const labelOption =
-								labelOnly && category
-									? unfilteredOptionsByKey
-											.get(category.key)
-											?.find(
-												(option) => optionToken(category.key, option) === token,
-											)
-									: undefined;
-							// Applied tokens read as query syntax, so they are always
-							// lowercase even when the menu shows a display label.
-							const prefix = (labelOnly ? "" : display.key).toLowerCase();
-							const value = (
-								labelOption?.appliedLabel ??
-								labelOption?.label ??
-								display.value
-							).toLowerCase();
-							const displayText = prefix ? chipToken(prefix, value) : value;
-							return (
-								<FilterComboboxChip
-									key={token}
-									value={token}
-									removeLabel={`Remove ${displayText}`}
-									className={cn(labelOnly && labelOnlyChipClassName)}
-								>
-									<ChipLabel prefix={prefix} value={value} />
-								</FilterComboboxChip>
-							);
-						})}
-						{activeCategory && typedFreeText.length > 0 && (
-							<Badge
-								variant="outline"
-								size="md"
-								data-slot="combobox-chip-search"
-								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
-							>
-								{typedFreeText}
-							</Badge>
-						)}
-						{/* Decorative draft prefix: the live region already announces
-							    "Filtering by <category>", so this stays hidden. */}
-						{activeCategory && (
-							<Badge
-								variant="dashed"
-								size="md"
-								data-slot="combobox-chip-draft"
-								className={cn(chipRowItemHeightClassName, "px-2 font-medium")}
-								aria-hidden
-							>
-								{`${activeCategory.key}:`}
-							</Badge>
-						)}
-						<FilterComboboxChipsInput
-							className="focus:placeholder:text-transparent"
-							ref={setInputRef}
-							aria-label={placeholder}
-							aria-invalid={invalid || undefined}
-							aria-errormessage={invalid ? errorId : undefined}
-							placeholder={
-								open || chipValues.length > 0 || activeCategory
-									? ""
-									: placeholder
-							}
-							onFocus={actions.onInputFocus}
-							// A click on the already focused input reopens a dismissed menu.
-							onClick={actions.onInputFocus}
-							onKeyDown={actions.onInputKeyDown}
-						/>
-						{chipValues.length >= CLEAR_ALL_MIN_CHIPS && (
-							<Badge
-								asChild
-								variant="outline"
-								hover
-								className={cn(
-									chipRowItemHeightClassName,
-									"px-2 font-medium text-content-secondary hover:text-content-primary",
-								)}
-							>
-								<button
-									type="button"
-									// A click does not move focus to the button, so a focused
-									// input keeps it.
-									onMouseDown={(event) => event.preventDefault()}
-									onClick={(event) => {
-										// The button unmounts, as does an open category's search
-										// field on wider viewports, so focus either held moves to
-										// the input instead of the page body. On mobile, focusing
-										// the input would open the keyboard.
-										const hadFocus =
-											document.activeElement === event.currentTarget;
-										actions.clearAll();
-										if (hadFocus || (activeCategoryKey !== null && !isMobile)) {
-											actions.focusInput();
-										}
-									}}
-								>
-									Clear all
-								</button>
-							</Badge>
-						)}
-					</FilterComboboxChips>
-				</FilterComboboxInputGroup>
+							Clear all
+						</Button>
+					)}
+				</div>
 				<FilterComboboxContent
 					align="start"
 					side="bottom"

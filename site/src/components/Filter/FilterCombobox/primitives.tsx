@@ -233,9 +233,11 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 			sideOffset={sideOffset}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
+				// Controls beside the field, such as Clear all, keep the menu open
+				// like the field itself.
 				if (
 					event.target instanceof Node &&
-					anchorRef?.current?.contains(event.target)
+					anchorRef?.current?.closest("[cmdk-root]")?.contains(event.target)
 				) {
 					event.preventDefault();
 				}
