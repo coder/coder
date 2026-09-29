@@ -79,6 +79,7 @@ func TestChatAutomationEvents(t *testing.T) {
 		// A Coder session token is not a webhook secret.
 		sessionToken := env.member.SessionToken()
 
+		var first []byte
 		for _, tc := range []struct {
 			name   string
 			id     uuid.UUID
@@ -92,11 +93,12 @@ func TestChatAutomationEvents(t *testing.T) {
 			status, body := postChatAutomationEvent(t, env.member, tc.id, tc.secret, event)
 			require.Equal(t, http.StatusUnauthorized, status, tc.name)
 			require.Contains(t, string(body), "Invalid chat automation webhook secret.", tc.name)
+			// Unknown ids and wrong secrets are indistinguishable.
+			if first == nil {
+				first = body
+			}
+			require.Equal(t, first, body, tc.name)
 		}
-		// Unknown ids and wrong secrets are indistinguishable.
-		_, wrong := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret+"x", event)
-		_, unknown := postChatAutomationEvent(t, env.member, uuid.New(), created.WebhookSecret, event)
-		require.Equal(t, wrong, unknown)
 		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
 	})
 
