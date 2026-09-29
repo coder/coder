@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -592,6 +593,36 @@ func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 
 	require.Len(t, turnSpansByStart(t, recorder), 4)
 	require.Equal(t, uint64(1), stageObservationCount(t, registry, chatloop.StageChatTurn))
+	for _, outcome := range []chatloop.TurnOutcome{
+		chatloop.TurnOutcomeCompleted,
+		chatloop.TurnOutcomeInterrupted,
+		chatloop.TurnOutcomeError,
+		chatloop.TurnOutcomeAbandoned,
+	} {
+		require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, outcome), outcome)
+	}
+}
+
+func TestRunnerTurnSpanCountsSubagentOutcomes(t *testing.T) {
+	t.Parallel()
+	tracer, _, registry := newStageMetricsTracer(t)
+	turn := newRunnerTurnSpan(tracer, false)
+	chat := database.Chat{ID: uuid.New(), ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+
+	_, token := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now())
+	turn.Complete(token)
+	turn.Settle(token)
+
+	require.Equal(t, 1.0, turnOutcomeCount(t, registry, chatloop.ChatKindSubagent, chatloop.TurnOutcomeCompleted))
+	require.Zero(t, turnOutcomeCount(t, registry, chatloop.ChatKindRoot, chatloop.TurnOutcomeCompleted))
+}
+
+func turnOutcomeCount(t *testing.T, registry *prometheus.Registry, chatKind chatloop.ChatKind, outcome chatloop.TurnOutcome) float64 {
+	t.Helper()
+	return promhelp.MetricValue(t, registry, "coderd_chatd_turn_outcomes_total", prometheus.Labels{
+		"chat_kind": string(chatKind),
+		"outcome":   string(outcome),
+	}).GetCounter().GetValue()
 }
 
 func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
