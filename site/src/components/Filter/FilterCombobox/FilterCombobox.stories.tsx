@@ -259,6 +259,8 @@ export const LongFlyoutOptionLabels: Story = {
 			});
 			const list = row.closest("div");
 			await waitFor(() => expect(list?.scrollWidth).toBe(list?.clientWidth));
+			const panel = list?.parentElement;
+			expect(panel?.getBoundingClientRect().width).toBeLessThanOrEqual(320);
 		}
 	},
 };
