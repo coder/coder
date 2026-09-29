@@ -171,11 +171,9 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
 	server := &Server{stages: tracer}
 	chat := database.Chat{
-		ID:             uuid.New(),
-		OrganizationID: uuid.New(),
-		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ID:           uuid.New(),
+		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
-	server.organizationNames.Store(chat.OrganizationID, "acme")
 
 	// The promoting request has its own span, which the queue wait must
 	// not join.
@@ -207,8 +205,6 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)))
 	require.Contains(t, queueWait.Attributes(),
 		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)))
-	require.Contains(t, queueWait.Attributes(),
-		attribute.String(chatloop.AttrOrganizationName, "acme"))
 }
 
 func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
@@ -216,16 +212,14 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 	tracer, recorder := newStageTestTracer(t)
 	server := &Server{ctx: t.Context(), stages: tracer}
 
-	// The turn is for a root chat, so the subagent kind and organization
-	// on the stage come from the chat passed to inflightChatContext.
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	// The turn is for a root chat, so the subagent kind on the stage
+	// comes from the chat passed to inflightChatContext.
+	turn := newRunnerTurnSpan(tracer, false)
 	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
 	chat := database.Chat{
-		ID:             uuid.New(),
-		OrganizationID: uuid.New(),
-		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ID:           uuid.New(),
+		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
-	server.organizationNames.Store(chat.OrganizationID, "acme")
 	inflightCtx, stop := server.inflightChatContext(turnCtx, chat)
 	t.Cleanup(stop)
 
@@ -245,8 +239,6 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeBackground)))
 	require.Contains(t, step.Attributes(),
 		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)))
-	require.Contains(t, step.Attributes(),
-		attribute.String(chatloop.AttrOrganizationName, "acme"))
 }
 
 func TestWaitGenerationRetryStage(t *testing.T) {

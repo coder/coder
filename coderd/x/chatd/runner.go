@@ -72,7 +72,7 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 		tasksByIndex: make(map[taskIndexKey]taskInstanceID),
 		localLocks:   newLocalLockSet(),
 		debugTurn:    newRunnerDebugTurn(ctx, opts.Logger),
-		turnSpan:     newRunnerTurnSpan(mgr.server.stages, mgr.server.organizationName, rec.takenOver),
+		turnSpan:     newRunnerTurnSpan(mgr.server.stages, rec.takenOver),
 	}
 }
 

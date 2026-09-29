@@ -38,7 +38,6 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -175,8 +174,6 @@ type Server struct {
 	db                 database.Store
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
-	// organizationNames caches organization ID to name for stage span attributes.
-	organizationNames syncmap.Map[uuid.UUID, string]
 
 	streamPartsDialer StreamPartsDialer
 
@@ -4887,13 +4884,13 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 // return when they promote nothing, records nothing. The span context
 // is stripped from ctx so the stage is a standalone span rather than a
 // child of the span in ctx. The stage is turn scoped and carries the
-// chat's kind and organization, which ctx need not carry.
+// chat's kind, which ctx need not carry.
 func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt time.Time) {
 	if queuedAt.IsZero() {
 		return
 	}
 	standalone := trace.ContextWithSpanContext(ctx, trace.SpanContext{})
-	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat), p.organizationName(ctx, chat.OrganizationID))
+	standalone = withStageIdentity(standalone, chatloop.ScopeTurn, chatKind(chat))
 	p.stages.Record(standalone, chatloop.StageQueueWait, chatloop.StageModel{},
 		queuedAt, p.stages.Now(), nil,
 		attribute.String(chatloop.AttrChatID, chat.ID.String()),
@@ -4901,34 +4898,11 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 }
 
 // inflightChatContext is inflightContext for work that belongs to a
-// known chat. The chat kind and organization are set on the returned
-// context so the stages of the detached work carry them.
+// known chat. The chat kind is set on the returned context so the
+// stages of the detached work carry it.
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
-	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat), p.organizationName(ctx, chat.OrganizationID)), stop
-}
-
-// organizationName returns the name of the organization with id for
-// use as a stage span attribute. Names are cached for the life of the
-// server, so a renamed organization keeps its old name until restart. A
-// failed lookup returns an empty name so the stage is still recorded,
-// and is retried on the next call.
-func (p *Server) organizationName(ctx context.Context, id uuid.UUID) string {
-	if id == uuid.Nil {
-		return ""
-	}
-	if name, ok := p.organizationNames.Load(id); ok {
-		return name
-	}
-	//nolint:gocritic // Chatd reads the organization of a chat it does not own as the daemon subject.
-	org, err := p.db.GetOrganizationByID(dbauthz.AsChatd(ctx), id)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to resolve organization name for stage span attribute",
-			slog.F("organization_id", id), slog.Error(err))
-		return ""
-	}
-	p.organizationNames.Store(id, org.Name)
-	return org.Name
+	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
 }
 
 // chatKind labels a chat as a subagent or a top-level chat.
@@ -4939,13 +4913,12 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-// withStageIdentity returns ctx carrying the scope, chat kind, and
-// organization name that stages started or recorded on it and on
-// contexts derived from it take.
-func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind, organization string) context.Context {
+// withStageIdentity returns ctx carrying the scope and chat kind that
+// stages started or recorded on it and on contexts derived from it
+// take.
+func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
-	ctx = chatloop.ContextWithChatKind(ctx, kind)
-	return chatloop.ContextWithOrganization(ctx, organization)
+	return chatloop.ContextWithChatKind(ctx, kind)
 }
 
 func (p *Server) goInflight(f func()) error {

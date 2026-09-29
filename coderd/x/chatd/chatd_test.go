@@ -14894,14 +14894,13 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 	}
 	// requireStandaloneQueueWait asserts one queue_wait span that is a
 	// trace root starting when the message was queued.
-	requireStandaloneQueueWait := func(t *testing.T, index spanIndex, queuedAt time.Time, org database.Organization) {
+	requireStandaloneQueueWait := func(t *testing.T, index spanIndex, queuedAt time.Time) {
 		t.Helper()
 		queueWait := single(t, index, chatloop.StageQueueWait)
 		require.False(t, queueWait.Parent().IsValid(), "queue_wait is a trace root")
 		require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
 		require.Equal(t, string(chatloop.ScopeTurn), chatd.SpanAttr(t, queueWait, chatloop.AttrScope))
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, queueWait, chatloop.AttrChatKind))
-		require.Equal(t, org.Name, chatd.SpanAttr(t, queueWait, chatloop.AttrOrganizationName))
 	}
 	requireInterrupted := func(t *testing.T, turn sdktrace.ReadOnlySpan) {
 		t.Helper()
@@ -14922,7 +14921,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, codes.Unset, turn.Status().Code)
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
 		require.Equal(t, string(chatloop.ChatKindRoot), chatd.SpanAttr(t, turn, chatloop.AttrChatKind))
-		require.Equal(t, h.org.Name, chatd.SpanAttr(t, turn, chatloop.AttrOrganizationName))
 		require.Equal(t, chatID.String(), chatd.SpanAttr(t, turn, chatloop.AttrChatID))
 		require.False(t, turn.Parent().IsValid(), "chat_turn is a trace root")
 
@@ -15211,7 +15209,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 					require.GreaterOrEqual(t, stopCalls.Load(), int32(2))
 				}
 				turns := index[string(chatloop.StageChatTurn)]
-				requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt, h.org)
+				requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
 				// The promoted turn starts when the promotion inserted its
 				// message and measures its pickup as acquisition.
 				require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
@@ -15245,7 +15243,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
 		turns := index[string(chatloop.StageChatTurn)]
-		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt, h.org)
+		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
 		requireInterrupted(t, turns[0])
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
@@ -15279,7 +15277,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
 		turns := index[string(chatloop.StageChatTurn)]
-		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt, h.org)
+		requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
 		requireInterrupted(t, turns[0])
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 	})
@@ -15365,7 +15363,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 2)
 
-		requireStandaloneQueueWait(t, index, queued.CreatedAt, h.org)
+		requireStandaloneQueueWait(t, index, queued.CreatedAt)
 		turns := index[string(chatloop.StageChatTurn)]
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
