@@ -615,6 +615,42 @@ var PostgresAuthDrivers = []string{
 // based on max open connections.
 const PostgresConnMaxIdleAuto = "auto"
 
+// AIStructuredLoggingSource selects which process emits AI Gateway
+// interception records when structured logging is enabled. Both processes
+// produce the same format; the gateway cannot resolve thread_parent_id and
+// thread_root_id, which are looked up in the database by coderd.
+type AIStructuredLoggingSource string
+
+const (
+	// AIStructuredLoggingSourceCoderd emits from coderd, as records arrive
+	// over DRPC. Records the gateway does not send are not reported.
+	AIStructuredLoggingSourceCoderd AIStructuredLoggingSource = "coderd"
+	// AIStructuredLoggingSourceGateway emits from the AI Gateway, where the
+	// records originate, so that records which are never persisted are still
+	// reported. A standalone gateway must be configured to emit them, and its
+	// logs shipped, rather than coderd's.
+	AIStructuredLoggingSourceGateway AIStructuredLoggingSource = "gateway"
+	// AIStructuredLoggingSourceBoth emits from both, for verifying a move
+	// from one to the other. Records that reach coderd are reported twice.
+	AIStructuredLoggingSourceBoth AIStructuredLoggingSource = "both"
+)
+
+var AIStructuredLoggingSources = []string{
+	string(AIStructuredLoggingSourceCoderd),
+	string(AIStructuredLoggingSourceGateway),
+	string(AIStructuredLoggingSourceBoth),
+}
+
+// NewAIStructuredLoggingSourceFromString converts s to an
+// AIStructuredLoggingSource, falling back to AIStructuredLoggingSourceCoderd
+// when s is empty or not a recognized source.
+func NewAIStructuredLoggingSourceFromString(s string) AIStructuredLoggingSource {
+	if slices.Contains(AIStructuredLoggingSources, s) {
+		return AIStructuredLoggingSource(s)
+	}
+	return AIStructuredLoggingSourceCoderd
+}
+
 // AIBudgetPolicy determines how the effective group is selected when a user
 // belongs to multiple groups with AI budgets configured.
 type AIBudgetPolicy string
@@ -2001,6 +2037,26 @@ communicating directly.`,
 		Default:     "false",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "structured_logging",
+	}
+	aiGatewayStructuredLoggingSource := serpent.Option{
+		Name:        "AI Gateway Structured Logging Source",
+		Description: "Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as those dropped by --ai-gateway-disable-content-recording, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.",
+		Flag:        "ai-gateway-structured-logging-source",
+		Env:         "CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE",
+		Value:       serpent.EnumOf(&c.AI.BridgeConfig.StructuredLoggingSource, AIStructuredLoggingSources...),
+		Default:     string(AIStructuredLoggingSourceCoderd),
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "structured_logging_source",
+	}
+	aiGatewayDisableContentRecording := serpent.Option{
+		Name:        "AI Gateway Disable Content Recording",
+		Description: "Stop recording the content of intercepted conversations. No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.",
+		Flag:        "ai-gateway-disable-content-recording",
+		Env:         "CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING",
+		Value:       &c.AI.BridgeConfig.DisableContentRecording,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "disable_content_recording",
 	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
@@ -4556,6 +4612,8 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayStructuredLogging},
 		},
 		aiGatewayStructuredLogging,
+		aiGatewayStructuredLoggingSource,
+		aiGatewayDisableContentRecording,
 		{
 			Name: "AI Bridge Send Actor Headers",
 			Description: "Deprecated: use --ai-gateway-send-actor-headers or CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
@@ -4920,8 +4978,11 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
-	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// StructuredLoggingSource selects which process emits the records that
+	// StructuredLogging enables. See AIStructuredLoggingSource.
+	StructuredLoggingSource string       `json:"structured_logging_source,omitempty" typescript:",notnull"`
+	SendActorHeaders        serpent.Bool `json:"send_actor_headers" typescript:",notnull"`
+	AllowBYOK               serpent.Bool `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
@@ -4936,6 +4997,22 @@ type AIBridgeConfig struct {
 	// request/response dumps are written, in a subdirectory named after
 	// the provider. Empty disables dumping.
 	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
+	// DisableContentRecording stops user prompts, tool calls and model
+	// reasoning from being recorded, including tool names and their arguments.
+	// Interceptions and token usage are still recorded, so cost controls,
+	// budget enforcement and spend reporting are unaffected.
+	DisableContentRecording serpent.Bool `json:"disable_content_recording" typescript:",notnull"`
+}
+
+// EmitsStructuredLogs reports whether source should emit AI Gateway
+// interception records. Both processes consult this, so that exactly the
+// configured one emits and a record is not reported twice by accident.
+func (c AIBridgeConfig) EmitsStructuredLogs(source AIStructuredLoggingSource) bool {
+	if !c.StructuredLogging.Value() {
+		return false
+	}
+	configured := NewAIStructuredLoggingSourceFromString(c.StructuredLoggingSource)
+	return configured == source || configured == AIStructuredLoggingSourceBoth
 }
 
 type AIBridgeProxyConfig struct {
@@ -5353,6 +5430,7 @@ const (
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
+	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5389,6 +5467,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatBoard:
+		return "Chat Board"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5416,6 +5496,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
+	ExperimentChatBoard,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5423,6 +5504,14 @@ var ExperimentsKnown = Experiments{
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{}
+
+// ExperimentsUserScoped lists the experiments that accept runtime rules
+// evaluated per user. Experiments not listed here are read only from the
+// startup list and need a restart to change.
+var ExperimentsUserScoped = Experiments{
+	ExperimentExample,
+	ExperimentMCPToolSearch,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

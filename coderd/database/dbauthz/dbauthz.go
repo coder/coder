@@ -3723,8 +3723,8 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
-func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
+func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }
 
 func (q *querier) GetChatQueuedForCapacity(ctx context.Context, arg database.GetChatQueuedForCapacityParams) (bool, error) {
@@ -4060,6 +4060,20 @@ func (q *querier) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, 
 
 func (q *querier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEnabledMCPServerConfigsByOrganizationAndIDs)(ctx, arg)
+}
+
+func (q *querier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetExperimentRule(ctx, experiment)
+}
+
+func (q *querier) GetExperimentRules(ctx context.Context) ([]database.GetExperimentRulesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.GetExperimentRules(ctx)
 }
 
 // GetExternalAgentTokensByTemplateID is used for scaletesting purposes; the
@@ -9317,6 +9331,13 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 		return err
 	}
 	return q.db.UpsertDefaultProxy(ctx, arg)
+}
+
+func (q *querier) UpsertExperimentRule(ctx context.Context, arg database.UpsertExperimentRuleParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertExperimentRule(ctx, arg)
 }
 
 func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {

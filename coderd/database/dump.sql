@@ -627,6 +627,7 @@ CREATE TYPE resource_type AS ENUM (
     'mcp_server_config',
     'chat_model_config',
     'chat_operational_settings',
+    'experiment_rule',
     'chat_project',
     'chat_project_memory'
 );
@@ -4900,7 +4901,7 @@ CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memori
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 
-CREATE UNIQUE INDEX idx_chat_projects_owner_lower_name ON chat_projects USING btree (organization_id, owner_id, lower(name));
+CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 

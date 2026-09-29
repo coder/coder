@@ -1848,11 +1848,11 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
+func (m queryMetricsStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatProjectsByOrganizationID(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetChatProjectsByOrganizationID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByOrganizationID").Inc()
+	r0, r1 := m.s.GetChatProjectsByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetChatProjectsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByOwnerID").Inc()
 	return r0, r1
 }
 
@@ -2181,6 +2181,22 @@ func (m queryMetricsStore) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx co
 	r0, r1 := m.s.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetEnabledMCPServerConfigsByOrganizationAndIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEnabledMCPServerConfigsByOrganizationAndIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExperimentRule(ctx, experiment)
+	m.queryLatencies.WithLabelValues("GetExperimentRule").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExperimentRule").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetExperimentRules(ctx context.Context) ([]database.GetExperimentRulesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExperimentRules(ctx)
+	m.queryLatencies.WithLabelValues("GetExperimentRules").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExperimentRules").Inc()
 	return r0, r1
 }
 
@@ -6605,6 +6621,14 @@ func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.
 	r0 := m.s.UpsertDefaultProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertDefaultProxy").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertDefaultProxy").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpsertExperimentRule(ctx context.Context, arg database.UpsertExperimentRuleParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertExperimentRule(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertExperimentRule").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertExperimentRule").Inc()
 	return r0
 }
 

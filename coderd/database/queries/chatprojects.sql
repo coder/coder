@@ -15,11 +15,11 @@ SELECT *
 FROM chat_projects
 WHERE id = @id::uuid;
 
--- name: GetChatProjectsByOrganizationID :many
+-- name: GetChatProjectsByOwnerID :many
 SELECT *
 FROM chat_projects
-WHERE organization_id = @organization_id::uuid
-ORDER BY lower(name);
+WHERE owner_id = @owner_id::uuid
+ORDER BY lower(name), id;
 
 -- name: UpdateChatProjectByID :one
 UPDATE chat_projects

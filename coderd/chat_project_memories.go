@@ -24,9 +24,10 @@ import (
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Success 200 {array} codersdk.ChatProjectMemory
-// @Router /api/experimental/chats/projects/{project}/memories [get]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/memories [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listChatProjectMemories(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -49,10 +50,11 @@ func (api *API) listChatProjectMemories(rw http.ResponseWriter, r *http.Request)
 // @Tags Chats
 // @Accept json
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Param request body codersdk.CreateChatProjectMemoryRequest true "Create memory request"
 // @Success 201 {object} codersdk.ChatProjectMemory
-// @Router /api/experimental/chats/projects/{project}/memories [post]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/memories [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -98,10 +100,11 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Param memory path string true "Chat project memory ID" format(uuid)
 // @Success 200 {object} codersdk.ChatProjectMemory
-// @Router /api/experimental/chats/projects/{project}/memories/{memory} [get]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory} [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -122,11 +125,12 @@ func (api *API) getChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Accept json
 // @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Param memory path string true "Chat project memory ID" format(uuid)
 // @Param request body codersdk.UpdateChatProjectMemoryRequest true "Update memory request"
 // @Success 200 {object} codersdk.ChatProjectMemory
-// @Router /api/experimental/chats/projects/{project}/memories/{memory} [patch]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -181,10 +185,11 @@ func (api *API) patchChatProjectMemory(rw http.ResponseWriter, r *http.Request) 
 // @ID delete-chat-project-memory
 // @Security CoderSessionToken
 // @Tags Chats
+// @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
 // @Param memory path string true "Chat project memory ID" format(uuid)
 // @Success 204
-// @Router /api/experimental/chats/projects/{project}/memories/{memory} [delete]
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/memories/{memory} [delete]
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

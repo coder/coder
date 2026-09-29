@@ -19,10 +19,27 @@ var _ Recorder = &DRPCRecorder{}
 // DRPCRecorder satisfies the Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type DRPCRecorder struct {
 	apiKeyID string
-	client   proto.DRPCRecorderClient
+	clientFn func(context.Context) (proto.DRPCRecorderClient, error)
+}
+
+// client resolves the client to use for a single record call. A DRPCRecorder
+// outlives any one client, so the client is acquired against the context of the
+// call being served rather than held for the recorder's lifetime.
+func (t *DRPCRecorder) client(ctx context.Context) (proto.DRPCRecorderClient, error) {
+	client, err := t.clientFn(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("acquire client: %w", err)
+	}
+
+	return client, nil
 }
 
 func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *InterceptionRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
 	in := &proto.RecordInterceptionRequest{
 		Id:                          req.ID,
 		ApiKeyId:                    t.apiKeyID,
@@ -44,11 +61,16 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *Interception
 	if attr, ok := agplaibridge.AttributionFromContext(ctx); ok {
 		in.WorkspaceId = attr.WorkspaceID.String()
 	}
-	_, err := t.client.RecordInterception(ctx, in)
+	_, err = client.RecordInterception(ctx, in)
 	return err
 }
 
 func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *InterceptionRecordEnded) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
 	endedReq := &proto.RecordInterceptionEndedRequest{
 		Id:             req.ID,
 		EndedAt:        timestamppb.New(req.EndedAt),
@@ -61,12 +83,17 @@ func (t *DRPCRecorder) RecordInterceptionEnded(ctx context.Context, req *Interce
 	if req.ErrorMessage != "" {
 		endedReq.ErrorMessage = &req.ErrorMessage
 	}
-	_, err := t.client.RecordInterceptionEnded(ctx, endedReq)
+	_, err = client.RecordInterceptionEnded(ctx, endedReq)
 	return err
 }
 
 func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRecord) error {
-	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		InterceptionId: req.InterceptionID,
 		MsgId:          req.MsgID,
 		Prompt:         req.Prompt,
@@ -77,6 +104,11 @@ func (t *DRPCRecorder) RecordPromptUsage(ctx context.Context, req *PromptUsageRe
 }
 
 func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
 	merged := req.Metadata
 	if merged == nil {
 		merged = Metadata{}
@@ -87,7 +119,7 @@ func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageReco
 		merged[k] = v
 	}
 
-	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+	_, err = client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		InterceptionId:        req.InterceptionID,
 		MsgId:                 req.MsgID,
 		InputTokens:           req.Input,
@@ -101,6 +133,11 @@ func (t *DRPCRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageReco
 }
 
 func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord) error {
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
 	serialized, err := json.Marshal(req.Args)
 	if err != nil {
 		return xerrors.Errorf("serialize tool %q args: %w", req.Tool, err)
@@ -111,7 +148,7 @@ func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord
 		invErr = new(req.InvocationError.Error())
 	}
 
-	_, err = t.client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
+	_, err = client.RecordToolUsage(ctx, &proto.RecordToolUsageRequest{
 		InterceptionId:  req.InterceptionID,
 		MsgId:           req.MsgID,
 		ToolCallId:      req.ToolCallID,
@@ -128,7 +165,12 @@ func (t *DRPCRecorder) RecordToolUsage(ctx context.Context, req *ToolUsageRecord
 }
 
 func (t *DRPCRecorder) RecordModelThought(ctx context.Context, req *ModelThoughtRecord) error {
-	_, err := t.client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
+	client, err := t.client(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.RecordModelThought(ctx, &proto.RecordModelThoughtRequest{
 		InterceptionId: req.InterceptionID,
 		Content:        req.Content,
 		Metadata:       marshalForProto(req.Metadata),
@@ -172,9 +214,11 @@ func marshalForProto(in Metadata) map[string]*anypb.Any {
 	return out
 }
 
-func NewDRPCRecorder(aPIKeyID string, client proto.DRPCRecorderClient) *DRPCRecorder {
+// NewDRPCRecorder creates a [DRPCRecorder]. clientFn receives the context of
+// the record call it serves.
+func NewDRPCRecorder(aPIKeyID string, clientFn func(context.Context) (proto.DRPCRecorderClient, error)) *DRPCRecorder {
 	return &DRPCRecorder{
 		apiKeyID: aPIKeyID,
-		client:   client,
+		clientFn: clientFn,
 	}
 }

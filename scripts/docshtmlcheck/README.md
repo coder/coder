@@ -61,9 +61,7 @@ $ go run ./scripts/docshtmlcheck path/to/file.md path/to/dir
 
 `allowedUnknownTags` in `main.go` is a deliberately narrow, per-file escape
 hatch for placeholders whose source is outside this repository (so they cannot
-be fixed by a source edit here). It currently holds a temporary entry for
-`docs/reference/cli/agent-firewall.md` (`<host>`/`<glob>`, generated from the
-external `github.com/coder/boundary` CLI help).
+be fixed by a source edit here). It is currently empty.
 
 The escape hatch is **self-clearing**: if an allowlisted tag no longer appears
 in its file (for example once the upstream fix and dependency bump land and the

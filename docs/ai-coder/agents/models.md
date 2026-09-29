@@ -397,7 +397,9 @@ When [AI Gateway BYOK](../ai-gateway/auth.md#bring-your-own-key-byok) is
 enabled, developers can supply personal API keys for any enabled AI provider
 from the Agents settings page.
 
-### Managing personal API keys
+<a id="managing-personal-api-keys"></a>
+
+### Manage personal API keys
 
 1. Navigate to the **Agents** page in the Coder dashboard.
 1. Open **Settings** and select the **API Keys** tab.
@@ -414,13 +416,17 @@ Personal API keys are encrypted at rest using the same database encryption
 used for deployment-managed provider secrets. The dashboard never displays a
 saved key, only whether one is set.
 
-### Removing a personal key
+<a id="removing-a-personal-key"></a>
+
+### Remove a personal key
 
 Select **Remove** on the provider card in the API Keys settings tab.
 Subsequent requests use deployment-managed credentials when they are configured for that provider.
 If no deployment-managed credential is available, add a new personal key before you use models from that provider.
 
-## Using an LLM proxy
+<a id="using-an-llm-proxy"></a>
+
+## Use an LLM proxy
 
 Organizations that route LLM traffic through a centralized proxy, such as
 LiteLLM or an internal gateway, can point a provider's **Endpoint** or **Base
