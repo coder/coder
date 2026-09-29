@@ -1,11 +1,8 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
-import {
-	ComposerProvider,
-	useRegisterComposer,
-} from "../../context/ComposerContext";
+import { ComposerContext } from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
@@ -29,6 +26,8 @@ const meta = {
 	},
 	parameters: {
 		layout: "centered",
+		// Live port previews embed a cross-origin iframe that Pixel cannot capture
+		// deterministically; submission behavior is covered in PortPreviewPanel.test.tsx.
 		pixel: { exclude: true },
 	},
 	decorators: [
@@ -43,46 +42,16 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Ready: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByTitle("Preview :3000")).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toHaveAttribute(
-			"href",
-			expect.stringContaining("3000--"),
-		);
-	},
-};
+export const Ready: Story = {};
 
 export const MissingWildcardHost: Story = {
-	args: {
-		host: "",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Port previews require a wildcard access URL."),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
-	},
+	args: { host: "" },
+	parameters: { pixel: { exclude: false } },
 };
 
 export const AgentDisconnected: Story = {
-	args: {
-		agent: {
-			...MockWorkspaceAgent,
-			status: "disconnected",
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(
-				"Port preview will be available once the workspace agent reconnects.",
-			),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
-	},
+	args: { agent: { ...MockWorkspaceAgent, status: "disconnected" } },
+	parameters: { pixel: { exclude: false } },
 };
 
 export const InvalidWildcardHost: Story = {
@@ -91,27 +60,13 @@ export const InvalidWildcardHost: Story = {
 		// so use a forbidden host code point that actually fails URL parsing.
 		host: "bad^host",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText(
-				"The wildcard access URL produced an invalid preview URL. Check the deployment's wildcard access URL configuration.",
-			),
-		).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Open port in new tab")).toBeDisabled();
-	},
-};
-
-const Composer: React.FC = () => {
-	useRegisterComposer({ send: () => Promise.resolve("sent") });
-	return null;
+	parameters: { pixel: { exclude: false } },
 };
 
 const withComposer: Decorator = (Story) => (
-	<ComposerProvider>
-		<Composer />
+	<ComposerContext value={{ send: () => Promise.resolve("sent") }}>
 		<Story />
-	</ComposerProvider>
+	</ComposerContext>
 );
 
 // What the overlay inside the preview would post to the dashboard.

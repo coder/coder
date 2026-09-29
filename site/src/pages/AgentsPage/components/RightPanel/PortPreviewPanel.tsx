@@ -3,7 +3,7 @@ import {
 	MessageSquarePlusIcon,
 	NetworkIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
@@ -44,12 +44,12 @@ const overlayUnavailableReason =
 // because the React Compiler does not yet handle loops in try/catch or
 // try/finally.
 async function deliver(
-	composer: ComposerHandle,
+	composerRef: React.RefObject<ComposerHandle | undefined>,
 	message: string,
 ): Promise<boolean> {
 	try {
 		for (let attempt = 0; attempt < sendRetries; attempt++) {
-			if ((await composer.send(message)) === "sent") {
+			if ((await composerRef.current?.send(message)) === "sent") {
 				return true;
 			}
 			await new Promise((resolve) => setTimeout(resolve, sendRetryMs));
@@ -79,7 +79,7 @@ function newSendQueue(): SendQueue {
 // full and the message was not accepted.
 function enqueueSend(
 	queue: SendQueue,
-	composer: ComposerHandle,
+	composerRef: React.RefObject<ComposerHandle | undefined>,
 	message: string,
 ): boolean {
 	if (queue.pending >= maxPendingSends) {
@@ -93,7 +93,7 @@ function enqueueSend(
 				return;
 			}
 			queue.sending = true;
-			await deliver(composer, message);
+			await deliver(composerRef, message);
 		} finally {
 			queue.sending = false;
 			queue.pending--;
@@ -138,6 +138,15 @@ export const PortPreviewPanel: React.FC<{
 	const unavailableMessage = getUnavailableMessage({ host, agent, url });
 	const frameRef = useRef<HTMLIFrameElement>(null);
 	const composer = useComposer();
+	// Queued retries must use the current committed send gate, not the
+	// composer captured when the annotation was accepted.
+	const composerRef = useRef(composer);
+	useLayoutEffect(() => {
+		composerRef.current = composer;
+		return () => {
+			composerRef.current = undefined;
+		};
+	}, [composer]);
 	const unavailableReasonId = useId();
 	// The proxy injects the overlay only on the request that carries the
 	// marker param, so each request reloads the frame. Client-side routing
@@ -152,7 +161,7 @@ export const PortPreviewPanel: React.FC<{
 			return;
 		}
 		const message = formatAnnotations(submission);
-		if (!enqueueSend(sendQueueRef.current, composer, message)) {
+		if (!enqueueSend(sendQueueRef.current, composerRef, message)) {
 			toast.error("Too many UI annotations at once; the latest was not sent.", {
 				id: "annotation-queue-full",
 			});

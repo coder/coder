@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import {
 	type AnnotationSubmission,
 	type HostToAnnotatorMessage,
@@ -82,8 +82,6 @@ function fromOrigin(pageUrl: string, origin: string): boolean {
  * Callers own the frame: when `setPicking(true)` is called while the
  * overlay is neither ready nor loading, they must reload the frame with
  * the marker parameter so the proxy injects the overlay.
- *
- * The returned callbacks are stable so effects can depend on them.
  */
 export function useAnnotatorBridge({
 	frameRef,
@@ -105,44 +103,24 @@ export function useAnnotatorBridge({
 	// authorization granted, once its ready message arrives.
 	const pendingPickingRef = useRef(false);
 	const readyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-	const onSubmitRef = useRef(onSubmit);
-	const onRevokeRef = useRef(onRevoke);
-	const frameOriginRef = useRef(frameOrigin);
-	const readyTimeoutRef = useRef(readyTimeoutMs);
-	const enabledRef = useRef(enabled);
-	// Layout effects run in the commit, before the browser can deliver the
-	// remounted frame's load event, so `frameLoaded` never sees the values
-	// from the previous render.
-	useLayoutEffect(() => {
-		onSubmitRef.current = onSubmit;
-		onRevokeRef.current = onRevoke;
-		frameOriginRef.current = frameOrigin;
-		readyTimeoutRef.current = readyTimeoutMs;
-		enabledRef.current = enabled;
-	}, [onSubmit, onRevoke, frameOrigin, readyTimeoutMs, enabled]);
-
-	const update = useCallback((patch: Partial<BridgeState>) => {
+	const update = (patch: Partial<BridgeState>) => {
 		stateRef.current = { ...stateRef.current, ...patch };
 		setState(stateRef.current);
-	}, []);
+	};
 
-	const revoke = useCallback(() => {
+	const revoke = () => {
 		if (authorizedRef.current) {
 			authorizedRef.current = false;
-			onRevokeRef.current?.();
+			onRevoke?.();
 		}
-	}, []);
+	};
 
-	const post = useCallback(
-		(message: HostToAnnotatorMessage) => {
-			const frameWindow = frameRef.current?.contentWindow;
-			const origin = frameOriginRef.current;
-			if (frameWindow && origin) {
-				frameWindow.postMessage(message, origin);
-			}
-		},
-		[frameRef],
-	);
+	const post = (message: HostToAnnotatorMessage) => {
+		const frameWindow = frameRef.current?.contentWindow;
+		if (frameWindow && frameOrigin) {
+			frameWindow.postMessage(message, frameOrigin);
+		}
+	};
 
 	// Every load is a new document, which nothing has authorized yet. A
 	// load the dashboard asked for starts the clock on the overlay
@@ -151,8 +129,8 @@ export function useAnnotatorBridge({
 	// races a fresh ready. Any other load is the app navigating on its own:
 	// the dashboard's intent does not carry over, and the overlay, if the
 	// new document has one, will announce itself without a timeout.
-	const frameLoaded = useCallback(() => {
-		if (!enabledRef.current) {
+	const frameLoaded = () => {
+		if (!enabled) {
 			return;
 		}
 		revoke();
@@ -165,7 +143,7 @@ export function useAnnotatorBridge({
 			readyTimerRef.current = setTimeout(() => {
 				pendingPickingRef.current = false;
 				update({ loading: false, unavailable: true, requested: false });
-			}, readyTimeoutRef.current);
+			}, readyTimeoutMs);
 			return;
 		}
 		pendingPickingRef.current = false;
@@ -175,19 +153,13 @@ export function useAnnotatorBridge({
 			picking: false,
 			requested: false,
 		});
-	}, [update, revoke]);
+	};
 
-	// Also bound in the commit, so for a remounted frame the old listener is
-	// gone and the state reset before its load event can reach `frameLoaded`.
-	useLayoutEffect(() => {
-		if (!enabled || !frameOrigin) {
-			return;
-		}
-		const frame = frameRef.current;
-		const handler = (event: MessageEvent) => {
+	const receiveMessage = useEffectEvent(
+		(event: MessageEvent, frame: HTMLIFrameElement | null, origin: string) => {
 			const frameWindow = frame?.contentWindow;
 			if (
-				event.origin !== frameOrigin ||
+				event.origin !== origin ||
 				!frameWindow ||
 				event.source !== frameWindow
 			) {
@@ -198,7 +170,7 @@ export function useAnnotatorBridge({
 				return;
 			}
 			const send = (outbound: HostToAnnotatorMessage) =>
-				frameWindow.postMessage(outbound, frameOrigin);
+				frameWindow.postMessage(outbound, origin);
 			switch (message.type) {
 				case "coder-annotator:ready":
 					clearTimeout(readyTimerRef.current);
@@ -230,18 +202,31 @@ export function useAnnotatorBridge({
 					}
 					break;
 				case "coder-annotator:submit": {
-					if (
-						!authorizedRef.current ||
-						!fromOrigin(message.page.url, frameOrigin)
-					) {
+					if (!authorizedRef.current || !fromOrigin(message.page.url, origin)) {
 						return;
 					}
 					const { type: _type, ...submission } = message;
-					onSubmitRef.current(submission);
+					onSubmit(submission);
 					break;
 				}
 			}
-		};
+		},
+	);
+
+	const resetFrame = useEffectEvent(() => {
+		revoke();
+		update({ ready: false, unavailable: false, picking: false });
+	});
+
+	// Bind before the remounted frame can load. Callback changes must not
+	// end an annotation session, but incoming messages need current handlers.
+	useLayoutEffect(() => {
+		if (!enabled || !frameOrigin) {
+			return;
+		}
+		const frame = frameRef.current;
+		const handler = (event: MessageEvent) =>
+			receiveMessage(event, frame, frameOrigin);
 		window.addEventListener("message", handler);
 		return () => {
 			clearTimeout(readyTimerRef.current);
@@ -249,32 +234,28 @@ export function useAnnotatorBridge({
 			// The frame is being replaced: forget what the old one reported,
 			// but keep what the dashboard asked for, since it asked for the
 			// replacement and its load is what `frameLoaded` will report next.
-			revoke();
-			update({ ready: false, unavailable: false, picking: false });
+			resetFrame();
 		};
-	}, [frameRef, frameKey, frameOrigin, enabled, update, revoke]);
+	}, [frameRef, frameKey, frameOrigin, enabled]);
 
-	const setPicking = useCallback(
-		(next: boolean) => {
-			if (stateRef.current.ready) {
-				if (next) {
-					authorizedRef.current = true;
-					update({ requested: true });
-				} else {
-					revoke();
-					// A stop takes effect now rather than when the overlay echoes
-					// it, so an echo arriving after the user has asked again is not
-					// mistaken for them leaving from inside the preview.
-					update({ requested: false, picking: false });
-				}
-				post({ type: "coder-annotator:set-picking", picking: next });
-				return;
+	const setPicking = (next: boolean) => {
+		if (stateRef.current.ready) {
+			if (next) {
+				authorizedRef.current = true;
+				update({ requested: true });
+			} else {
+				revoke();
+				// A stop takes effect now rather than when the overlay echoes
+				// it, so an echo arriving after the user has asked again is not
+				// mistaken for them leaving from inside the preview.
+				update({ requested: false, picking: false });
 			}
-			pendingPickingRef.current = next;
-			update({ requested: next, loading: stateRef.current.loading || next });
-		},
-		[post, update, revoke],
-	);
+			post({ type: "coder-annotator:set-picking", picking: next });
+			return;
+		}
+		pendingPickingRef.current = next;
+		update({ requested: next, loading: stateRef.current.loading || next });
+	};
 
 	return { ...state, setPicking, frameLoaded };
 }

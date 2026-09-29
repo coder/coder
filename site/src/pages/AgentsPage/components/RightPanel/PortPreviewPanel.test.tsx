@@ -8,9 +8,8 @@ import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { portForwardURL } from "#/utils/portForward";
 import {
-	ComposerProvider,
+	ComposerContext,
 	type ComposerSendResult,
-	useRegisterComposer,
 } from "../../context/ComposerContext";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import { PortPreviewPanel } from "./PortPreviewPanel";
@@ -28,11 +27,6 @@ const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 
 type Send = (message: string) => Promise<ComposerSendResult>;
 
-const Composer: React.FC<{ onSend: Send }> = ({ onSend }) => {
-	useRegisterComposer({ send: onSend });
-	return null;
-};
-
 const sent = () => vi.fn<Send>().mockResolvedValue("sent");
 
 function frameWindow(frame: HTMLIFrameElement): Window {
@@ -43,9 +37,8 @@ function frameWindow(frame: HTMLIFrameElement): Window {
 }
 
 function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
-	renderComponent(
-		<ComposerProvider>
-			<Composer onSend={onSend} />
+	const panel = (send: Send | undefined) => (
+		<ComposerContext value={send ? { send } : undefined}>
 			<PortPreviewPanel
 				workspace={MockWorkspace}
 				agent={MockWorkspaceAgent}
@@ -54,8 +47,9 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 				canAnnotate
 				annotatorReadyTimeoutMs={readyTimeoutMs}
 			/>
-		</ComposerProvider>,
+		</ComposerContext>
 	);
+	const { rerender, unmount } = renderComponent(panel(onSend));
 	// Requesting the overlay remounts the iframe, so always look it up fresh.
 	const frame = () => screen.getByTitle<HTMLIFrameElement>("Preview :3000");
 	const frameOrigin = new URL(frame().src).origin;
@@ -68,7 +62,14 @@ function renderPanel(onSend = sent(), readyTimeoutMs?: number) {
 			}),
 		);
 	};
-	return { frame, frameOrigin, receive, onSend };
+	return {
+		frame,
+		frameOrigin,
+		receive,
+		onSend,
+		setComposer: (send?: Send) => rerender(panel(send)),
+		unmount,
+	};
 }
 
 // The origin the panel loads the preview from; submissions must come
@@ -300,6 +301,87 @@ describe("PortPreviewPanel annotations", () => {
 		first.resolve("sent");
 		await settled();
 		expect(onSend).toHaveBeenCalledTimes(1);
+	});
+
+	it("accepts a submission through the new handler after rerender without rearming", async () => {
+		const originalSend = sent();
+		const nextSend = sent();
+		const { receive, setComposer } = renderPanel(originalSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+
+		setComposer(nextSend);
+		receive(submission);
+		await waitFor(() => expect(nextSend).toHaveBeenCalledTimes(1));
+		expect(originalSend).not.toHaveBeenCalled();
+	});
+
+	it("uses the latest committed sender for queued messages after an ordinary rerender", async () => {
+		const first = createDeferred<ComposerSendResult>();
+		const originalSend = vi.fn<Send>().mockReturnValue(first.promise);
+		const nextSend = sent();
+		const { receive, setComposer } = renderPanel(originalSend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		receive(submission);
+		await waitFor(() => expect(originalSend).toHaveBeenCalledTimes(1));
+		receive({
+			...submission,
+			annotations: [{ ...submission.annotations[0], id: "b" }],
+		});
+		setComposer(nextSend);
+		first.resolve("sent");
+		await waitFor(() => expect(nextSend).toHaveBeenCalledTimes(1));
+		expect(originalSend).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not call a disabled composer while retrying, then uses the latest sender", async () => {
+		const busySend = vi.fn<Send>().mockResolvedValue("busy");
+		const nextSend = sent();
+		const { receive, setComposer } = renderPanel(busySend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				receive(submission);
+			});
+			expect(busySend).toHaveBeenCalledTimes(1);
+			setComposer(undefined);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(500);
+			});
+			expect(busySend).toHaveBeenCalledTimes(1);
+			setComposer(nextSend);
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(500);
+			});
+			expect(nextSend).toHaveBeenCalledTimes(1);
+			expect(busySend).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not retry through the old composer after unmount", async () => {
+		const busySend = vi.fn<Send>().mockResolvedValue("busy");
+		const { receive, unmount } = renderPanel(busySend);
+		await requestOverlay();
+		receive({ type: "coder-annotator:ready" });
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				receive(submission);
+			});
+			expect(busySend).toHaveBeenCalledTimes(1);
+			unmount();
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(500);
+			});
+			expect(busySend).toHaveBeenCalledTimes(1);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("sends submissions in order and retries while the chat is busy", async () => {

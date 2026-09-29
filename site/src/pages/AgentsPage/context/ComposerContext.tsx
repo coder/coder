@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext } from "react";
 
 // "busy" means another submission was in flight and nothing was sent; the
 // caller decides whether to retry.
@@ -9,57 +9,9 @@ export type ComposerHandle = {
 	send: (message: string) => Promise<ComposerSendResult>;
 };
 
-type ComposerContextValue = {
-	composer: ComposerHandle | undefined;
-	register: (handle: ComposerHandle | null) => void;
-};
+/** Provides the current chat composer to right-panel tools. */
+export const ComposerContext = createContext<ComposerHandle | undefined>(
+	undefined,
+);
 
-const ComposerContext = createContext<ComposerContextValue>({
-	composer: undefined,
-	register: () => undefined,
-});
-
-/**
- * Lets right-panel tools (port preview annotations, for example) submit
- * messages through the chat composer without threading callbacks through
- * the page tree. The composer registers its handle on mount.
- */
-export const ComposerProvider: React.FC<{ children: React.ReactNode }> = ({
-	children,
-}) => {
-	// The latest handle lives in a ref so consumers get one stable object
-	// and re-registration on every composer render does not cascade.
-	const handleRef = useRef<ComposerHandle | null>(null);
-	const [registered, setRegistered] = useState(false);
-	const [stableHandle] = useState<ComposerHandle>(() => ({
-		send: (message) =>
-			handleRef.current?.send(message) ?? Promise.resolve("busy"),
-	}));
-
-	const register = (handle: ComposerHandle | null) => {
-		handleRef.current = handle;
-		setRegistered(handle !== null);
-	};
-
-	return (
-		<ComposerContext
-			value={{ composer: registered ? stableHandle : undefined, register }}
-		>
-			{children}
-		</ComposerContext>
-	);
-};
-
-export const useComposer = () => useContext(ComposerContext).composer;
-
-/**
- * Registers the composer handle for the lifetime of the component. Call
- * from the component that owns message submission.
- */
-export const useRegisterComposer = (handle: ComposerHandle | null) => {
-	const { register } = useContext(ComposerContext);
-	useEffect(() => {
-		register(handle);
-		return () => register(null);
-	}, [register, handle]);
-};
+export const useComposer = () => useContext(ComposerContext);
