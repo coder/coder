@@ -86,7 +86,9 @@ export const toFront = (
 	list: readonly ChatWindow[],
 	win: ChatWindow,
 ): ChatWindow[] => {
+	// Drop the flag rather than set it false, so a shown window carries none.
 	const { minimized: _, ...shown } = win;
+
 	return [
 		...list.filter((w) => windowKey(w) !== windowKey(win)),
 		{ ...shown, pinned: true },
@@ -103,6 +105,7 @@ export const minimizeWindow = (
 ): readonly ChatWindow[] => {
 	const win = list.find((w) => windowKey(w) === key);
 	if (!win) return list;
+
 	return [
 		...list.filter((w) => w !== win),
 		{ ...win, pinned: true, minimized: true },
@@ -170,6 +173,7 @@ export const replaceDraftWithChat = (
 /** Escape: the preview goes first, else the frontmost visible window. */
 export const dismissTop = (list: readonly ChatWindow[]) => {
 	if (list.some((w) => !w.pinned)) return dropPreview(list);
+
 	const front = frontWindow(list);
 	return front ? list.filter((w) => w !== front) : list;
 };

@@ -68,6 +68,11 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		return () => window.removeEventListener("keydown", onKey);
 	}, [hasWindows]);
 
+	const draftCard = (target: DraftTarget) =>
+		"cardId" in target
+			? board.cards.find((c) => c.id === target.cardId)
+			: undefined;
+
 	// Title and color are shared by a window's title bar and its tab.
 	const heading = (win: ChatWindow) => {
 		if (win.kind === "chat") {
@@ -76,15 +81,11 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 				color: colorByChatId.get(win.chatId),
 			};
 		}
-		const { target } = win;
-		const card =
-			"cardId" in target
-				? board.cards.find((c) => c.id === target.cardId)
-				: undefined;
-		return {
-			title: `New chat in ${"column" in target ? target.column : (card?.title ?? "card")}`,
-			color: card?.color,
-		};
+
+		const card = draftCard(win.target);
+		const place =
+			"column" in win.target ? win.target.column : (card?.title ?? "card");
+		return { title: `New chat in ${place}`, color: card?.color };
 	};
 
 	const frames = windows.map((win) => {
@@ -99,6 +100,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 			onPreviewEnter,
 			onPreviewLeave,
 		};
+
 		if (win.kind === "chat") {
 			// Assistant chats are on no card, so they get no assistant button.
 			const card = cardOfChat(board, win.chatId);
@@ -119,15 +121,14 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 				</FloatingChat>
 			);
 		}
+
 		const { target } = win;
 		const labels = newChatLabels(board, target);
 		// The page closes a draft whose card is gone; until that commits there
 		// is nothing to draw.
 		if (!labels) return null;
-		const card =
-			"cardId" in target
-				? board.cards.find((c) => c.id === target.cardId)
-				: undefined;
+
+		const card = draftCard(target);
 		return (
 			<FloatingChat
 				// Keyed by target so a new target gets a fresh form, not the pending
@@ -150,25 +151,18 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 		);
 	});
 
+	const tabs = windows
+		.filter((win) => win.minimized)
+		.map((win) => ({
+			key: windowKey(win),
+			...heading(win),
+			chat: win.kind === "chat" ? chatsById.get(win.chatId) : undefined,
+		}));
+
 	return (
 		<>
 			{frames}
-			<WindowTabs
-				tabs={windows.flatMap((win) =>
-					win.minimized
-						? [
-								{
-									key: windowKey(win),
-									...heading(win),
-									chat:
-										win.kind === "chat" ? chatsById.get(win.chatId) : undefined,
-								},
-							]
-						: [],
-				)}
-				onRestore={onRestore}
-				onClose={onClose}
-			/>
+			<WindowTabs tabs={tabs} onRestore={onRestore} onClose={onClose} />
 		</>
 	);
 };

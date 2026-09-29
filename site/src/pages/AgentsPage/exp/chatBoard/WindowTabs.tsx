@@ -32,8 +32,10 @@ const TabIcon: React.FC<{ readonly chat: Chat | undefined }> = ({ chat }) => {
 			/>
 		);
 	}
+
 	const display = getChatDisplayConfig(chat);
 	const Icon = display.icon;
+
 	// Unread is a dot on the chat icon, as on the board's cards.
 	return (
 		<span className="relative flex shrink-0">
@@ -46,11 +48,44 @@ const TabIcon: React.FC<{ readonly chat: Chat | undefined }> = ({ chat }) => {
 	);
 };
 
+type TabProps = {
+	readonly tab: WindowTab;
+	readonly onRestore: () => void;
+	readonly onClose: () => void;
+};
+
+/** A collapsed window title bar: the tab body restores it, × closes it. */
+const Tab: React.FC<TabProps> = ({ tab, onRestore, onClose }) => (
+	<div
+		className={cn(
+			"flex h-8 w-56 shrink-0 items-center gap-2 overflow-hidden rounded-t-md border border-b-0 border-solid border-border bg-surface-primary pr-1 pl-2.5 text-[12.5px] font-medium text-content-primary transition-colors hover:bg-surface-tertiary",
+			tab.color && cardAccent({ color: tab.color }),
+		)}
+	>
+		<button
+			type="button"
+			aria-label={`Restore ${tab.title}`}
+			className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit"
+			onClick={onRestore}
+		>
+			<TabIcon chat={tab.chat} />
+			<span className="min-w-0 flex-1 truncate">{tab.title}</span>
+			<ChevronUpIcon
+				aria-hidden="true"
+				className="size-3.5 shrink-0 text-content-secondary"
+			/>
+		</button>
+
+		<TitleBarButton aria-label={`Close ${tab.title}`} onClick={onClose}>
+			<XIcon />
+		</TitleBarButton>
+	</div>
+);
+
 /**
  * Minimized windows in a strip docked under the board. The strip takes its
- * own row, so it never covers cards; each tab is a collapsed window title
- * bar. Clicking a tab brings its window back where it was; the window
- * stayed mounted while hidden.
+ * own row, so it never covers cards. Clicking a tab brings its window back
+ * where it was; the window stayed mounted while hidden.
  */
 export const WindowTabs: React.FC<WindowTabsProps> = ({
 	tabs,
@@ -58,39 +93,19 @@ export const WindowTabs: React.FC<WindowTabsProps> = ({
 	onClose,
 }) => {
 	if (tabs.length === 0) return null;
+
 	return (
 		<nav
 			aria-label="Minimized chats"
 			className="flex h-10 shrink-0 items-end justify-end gap-2 overflow-x-auto border-0 border-t border-solid border-border bg-surface-secondary px-5"
 		>
 			{tabs.map((tab) => (
-				<div
+				<Tab
 					key={tab.key}
-					className={cn(
-						"flex h-8 w-56 shrink-0 items-center gap-2 overflow-hidden rounded-t-md border border-b-0 border-solid border-border bg-surface-primary pr-1 pl-2.5 text-[12.5px] font-medium text-content-primary transition-colors hover:bg-surface-tertiary",
-						tab.color && cardAccent({ color: tab.color }),
-					)}
-				>
-					<button
-						type="button"
-						aria-label={`Restore ${tab.title}`}
-						className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left text-inherit"
-						onClick={() => onRestore(tab.key)}
-					>
-						<TabIcon chat={tab.chat} />
-						<span className="min-w-0 flex-1 truncate">{tab.title}</span>
-						<ChevronUpIcon
-							aria-hidden="true"
-							className="size-3.5 shrink-0 text-content-secondary"
-						/>
-					</button>
-					<TitleBarButton
-						aria-label={`Close ${tab.title}`}
-						onClick={() => onClose(tab.key)}
-					>
-						<XIcon />
-					</TitleBarButton>
-				</div>
+					tab={tab}
+					onRestore={() => onRestore(tab.key)}
+					onClose={() => onClose(tab.key)}
+				/>
 			))}
 		</nav>
 	);

@@ -129,15 +129,31 @@ describe("window list", () => {
 		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
 	});
 
-	it("minimizes to the end of the list and restores to the front", () => {
+	it("minimizes to the end of the list, so tabs keep their order", () => {
 		const list = [win("a"), win("b"), win("c")];
+
 		const minimized = minimizeWindow(list, "a");
+
 		expect(minimized.map(windowKey)).toEqual(["b", "c", "a"]);
 		expect(minimized.at(-1)?.minimized).toBe(true);
 		expect(minimizeWindow(list, "nope")).toBe(list);
-		// Escape skips hidden windows and closes the frontmost visible one.
-		expect(dismissTop(minimized).map(windowKey)).toEqual(["b", "a"]);
-		const restored = raise(minimizeWindow(minimized, "c"), "a");
+	});
+
+	it("closes the frontmost visible window on escape, skipping minimized ones", () => {
+		const list = [win("b"), win("c"), { ...win("a"), minimized: true }];
+
+		expect(dismissTop(list).map(windowKey)).toEqual(["b", "a"]);
+	});
+
+	it("restores a minimized window to the front and leaves the others hidden", () => {
+		const list = [
+			win("b"),
+			{ ...win("c"), minimized: true },
+			{ ...win("a"), minimized: true },
+		];
+
+		const restored = raise(list, "a");
+
 		expect(restored.map(windowKey)).toEqual(["b", "c", "a"]);
 		expect(restored.at(-1)).toEqual(win("a"));
 		expect(restored[1]?.minimized).toBe(true);

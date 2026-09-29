@@ -18,7 +18,10 @@ vi.mock("sonner", async (importOriginal) => ({
 }));
 
 // Windows are under test, not the chat page or the create form's loading.
+// Mount and unmount are recorded so a test can tell a hidden window from a
+// remounted one.
 const chatPageMounts = vi.hoisted(() => ({ mount: vi.fn(), unmount: vi.fn() }));
+
 vi.mock("../../AgentChatPage", async () => {
 	const { useEffect } = await import("react");
 	const MockChatPage = ({ chatId }: { chatId: string }) => {
@@ -30,6 +33,7 @@ vi.mock("../../AgentChatPage", async () => {
 	};
 	return { default: MockChatPage };
 });
+
 vi.mock("../../components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
@@ -77,6 +81,14 @@ const launch = (labels: Record<string, string> = {}): Chat => ({
 	title: "Launch",
 	labels,
 });
+
+/** The board's saved windows, back to front. */
+const storedWindows = () => {
+	const key = Object.keys(localStorage).find((k) =>
+		k.startsWith("agents.board."),
+	);
+	return JSON.parse(localStorage.getItem(key ?? "") ?? "{}").windows;
+};
 
 const openCardDraft = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(
@@ -357,36 +369,32 @@ describe("ChatBoardPage", () => {
 	});
 
 	it("minimizes a chat window into a tab, keeping the chat mounted, and restores it", async () => {
+		const user = userEvent.setup();
 		chatPageMounts.mount.mockClear();
 		chatPageMounts.unmount.mockClear();
-		const user = userEvent.setup();
 		mockChats(
 			() => Promise.resolve([launch()]),
 			() => Promise.resolve([]),
 		);
 		renderWithAuth(<ChatBoardPage />);
-		const storedWindows = () => {
-			const key = Object.keys(localStorage).find((k) =>
-				k.startsWith("agents.board."),
-			);
-			return JSON.parse(localStorage.getItem(key ?? "") ?? "{}").windows;
-		};
 
-		await user.click(
-			(await screen.findAllByRole("button", { name: "Open Launch" }))[0],
-		);
+		const [openLaunch] = await screen.findAllByRole("button", {
+			name: "Open Launch",
+		});
+		await user.click(openLaunch);
 		await user.click(
 			await screen.findByRole("button", { name: "Minimize Launch" }),
 		);
+
 		expect(storedWindows()).toEqual([
 			expect.objectContaining({ chatId: "launch", minimized: true }),
 		]);
 
 		await user.click(screen.getByRole("button", { name: "Restore Launch" }));
+
 		expect(storedWindows()).toEqual([
 			expect.not.objectContaining({ minimized: true }),
 		]);
-		// The chat page stayed mounted through the round trip.
 		expect(chatPageMounts.mount).toHaveBeenCalledTimes(1);
 		expect(chatPageMounts.unmount).not.toHaveBeenCalled();
 	});
