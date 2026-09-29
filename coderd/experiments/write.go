@@ -136,6 +136,23 @@ func AuditRecord(ex codersdk.Experiment, rule Rule) database.ExperimentRule {
 	}
 }
 
+// ReadRules returns the stored rule of every experiment that has one,
+// including experiments that do not accept runtime rules. A stored value
+// the Evaluator treats as malformed is returned with an empty Mode and the
+// revision WriteRule expects to replace it, which is 0 when the stored
+// revision is unreadable or not positive.
+func ReadRules(ctx context.Context, db database.Store) (map[codersdk.Experiment]Rule, error) {
+	rows, err := db.GetExperimentRules(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get experiment rules: %w", err)
+	}
+	rules := make(map[codersdk.Experiment]Rule, len(rows))
+	for _, row := range rows {
+		rules[codersdk.Experiment(row.Experiment)] = parseStoredRule(row.Value)
+	}
+	return rules, nil
+}
+
 // readRule returns the stored rule for ex, or the zero Rule when none is
 // stored or the stored revision is unreadable or not positive, so that such
 // a row stays replaceable at revision 0. For a value the Evaluator treats as
@@ -149,17 +166,23 @@ func readRule(ctx context.Context, tx database.Store, ex codersdk.Experiment) (R
 	if err != nil {
 		return Rule{}, xerrors.Errorf("get experiment rule: %w", err)
 	}
+	return parseStoredRule(value), nil
+}
+
+// parseStoredRule decodes a stored value with the semantics described on
+// readRule.
+func parseStoredRule(value string) Rule {
 	var revision struct {
 		Revision int64 `json:"revision"`
 	}
 	// Decode errors are dropped because they can quote stored content.
 	// WriteRule always stores revision 1 or higher.
 	if err := json.Unmarshal([]byte(value), &revision); err != nil || revision.Revision < 1 {
-		return Rule{}, nil
+		return Rule{}
 	}
 	var rule Rule
 	if err := json.Unmarshal([]byte(value), &rule); err != nil || checkShape(rule) != nil {
-		return Rule{Revision: revision.Revision}, nil
+		return Rule{Revision: revision.Revision}
 	}
-	return rule, nil
+	return rule
 }
