@@ -68,6 +68,8 @@ func TestMain(m *testing.M) {
 		exit := runSubAgentMain()
 		os.Exit(exit)
 	}
+	// Report multi-second pauses of the whole process, see coder/internal#1365.
+	testutil.StartStallDetector(5 * time.Second)
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
