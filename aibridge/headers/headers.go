@@ -98,16 +98,16 @@ func IsActorHeader(name string) bool {
 }
 
 // headersFromActor produces a map of headers from a given [aibcontext.Actor].
-func headersFromActor(actor *aibcontext.Actor, names map[string]string) map[string]string {
+func headersFromActor(actor *aibcontext.Actor, actorHeaderNames map[string]string) map[string]string {
 	if actor == nil {
 		return nil
 	}
 
-	headers := make(map[string]string, len(names))
-	if name := names["id"]; name != "" {
+	headers := make(map[string]string, len(actorHeaderNames))
+	if name := actorHeaderNames["id"]; name != "" {
 		headers[name] = actor.ID
 	}
-	name := names["username"]
+	name := actorHeaderNames["username"]
 	if name == "" {
 		return headers
 	}
