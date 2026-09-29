@@ -525,9 +525,8 @@ func generateCompactionSummary(
 	if timeout == 0 {
 		timeout = DefaultStreamSilenceTimeout
 	}
-	// Time to first token is an assistant-generation measurement, so
-	// the summary stream records neither the TTFT histogram nor a
-	// time_to_first_token stage.
+	// TTFT is an assistant-generation measurement, so the summary stream
+	// records neither its histogram nor its stage.
 	streamSummaryText := func() (string, error) {
 		attempt, err := guardedStream(
 			summaryCtx,

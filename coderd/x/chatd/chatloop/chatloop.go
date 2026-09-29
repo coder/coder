@@ -122,12 +122,8 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
-	// Stages records the stream and time_to_first_token stages. A nil
-	// tracer discards them.
-	Stages *StageTracer
-	// StageModel labels the stream and time_to_first_token stages. It
-	// should match the identity the model's transport labels
-	// provider_attempt stages with.
+	Stages             *StageTracer
+	// StageModel should match the model identity on provider_attempt stages.
 	StageModel StageModel
 }
 
@@ -356,9 +352,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ As
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	// Releasing the attempt closes the time_to_first_token window, so it
-	// must happen before the stream stage ends: a window still open then
-	// would be counted outside the stream that contains it.
+	// release closes the time_to_first_token window, so it must run
+	// before the stream stage ends.
 	defer func() {
 		attempt.release()
 		streamSpan.End(retErr)
@@ -787,9 +782,6 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
-// errNoFirstToken marks a time_to_first_token window that was still
-// open when the attempt was released because no output or error part
-// arrived.
 var errNoFirstToken = xerrors.New("stream ended before the first token")
 
 func guardedStream(
@@ -809,17 +801,15 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
-	// A nil tracer still times the window TTFTSeconds observes.
+	// A nil tracer still times the window for TTFTSeconds.
 	if stages == nil {
 		stages = NewStageTracer(nil, nil, WithClock(clock))
 	}
 	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
 	ttftSpan.SetModel(stageModel)
 	var ttftOnce sync.Once
-	// ttftSpan.End(nil) observes the stage histogram and returns the
-	// window TTFTSeconds observes. When the silence guard canceled the
-	// attempt, err is only the resulting cancellation, so it is replaced
-	// with the classified silence timeout.
+	// A silence guard cancellation surfaces as a context error, so it is
+	// replaced with the classified timeout.
 	finishTTFT := func(err error) {
 		ttftOnce.Do(func() {
 			if err != nil {
@@ -862,8 +852,7 @@ func guardedStream(
 				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
 					// Neither is model output, so the window stays open.
 				default:
-					// Any output part closes the window, including start
-					// markers such as text_start.
+					// Start markers such as text_start count as output.
 					finishTTFT(nil)
 				}
 				if !yield(part) {

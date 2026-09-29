@@ -74,12 +74,9 @@ type resolvedModelCall struct {
 	debugEnabled     bool
 }
 
-// stageModel returns the model identity stage instrumentation labels
-// spans and durations with. The provider type is the configured AI
-// provider's type. resolvedProvider is not used because, for types
-// outside the fantasy provider names such as copilot, it is inferred
-// from the model name, so a copilot provider serving gpt-5 would be
-// labeled openai. The wire provider is empty until the model is built.
+// stageModel uses the configured provider type rather than
+// resolvedProvider, which is inferred from the model name for types such
+// as copilot.
 func (r resolvedModelCall) stageModel() chatloop.StageModel {
 	stageModel := chatloop.StageModel{
 		ProviderType: string(r.route.Provider.Type),
@@ -166,9 +163,7 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 	debugSvc := p.debugService()
 	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 
-	// resolvedEffort is the Coder-scale effort after the model config's
-	// default and max are applied, before provider-specific mapping,
-	// which can change or drop it.
+	// Coder-scale effort, before provider mapping can change or drop it.
 	if effectiveEffort := chatprovider.ResolveReasoningEffort(spec.requestedEffort, out.callConfig.ReasoningEffort); effectiveEffort != nil {
 		out.resolvedEffort = *effectiveEffort
 	}

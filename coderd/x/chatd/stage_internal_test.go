@@ -32,8 +32,7 @@ func newStageTestTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRec
 type stubRoundTripper struct {
 	status int
 	err    error
-	// seen, when set, receives the span context of each request.
-	seen *trace.SpanContext
+	seen   *trace.SpanContext
 }
 
 func (s stubRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -103,8 +102,7 @@ func TestStageSpanRoundTripper(t *testing.T) {
 			if test.wantErr {
 				require.Error(t, err)
 			} else {
-				// An HTTP error status still returns the response with a
-				// nil error.
+				// Error statuses still return the response with a nil error.
 				require.NoError(t, err)
 				require.NotNil(t, resp)
 				require.Equal(t, test.base.status, resp.StatusCode)
@@ -116,7 +114,6 @@ func TestStageSpanRoundTripper(t *testing.T) {
 			span := ended[0]
 			require.Equal(t, string(chatloop.StageProviderAttempt), span.Name())
 			require.Equal(t, test.wantStatusCode, span.Status().Code)
-			// The base transport runs under the provider_attempt span.
 			require.Equal(t, span.SpanContext(), seen)
 			statusCode, sawStatusCode := spanAttribute(t, span, chatloop.AttrHTTPStatusCode)
 			require.Equal(t, !test.wantErr, sawStatusCode)
