@@ -584,11 +584,14 @@ func TestChatAutomations(t *testing.T) {
 		disabled, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
 		require.Empty(t, disabled.NextRunTimes)
+		// A disabled automation has no pending occurrence.
+		require.Nil(t, disabled.ScheduleNextRunAt)
 
-		// Time passes while disabled: the stored cursor is now overdue.
+		// Even an overdue cursor left in the row must not be replayed.
 		row, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
 		require.NoError(t, err)
-		overdue := row.ScheduleNextRunAt.Time.AddDate(0, -3, 0)
+		require.NotNil(t, created.Automation.ScheduleNextRunAt)
+		overdue := created.Automation.ScheduleNextRunAt.AddDate(0, -3, 0)
 		ownerCtx := dbauthz.As(ctx, rbac.Subject{
 			ID:     uuid.NewString(),
 			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},

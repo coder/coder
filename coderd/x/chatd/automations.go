@@ -387,6 +387,9 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			// missed.
 			arg.Enabled = false
 			arg.QueueGeneration = row.QueueGeneration + 1
+			// A disabled automation has no pending occurrence; re-enabling
+			// computes the next one.
+			arg.ScheduleNextRunAt = sql.NullTime{}
 		case req.Enabled != nil && *req.Enabled && !row.Enabled:
 			arg.Enabled = true
 			if row.Kind == database.ChatAutomationKindSchedule {
