@@ -1,0 +1,18 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder sharing remove [flags] <workspace> --user <user> --group <group>
+
+  Remove shared access for users or groups from a workspace.
+
+  Aliases: unshare, rm
+
+OPTIONS:
+      --group string-array
+          A comma separated list of groups to remove from the workspace.
+
+      --user string-array
+          A comma separated list of users to remove from the workspace.
+
+———
+Run `coder --help` for a list of global options.

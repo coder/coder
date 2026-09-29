@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder sharing add [flags] <workspace> --user <user>:<role> --group
+  <group>:<role>
+
+  Share a workspace with a user or group.
+
+  Aliases: share
+
+OPTIONS:
+      --group string-array
+          A comma separated list of groups to share the workspace with.
+
+      --user string-array
+          A comma separated list of users to share the workspace with.
+
+———
+Run `coder --help` for a list of global options.

@@ -28,7 +28,6 @@ func (r *RootCmd) sharing() *serpent.Command {
 			r.unshareWorkspace(),
 			r.statusWorkspaceSharing(),
 		},
-		Hidden: true,
 	}
 
 	return cmd
@@ -186,12 +185,12 @@ func (r *RootCmd) unshareWorkspace() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",
-				Description: "A comma separated list of users to share the workspace with.",
+				Description: "A comma separated list of users to remove from the workspace.",
 				Flag:        "user",
 				Value:       serpent.StringArrayOf(&users),
 			}, {
 				Name:        "group",
-				Description: "A comma separated list of groups to share the workspace with.",
+				Description: "A comma separated list of groups to remove from the workspace.",
 				Flag:        "group",
 				Value:       serpent.StringArrayOf(&groups),
 			},
