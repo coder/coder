@@ -1,5 +1,4 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import {
@@ -42,7 +41,7 @@ const getComputerUseProviderLabel = (provider: string) => {
 	);
 };
 
-export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
+export const VirtualDesktopSettings: React.FC<VirtualDesktopSettingsProps> = ({
 	computerUseProviderData,
 	isLoadingComputerUseProvider,
 	onSaveComputerUseProvider,

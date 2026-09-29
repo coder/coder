@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 
 type SeatUsageBarCardProps = {
@@ -9,7 +8,7 @@ type SeatUsageBarCardProps = {
 	allowUnlimited?: boolean;
 };
 
-export const SeatUsageBarCard: FC<SeatUsageBarCardProps> = ({
+export const SeatUsageBarCard: React.FC<SeatUsageBarCardProps> = ({
 	title,
 	actual,
 	limit,

@@ -1,5 +1,4 @@
 import { XIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ProvisionerDaemon } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -47,7 +46,7 @@ type OrganizationProvisionersPageViewProps = {
 	onFilterChange: (filter: ProvisionersFilter) => void;
 };
 
-export const OrganizationProvisionersPageView: FC<
+export const OrganizationProvisionersPageView: React.FC<
 	OrganizationProvisionersPageViewProps
 > = ({
 	showPaywall,

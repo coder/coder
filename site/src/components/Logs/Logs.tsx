@@ -1,18 +1,17 @@
 import { cn } from "cn";
 import dayjs from "dayjs";
-import type { FC, ReactNode } from "react";
 import { type Line, LogLine, LogLinePrefix } from "./LogLine";
 
 const DEFAULT_LOG_LINE_SIDE_PADDING = 24;
 
 type LogsHeaderProps = {
-	title: ReactNode;
+	title: React.ReactNode;
 	/** Right-aligned secondary text. */
-	detail?: ReactNode;
+	detail?: React.ReactNode;
 };
 
 /** Section header above a `Logs` list, such as a build stage. */
-export const LogsHeader: FC<LogsHeaderProps> = ({ title, detail }) => {
+export const LogsHeader: React.FC<LogsHeaderProps> = ({ title, detail }) => {
 	return (
 		<div
 			className={cn(
@@ -37,10 +36,10 @@ type LogsProps = {
 	hideTimestamps?: boolean;
 	className?: string;
 	/** Renders each line's output. Defaults to plain text. */
-	LineOutput?: FC<{ output: string }>;
+	LineOutput?: React.FC<{ output: string }>;
 };
 
-export const Logs: FC<LogsProps> = ({
+export const Logs: React.FC<LogsProps> = ({
 	hideTimestamps,
 	lines,
 	className = "",

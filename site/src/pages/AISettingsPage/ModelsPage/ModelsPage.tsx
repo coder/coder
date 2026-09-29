@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { chatModels } from "#/api/queries/chats";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
@@ -9,7 +8,7 @@ import {
 	useOrganizationModels,
 } from "./organizationModels";
 
-const ModelsPage: FC = () => {
+const ModelsPage: React.FC = () => {
 	const { organization, permissions } = useOrganizationModels();
 	const organizationModelsQuery = useQuery(chatModels(organization.id));
 	const providers = organizationModelsQuery.data?.providers ?? [];

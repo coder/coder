@@ -3667,6 +3667,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3745,7 +3746,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
-		ResourceTypeChatOperationalSettings:
+		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule:
 		return true
 	}
 	return false
@@ -3793,6 +3795,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 	}
 }
 
@@ -5376,6 +5379,8 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 type CryptoKey struct {

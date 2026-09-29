@@ -35,7 +35,7 @@ A brief overview of all files contained in the bundle is provided below:
 | `agent/agent_magicsock.html`                  | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                                                                                                 |
 | `agent/client_magicsock.html`                 | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                                                                                                |
 | `agent/listening_ports.json`                  | The listening ports detected by the selected agent running in the workspace.                                                                                                           |
-| `agent/logs.txt`                              | Active agent log plus rotated agent logs modified in the last 24 hours, capped at 100 MiB.                                                                                             |
+| `agent/logs.txt`                              | Active agent log plus rotated agent logs modified in the last 24&nbsp;hours, capped at 100&nbsp;MiB.                                                                                   |
 | `agent/workspace_files/collection_errors.txt` | Workspace file entries dropped while assembling the bundle, such as entries exceeding the size budget. Only present when entries were dropped.                                         |
 | `agent/workspace_files/files/`                | Files collected from inside the remote workspace with `--workspace-file`. Only present when workspace paths are requested.                                                             |
 | `agent/workspace_files/manifest.json`         | Describes the remote workspace file collection: requested patterns, collected files, per-path errors, truncation, and applied limits. Only present when workspace paths are requested. |
@@ -45,7 +45,7 @@ A brief overview of all files contained in the bundle is provided below:
 | `cli_logs.txt`                                | Logs from running the `coder support bundle` command.                                                                                                                                  |
 | `deployment/buildinfo.json`                   | Coder version and build information.                                                                                                                                                   |
 | `deployment/config.json`                      | Deployment [configuration](../reference/api/general.md#get-deployment-config), with secret values removed. *Requires Owner role.*                                                      |
-| `deployment/experiments.json`                 | Any [experiments](../reference/cli/server.md#--experiments) currently enabled for the deployment.                                                                                      |
+| `deployment/experiments.json`                 | Any [experiments](../reference/cli/server/index.md#--experiments) currently enabled for the deployment.                                                                                |
 | `deployment/health.json`                      | A snapshot of the [health status](../admin/monitoring/health-check.md) of the deployment. *Requires Owner role.*                                                                       |
 | `logs.txt`                                    | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                           |
 | `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                          |
@@ -72,7 +72,7 @@ A brief overview of all files contained in the bundle is provided below:
    > It is recommended to generate a support bundle from a location
    > experiencing workspace connectivity issues.
 
-3. Ensure you are [logged in](../reference/cli/login.md) to your Coder
+3. Ensure you are [logged in](../reference/cli/login/index.md) to your Coder
    deployment. Any authenticated user can generate a support bundle. Users with
    the Owner role will get the most complete bundle; non-admin users will still
    get a useful bundle but some admin-only data will be omitted (see the note
@@ -105,14 +105,10 @@ A brief overview of all files contained in the bundle is provided below:
    ```
 
    Workspace paths and globs are evaluated by the workspace agent.
-   Environment variables such as `$HOME` expand in the workspace, and `~/`
-   resolves against the agent user's home directory; any absolute path in
-   the workspace can be requested. Symlinks are followed for directly
-   requested paths, but not during glob traversal. Collection is limited to
-   10000 files and 100 MiB in total; files larger than 10 MiB are truncated
-   to their last 10 MiB and marked as truncated in the manifest. Collected
-   files are stored under `agent/workspace_files/files/`, and collection
-   metadata is stored in `agent/workspace_files/manifest.json`.
+   Environment variables such as `$HOME` expand in the workspace, and `~/` resolves against the agent user's home directory; any absolute path in the workspace can be requested.
+   Symlinks are followed for directly requested paths, but not during glob traversal.
+   Collection is limited to 10000 files and 100&nbsp;MiB in total; files larger than 10&nbsp;MiB are truncated to their last 10&nbsp;MiB and marked as truncated in the manifest.
+   Collected files are stored under `agent/workspace_files/files/`, and collection metadata is stored in `agent/workspace_files/manifest.json`.
 
    > [!WARNING]
    > Workspace files can contain tokens, credentials, source code, or other

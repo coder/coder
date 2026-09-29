@@ -62,10 +62,6 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			client.HTTPClient.Transport = &codersdk.HeaderTransport{
-				Transport: client.HTTPClient.Transport,
-				Header:    BypassHeader,
-			}
 
 			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
 			if err != nil {

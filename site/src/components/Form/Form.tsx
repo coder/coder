@@ -1,12 +1,5 @@
 import { cn } from "cn";
-import {
-	type ComponentProps,
-	createContext,
-	type FC,
-	type HTMLProps,
-	type ReactNode,
-	useContext,
-} from "react";
+import { createContext, useContext } from "react";
 import { AlphaBadge, DeprecatedBadge } from "#/components/Badge/PresetBadges";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
@@ -15,11 +8,15 @@ const FormContext = createContext<FormContextValue>({
 	direction: "horizontal",
 });
 
-type FormProps = HTMLProps<HTMLFormElement> & {
+type FormProps = React.HTMLProps<HTMLFormElement> & {
 	direction?: FormContextValue["direction"];
 };
 
-export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
+export const Form: React.FC<FormProps> = ({
+	direction,
+	className,
+	...formProps
+}) => {
 	return (
 		<FormContext.Provider value={{ direction }}>
 			<form
@@ -34,7 +31,7 @@ export const Form: FC<FormProps> = ({ direction, className, ...formProps }) => {
 	);
 };
 
-export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
+export const HorizontalForm: React.FC<React.HTMLProps<HTMLFormElement>> = ({
 	children,
 	...formProps
 }) => {
@@ -45,7 +42,7 @@ export const HorizontalForm: FC<HTMLProps<HTMLFormElement>> = ({
 	);
 };
 
-export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
+export const VerticalForm: React.FC<React.HTMLProps<HTMLFormElement>> = ({
 	children,
 	...formProps
 }) => {
@@ -57,9 +54,9 @@ export const VerticalForm: FC<HTMLProps<HTMLFormElement>> = ({
 };
 
 type FormSectionProps = {
-	children?: ReactNode;
-	title: ReactNode;
-	description: ReactNode;
+	children?: React.ReactNode;
+	title: React.ReactNode;
+	description: React.ReactNode;
 	classes?: {
 		root?: string;
 		sectionInfo?: string;
@@ -70,7 +67,7 @@ type FormSectionProps = {
 	ref?: React.Ref<HTMLElement>;
 };
 
-export const FormSection: FC<FormSectionProps> = ({
+export const FormSection: React.FC<FormSectionProps> = ({
 	children,
 	title,
 	description,
@@ -119,7 +116,7 @@ export const FormSection: FC<FormSectionProps> = ({
 	);
 };
 
-export const FormFields: FC<ComponentProps<"div">> = ({
+export const FormFields: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	...props
 }) => {
@@ -128,7 +125,7 @@ export const FormFields: FC<ComponentProps<"div">> = ({
 	);
 };
 
-export const FormFooter: FC<HTMLProps<HTMLDivElement>> = ({
+export const FormFooter: React.FC<React.HTMLProps<HTMLDivElement>> = ({
 	className,
 	...props
 }) => (

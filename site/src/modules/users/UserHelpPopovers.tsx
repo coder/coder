@@ -1,10 +1,9 @@
-import type { FC } from "react";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Link } from "#/components/Link/Link";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 
-export const RolesHelpPopover: FC = () => {
+export const RolesHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip size="small">
 			<TooltipTitle>What is a role?</TooltipTitle>
@@ -20,7 +19,7 @@ export const RolesHelpPopover: FC = () => {
 	);
 };
 
-export const GroupsHelpPopover: FC = () => {
+export const GroupsHelpPopover: React.FC = () => {
 	return (
 		<InfoTooltip size="small">
 			<TooltipTitle>What is a group?</TooltipTitle>

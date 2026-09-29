@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -284,13 +286,23 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 // newUnstartedServer builds a real Server backed by the given pubsub and
 // store. The server is never started; it only provides the dependencies
 // that workers and task starters dereference.
-func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store) *Server {
+func newUnstartedServer(t *testing.T, ps dbpubsub.Pubsub, db database.Store, opts ...internalTestServerOpt) *Server {
 	t.Helper()
-	server := New(ps, Config{
-		Logger:    testutil.Logger(t),
-		Database:  db,
-		ReplicaID: uuid.New(),
+	var cfg internalTestServerConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	evaluator, err := experiments.New(testutil.Logger(t), experimentstest.Store{}, nil)
+	require.NoError(t, err)
+	server, err := New(ps, Config{
+		Logger:              testutil.Logger(t),
+		Database:            db,
+		ReplicaID:           uuid.New(),
+		Clock:               cfg.clock,
+		Limits:              cfg.limits,
+		ExperimentEvaluator: evaluator,
 	})
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = server.Close() })
 	return server
 }
@@ -457,6 +469,7 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID, f.apiKey.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

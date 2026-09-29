@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -16,7 +15,7 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { ScheduleForm } from "./ScheduleForm";
 
-const SchedulePage: FC = () => {
+const SchedulePage: React.FC = () => {
 	const { user: me } = useAuthenticated();
 	const queryClient = useQueryClient();
 

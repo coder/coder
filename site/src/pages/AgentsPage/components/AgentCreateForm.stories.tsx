@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
-import { type ComponentProps, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import { useLocation } from "react-router";
 import {
@@ -302,7 +302,7 @@ type Story = StoryObj<typeof AgentCreateForm>;
 const defaultArgs = meta.args;
 
 const RemountAgentCreateForm = (
-	props: ComponentProps<typeof AgentCreateForm>,
+	props: React.ComponentProps<typeof AgentCreateForm>,
 ) => {
 	const [key, setKey] = useState(0);
 	return (

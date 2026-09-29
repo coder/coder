@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { type ComponentProps, StrictMode } from "react";
+import { StrictMode } from "react";
 import { QueryClient } from "react-query";
 import { MemoryRouter } from "react-router";
 import { toast } from "sonner";
@@ -190,7 +190,7 @@ const createQueryClient = () => {
 	return queryClient;
 };
 
-type FormProps = ComponentProps<typeof AgentCreateForm>;
+type FormProps = React.ComponentProps<typeof AgentCreateForm>;
 
 const renderForm = (props: Partial<FormProps> = {}) => {
 	const queryClient = createQueryClient();

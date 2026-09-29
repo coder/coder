@@ -22,6 +22,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -39,7 +40,7 @@ func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
 	cfg intercept.Config,
-	cred intercept.Credential,
+	cred credential.Credential,
 	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
@@ -148,7 +149,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+	if cp, ok := credential.AsCentralizedPool(i.cred); ok {
 		defer func() {
 			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
@@ -171,7 +172,7 @@ newStream:
 		// single attempt.
 		streamOpts := []option.RequestOption{i.withBody()}
 		var currentPoolKey *keypool.Key
-		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
+		if cp, isPool := credential.AsCentralizedPool(i.cred); isPool {
 			walker := cp.Pool.Walker()
 			key, keyPoolErr := cp.NextKey(walker)
 			if keyPoolErr != nil {
@@ -196,7 +197,7 @@ newStream:
 				break
 			}
 
-			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+			logger.Debug(credential.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 			currentPoolKey = key
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
@@ -314,6 +315,7 @@ newStream:
 				// Capture any thinking blocks that were returned.
 				for _, t := range i.extractModelThoughts(&message) {
 					_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+						CreatedAt:      time.Now().UTC(),
 						InterceptionID: i.ID().String(),
 						Content:        t.Content,
 						Metadata:       t.Metadata,
@@ -365,6 +367,7 @@ newStream:
 						res, err := tool.Call(streamCtx, input, i.tracer)
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:       time.Now().UTC(),
 							InterceptionID:  i.ID().String(),
 							MsgID:           message.ID,
 							ToolCallID:      id,
@@ -489,6 +492,7 @@ newStream:
 						}
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:      time.Now().UTC(),
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
@@ -520,6 +524,7 @@ newStream:
 
 		if promptFound {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          message.ID,
 				Prompt:         prompt,

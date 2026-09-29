@@ -225,6 +225,17 @@ message AIProvider {
   // bedrock is populated when the provider's settings include Bedrock
   // credentials (regardless of provider type).
   AIProviderKindBedrock bedrock = 6;
+  // claude_platform_aws is populated when the provider's settings select
+  // Claude Platform for AWS, Anthropic's AWS-hosted Messages API. It is
+  // mutually exclusive with bedrock.
+  AIProviderKindClaudePlatformAWS claude_platform_aws = 7;
+}
+
+// AIProviderKindClaudePlatformAWS configures Anthropic's AWS-hosted Messages
+// API. Requests use a supplied API key, otherwise ambient AWS credentials.
+message AIProviderKindClaudePlatformAWS {
+  string region = 2;
+  string workspace_id = 3;
 }
 
 message AIProviderKindBedrock {
