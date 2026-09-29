@@ -403,7 +403,8 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
-		{"Migration000602AIGatewayModelAccess", 602, testMigration000602AIGatewayModelAccess},
+		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
+		{"Migration000606AIGatewayModelAccess", 606, testMigration000606AIGatewayModelAccess},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1661,6 +1662,105 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
 	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
 	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
+}
+
+func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 602
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := database.New(sqlDB)
+
+	orgs := []struct {
+		defaults []string
+		want     []string
+	}{
+		{[]string{"organization-workspace-access"}, []string{"organization-workspace-access", "agents-access"}},
+		{[]string{}, []string{"agents-access"}},
+		{[]string{"organization-workspace-access", "organization-auditor"}, []string{"organization-workspace-access", "organization-auditor", "agents-access"}},
+	}
+	orgIDs := make([]uuid.UUID, len(orgs))
+	for i, o := range orgs {
+		org := dbgen.Organization(t, db, database.Organization{})
+		// dbgen replaces an empty slice with the current defaults.
+		_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = $1 WHERE id = $2", pq.StringArray(o.defaults), org.ID)
+		require.NoError(t, err)
+		orgIDs[i] = org.ID
+	}
+
+	member := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: orgIDs[0],
+		UserID:         member.ID,
+		Roles:          []string{"organization-auditor"},
+	})
+	serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: orgIDs[0],
+		UserID:         serviceAccount.ID,
+		Roles:          []string{},
+	})
+	legacyRole := dbgen.CustomRole(t, db, database.CustomRole{
+		Name:           "agents-access",
+		OrganizationID: uuid.NullUUID{UUID: orgIDs[1], Valid: true},
+	})
+	unrelatedRole := dbgen.CustomRole(t, db, database.CustomRole{
+		OrganizationID: uuid.NullUUID{UUID: orgIDs[1], Valid: true},
+	})
+
+	memberRoles := func(userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgIDs[0], userID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+	assertDefaults := func(withAgentsAccess bool) {
+		t.Helper()
+		for i, o := range orgs {
+			var roles pq.StringArray
+			err := sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgIDs[i]).Scan(&roles)
+			require.NoError(t, err)
+			want := o.defaults
+			if withAgentsAccess {
+				want = o.want
+			}
+			require.Equal(t, want, []string(roles), "org %d", i)
+		}
+	}
+	customRoleExists := func(id uuid.UUID) bool {
+		t.Helper()
+		var exists bool
+		err := sqlDB.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM custom_roles WHERE id = $1)", id).Scan(&exists)
+		require.NoError(t, err)
+		return exists
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertDefaults(true)
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(member.ID))
+	require.Empty(t, memberRoles(serviceAccount.ID))
+	require.False(t, customRoleExists(legacyRole.ID))
+	require.True(t, customRoleExists(unrelatedRole.ID))
+
+	// An explicit grant made after the upgrade is removed on downgrade.
+	_, err = sqlDB.ExecContext(ctx, "UPDATE organization_members SET roles = array_append(roles, 'agents-access') WHERE user_id = $1", serviceAccount.ID)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000602_restore_agents_access_default_role.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	assertDefaults(false)
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(member.ID))
+	require.Empty(t, memberRoles(serviceAccount.ID))
+
+	upSQL, err := os.ReadFile("000602_restore_agents_access_default_role.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertDefaults(true)
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
@@ -3919,14 +4019,14 @@ func TestMigration000580ChatModelConfigOrganization(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func testMigration000602AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+func testMigration000606AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	const role = "ai-gateway-unrestricted"
 	const orgRole = "organization-ai-gateway-unrestricted"
-	upSQL, err := os.ReadFile("000602_ai_gateway_model_access.up.sql")
+	upSQL, err := os.ReadFile("000606_ai_gateway_model_access.up.sql")
 	require.NoError(t, err)
-	downSQL, err := os.ReadFile("000602_ai_gateway_model_access.down.sql")
+	downSQL, err := os.ReadFile("000606_ai_gateway_model_access.down.sql")
 	require.NoError(t, err)
 
 	users := []struct {
@@ -4002,7 +4102,7 @@ func testMigration000602AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next m
 	version, more, err := next()
 	require.NoError(t, err)
 	require.True(t, more)
-	require.EqualValues(t, 602, version)
+	require.EqualValues(t, 606, version)
 
 	assertUp := func() {
 		t.Helper()
@@ -4024,7 +4124,7 @@ func testMigration000602AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next m
 	require.NoError(t, err)
 	assertUp()
 
-	// Roll back this transaction so the shared chain remains at migration 602.
+	// Roll back this transaction so the shared chain remains at migration 606.
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer tx.Rollback()

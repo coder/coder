@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ProvisionerJobStatus } from "#/api/typesGenerated";
 import {
 	StatusIndicator,
@@ -25,7 +24,7 @@ type JobStatusIndicatorProps = {
 	queue?: { size: number; position: number };
 };
 
-export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({
+export const JobStatusIndicator: React.FC<JobStatusIndicatorProps> = ({
 	status,
 	queue,
 }) => {

@@ -12,7 +12,7 @@ You can install and run Coder using the official Docker images published on
 
 - A Linux host.
 
-- 2 CPU cores and 4 GB memory free on your machine.
+- 2&nbsp;CPU cores and 4&nbsp;GB memory free on your machine.
 
 > [!IMPORTANT]
 > This guide is for **Linux** hosts only. The `getent` and `--group-add`

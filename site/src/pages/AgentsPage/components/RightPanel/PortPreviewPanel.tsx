@@ -1,12 +1,11 @@
 import { ExternalLinkIcon, NetworkIcon } from "lucide-react";
-import type { FC } from "react";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 
-export const PortPreviewPanel: FC<{
+export const PortPreviewPanel: React.FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
 	host: string;

@@ -400,13 +400,13 @@ func (server *Server) prepareGeneration(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
 		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
@@ -729,8 +729,20 @@ func (server *Server) prepareGeneration(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
+	// The owner is the subject: only the owner posts turns and descendant
+	// chats inherit it. Preparation runs for every step, so the first step
+	// with MCP candidates decides and later steps of the same turn reuse
+	// that decision; otherwise a rule change mid-turn would reject
+	// find_tools calls the model already issued. Without candidates
+	// find_tools is never offered, so skip the read.
+	toolSearchEnabled := false
+	if len(deferredCandidates) > 0 {
+		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
+			return server.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
+		})
+	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: server.experiments.Enabled(codersdk.ExperimentMCPToolSearch),
+		experimentEnabled: toolSearchEnabled,
 		candidates:        deferredCandidates,
 		dynamicToolNames:  dynamicToolNames,
 	}) {
@@ -861,7 +873,7 @@ func (server *Server) prepareGeneration(
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,

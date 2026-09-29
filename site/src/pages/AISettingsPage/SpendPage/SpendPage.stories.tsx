@@ -111,9 +111,12 @@ export const ProviderMenu: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Select provider" }),
+			await canvas.findByRole("combobox", { name: /Filter by provider/ }),
 		);
-		await screen.findByRole("option", { name: /OpenAI/ });
+		await userEvent.click(
+			await screen.findByRole("option", { name: /^Provider/ }),
+		);
+		await screen.findByRole("button", { name: /OpenAI/ });
 	},
 };
 

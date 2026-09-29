@@ -235,12 +235,12 @@ func TestRenderPipeline(t *testing.T) {
 		"## General",
 		"### Access URL",
 		"- Environment variable: `CODER_ACCESS_URL`",
-		"- CLI flag: [`--access-url`](../../reference/cli/server.md#--access-url)",
+		"- CLI flag: [`--access-url`](../../reference/cli/server/index.md#--access-url)",
 		"- Default value: `https://example.com`",
 		"## Email",
 		"### Smarthost",
 		// Flag shorthand is folded into the anchor to match the CLI reference.
-		"- CLI flag: [`--email-smarthost`](../../reference/cli/server.md#-s---email-smarthost)",
+		"- CLI flag: [`--email-smarthost`](../../reference/cli/server/index.md#-s---email-smarthost)",
 		// YAML key is the dotted group path.
 		"- YAML key: `email.from`",
 		// Deprecated marker is prepended for the UseInstead path.

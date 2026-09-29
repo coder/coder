@@ -268,10 +268,8 @@ var (
 // MaxErrorDescription is the description bound, for the same tests.
 const MaxErrorDescription = maxErrorDescription
 
-// TestGrantableScopesNotSizedByInput pins the shape of the result, not just its
-// contents. app.Scope is unvalidated registration metadata read on every
-// authorization and redemption, so collecting duplicates and dropping them
-// afterwards would size the slice by the input rather than by the catalog.
+// TestGrantableScopesNotSizedByInput checks the result is sized by the catalog,
+// not by app.Scope, which not every write path narrows.
 func TestGrantableScopesNotSizedByInput(t *testing.T) {
 	t.Parallel()
 

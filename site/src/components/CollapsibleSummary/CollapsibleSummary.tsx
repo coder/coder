@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const collapsibleSummaryVariants = cva(
 	`flex items-center gap-1 p-0 bg-transparent border-0 text-inherit cursor-pointer
@@ -30,7 +30,7 @@ type CollapsibleSummaryProps = VariantProps<
 	/**
 	 * The content to show when expanded
 	 */
-	children: ReactNode;
+	children: React.ReactNode;
 	/**
 	 * Whether the section is initially expanded
 	 */
@@ -49,7 +49,7 @@ type CollapsibleSummaryProps = VariantProps<
 	scrollIntoViewOnOpen?: boolean;
 };
 
-export const CollapsibleSummary: FC<CollapsibleSummaryProps> = ({
+export const CollapsibleSummary: React.FC<CollapsibleSummaryProps> = ({
 	label,
 	children,
 	defaultOpen = false,

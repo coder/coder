@@ -7,7 +7,7 @@ import {
 	TriangleAlertIcon,
 	XIcon,
 } from "lucide-react";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Link as RouterLink,
 	useNavigate,
@@ -104,7 +104,7 @@ type TemplateVersionEditorProps = {
 	onActivePathChange: (path: string | undefined) => void;
 };
 
-export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
+export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 	isBuilding,
 	canPublish,
 	template,

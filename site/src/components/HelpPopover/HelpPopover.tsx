@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren, ReactNode } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -18,7 +17,7 @@ const HelpPopoverIcon = CircleHelpIcon;
 
 export const HelpPopover = Popover;
 
-export const HelpPopoverContent: FC<PopoverContentProps> = ({
+export const HelpPopoverContent: React.FC<PopoverContentProps> = ({
 	className,
 	...props
 }) => {
@@ -68,7 +67,7 @@ export const HelpPopoverIconTrigger: React.FC<HelpPopoverIconTriggerProps> = ({
 	);
 };
 
-export const HelpPopoverTitle: FC<ComponentProps<"h4">> = ({
+export const HelpPopoverTitle: React.FC<React.ComponentProps<"h4">> = ({
 	children,
 	className,
 	...attrs
@@ -86,7 +85,7 @@ export const HelpPopoverTitle: FC<ComponentProps<"h4">> = ({
 	);
 };
 
-export const HelpPopoverText: FC<ComponentProps<"p">> = ({
+export const HelpPopoverText: React.FC<React.ComponentProps<"p">> = ({
 	children,
 	className,
 	...attrs
@@ -105,11 +104,11 @@ export const HelpPopoverText: FC<ComponentProps<"p">> = ({
 };
 
 type HelpPopoverLinkProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	href: string;
 };
 
-export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({
+export const HelpPopoverLink: React.FC<HelpPopoverLinkProps> = ({
 	children,
 	href,
 }) => {
@@ -127,13 +126,13 @@ export const HelpPopoverLink: FC<HelpPopoverLinkProps> = ({
 };
 
 type HelpPopoverActionProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	icon: Icon;
 	onClick: () => void;
 	ariaLabel?: string;
 };
 
-export const HelpPopoverAction: FC<HelpPopoverActionProps> = ({
+export const HelpPopoverAction: React.FC<HelpPopoverActionProps> = ({
 	children,
 	icon: Icon,
 	onClick,
@@ -152,6 +151,8 @@ export const HelpPopoverAction: FC<HelpPopoverActionProps> = ({
 	);
 };
 
-export const HelpPopoverLinksGroup: FC<PropsWithChildren> = ({ children }) => {
+export const HelpPopoverLinksGroup: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <div className="flex flex-col gap-2 mt-4">{children}</div>;
 };

@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -73,7 +73,7 @@ type ModelFormProps = {
 	onToggleEnabled?: (enabled: boolean) => void;
 };
 
-export const ModelForm: FC<ModelFormProps> = ({
+export const ModelForm: React.FC<ModelFormProps> = ({
 	editingModel,
 	duplicateSourceModel,
 	providerStates,

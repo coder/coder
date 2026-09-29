@@ -17,7 +17,7 @@ type Middleware func(next Recorder) Recorder
 //		WithTracing(tracer),
 //	)
 //
-//	recorder := NewWrappedRecorder(clientFn)
+//	recorder := NewDRPCRecorder(apiKeyID, clientFn)
 //
 //	wrappedRecorder := middleware(recorder)
 //

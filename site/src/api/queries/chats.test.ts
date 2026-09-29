@@ -45,6 +45,7 @@ import {
 	chatCostTreeKey,
 	chatDebugRunKey,
 	chatDebugRunsKey,
+	chatDiffContents,
 	chatDiffContentsKey,
 	chatEntitiesFamilyKey,
 	chatEntityKey,
@@ -79,6 +80,8 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	markChatRead,
+	markChatUnread,
 	mcpServerConfigACL,
 	mcpServerConfigACLAvailable,
 	mcpServerConfigACLAvailableKey,
@@ -130,6 +133,7 @@ vi.mock("#/api/api", () => ({
 			getChats: vi.fn(),
 			getChatsByWorkspace: vi.fn(),
 			getChatCost: vi.fn(),
+			getChatDiffContents: vi.fn(),
 			createChatMessage: vi.fn(),
 			editChatMessage: vi.fn(),
 			interruptChat: vi.fn(),
@@ -619,20 +623,53 @@ describe("invalidateChatListQueries", () => {
 		).not.toBe(true);
 	});
 
-	it("prepends new root chats to filtered list caches", () => {
-		const queryClient = createTestQueryClient();
-		const activeChat = makeChat("active-created", { archived: false });
+	it.each<{ status: TypesGen.ChatStatus; matchingFilters: string[] }>([
+		{ status: "waiting", matchingFilters: ["idle"] },
+		{ status: "running", matchingFilters: ["working"] },
+		{ status: "interrupting", matchingFilters: ["working"] },
+		{ status: "error", matchingFilters: ["error", "attention"] },
+		{ status: "requires_action", matchingFilters: ["action", "attention"] },
+	])(
+		"prepends $status root chats only to matching list caches",
+		({ status, matchingFilters }) => {
+			const queryClient = createTestQueryClient();
+			const chat = makeChat("active-created", { archived: false, status });
+			const filters: { name: string; input: ChatListInput }[] = [
+				{ name: "unfiltered", input: {} },
+				{ name: "idle", input: { statuses: ["waiting"] } },
+				{ name: "working", input: { statuses: ["running"] } },
+				{ name: "error", input: { statuses: ["error"] } },
+				{ name: "action", input: { statuses: ["requires_action"] } },
+				{
+					name: "attention",
+					input: { statuses: ["error", "requires_action"] },
+				},
+				{
+					name: "all",
+					input: {
+						statuses: ["requires_action", "error", "running", "waiting"],
+					},
+				},
+				{ name: "archived", input: { archived: true, statuses: [status] } },
+			];
+			for (const { input } of filters) {
+				seedInfiniteChats(queryClient, [], input);
+			}
 
-		seedInfiniteChats(queryClient, [makeChat("active-existing")], {
-			archived: false,
-		});
+			prependToInfiniteChatsCache(queryClient, chat);
+			prependToInfiniteChatsCache(queryClient, chat);
 
-		prependToInfiniteChatsCache(queryClient, activeChat);
-
-		expect(readInfiniteChats(queryClient, { archived: false })?.[0]).toEqual(
-			activeChat,
-		);
-	});
+			for (const { name, input } of filters) {
+				const matches =
+					name === "unfiltered" ||
+					name === "all" ||
+					matchingFilters.includes(name);
+				expect(readInfiniteChats(queryClient, input), name).toEqual(
+					matches ? [chat] : [],
+				);
+			}
+		},
+	);
 });
 
 describe("planModeFieldsForCreateMessage", () => {
@@ -683,6 +720,61 @@ describe("updateChatPlanMode", () => {
 			queryClient.getQueryState(infiniteChatsTestKey)?.isInvalidated,
 			"chat list should be invalidated when rollback lacks detail cache",
 		).toBe(true);
+	});
+});
+
+describe("markChatRead and markChatUnread cache updates", () => {
+	it("drops the chat from a list whose read-status filter it no longer matches", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [
+			makeChat(chatId, { has_unread: true }),
+			makeChat("chat-2", { has_unread: true }),
+		]);
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		await markChatRead(queryClient).onMutate(chatId);
+
+		expect(
+			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
+				(c) => c.id,
+			),
+		).toEqual([]);
+		expect(readInfiniteChats(queryClient)?.[0].has_unread).toBe(false);
+	});
+
+	it("patches a nested subagent chat without dropping its root", async () => {
+		const queryClient = createTestQueryClient();
+		const childId = "child-1";
+		seedInfiniteChats(queryClient, [
+			makeChat("root-1", {
+				children: [makeChat(childId, { has_unread: false })],
+			}),
+		]);
+
+		await markChatUnread(queryClient).onMutate(childId);
+
+		const roots = readInfiniteChats(queryClient);
+		expect(roots?.map((c) => c.id)).toEqual(["root-1"]);
+		expect(roots?.[0].children[0].has_unread).toBe(true);
+	});
+
+	it("restores the list cache when the mutation fails", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		seedInfiniteChats(queryClient, [makeChat(chatId, { has_unread: true })], {
+			chatStatus: "unread",
+		});
+
+		const mutation = markChatRead(queryClient);
+		const context = await mutation.onMutate(chatId);
+		mutation.onError(new Error("server error"), chatId, context);
+
+		const restored = readInfiniteChats(queryClient, { chatStatus: "unread" });
+		expect(restored?.map((c) => c.id)).toEqual([chatId]);
+		expect(restored?.[0].has_unread).toBe(true);
 	});
 });
 
@@ -1290,8 +1382,11 @@ describe("chat cost query factories", () => {
 			"tree",
 			chatId,
 		]);
-		await query.queryFn();
-		expect(API.experimental.getChatCost).toHaveBeenCalledWith(chatId);
+		await createTestQueryClient().fetchQuery(query);
+		expect(API.experimental.getChatCost).toHaveBeenCalledWith(
+			chatId,
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2087,6 +2182,7 @@ describe("chatListKey shape", () => {
 			archived: true,
 			prStatuses: [],
 			status: "all",
+			statuses: [],
 			sources: [],
 		});
 	});
@@ -2110,6 +2206,39 @@ describe("getChatListQueryString", () => {
 		).toBe(
 			"archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
 		);
+		expect(
+			getChatListQueryString(toChatListParams({ prStatuses: ["none"] })),
+		).toBe("archived:false pr_status:none");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe("archived:false status:requires_action,running,interrupting");
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					chatStatus: "unread",
+					statuses: ["running", "requires_action"],
+				}),
+			),
+		).toBe(
+			"archived:false has_unread:true status:requires_action,running,interrupting",
+		);
+		expect(
+			getChatListQueryString(
+				toChatListParams({
+					statuses: [
+						"requires_action",
+						"error",
+						"running",
+						"interrupting",
+						"waiting",
+					],
+				}),
+			),
+		).toBe("archived:false");
 	});
 });
 
@@ -2132,115 +2261,92 @@ describe("chatsByWorkspace", () => {
 	it("fetches with the sorted, deduplicated workspace IDs", async () => {
 		const getChatsByWorkspace = vi.mocked(API.experimental.getChatsByWorkspace);
 		getChatsByWorkspace.mockResolvedValue({});
-		await chatsByWorkspace(["ws-b", "ws-a", "ws-b"]).queryFn();
-		expect(getChatsByWorkspace).toHaveBeenCalledWith(["ws-a", "ws-b"]);
+		await createTestQueryClient().fetchQuery(
+			chatsByWorkspace(["ws-b", "ws-a", "ws-b"]),
+		);
+		expect(getChatsByWorkspace).toHaveBeenCalledWith(
+			["ws-a", "ws-b"],
+			expect.any(AbortSignal),
+		);
 	});
 });
 
 describe("infiniteChats", () => {
 	const PAGE_LIMIT = 50;
 
-	describe("getNextPageParam", () => {
-		it("returns undefined when lastPage has fewer items than the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT - 1 }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			expect(getNextPageParam(lastPage, [lastPage])).toBeUndefined();
+	it("requests the next page only after a full page", async () => {
+		const fullPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
+			makeChat(`chat-${i}`),
+		);
+		const getChats = vi
+			.mocked(API.experimental.getChats)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage)
+			.mockResolvedValueOnce(fullPage.slice(1));
+
+		await createTestQueryClient().fetchInfiniteQuery({
+			...infiniteChats(),
+			pages: 4,
 		});
 
-		it("returns pages.length + 1 when lastPage has exactly the limit", () => {
-			const { getNextPageParam } = infiniteChats();
-			const lastPage = Array.from({ length: PAGE_LIMIT }, (_, i) =>
-				makeChat(`chat-${i}`),
-			);
-			const pages = [lastPage];
-			expect(getNextPageParam(lastPage, pages)).toBe(pages.length + 1);
-		});
+		expect(getChats).toHaveBeenCalledTimes(3);
+		expect(getChats).toHaveBeenNthCalledWith(
+			1,
+			{ limit: PAGE_LIMIT, offset: 0, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			2,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
+		expect(getChats).toHaveBeenNthCalledWith(
+			3,
+			{ limit: PAGE_LIMIT, offset: PAGE_LIMIT * 2, q: "archived:false" },
+			expect.any(AbortSignal),
+		);
 	});
 
-	describe("queryFn", () => {
-		it("computes offset 0 for pageParam 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: 0 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
+	it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 
-		it("computes offset 0 for pageParam <= 0", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-			await queryFn({ pageParam: -1 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: 0,
-				q: "archived:false",
-			});
-		});
-
-		it("computes correct offset for subsequent pages", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats();
-
-			await queryFn({ pageParam: 2 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT,
-				q: "archived:false",
-			});
-
-			await queryFn({ pageParam: 3 });
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: PAGE_LIMIT,
-				offset: PAGE_LIMIT * 2,
-				q: "archived:false",
-			});
-		});
-
-		it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
 				sources: ["created_by_me", "shared_with_me"],
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:true pr_status:draft,open,merged has_unread:true source:created_by_me,shared_with_me",
-			});
-		});
+			},
+			expect.any(AbortSignal),
+		);
+	});
 
-		it("builds q for read chat status", async () => {
-			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
-			const { queryFn } = infiniteChats({
+	it("builds q for read chat status", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+
+		await createTestQueryClient().fetchInfiniteQuery(
+			infiniteChats({
 				archived: false,
 				chatStatus: "read",
-			});
+			}),
+		);
 
-			await queryFn({ pageParam: 0 });
-
-			expect(API.experimental.getChats).toHaveBeenCalledWith({
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{
 				limit: PAGE_LIMIT,
 				offset: 0,
 				q: "archived:false has_unread:false",
-			});
-		});
-
-		it("throws when pageParam is not a number", () => {
-			const { queryFn } = infiniteChats();
-			expect(() => queryFn({ pageParam: "bad" })).toThrow(
-				"pageParam must be a number",
-			);
-		});
+			},
+			expect.any(AbortSignal),
+		);
 	});
 });
 
@@ -2257,10 +2363,25 @@ describe("chatSearch", () => {
 			{ q: "title:fix" },
 		]);
 		await queryClient.fetchQuery(query);
-		expect(API.experimental.getChats).toHaveBeenCalledWith({
-			limit: 50,
-			q: "title:fix",
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			{ limit: 50, q: "title:fix" },
+			expect.any(AbortSignal),
+		);
+	});
+});
+
+describe("chatDiffContents", () => {
+	it("requests the diff of the chat", async () => {
+		vi.mocked(API.experimental.getChatDiffContents).mockResolvedValue({
+			chat_id: "chat-1",
 		});
+
+		await createTestQueryClient().fetchQuery(chatDiffContents("chat-1"));
+
+		expect(API.experimental.getChatDiffContents).toHaveBeenCalledWith(
+			"chat-1",
+			expect.any(AbortSignal),
+		);
 	});
 });
 

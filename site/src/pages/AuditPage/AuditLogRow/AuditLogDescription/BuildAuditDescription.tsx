@@ -1,4 +1,4 @@
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { Link as RouterLink } from "react-router";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
@@ -11,7 +11,7 @@ type BuildAuditDescriptionProps = {
 	auditLog: AuditLog;
 };
 
-export const BuildAuditDescription: FC<BuildAuditDescriptionProps> = ({
+export const BuildAuditDescription: React.FC<BuildAuditDescriptionProps> = ({
 	auditLog,
 }) => {
 	const workspaceName = auditLog.additional_fields?.workspace_name?.trim();

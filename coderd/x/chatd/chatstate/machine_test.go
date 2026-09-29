@@ -153,6 +153,7 @@ func createTestChat(t *testing.T, f *testFixture) chatstate.CreateChatResult {
 		LastModelConfigID: f.Model.ID,
 		Title:             "test",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("hello", f.User.ID, f.Model.ID),
 		},
@@ -261,6 +262,7 @@ func TestQueueVersionTrigger_AdvancesOnInsert(t *testing.T) {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("queue", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

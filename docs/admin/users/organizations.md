@@ -133,12 +133,18 @@ names. Coder unions this list into every member's effective roles at request
 time, so changes propagate to all current and future members on their next
 request without re-issuing tokens or editing per-user role assignments.
 
-The default value is `["organization-workspace-access"]`. With that default,
-every organization member can read, build, ssh into, and execute commands in
-workspaces they own. Removing `organization-workspace-access` from the list
-creates organization members that cannot create or use workspaces unless the
-role is assigned to them directly, which is useful for restricted accounts
-that should only hold the minimal member permissions.
+The default value is `["organization-workspace-access", "agents-access"]`.
+With that default, every organization member can read, build, ssh into, and
+execute commands in workspaces they own, and can use Coder Agents. Removing
+`organization-workspace-access` from the list creates organization members
+that cannot create or use workspaces unless the role is assigned to them
+directly, which is useful for restricted accounts that should only hold the
+minimal member permissions. Removing `agents-access` limits Coder Agents to
+members who hold the role directly. Refer to
+[Control who can use Coder Agents](../../ai-coder/agents/getting-started.md#control-who-can-use-coder-agents).
+
+Service accounts don't inherit `agents-access` from this list. Assign the
+role to a service account directly to let it use Coder Agents.
 
 To edit the default roles in the dashboard, go to
 **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
@@ -147,7 +153,7 @@ From the CLI, use `coder organizations edit`:
 
 ```shell
 coder organizations edit --org <organization> \
-  --default-org-member-roles organization-workspace-access,organization-template-admin
+  --default-org-member-roles organization-workspace-access,agents-access,organization-template-admin
 ```
 
 The flag replaces the current list rather than adding to it, and accepts a

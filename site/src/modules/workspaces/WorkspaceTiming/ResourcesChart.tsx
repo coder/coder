@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import {
 	Tooltip,
@@ -49,7 +49,7 @@ type ResourcesChartProps = {
 	onBack: () => void;
 };
 
-export const ResourcesChart: FC<ResourcesChartProps> = ({
+export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 	stage,
 	timings,
 	onBack,

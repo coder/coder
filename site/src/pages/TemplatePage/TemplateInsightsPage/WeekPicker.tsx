@@ -1,5 +1,4 @@
 import dayjs from "dayjs";
-import type { FC } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import type { DateRangeValue } from "#/components/DateRangePicker/DateRangePicker";
@@ -21,7 +20,7 @@ type WeekPickerProps = {
 	onChange: (value: DateRangeValue) => void;
 };
 
-export const WeekPicker: FC<WeekPickerProps> = ({ value, onChange }) => {
+export const WeekPicker: React.FC<WeekPickerProps> = ({ value, onChange }) => {
 	const numberOfWeeks = dayjs(value.endDate).diff(
 		dayjs(value.startDate),
 		"week",

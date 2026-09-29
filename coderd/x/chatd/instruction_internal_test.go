@@ -246,7 +246,7 @@ func TestDefaultSystemPromptSupportsWorkspaceFallback(t *testing.T) {
 	require.Contains(t, DefaultSystemPrompt, "use its available context and capabilities to continue the user's request")
 	require.Contains(t, DefaultSystemPrompt, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
 	require.Contains(t, DefaultSystemPrompt, "root chats should create one when missing tools, skills, or context block planning")
-	require.Contains(t, DefaultSystemPrompt, "In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them")
+	require.NotContains(t, DefaultSystemPrompt, "In Plan Mode, workspace MCP tools remain unavailable after workspace creation; do not provision a workspace solely to access them")
 	require.NotContains(t, DefaultSystemPrompt, "missing tools, skills, MCPs, or context block planning")
 	require.NotContains(t, DefaultSystemPrompt, "Do not create a workspace by default")
 	require.NotContains(t, DefaultSystemPrompt, "do not create one as the first action merely because you are planning")

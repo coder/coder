@@ -1,9 +1,8 @@
 import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
-import type { ComponentProps, FC, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "#/components/Badge/PresetBadges";
 
-export const OptionName: FC<PropsWithChildren> = ({ children }) => {
+export const OptionName: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
 		<span className="block text-sm font-medium text-content-primary">
 			{children}
@@ -11,7 +10,9 @@ export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
+export const OptionDescription: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <span className="text-sm font-normal">{children}</span>;
 };
 
@@ -19,7 +20,7 @@ type OptionValueProps = {
 	children?: boolean | number | string | string[] | Record<string, boolean>;
 };
 
-export const OptionValue: FC<OptionValueProps> = (props) => {
+export const OptionValue: React.FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
 	const optionClassName =
 		"text-sm font-mono wrap-anywhere select-all [&_ul]:p-4";
@@ -99,10 +100,10 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 	);
 };
 
-type OptionConfigProps = ComponentProps<"div"> & { isSource: boolean };
+type OptionConfigProps = React.ComponentProps<"div"> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
-export const OptionConfig: FC<OptionConfigProps> = ({
+export const OptionConfig: React.FC<OptionConfigProps> = ({
 	isSource,
 	className,
 	...attrs
@@ -122,7 +123,9 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 	);
 };
 
-export const OptionConfigFlag: FC<ComponentProps<"div">> = (props) => {
+export const OptionConfigFlag: React.FC<React.ComponentProps<"div">> = (
+	props,
+) => {
 	return (
 		<div
 			{...props}

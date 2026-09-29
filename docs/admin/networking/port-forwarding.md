@@ -112,7 +112,9 @@ accessible by users outside of the Coder deployment.
 
 ![Port forwarding from an app in the UI](../../images/networking/portforwarddashboard.png)
 
-## Accessing workspace ports
+<a id="accessing-workspace-ports"></a>
+
+## Access workspace ports
 
 Another way to port forward in the dashboard is to use the "Open Ports" button
 to specify an arbitrary port. Coder will also detect if apps inside the
@@ -121,7 +123,9 @@ only supported on Windows and Linux workspace agents).
 
 ![Port forwarding in the UI](../../images/networking/listeningports.png)
 
-### Sharing ports
+<a id="sharing-ports"></a>
+
+### Share ports
 
 We allow developers to share ports as URLs, either with other authenticated
 coder users or publicly. Using the open ports interface, developers can assign a
@@ -163,7 +167,9 @@ end-users. OSS deployments allow all workspaces to share ports at both the
 
 ![Max port sharing level in the UI](../../images/networking/portsharingmax.png)
 
-### Configuring port protocol
+<a id="configuring-port-protocol"></a>
+
+### Configure port protocol
 
 Both listening and shared ports can be configured to use either `HTTP` or
 `HTTPS` to connect to the port. For listening ports the protocol selector

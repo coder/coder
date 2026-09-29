@@ -1,12 +1,6 @@
 import { type FormikContextType, useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
-import {
-	type Dispatch,
-	type FC,
-	type SetStateAction,
-	useId,
-	useState,
-} from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
@@ -61,7 +55,7 @@ type CreateEditRolePageViewProps = {
 	allResources?: boolean;
 };
 
-export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
+export const CreateEditRolePageView: React.FC<CreateEditRolePageViewProps> = ({
 	role,
 	onSubmit,
 	error,
@@ -203,7 +197,7 @@ type ActionCheckboxesProps = {
 	allResources: boolean;
 };
 
-const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
+const ActionCheckboxes: React.FC<ActionCheckboxesProps> = ({
 	permissions,
 	form,
 	allResources,
@@ -318,7 +312,7 @@ type PermissionCheckboxGroupProps = {
 	) => Promise<void>;
 };
 
-const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
+const PermissionCheckboxGroup: React.FC<PermissionCheckboxGroupProps> = ({
 	checkedActions,
 	resourceKey,
 	value,
@@ -387,10 +381,10 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 
 type ShowAllResourcesSwitchProps = {
 	showAllResources: boolean;
-	setShowAllResources: Dispatch<SetStateAction<boolean>>;
+	setShowAllResources: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-const ShowAllResourcesSwitch: FC<ShowAllResourcesSwitchProps> = ({
+const ShowAllResourcesSwitch: React.FC<ShowAllResourcesSwitchProps> = ({
 	showAllResources,
 	setShowAllResources,
 }) => {

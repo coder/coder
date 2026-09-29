@@ -121,7 +121,7 @@ that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
-The maximum configurable value is 30 days.
+The maximum configurable value is 30&nbsp;days.
 When disabled, workspaces follow their template's autostop rules (or none, if the template does not define any).
 
 ### Concurrent agents
@@ -152,6 +152,23 @@ Budget controls in the Coder UI, the group budget endpoints, and the AI spend st
 
 Refer to [Spend management](./spend-management.md) for details.
 
+### Turn and payload limits
+
+These deployment-wide limits apply to every chat.
+The defaults suit most deployments, and you can change any of them with a server flag, environment variable, or YAML key.
+Each value must be at least 1, and the server fails to start if a value is 0 or negative:
+
+| Limit                                                         | Default      | Setting                                                                                                                           |
+|---------------------------------------------------------------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| Steps (model responses) per chat turn                         | 1200         | [`CODER_CHAT_MAX_STEPS_PER_TURN`](../../../admin/setup/configuration-reference.md#max-steps-per-turn)                             |
+| Consecutive retries after a failed model generation           | 25           | [`CODER_CHAT_MAX_GENERATION_RETRIES`](../../../admin/setup/configuration-reference.md#max-generation-retries)                     |
+| Queued messages per chat                                      | 20           | [`CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-queued-messages-per-chat)         |
+| Files linked to a chat                                        | 50           | [`CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT`](../../../admin/setup/configuration-reference.md#max-attachments-per-chat)                 |
+| System prompt, plan mode instructions, and custom prompt size | 128&nbsp;KiB | [`CODER_CHAT_MAX_PROMPT_BYTES`](../../../admin/setup/configuration-reference.md#max-prompt-bytes)                                 |
+| Concurrent virtual desktop recording uploads per server       | 25           | [`CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS`](../../../admin/setup/configuration-reference.md#max-concurrent-recording-uploads) |
+
+The concurrent agent pools described above are licensing limits, not deployment settings.
+
 ### Git providers
 
 Coder Agents leverages your existing
@@ -164,8 +181,8 @@ See [Git Providers](./git-providers.md) for details.
 ### Data retention
 
 Administrators can configure a retention period for archived conversations.
-When enabled, archived conversations and orphaned files older than the
-retention period are automatically purged. The default is 30 days.
+When enabled, archived conversations and orphaned files older than the retention period are automatically purged.
+The default is 30&nbsp;days.
 
 This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
 Refer to [Data Retention](./chat-retention.md) for details.

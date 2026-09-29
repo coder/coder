@@ -2,6 +2,7 @@ package codersdk_test
 
 import (
 	"encoding/json"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -300,7 +301,9 @@ func TestSessionCountAppIcons(t *testing.T) {
 			continue
 		}
 		require.True(t, strings.HasPrefix(app.Icon, "/icon/"), name)
-		require.Equal(t, filepath.Clean(app.Icon), app.Icon)
+		// The icon is a URL path, so path.Clean holds on every OS where
+		// filepath.Clean would rewrite the separators.
+		require.Equal(t, path.Clean(app.Icon), app.Icon)
 		require.FileExists(t, filepath.Join("..", "site", "static", app.Icon), "icon for %s must be bundled", name)
 	}
 }

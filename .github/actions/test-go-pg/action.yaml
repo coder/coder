@@ -34,6 +34,10 @@ inputs:
     description: "Go test shuffle mode passed via TEST_SHUFFLE"
     required: false
     default: ""
+  test-timeout:
+    description: "Go test timeout passed via TEST_TIMEOUT (empty for the Makefile default)"
+    required: false
+    default: ""
   gotestsum-json-file:
     description: "Optional Linux path for gotestsum --jsonfile output. Use default for RUNNER_TEMP/go-test.json."
     required: false
@@ -88,6 +92,34 @@ runs:
           echo $! > "${RUNNER_TEMP}/iostat.pid"
         fi
 
+    - name: Log runner details (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        sw_vers
+        sysctl hw.model hw.memsize hw.ncpu
+        uptime
+
+    - name: Start system sampler (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # One line per second. A gap in these timestamps means the whole
+        # runner paused, not just the test process.
+        nohup bash -c 'while true; do
+          printf "%s load=%s swap=%s " "$(date -u +%FT%TZ)" "$(sysctl -n vm.loadavg)" "$(sysctl -n vm.swapusage)"
+          vm_stat | tail -n +2 | tr -d " " | paste -sd "," -
+          sleep 1
+        done' > "${RUNNER_TEMP}/vm_stat.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/vm_stat.pid"
+        # top needs two samples to report CPU use. Keep only the second.
+        nohup bash -c 'while true; do
+          date -u +%FT%TZ
+          top -l 2 -n 10 -o mem -stats pid,command,cpu,mem | awk "/^Processes:/ { n++ } n == 2"
+          sleep 10
+        done' > "${RUNNER_TEMP}/top.log" 2>&1 &
+        echo $! > "${RUNNER_TEMP}/top.pid"
+
     - name: Resolve PostgreSQL path (Windows)
       id: postgres-path
       if: runner.os == 'Windows'
@@ -127,6 +159,7 @@ runs:
         TEST_COUNT: ${{ inputs.test-count }}
         RUN: ${{ inputs.run-regex }}
         TEST_SHUFFLE: ${{ inputs.test-shuffle }}
+        TEST_TIMEOUT: ${{ inputs.test-timeout }}
         TEST_PACKAGES: ${{ inputs.test-packages }}
         RACE_DETECTION: ${{ inputs.race-detection }}
         GOTESTSUM_JSONFILE_INPUT: ${{ inputs.gotestsum-json-file }}
@@ -165,37 +198,51 @@ runs:
           make test
         fi
 
-    - name: Stop I/O sampler (Linux)
-      if: always() && runner.os == 'Linux'
+    # Upload steps below use `always() && !success()` instead of
+    # `failure()` so they still run when the job timeout cancels the
+    # test step.
+    - name: Stop samplers
+      if: always() && runner.os != 'Windows'
       shell: bash
       run: |
-        for name in vmstat iostat; do
+        for name in vmstat iostat vm_stat top; do
           pidfile="${RUNNER_TEMP}/${name}.pid"
           [[ -f "${pidfile}" ]] && kill "$(cat "${pidfile}")" 2> /dev/null || true
         done
 
     - name: Collect PostgreSQL logs (Linux)
-      if: failure() && runner.os == 'Linux'
+      if: always() && !success() && runner.os == 'Linux'
       shell: bash
       env:
         POSTGRES_VERSION: ${{ inputs.postgres-version }}
       run: make test-postgres-docker-logs > postgres.log 2>&1
 
     - name: Upload PostgreSQL logs (Linux)
-      if: failure() && runner.os == 'Linux'
+      if: always() && !success() && runner.os == 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: postgres-logs-${{ github.job }}
         path: postgres.log
 
     - name: Upload I/O samples (Linux)
-      if: failure() && runner.os == 'Linux'
+      if: always() && !success() && runner.os == 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: io-samples-${{ github.job }}
         path: |
           ${{ runner.temp }}/vmstat.log
           ${{ runner.temp }}/iostat.log
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Upload system samples (macOS)
+      if: always() && !success() && runner.os == 'macOS'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: system-samples-${{ github.job }}-${{ runner.os }}
+        path: |
+          ${{ runner.temp }}/vm_stat.log
+          ${{ runner.temp }}/top.log
         if-no-files-found: ignore
         retention-days: 7
 
@@ -209,7 +256,7 @@ runs:
         retention-days: 7
 
     - name: Upload PostgreSQL logs (Windows/macOS)
-      if: failure() && runner.os != 'Linux'
+      if: always() && !success() && runner.os != 'Linux'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: postgres-logs-${{ github.job }}-${{ runner.os }}

@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 
 /**
  * SVG ring (donut) progress indicator.
@@ -9,7 +8,7 @@ import type { FC } from "react";
  *
  * @param percent - Fill percentage, clamped to [0, 100].
  */
-export const SvgRingProgress: FC<{
+export const SvgRingProgress: React.FC<{
 	size: number;
 	strokeWidth: number;
 	percent: number;

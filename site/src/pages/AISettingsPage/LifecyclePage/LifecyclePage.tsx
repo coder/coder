@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatAutoArchiveDays,
@@ -17,7 +16,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { LifecyclePageView } from "./LifecyclePageView";
 
-const LifecyclePage: FC = () => {
+const LifecyclePage: React.FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const workspaceTTLQuery = useQuery({

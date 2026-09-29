@@ -101,7 +101,7 @@ coder create oncall-sre/oncall-workspace \
 > needs pre-installed (e.g. monitoring dashboards for on-call, test runners
 > for QA). Set `subdomain = true` on workspace apps so that shared users can
 > access web-based tools without a 404. See
-> [Accessing workspace apps in shared workspaces](../user-guides/shared-workspaces.md#accessing-workspace-apps-in-shared-workspaces).
+> [Access workspace apps in shared workspaces](../user-guides/shared-workspaces.md#access-workspace-apps-in-shared-workspaces).
 
 ## 4. Share the workspace
 
@@ -209,7 +209,9 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
    next login. All current members have access; removed members lose access
    after a workspace restart.
 
-## Finding shared workspaces
+<a id="finding-shared-workspaces"></a>
+
+## Find shared workspaces
 
 Shared users can find workspaces shared with them:
 

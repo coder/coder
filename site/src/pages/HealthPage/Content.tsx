@@ -5,20 +5,14 @@ import {
 	CircleHelpIcon,
 	CircleMinusIcon,
 } from "lucide-react";
-import {
-	type ComponentProps,
-	cloneElement,
-	type FC,
-	type HTMLAttributes,
-	type ReactElement,
-} from "react";
+import { cloneElement } from "react";
 import type { HealthCode, HealthSeverity } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 const CONTENT_PADDING = 36;
 
-export const Header: FC<ComponentProps<"header">> = ({
+export const Header: React.FC<React.ComponentProps<"header">> = ({
 	className,
 	style,
 	children,
@@ -35,7 +29,7 @@ export const Header: FC<ComponentProps<"header">> = ({
 	);
 };
 
-export const HeaderTitle: FC<ComponentProps<"h2">> = ({
+export const HeaderTitle: React.FC<React.ComponentProps<"h2">> = ({
 	className,
 	children,
 	...props
@@ -58,7 +52,7 @@ type HealthIconProps = {
 	severity: HealthSeverity;
 };
 
-export const HealthIcon: FC<HealthIconProps> = ({ size, severity }) => {
+export const HealthIcon: React.FC<HealthIconProps> = ({ size, severity }) => {
 	const Icon = severity === "error" ? CircleAlertIcon : CircleCheckIcon;
 
 	return (
@@ -77,7 +71,7 @@ type HealthyDotProps = {
 	severity: HealthSeverity;
 };
 
-export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
+export const HealthyDot: React.FC<HealthyDotProps> = ({ severity }) => {
 	return (
 		<div
 			className={cn(
@@ -90,7 +84,7 @@ export const HealthyDot: FC<HealthyDotProps> = ({ severity }) => {
 	);
 };
 
-export const Main: FC<ComponentProps<"div">> = ({
+export const Main: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	style,
 	children,
@@ -110,7 +104,7 @@ export const Main: FC<ComponentProps<"div">> = ({
 	);
 };
 
-export const GridData: FC<ComponentProps<"div">> = ({
+export const GridData: React.FC<React.ComponentProps<"div">> = ({
 	className,
 	children,
 	...props
@@ -129,7 +123,7 @@ export const GridData: FC<ComponentProps<"div">> = ({
 	);
 };
 
-export const GridDataLabel: FC<ComponentProps<"span">> = ({
+export const GridDataLabel: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -144,7 +138,7 @@ export const GridDataLabel: FC<ComponentProps<"span">> = ({
 	);
 };
 
-export const GridDataValue: FC<ComponentProps<"span">> = ({
+export const GridDataValue: React.FC<React.ComponentProps<"span">> = ({
 	className,
 	children,
 	...props
@@ -156,7 +150,7 @@ export const GridDataValue: FC<ComponentProps<"span">> = ({
 	);
 };
 
-export const SectionLabel: FC<ComponentProps<"h4">> = ({
+export const SectionLabel: React.FC<React.ComponentProps<"h4">> = ({
 	className,
 	children,
 	...props
@@ -173,7 +167,7 @@ export const SectionLabel: FC<ComponentProps<"h4">> = ({
 
 type PillProps = React.ComponentProps<"div"> & {
 	// oxlint-disable-next-line no-restricted-types
-	icon: ReactElement<HTMLAttributes<HTMLElement>>;
+	icon: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
 };
 
 export const Pill: React.FC<PillProps> = ({
@@ -200,7 +194,7 @@ type StatusIconProps = {
 	value: boolean | null;
 };
 
-export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
+export const StatusIcon: React.FC<StatusIconProps> = ({ value }) => {
 	if (value === null) {
 		return <CircleHelpIcon className="size-icon-sm text-content-disabled" />;
 	}
@@ -211,11 +205,14 @@ export const StatusIcon: FC<StatusIconProps> = ({ value }) => {
 	);
 };
 
-type BooleanPillProps = Omit<ComponentProps<typeof Pill>, "icon" | "value"> & {
+type BooleanPillProps = Omit<
+	React.ComponentProps<typeof Pill>,
+	"icon" | "value"
+> & {
 	value: boolean | null;
 };
 
-export const BooleanPill: FC<BooleanPillProps> = ({
+export const BooleanPill: React.FC<BooleanPillProps> = ({
 	value,
 	children,
 	...divProps
@@ -236,9 +233,13 @@ export const BooleanPill: FC<BooleanPillProps> = ({
 	);
 };
 
-type LogsProps = ComponentProps<"div"> & { lines: readonly string[] };
+type LogsProps = React.ComponentProps<"div"> & { lines: readonly string[] };
 
-export const Logs: FC<LogsProps> = ({ className, lines, ...divProps }) => {
+export const Logs: React.FC<LogsProps> = ({
+	className,
+	lines,
+	...divProps
+}) => {
 	return (
 		<div
 			className={cn(
@@ -263,7 +264,7 @@ type HealthMessageDocsLinkProps = {
 	code: HealthCode;
 };
 
-export const HealthMessageDocsLink: FC<HealthMessageDocsLinkProps> = ({
+export const HealthMessageDocsLink: React.FC<HealthMessageDocsLinkProps> = ({
 	code,
 }) => {
 	return (

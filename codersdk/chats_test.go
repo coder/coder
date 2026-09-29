@@ -3,6 +3,9 @@ package codersdk_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,6 +17,77 @@ import (
 
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func TestUploadChatWorkspaceFileContentType(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+	tests := []struct {
+		name        string
+		contentType string
+		wantHeader  string
+	}{
+		{name: "provided", contentType: "text/csv", wantHeader: "text/csv"},
+		{name: "empty", contentType: "", wantHeader: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPost, r.Method)
+				require.Equal(t, "/api/v2/chats/"+chatID.String()+"/workspace-files", r.URL.Path)
+				require.Equal(t, tt.wantHeader, r.Header.Get("Content-Type"))
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.UploadChatWorkspaceFileResponse{
+					Path:      "/home/coder/.coder/chats/test/files/data.csv",
+					Name:      "data.csv",
+					Size:      4,
+					MediaType: tt.contentType,
+				}))
+			}))
+			defer srv.Close()
+
+			serverURL, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			client := codersdk.New(serverURL)
+			_, err = client.UploadChatWorkspaceFile(context.Background(), chatID, tt.contentType, "data.csv", strings.NewReader("data"))
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestChatMessageWorkspaceFileReference_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.MustParse("d8317985-0000-0000-0000-000000000002")
+	part := codersdk.ChatMessageWorkspaceFileReference(
+		workspaceID,
+		"/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/notes.txt",
+		"notes.txt",
+		42,
+		"text/plain",
+	)
+
+	data, err := json.Marshal(part)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"type":"workspace-file-reference"`)
+	require.Contains(t, string(data), `"workspace_file_path"`)
+	require.Contains(t, string(data), `"workspace_file_name"`)
+	require.Contains(t, string(data), `"workspace_file_size":42`)
+	require.Contains(t, string(data), `"workspace_file_media_type":"text/plain"`)
+	require.Contains(t, string(data), `"workspace_file_workspace_id":"`+workspaceID.String()+`"`)
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &raw))
+	require.NotContains(t, raw, "size")
+
+	var decoded codersdk.ChatMessagePart
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Equal(t, part, decoded)
+}
 
 func TestChatModelProviderOptions_MarshalJSON_UsesPlainProviderPayload(t *testing.T) {
 	t.Parallel()

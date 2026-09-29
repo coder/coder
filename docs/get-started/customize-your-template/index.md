@@ -22,7 +22,7 @@ Work through the guides in order, or pick the one that solves your problem:
 - [Install your own command-line tools](./install-command-line-tools.md): install personal command-line tools and make them persist.
 - [Clone private repositories](./authenticate-to-github.md): authenticate to GitHub with an external-auth data source.
 
-Each guide takes about 10 minutes.
+Each guide takes about 10&nbsp;minutes.
 
 ## Templates in brief
 
