@@ -41,6 +41,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
+	"ExperimentRule":                {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -508,7 +509,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"webhook_secret_hash":      ActionSecret,
 		"webhook_secret_version":   ActionTrack,
 		"webhook_consumed_at":      ActionTrack,
-		"prompt":                   ActionTrack,
+		"prompt":                   ActionSecret, // User-authored chat content, like chat titles.
 		"schedule_cron":            ActionTrack,
 		"schedule_time_zone":       ActionTrack,
 		"schedule_revision":        ActionIgnore, // Internal schedule bookkeeping.
@@ -593,6 +594,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+	},
+	&database.ExperimentRule{}: {
+		"id":         ActionIgnore, // Derived from the experiment name.
+		"experiment": ActionTrack,
+		"mode":       ActionTrack,
+		"condition":  ActionTrack,
+		"revision":   ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

@@ -642,6 +642,7 @@ CREATE TYPE resource_type AS ENUM (
     'mcp_server_config',
     'chat_model_config',
     'chat_operational_settings',
+    'experiment_rule',
     'chat_automation'
 );
 
@@ -1042,6 +1043,42 @@ BEGIN
 	DELETE FROM user_ai_budget_overrides
 	WHERE user_id = OLD.user_id AND group_id = OLD.organization_id;
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_chat_automation_chat_organization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	-- Validate a reference only when it or organization_id changes. Chat
+	-- deletion runs one ON DELETE SET NULL update per reference, and the
+	-- other, unchanged reference may point at a chat the same statement is
+	-- deleting.
+	IF NEW.target_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.target_chat_id IS DISTINCT FROM OLD.target_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'target chat % is not in organization %', NEW.target_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	IF NEW.created_by_chat_id IS NOT NULL AND (
+		TG_OP = 'INSERT'
+		OR NEW.created_by_chat_id IS DISTINCT FROM OLD.created_by_chat_id
+		OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
+	) AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'creating chat % is not in organization %', NEW.created_by_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	RETURN NEW;
 END;
 $$;
 
@@ -4802,9 +4839,15 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations USING btree (created_by_chat_id) WHERE (created_by_chat_id IS NOT NULL);
+
 CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_next_run_at) WHERE ((kind = 'schedule'::chat_automation_kind) AND enabled);
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
+
+CREATE INDEX chat_automations_owner_id_idx ON chat_automations USING btree (owner_id);
+
+CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
@@ -5201,6 +5244,8 @@ CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_p
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
+
+CREATE TRIGGER trigger_enforce_chat_automation_chat_organization BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id ON chat_automations FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
 
 CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT OR UPDATE ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION enforce_user_ai_budget_override_membership();
 

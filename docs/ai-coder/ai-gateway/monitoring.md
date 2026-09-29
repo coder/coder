@@ -188,9 +188,10 @@ Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-g
 ### Structured interception logs
 
 AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
-The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, and the standalone gateway does not consume it.
-Standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
-Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
+`CODER_AI_GATEWAY_STRUCTURED_LOGGING` enables the records, and `CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE` selects which process emits them.
+Under the default source, `coderd`, standalone replicas send interception records to `coderd`, which writes the structured logs to the `coderd` log output.
+Set the source to `gateway` or `both` on every process to have the gateway emit its own records, and ship the gateway's logs as well as `coderd`'s.
+Refer to [structured logging](./setup.md#structured-logging) for configuration and record types, and [choose which process emits the records](./setup.md#choose-which-process-emits-the-records) for the trade-offs between the sources.
 
 ## Export data
 

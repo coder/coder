@@ -3914,6 +3914,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
 	ResourceTypeChatAutomation              ResourceType = "chat_automation"
 )
 
@@ -3994,6 +3995,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatAutomation:
 		return true
 	}
@@ -4042,6 +4044,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatAutomation,
 	}
 }
