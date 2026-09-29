@@ -2,10 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ResizableChatsSidebarFrame } from "./ResizableChatsSidebarFrame";
 import {
-	AGENTS_MAIN_PANEL_MIN_WIDTH,
-	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_DEFAULT_WIDTH,
-	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./sidebarWidth";
 
@@ -98,76 +95,6 @@ describe("ResizableChatsSidebarFrame", () => {
 
 		expect(persistedWidth()).toBe(LEFT_SIDEBAR_DEFAULT_WIDTH + 40);
 	});
-
-	it("restores the persisted width after a narrow window widens", () => {
-		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "400");
-		const handle = renderHandle();
-
-		vi.stubGlobal("innerWidth", 700);
-		fireEvent(window, new Event("resize"));
-		expect(handle).toHaveAttribute(
-			"aria-valuenow",
-			String(700 - AGENTS_MAIN_PANEL_MIN_WIDTH),
-		);
-
-		vi.stubGlobal("innerWidth", 1440);
-		fireEvent(window, new Event("resize"));
-		expect(handle).toHaveAttribute("aria-valuenow", "400");
-		expect(persistedWidth()).toBe(400);
-	});
-
-	it("lifts the max width when a sidebar squeezed at mount grows back", () => {
-		localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "600");
-		vi.stubGlobal("innerWidth", 800);
-		const handle = renderHandle();
-		expect(handle).toHaveAttribute(
-			"aria-valuemax",
-			String(800 - AGENTS_MAIN_PANEL_MIN_WIDTH),
-		);
-
-		vi.stubGlobal("innerWidth", 1440);
-		fireEvent(window, new Event("resize"));
-		expect(handle).toHaveAttribute("aria-valuenow", "600");
-		expect(Number(handle.getAttribute("aria-valuemax"))).toBeGreaterThanOrEqual(
-			600,
-		);
-	});
-
-	it("keeps a resized width across window resizes", () => {
-		const handle = renderHandle();
-
-		fireEvent.keyDown(handle, { key: "End" });
-		const resizedWidth = handle.getAttribute("aria-valuenow");
-		expect(resizedWidth).toBe(String(getLeftSidebarMaxWidth()));
-		fireEvent(window, new Event("resize"));
-
-		expect(handle).toHaveAttribute("aria-valuenow", resizedWidth);
-	});
-
-	it.each([
-		{ key: "ArrowRight", expected: 500 },
-		{ key: "End", expected: 500 },
-		{
-			key: "ArrowLeft",
-			expected:
-				700 - AGENTS_MAIN_PANEL_MIN_WIDTH - LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
-		},
-	])(
-		"saves $expected when $key resizes a squeezed sidebar",
-		({ key, expected }) => {
-			localStorage.setItem(LEFT_SIDEBAR_STORAGE_KEY, "500");
-			const handle = renderHandle();
-
-			vi.stubGlobal("innerWidth", 700);
-			fireEvent(window, new Event("resize"));
-			fireEvent.keyDown(handle, { key });
-			vi.stubGlobal("innerWidth", 1440);
-			fireEvent(window, new Event("resize"));
-
-			expect(handle).toHaveAttribute("aria-valuenow", String(expected));
-			expect(persistedWidth()).toBe(expected);
-		},
-	);
 
 	it("reports the end of its own slide but not of a child animation", () => {
 		const onViewportSlideEnd = vi.fn();

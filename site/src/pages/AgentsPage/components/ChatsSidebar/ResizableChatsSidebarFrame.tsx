@@ -1,18 +1,13 @@
 import { cn } from "cn";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
-	loadStoredLeftSidebarWidth,
+	loadPersistedLeftSidebarWidth,
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
-
-const subscribeToResize = (onResize: () => void) => {
-	globalThis.addEventListener("resize", onResize);
-	return () => globalThis.removeEventListener("resize", onResize);
-};
 
 type ResizableChatsSidebarFrameProps = {
 	children: React.ReactNode;
@@ -34,30 +29,34 @@ export const ResizableChatsSidebarFrame = ({
 	viewportSlide = null,
 	onViewportSlideEnd,
 }: ResizableChatsSidebarFrameProps) => {
-	const maxWidth = useSyncExternalStore(
-		subscribeToResize,
-		getLeftSidebarMaxWidth,
-	);
-	// The width the user chose, kept in state because storage writes can fail.
-	const [userWidth, setUserWidthState] = useState(loadStoredLeftSidebarWidth);
-	// Derived rather than stored so a squeezed sidebar grows back.
-	const width = Math.min(maxWidth, userWidth);
+	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
+	const maxWidth = getLeftSidebarMaxWidth();
 	const [isPointerResizing, setIsPointerResizing] = useState(false);
 	const isDragging = useRef(false);
 	const activePointerId = useRef<number | null>(null);
 	const startX = useRef(0);
 	const startWidth = useRef(0);
 
-	const setUserWidth = (nextWidth: number) => {
-		// A request at or past the cap keeps a wider saved width, so the sidebar
-		// grows back to it when the window widens.
-		const nextUserWidth =
-			nextWidth >= maxWidth
-				? Math.max(userWidth, maxWidth)
-				: clampLeftSidebarWidth(nextWidth);
-		setUserWidthState(nextUserWidth);
-		persistLeftSidebarWidth(nextUserWidth);
+	const setVisualWidth = (nextWidth: number): number => {
+		const clampedWidth = clampLeftSidebarWidth(nextWidth);
+		setWidth(clampedWidth);
+		return clampedWidth;
 	};
+
+	const setUserWidth = (nextWidth: number) => {
+		const clampedWidth = setVisualWidth(nextWidth);
+		persistLeftSidebarWidth(clampedWidth);
+	};
+
+	const handleResize = useEffectEvent(() => {
+		const clampedWidth = clampLeftSidebarWidth(width);
+		setVisualWidth(clampedWidth);
+	});
+
+	useEffect(() => {
+		globalThis.addEventListener("resize", handleResize);
+		return () => globalThis.removeEventListener("resize", handleResize);
+	}, []);
 
 	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
 		// Only a primary left-button pointer starts a drag; a second pointer
@@ -128,7 +127,6 @@ export const ResizableChatsSidebarFrame = ({
 				"--agents-left-sidebar-width": `${width}px`,
 				"--agents-left-sidebar-min-width": `${LEFT_SIDEBAR_MIN_WIDTH}px`,
 				"--agents-left-sidebar-max-width": `${maxWidth}px`,
-				"--panel-width": `${width}px`,
 			}}
 			onAnimationEnd={(e) => {
 				if (e.target === e.currentTarget) {
@@ -137,7 +135,7 @@ export const ResizableChatsSidebarFrame = ({
 			}}
 			className={
 				viewportSlide === "out"
-					? "relative invisible h-full min-h-0 w-0 min-w-0 shrink-0 overflow-hidden animate-panel-slide-out"
+					? "relative invisible h-full min-h-0 w-0 min-w-0 shrink-0 overflow-hidden [--panel-width:var(--agents-left-sidebar-width)] animate-panel-slide-out"
 					: cn(
 							className,
 							"relative sm:overflow-hidden sm:max-w-(--agents-left-sidebar-max-width)",
@@ -146,7 +144,8 @@ export const ResizableChatsSidebarFrame = ({
 							isCollapsed
 								? "sm:invisible sm:w-0 sm:min-w-0"
 								: "sm:w-(--agents-left-sidebar-width) sm:min-w-(--agents-left-sidebar-min-width)",
-							viewportSlide === "in" && "sm:animate-panel-slide-in",
+							viewportSlide === "in" &&
+								"sm:[--panel-width:var(--agents-left-sidebar-width)] sm:animate-panel-slide-in",
 						)
 			}
 		>

@@ -5,6 +5,7 @@ import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
+import { usePanelSlidePhase } from "./usePanelSlidePhase";
 
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 export const RIGHT_PANEL_WIDTH_KEY = "agents.right-panel-width";
@@ -304,45 +305,15 @@ export const RightPanel = ({
 
 	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
 
-	// Pin content width while opening so terminals don't refit every frame.
-	// Below lg the panel opens as an overlay with no width transition.
-	const [prevVisualOpen, setPrevVisualOpen] = useState(visualOpen);
-	const [isAnimatingOpen, setIsAnimatingOpen] = useState(false);
-	// Dropping below lg removes the lg: styles immediately, so a keyframe
-	// animation slides the panel out from its last width.
-	const [isNarrowSlideOut, setIsNarrowSlideOut] = useState(false);
-	const isSideBySide = visualOpen && !visualExpanded && !isBelowLg;
-	const [prevIsSideBySide, setPrevIsSideBySide] = useState(isSideBySide);
-	if (visualOpen !== prevVisualOpen) {
-		setPrevVisualOpen(visualOpen);
-		setIsAnimatingOpen(
-			visualOpen && !visualExpanded && !isPointerResizing && !isBelowLg,
-		);
-		if (visualOpen) {
-			// Reopening mid-slide cancels the animation without an animationend.
-			setIsNarrowSlideOut(false);
-		}
-	} else if (isAnimatingOpen && (isPointerResizing || visualExpanded)) {
-		// Dragging or expanding removes the transition, so no transitionend will unpin.
-		setIsAnimatingOpen(false);
-	}
-	if (isSideBySide !== prevIsSideBySide) {
-		setPrevIsSideBySide(isSideBySide);
-		setIsNarrowSlideOut(!isSideBySide && isBelowLg && !visualExpanded);
-	} else if (isNarrowSlideOut && !isBelowLg) {
-		setIsNarrowSlideOut(false);
-	}
-	const handleWidthTransitionEnd = (e: React.TransitionEvent) => {
-		if (e.target === e.currentTarget && e.propertyName === "width") {
-			setIsAnimatingOpen(false);
-		}
-	};
-	const handleSlideOutEnd = (e: React.AnimationEvent) => {
-		if (e.target === e.currentTarget) {
-			setIsNarrowSlideOut(false);
-		}
-	};
-	const isContentPinned = !visualExpanded && (!visualOpen || isAnimatingOpen);
+	const { phase, onTransitionEnd, onAnimationEnd } = usePanelSlidePhase({
+		isOpen: visualOpen,
+		isExpanded: visualExpanded,
+		isBelowLg,
+		isDragging: isPointerResizing,
+	});
+	// Pinned content slides behind the edge instead of refitting every frame.
+	const isContentPinned =
+		phase === "opening" || phase === "closing" || phase === "slidingOut";
 
 	useEffect(() => {
 		localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(width));
@@ -408,8 +379,8 @@ export const RightPanel = ({
 			ref={panelRef}
 			data-testid="agents-right-panel"
 			style={visualExpanded ? undefined : { "--panel-width": `${width}px` }}
-			onTransitionEnd={handleWidthTransitionEnd}
-			onAnimationEnd={handleSlideOutEnd}
+			onTransitionEnd={onTransitionEnd}
+			onAnimationEnd={onAnimationEnd}
 			className={cn(
 				!visualExpanded &&
 					!isPointerResizing &&
@@ -418,9 +389,13 @@ export const RightPanel = ({
 					? "absolute inset-0 z-30 flex flex-col"
 					: visualOpen
 						? "fixed inset-0 z-30 flex flex-col bg-surface-primary lg:relative lg:inset-auto lg:z-auto lg:h-full lg:min-h-0 lg:min-w-0 lg:items-end lg:overflow-hidden lg:border-0 lg:border-l lg:border-solid lg:border-border-default lg:w-[min(var(--panel-width),max(0px,calc(100%-var(--agents-chat-panel-min-width,0px))))] lg:max-w-[70vw]"
-						: isNarrowSlideOut
+						: phase === "slidingOut"
 							? "relative invisible flex h-full min-h-0 w-0 min-w-0 flex-col items-end overflow-hidden border-0 border-l border-solid border-border-default animate-panel-slide-out"
-							: "relative min-h-0 min-w-0 hidden lg:invisible lg:flex lg:h-full lg:w-0 lg:flex-col lg:items-end lg:overflow-hidden",
+							: phase === "closing" || isPointerResizing
+								? "relative min-h-0 min-w-0 hidden lg:invisible lg:flex lg:h-full lg:w-0 lg:flex-col lg:items-end lg:overflow-hidden"
+								: "hidden",
+				// Closed is display: none, so the open width animates from @starting-style.
+				phase === "opening" && "lg:starting:w-0",
 			)}
 		>
 			{/* Drag handle (sm+, on the left edge of the panel) */}
@@ -440,7 +415,9 @@ export const RightPanel = ({
 				className={cn(
 					"flex min-h-0 w-full flex-1 flex-col",
 					isContentPinned &&
-						(isNarrowSlideOut ? "w-(--panel-width)" : "lg:w-(--panel-width)"),
+						(phase === "slidingOut"
+							? "w-(--panel-width)"
+							: "lg:w-(--panel-width)"),
 				)}
 			>
 				{children}
