@@ -491,7 +491,7 @@ func TestResolveOrderRejectsInvalidRules(t *testing.T) {
 			},
 			scripts: map[string]script{
 				"coder_script.a": {
-					runtimeAddress: "coder_agent.main", cron: "0 * * * *",
+					runtimeAddress: "coder_agent.main", hasCron: true,
 				},
 				"coder_script.b": {runtimeAddress: "coder_agent.main", runOnStart: true},
 			},
@@ -620,7 +620,7 @@ func TestResolveOrderRejectsInvalidModuleSelectedScripts(t *testing.T) {
 			name: "CronOnly",
 			script: script{
 				runtimeAddress: "coder_agent.main",
-				cron:           "0 * * * *",
+				hasCron:        true,
 			},
 			contains: "cron-only",
 		},

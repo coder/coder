@@ -240,7 +240,7 @@ func TestAddRuleEdgesEnforcesCombinationLimit(t *testing.T) {
 		)
 
 		budget := combinationBudget{limit: 1}
-		err := addRuleEdges(graph, rule, &budget)
+		err := addRuleEdges(graph, &rule, &budget)
 		require.NoError(t, err)
 		require.Equal(t, 1, graph.dependencyCount)
 		require.Equal(t, 1, budget.used)
@@ -272,7 +272,7 @@ func TestAddRuleEdgesEnforcesCombinationLimit(t *testing.T) {
 		)
 
 		budget := combinationBudget{limit: 3}
-		err := addRuleEdges(graph, rule, &budget)
+		err := addRuleEdges(graph, &rule, &budget)
 		require.ErrorContains(t, err, `script order data source "data.coder_script_order.order" rule 2`)
 		require.ErrorContains(t, err, "run selectors resolve to 2 scripts")
 		require.ErrorContains(t, err, "after selectors resolve to 2 scripts")

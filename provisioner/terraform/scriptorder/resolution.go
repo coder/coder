@@ -6,21 +6,16 @@ import (
 	"slices"
 	"strings"
 
-	tfjson "github.com/hashicorp/terraform-json"
 	"golang.org/x/xerrors"
 )
 
-type script struct {
-	// runtimeAddress is the Terraform resource address identifying
-	// the workspace agent or devcontainer subagent that executes the
-	// script, such as "coder_agent.main".
-	runtimeAddress string
+type scriptLifecycle struct {
 	// runOnStart and runOnStop mirror coder_script attributes so
 	// validation can distinguish scripts configured for both
 	// lifecycle phases or neither.
 	runOnStart bool
 	runOnStop  bool
-	cron       string
+	hasCron    bool
 }
 
 type addressSelection struct {
@@ -59,11 +54,12 @@ func (w phaseFilterWarning) String() string {
 	)
 }
 
-// resolvedOrder contains phase- and runtime-resolved rules ready for
-// graph construction, plus warnings produced during resolution.
-type resolvedOrder struct {
-	rules    []resolvedRule
-	warnings []phaseFilterWarning
+type preparedRule struct {
+	identity    ruleIdentity
+	phase       Phase
+	requirement Requirement
+	run         []resolvedSelector
+	after       []resolvedSelector
 }
 
 // Order contains one deterministic dependency graph per runtime and
@@ -89,23 +85,21 @@ type Dependency struct {
 	Requirement         Requirement
 }
 
-// resolveOrder collects rule declarations and resolves their selectors,
-// lifecycle phases, and runtimes. It does not construct dependency graphs.
-func resolveOrder(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
-	scripts map[string]script,
-) (resolvedOrder, error) {
-	declarations, err := collectRuleDeclarations(modules, planConfig)
+// prepareOrder resolves selectors and lifecycle phases before runtime
+// association. Rules with an empty side remain valid no-ops.
+func (p *Program) prepareOrder() (Prepared, error) {
+	declarations, err := p.collectRuleDeclarations()
 	if err != nil {
-		return resolvedOrder{}, err
+		return Prepared{}, err
 	}
 
-	result := resolvedOrder{}
-	for _, dec := range declarations {
-		rule, warning, err := resolveRule(dec, scripts)
+	result := Prepared{}
+	selectedAddresses := map[string]struct{}{}
+	for i := range declarations {
+		dec := &declarations[i]
+		rule, warning, err := prepareRule(dec, p.stateIndex.scriptLifecycles)
 		if err != nil {
-			return resolvedOrder{}, err
+			return Prepared{}, err
 		}
 		if warning != nil {
 			result.warnings = append(result.warnings, *warning)
@@ -116,30 +110,37 @@ func resolveOrder(
 			continue
 		}
 		result.rules = append(result.rules, rule)
+		selectorGroups := [...][]resolvedSelector{rule.run, rule.after}
+		for _, selectors := range selectorGroups {
+			for i := range selectors {
+				for _, address := range selectors[i].addresses {
+					selectedAddresses[address] = struct{}{}
+				}
+			}
+		}
 	}
+	result.selectedScriptAddresses = slices.Sorted(maps.Keys(selectedAddresses))
 	return result, nil
 }
 
-// resolveRule resolves a declaration to one lifecycle phase, filters
-// module selectors to that phase, and validates script and runtime
-// compatibility. It returns a warning when inferred-phase filtering
-// omits scripts.
-func resolveRule(
-	declaration ruleDeclaration,
-	scripts map[string]script,
-) (resolvedRule, *phaseFilterWarning, error) {
+// prepareRule resolves a declaration to one lifecycle phase and
+// filters module selectors to that phase.
+func prepareRule(
+	declaration *ruleDeclaration,
+	scripts map[string]scriptLifecycle,
+) (preparedRule, *phaseFilterWarning, error) {
 	err := validateSelectedScripts(declaration, scripts)
 	if err != nil {
-		return resolvedRule{}, nil, err
+		return preparedRule{}, nil, err
 	}
 
 	phase, inferred, err := determineRulePhase(declaration, scripts)
 	if err != nil {
-		return resolvedRule{}, nil, err
+		return preparedRule{}, nil, err
 	}
 	err = validateResourceSelectorPhases(declaration, phase, scripts)
 	if err != nil {
-		return resolvedRule{}, nil, err
+		return preparedRule{}, nil, err
 	}
 
 	run, runOmissions := filterModuleSelectorAddressesByPhase(
@@ -149,25 +150,14 @@ func resolveRule(
 		declaration.after, phase, scripts,
 	)
 
-	var runtimeAddr string
-	if hasResolvedAddresses(run) && hasResolvedAddresses(after) {
-		runtimeAddr, err = validateRuleRuntime(
-			declaration, run, after, scripts,
-		)
-		if err != nil {
-			return resolvedRule{}, nil, err
-		}
-		err = validateNoSelfDependency(declaration, run, after)
-		if err != nil {
-			return resolvedRule{}, nil, err
-		}
-	}
-
 	var warning *phaseFilterWarning
 	if inferred {
 		selectorsWithOmissions := map[string]struct{}{}
-		for _, selector := range slices.Concat(runOmissions, afterOmissions) {
-			selectorsWithOmissions[selector] = struct{}{}
+		omissionGroups := [...][]string{runOmissions, afterOmissions}
+		for _, omissions := range omissionGroups {
+			for _, selector := range omissions {
+				selectorsWithOmissions[selector] = struct{}{}
+			}
 		}
 		if len(selectorsWithOmissions) > 0 {
 			warning = &phaseFilterWarning{
@@ -179,57 +169,87 @@ func resolveRule(
 		}
 	}
 
-	return resolvedRule{
-		dataSourceAddress: declaration.dataSourceAddress,
-		ruleIndex:         declaration.ruleIndex,
-		runtimeAddress:    runtimeAddr,
-		phase:             phase,
-		requirement:       declaration.requirement,
-		run:               run,
-		after:             after,
+	return preparedRule{
+		identity:    declaration.identity(),
+		phase:       phase,
+		requirement: declaration.requirement,
+		run:         run,
+		after:       after,
 	}, warning, nil
 }
 
+// finalizeOrder validates runtime compatibility and self-dependencies
+// after every selected script has been associated with a runtime.
+func (p *Prepared) finalizeOrder(
+	runtimeBindings map[string]RuntimeBinding,
+) ([]resolvedRule, error) {
+	var result []resolvedRule
+	for i := range p.rules {
+		rule := &p.rules[i]
+		runtimeAddress, err := rule.validateRuntime(runtimeBindings)
+		if err != nil {
+			return nil, err
+		}
+		if err := rule.validateNoSelfDependency(); err != nil {
+			return nil, err
+		}
+		result = append(result, resolvedRule{
+			dataSourceAddress: rule.identity.dataSourceAddress,
+			ruleIndex:         rule.identity.ruleIndex,
+			runtimeAddress:    runtimeAddress,
+			phase:             rule.phase,
+			requirement:       rule.requirement,
+			run:               rule.run,
+			after:             rule.after,
+		})
+	}
+	return result, nil
+}
+
 func validateSelectedScripts(
-	declaration ruleDeclaration,
-	scripts map[string]script,
+	declaration *ruleDeclaration,
+	scripts map[string]scriptLifecycle,
 ) error {
-	for _, selector := range slices.Concat(declaration.run, declaration.after) {
-		for _, address := range selector.addresses {
-			script, ok := scripts[address]
-			if !ok {
-				return ruleError(
-					declaration.dataSourceAddress,
-					declaration.ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q expanded to %q, but script %q was not found",
-						selector.field, selector.raw, selector.addresses, address,
-					),
-				)
-			}
-			if script.runOnStart && script.runOnStop {
-				return ruleError(
-					declaration.dataSourceAddress,
-					declaration.ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q expanded to %q, but script %q has both run_on_start and run_on_stop enabled",
-						selector.field, selector.raw, selector.addresses, address,
-					),
-				)
-			}
-			if !script.runOnStart && !script.runOnStop {
-				reason := "has neither run_on_start nor run_on_stop enabled"
-				if script.cron != "" {
-					reason = "is cron-only; script ordering requires run_on_start or run_on_stop"
+	selectorGroups := [...][]resolvedSelector{declaration.run, declaration.after}
+	for _, selectors := range selectorGroups {
+		for i := range selectors {
+			selector := &selectors[i]
+			for _, address := range selector.addresses {
+				script, ok := scripts[address]
+				if !ok {
+					return ruleError(
+						declaration.dataSourceAddress,
+						declaration.ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q expanded to %q, but script %q was not found",
+							selector.field, selector.raw, selector.addresses, address,
+						),
+					)
 				}
-				return ruleError(
-					declaration.dataSourceAddress,
-					declaration.ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q expanded to %q, but script %q %s",
-						selector.field, selector.raw, selector.addresses, address, reason,
-					),
-				)
+				if script.runOnStart && script.runOnStop {
+					return ruleError(
+						declaration.dataSourceAddress,
+						declaration.ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q expanded to %q, but script %q has both run_on_start and run_on_stop enabled",
+							selector.field, selector.raw, selector.addresses, address,
+						),
+					)
+				}
+				if !script.runOnStart && !script.runOnStop {
+					reason := "has neither run_on_start nor run_on_stop enabled"
+					if script.hasCron {
+						reason = "is cron-only; script ordering requires run_on_start or run_on_stop"
+					}
+					return ruleError(
+						declaration.dataSourceAddress,
+						declaration.ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q expanded to %q, but script %q %s",
+							selector.field, selector.raw, selector.addresses, address, reason,
+						),
+					)
+				}
 			}
 		}
 	}
@@ -241,8 +261,8 @@ func validateSelectedScripts(
 // inferred false means every selector resolved only to declared
 // script resources or module calls with no scripts.
 func determineRulePhase(
-	declaration ruleDeclaration,
-	scripts map[string]script,
+	declaration *ruleDeclaration,
+	scripts map[string]scriptLifecycle,
 ) (Phase, bool, error) {
 	if declaration.declaredPhase != "" {
 		return declaration.declaredPhase, false, nil
@@ -318,7 +338,7 @@ type observedPhase struct {
 func collectObservedPhases(
 	run []resolvedSelector,
 	after []resolvedSelector,
-	scripts map[string]script,
+	scripts map[string]scriptLifecycle,
 	kind selectorKind,
 ) []observedPhase {
 	observed := map[Phase]observedPhase{}
@@ -346,25 +366,29 @@ func collectObservedPhases(
 }
 
 func validateResourceSelectorPhases(
-	declaration ruleDeclaration,
+	declaration *ruleDeclaration,
 	phase Phase,
-	scripts map[string]script,
+	scripts map[string]scriptLifecycle,
 ) error {
-	for _, selector := range slices.Concat(declaration.run, declaration.after) {
-		if selector.kind != selectorScript {
-			continue
-		}
-		for _, address := range selector.addresses {
-			actual := scriptPhase(scripts[address])
-			if actual != phase {
-				return ruleError(
-					declaration.dataSourceAddress,
-					declaration.ruleIndex,
-					xerrors.Errorf(
-						"%s selector %q selects %s script %q, but the rule phase is %q",
-						selector.field, selector.raw, actual, address, phase,
-					),
-				)
+	selectorGroups := [...][]resolvedSelector{declaration.run, declaration.after}
+	for _, selectors := range selectorGroups {
+		for i := range selectors {
+			selector := &selectors[i]
+			if selector.kind != selectorScript {
+				continue
+			}
+			for _, address := range selector.addresses {
+				actual := scriptPhase(scripts[address])
+				if actual != phase {
+					return ruleError(
+						declaration.dataSourceAddress,
+						declaration.ruleIndex,
+						xerrors.Errorf(
+							"%s selector %q selects %s script %q, but the rule phase is %q",
+							selector.field, selector.raw, actual, address, phase,
+						),
+					)
+				}
 			}
 		}
 	}
@@ -379,7 +403,7 @@ func validateResourceSelectorPhases(
 func filterModuleSelectorAddressesByPhase(
 	selectors []resolvedSelector,
 	phase Phase,
-	scripts map[string]script,
+	scripts map[string]scriptLifecycle,
 ) ([]resolvedSelector, []string) {
 	result := make([]resolvedSelector, 0, len(selectors))
 	var filtered []string
@@ -406,13 +430,10 @@ func filterModuleSelectorAddressesByPhase(
 	return result, filtered
 }
 
-func validateRuleRuntime(
-	declaration ruleDeclaration,
-	run []resolvedSelector,
-	after []resolvedSelector,
-	scripts map[string]script,
+func (r *preparedRule) validateRuntime(
+	runtimeBindings map[string]RuntimeBinding,
 ) (string, error) {
-	addrs := uniqueResolvedAddresses(run, after)
+	addrs := uniqueResolvedAddresses(r.run, r.after)
 	if len(addrs) == 0 {
 		return "", nil
 	}
@@ -420,44 +441,44 @@ func validateRuleRuntime(
 	// Comparing every remaining script with the first proves that all
 	// selected scripts share one runtime.
 	firstAddr := addrs[0]
-	firstScript := scripts[firstAddr]
-	if firstScript.runtimeAddress == "" {
-		return "", missingRuntimeError(declaration, firstAddr, run, after)
+	firstBinding := runtimeBindings[firstAddr]
+	if firstBinding.RuntimeAddress == "" {
+		return "", missingRuntimeError(r.identity, firstAddr, r.run, r.after)
 	}
 	for _, addr := range addrs[1:] {
-		script := scripts[addr]
-		if script.runtimeAddress == "" {
-			return "", missingRuntimeError(declaration, addr, run, after)
+		binding := runtimeBindings[addr]
+		if binding.RuntimeAddress == "" {
+			return "", missingRuntimeError(r.identity, addr, r.run, r.after)
 		}
-		if script.runtimeAddress != firstScript.runtimeAddress {
-			firstSelector := findResolvedSelector(firstAddr, run, after)
-			selector := findResolvedSelector(addr, run, after)
+		if binding.RuntimeAddress != firstBinding.RuntimeAddress {
+			firstSelector := findResolvedSelector(firstAddr, r.run, r.after)
+			selector := findResolvedSelector(addr, r.run, r.after)
 			return "", ruleError(
-				declaration.dataSourceAddress,
-				declaration.ruleIndex,
+				r.identity.dataSourceAddress,
+				r.identity.ruleIndex,
 				xerrors.Errorf(
 					"selector %q expands to script %q executed by %q, but "+
 						"selector %q expands to script %q executed by %q; "+
 						"scripts can be ordered only within the same agent or devcontainer subagent",
-					firstSelector.raw, firstAddr, firstScript.runtimeAddress,
-					selector.raw, addr, script.runtimeAddress,
+					firstSelector.raw, firstAddr, firstBinding.RuntimeAddress,
+					selector.raw, addr, binding.RuntimeAddress,
 				),
 			)
 		}
 	}
-	return firstScript.runtimeAddress, nil
+	return firstBinding.RuntimeAddress, nil
 }
 
 func missingRuntimeError(
-	declaration ruleDeclaration,
+	identity ruleIdentity,
 	address string,
 	run []resolvedSelector,
 	after []resolvedSelector,
 ) error {
 	selector := findResolvedSelector(address, run, after)
 	return ruleError(
-		declaration.dataSourceAddress,
-		declaration.ruleIndex,
+		identity.dataSourceAddress,
+		identity.ruleIndex,
 		xerrors.Errorf(
 			"%s selector %q selects script %q, but it could not be associated with an agent or devcontainer subagent",
 			selector.field, selector.raw, address,
@@ -465,23 +486,19 @@ func missingRuntimeError(
 	)
 }
 
-func validateNoSelfDependency(
-	declaration ruleDeclaration,
-	run []resolvedSelector,
-	after []resolvedSelector,
-) error {
+func (r *preparedRule) validateNoSelfDependency() error {
 	afterSelectorsByAddress := map[string]string{}
-	for _, selection := range uniqueAddressSelections(after) {
+	for _, selection := range uniqueAddressSelections(r.after) {
 		if _, ok := afterSelectorsByAddress[selection.address]; !ok {
 			afterSelectorsByAddress[selection.address] = selection.selector
 		}
 	}
-	for _, runSelection := range uniqueAddressSelections(run) {
+	for _, runSelection := range uniqueAddressSelections(r.run) {
 		afterSelector, ok := afterSelectorsByAddress[runSelection.address]
 		if ok {
 			return ruleError(
-				declaration.dataSourceAddress,
-				declaration.ruleIndex,
+				r.identity.dataSourceAddress,
+				r.identity.ruleIndex,
 				xerrors.Errorf(
 					"run selector %q and after selector %q both select script %q; a script cannot depend on itself",
 					runSelection.selector, afterSelector, runSelection.address,
@@ -522,7 +539,8 @@ func uniqueAddressSelections(
 ) []addressSelection {
 	seen := map[string]struct{}{}
 	var result []addressSelection
-	for _, selector := range selectors {
+	for i := range selectors {
+		selector := &selectors[i]
 		for _, addr := range selector.addresses {
 			if _, ok := seen[addr]; ok {
 				continue
@@ -537,7 +555,7 @@ func uniqueAddressSelections(
 	return result
 }
 
-func scriptPhase(s script) Phase {
+func scriptPhase(s scriptLifecycle) Phase {
 	switch {
 	case s.runOnStart && !s.runOnStop:
 		return PhaseStart

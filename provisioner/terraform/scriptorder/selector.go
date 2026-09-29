@@ -19,8 +19,6 @@ const (
 	selectorModule
 )
 
-var errConfigModuleNotFound = xerrors.New("script order configuration module not found")
-
 type selector struct {
 	kind        selectorKind
 	name        string
@@ -75,13 +73,13 @@ func parseSelector(raw string) (selector, error) {
 		return selector{},
 			xerrors.Errorf("parse script order selector %q: %w", raw, err)
 	}
-	// Resource selectors qualified by a module path are not supported yet.
+	// Resource selectors qualified by a module path are not supported.
 	if address.ModulePath().String() != "" {
 		return selector{}, invalidSelectorError(raw)
 	}
 
 	switch address.ResourceType() {
-	case "coder_script":
+	case coderScriptResourceType:
 		return selector{
 			kind:        selectorScript,
 			name:        address.ResourceName(),
@@ -93,23 +91,19 @@ func parseSelector(raw string) (selector, error) {
 	}
 }
 
-// resolveSelector expands a selector relative to its
-// declaring module. For selectors with no resolved scripts, it also
-// reports whether the selected resource or module call is declared so
-// callers can distinguish an empty declaration from an unknown selector.
-//
-// `modules` contains one or more evaluated module trees and their
-// concrete script instances. During plan conversion, it may include
-// prior state filtered to data resources alongside planned values.
-// `planConfig` contains resource and module call declarations, including
-// declarations with no instances after evaluation.
-// `parsedSelector` must have been produced by parseSelector.
-func resolveSelector(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+// resolveSelector expands a selector relative to its declaring module using
+// the program indexes. parsedSelector must have been produced by parseSelector.
+func (p *Program) resolveSelector(
 	moduleAddress string,
 	parsedSelector selector,
+	budget *expansionBudget,
 ) (selectorResolution, error) {
+	var state *stateIndex
+	var config *configIndex
+	if p != nil {
+		state = p.stateIndex
+		config = p.configIndex
+	}
 	if parsedSelector.kind != selectorScript &&
 		parsedSelector.kind != selectorModule {
 		return selectorResolution{},
@@ -117,36 +111,62 @@ func resolveSelector(
 	}
 
 	resolved := map[string]struct{}{}
-	for _, rootModule := range modules {
-		err := walkStateModuleTree(rootModule, func(module *tfjson.StateModule) error {
-			if module.Address != moduleAddress {
-				return nil
+	switch parsedSelector.kind {
+	case selectorScript:
+		if state != nil {
+			key := stateResourceKey{
+				moduleAddress: moduleAddress,
+				resourceName:  parsedSelector.name,
 			}
-
-			switch parsedSelector.kind {
-			case selectorScript:
-				return resolveScriptSelector(module, parsedSelector, resolved)
-			case selectorModule:
-				return resolveModuleSelector(module, parsedSelector, resolved)
-			default:
-				return xerrors.Errorf("unknown script order selector kind %d", parsedSelector.kind)
+			for _, scriptIndex := range state.scriptsByResource[key] {
+				script := &state.scripts[scriptIndex]
+				if script.addressErr != nil {
+					return selectorResolution{}, script.addressErr
+				}
+				if parsedSelector.instanceKey != cty.NilVal &&
+					!tfaddr.InstanceKeysEqual(script.instanceKey, parsedSelector.instanceKey) {
+					continue
+				}
+				if err := addExpandedAddress(
+					resolved, script.address, budget,
+				); err != nil {
+					return selectorResolution{}, err
+				}
 			}
-		})
-		if err != nil {
-			return selectorResolution{}, err
+		}
+	case selectorModule:
+		if state != nil {
+			if err := state.moduleLookupErrors[moduleAddress]; err != nil {
+				return selectorResolution{}, err
+			}
+			key := moduleCallKey{
+				moduleAddress: moduleAddress,
+				moduleName:    parsedSelector.name,
+			}
+			for _, span := range state.scriptsByModule[key] {
+				for scriptIndex := span.start; scriptIndex < span.end; scriptIndex++ {
+					script := &state.scripts[scriptIndex]
+					if script.addressErr != nil {
+						return selectorResolution{}, script.addressErr
+					}
+					if err := addExpandedAddress(
+						resolved, script.address, budget,
+					); err != nil {
+						return selectorResolution{}, err
+					}
+				}
+			}
 		}
 	}
 
-	resolution := selectorResolution{
-		addresses: slices.Sorted(maps.Keys(resolved)),
-	}
+	resolution := selectorResolution{addresses: slices.Sorted(maps.Keys(resolved))}
 	switch parsedSelector.kind {
 	case selectorScript:
 		// Only unindexed selectors may be valid without concrete
 		// instances. The caller rejects missing indexed instances.
 		if parsedSelector.instanceKey == cty.NilVal && len(resolution.addresses) == 0 {
-			declared, err := isCoderScriptResourceInConfig(
-				planConfig, moduleAddress, parsedSelector.name,
+			declared, err := config.resourceDeclared(
+				moduleAddress, coderScriptResourceType, parsedSelector.name,
 			)
 			if err != nil {
 				return selectorResolution{}, err
@@ -154,12 +174,9 @@ func resolveSelector(
 			resolution.scriptResourceDeclared = declared
 		}
 	case selectorModule:
-		// Always validate module selectors against the plan config.
-		// This distinguishes unknown selectors from declared calls
-		// with no scripts.
-		declared, err := isModuleCallInConfig(
-			planConfig, moduleAddress, parsedSelector.name,
-		)
+		// Always validate module selectors against the plan config. This
+		// distinguishes unknown selectors from declared calls with no scripts.
+		declared, err := config.moduleCallDeclared(moduleAddress, parsedSelector.name)
 		if err != nil {
 			return selectorResolution{}, err
 		}
@@ -168,164 +185,29 @@ func resolveSelector(
 	return resolution, nil
 }
 
-// isModuleCallInConfig reports whether name is a direct child module
-// call in the configuration of the declaring module instance.
-func isModuleCallInConfig(
-	config *tfjson.Config,
-	declaringModuleAddress string,
-	name string,
-) (bool, error) {
-	if config == nil || config.RootModule == nil {
-		return false, xerrors.New("terraform plan configuration is required to resolve a module selector")
-	}
-
-	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
-	if xerrors.Is(err, errConfigModuleNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	return module.ModuleCalls[name] != nil, nil
+type expansionBudget struct {
+	used  int
+	limit int
 }
 
-// isCoderScriptResourceInConfig reports whether `name` is a managed
-// coder_script resource in the configuration of the declaring module
-// instance.
-func isCoderScriptResourceInConfig(
-	config *tfjson.Config,
-	declaringModuleAddress string,
-	name string,
-) (bool, error) {
-	if config == nil || config.RootModule == nil {
-		return false, xerrors.New(
-			"cannot validate empty coder_script selector because Terraform plan configuration is unavailable",
-		)
-	}
-
-	module, err := configModuleForAddress(config.RootModule, declaringModuleAddress)
-	if xerrors.Is(err, errConfigModuleNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	for _, resource := range module.Resources {
-		if resource != nil &&
-			resource.Mode == tfjson.ManagedResourceMode &&
-			resource.Type == "coder_script" &&
-			resource.Name == name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-// configModuleForAddress maps an evaluated module-instance address to
-// its configuration. Instance keys are ignored because repeated
-// module instances share one configuration.
-func configModuleForAddress(
-	root *tfjson.ConfigModule,
-	moduleAddress string,
-) (*tfjson.ConfigModule, error) {
-	module := root
-	if moduleAddress == "" {
-		return module, nil
-	}
-
-	modulePath, err := parseStateModuleAddress(moduleAddress)
-	if err != nil {
-		return nil, err
-	}
-	for _, step := range modulePath.Steps() {
-		call := module.ModuleCalls[step.Name()]
-		if call == nil || call.Module == nil {
-			return nil, errConfigModuleNotFound
-		}
-		module = call.Module
-	}
-	return module, nil
-}
-
-func resolveScriptSelector(
-	module *tfjson.StateModule,
-	parsedSelector selector,
+func addExpandedAddress(
 	resolved map[string]struct{},
+	address string,
+	budget *expansionBudget,
 ) error {
-	// An unindexed script selector expands every count and for_each
-	// instance; an indexed selector retains only the matching
-	// instance key.
-	for _, resource := range module.Resources {
-		if resource == nil ||
-			resource.Mode != tfjson.ManagedResourceMode ||
-			resource.Type != "coder_script" ||
-			resource.Name != parsedSelector.name {
-			continue
-		}
-
-		address, err := parseStateResourceAddress(module, resource)
-		if err != nil {
-			return err
-		}
-		if parsedSelector.instanceKey != cty.NilVal &&
-			!tfaddr.InstanceKeysEqual(address.InstanceKey(), parsedSelector.instanceKey) {
-			continue
-		}
-		resolved[resource.Address] = struct{}{}
+	if _, ok := resolved[address]; ok {
+		return nil
 	}
-	return nil
-}
-
-func resolveModuleSelector(
-	module *tfjson.StateModule,
-	parsedSelector selector,
-	resolved map[string]struct{},
-) error {
-	// An unindexed module selector expands every count and for_each
-	// instance of the selected child module call.
-	for _, child := range module.ChildModules {
-		if child == nil {
-			continue
+	if budget != nil {
+		if budget.used >= budget.limit {
+			return xerrors.Errorf(
+				"script order selectors are limited to %d expanded script addresses in total",
+				budget.limit,
+			)
 		}
-
-		modulePath, err := parseStateModuleAddress(child.Address)
-		if err != nil {
-			return err
-		}
-		steps := modulePath.Steps()
-		if len(steps) == 0 || steps[len(steps)-1].Name() != parsedSelector.name {
-			continue
-		}
-		if err := collectModuleCoderScriptAddresses(child, resolved); err != nil {
-			return err
-		}
+		budget.used++
 	}
-	return nil
-}
-
-func collectModuleCoderScriptAddresses(
-	module *tfjson.StateModule, resolved map[string]struct{},
-) error {
-	for _, resource := range module.Resources {
-		if resource == nil ||
-			resource.Mode != tfjson.ManagedResourceMode ||
-			resource.Type != "coder_script" {
-			continue
-		}
-		if _, err := parseStateResourceAddress(module, resource); err != nil {
-			return err
-		}
-		resolved[resource.Address] = struct{}{}
-	}
-	for _, child := range module.ChildModules {
-		if child == nil {
-			continue
-		}
-		if err := collectModuleCoderScriptAddresses(child, resolved); err != nil {
-			return err
-		}
-	}
+	resolved[address] = struct{}{}
 	return nil
 }
 
@@ -334,7 +216,8 @@ func collectModuleCoderScriptAddresses(
 // fields. This prevents inconsistent Terraform output from assigning
 // dependencies to the wrong resource.
 func parseStateResourceAddress(
-	module *tfjson.StateModule, resource *tfjson.StateResource,
+	module *tfjson.StateModule,
+	resource *tfjson.StateResource,
 ) (*tfaddr.ManagedResourceAddress, error) {
 	address, err := tfaddr.ParseManagedResourceAddress(resource.Address)
 	if err != nil {
@@ -356,19 +239,4 @@ func parseStateModuleAddress(address string) (tfaddr.ModulePath, error) {
 		return tfaddr.ModulePath{}, xerrors.Errorf("parse module address %q: %w", address, err)
 	}
 	return parsed, nil
-}
-
-func walkStateModuleTree(module *tfjson.StateModule, visit func(*tfjson.StateModule) error) error {
-	if module == nil {
-		return nil
-	}
-	if err := visit(module); err != nil {
-		return err
-	}
-	for _, child := range module.ChildModules {
-		if err := walkStateModuleTree(child, visit); err != nil {
-			return err
-		}
-	}
-	return nil
 }

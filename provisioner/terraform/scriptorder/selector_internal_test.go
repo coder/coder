@@ -544,7 +544,7 @@ func TestResolveSelector(t *testing.T) {
 			selector, err := parseSelector(test.selector)
 			require.NoError(t, err)
 
-			resolved, err := resolveSelector(test.modules, test.config, test.moduleAddress, selector)
+			resolved, err := resolveSelectorForTest(test.modules, test.config, test.moduleAddress, selector)
 			require.NoError(t, err)
 			require.Equal(t, test.expected, resolved)
 		})
@@ -560,7 +560,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("coder_script.setup[0]")
 		require.NoError(t, err)
 
-		_, err = resolveSelector([]*tfjson.StateModule{{
+		_, err = resolveSelectorForTest([]*tfjson.StateModule{{
 			Resources: []*tfjson.StateResource{managedCoderScript("not-an-address", "setup")},
 		}}, nil, "", selector)
 		require.ErrorContains(t, err, `parse Terraform resource address "not-an-address"`)
@@ -572,7 +572,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("module.bootstrap")
 		require.NoError(t, err)
 
-		_, err = resolveSelector([]*tfjson.StateModule{{
+		_, err = resolveSelectorForTest([]*tfjson.StateModule{{
 			ChildModules: []*tfjson.StateModule{{Address: "not-an-address"}},
 		}}, rootConfigWithModuleCalls("bootstrap"), "", selector)
 		require.ErrorContains(t, err, `parse module address "not-an-address"`)
@@ -584,7 +584,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveSelector(
+		_, err = resolveSelectorForTest(
 			nil,
 			rootConfigWithScripts(configCoderScript("setup")),
 			"not-an-address",
@@ -599,7 +599,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveSelector([]*tfjson.StateModule{{
+		_, err = resolveSelectorForTest([]*tfjson.StateModule{{
 			Resources: []*tfjson.StateResource{managedCoderScript("coder_script.other", "setup")},
 		}}, nil, "", selector)
 		require.ErrorContains(t, err, `Terraform resource address "coder_script.other" does not match its state fields`)
@@ -611,7 +611,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("module.bootstrap")
 		require.NoError(t, err)
 
-		_, err = resolveSelector(nil, nil, "", selector)
+		_, err = resolveSelectorForTest(nil, nil, "", selector)
 		require.ErrorContains(t, err, "terraform plan configuration is required to resolve a module selector")
 	})
 
@@ -621,7 +621,7 @@ func TestResolveSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveSelector(nil, nil, "", selector)
+		_, err = resolveSelectorForTest(nil, nil, "", selector)
 		require.ErrorContains(t, err, "cannot validate empty coder_script selector because Terraform plan configuration is unavailable")
 	})
 }

@@ -1,26 +1,20 @@
-// Package scriptorder resolves Terraform coder_script_order data sources into
-// deterministic lifecycle dependency graphs for coder_script resources.
-//
-// The resolution pipeline is:
-//
-//	coder_script_order data sources
-//	    -> rule declarations
-//	    -> phase- and runtime-resolved rules
-//	    -> deterministic dependency graphs
-//
-// Selector validation distinguishes declared-but-empty resources from invalid
-// selectors. Graph construction bounds work, deduplicates dependencies, and
-// rejects conflicting requirements and cycles.
 package scriptorder
 
 import (
-	"maps"
-	"slices"
-
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
+
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+)
+
+const (
+	// maxExpandedAddresses bounds address entries retained across
+	// all selectors before no-op rules are discarded and dependency
+	// combinations are counted.
+	maxExpandedAddresses   = 100_000
+	maxRuleDiagnosticRunes = 64 << 10
 )
 
 // Requirement describes the prerequisite outcome required by a dependency.
@@ -51,7 +45,6 @@ type ruleAttributes struct {
 }
 
 type dataSource struct {
-	address       string
 	moduleAddress string
 	resource      *tfjson.StateResource
 }
@@ -80,58 +73,69 @@ type ruleDeclaration struct {
 	after         []resolvedSelector
 }
 
+type ruleIdentity struct {
+	dataSourceAddress string
+	ruleIndex         int
+}
+
+func (d *ruleDeclaration) identity() ruleIdentity {
+	return ruleIdentity{
+		dataSourceAddress: d.dataSourceAddress,
+		ruleIndex:         d.ruleIndex,
+	}
+}
+
 // collectRuleDeclarations decodes coder_script_order data sources
 // and resolves their selectors relative to each declaring module.
-func collectRuleDeclarations(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+func (p *Program) collectRuleDeclarations() ([]ruleDeclaration, error) {
+	return p.collectRuleDeclarationsWithExpansionLimit(maxExpandedAddresses)
+}
+
+func (p *Program) collectRuleDeclarationsWithExpansionLimit(
+	expansionLimit int,
 ) ([]ruleDeclaration, error) {
-	srcs, err := collectDataSources(modules)
-	if err != nil {
-		return nil, err
+	if p == nil {
+		return nil, nil
 	}
 
 	var decls []ruleDeclaration
-	for _, src := range srcs {
+	budget := expansionBudget{limit: expansionLimit}
+	for _, src := range p.dataSources {
 		var attrs attributes
 		err := mapstructure.Decode(src.resource.AttributeValues, &attrs)
 		if err != nil {
 			return nil, xerrors.Errorf(
-				"decode script order data source %q: %w", src.address, err,
+				"decode script order data source %q: %w", src.resource.Address, err,
 			)
 		}
 		if len(attrs.Rules) == 0 {
 			return nil, xerrors.Errorf(
 				"script order data source %q must contain at least one rule",
-				src.address,
+				src.resource.Address,
 			)
 		}
 
 		for i, rule := range attrs.Rules {
 			requirement, err := parseRequirement(rule.Requires)
 			if err != nil {
-				return nil, ruleError(src.address, i, err)
+				return nil, ruleError(src.resource.Address, i, err)
 			}
 			phase, err := parsePhase(rule.Phase)
 			if err != nil {
-				return nil, ruleError(src.address, i, err)
+				return nil, ruleError(src.resource.Address, i, err)
 			}
 
-			run, err := resolveSelectors(
-				modules, planConfig, src, i, "run", rule.Run,
-			)
+			run, err := p.resolveSelectors(src, i, "run", rule.Run, &budget)
 			if err != nil {
 				return nil, err
 			}
-			after, err := resolveSelectors(
-				modules, planConfig, src, i, "after", rule.After,
-			)
+			after, err := p.resolveSelectors(src, i, "after", rule.After, &budget)
 			if err != nil {
 				return nil, err
 			}
 
 			decls = append(decls, ruleDeclaration{
-				dataSourceAddress: src.address,
+				dataSourceAddress: src.resource.Address,
 				ruleIndex:         i,
 				declaredPhase:     phase,
 				requirement:       requirement,
@@ -141,41 +145,6 @@ func collectRuleDeclarations(
 		}
 	}
 	return decls, nil
-}
-
-// collectDataSources returns unique coder_script_order
-// data sources sorted by full Terraform address for deterministic
-// rule processing and diagnostics.
-func collectDataSources(
-	modules []*tfjson.StateModule,
-) ([]dataSource, error) {
-	byAddr := map[string]dataSource{}
-	for _, root := range modules {
-		if err := walkStateModuleTree(root, func(module *tfjson.StateModule) error {
-			for _, rsrc := range module.Resources {
-				if rsrc == nil ||
-					rsrc.Mode != tfjson.DataResourceMode ||
-					rsrc.Type != "coder_script_order" {
-					continue
-				}
-				byAddr[rsrc.Address] = dataSource{
-					address:       rsrc.Address,
-					moduleAddress: module.Address,
-					resource:      rsrc,
-				}
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	addrs := slices.Sorted(maps.Keys(byAddr))
-	srcs := make([]dataSource, 0, len(addrs))
-	for _, addr := range addrs {
-		srcs = append(srcs, byAddr[addr])
-	}
-	return srcs, nil
 }
 
 func parseRequirement(raw string) (Requirement, error) {
@@ -211,39 +180,43 @@ func parsePhase(raw string) (Phase, error) {
 // resolveSelectors resolves one run or after field. An unindexed
 // selector naming a declared script resource or child module call may
 // expand to no scripts.
-func resolveSelectors(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+func (p *Program) resolveSelectors(
 	source dataSource,
 	ruleIndex int,
 	selectorField string,
 	rawSelectors []string,
+	budget *expansionBudget,
 ) ([]resolvedSelector, error) {
 	if len(rawSelectors) == 0 {
 		return nil, ruleError(
-			source.address,
+			source.resource.Address,
 			ruleIndex,
 			xerrors.Errorf("%s must contain at least one selector", selectorField),
 		)
 	}
 
 	selectors := make([]resolvedSelector, 0, len(rawSelectors))
+	seen := make(map[string]struct{}, len(rawSelectors))
 	for _, raw := range rawSelectors {
+		if _, duplicate := seen[raw]; duplicate {
+			continue
+		}
+		seen[raw] = struct{}{}
 		selector, err := parseSelector(raw)
 		if err != nil {
 			return nil, ruleError(
-				source.address,
+				source.resource.Address,
 				ruleIndex,
 				xerrors.Errorf("invalid %s selector %q: %w", selectorField, raw, err),
 			)
 		}
 
-		resolution, err := resolveSelector(
-			modules, planConfig, source.moduleAddress, selector,
+		resolution, err := p.resolveSelector(
+			source.moduleAddress, selector, budget,
 		)
 		if err != nil {
 			return nil, ruleError(
-				source.address,
+				source.resource.Address,
 				ruleIndex,
 				xerrors.Errorf("resolve %s selector %q: %w", selectorField, raw, err),
 			)
@@ -254,7 +227,7 @@ func resolveSelectors(
 			if len(resolution.addresses) == 0 {
 				if selector.instanceKey != cty.NilVal {
 					return nil, ruleError(
-						source.address,
+						source.resource.Address,
 						ruleIndex,
 						xerrors.Errorf(
 							"%s selector %q expanded to no coder_script resources",
@@ -264,7 +237,7 @@ func resolveSelectors(
 				}
 				if !resolution.scriptResourceDeclared {
 					return nil, ruleError(
-						source.address,
+						source.resource.Address,
 						ruleIndex,
 						xerrors.Errorf(
 							"%s selector %q does not name a declared coder_script resource",
@@ -276,7 +249,7 @@ func resolveSelectors(
 		case selectorModule:
 			if !resolution.moduleCallDeclared {
 				return nil, ruleError(
-					source.address,
+					source.resource.Address,
 					ruleIndex,
 					xerrors.Errorf(
 						"%s selector %q does not name a declared child module call",
@@ -286,7 +259,7 @@ func resolveSelectors(
 			}
 		default:
 			return nil, ruleError(
-				source.address,
+				source.resource.Address,
 				ruleIndex,
 				xerrors.Errorf("developer error: %s selector %q has unknown kind %d",
 					selectorField, raw, selector.kind),
@@ -306,6 +279,23 @@ func resolveSelectors(
 func ruleError(dataSourceAddress string, ruleIndex int, err error) error {
 	return xerrors.Errorf(
 		"script order data source %q rule %d: %w",
-		truncateDiagnosticValue(dataSourceAddress), ruleIndex, err,
+		truncateDiagnosticValue(dataSourceAddress), ruleIndex,
+		boundedDiagnosticError{err: err},
 	)
+}
+
+type boundedDiagnosticError struct {
+	err error
+}
+
+func (e boundedDiagnosticError) Error() string {
+	return stringutil.Truncate(
+		e.err.Error(),
+		maxRuleDiagnosticRunes,
+		stringutil.TruncateWithEllipsis,
+	)
+}
+
+func (e boundedDiagnosticError) Unwrap() error {
+	return e.err
 }
