@@ -123,7 +123,7 @@ export const RequestedOrganizationDenied: Story = {
 };
 
 export const Mobile: Story = {
-	globals: { viewport: { value: "mobile2", isRotated: false } },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 // The content width a 1024px viewport leaves beside the settings sidebar.
