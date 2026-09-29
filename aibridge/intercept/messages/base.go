@@ -126,7 +126,7 @@ type interceptionBase struct {
 
 	cfg  intercept.Config
 	cred credential.Credential
-	// bedrock is nil for non-Bedrock providers.
+	// bedrock carries the provider's resolved Bedrock runtime, when applicable.
 	bedrock *BedrockRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -182,6 +182,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	}
 
 	usageRecord := recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
 		Input:                 usage.InputTokens,
@@ -318,8 +319,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 			continue
 		}
 		thoughtRecords = append(thoughtRecords, &recorder.ModelThoughtRecord{
-			Content:  variant.Thinking,
-			Metadata: recorder.Metadata{"source": recorder.ThoughtSourceThinking},
+			CreatedAt: time.Now().UTC(),
+			Content:   variant.Thinking,
+			Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceThinking},
 		})
 	}
 	return thoughtRecords
@@ -351,6 +353,9 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		}
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
+	if i.cfg.HTTPClient != nil {
+		opts = append(opts, option.WithHTTPClient(i.cfg.HTTPClient))
+	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
@@ -461,16 +466,13 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 }
 
 // withAWSSignedMessagesOptions returns request options for an AWS-signed
-// endpoint that speaks the native Messages wire format: the upstream base URL,
-// any endpoint-specific headers, and SigV4 signing for the named service.
+// endpoint that speaks the native Messages wire format. It is used by the
+// Bedrock mantle path to set its base URL and SigV4 middleware.
 //
 // Credentials come from creds, a shared credentials cache, so the per-request
 // Retrieve is served from that cache and does not re-resolve or re-assume on
 // every request. It is called once here to fail fast before signing.
-//
-// Callers own any service-specific attribution such as the Bedrock PRM
-// user-agent; this helper only routes and signs.
-func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string, headers map[string]string) ([]option.RequestOption, error) {
+func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string) ([]option.RequestOption, error) {
 	// Fail fast: ensure credentials can be resolved before signing. Served from
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
@@ -480,16 +482,6 @@ func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProv
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(baseURL))
-	if len(headers) > 0 {
-		// Set after the client-header rebuild and before signing, so the values
-		// are ours rather than the client's and are covered by the signature.
-		out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			for name, value := range headers {
-				req.Header.Set(name, value)
-			}
-			return next(req)
-		}))
-	}
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
 	//nolint:bodyclose // awssig.SignMiddleware reads and closes the request body in order to sign it.
@@ -521,7 +513,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		}),
 	}
 
-	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle)
 	if err != nil {
 		return nil, err
 	}

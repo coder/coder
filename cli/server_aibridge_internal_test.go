@@ -137,7 +137,7 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 			provider, err := buildProvider(t.Context(), protoToProviderSpec(tt.provider), codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
-			}, nil)
+			}, slog.Make(), nil)
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 			assert.Equal(t, tt.expectedType, provider.Type())
@@ -218,7 +218,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				SendActorHeaders:    serpent.Bool(tt.sendActorHeaders),
 				ActorHeaderID:       serpent.String(tt.actorHeaderID),
 				ActorHeaderUsername: serpent.String(tt.actorHeaderName),
-			}, nil)
+			}, slog.Make(), nil)
 			require.NoError(t, err)
 
 			request := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`))
@@ -229,7 +229,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 
 			interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), request, noop.NewTracerProvider().Tracer("test"))
 			require.NoError(t, err)
-			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), nil), nil)
+			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), "", false, nil), nil)
 
 			processRequest := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`)).WithContext(request.Context())
 			response := httptest.NewRecorder()
@@ -264,7 +264,7 @@ func TestBuildProviderFromProtoBedrockWithoutSettings(t *testing.T) {
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}), codersdk.AIBridgeConfig{
 		AllowBYOK: serpent.Bool(true),
-	}, nil)
+	}, slog.Make(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }

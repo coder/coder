@@ -30,6 +30,12 @@ const (
 	AuthHeaderXAPIKey = "X-Api-Key" //nolint:gosec // HTTP header name, not a credential.
 	// AuthHeaderAuthorization carries an authorization credential.
 	AuthHeaderAuthorization = "Authorization"
+
+	// HeaderAnthropicWorkspaceID identifies the Anthropic workspace a request is
+	// attributed to. Claude Platform for AWS requires it on every data plane
+	// request. It is set from provider configuration, never preserved from the
+	// client, so a client cannot choose which workspace its traffic bills to.
+	HeaderAnthropicWorkspaceID = "Anthropic-Workspace-Id"
 )
 
 var (
@@ -202,6 +208,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 	for _, h := range agentFirewallHeaders {
 		prepared.Del(h)
 	}
+	// Never forward a client-supplied workspace ID: providers that need one set
+	// it from their own configuration.
+	prepared.Del(HeaderAnthropicWorkspaceID)
 	return prepared
 }
 

@@ -301,6 +301,22 @@ func TestPrepareClientHeaders(t *testing.T) {
 		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 
+	t.Run("workspace id header is removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			headers.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
+			"X-Custom":                         {"preserved"},
+		}
+
+		result := headers.PrepareClientHeaders(input)
+
+		// Providers that need a workspace ID set it from their own config, so a
+		// client cannot choose which workspace its traffic bills to.
+		assert.Empty(t, result.Get(headers.HeaderAnthropicWorkspaceID))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
 	t.Run("proxy headers are removed", func(t *testing.T) {
 		t.Parallel()
 

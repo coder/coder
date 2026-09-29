@@ -65,15 +65,13 @@ type GitPanelProps = {
 	repositories: ReadonlyMap<string, WorkspaceAgentRepoChanges>;
 	/** Callback to send a refresh to the git watcher. Returns false when disconnected. */
 	onRefresh: () => boolean;
-	/** Called when the user clicks the Commit button for a working repo. */
-	onCommit: (repoRoot: string) => void;
 	/** Whether the panel is in expanded/fullscreen mode. */
 	isExpanded?: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading?: boolean;
 	/** Diff status for the remote/branch view (includes PR metadata). */
 	remoteDiffStats?: ChatDiffStatus;
-	/** Ref to the chat input, forwarded to RemoteDiffPanel. */
+	/** Chat composer, used to insert commit prompts and file comments. */
 	chatInputRef?: React.RefObject<ChatMessageInputRef | null>;
 	/**
 	 * Repo roots that have been dirty at some point during this session.
@@ -111,7 +109,6 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	prTab,
 	repositories,
 	onRefresh,
-	onCommit,
 	isExpanded,
 	isGitStatusLoading = false,
 	remoteDiffStats,
@@ -322,6 +319,19 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 		}
 	};
 
+	const handleCommit = (repoRoot: string) => {
+		const input = chatInputRef?.current;
+		if (!input) {
+			return;
+		}
+		const prompt = `Commit and push the working changes in ${repoRoot}. If there are unstaged files, commit them too.`;
+		const current = input.getValue();
+		if (!current.includes(prompt)) {
+			input.insertText(current.trim() ? `\n\n${prompt}` : prompt);
+		}
+		input.focus();
+	};
+
 	return (
 		<div className="flex h-full flex-col">
 			{/* Toolbar */}
@@ -440,7 +450,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 								deletions: 0,
 							}
 						}
-						onCommit={onCommit}
+						onCommit={handleCommit}
 						isExpanded={isExpanded}
 						diffStyle={diffStyle}
 						chatInputRef={chatInputRef}

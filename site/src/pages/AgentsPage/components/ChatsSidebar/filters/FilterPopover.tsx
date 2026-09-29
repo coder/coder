@@ -181,14 +181,12 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 		} else {
 			selected.delete(status);
 		}
-		if (selected.size === 0) {
-			return;
-		}
 		onFiltersChange({
 			...filters,
-			chatStatuses: AGENT_CHAT_STATUS_ORDER.filter((value) =>
-				selected.has(value),
-			),
+			chatStatuses:
+				selected.size === 0
+					? DEFAULT_AGENT_SIDEBAR_FILTERS.chatStatuses
+					: AGENT_CHAT_STATUS_ORDER.filter((value) => selected.has(value)),
 		});
 	};
 
@@ -206,11 +204,13 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				)
 			: filters.sources.filter((value) => value !== source);
 
-		if (nextSources.length === 0) {
-			return;
-		}
-
-		onFiltersChange({ ...filters, sources: nextSources });
+		onFiltersChange({
+			...filters,
+			sources:
+				nextSources.length === 0
+					? DEFAULT_AGENT_SIDEBAR_FILTERS.sources
+					: nextSources,
+		});
 	};
 
 	const prSummary = !haveSameSelections(

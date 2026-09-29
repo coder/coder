@@ -99,6 +99,7 @@ const writeSidebarFilters = (
 export const getAgentSidebarFilters = (
 	searchParams: URLSearchParams,
 	setSearchParams: SetURLSearchParams,
+	locationState: unknown,
 ): AgentSidebarFiltersResult => {
 	const prStatuses = canonicalizeChatListPRStatuses(
 		(searchParams.get("pr_status") ?? "").split(",").filter(Boolean),
@@ -140,7 +141,7 @@ export const getAgentSidebarFilters = (
 				writeSidebarFilters(updated, next);
 				return updated;
 			},
-			{ replace: true },
+			{ replace: true, state: locationState },
 		);
 	};
 

@@ -36,7 +36,7 @@ From the dashboard, go to **Account settings** > **Tokens** and create a new tok
 For long-lived tokens, refer to [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
 For headless or service-account use, refer to [Headless authentication](../../admin/users/headless-auth.md).
 
-From the CLI, print your current session token with [`coder login token`](../../reference/cli/login_token.md):
+From the CLI, print your current session token with [`coder login token`](../../reference/cli/login/token.md):
 
 ```sh
 coder login token
@@ -52,7 +52,7 @@ Use short lifetimes for automation and CI to limit the blast radius if a token l
 
 ### Retrieve your session token
 
-If you're logged in with the Coder CLI, retrieve your current session token with [`coder login token`](../../reference/cli/login_token.md):
+If you're logged in with the Coder CLI, retrieve your current session token with [`coder login token`](../../reference/cli/login/token.md):
 
 ```sh
 export ANTHROPIC_API_KEY=$(coder login token)
@@ -108,11 +108,11 @@ List keys and the most recent heartbeat for each:
 coder ai-gateway keys list
 ```
 
-A replica records a heartbeat when its control connection is established, then refreshes it every 60 seconds while that connection is active.
+A replica records a heartbeat when its control connection is established, then refreshes it every 60&nbsp;seconds while that connection is active.
 The heartbeat reports control-connection liveness rather than client request volume.
 Coder stores one timestamp per key, so replicas that share a key cannot be distinguished.
 
-For usage and flags, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway_keys_create.md), [listing](../../reference/cli/ai-gateway_keys_list.md), and [deleting](../../reference/cli/ai-gateway_keys_delete.md) gateway keys.
+For usage and flags, refer to the generated CLI reference for [creating](../../reference/cli/ai-gateway/keys/create.md), [listing](../../reference/cli/ai-gateway/keys/list.md), and [deleting](../../reference/cli/ai-gateway/keys/delete.md) gateway keys.
 
 ### Rotate a gateway key
 
@@ -134,7 +134,7 @@ coder ai-gateway keys delete standalone-production
 Add `--yes` to skip the confirmation prompt in automation.
 
 Deleting a key rejects new connections immediately.
-An established session closes when its next heartbeat detects the deletion, within 60 seconds.
+An established session closes when its next heartbeat detects the deletion, within 60&nbsp;seconds.
 The replica then tries to reconnect, receives HTTP 401, and treats that as fatal: the process exits non-zero rather than retrying.
 Stop or update every replica before deleting its key for an orderly rotation.
 
