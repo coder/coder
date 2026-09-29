@@ -2,6 +2,7 @@ package terraform
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -10,6 +11,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestConvertStateWithScriptOrderFinalizesOrder(t *testing.T) {
@@ -20,12 +22,39 @@ func TestConvertStateWithScriptOrderFinalizesOrder(t *testing.T) {
 			"coder_agent.main", "main", "agent-id",
 		),
 		scriptOrderRuntimeBindingTestScript(
-			"coder_script.work", "work", "agent-id",
+			"coder_script.start_work", "start_work", "agent-id",
 		),
 		scriptOrderRuntimeBindingTestScript(
-			"coder_script.prepare", "prepare", "agent-id",
+			"coder_script.start_prepare", "start_prepare", "agent-id",
+		),
+		scriptOrderRuntimeBindingTestScript(
+			"coder_script.stop_work", "stop_work", "agent-id",
+		),
+		scriptOrderRuntimeBindingTestScript(
+			"coder_script.stop_prepare", "stop_prepare", "agent-id",
 		),
 	)
+	for _, resource := range module.Resources {
+		if resource.Address == "coder_script.stop_work" ||
+			resource.Address == "coder_script.stop_prepare" {
+			resource.AttributeValues["run_on_start"] = false
+			resource.AttributeValues["run_on_stop"] = true
+		}
+		if resource.Address == "data.coder_script_order.order" {
+			resource.AttributeValues["rule"] = []any{
+				map[string]any{
+					"run":   []string{"coder_script.start_work"},
+					"after": []string{"coder_script.start_prepare"},
+					"phase": "start",
+				},
+				map[string]any{
+					"run":   []string{"coder_script.stop_work"},
+					"after": []string{"coder_script.stop_prepare"},
+					"phase": "stop",
+				},
+			}
+		}
+	}
 	conversion, err := convertStateWithScriptOrder(
 		t.Context(),
 		[]*tfjson.StateModule{module},
@@ -38,16 +67,45 @@ func TestConvertStateWithScriptOrderFinalizesOrder(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, &scriptorder.ScriptOrder{
-		Graphs: []scriptorder.ScriptOrderGraph{{
-			RuntimeAddress: "coder_agent.main",
-			Phase:          scriptorder.ScriptOrderPhaseStart,
-			Dependencies: []scriptorder.ScriptOrderDependency{{
-				DependentAddress:    "coder_script.work",
-				PrerequisiteAddress: "coder_script.prepare",
-				Requirement:         scriptorder.ScriptOrderRequirementSuccess,
-			}},
-		}},
+		Graphs: []scriptorder.ScriptOrderGraph{
+			{
+				RuntimeAddress: "coder_agent.main",
+				Phase:          scriptorder.ScriptOrderPhaseStart,
+				Dependencies: []scriptorder.ScriptOrderDependency{{
+					DependentAddress:    "coder_script.start_work",
+					PrerequisiteAddress: "coder_script.start_prepare",
+					Requirement:         scriptorder.ScriptOrderRequirementSuccess,
+				}},
+			},
+			{
+				RuntimeAddress: "coder_agent.main",
+				Phase:          scriptorder.ScriptOrderPhaseStop,
+				Dependencies: []scriptorder.ScriptOrderDependency{{
+					DependentAddress:    "coder_script.stop_work",
+					PrerequisiteAddress: "coder_script.stop_prepare",
+					Requirement:         scriptorder.ScriptOrderRequirementSuccess,
+				}},
+			},
+		},
 	}, conversion.order)
+}
+
+func TestLogScriptOrderWarnings(t *testing.T) {
+	t.Parallel()
+
+	sink := &mockLogger{}
+	logScriptOrderWarnings(sink, []string{"first warning", "second warning"}, 2)
+	require.Equal(t, []*proto.Log{
+		{Level: proto.LogLevel_WARN, Output: "first warning"},
+		{Level: proto.LogLevel_WARN, Output: "second warning"},
+		{
+			Level: proto.LogLevel_WARN,
+			Output: fmt.Sprintf(
+				"2 additional script order warnings were omitted; at most %d are reported per Terraform conversion",
+				scriptorder.MaxWarnings,
+			),
+		},
+	}, sink.logs)
 }
 
 func TestConvertStateWithScriptOrderFinalizationError(t *testing.T) {

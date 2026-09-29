@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/provisioner/terraform/scriptorder"
 	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -392,6 +393,9 @@ func (s *server) Graph(
 	if err != nil {
 		return provisionersdk.GraphError("convert state for graph: %s", err)
 	}
+	logScriptOrderWarnings(
+		sess, conversion.warnings, conversion.warningsOmitted,
+	)
 	state := conversion.state
 
 	return &proto.GraphComplete{
@@ -402,6 +406,22 @@ func (s *server) Graph(
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Presets:               state.Presets,
 		HasExternalAgents:     state.HasExternalAgents,
+	}
+}
+
+func logScriptOrderWarnings(
+	sink logSink,
+	warnings []string,
+	omitted int,
+) {
+	for _, warning := range warnings {
+		sink.ProvisionLog(proto.LogLevel_WARN, warning)
+	}
+	if omitted > 0 {
+		sink.ProvisionLog(proto.LogLevel_WARN, fmt.Sprintf(
+			"%d additional script order warnings were omitted; at most %d are reported per Terraform conversion",
+			omitted, scriptorder.MaxWarnings,
+		))
 	}
 }
 

@@ -169,6 +169,20 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
 		]}}
 	}`
+	const shutdownPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_stop":true}},
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_stop":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"],"phase":"stop"}]}}
+		]}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+		]}}
+	}`
 	const emptySelectionPlanJSON = `{
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
@@ -208,6 +222,33 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0,"count_expression":{"constant_value":0}}
 		]}}
 	}`
+	const phaseWarningPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{
+			"resources":[
+				{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+				{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+				{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["module.bootstrap"]}]}}
+			],
+			"child_modules":[{
+				"address":"module.bootstrap",
+				"resources":[
+					{"address":"module.bootstrap.coder_script.start","mode":"managed","type":"coder_script","name":"start","values":{"agent_id":"agent-id","run_on_start":true}},
+					{"address":"module.bootstrap.coder_script.stop","mode":"managed","type":"coder_script","name":"stop","values":{"agent_id":"agent-id","run_on_stop":true}}
+				]
+			}]
+		}},
+		"configuration":{"root_module":{
+			"resources":[
+				{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+			],
+			"module_calls":{
+				"bootstrap":{"source":"./bootstrap","module":{"resources":[]}}
+			}
+		}}
+	}`
 	const graphDOT = `digraph {
 		"[root] docker_container.workspace" [label = "docker_container.workspace"]
 		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
@@ -215,12 +256,14 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 	}`
 
 	tests := []struct {
-		name           string
-		transition     proto.WorkspaceTransition
-		planJSON       string
-		savedPlanGraph string
-		wantGraphs     int
-		errorContains  string
+		name             string
+		transition       proto.WorkspaceTransition
+		planJSON         string
+		savedPlanGraph   string
+		wantGraphs       int
+		wantAgentScripts int
+		errorContains    string
+		warningContains  string
 	}{
 		{
 			name:       "StartSelectedScripts",
@@ -241,16 +284,18 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 			wantGraphs: 1,
 		},
 		{
-			name:       "Stop",
-			transition: proto.WorkspaceTransition_STOP,
-			planJSON:   selectedPlanJSON,
-			wantGraphs: 1,
+			name:             "Stop",
+			transition:       proto.WorkspaceTransition_STOP,
+			planJSON:         shutdownPlanJSON,
+			wantGraphs:       1,
+			wantAgentScripts: 2,
 		},
 		{
-			name:       "Destroy",
-			transition: proto.WorkspaceTransition_DESTROY,
-			planJSON:   selectedPlanJSON,
-			wantGraphs: 1,
+			name:             "Destroy",
+			transition:       proto.WorkspaceTransition_DESTROY,
+			planJSON:         shutdownPlanJSON,
+			wantGraphs:       1,
+			wantAgentScripts: 2,
 		},
 		{
 			name:           "MalformedSavedPlanGraph",
@@ -266,6 +311,13 @@ func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
 			planJSON:       removedDeclarationPlanJSON,
 			savedPlanGraph: `digraph { "[root] data.coder_script_order.order[0] (destroy)" }`,
 			wantGraphs:     2,
+		},
+		{
+			name:            "StartPhaseWarning",
+			transition:      proto.WorkspaceTransition_START,
+			planJSON:        phaseWarningPlanJSON,
+			wantGraphs:      2,
+			warningContains: `inferred phase "start"`,
 		},
 	}
 	for _, test := range tests {
@@ -325,13 +377,26 @@ esac
 					Source:   proto.GraphSource_SOURCE_PLAN,
 				}},
 			}))
-			_, response := readProvisionLog(t, sess)
+			logs, response := readProvisionLog(t, sess)
 			graph := response.GetGraph()
 			require.NotNil(t, graph)
+			if test.warningContains != "" {
+				require.Contains(t, logs, test.warningContains)
+				require.Contains(t, logs, "module.bootstrap")
+			}
 			if test.errorContains == "" {
 				require.Empty(t, graph.Error)
 			} else {
 				require.Contains(t, graph.Error, test.errorContains)
+			}
+			if test.wantAgentScripts > 0 {
+				var scripts []*proto.Script
+				for _, resource := range graph.Resources {
+					for _, agent := range resource.Agents {
+						scripts = append(scripts, agent.Scripts...)
+					}
+				}
+				require.Len(t, scripts, test.wantAgentScripts)
 			}
 
 			graphArgs, err := os.ReadFile(graphArgsPath)

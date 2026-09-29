@@ -39,22 +39,35 @@ type resolvedScriptOrderRule struct {
 }
 
 type scriptOrderPhaseFilterWarning struct {
-	dataSourceAddress            string
-	ruleIndex                    int
-	inferredPhase                ScriptOrderPhase
-	moduleSelectorsWithOmissions []string
+	dataSourceAddress                string
+	ruleIndex                        int
+	inferredPhase                    ScriptOrderPhase
+	moduleSelectorsWithOmissions     []string
+	additionalModuleSelectorsOmitted int
 }
 
 func (w scriptOrderPhaseFilterWarning) String() string {
-	selectors := make([]string, 0, len(w.moduleSelectorsWithOmissions))
-	for _, selector := range w.moduleSelectorsWithOmissions {
-		selectors = append(selectors, `"`+selector+`"`)
+	rendered := min(
+		len(w.moduleSelectorsWithOmissions),
+		maxScriptOrderPhaseFilterWarningSelectors,
+	)
+	selectors := make([]string, 0, rendered+1)
+	for _, selector := range w.moduleSelectorsWithOmissions[:rendered] {
+		selectors = append(selectors, fmt.Sprintf(
+			"%q", truncateScriptOrderDiagnosticValue(selector),
+		))
+	}
+	omitted := w.additionalModuleSelectorsOmitted +
+		len(w.moduleSelectorsWithOmissions) - rendered
+	if omitted > 0 {
+		selectors = append(selectors, fmt.Sprintf("… (%d more)", omitted))
 	}
 	return fmt.Sprintf(
 		"script order data source %q rule %d inferred phase %q and omitted "+
 			"scripts in the other phase from module selectors: "+
 			"%s; set phase = %q explicitly to make this filtering intentional",
-		w.dataSourceAddress, w.ruleIndex, w.inferredPhase,
+		truncateScriptOrderDiagnosticValue(w.dataSourceAddress),
+		w.ruleIndex, w.inferredPhase,
 		strings.Join(selectors, ", "), w.inferredPhase,
 	)
 }
@@ -82,9 +95,14 @@ type preparedScriptOrder struct {
 	warningsOmitted         int
 }
 
-// Bound detailed logs per conversion; one omission summary may follow.
-// TODO(PLAT-554): Benchmark warning-heavy rules and tune this limit.
-const maxScriptOrderPhaseFilterWarnings = 100
+const (
+	// MaxWarnings is the maximum number of detailed phase-filter warnings
+	// returned for one Terraform conversion.
+	MaxWarnings = 100
+	// Each phase-filter warning is transported as one provisioner log.
+	maxScriptOrderPhaseFilterWarningSelectors = 20
+	maxScriptOrderPhaseFilterWarnings         = MaxWarnings
+)
 
 // ScriptOrder contains one deterministic dependency graph per runtime
 // and lifecycle phase. Independent groups within the same runtime and
@@ -180,16 +198,17 @@ func prepareScriptOrderRule(
 
 	var warning *scriptOrderPhaseFilterWarning
 	if inferred {
-		selectorsWithOmissions := map[string]struct{}{}
-		for _, selector := range slices.Concat(runOmissions, afterOmissions) {
-			selectorsWithOmissions[selector] = struct{}{}
-		}
+		selectorsWithOmissions, omitted :=
+			boundedScriptOrderPhaseFilterWarningSelectors(
+				runOmissions, afterOmissions,
+			)
 		if len(selectorsWithOmissions) > 0 {
 			warning = &scriptOrderPhaseFilterWarning{
-				dataSourceAddress:            declaration.dataSourceAddress,
-				ruleIndex:                    declaration.ruleIndex,
-				inferredPhase:                phase,
-				moduleSelectorsWithOmissions: slices.Sorted(maps.Keys(selectorsWithOmissions)),
+				dataSourceAddress:                declaration.dataSourceAddress,
+				ruleIndex:                        declaration.ruleIndex,
+				inferredPhase:                    phase,
+				moduleSelectorsWithOmissions:     selectorsWithOmissions,
+				additionalModuleSelectorsOmitted: omitted,
 			}
 		}
 	}
@@ -201,6 +220,16 @@ func prepareScriptOrderRule(
 		run:         run,
 		after:       after,
 	}, warning, nil
+}
+
+func boundedScriptOrderPhaseFilterWarningSelectors(
+	selectorGroups ...[]string,
+) ([]string, int) {
+	selectors := slices.Concat(selectorGroups...)
+	slices.Sort(selectors)
+	selectors = slices.Compact(selectors)
+	rendered := min(len(selectors), maxScriptOrderPhaseFilterWarningSelectors)
+	return slices.Clone(selectors[:rendered]), len(selectors) - rendered
 }
 
 // finalizeScriptOrder validates runtime compatibility and self-dependencies

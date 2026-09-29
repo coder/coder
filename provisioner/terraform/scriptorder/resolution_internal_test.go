@@ -1,6 +1,8 @@
 package scriptorder
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -719,6 +721,71 @@ func TestResolveScriptOrderRejectsAmbiguousModulePhase(t *testing.T) {
 	require.ErrorContains(t, err, "phase cannot be inferred")
 	require.ErrorContains(t, err, `set phase to "start" or "stop"`)
 	require.Empty(t, order)
+}
+
+func TestPrepareScriptOrderBoundsPhaseFilterWarnings(t *testing.T) {
+	t.Parallel()
+
+	rules := make([]scriptOrderRuleAttributes, maxScriptOrderPhaseFilterWarnings+2)
+	for index := range rules {
+		rules[index] = scriptOrderRuleAttributes{
+			Run:   []string{"coder_script.dependent"},
+			After: []string{"module.alpha"},
+		}
+	}
+	module := scriptOrderModuleFilteringFixture("")
+	module.Resources[1] = dataCoderScriptOrder(
+		"data.coder_script_order.order", "order", rules...,
+	)
+	scripts := scriptOrderTestScripts(
+		"coder_agent.main", ScriptOrderPhaseStart,
+		"coder_script.dependent", "module.alpha.coder_script.start",
+	)
+	scripts["module.alpha.coder_script.stop"] = scriptOrderScript{
+		runtimeAddress: "coder_agent.main",
+		runOnStop:      true,
+	}
+
+	prepared, err := prepareScriptOrderForTest(
+		[]*tfjson.StateModule{module},
+		rootScriptOrderConfigWithModuleCalls("alpha"),
+		scripts,
+	)
+	require.NoError(t, err)
+	require.Len(t, prepared.rules, len(rules))
+	require.Len(t, prepared.warnings, maxScriptOrderPhaseFilterWarnings)
+	require.Equal(t, 2, prepared.warningsOmitted)
+}
+
+func TestScriptOrderPhaseFilterWarningBoundsDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	selectors := make(
+		[]string, 0, maxScriptOrderPhaseFilterWarningSelectors+2,
+	)
+	for index := range maxScriptOrderPhaseFilterWarningSelectors + 2 {
+		selectors = append(selectors, fmt.Sprintf(
+			"module.%d_%s", index, strings.Repeat("selector", 60),
+		))
+	}
+	dataSourceAddress := "data.coder_script_order." + strings.Repeat("order", 60)
+	retained, omitted := boundedScriptOrderPhaseFilterWarningSelectors(selectors)
+	require.Len(t, retained, maxScriptOrderPhaseFilterWarningSelectors)
+	require.Equal(t, 2, omitted)
+	warning := scriptOrderPhaseFilterWarning{
+		dataSourceAddress:                dataSourceAddress,
+		ruleIndex:                        0,
+		inferredPhase:                    ScriptOrderPhaseStart,
+		moduleSelectorsWithOmissions:     retained,
+		additionalModuleSelectorsOmitted: omitted,
+	}.String()
+
+	require.NotContains(t, warning, dataSourceAddress)
+	require.NotContains(t, warning, selectors[0])
+	require.Contains(t, warning, `data.coder_script_order.`)
+	require.Contains(t, warning, `"module.0_`)
+	require.Contains(t, warning, "… (2 more)")
+	require.Less(t, len(warning), 8*1024)
 }
 
 func scriptOrderModuleFilteringFixture(phase string) *tfjson.StateModule {
