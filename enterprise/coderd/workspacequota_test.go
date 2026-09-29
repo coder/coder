@@ -1135,6 +1135,9 @@ type committer struct {
 	DBTx *dbtestutil.DBTx
 	w    database.WorkspaceTable
 	b    database.WorkspaceBuild
+
+	doneOnce sync.Once
+	doneErr  error
 }
 
 // newCommitter takes the quota lock, so a second committer for the same
@@ -1145,9 +1148,13 @@ func newCommitter(t *testing.T, db database.Store, workspace database.WorkspaceT
 		ReadOnly:  false,
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
+	c := &committer{DBTx: quotaTX, w: workspace, b: build}
+	// Release the lock if the subtest fails before Done, so later subtests
+	// for the same owner and organization don't block.
+	t.Cleanup(func() { _ = c.Done() })
 	err := quotaTX.AcquireLock(ctx, database.WorkspaceQuotaLockID(workspace.OwnerID, workspace.OrganizationID))
 	require.NoError(t, err)
-	return &committer{DBTx: quotaTX, w: workspace, b: build}
+	return c
 }
 
 // GetQuota touches:
@@ -1191,5 +1198,6 @@ func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing
 }
 
 func (c *committer) Done() error {
-	return c.DBTx.Done()
+	c.doneOnce.Do(func() { c.doneErr = c.DBTx.Done() })
+	return c.doneErr
 }

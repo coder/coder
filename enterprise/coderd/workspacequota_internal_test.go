@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,12 +35,12 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		first := f.build(t, user, org)
 		second := f.build(t, user, org)
 
-		pause := newQuotaPause(ctx)
+		pause := newQuotaPause()
 		firstDone := commitAsync(ctx, f.committer(t, pause.store(f.db)), first, 10)
 		testutil.TryReceive(ctx, t, pause.paused)
 
 		secondDone := commitAsync(ctx, f.committer(t, f.db), second, 10)
-		f.waitForQuotaLockWaiters(ctx, t, 1, secondDone)
+		f.waitForAdvisoryLockWaiters(ctx, t, 1, secondDone)
 
 		close(pause.resume)
 		firstRes := testutil.RequireReceive(ctx, t, firstDone)
@@ -96,7 +96,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		org := f.org(t, 10, user, otherUser)
 		otherOrg := f.org(t, 10, user)
 
-		pause := newQuotaPause(ctx)
+		pause := newQuotaPause()
 		heldDone := commitAsync(ctx, f.committer(t, pause.store(f.db)), f.build(t, user, org), 10)
 		testutil.TryReceive(ctx, t, pause.paused)
 
@@ -116,9 +116,10 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		require.True(t, held.resp.Ok)
 	})
 
-	// InTx can run the closure more than once. The response must come from
-	// the attempt that committed, not from an earlier attempt that was
-	// rolled back after permitting the build.
+	// If InTx runs the closure more than once, as it does for SERIALIZABLE
+	// transactions, the response must come from the attempt that committed,
+	// not from an earlier attempt that was rolled back after permitting the
+	// build.
 	t.Run("RetryUsesFinalAttempt", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -162,7 +163,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		}}
 		_, err := f.committer(t, failing).CommitQuota(ctx, commitRequest(f.build(t, user, org), 10))
 		require.ErrorIs(t, err, errInjected)
-		require.Zero(t, f.quotaLocks(ctx, t))
+		require.Zero(t, f.advisoryLocks(ctx, t, false))
 
 		res, err := f.committer(t, f.db).CommitQuota(ctx, commitRequest(f.build(t, user, org), 10))
 		require.NoError(t, err)
@@ -179,7 +180,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 
 		holderCtx, cancelHolder := context.WithCancel(ctx)
 		defer cancelHolder()
-		pause := newQuotaPause(ctx)
+		pause := newQuotaPause()
 		holderDone := commitAsync(holderCtx, f.committer(t, pause.store(f.db)), f.build(t, user, org), 10)
 		testutil.TryReceive(ctx, t, pause.paused)
 
@@ -187,7 +188,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		waiterCtx, cancelWaiter := context.WithCancel(ctx)
 		defer cancelWaiter()
 		waiterDone := commitAsync(waiterCtx, f.committer(t, f.db), f.build(t, user, org), 10)
-		f.waitForQuotaLockWaiters(ctx, t, 1, waiterDone)
+		f.waitForAdvisoryLockWaiters(ctx, t, 1, waiterDone)
 		cancelWaiter()
 		require.Error(t, testutil.RequireReceive(ctx, t, waiterDone).err)
 
@@ -196,7 +197,7 @@ func TestCommitQuotaConcurrency(t *testing.T) {
 		cancelHolder()
 		close(pause.resume)
 		require.Error(t, testutil.RequireReceive(ctx, t, holderDone).err)
-		require.Zero(t, f.quotaLocks(ctx, t))
+		require.Zero(t, f.advisoryLocks(ctx, t, false))
 
 		res, err := f.committer(t, f.db).CommitQuota(ctx, commitRequest(f.build(t, user, org), 10))
 		require.NoError(t, err)
@@ -250,28 +251,26 @@ func (f quotaFixture) buildCost(ctx context.Context, t *testing.T, build databas
 	return got.DailyCost
 }
 
-// quotaLocks counts advisory locks held or awaited in this test's database.
-func (f quotaFixture) quotaLocks(ctx context.Context, t *testing.T) int {
-	t.Helper()
-	return f.countAdvisoryLocks(ctx, t, "")
-}
-
-func (f quotaFixture) countAdvisoryLocks(ctx context.Context, t *testing.T, extra string) int {
+// advisoryLocks counts advisory locks in this test's database. Each subtest
+// has its own database, so these are the quota locks. With waitingOnly, it
+// counts only commits that are waiting for a lock.
+func (f quotaFixture) advisoryLocks(ctx context.Context, t *testing.T, waitingOnly bool) int {
 	t.Helper()
 	var n int
 	err := f.sqlDB.QueryRowContext(ctx, `
 		SELECT count(*) FROM pg_locks
 		WHERE locktype = 'advisory'
-		AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`+extra,
+		AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+		AND (NOT $1 OR NOT granted)`, waitingOnly,
 	).Scan(&n)
 	require.NoError(t, err)
 	return n
 }
 
-// waitForQuotaLockWaiters waits until want commits are blocked on an
+// waitForAdvisoryLockWaiters waits until want commits are blocked on an
 // advisory lock. It fails if done delivers first, which means the commit
 // did not wait.
-func (f quotaFixture) waitForQuotaLockWaiters(ctx context.Context, t *testing.T, want int, done <-chan commitResult) {
+func (f quotaFixture) waitForAdvisoryLockWaiters(ctx context.Context, t *testing.T, want int, done <-chan commitResult) {
 	t.Helper()
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		select {
@@ -280,7 +279,7 @@ func (f quotaFixture) waitForQuotaLockWaiters(ctx context.Context, t *testing.T,
 				"it finished while another commit for the same owner and organization was in progress: %+v", res)
 		default:
 		}
-		return f.countAdvisoryLocks(ctx, t, " AND NOT granted") == want
+		return f.advisoryLocks(ctx, t, true) == want
 	}, testutil.IntervalFast)
 }
 
@@ -305,17 +304,15 @@ func commitAsync(ctx context.Context, c *committer, build database.WorkspaceBuil
 // quotaPause stops the first CommitQuota attempt just before it reads
 // consumed quota, which is after the quota lock is acquired.
 type quotaPause struct {
-	testCtx context.Context
-	once    sync.Once
+	started atomic.Bool
 	paused  chan struct{}
 	resume  chan struct{}
 }
 
-func newQuotaPause(testCtx context.Context) *quotaPause {
+func newQuotaPause() *quotaPause {
 	return &quotaPause{
-		testCtx: testCtx,
-		paused:  make(chan struct{}),
-		resume:  make(chan struct{}),
+		paused: make(chan struct{}),
+		resume: make(chan struct{}),
 	}
 }
 
@@ -323,16 +320,16 @@ func (p *quotaPause) store(db database.Store) database.Store {
 	return &quotaHookStore{Store: db, beforeConsumed: p.wait}
 }
 
-func (p *quotaPause) wait(context.Context) error {
-	first := false
-	p.once.Do(func() { first = true })
-	if !first {
+// wait returns nil even when ctx ends, so the canceled context reaches
+// CommitQuota's next query rather than this hook.
+func (p *quotaPause) wait(ctx context.Context) error {
+	if !p.started.CompareAndSwap(false, true) {
 		return nil
 	}
 	close(p.paused)
 	select {
 	case <-p.resume:
-	case <-p.testCtx.Done():
+	case <-ctx.Done():
 	}
 	return nil
 }
@@ -361,7 +358,7 @@ var errForcedRetry = xerrors.New("forced retry")
 
 // retryOnceStore rolls back the first transaction attempt after its
 // closure succeeds, then runs the closure again, the way InTx retries a
-// serialization failure reported at commit.
+// SERIALIZABLE transaction whose commit reports a serialization failure.
 type retryOnceStore struct {
 	database.Store
 	betweenAttempts func()

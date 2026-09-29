@@ -124,7 +124,8 @@ If you aren't sure whether your current release checks quota one build at a time
 
 Your deployment is affected when both of these are true:
 
-- The deployment has an Enterprise or Premium license.
+- The deployment has the `template_rbac` feature, which Enterprise and Premium licenses include.
+  `coder features list` shows whether it's enabled.
 - At least one template sets a nonzero `daily_cost` on a resource, as described in [Establish costs](#establish-costs).
 
 Coder commits quota only for start and stop builds that have a nonzero cost.
@@ -133,11 +134,12 @@ Group quota allowances with no template that sets a `daily_cost` never commit qu
 To confirm that your deployment commits quota, run this query against the Coder database:
 
 ```sql
-SELECT count(*) FROM workspace_builds WHERE daily_cost > 0;
+SELECT EXISTS (SELECT 1 FROM workspace_builds WHERE daily_cost > 0)
+    OR EXISTS (SELECT 1 FROM workspace_resources WHERE daily_cost > 0);
 ```
 
-A result greater than zero means the deployment commits quota.
-A result of zero doesn't rule out a template that adds a cost later, so check your templates as well.
+A result of `true` means the deployment commits quota.
+A result of `false` doesn't rule out a template whose cost depends on parameters or that adds a cost later, so check your templates as well.
 
 If your deployment isn't affected, [upgrade as usual](../../install/operate/upgrade.md).
 
@@ -152,6 +154,7 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 
 - From the time you stop the first `coderd` until the new release starts, the dashboard, the API, and the CLI are unavailable, so users can't create, start, or stop workspaces.
 - The upgrade doesn't start or stop workspaces, so running workspaces keep running.
+- Users can't open new connections to their workspaces, and connections that `coderd` relays, such as the web terminal and workspace apps, drop until the new release starts.
 - Autostarts and autostops that come due during the outage run shortly after the new release starts, so expect a burst of builds.
 - Builds that are still queued stay queued and run after provisioners reconnect.
 - The new release marks a queued build as failed once the build has gone 30&nbsp;minutes without an update.
@@ -186,13 +189,14 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    `CODER_PROVISIONER_DAEMONS` sets the number of embedded provisioners, and its default is `3`.
    Embedded provisioners keep taking new builds until `coderd` stops, so go to the next step as soon as the list is empty.
 
-1. Stop every `coderd` replica with `SIGTERM`, and wait for each process to exit.
+1. Stop every `coderd` replica, and wait for each process to exit.
 
    - Kubernetes: run `kubectl scale deployment coder --replicas=0 -n <namespace>`, then wait until `kubectl get pods -n <namespace> -l app.kubernetes.io/name=coder` lists no pods, including pods that are `Terminating`.
    - systemd: run `sudo systemctl stop coder` on each host.
 
    On `SIGTERM`, `coderd` stops serving the API and then waits up to 30&nbsp;minutes for embedded provisioners to finish their active builds.
    The Coder Helm chart gives each pod 60&nbsp;seconds before Kubernetes stops it, and any build still running at that point is interrupted.
+   The systemd unit in the Coder packages stops `coderd` with `SIGINT`, which cancels active embedded builds instead of waiting for them.
 
 ### Verify that the earlier release is gone
 
@@ -209,6 +213,7 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 
    The expected result is no rows.
    `coderd` doesn't set an `application_name` unless your `CODER_PG_CONNECTION_URL` sets one, so identify its sessions by `usename` and `client_addr`.
+   If `coderd` connects through a connection pooler or proxy, sessions can remain after `coderd` stops and show the pooler's address, so rely on the `replicas` check below.
 
 1. If a session remains from a host that runs no `coderd`, end it with `SELECT pg_terminate_backend(<pid>);`.
 
@@ -221,11 +226,13 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    ```sql
    SELECT hostname, version, updated_at
    FROM replicas
-   WHERE stopped_at IS NULL
+   WHERE "primary"
+     AND stopped_at IS NULL
      AND updated_at > now() - interval '1 minute';
    ```
 
    The expected result is no rows, because a running `coderd` updates its row every 5&nbsp;seconds.
+   The `"primary"` filter leaves out workspace proxies, which report to the same table.
 
 1. Record the builds that the outage interrupted:
 
@@ -237,6 +244,7 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
    ```
 
    The new release marks these builds as failed, so plan to tell their owners to start or stop the workspace again.
+   Builds that `coderd` canceled while it stopped don't appear here, so also check `coder provisioner jobs list --status canceled,failed --org <organization>`.
 
 ### Start the new release
 
@@ -262,7 +270,8 @@ If your deployment isn't affected, [upgrade as usual](../../install/operate/upgr
 If you find a `coderd` from the earlier release running after the new release started, quota decisions made during the overlap might be wrong.
 
 1. Stop the earlier `coderd`.
-1. Repeat the checks in [Verify that the earlier release is gone](#verify-that-the-earlier-release-is-gone).
+1. Run the checks in [Verify that the earlier release is gone](#verify-that-the-earlier-release-is-gone), and confirm that no row shows the earlier version or a host that runs the earlier release.
+   Rows for the new release are expected.
 1. For each user who built workspaces during the overlap, compare `credits_consumed` with `budget` from [Get workspace quota by user](../../reference/api/enterprise.md#get-workspace-quota-by-user).
 1. If a user is over budget, stop or delete workspaces until the user is within budget, or raise the user's allowance.
    A build that lowers a workspace's cost is allowed even when its owner is over budget.

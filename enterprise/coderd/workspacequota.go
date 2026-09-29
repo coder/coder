@@ -47,8 +47,8 @@ func (c *committer) CommitQuota(
 		permit   bool
 	)
 	err = c.Database.InTx(func(s database.Store) error {
-		// Reset the result on every attempt so a rolled back attempt cannot
-		// leak its permit into the response.
+		// InTx only retries SERIALIZABLE transactions, but reset anyway so the
+		// response always comes from the attempt that committed.
 		consumed, budget, permit = 0, 0, false
 
 		// Quota commits for the same owner and organization take turns. The
