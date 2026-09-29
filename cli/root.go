@@ -403,14 +403,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
-	// Add the PrintDeprecatedOptions and client session ID middleware to all
-	// commands. clientSessionIDMiddleware runs first so the resolved ID is on
-	// the invocation context for every downstream middleware and handler.
+	// clientSessionIDMiddleware runs first so the resolved ID is on the invocation
+	// context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions(), WarnIgnoredColumnFlag())
 		} else {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions(), WarnIgnoredColumnFlag())
 		}
 	})
 
@@ -1954,6 +1953,28 @@ type roundTripper func(req *http.Request) (*http.Response, error)
 
 func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
+}
+
+// WarnIgnoredColumnFlag warns to stderr when --column/-c is explicitly
+// passed but the resolved --output format is not "table", since --column
+// only affects table rendering. The command still runs normally.
+func WarnIgnoredColumnFlag() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			columnFlag := inv.ParsedFlags().Lookup("column")
+			if columnFlag == nil || !columnFlag.Changed {
+				return next(inv)
+			}
+
+			outputFlag := inv.ParsedFlags().Lookup("output")
+			if outputFlag == nil || outputFlag.Value.String() == "table" {
+				return next(inv)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "warning: --column only applies to table output; add -o table to use it")
+			return next(inv)
+		}
+	}
 }
 
 // PrintDeprecatedOptions loops through all command options, and
