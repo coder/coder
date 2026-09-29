@@ -32,11 +32,11 @@ const (
 	maxDiagnosticValueBytes = 256
 )
 
-// NodeID identifies a node within one Index. Its representation is opaque and
-// remains stable for the lifetime of that index.
+// NodeID identifies a node in the Index that created it. It cannot be used
+// with another Index, and its zero value is invalid.
 type NodeID struct {
 	index *Index
-	// position is one-based so the zero value is invalid.
+	// position is one-based within Index.nodes so the zero value is invalid.
 	position int
 }
 
@@ -63,8 +63,8 @@ func (n Node) Operation() string {
 	return n.operation
 }
 
-// ConfigurationAddress returns the normalized address if the node represents
-// a configuration expansion, or an empty string otherwise.
+// ConfigurationAddress returns an expansion node's normalized configuration
+// address, or an empty string for non-expansion nodes.
 func (n Node) ConfigurationAddress() string {
 	if n.operation != "expand" {
 		return ""
@@ -112,12 +112,15 @@ func (i *Index) Nodes() iter.Seq2[NodeID, Node] {
 	}
 }
 
-// NodesForConfigurationAddress returns the expansion nodes with address.
+// NodesForConfigurationAddress returns expansion nodes for the given
+// configuration address. Modifying the returned slice does not affect
+// the index.
 func (i *Index) NodesForConfigurationAddress(address string) []NodeID {
 	return slices.Clone(i.nodesByConfigurationAddress[address])
 }
 
-// NodesForInstanceAddress returns the concrete instance nodes with address.
+// NodesForInstanceAddress returns concrete instance nodes for the given
+// instance address. Modifying the returned slice does not affect the index.
 func (i *Index) NodesForInstanceAddress(address string) []NodeID {
 	return slices.Clone(i.nodesByInstanceAddress[address])
 }

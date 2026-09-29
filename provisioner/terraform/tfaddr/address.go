@@ -127,9 +127,12 @@ func (r ConfigurationReference) ConfigurationAddress() string {
 	return r.address
 }
 
-// ConfigurationAddresses returns possible configuration addresses for the
-// reference, prefixed by declaringModuleAddress. The declaring module address
-// must not contain instance keys; use an empty string for the root module.
+// ConfigurationAddresses returns possible Terraform graph configuration
+// addresses for the reference, prefixed by declaringModuleAddress. It yields
+// addresses in resolution order: a child-module output's graph-specific address
+// first, followed by traversal prefixes from most to least specific.
+// The declaring module address must not contain instance keys; use an empty
+// string for the root module.
 func (r ConfigurationReference) ConfigurationAddresses(
 	declaringModuleAddress string,
 ) iter.Seq[string] {
@@ -241,7 +244,7 @@ func ParseConfigurationReference(raw string) (ConfigurationReference, error) {
 	traversal, err := parseAddressTraversal(raw)
 	if err != nil {
 		return ConfigurationReference{},
-			xerrors.Errorf("parse expression reference: %w", err)
+			xerrors.Errorf("parse Terraform reference: %w", err)
 	}
 
 	parts := make([]string, 0, len(traversal))

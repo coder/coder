@@ -1,7 +1,6 @@
 package tfgraph_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -201,10 +200,7 @@ func TestParseCapturedTerraformGraphs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			rawGraph, err := os.ReadFile(test.path)
-			require.NoError(t, err)
-			index, err := tfgraph.Parse(t.Context(), string(rawGraph))
-			require.NoError(t, err)
+			index := graphIndexFromFile(t, test.path)
 			for _, address := range test.configurationAddresses {
 				require.NotEmpty(
 					t, index.NodesForConfigurationAddress(address), address,
