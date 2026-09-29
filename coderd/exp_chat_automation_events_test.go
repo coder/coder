@@ -165,7 +165,25 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Equal(t, http.StatusAccepted, status, string(body))
 		status, body = postChatAutomationEvent(t, env.member, queue.Automation.ID, queue.WebhookSecret, event)
 		require.Equal(t, http.StatusTooManyRequests, status, string(body))
+		var shareFull codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &shareFull))
+		require.Equal(t, "At most 1 automation messages can be queued in a chat.", shareFull.Detail)
 		require.Len(t, env.queuedMessageIDs(t, busy.ID), 1)
+	})
+
+	t.Run("ModelDisabled", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		_, err = env.owner.UpdateChatModel(ctx, env.orgID, env.modelConfig.ID, codersdk.UpdateChatModelRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+
+		// Senders retry 5xx responses, so a missing model is a client error.
+		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
+		require.Equal(t, http.StatusBadRequest, status, string(body))
+		require.Contains(t, string(body), "No chat model is available in this organization.")
 	})
 
 	t.Run("NewChatTarget", func(t *testing.T) {

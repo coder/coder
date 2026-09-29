@@ -24,6 +24,7 @@ func TestAutomationEventText(t *testing.T) {
 			t.Parallel()
 			text := automationEventText(`Deploy "prod" <hook>`, []byte(tc.body))
 
+			require.True(t, strings.HasPrefix(text, "\n\n"), "clients that join text parts need a separator from the prompt")
 			require.Equal(t, 1, strings.Count(text, closing), text)
 			require.Equal(t, 1, strings.Count(text, "<automation_event_data>"), text)
 			header, rest, ok := strings.Cut(text, "\n<automation_event_data>\n")

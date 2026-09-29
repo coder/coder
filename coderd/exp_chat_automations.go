@@ -444,9 +444,12 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	if !json.Valid(body) {
+	// Unmarshal instead of json.Valid so the detail names the cause, such
+	// as a value nested deeper than the parser accepts.
+	if err := json.Unmarshal(body, new(json.RawMessage)); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Request body must be valid JSON.",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -507,12 +510,20 @@ func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, 
 			Detail:  "The automation skips events while the chat is busy.",
 		})
 	case errors.Is(err, chatd.ErrAutomationQueueShareFull):
+		detail := ""
+		if shareFull, ok := errors.AsType[*chatd.AutomationQueueShareFullError](err); ok {
+			detail = fmt.Sprintf("At most %d automation messages can be queued in a chat.", shareFull.Max)
+		}
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
 			Message: "Too many automation messages are queued in the target chat.",
-			Detail:  err.Error(),
+			Detail:  detail,
 		})
 	case errors.Is(err, chatstate.ErrMessageQueueFull):
 		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{Message: "Message queue is full."})
+	case errors.Is(err, chatd.ErrNoDefaultChatModelConfig):
+		// The same response as a person's message gets; it is not a
+		// server error, so senders should not retry it.
+		writeNoLocalChatModelResponse(ctx, rw)
 	case errors.Is(err, chatd.ErrAutomationTargetNotSupported):
 		// new_chat targets are delivered by a follow-up change.
 		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
