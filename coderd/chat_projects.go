@@ -10,10 +10,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -91,14 +93,39 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	project, err := api.Database.InsertChatProject(ctx, database.InsertChatProjectParams{
-		ID:             uuid.NullUUID{},
-		OrganizationID: organization.ID,
-		OwnerID:        apiKey.UserID,
-		Name:           req.Name,
-		Description:    req.Description,
-		Icon:           req.Icon,
-	})
+	var project database.ChatProject
+	err := api.Database.InTx(func(tx database.Store) error {
+		// The lock serializes a user's creates so concurrent requests cannot
+		// both observe room under the cap.
+		if err := tx.AcquireLock(ctx, database.GenLockID("chat-projects-owner:"+apiKey.UserID.String())); err != nil {
+			return xerrors.Errorf("lock chat projects: %w", err)
+		}
+		// The count spans the user's projects in every organization, and the
+		// caller was already authorized to create one.
+		//nolint:gocritic // See above.
+		count, err := tx.CountChatProjectsByOwnerID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		if err != nil {
+			return xerrors.Errorf("count chat projects: %w", err)
+		}
+		if count >= maxChatProjectsPerOwner {
+			return errChatProjectLimit
+		}
+		project, err = tx.InsertChatProject(ctx, database.InsertChatProjectParams{
+			ID:             uuid.NullUUID{},
+			OrganizationID: organization.ID,
+			OwnerID:        apiKey.UserID,
+			Name:           req.Name,
+			Description:    req.Description,
+			Icon:           req.Icon,
+		})
+		return err
+	}, nil)
+	if errors.Is(err, errChatProjectLimit) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("You can have at most %d chat projects. Delete a project to create another.", maxChatProjectsPerOwner),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create chat project.",
@@ -241,6 +268,12 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }
+
+// maxChatProjectsPerOwner caps how many projects one user owns across all
+// organizations, which bounds the project list every agents page loads.
+const maxChatProjectsPerOwner = 100
+
+var errChatProjectLimit = xerrors.New("chat project limit reached")
 
 const (
 	// The project name is embedded in every generation's system prompt and

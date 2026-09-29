@@ -2034,6 +2034,15 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
+// CountChatProjectsByOwnerID counts a user's projects across organizations,
+// so it requires deployment-wide chat project read.
+func (q *querier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatProject); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatProjectsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {
