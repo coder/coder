@@ -539,7 +539,7 @@ require (
 	github.com/brianvoe/gofakeit/v7 v7.17.0
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/boundary v0.10.0
+	github.com/coder/boundary v0.11.0
 	github.com/coder/preview v1.0.10-0.20260915135839-c0dfdeecbd89
 	github.com/coder/safedial v0.2.0
 	github.com/danieljoos/wincred v1.2.3
