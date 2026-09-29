@@ -1941,7 +1941,7 @@ Emit structured logs for AI Gateway interception records. Use this for exporting
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
 
 ### --ai-gateway-actor-header-id
 

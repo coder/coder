@@ -327,7 +327,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
 
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server.md#--ai-gateway-send-actor-headers)

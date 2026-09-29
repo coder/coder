@@ -164,8 +164,12 @@ AI GATEWAY OPTIONS:
           to disable (unlimited).
 
       --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
-          Add the authenticated user's ID and username to intercepted upstream
-          requests. Requires AI Gateway actor headers to be enabled.
+          Add configured headers identifying the authenticated user to
+          intercepted upstream requests. Use this when a proxy between AI
+          Gateway and an upstream AI provider needs user identity. When enabled,
+          removes client-supplied headers at the standard ID and username names
+          and any configured actor-header destinations before adding
+          authenticated values.
 
       --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
           Emit structured logs for AI Gateway interception records. Use this for

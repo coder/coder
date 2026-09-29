@@ -2034,14 +2034,16 @@ communicating directly.`,
 		YAML:        "actor_header_meta_username",
 	}
 	aiGatewaySendActorHeaders := serpent.Option{
-		Name:        "AI Gateway Send Actor Headers",
-		Description: "Add the authenticated user's ID and username to intercepted upstream requests. Requires AI Gateway actor headers to be enabled.",
-		Flag:        "ai-gateway-send-actor-headers",
-		Env:         "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
-		Value:       &c.AI.BridgeConfig.SendActorHeaders,
-		Default:     "false",
-		Group:       &deploymentGroupAIGateway,
-		YAML:        "send_actor_headers",
+		Name: "AI Gateway Send Actor Headers",
+		Description: "Add configured headers identifying the authenticated user to intercepted upstream requests. " +
+			"Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. " +
+			"When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.",
+		Flag:    "ai-gateway-send-actor-headers",
+		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
+		Value:   &c.AI.BridgeConfig.SendActorHeaders,
+		Default: "false",
+		Group:   &deploymentGroupAIGateway,
+		YAML:    "send_actor_headers",
 	}
 	aiGatewayAllowBYOK := serpent.Option{
 		Name:        "AI Gateway Allow BYOK",
