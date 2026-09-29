@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type {
 	DeploymentValues,
 	ExternalAuthConfig,
@@ -28,7 +27,7 @@ type ExternalAuthSettingsPageViewProps = {
 	canViewPremium: boolean;
 };
 
-export const ExternalAuthSettingsPageView: FC<
+export const ExternalAuthSettingsPageView: React.FC<
 	ExternalAuthSettingsPageViewProps
 > = ({ config, isEntitled, canViewPremium }) => {
 	return (

@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { FormSection, HorizontalForm } from "#/components/Form/Form";
@@ -8,10 +8,9 @@ type DeleteOrganizationSectionProps = {
 	onDeleteOrganization: () => void;
 };
 
-export const DeleteOrganizationSection: FC<DeleteOrganizationSectionProps> = ({
-	organizationName,
-	onDeleteOrganization,
-}) => {
+export const DeleteOrganizationSection: React.FC<
+	DeleteOrganizationSectionProps
+> = ({ organizationName, onDeleteOrganization }) => {
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	return (

@@ -31,7 +31,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	agplaibridge "github.com/coder/coder/v2/aibridge"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
@@ -1201,6 +1201,63 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, member.ID, chat.OwnerID)
+	})
+
+	t.Run("AgentsAccessDefaultRole", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		createChat := func() error {
+			_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content: []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "hello"},
+				},
+			})
+			return err
+		}
+		setDefaults := func(roles []string) {
+			t.Helper()
+			org, err := rawDB.GetOrganizationByID(ctx, firstUser.OrganizationID)
+			require.NoError(t, err)
+			_, err = rawDB.UpdateOrganization(ctx, database.UpdateOrganizationParams{
+				ID:                    org.ID,
+				UpdatedAt:             dbtime.Now(),
+				Name:                  org.Name,
+				DisplayName:           org.DisplayName,
+				Description:           org.Description,
+				Icon:                  org.Icon,
+				DefaultOrgMemberRoles: roles,
+			})
+			require.NoError(t, err)
+		}
+		setMemberRoles := func(roles []string) {
+			t.Helper()
+			_, err := client.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, member.ID.String(), codersdk.UpdateRoles{Roles: roles})
+			require.NoError(t, err)
+		}
+
+		setDefaults([]string{codersdk.RoleOrganizationWorkspaceAccess})
+		requireSDKError(t, createChat(), http.StatusForbidden)
+
+		setMemberRoles([]string{codersdk.RoleAgentsAccess})
+		require.NoError(t, createChat())
+
+		setMemberRoles([]string{})
+		requireSDKError(t, createChat(), http.StatusForbidden)
+
+		setDefaults(rbac.DefaultOrgMemberRoles())
+		require.NoError(t, createChat())
 	})
 
 	t.Run("WithReasoningEffort", func(t *testing.T) {
@@ -5744,7 +5801,7 @@ func TestGetChat(t *testing.T) {
 
 		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
@@ -5760,66 +5817,6 @@ func TestGetChat(t *testing.T) {
 		require.Equal(t, firstUser.OrganizationID, f.OrganizationID)
 		require.Equal(t, "plan.md", f.Name)
 		require.Equal(t, "text/markdown", f.MimeType)
-
-		// Fill up to the cap by inserting more files via the
-		// chatd DB path, then verify the oldest file is evicted.
-		for i := 1; i < codersdk.MaxChatFileIDs; i++ {
-			extra, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
-				OwnerID:        firstUser.UserID,
-				OrganizationID: firstUser.OrganizationID,
-				Name:           fmt.Sprintf("file%d.md", i),
-				Mimetype:       "text/markdown",
-				Data:           []byte("data"),
-			})
-			require.NoError(t, err)
-			_, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
-				ChatID:       chat.ID,
-				MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-				FileIds:      []uuid.UUID{extra.ID},
-			})
-			require.NoError(t, err)
-		}
-
-		// Chat should now have exactly MaxChatFileIDs files.
-		chatResult, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
-
-		// Adding one more file evicts the oldest one.
-		overflow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
-			OwnerID:        firstUser.UserID,
-			OrganizationID: firstUser.OrganizationID,
-			Name:           "overflow.md",
-			Mimetype:       "text/markdown",
-			Data:           []byte("too many"),
-		})
-		require.NoError(t, err)
-		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
-			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-			FileIds:      []uuid.UUID{overflow.ID},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int32(0), rejected, "linking past the cap should evict, not reject")
-		chatResult, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
-		require.NotEqual(t, fileRow.ID, chatResult.Files[0].ID, "the oldest file should be evicted")
-		require.Equal(t, overflow.ID, chatResult.Files[len(chatResult.Files)-1].ID)
-
-		// Re-appending an already-linked ID at cap is a no-op.
-		rejected, err = store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
-			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
-			FileIds:      []uuid.UUID{overflow.ID},
-		})
-		require.NoError(t, err)
-		require.Equal(t, int32(0), rejected, "dedup of existing ID should be a no-op")
-
-		// Count should still be exactly MaxChatFileIDs.
-		chatResult, err = client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs)
 	})
 
 	t.Run("GetChatEmbedsChildren", func(t *testing.T) {
@@ -8915,7 +8912,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NoError(t, err)
 		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
 			ChatID:       chat.ID,
-			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			MaxFileLinks: int32(codersdk.DefaultChatMaxAttachmentsPerChat),
 			FileIds:      []uuid.UUID{fileRow.ID},
 		})
 		require.NoError(t, err)
@@ -9009,106 +9006,87 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Equal(t, uploadResp.ID, chatResult.Files[0].ID)
 	})
 
+	attachmentLimitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxAttachmentsPerChat },
+		codersdk.DefaultChatMaxAttachmentsPerChat, 3, 60)
+
 	t.Run("FileCapEvictsOldest", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
+		for _, lc := range attachmentLimitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
 
-		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+				client := newChatClient(t, lc.configure)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModel(t, client)
 
-		// Upload MaxChatFileIDs files.
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-		for i := range codersdk.MaxChatFileIDs {
-			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("file%d.png", i), bytes.NewReader(pngData))
-			require.NoError(t, err)
-			fileIDs = append(fileIDs, resp.ID)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				fileIDs := uploadChatPNGs(ctx, t, client, firstUser.OrganizationID, "file", lc.limit+1)
+				capped, extra := fileIDs[:lc.limit], fileIDs[lc.limit]
+
+				parts := []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "max files"},
+				}
+				for _, fid := range capped {
+					parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+				}
+				chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
+				require.NoError(t, err)
+				require.Len(t, chat.Files, lc.limit, "all files should be linked on creation")
+
+				_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
+						{Type: codersdk.ChatInputPartTypeFile, FileID: extra},
+					},
+				})
+				require.NoError(t, err, "linking past the cap should evict the oldest file")
+
+				linked := linkedChatFileIDs(ctx, t, client, chat.ID)
+				require.Len(t, linked, lc.limit, "file count should not exceed the cap")
+				require.Contains(t, linked, extra)
+				require.NotContains(t, linked, capped[0], "the oldest file should be evicted")
+
+				_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
+						{Type: codersdk.ChatInputPartTypeFile, FileID: capped[1]},
+					},
+				})
+				require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
+				require.Equal(t, linked, linkedChatFileIDs(ctx, t, client, chat.ID), "re-referencing an already-linked file must not evict anything")
+			})
 		}
-
-		// Create a chat using all MaxChatFileIDs files.
-		parts := []codersdk.ChatInputPart{
-			{Type: codersdk.ChatInputPartTypeText, Text: "max files"},
-		}
-		for _, fid := range fileIDs {
-			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
-		}
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
-		require.NoError(t, err)
-		require.Len(t, chat.Files, codersdk.MaxChatFileIDs, "all files should be linked on creation")
-
-		// Upload one more file.
-		extraResp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
-		require.NoError(t, err)
-
-		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: "one too many"},
-				{Type: codersdk.ChatInputPartTypeFile, FileID: extraResp.ID},
-			},
-		})
-		require.NoError(t, err, "linking past the cap should evict the oldest file")
-
-		chatFileIDs := func() []uuid.UUID {
-			chatResult, err := client.GetChat(ctx, chat.ID)
-			require.NoError(t, err)
-			ids := make([]uuid.UUID, 0, len(chatResult.Files))
-			for _, f := range chatResult.Files {
-				ids = append(ids, f.ID)
-			}
-			return ids
-		}
-		linked := chatFileIDs()
-		require.Len(t, linked, codersdk.MaxChatFileIDs, "file count should not exceed the cap")
-		require.Contains(t, linked, extraResp.ID)
-		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
-
-		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: "re-reference existing"},
-				{Type: codersdk.ChatInputPartTypeFile, FileID: fileIDs[1]},
-			},
-		})
-		require.NoError(t, err, "re-referencing an already-linked file must not count against the cap")
-		require.Equal(t, linked, chatFileIDs(), "re-referencing an already-linked file must not evict anything")
 	})
 
 	t.Run("FileCapOnCreate", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
+		for _, lc := range attachmentLimitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
 
-		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+				client := newChatClient(t, lc.configure)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModel(t, client)
 
-		// Upload MaxChatFileIDs + 1 files.
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs+1)
-		for i := range codersdk.MaxChatFileIDs + 1 {
-			resp, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("create%d.png", i), bytes.NewReader(pngData))
-			require.NoError(t, err)
-			fileIDs = append(fileIDs, resp.ID)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				parts := []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "over cap on create"},
+				}
+				for _, fid := range uploadChatPNGs(ctx, t, client, firstUser.OrganizationID, "create", lc.limit+1) {
+					parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+				}
+				_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Contains(t, sdkErr.Message, "attachment limit")
+				require.Contains(t, sdkErr.Detail, fmt.Sprintf("at most %d attachments", lc.limit))
+
+				chats, err := client.ListChats(ctx, nil)
+				require.NoError(t, err)
+				require.Empty(t, chats, "rejected create should not persist a chat")
+			})
 		}
-
-		// Create a chat with all files (one over the cap).
-		parts := []codersdk.ChatInputPart{
-			{Type: codersdk.ChatInputPartTypeText, Text: "over cap on create"},
-		}
-		for _, fid := range fileIDs {
-			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
-		}
-		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
-		require.Error(t, err, "chat creation over the cap should fail")
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "attachment limit")
-
-		chats, err := client.ListChats(ctx, nil)
-		require.NoError(t, err)
-		require.Empty(t, chats, "rejected create should not persist a chat")
 	})
 }
 
@@ -9721,60 +9699,55 @@ func TestPatchChatMessage(t *testing.T) {
 	t.Run("CapEvictsOldestOnEdit", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
+		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxAttachmentsPerChat },
+			codersdk.DefaultChatMaxAttachmentsPerChat, 3, 60)
+		for _, lc := range limitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
 
-		// Create a chat with MaxChatFileIDs files already linked.
-		parts := []codersdk.ChatInputPart{
-			{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
-		}
-		pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		fileIDs := make([]uuid.UUID, 0, codersdk.MaxChatFileIDs)
-		for i := range codersdk.MaxChatFileIDs {
-			up, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", fmt.Sprintf("cap-%d.png", i), bytes.NewReader(pngData))
-			require.NoError(t, err)
-			fileIDs = append(fileIDs, up.ID)
-			parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: up.ID})
-		}
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
-		require.NoError(t, err)
-		require.Len(t, chat.Files, codersdk.MaxChatFileIDs)
+				client := newChatClient(t, lc.configure)
+				firstUser := coderdtest.CreateFirstUser(t, client.Client)
+				_ = createChatModel(t, client)
 
-		// Find the user message.
-		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		var userMessageID int64
-		for _, msg := range messagesResult.Messages {
-			if msg.Role == codersdk.ChatMessageRoleUser {
-				userMessageID = msg.ID
-				break
-			}
-		}
-		require.NotZero(t, userMessageID)
+				ctx := testutil.Context(t, testutil.WaitLong)
+				fileIDs := uploadChatPNGs(ctx, t, client, firstUser.OrganizationID, "cap", lc.limit+1)
+				capped, extra := fileIDs[:lc.limit], fileIDs[lc.limit]
 
-		// Upload one more file and link it via edit.
-		extra, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "one-too-many.png", bytes.NewReader(pngData))
-		require.NoError(t, err)
-		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
-			Content: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
-				{Type: codersdk.ChatInputPartTypeFile, FileID: extra.ID},
-			},
-		})
-		require.NoError(t, err, "edit past the cap should evict the oldest file")
+				parts := []codersdk.ChatInputPart{
+					{Type: codersdk.ChatInputPartTypeText, Text: "fill to cap"},
+				}
+				for _, fid := range capped {
+					parts = append(parts, codersdk.ChatInputPart{Type: codersdk.ChatInputPartTypeFile, FileID: fid})
+				}
+				chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{OrganizationID: firstUser.OrganizationID, Content: parts})
+				require.NoError(t, err)
+				require.Len(t, chat.Files, lc.limit)
 
-		chatResult, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Len(t, chatResult.Files, codersdk.MaxChatFileIDs,
-			"file count should not exceed the cap")
-		linked := make([]uuid.UUID, 0, len(chatResult.Files))
-		for _, f := range chatResult.Files {
-			linked = append(linked, f.ID)
+				messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+				require.NoError(t, err)
+				var userMessageID int64
+				for _, msg := range messagesResult.Messages {
+					if msg.Role == codersdk.ChatMessageRoleUser {
+						userMessageID = msg.ID
+						break
+					}
+				}
+				require.NotZero(t, userMessageID)
+
+				_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+					Content: []codersdk.ChatInputPart{
+						{Type: codersdk.ChatInputPartTypeText, Text: "edit with extra file"},
+						{Type: codersdk.ChatInputPartTypeFile, FileID: extra},
+					},
+				})
+				require.NoError(t, err, "edit past the cap should evict the oldest file")
+
+				linked := linkedChatFileIDs(ctx, t, client, chat.ID)
+				require.Len(t, linked, lc.limit, "file count should not exceed the cap")
+				require.Contains(t, linked, extra)
+				require.NotContains(t, linked, capped[0], "the oldest file should be evicted")
+			})
 		}
-		require.Contains(t, linked, extra.ID)
-		require.NotContains(t, linked, fileIDs[0], "the oldest file should be evicted")
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -12735,7 +12708,7 @@ func seedChatGatewayRequest(t *testing.T, db database.Store, initiatorID, sessio
 		Provider:        "anthropic",
 		Model:           "claude-4",
 		StartedAt:       now,
-		Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+		Client:          sql.NullString{String: string(aibclient.CoderAgents), Valid: true},
 		ClientSessionID: sql.NullString{String: sessionChatID.String(), Valid: true},
 	}, &endedAt)
 
@@ -13045,7 +13018,7 @@ func TestGetChatCost(t *testing.T) {
 		foreignInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			StartedAt:       dbtime.Now(),
-			Client:          sql.NullString{String: string(agplaibridge.ClientClaudeCode), Valid: true},
+			Client:          sql.NullString{String: string(aibclient.ClaudeCode), Valid: true},
 			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
 		}, &foreignEndedAt)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -13057,7 +13030,7 @@ func TestGetChatCost(t *testing.T) {
 		unfinishedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID:     firstUser.UserID,
 			StartedAt:       dbtime.Now(),
-			Client:          sql.NullString{String: string(agplaibridge.ClientCoderAgents), Valid: true},
+			Client:          sql.NullString{String: string(aibclient.CoderAgents), Valid: true},
 			ClientSessionID: sql.NullString{String: chat.ID.String(), Valid: true},
 		}, nil)
 		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
@@ -13994,18 +13967,6 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
-	t.Run("TooLong", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		tooLong := strings.Repeat("a", 131073)
-		err := adminClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-			SystemPrompt:               tooLong,
-			IncludeDefaultSystemPrompt: ptr.Ref(true),
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
-	})
-
 	t.Run("Audit", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -14085,7 +14046,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 
 		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
-		tooLong := strings.Repeat("a", 131073)
+		tooLong := strings.Repeat("a", codersdk.DefaultChatMaxPromptBytes+1)
 		err = auditClient.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
 			SystemPrompt: tooLong,
 		})
@@ -14501,17 +14462,6 @@ func TestChatPlanModeInstructions(t *testing.T) {
 		})
 	}
 
-	t.Run("OversizedPayloadReturns400", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		tooLong := strings.Repeat("a", 131073)
-
-		err := adminClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
-			PlanModeInstructions: tooLong,
-		})
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "Plan mode instructions exceed maximum length.", sdkErr.Message)
-	})
-
 	t.Run("NonAdminGETReturns404", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -14572,7 +14522,7 @@ func TestChatPlanModeInstructions(t *testing.T) {
 
 		// A failed PUT records the attempt with an empty diff.
 		mAudit.ResetLogs()
-		tooLong := strings.Repeat("a", 131073)
+		tooLong := strings.Repeat("a", codersdk.DefaultChatMaxPromptBytes+1)
 		err = auditClient.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
 			PlanModeInstructions: tooLong,
 		})
@@ -17366,6 +17316,247 @@ func TestSubmitToolResults(t *testing.T) {
 	})
 }
 
+// chatLimitCase runs a test against one deployment configuration of a chat
+// limit.
+type chatLimitCase struct {
+	name      string
+	configure func(*coderdtest.Options)
+	limit     int
+}
+
+// chatLimitCases returns a Default row that leaves the deployment option
+// unset, so the codersdk default applies, plus rows configured below and
+// above the default.
+func chatLimitCases(option func(*codersdk.ChatConfig) *serpent.Int64, defaultLimit, lower, higher int) []chatLimitCase {
+	configured := func(name string, limit int) chatLimitCase {
+		return chatLimitCase{
+			name: name,
+			configure: func(o *coderdtest.Options) {
+				*option(&o.DeploymentValues.AI.Chat) = serpent.Int64(limit)
+			},
+			limit: limit,
+		}
+	}
+	return []chatLimitCase{
+		{name: "Default", configure: func(*coderdtest.Options) {}, limit: defaultLimit},
+		configured("Lower", lower),
+		configured("Higher", higher),
+	}
+}
+
+// uploadChatPNGs uploads n small PNG files in order, so each is newer than
+// the one before it.
+func uploadChatPNGs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, orgID uuid.UUID, prefix string, n int) []uuid.UUID {
+	t.Helper()
+
+	pngData := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
+	ids := make([]uuid.UUID, 0, n)
+	for i := range n {
+		resp, err := client.UploadChatFile(ctx, orgID, "image/png", fmt.Sprintf("%s-%d.png", prefix, i), bytes.NewReader(pngData))
+		require.NoError(t, err)
+		ids = append(ids, resp.ID)
+	}
+	return ids
+}
+
+func linkedChatFileIDs(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) []uuid.UUID {
+	t.Helper()
+
+	chat, err := client.GetChat(ctx, chatID)
+	require.NoError(t, err)
+	ids := make([]uuid.UUID, 0, len(chat.Files))
+	for _, f := range chat.Files {
+		ids = append(ids, f.ID)
+	}
+	return ids
+}
+
+func TestChatLimitsFromDeploymentConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MaxPromptBytes", func(t *testing.T) {
+		t.Parallel()
+
+		type promptEndpoint struct {
+			name    string
+			message string
+			put     func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error
+			get     func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error)
+		}
+		endpoints := []promptEndpoint{
+			{
+				name:    "SystemPrompt",
+				message: "System prompt exceeds maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					return client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
+						SystemPrompt:               prompt,
+						IncludeDefaultSystemPrompt: ptr.Ref(true),
+					})
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetChatSystemPrompt(ctx)
+					return resp.SystemPrompt, err
+				},
+			},
+			{
+				name:    "PlanModeInstructions",
+				message: "Plan mode instructions exceed maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					return client.UpdateChatPlanModeInstructions(ctx, codersdk.UpdateChatPlanModeInstructionsRequest{
+						PlanModeInstructions: prompt,
+					})
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetChatPlanModeInstructions(ctx)
+					return resp.PlanModeInstructions, err
+				},
+			},
+			{
+				name:    "UserCustomPrompt",
+				message: "Custom prompt exceeds maximum length.",
+				put: func(ctx context.Context, client *codersdk.ExperimentalClient, prompt string) error {
+					_, err := client.UpdateUserChatCustomPrompt(ctx, codersdk.UserChatCustomPrompt{CustomPrompt: prompt})
+					return err
+				},
+				get: func(ctx context.Context, client *codersdk.ExperimentalClient) (string, error) {
+					resp, err := client.GetUserChatCustomPrompt(ctx)
+					return resp.CustomPrompt, err
+				},
+			},
+		}
+
+		// Lower sits below the JSON envelope size, so rejection must come from
+		// the prompt check rather than the body cap. Higher lifts the body cap
+		// above its 256 KiB floor.
+		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxPromptBytes },
+			codersdk.DefaultChatMaxPromptBytes, 16, 512*1024)
+		for _, lc := range limitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client := newChatClient(t, lc.configure)
+				_ = coderdtest.CreateFirstUser(t, client.Client)
+
+				for _, ep := range endpoints {
+					t.Run(ep.name, func(t *testing.T) {
+						t.Parallel()
+
+						requireStored := func(ctx context.Context, t *testing.T, want string) {
+							t.Helper()
+							got, err := ep.get(ctx, client)
+							require.NoError(t, err)
+							require.Equal(t, want, got)
+						}
+						requireAccepted := func(ctx context.Context, t *testing.T, prompt string) {
+							t.Helper()
+							require.NoError(t, ep.put(ctx, client, prompt))
+							requireStored(ctx, t, prompt)
+						}
+						requireRejected := func(ctx context.Context, t *testing.T, prompt, stored string) {
+							t.Helper()
+							sdkErr := requireSDKError(t, ep.put(ctx, client, prompt), http.StatusBadRequest)
+							require.Equal(t, ep.message, sdkErr.Message)
+							require.Equal(t, fmt.Sprintf("Maximum length is %d bytes, got %d.", lc.limit, len(prompt)), sdkErr.Detail)
+							requireStored(ctx, t, stored)
+						}
+
+						ctx := testutil.Context(t, testutil.WaitLong)
+						atLimit := strings.Repeat("a", lc.limit)
+						requireAccepted(ctx, t, atLimit)
+						requireRejected(ctx, t, atLimit+"a", atLimit)
+
+						// "é" is two bytes, so the limit counts bytes, not characters.
+						multibyte := strings.Repeat("é", lc.limit/2)
+						requireAccepted(ctx, t, multibyte)
+						requireRejected(ctx, t, multibyte+"é", multibyte)
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("MaxPromptBytesDoesNotBoundChatCreation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := coderdtest.DeploymentValues(t)
+		values.AI.Chat.MaxPromptBytes = serpent.Int64(16)
+		client := newChatClientWithDeploymentValues(t, values)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: strings.Repeat("a", 1024),
+			}},
+			UnsafeDynamicTools: []codersdk.DynamicTool{{
+				Name:        "lookup",
+				Description: strings.Repeat("d", 1024),
+			}},
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("MaxQueuedMessagesPerChat", func(t *testing.T) {
+		t.Parallel()
+
+		limitCases := chatLimitCases(func(c *codersdk.ChatConfig) *serpent.Int64 { return &c.MaxQueuedMessagesPerChat },
+			codersdk.DefaultChatMaxQueuedMessagesPerChat, 2, 25)
+		for _, lc := range limitCases {
+			t.Run(lc.name, func(t *testing.T) {
+				t.Parallel()
+
+				client, db := newChatClientWithDatabase(t, lc.configure, withChatWorkerDisabled)
+				user := coderdtest.CreateFirstUser(t, client.Client)
+				modelConfig := createChatModel(t, client)
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+				chat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    user.OrganizationID,
+					OwnerID:           user.UserID,
+					LastModelConfigID: modelConfig.ID,
+					Title:             "queue cap " + lc.name,
+				})
+				// Another worker owns the running chat, so every send queues.
+				_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+					ID:          chat.ID,
+					Status:      database.ChatStatusRunning,
+					WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+					StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+					HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+				})
+				require.NoError(t, err)
+
+				send := func(ctx context.Context, i int) (codersdk.CreateChatMessageResponse, error) {
+					return client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+						Content: []codersdk.ChatInputPart{{
+							Type: codersdk.ChatInputPartTypeText,
+							Text: fmt.Sprintf("queued message %d", i),
+						}},
+						BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+					})
+				}
+				for i := range lc.limit {
+					resp, err := send(ctx, i)
+					require.NoError(t, err)
+					require.True(t, resp.Queued, "message %d should queue", i)
+				}
+
+				_, err = send(ctx, lc.limit)
+				sdkErr := requireSDKError(t, err, http.StatusTooManyRequests)
+				require.Equal(t, "Message queue is full.", sdkErr.Message)
+				require.Equal(t, fmt.Sprintf("Maximum %d messages can be queued.", lc.limit), sdkErr.Detail)
+
+				queued, err := db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(ctx), chat.ID)
+				require.NoError(t, err)
+				require.Len(t, queued, lc.limit)
+			})
+		}
+	})
+}
+
 func TestPostChats_DynamicToolValidation(t *testing.T) {
 	t.Parallel()
 
@@ -18333,5 +18524,84 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 					"owner must not receive 403")
 			}
 		}
+	})
+}
+
+func TestChatReadState(t *testing.T) {
+	t.Parallel()
+
+	hasUnread := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) bool {
+		t.Helper()
+
+		chats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		for _, chat := range chats {
+			if chat.ID == chatID {
+				return chat.HasUnread
+			}
+		}
+		require.FailNow(t, "chat not found in list")
+		return false
+	}
+
+	t.Run("MarkReadAndUnread", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "read state chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// A chat the owner has never opened starts unread.
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(true),
+		}))
+		require.False(t, hasUnread(ctx, t, client, chat.ID))
+
+		require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Read: ptr.Ref(false),
+		}))
+		require.True(t, hasUnread(ctx, t, client, chat.ID))
+	})
+
+	t.Run("NonOwnerForbidden", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		_, otherUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           otherUser.ID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "other user chat",
+		})
+		insertAssistantMessage(t, db, chat.ID, modelConfig.ID)
+
+		// The deployment owner may update the chat but must not move
+		// another user's read cursor, and the rejection must land before
+		// any other field of the same request is written.
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title: ptr.Ref("renamed by admin"),
+			Read:  ptr.Ref(true),
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+		persisted, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "other user chat", persisted.Title)
 	})
 }

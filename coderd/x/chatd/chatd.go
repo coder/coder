@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -82,20 +83,12 @@ const (
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 9 * time.Second
-	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
 	// above which a warning is logged. Preparation runs before
 	// every generation step, so sustained slowness (workspace
 	// dials, MCP connects) taxes the whole turn.
 	slowPrepareThreshold = 30 * time.Second
-
-	// maxConcurrentRecordingUploads caps the number of recording
-	// stop-and-store operations that can run concurrently. Each
-	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
-	// (110 MB) in memory, so this value implicitly bounds memory
-	// to roughly maxConcurrentRecordingUploads * 110 MB.
-	maxConcurrentRecordingUploads = 25
 
 	// agentDisconnectedRecoveryThreshold is how long the latest
 	// workspace agent must be disconnected before chatd suggests
@@ -208,6 +201,7 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -216,6 +210,7 @@ type Server struct {
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
+	chatLimits             Limits
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -309,10 +304,10 @@ func (p *Server) newAdvisorRuntime(
 	switch {
 	case maxUsesPerRun == 0:
 		// Advisor config treats 0 as unlimited, but the runtime
-		// requires a positive bound. maxChatSteps is the
+		// requires a positive bound. The per-turn step limit is the
 		// effective upper bound because advisor can run at most
 		// once per loop step.
-		maxUsesPerRun = maxChatSteps
+		maxUsesPerRun = p.chatLimits.MaxStepsPerTurn
 	case maxUsesPerRun < 0:
 		logger.Warn(
 			ctx,
@@ -364,6 +359,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxUsesPerRun:        maxUsesPerRun,
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
+		MaxRetries:           p.chatLimits.MaxGenerationRetries,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1428,6 +1424,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
 		InitialStatus:   initialStatus,
+		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1495,8 +1492,8 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if queuedCount >= chatstate.MaxQueueSize {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
+			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -1586,6 +1583,7 @@ func (p *Server) SendMessage(
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
 		})
 		if err != nil {
 			return err
@@ -1606,7 +1604,7 @@ func (p *Server) SendMessage(
 		result.InsertedMessages = sendResult.InsertedMessages
 
 		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		if firstUserTurn && !result.Queued {
@@ -2006,7 +2004,7 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		// Capture the post-edit chat inside the same transaction so
@@ -2732,6 +2730,7 @@ func (p *Server) generateManualTitleCandidate(
 		pasteText,
 		resolved.model.LanguageModel(),
 		titleObjectCall(resolved),
+		p.chatLimits.MaxGenerationRetries,
 	)
 	finishDebugRun(err)
 	if err != nil {
@@ -2919,7 +2918,10 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	PrometheusRegistry             prometheus.Registerer
+	// ExperimentEvaluator decides user-scoped experiments for a chat's
+	// owner. It is required.
+	ExperimentEvaluator *experiments.Evaluator
+	PrometheusRegistry  prometheus.Registerer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -2932,12 +2934,17 @@ type Config struct {
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
+	// Limits are the deployment chat limits.
+	Limits Limits
 }
 
 // New creates a new chat processor with the required pubsub dependency.
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
-func New(ps pubsub.Pubsub, cfg Config) *Server {
+func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
+	if cfg.ExperimentEvaluator == nil {
+		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pendingChatAcquireInterval := cfg.PendingChatAcquireInterval
@@ -2984,6 +2991,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	if workerID == uuid.Nil {
 		workerID = uuid.New()
 	}
+
+	limits := cfg.Limits.withDefaults()
 
 	allowBYOK := true
 	if cfg.AllowBYOKSet {
@@ -3034,11 +3043,13 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
+		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
 		clock:                    clk,
-		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
+		recordingSem:             make(chan struct{}, limits.MaxConcurrentRecordingUploads),
+		chatLimits:               limits,
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
@@ -3137,7 +3148,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 
 	// Spawn background goroutines that all servers need.
 
-	return p
+	return p, nil
 }
 
 // Start runs the background acquire/wake loop that picks up
@@ -3943,8 +3954,13 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		}
 	}
 	region := ""
+	supportsAmbientCredentials := false
 	if settings.Bedrock != nil {
 		region = strings.TrimSpace(settings.Bedrock.Region)
+	}
+	if cp := settings.ClaudePlatformAWS; cp != nil {
+		region = strings.TrimSpace(cp.Region)
+		supportsAmbientCredentials = true
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
@@ -3955,6 +3971,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
+		SupportsAmbientCredentials: supportsAmbientCredentials,
 	}, nil
 }
 
@@ -4500,6 +4517,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		status,
 		assistantText,
 		*runResult.StatusLabelCall,
+		p.chatLimits.MaxGenerationRetries,
 		logger,
 		p.existingDebugService(),
 		runResult.TriggerMessageID,
@@ -4727,7 +4745,7 @@ func (p *Server) generateAndStoreChatSummary(
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
-	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
+	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), p.chatLimits.MaxGenerationRetries, transcript)
 
 	if genErr != nil {
 		logger.Warn(ctx, "failed to generate chat summary",

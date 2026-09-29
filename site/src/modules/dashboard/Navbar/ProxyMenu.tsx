@@ -1,5 +1,5 @@
 import { RadioIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -27,7 +27,7 @@ type ProxyMenuProps = {
 	proxyContextValue: ProxyContextValue;
 };
 
-export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
+export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 	const [open, setOpen] = useState(false);
 	const [refetchDate, setRefetchDate] = useState<Date>();
 	const selectedProxy = proxyContextValue.proxy.proxy;

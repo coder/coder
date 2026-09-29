@@ -1,5 +1,4 @@
 import { CopyIcon } from "lucide-react";
-import type { FC } from "react";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
@@ -15,7 +14,7 @@ type CopyButtonProps = ButtonProps & {
 	tooltipSide?: "top" | "bottom" | "left" | "right";
 };
 
-export const CopyButton: FC<CopyButtonProps> = ({
+export const CopyButton: React.FC<CopyButtonProps> = ({
 	text,
 	label,
 	tooltipSide,

@@ -5,6 +5,7 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { experimentsKey } from "#/api/queries/experiments";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
@@ -73,7 +74,7 @@ const meta = {
 			{ key: ["hasFirstUser"], data: true },
 			{ key: ["buildInfo"], data: MockBuildInfo },
 			{ key: ["entitlements"], data: MockEntitlements },
-			{ key: ["experiments"], data: MockExperiments },
+			{ key: experimentsKey(MockUserOwner.id), data: MockExperiments },
 			{ key: ["appearance"], data: MockAppearanceConfig },
 			{ key: ["organizations"], data: [MockDefaultOrganization] },
 			{

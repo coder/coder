@@ -163,9 +163,9 @@ const longFiller =
 const mockThreadLongPrompt: AIBridgeThread = {
 	...MockAIBridgeThread,
 	id: "thread-3",
-	prompt:
-		longFiller.repeat(16) +
-		"Finally, coordinate the cutover using zebra-relay.",
+	prompt: `${longFiller.repeat(
+		16,
+	)}Finally, coordinate the cutover using zebra-relay.`,
 	agentic_actions: [],
 };
 

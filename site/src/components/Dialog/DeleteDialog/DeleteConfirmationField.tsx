@@ -1,11 +1,4 @@
-import {
-	type ChangeEvent,
-	type FC,
-	type KeyboardEvent,
-	type ReactNode,
-	useId,
-	useState,
-} from "react";
+import { useId, useState } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 
@@ -40,13 +33,13 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 		showError,
 		inputProps: {
 			value,
-			onChange: (event: ChangeEvent<HTMLInputElement>) => {
+			onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
 				setValue(event.target.value);
 				setHasSubmittedInvalid(false);
 			},
 			onFocus: () => setIsFocused(true),
 			onBlur: () => setIsFocused(false),
-			onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
+			onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
 				// DeleteDialog disables its submit button for a wrong name, so its form
 				// never submits and onSubmit cannot set this.
 				if (event.key === "Enter" && !confirmed) {
@@ -59,15 +52,13 @@ export const useDeleteConfirmation = (name: string, isOpen: boolean) => {
 
 type DeleteConfirmationFieldProps = {
 	confirmation: ReturnType<typeof useDeleteConfirmation>;
-	label: ReactNode;
+	label: React.ReactNode;
 	entity: string;
 };
 
-export const DeleteConfirmationField: FC<DeleteConfirmationFieldProps> = ({
-	confirmation,
-	label,
-	entity,
-}) => {
+export const DeleteConfirmationField: React.FC<
+	DeleteConfirmationFieldProps
+> = ({ confirmation, label, entity }) => {
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
 	const { name, value, showError, inputProps } = confirmation;

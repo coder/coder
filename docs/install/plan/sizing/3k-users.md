@@ -22,9 +22,9 @@ continuously improve the reliability and performance of the platform.
 
 ### Coderd
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 4    | 12 GB  | 4        |
+| vCPU | Memory     | Replicas |
+|------|------------|----------|
+| 4    | 12&nbsp;GB | 4        |
 
 **Notes**:
 
@@ -40,9 +40,9 @@ continuously improve the reliability and performance of the platform.
 If you choose to deploy workspaces in multiple geographic regions, provision
 [Workspace Proxies](../../../admin/networking/workspace-proxies.md) in each region.
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 4    | 12 GB  | 4        |
+| vCPU | Memory     | Replicas |
+|------|------------|----------|
+| 4    | 12&nbsp;GB | 4        |
 
 **Notes**:
 
@@ -54,9 +54,9 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 ### Provisioners
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 1    | 1 GB   | 180      |
+| vCPU | Memory    | Replicas |
+|------|-----------|----------|
+| 1    | 1&nbsp;GB | 180      |
 
 **Notes**:
 
@@ -72,9 +72,9 @@ If you choose to deploy workspaces in multiple geographic regions, provision
 
 ### Database
 
-| vCPU | Memory | Replicas |
-|------|--------|----------|
-| 32   | 120 GB | 1        |
+| vCPU | Memory      | Replicas |
+|------|-------------|----------|
+| 32   | 120&nbsp;GB | 1        |
 
 **Notes**:
 
@@ -88,9 +88,9 @@ such should be interpreted as the _bare minimum_ requirements for a Coder worksp
 case your users will be undertaking. If in doubt, chose sizes based on the development environments your users are
 migrating from onto Coder.
 
-| vCPU | Memory |
-|------|--------|
-| 0.1  | 128 MB |
+| vCPU | Memory      |
+|------|-------------|
+| 0.1  | 128&nbsp;MB |
 
 ## Footnotes for AWS instance types
 

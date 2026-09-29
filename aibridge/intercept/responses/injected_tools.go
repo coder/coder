@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
@@ -179,6 +180,7 @@ func (i *responsesInterceptionBase) invokeInjectedTool(ctx context.Context, resp
 	args := i.parseFunctionCallJSONArgs(ctx, fc.Arguments)
 	res, err := tool.Call(ctx, args, i.tracer)
 	_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+		CreatedAt:       time.Now().UTC(),
 		InterceptionID:  i.ID().String(),
 		MsgID:           responseID,
 		ToolCallID:      fc.CallID,

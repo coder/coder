@@ -24,11 +24,12 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
+	aibclient "github.com/coder/coder/v2/aibridge/client"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/recorder"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/coderd/aibridged"
-	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -254,11 +255,11 @@ func TestIntegration(t *testing.T) {
 	require.False(t, intc0.EndedAt.Time.Before(intc0.StartedAt), "EndedAt should not be before StartedAt")
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 	require.True(t, intc0.Client.Valid)
-	require.Equal(t, string(aibridge.ClientCodex), intc0.Client.String)
+	require.Equal(t, string(aibclient.Codex), intc0.Client.String)
 	require.Equal(t, database.CredentialKindCentralized, intc0.CredentialKind)
 	require.Equal(t, "test...-key", intc0.CredentialHint)
 
-	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, aibridgedserver.MetadataUserAgentKey)
+	intc0Metadata := gjson.GetBytes(intc0.Metadata.RawMessage, recorder.MetadataUserAgentKey)
 	require.Equal(t, userAgent, intc0Metadata.String(), "interception metadata user agent should match request user agent")
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)

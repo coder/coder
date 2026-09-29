@@ -46,6 +46,9 @@ type CreateChatInput struct {
 	// created idle with no initial user message. Empty defaults to
 	// `running`.
 	InitialStatus database.ChatStatus
+	// MaxFileLinks is the maximum number of files linked to the chat. It
+	// must be positive when FileIDs is not empty.
+	MaxFileLinks int
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -151,7 +154,7 @@ func insertChat(
 		if err != nil {
 			return xerrors.Errorf("insert initial messages: %w", err)
 		}
-		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs); err != nil {
+		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs, input.MaxFileLinks); err != nil {
 			return err
 		}
 		if len(input.InlineMCPServers) > 0 {
@@ -261,29 +264,28 @@ func (tx *Tx) clearQueue() ([]int64, error) {
 	return ids, nil
 }
 
-// MaxQueueSize is the maximum number of queued user messages per chat.
-// Queue-appending transitions reject inserts that would exceed this
-// cap with a *MessageQueueFullError that wraps [ErrMessageQueueFull].
-const MaxQueueSize = 20
-
 // requireQueueCapacity rejects the call when the chat already has
-// MaxQueueSize queued messages. Queue-appending transitions invoke
-// this helper inside the transaction immediately before inserting a
-// new queued message so the check is atomic with the insert.
-func (tx *Tx) requireQueueCapacity() error {
+// maxQueueSize queued messages with a *MessageQueueFullError that wraps
+// [ErrMessageQueueFull]. Queue-appending transitions invoke this helper
+// inside the transaction immediately before inserting a new queued
+// message so the check is atomic with the insert.
+func (tx *Tx) requireQueueCapacity(maxQueueSize int) error {
+	if maxQueueSize <= 0 {
+		return xerrors.Errorf("max queue size must be positive, got %d", maxQueueSize)
+	}
 	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
 	if err != nil {
 		return xerrors.Errorf("count queued messages: %w", err)
 	}
-	if count >= MaxQueueSize {
-		return &MessageQueueFullError{Max: MaxQueueSize}
+	if count >= int64(maxQueueSize) {
+		return &MessageQueueFullError{Max: int64(maxQueueSize)}
 	}
 	return nil
 }
 
 // insertQueuedMessage inserts a queued user message. created_by falls
 // back to chats.owner_id only when the message does not supply one.
-func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.ChatQueuedMessage, error) {
+func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, maxQueueSize int) (database.ChatQueuedMessage, error) {
 	createdBy := ownerFallback
 	if m.CreatedBy.Valid {
 		createdBy = m.CreatedBy.UUID
@@ -292,7 +294,7 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	if !m.Content.Valid || len(rawContent) == 0 {
 		rawContent = json.RawMessage("null")
 	}
-	if err := tx.requireQueueCapacity(); err != nil {
+	if err := tx.requireQueueCapacity(maxQueueSize); err != nil {
 		return database.ChatQueuedMessage{}, err
 	}
 	return tx.store.InsertChatQueuedMessageWithCreator(tx.ctx, database.InsertChatQueuedMessageWithCreatorParams{
@@ -425,6 +427,9 @@ const (
 type SendMessageInput struct {
 	Message      Message
 	BusyBehavior BusyBehavior
+	// MaxQueueSize is the maximum number of messages that can be queued
+	// in the chat. It must be positive when the message is queued.
+	MaxQueueSize int
 }
 
 // SendMessageResult is returned by [Tx.SendMessage].
@@ -526,7 +531,7 @@ func (tx *Tx) sendMessageDirect(chat database.Chat, input SendMessageInput) (Sen
 }
 
 func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}
@@ -572,7 +577,7 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	lastError pqtype.NullRawMessage,
 	deadline sql.NullTime,
 ) (SendMessageResult, error) {
-	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message)
+	queued, err := tx.insertQueuedMessage(chat.OwnerID, input.Message, input.MaxQueueSize)
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert queued: %w", err)
 	}

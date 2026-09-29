@@ -3958,6 +3958,36 @@ func (mr *MockStoreMockRecorder) GetEnabledMCPServerConfigsByOrganizationAndIDs(
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnabledMCPServerConfigsByOrganizationAndIDs", reflect.TypeOf((*MockStore)(nil).GetEnabledMCPServerConfigsByOrganizationAndIDs), ctx, arg)
 }
 
+// GetExperimentRule mocks base method.
+func (m *MockStore) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExperimentRule", ctx, experiment)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExperimentRule indicates an expected call of GetExperimentRule.
+func (mr *MockStoreMockRecorder) GetExperimentRule(ctx, experiment any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExperimentRule", reflect.TypeOf((*MockStore)(nil).GetExperimentRule), ctx, experiment)
+}
+
+// GetExperimentRules mocks base method.
+func (m *MockStore) GetExperimentRules(ctx context.Context) ([]database.GetExperimentRulesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExperimentRules", ctx)
+	ret0, _ := ret[0].([]database.GetExperimentRulesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExperimentRules indicates an expected call of GetExperimentRules.
+func (mr *MockStoreMockRecorder) GetExperimentRules(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExperimentRules", reflect.TypeOf((*MockStore)(nil).GetExperimentRules), ctx)
+}
+
 // GetExternalAgentTokensByTemplateID mocks base method.
 func (m *MockStore) GetExternalAgentTokensByTemplateID(ctx context.Context, arg database.GetExternalAgentTokensByTemplateIDParams) ([]database.GetExternalAgentTokensByTemplateIDRow, error) {
 	m.ctrl.T.Helper()
@@ -6371,6 +6401,21 @@ func (m *MockStore) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.
 func (mr *MockStoreMockRecorder) GetUserCodeDiffDisplayMode(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCodeDiffDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserCodeDiffDisplayMode), ctx, userID)
+}
+
+// GetUserCollapseAssistantSteps mocks base method.
+func (m *MockStore) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserCollapseAssistantSteps", ctx, userID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserCollapseAssistantSteps indicates an expected call of GetUserCollapseAssistantSteps.
+func (mr *MockStoreMockRecorder) GetUserCollapseAssistantSteps(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserCollapseAssistantSteps", reflect.TypeOf((*MockStore)(nil).GetUserCollapseAssistantSteps), ctx, userID)
 }
 
 // GetUserCount mocks base method.
@@ -11050,6 +11095,21 @@ func (mr *MockStoreMockRecorder) UpdateUserCodeDiffDisplayMode(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCodeDiffDisplayMode", reflect.TypeOf((*MockStore)(nil).UpdateUserCodeDiffDisplayMode), ctx, arg)
 }
 
+// UpdateUserCollapseAssistantSteps mocks base method.
+func (m *MockStore) UpdateUserCollapseAssistantSteps(ctx context.Context, arg database.UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserCollapseAssistantSteps", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserCollapseAssistantSteps indicates an expected call of UpdateUserCollapseAssistantSteps.
+func (mr *MockStoreMockRecorder) UpdateUserCollapseAssistantSteps(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserCollapseAssistantSteps", reflect.TypeOf((*MockStore)(nil).UpdateUserCollapseAssistantSteps), ctx, arg)
+}
+
 // UpdateUserDeletedByID mocks base method.
 func (m *MockStore) UpdateUserDeletedByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -12186,6 +12246,20 @@ func (m *MockStore) UpsertDefaultProxy(ctx context.Context, arg database.UpsertD
 func (mr *MockStoreMockRecorder) UpsertDefaultProxy(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertDefaultProxy", reflect.TypeOf((*MockStore)(nil).UpsertDefaultProxy), ctx, arg)
+}
+
+// UpsertExperimentRule mocks base method.
+func (m *MockStore) UpsertExperimentRule(ctx context.Context, arg database.UpsertExperimentRuleParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertExperimentRule", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertExperimentRule indicates an expected call of UpsertExperimentRule.
+func (mr *MockStoreMockRecorder) UpsertExperimentRule(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertExperimentRule", reflect.TypeOf((*MockStore)(nil).UpsertExperimentRule), ctx, arg)
 }
 
 // UpsertGroupAIBudget mocks base method.

@@ -8,7 +8,6 @@ import {
 	Volume2Icon,
 	VolumeOffIcon,
 } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
 	Link,
@@ -33,7 +32,7 @@ import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 type AgentPageHeaderProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
@@ -43,7 +42,7 @@ type AgentPageHeaderProps = {
 	onToggleNotifications?: () => Promise<void> | void;
 };
 
-export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
+export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 	children,
 	mobileBack,
 	chimeEnabled: controlledChimeEnabled,

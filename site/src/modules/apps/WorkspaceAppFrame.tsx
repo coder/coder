@@ -4,7 +4,7 @@ import {
 	ExternalLinkIcon,
 	HouseIcon,
 } from "lucide-react";
-import { type ComponentProps, type FC, useRef } from "react";
+import { useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -28,7 +28,7 @@ type WorkspaceAppFrameProps = {
 	active: boolean;
 };
 
-export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
+export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 	workspace,
 	app,
 	active,
@@ -151,9 +151,9 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 	);
 };
 
-type WorkspaceIframeProps = ComponentProps<"iframe">;
+type WorkspaceIframeProps = React.ComponentProps<"iframe">;
 
-export const WorkspaceIframe: FC<WorkspaceIframeProps> = ({
+export const WorkspaceIframe: React.FC<WorkspaceIframeProps> = ({
 	className,
 	ref,
 	...props

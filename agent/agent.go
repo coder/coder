@@ -411,11 +411,11 @@ func (a *agent) init() {
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
-		ReportConnection: func(id uuid.UUID, appName string, ip string) func(code int, reason string) {
+		ReportConnection: func(id uuid.UUID, report agentssh.ConnectionReport) func(code int, reason string) {
 			var connectionType proto.Connection_Type
 			// Connection_Type is a fixed enum, stored as a database enum in
 			// the connection log, so it can only hold a family.
-			switch codersdk.AppNameFamily(appName) {
+			switch codersdk.AppNameFamily(report.AppName) {
 			case codersdk.AppFamilySSH:
 				connectionType = proto.Connection_SSH
 			case codersdk.AppFamilyVSCode:
@@ -426,7 +426,11 @@ func (a *agent) init() {
 				connectionType = proto.Connection_TYPE_UNSPECIFIED
 			}
 
-			return a.reportConnection(id, connectionType, ip)
+			return a.reportConnection(id, connectionReport{
+				connectionType:  connectionType,
+				ip:              report.IP,
+				clientSessionID: report.ClientSessionID,
+			})
 		},
 
 		ExperimentalContainers: a.devcontainers,
@@ -507,7 +511,10 @@ func (a *agent) init() {
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
 		func(id uuid.UUID, ip string) func(code int, reason string) {
-			return a.reportConnection(id, proto.Connection_RECONNECTING_PTY, ip)
+			return a.reportConnection(id, connectionReport{
+				connectionType: proto.Connection_RECONNECTING_PTY,
+				ip:             ip,
+			})
 		},
 		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
 		a.reconnectingPTYTimeout,
@@ -1034,9 +1041,16 @@ const (
 	reportConnectionBufferLimit = 2048
 )
 
-func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_Type, ip string) (disconnected func(code int, reason string)) {
+type connectionReport struct {
+	connectionType  proto.Connection_Type
+	ip              string
+	clientSessionID string
+}
+
+func (a *agent) reportConnection(id uuid.UUID, report connectionReport) (disconnected func(code int, reason string)) {
 	// A blank IP can unfortunately happen if the connection is broken in a data race before we get to introspect it. We
 	// still report it, and the recipient can handle a blank IP.
+	ip := report.ip
 	if ip != "" {
 		// Remove the port from the IP because ports are not supported in coderd.
 		if host, _, err := net.SplitHostPort(ip); err != nil {
@@ -1061,19 +1075,21 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 		a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping connect",
 			slog.F("limit", reportConnectionBufferLimit),
 			slog.F("connection_id", id),
-			slog.F("connection_type", connectionType),
+			slog.F("connection_type", report.connectionType),
 			slog.F("ip", ip),
+			slog.F("client_session_id", report.clientSessionID),
 		)
 	} else {
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_CONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: 0,
-				Reason:     nil,
+				Id:              id[:],
+				Action:          proto.Connection_CONNECT,
+				Type:            report.connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      0,
+				Reason:          nil,
+				ClientSessionId: report.clientSessionID,
 			},
 		})
 		select {
@@ -1089,21 +1105,23 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 			a.logger.Warn(a.hardCtx, "connection report buffer limit reached, dropping disconnect",
 				slog.F("limit", reportConnectionBufferLimit),
 				slog.F("connection_id", id),
-				slog.F("connection_type", connectionType),
+				slog.F("connection_type", report.connectionType),
 				slog.F("ip", ip),
+				slog.F("client_session_id", report.clientSessionID),
 			)
 			return
 		}
 
 		a.reportConnections = append(a.reportConnections, &proto.ReportConnectionRequest{
 			Connection: &proto.Connection{
-				Id:         id[:],
-				Action:     proto.Connection_DISCONNECT,
-				Type:       connectionType,
-				Timestamp:  timestamppb.New(time.Now()),
-				Ip:         ip,
-				StatusCode: int32(code), //nolint:gosec
-				Reason:     &reason,
+				Id:              id[:],
+				Action:          proto.Connection_DISCONNECT,
+				Type:            report.connectionType,
+				Timestamp:       timestamppb.New(time.Now()),
+				Ip:              ip,
+				StatusCode:      int32(code), //nolint:gosec
+				Reason:          &reason,
+				ClientSessionId: report.clientSessionID,
 			},
 		})
 		select {
@@ -1847,10 +1865,19 @@ func (a *agent) createTailnet(
 	keySeed int64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
-	var header http.Header
+	var getHeaders func() http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
-		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-			header = headerTransport.Header
+		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok && headerTransport.Provider != nil {
+			getHeaders = func() http.Header {
+				refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				defer cancel()
+				headers, err := headerTransport.Provider.Headers(refreshCtx)
+				if err != nil {
+					a.logger.Error(ctx, "get connection headers", slog.Error(err))
+					return nil
+				}
+				return headers
+			}
 		}
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
@@ -1858,7 +1885,7 @@ func (a *agent) createTailnet(
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
-		DERPHeader:          &header,
+		DERPGetHeaders:      getHeaders,
 		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
