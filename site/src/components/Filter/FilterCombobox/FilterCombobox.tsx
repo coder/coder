@@ -609,7 +609,7 @@ function OptionRowContent({ icon, label, selected }: OptionRowContentProps) {
 	return (
 		<>
 			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
-			<span>{label}</span>
+			<span className="min-w-0 truncate">{label}</span>
 			{selected && (
 				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
 			)}

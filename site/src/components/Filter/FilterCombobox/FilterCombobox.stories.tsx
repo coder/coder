@@ -220,6 +220,49 @@ export const SearchableHoverFlyout: Story = {
 	play: ({ canvasElement }) => searchOwnerFlyout(canvasElement, "user-12"),
 };
 
+const longOptionCategory = (key: string, label: string): FilterCategory => ({
+	key,
+	label,
+	getOptions: async () => [
+		{
+			label: `A ${key} name long enough to overflow the flyout width`,
+			value: "long",
+		},
+		{ label: "short", value: "short" },
+	],
+});
+
+export const LongFlyoutOptionLabels: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			categories={[
+				longOptionCategory("template", "Template"),
+				longOptionCategory("organization", "Organization"),
+			]}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("combobox", {
+				name: "Search and filter…",
+			}),
+		);
+		for (const [key, label] of [
+			["template", "Template"],
+			["organization", "Organization"],
+		]) {
+			await userEvent.hover(await body.findByRole("option", { name: label }));
+			const row = await body.findByRole("button", {
+				name: new RegExp(`A ${key} name`),
+			});
+			const list = row.closest("div");
+			await waitFor(() => expect(list?.scrollWidth).toBe(list?.clientWidth));
+		}
+	},
+};
+
 // The search field stays in the flyout when nothing matches.
 export const SearchableHoverFlyoutNoMatches: Story = {
 	...SearchableHoverFlyout,
