@@ -55,6 +55,7 @@ const (
 	ResourceWorkspaceAgentResourceMonitor RBACResource = "workspace_agent_resource_monitor"
 	ResourceWorkspaceBuildOrchestration   RBACResource = "workspace_build_orchestration"
 	ResourceWorkspaceDormant              RBACResource = "workspace_dormant"
+	ResourceWorkspaceExecution            RBACResource = "workspace_execution"
 	ResourceWorkspaceProxy                RBACResource = "workspace_proxy"
 )
 
@@ -135,5 +136,6 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWorkspaceAgentResourceMonitor: {ActionCreate, ActionRead, ActionUpdate},
 	ResourceWorkspaceBuildOrchestration:   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWorkspaceDormant:              {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
+	ResourceWorkspaceExecution:            {ActionCreate, ActionRead, ActionSSH, ActionUpdate},
 	ResourceWorkspaceProxy:                {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 }

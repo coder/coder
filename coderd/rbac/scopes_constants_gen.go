@@ -186,6 +186,10 @@ const (
 	ScopeWorkspaceDormantStop                ScopeName = "workspace_dormant:stop"
 	ScopeWorkspaceDormantUpdate              ScopeName = "workspace_dormant:update"
 	ScopeWorkspaceDormantUpdateAgent         ScopeName = "workspace_dormant:update_agent"
+	ScopeWorkspaceExecutionCreate            ScopeName = "workspace_execution:create"
+	ScopeWorkspaceExecutionRead              ScopeName = "workspace_execution:read"
+	ScopeWorkspaceExecutionSsh               ScopeName = "workspace_execution:ssh"
+	ScopeWorkspaceExecutionUpdate            ScopeName = "workspace_execution:update"
 	ScopeWorkspaceProxyCreate                ScopeName = "workspace_proxy:create"
 	ScopeWorkspaceProxyDelete                ScopeName = "workspace_proxy:delete"
 	ScopeWorkspaceProxyRead                  ScopeName = "workspace_proxy:read"
@@ -380,6 +384,10 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
 		ScopeWorkspaceDormantUpdateAgent,
+		ScopeWorkspaceExecutionCreate,
+		ScopeWorkspaceExecutionRead,
+		ScopeWorkspaceExecutionSsh,
+		ScopeWorkspaceExecutionUpdate,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,
@@ -575,6 +583,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDormantStop,
 		ScopeWorkspaceDormantUpdate,
 		ScopeWorkspaceDormantUpdateAgent,
+		ScopeWorkspaceExecutionCreate,
+		ScopeWorkspaceExecutionRead,
+		ScopeWorkspaceExecutionSsh,
+		ScopeWorkspaceExecutionUpdate,
 		ScopeWorkspaceProxyCreate,
 		ScopeWorkspaceProxyDelete,
 		ScopeWorkspaceProxyRead,

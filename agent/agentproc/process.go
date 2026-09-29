@@ -79,6 +79,8 @@ type manager struct {
 	fs         afero.Fs
 	clock      quartz.Clock
 	procs      map[string]*process
+	instanceID uuid.UUID
+	receipts   map[string]processReceipt
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
@@ -99,6 +101,8 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 		fs:         fs,
 		clock:      quartz.NewReal(),
 		procs:      make(map[string]*process),
+		instanceID: uuid.New(),
+		receipts:   make(map[string]processReceipt),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
 		envInfo:    envInfo,
@@ -115,9 +119,16 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		m.mu.Unlock()
 		return nil, xerrors.New("manager is closed")
 	}
+	if proc, known, err := m.checkTrackedStart(req, chatID); known || err != nil {
+		m.mu.Unlock()
+		return proc, err
+	}
 	m.mu.Unlock()
 
 	id := uuid.New().String()
+	if req.ProcessID != uuid.Nil {
+		id = req.ProcessID.String()
+	}
 	logger := m.logger
 	if chatID != "" {
 		logger = logger.With(slog.F("chat_id", chatID))
@@ -131,6 +142,10 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	cmd.Dir = m.resolveWorkingDirectory(req.WorkDir)
 	cmd.Stdin = nil
 	cmd.SysProcAttr = procSysProcAttr()
+	if req.ProcessID != uuid.Nil {
+		// Deadlines and cancellation terminate the shell process group.
+		cmd.Cancel = func() error { return signalProcess(cmd.Process, syscall.SIGKILL) }
+	}
 
 	// WaitDelay ensures cmd.Wait returns promptly after
 	// the process is killed, even if child processes are
@@ -171,9 +186,28 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CODER_CHAT_ID=%s", chatID))
 	}
 
+	// Serialize the final admission check and spawn with cancellation fences.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		cancel()
+		return nil, xerrors.New("manager is closed")
+	}
+	if proc, known, err := m.checkTrackedStart(req, chatID); known || err != nil {
+		cancel()
+		return proc, err
+	}
+	if req.ProcessID != uuid.Nil {
+		m.receipts[id] = processReceipt{digest: req.InputDigest, chatID: chatID, deadline: req.Deadline}
+	}
 	if err := cmd.Start(); err != nil {
 		cancel()
-		return nil, xerrors.Errorf("start process: %w", err)
+		err = xerrors.Errorf("start process: %w", err)
+		if receipt, ok := m.receipts[id]; ok {
+			receipt.startErr = err
+			m.receipts[id] = receipt
+		}
+		return nil, err
 	}
 
 	now := m.clock.Now().Unix()
@@ -192,20 +226,18 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 		done:       make(chan struct{}),
 	}
 
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		// Manager closed between our check and now. Kill the
-		// process we just started.
-		cancel()
-		_ = cmd.Wait()
-		return nil, xerrors.New("manager is closed")
-	}
 	m.procs[id] = proc
-	m.mu.Unlock()
+	var deadlineTimer *quartz.Timer
+	if !req.Deadline.IsZero() {
+		deadlineTimer = m.clock.AfterFunc(req.Deadline.Sub(m.clock.Now()), cancel, "process-deadline")
+	}
 
 	go func() {
+		defer cancel()
 		err := cmd.Wait()
+		if deadlineTimer != nil {
+			deadlineTimer.Stop()
+		}
 		exitedAt := m.clock.Now().Unix()
 
 		proc.mu.Lock()
@@ -265,6 +297,12 @@ func (m *manager) list(chatID string) []workspacesdk.ProcessInfo {
 		if !info.Running && info.ExitedAt != nil {
 			exitedAt := time.Unix(*info.ExitedAt, 0)
 			if now.Sub(exitedAt) > exitedProcessReapAge {
+				if receipt, tracked := m.receipts[id]; tracked && info.ExitCode != nil {
+					// Retain actual terminal state, never output or execution payloads.
+					info.Command, info.WorkDir = "", ""
+					receipt.terminal = &info
+					m.receipts[id] = receipt
+				}
 				delete(m.procs, id)
 				continue
 			}

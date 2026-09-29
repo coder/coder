@@ -1,12 +1,12 @@
 package agentproc
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -56,6 +56,9 @@ func (api *API) Close() error {
 func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/start", api.handleStartProcess)
+	r.Post("/start-tracked", api.handleStartProcess)
+	r.Post("/cancel-tracked", api.handleCancelProcess)
+	r.Get("/{id}/output-tracked", api.handleTrackedOutput)
 	r.Get("/list", api.handleListProcesses)
 	r.Get("/{id}/output", api.handleProcessOutput)
 	r.Post("/{id}/signal", api.handleSignalProcess)
@@ -75,6 +78,11 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasSuffix(r.URL.Path, "/start-tracked") && req.ProcessID == uuid.Nil {
+		writeTrackedError(rw, r, errTrackedInvalid)
+		return
+	}
+
 	if req.Command == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Command is required.",
@@ -89,10 +97,7 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 
 	proc, err := api.manager.start(req, chatID)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to start process.",
-			Detail:  err.Error(),
-		})
+		writeTrackedError(rw, r, err)
 		return
 	}
 
@@ -146,15 +151,15 @@ func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ListProcessesResponse{
-		Processes: infos,
+		Processes:       infos,
+		ProtocolVersion: workspacesdk.TrackedProcessProtocolVersion,
+		AgentInstanceID: api.manager.instanceID,
 	})
 }
 
 // handleProcessOutput returns the output of a process.
 func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	logger := api.logger.With(agentchat.Fields(ctx)...)
-
 	id := chi.URLParam(r, "id")
 	proc, ok := api.manager.get(id)
 	if !ok {
@@ -176,30 +181,22 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	api.writeProcessOutput(rw, r, proc)
+}
+
+func (api *API) writeProcessOutput(rw http.ResponseWriter, r *http.Request, proc *process) {
+	ctx := r.Context()
 	// Check for blocking mode via query params.
 	waitStr := r.URL.Query().Get("wait")
 	wantWait := waitStr == "true"
 
 	if wantWait {
-		// Extend the write deadline so the HTTP server's
-		// WriteTimeout does not kill the connection while
-		// we block.
-		rc := http.NewResponseController(rw)
-		// Add headroom beyond the wait timeout so there's time to
-		// write the response after the blocking wait completes.
-		if err := rc.SetWriteDeadline(time.Now().Add(maxWaitDuration + 30*time.Second)); err != nil {
-			logger.Error(ctx, "extend write deadline for blocking process output",
-				slog.Error(err),
-			)
+		wait, err := processWaitDuration(r.URL.Query().Get("wait_ms"))
+		if err != nil {
+			writeTrackedError(rw, r, err)
+			return
 		}
-
-		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout.
-		waitCtx, waitCancel := context.WithTimeout(ctx, maxWaitDuration)
-		defer waitCancel()
-
-		_ = proc.waitForOutput(waitCtx)
-		// Fall through to read snapshot below.
+		api.waitForProcess(rw, r, proc, wait)
 	}
 
 	// Read info before output to avoid a TOCTOU race. The exit

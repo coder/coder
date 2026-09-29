@@ -2,6 +2,7 @@ package chatstate_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -1086,6 +1087,36 @@ func TestTransitionAcquire_ExecutionStateOrthogonal(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, queueBefore, queueAfter, "queue cardinality preserved")
 			require.Equal(t, historyBefore, historyMessageIDs(ctx, t, f, chatID), "history preserved")
+		})
+	}
+}
+
+func TestCreateChat_LocksParentsBeforeWorkspaceAdmission(t *testing.T) {
+	t.Parallel()
+	for _, missingRoot := range []bool{true, false} {
+		t.Run(fmt.Sprint(missingRoot), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			rootID := uuid.New()
+			if !missingRoot {
+				rootID = createTestChat(t, f).Chat.ID
+			}
+			called := false
+			_, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+				OrganizationID: f.Org.ID, OwnerID: f.User.ID, LastModelConfigID: f.Model.ID,
+				ClientType: database.ChatClientTypeApi, Title: "guarded child",
+				RootChatID:      uuid.NullUUID{UUID: rootID, Valid: true},
+				ParentChatID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				WorkspaceID:     uuid.NullUUID{UUID: uuid.New(), Valid: true},
+				InitialMessages: []chatstate.Message{userTextMessage("child", f.User.ID, f.Model.ID)},
+				CheckWorkspaceAdmission: func(context.Context, database.Store, uuid.UUID) error {
+					called = true
+					return nil
+				},
+			})
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			require.False(t, called, "chat row locks must precede the workspace fence")
 		})
 	}
 }

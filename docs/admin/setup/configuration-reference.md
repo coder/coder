@@ -225,6 +225,15 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 - YAML key: `updateCheck`
 - Default value: `false`
 
+### Workspace execution cleanup
+
+Automatically preserve declared results and delete disposable execution workspaces after their leases and allowed work finish. Retained workspaces are protected.
+
+- Environment variable: `CODER_WORKSPACE_EXECUTION_CLEANUP`
+- CLI flag: [`--workspace-execution-cleanup`](../../reference/cli/server/index.md#--workspace-execution-cleanup)
+- YAML key: `workspaceExecutionCleanup`
+- Default value: `false`
+
 ## AI Gateway
 
 ### AI budget period

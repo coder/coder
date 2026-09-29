@@ -36,27 +36,36 @@ type ChatToolFile struct {
 }
 
 type ChatToolStatus struct {
-	ID              string              `json:"id"`
-	Title           string              `json:"title"`
-	Status          codersdk.ChatStatus `json:"status"`
-	Archived        bool                `json:"archived"`
-	LastError       *codersdk.ChatError `json:"last_error,omitempty"`
-	LastTurnSummary string              `json:"last_turn_summary,omitempty"`
-	WorkspaceID     string              `json:"workspace_id,omitempty"`
-	URL             string              `json:"url"`
-	Labels          map[string]string   `json:"labels,omitempty"`
-	Files           []ChatToolFile      `json:"files,omitempty"`
+	ModelConfigID   string                          `json:"model_config_id"`
+	ExactSettings   *codersdk.ChatExactSettings     `json:"exact_settings,omitempty"`
+	Submission      *codersdk.ChatSubmissionReceipt `json:"submission,omitempty"`
+	ID              string                          `json:"id"`
+	Title           string                          `json:"title"`
+	Status          codersdk.ChatStatus             `json:"status"`
+	Archived        bool                            `json:"archived"`
+	LastError       *codersdk.ChatError             `json:"last_error,omitempty"`
+	LastTurnSummary string                          `json:"last_turn_summary,omitempty"`
+	WorkspaceID     string                          `json:"workspace_id,omitempty"`
+	URL             string                          `json:"url"`
+	Labels          map[string]string               `json:"labels,omitempty"`
+	Files           []ChatToolFile                  `json:"files,omitempty"`
 }
 
 func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 	resp := ChatToolStatus{
-		ID:        chat.ID.String(),
-		Title:     chat.Title,
-		Status:    chat.Status,
-		Archived:  chat.Archived,
-		LastError: chat.LastError,
-		URL:       fmt.Sprintf("%s/agents/%s", deps.ServerURL(), chat.ID),
-		Labels:    chat.Labels,
+		ModelConfigID: chat.LastModelConfigID.String(),
+		ExactSettings: chat.ExactSettings,
+		Submission:    chat.Submission,
+		ID:            chat.ID.String(),
+		Title:         chat.Title,
+		Status:        chat.Status,
+		Archived:      chat.Archived,
+		LastError:     chat.LastError,
+		URL:           fmt.Sprintf("%s/agents/%s", deps.ServerURL(), chat.ID),
+		Labels:        chat.Labels,
+	}
+	if resp.ExactSettings == nil && chat.Submission != nil {
+		resp.ExactSettings = chat.Submission.Settings
 	}
 	if chat.LastTurnSummary != nil {
 		resp.LastTurnSummary = *chat.LastTurnSummary
@@ -77,11 +86,15 @@ func chatToolStatus(deps Deps, chat codersdk.Chat) ChatToolStatus {
 }
 
 type CreateChatArgs struct {
-	Prompt         string            `json:"prompt"`
-	OrganizationID string            `json:"organization_id"`
-	OwnerID        string            `json:"owner_id"`
-	ModelConfigID  string            `json:"model_config_id"`
-	Labels         map[string]string `json:"labels,omitempty"`
+	ExactSettings   bool              `json:"exact_settings,omitempty"`
+	RequestID       string            `json:"request_id,omitempty"`
+	WorkspaceID     string            `json:"workspace_id,omitempty"`
+	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
+	Prompt          string            `json:"prompt"`
+	OrganizationID  string            `json:"organization_id"`
+	OwnerID         string            `json:"owner_id"`
+	ModelConfigID   string            `json:"model_config_id"`
+	Labels          map[string]string `json:"labels,omitempty"`
 }
 
 var CreateChat = Tool[CreateChatArgs, ChatToolStatus]{
@@ -92,6 +105,10 @@ var CreateChat = Tool[CreateChatArgs, ChatToolStatus]{
 The chat runs asynchronously. Poll coder_get_chat for status and read the transcript with coder_get_chat_messages.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"exact_settings":   map[string]any{"type": "boolean", "description": "Require the configured or inherited model and effort to be applied exactly, even when no explicit setting is supplied. Requires request_id. Explicit reasoning_effort, or model_config_id together with request_id, also enables this."},
+				"request_id":       map[string]any{"type": "string", "description": "Stable UUID for this submission. Reuse it after a lost response; changed input is rejected. Required for reasoning_effort or exact_settings. With model_config_id, also requires exact configured effort. Model-only calls without this identity remain supported."},
+				"workspace_id":     map[string]any{"type": "string", "description": "UUID of an existing authorized workspace in this organization. This does not make the workspace disposable."},
+				"reasoning_effort": map[string]any{"type": "string", "description": "Exact effort from coder_list_chat_model_configs. Unsupported or remapped values fail; requires request_id."},
 				"prompt": map[string]any{
 					"type":        "string",
 					"description": "Initial prompt for the agent.",
@@ -145,9 +162,22 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			}
 			modelConfigID = &id
 		}
+		requestID, err := optionalChatUUID(args.RequestID, "request_id")
+		if err != nil {
+			return ChatToolStatus{}, err
+		}
+		workspaceID, err := optionalChatUUID(args.WorkspaceID, "workspace_id")
+		if err != nil {
+			return ChatToolStatus{}, err
+		}
+
 		chat, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: orgID,
-			OwnerID:        ownerID,
+			RequestID:       requestID,
+			WorkspaceID:     workspaceID,
+			ReasoningEffort: args.ReasoningEffort,
+			ExactSettings:   args.ExactSettings || (requestID != nil && modelConfigID != nil) || args.ReasoningEffort != nil,
+			OrganizationID:  orgID,
+			OwnerID:         ownerID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: args.Prompt,
@@ -716,14 +746,19 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 }
 
 type SendChatMessageArgs struct {
-	ChatID       string                    `json:"chat_id"`
-	Text         string                    `json:"text"`
-	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior,omitempty"`
+	ExactSettings   bool                      `json:"exact_settings,omitempty"`
+	RequestID       string                    `json:"request_id,omitempty"`
+	ModelConfigID   string                    `json:"model_config_id,omitempty"`
+	ReasoningEffort *string                   `json:"reasoning_effort,omitempty"`
+	ChatID          string                    `json:"chat_id"`
+	Text            string                    `json:"text"`
+	BusyBehavior    codersdk.ChatBusyBehavior `json:"busy_behavior,omitempty"`
 }
 
 type SendChatMessageResponse struct {
-	Queued   bool     `json:"queued"`
-	Warnings []string `json:"warnings,omitempty"`
+	Submission *codersdk.ChatSubmissionReceipt `json:"submission,omitempty"`
+	Queued     bool                            `json:"queued"`
+	Warnings   []string                        `json:"warnings,omitempty"`
 }
 
 var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
@@ -732,6 +767,10 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 		Description: `Send a message to a Coder Agents chat.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
+				"exact_settings":   map[string]any{"type": "boolean", "description": "Require the configured or inherited model and effort to be applied exactly, even when no explicit setting is supplied. Requires request_id. Explicit reasoning_effort, or model_config_id together with request_id, also enables this."},
+				"request_id":       map[string]any{"type": "string", "description": "Stable UUID for this message. Reuse after uncertain delivery; changed input conflicts. Required for reasoning_effort or exact_settings. With model_config_id, also requires exact configured effort. Model-only calls without this identity remain supported."},
+				"model_config_id":  map[string]any{"type": "string", "description": "Optional configured model UUID for this follow-up; omitted keeps the chat selection."},
+				"reasoning_effort": map[string]any{"type": "string", "description": "Optional exact effort for this follow-up. Unsupported settings fail."},
 				"chat_id": map[string]any{
 					"type":        "string",
 					"description": chatIDDescription,
@@ -769,7 +808,18 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 		default:
 			return SendChatMessageResponse{}, xerrors.New(`busy_behavior must be "queue" or "interrupt"`)
 		}
+		requestID, err := optionalChatUUID(args.RequestID, "request_id")
+		if err != nil {
+			return SendChatMessageResponse{}, err
+		}
+		modelID, err := optionalChatUUID(args.ModelConfigID, "model_config_id")
+		if err != nil {
+			return SendChatMessageResponse{}, err
+		}
+
 		resp, err := codersdk.NewExperimentalClient(deps.coderClient).CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+			RequestID: requestID, ModelConfigID: modelID, ReasoningEffort: args.ReasoningEffort,
+			ExactSettings: args.ExactSettings || (requestID != nil && modelID != nil) || args.ReasoningEffort != nil,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
 				Text: args.Text,
@@ -780,8 +830,9 @@ var SendChatMessage = Tool[SendChatMessageArgs, SendChatMessageResponse]{
 			return SendChatMessageResponse{}, xerrors.Errorf("send chat message: %w", err)
 		}
 		return SendChatMessageResponse{
-			Queued:   resp.Queued,
-			Warnings: resp.Warnings,
+			Submission: resp.Submission,
+			Queued:     resp.Queued,
+			Warnings:   resp.Warnings,
 		}, nil
 	},
 }
@@ -856,10 +907,12 @@ var ArchiveChat = Tool[ArchiveChatArgs, codersdk.Response]{
 }
 
 type ChatModelConfigSummary struct {
-	ID          string `json:"id"`
-	Model       string `json:"model"`
-	DisplayName string `json:"display_name"`
-	IsDefault   bool   `json:"is_default"`
+	SupportedReasoningEfforts        []string `json:"supported_reasoning_efforts"`
+	ConfiguredDefaultReasoningEffort *string  `json:"configured_default_reasoning_effort,omitempty"`
+	ID                               string   `json:"id"`
+	Model                            string   `json:"model"`
+	DisplayName                      string   `json:"display_name"`
+	IsDefault                        bool     `json:"is_default"`
 }
 
 type ListChatModelConfigsArgs struct {
@@ -909,11 +962,17 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			if !config.Enabled || !providerEnabled[config.AIProviderID] {
 				continue
 			}
+			var defaultEffort *string
+			if config.ModelConfig != nil && config.ModelConfig.ReasoningEffort != nil {
+				defaultEffort = config.ModelConfig.ReasoningEffort.Default
+			}
 			summaries = append(summaries, ChatModelConfigSummary{
-				ID:          config.ID.String(),
-				Model:       config.Model,
-				DisplayName: config.DisplayName,
-				IsDefault:   config.IsDefault,
+				SupportedReasoningEfforts:        append([]string{}, config.ExactReasoningEfforts...),
+				ConfiguredDefaultReasoningEffort: defaultEffort,
+				ID:                               config.ID.String(),
+				Model:                            config.Model,
+				DisplayName:                      config.DisplayName,
+				IsDefault:                        config.IsDefault,
 			})
 		}
 		return ListChatModelConfigsResponse{
@@ -921,4 +980,16 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 			ModelConfigs:   summaries,
 		}, nil
 	},
+}
+
+// optionalChatUUID preserves omission while rejecting the zero identity.
+func optionalChatUUID(value, field string) (*uuid.UUID, error) {
+	if value == "" {
+		return nil, nil //nolint:nilnil // Omission is a valid optional identity, distinct from the zero UUID.
+	}
+	id, err := uuid.Parse(value)
+	if err != nil || id == uuid.Nil {
+		return nil, xerrors.Errorf("%s must be a nonzero UUID", field)
+	}
+	return &id, nil
 }

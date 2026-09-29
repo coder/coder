@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	gossh "golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
@@ -102,7 +103,7 @@ Examples:
 		ctx, cancel := context.WithTimeoutCause(ctx, 5*time.Minute, xerrors.New("MCP handler timeout after 5 min"))
 		defer cancel()
 
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
+		conn, err := openAgentMutationConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceBashResult{}, err
 		}
@@ -182,6 +183,10 @@ Examples:
 
 // findWorkspaceAndAgent finds workspace and agent by name with auto-start support
 func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspaceName string) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
+	return findWorkspaceAndAgentChecked(ctx, client, workspaceName, nil)
+}
+
+func findWorkspaceAndAgentChecked(ctx context.Context, client *codersdk.Client, workspaceName string, check func(context.Context, uuid.UUID) error) (codersdk.Workspace, codersdk.WorkspaceAgent, error) {
 	// Parse workspace name to extract workspace and agent parts
 	parts := strings.Split(workspaceName, ".")
 	var agentName string
@@ -196,6 +201,11 @@ func findWorkspaceAndAgent(ctx context.Context, client *codersdk.Client, workspa
 		return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
 	}
 
+	if check != nil {
+		if err := check(ctx, workspace.ID); err != nil {
+			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, err
+		}
+	}
 	// Auto-start workspace if needed
 	if workspace.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 		if workspace.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -69,6 +70,30 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			return api.agentProvider.AgentConn(ctx, agentID)
 		})
 
+		mutationOpt := toolsdk.WithWorkspaceMutationCheck(func(ctx context.Context, workspaceID uuid.UUID) error {
+			//nolint:gocritic // Resolve the workspace before authorizing the actual MCP caller.
+			systemCtx := dbauthz.AsSystemRestricted(ctx)
+			workspace, err := api.Database.GetWorkspaceByID(systemCtx, workspaceID)
+			if err != nil {
+				return err
+			}
+			if !api.Authorize(r, policy.ActionSSH, workspace) {
+				return xerrors.New("unauthorized workspace mutation")
+			}
+			sessions, err := api.Database.GetOtherWorkspaceExecutionSessionsByWorkspaceID(systemCtx, database.GetOtherWorkspaceExecutionSessionsByWorkspaceIDParams{
+				WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true}, ID: uuid.Nil,
+			})
+			if err != nil {
+				return err
+			}
+			for _, session := range sessions {
+				if (session.Disposable && session.State != "completed") || session.State == "preserving" {
+					return xerrors.New("workspace is managed by execution sessions; use a tracked workspace command for mutations")
+				}
+			}
+			return nil
+		})
+
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))
 		// Default to standard toolset if no toolset is specified.
 		if toolset == "" {
@@ -77,12 +102,12 @@ func (api *API) mcpHTTPHandler() http.Handler {
 
 		switch toolset {
 		case MCPToolsetStandard:
-			if err := mcpServer.RegisterTools(authenticatedClient, toolOpt); err != nil {
+			if err := mcpServer.RegisterTools(authenticatedClient, toolOpt, mutationOpt, toolsdk.WithClock(api.Clock)); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
 			mcpServer.RegisterPrompts()
 		case MCPToolsetChatGPT:
-			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt); err != nil {
+			if err := mcpServer.RegisterChatGPTTools(authenticatedClient, toolOpt, mutationOpt, toolsdk.WithClock(api.Clock)); err != nil {
 				api.Logger.Warn(r.Context(), "failed to register MCP tools", slog.Error(err))
 			}
 		default:

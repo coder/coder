@@ -143,6 +143,11 @@ func (p *Server) resolveModelCall(ctx context.Context, spec modelCallSpec) (reso
 		return resolvedModelCall{}, xerrors.Errorf("resolve model metadata: %w", err)
 	}
 
+	if spec.purpose == "standard_turn" {
+		if err := p.validateExactTurn(ctx, spec.chat.ID, out); err != nil {
+			return resolvedModelCall{}, err
+		}
+	}
 	debugSvc := p.debugService()
 	out.debugEnabled = debugSvc != nil && debugSvc.IsEnabled(ctx, spec.chat.ID, spec.chat.OwnerID)
 

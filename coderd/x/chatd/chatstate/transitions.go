@@ -21,6 +21,11 @@ import (
 
 // CreateChatInput configures [CreateChat].
 type CreateChatInput struct {
+	// CheckWorkspaceAdmission runs under the insertion transaction before admission.
+	CheckWorkspaceAdmission func(context.Context, database.Store, uuid.UUID) error
+	// AfterInsert commits admission metadata atomically with initial history.
+	// The callback must use the provided transaction store.
+	AfterInsert       func(database.Store, CreateChatResult) error
 	OrganizationID    uuid.UUID
 	OwnerID           uuid.UUID
 	WorkspaceID       uuid.NullUUID
@@ -124,7 +129,24 @@ func insertChat(
 	var result CreateChatResult
 	buffer := NewPublishBuffer(publisher)
 	defer buffer.Discard()
-	err := store.InTx(func(store database.Store) error {
+	err := mutationInTx(store, func(store database.Store) error {
+		if input.WorkspaceID.Valid && input.CheckWorkspaceAdmission != nil {
+			// Insertion checks parent/root foreign keys. Lock those chat rows
+			// before the workspace fence to match concurrent send lock ordering.
+			if input.RootChatID.Valid {
+				if _, err := store.GetChatByIDForUpdate(ctx, input.RootChatID.UUID); err != nil {
+					return err
+				}
+			}
+			if input.ParentChatID.Valid && input.ParentChatID != input.RootChatID {
+				if _, err := store.GetChatByIDForUpdate(ctx, input.ParentChatID.UUID); err != nil {
+					return err
+				}
+			}
+			if err := input.CheckWorkspaceAdmission(ctx, store, input.WorkspaceID.UUID); err != nil {
+				return err
+			}
+		}
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			ID:                chatID,
 			OrganizationID:    input.OrganizationID,
@@ -170,6 +192,11 @@ func insertChat(
 			Chat:            refreshed,
 			InitialMessages: fromInsertedRows(inserted),
 		}
+		if input.AfterInsert != nil {
+			if err := input.AfterInsert(store, result); err != nil {
+				return err
+			}
+		}
 		if err := buffer.Publish(
 			coderdpubsub.ChatStateUpdateChannel(refreshed.ID),
 			buildChatUpdateMessage(refreshed),
@@ -185,7 +212,7 @@ func insertChat(
 			}
 		}
 		return nil
-	}, nil)
+	})
 	if err != nil {
 		return CreateChatResult{}, err
 	}

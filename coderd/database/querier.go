@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -94,6 +95,7 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	CompleteChatSubmission(ctx context.Context, arg CompleteChatSubmissionParams) (ChatSubmission, error)
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -303,6 +305,7 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	FinishChatSubmission(ctx context.Context, arg FinishChatSubmissionParams) (ChatSubmission, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -543,6 +546,7 @@ type sqlcQuerier interface {
 	// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
 	GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
+	GetChatSubmission(ctx context.Context, arg GetChatSubmissionParams) (ChatSubmission, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -690,6 +694,9 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	// Use the actual newest visible user turn, including a promoted queued turn.
+	// A later legacy message must not inherit a previous exact-settings snapshot.
+	GetLatestChatSubmissionSettings(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -758,12 +765,14 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
+	GetOtherWorkspaceExecutionSessionsByWorkspaceID(ctx context.Context, arg GetOtherWorkspaceExecutionSessionsByWorkspaceIDParams) ([]WorkspaceExecutionSession, error)
 	// Returns, per effective group, the number of users at or over their spend
 	// limit since period_start. Only non-system users with an enforceable limit
 	// (override or budgeted group) count, and the unlimited Everyone fallback does not.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	GetPendingWorkspaceExecutionReceipts(ctx context.Context, sessionID uuid.UUID) ([]WorkspaceExecutionReceipt, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -825,6 +834,9 @@ type sqlcQuerier interface {
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, arg GetQuotaAllowanceForUserParams) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
+	// Independent cursors keep quiet maintenance from delaying actionable work.
+	// New work wakes a parked session without requiring a session-row mutation.
+	GetReconciliableWorkspaceExecutionSessions(ctx context.Context, arg GetReconciliableWorkspaceExecutionSessionsParams) ([]WorkspaceExecutionSession, error)
 	// Count regular workspaces: only those whose first successful 'start' build
 	// was not initiated by the prebuild system user.
 	GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error)
@@ -1082,6 +1094,11 @@ type sqlcQuerier interface {
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByResourceID(ctx context.Context, resourceID uuid.UUID) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceExecutionArtifactsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]GetWorkspaceExecutionArtifactsBySessionIDRow, error)
+	GetWorkspaceExecutionReceiptByID(ctx context.Context, id uuid.UUID) (WorkspaceExecutionReceipt, error)
+	GetWorkspaceExecutionReceiptByRequest(ctx context.Context, arg GetWorkspaceExecutionReceiptByRequestParams) (WorkspaceExecutionReceipt, error)
+	GetWorkspaceExecutionSessionByID(ctx context.Context, id uuid.UUID) (WorkspaceExecutionSession, error)
+	GetWorkspaceExecutionSessionByRequest(ctx context.Context, arg GetWorkspaceExecutionSessionByRequestParams) (WorkspaceExecutionSession, error)
 	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
 	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
@@ -1114,6 +1131,15 @@ type sqlcQuerier interface {
 	// reminder notification (which only stamps a marker, no transition).
 	GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForLifecycleActionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	// Do not lock chat rows: chat admission takes its row lock before our lifecycle
+	// lock. The shared lifecycle lock serializes admission against this snapshot.
+	HasBusyWorkspaceExecutionChats(ctx context.Context, workspaceID uuid.NullUUID) (bool, error)
+	HasClosedWorkspaceExecutionAdmission(ctx context.Context, workspaceID uuid.NullUUID) (bool, error)
+	HasPendingWorkspaceExecutionReceipts(ctx context.Context, sessionID uuid.UUID) (bool, error)
+	HasPendingWorkspaceExecutionReceiptsByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) (bool, error)
+	// Legacy deletion respects every adopted session as well as the disposal owner.
+	// Stop and dormancy remain governed by their existing template policies.
+	HasProtectedWorkspaceExecutionSession(ctx context.Context, arg HasProtectedWorkspaceExecutionSessionParams) (bool, error)
 	// Reports whether the given file is referenced as cached module files by any
 	// template version in the given organization. Used to authorize provisioner
 	// module-file downloads so a daemon cannot read another organization's cached
@@ -1183,6 +1209,7 @@ type sqlcQuerier interface {
 	// sequence) and an explicit created_by reference. Use this when the
 	// queued-message creator differs from the chat owner.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
+	InsertChatSubmission(ctx context.Context, arg InsertChatSubmissionParams) (ChatSubmission, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)
 	InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error
@@ -1258,6 +1285,9 @@ type sqlcQuerier interface {
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildOrchestration(ctx context.Context, arg InsertWorkspaceBuildOrchestrationParams) (WorkspaceBuildOrchestration, error)
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
+	InsertWorkspaceExecutionArtifact(ctx context.Context, arg InsertWorkspaceExecutionArtifactParams) (int64, error)
+	InsertWorkspaceExecutionReceipt(ctx context.Context, arg InsertWorkspaceExecutionReceiptParams) (WorkspaceExecutionReceipt, error)
+	InsertWorkspaceExecutionSession(ctx context.Context, arg InsertWorkspaceExecutionSessionParams) (WorkspaceExecutionSession, error)
 	InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error)
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
@@ -1359,6 +1389,8 @@ type sqlcQuerier interface {
 	// is held the key cannot be deleted, and a committed deletion is observed as
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// The row lock serializes ordinary owner transfers with task admission/delete.
+	LockWorkspaceExecutionWorkspace(ctx context.Context, id uuid.UUID) error
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The
@@ -1389,6 +1421,7 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	ReadWorkspaceExecutionArtifact(ctx context.Context, arg ReadWorkspaceExecutionArtifactParams) (ReadWorkspaceExecutionArtifactRow, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
@@ -1674,6 +1707,9 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error)
+	// Observations may resolve uncertainty, but never replace an observed terminal result.
+	UpdateWorkspaceExecutionReceipt(ctx context.Context, arg UpdateWorkspaceExecutionReceiptParams) (WorkspaceExecutionReceipt, error)
+	UpdateWorkspaceExecutionSession(ctx context.Context, arg UpdateWorkspaceExecutionSessionParams) (WorkspaceExecutionSession, error)
 	UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error
 	UpdateWorkspaceNextStartAt(ctx context.Context, arg UpdateWorkspaceNextStartAtParams) error
 	// This allows editing the properties of a workspace proxy.

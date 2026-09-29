@@ -162,9 +162,10 @@ type Server struct {
 	inflightMu     sync.Mutex
 	inflightClosed atomic.Bool
 
-	db                 database.Store
-	logger             slog.Logger
-	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
+	checkWorkspaceAdmission func(context.Context, database.Store, uuid.UUID) error
+	db                      database.Store
+	logger                  slog.Logger
+	modelConfigContext      func(context.Context, uuid.UUID) (context.Context, error)
 
 	streamPartsDialer StreamPartsDialer
 
@@ -1084,6 +1085,7 @@ var (
 
 // CreateOptions controls chat creation in the shared chat mutation path.
 type CreateOptions struct {
+	Submission     *SubmissionOptions
 	OrganizationID uuid.UUID
 	OwnerID        uuid.UUID
 	// CreatedBy attributes the initial user message; defaults to OwnerID.
@@ -1126,6 +1128,7 @@ const (
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
 type SendMessageOptions struct {
+	Submission      *SubmissionOptions
 	ChatID          uuid.UUID
 	CreatedBy       uuid.UUID
 	Content         []codersdk.ChatMessagePart
@@ -1274,7 +1277,7 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 // in `running` status and ownership hints wake chat workers. Without
 // initial user content the chat is created idle in `waiting` status
 // with system messages only; the first SendMessage starts generation.
-func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
+func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (_ database.Chat, returnErr error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
 	}
@@ -1283,6 +1286,29 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
+	}
+	chatID := uuid.New()
+	replay, err := p.prepareSubmission(ctx, opts.Submission, database.Chat{
+		ID: chatID, OrganizationID: opts.OrganizationID, OwnerID: opts.OwnerID, WorkspaceID: opts.WorkspaceID, Mode: opts.ChatMode,
+	}, "create", opts.ModelConfigID, opts.ReasoningEffort)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	if replay {
+		return p.db.GetChatByID(ctx, opts.Submission.Receipt.ChatID)
+	}
+	uncertain := false
+	defer func() {
+		if returnErr != nil {
+			state := "rejected"
+			if uncertain && !knownSubmissionRejection(returnErr) {
+				state = "uncertain"
+			}
+			p.finishFailedSubmission(ctx, opts.Submission, opts.OrganizationID, returnErr, state)
+		}
+	}()
+	if opts.Submission != nil && opts.Submission.Receipt.Settings != nil {
+		opts.ReasoningEffort = opts.Submission.Receipt.Settings.ReasoningEffort
 	}
 	initialStatus := database.ChatStatusWaiting
 	if len(opts.InitialUserContent) > 0 {
@@ -1325,7 +1351,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 
-	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
 	// The prompt-submit hook fires with the first SendMessage when the
 	// chat is created without an initial user message.
@@ -1339,6 +1364,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if err != nil {
 			return database.Chat{}, err
 		}
+		uncertain = true
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.Chat{
 			ID:          chatID,
 			OwnerID:     opts.OwnerID,
@@ -1348,6 +1374,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		if err != nil {
 			return database.Chat{}, chathooks.UserPromptDenial(err)
 		}
+		uncertain = false
 		composed, overridden, err := chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return database.Chat{}, err
@@ -1398,6 +1425,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
 	}
 
+	uncertain = true
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
 		OwnerID:           opts.OwnerID,
@@ -1420,11 +1448,21 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
-		ClientType:      opts.ClientType,
-		InitialMessages: initialMessages,
-		FileIDs:         chatprompt.FileIDs(contentParts),
-		InitialStatus:   initialStatus,
-		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
+		ClientType:              opts.ClientType,
+		InitialMessages:         initialMessages,
+		FileIDs:                 chatprompt.FileIDs(contentParts),
+		InitialStatus:           initialStatus,
+		MaxFileLinks:            p.chatLimits.MaxAttachmentsPerChat,
+		CheckWorkspaceAdmission: p.checkWorkspaceAdmission,
+		AfterInsert: func(store database.Store, result chatstate.CreateChatResult) error {
+			var messageID int64
+			for _, message := range result.InitialMessages {
+				if message.Role == database.ChatMessageRoleUser {
+					messageID = message.ID
+				}
+			}
+			return completeSubmission(ctx, store, opts.Submission, opts.OrganizationID, messageID, 0)
+		},
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1454,7 +1492,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 func (p *Server) SendMessage(
 	ctx context.Context,
 	opts SendMessageOptions,
-) (SendMessageResult, error) {
+) (_ SendMessageResult, returnErr error) {
 	if opts.ChatID == uuid.Nil {
 		return SendMessageResult{}, xerrors.New("chat_id is required")
 	}
@@ -1472,6 +1510,39 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
 
+	var organizationID uuid.UUID
+	uncertain := false
+	if opts.Submission != nil {
+		chat, err := p.db.GetChatByID(ctx, opts.ChatID)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		effort := opts.ReasoningEffort
+		if effort == nil {
+			effort = chatRequestedEffort(chat)
+		}
+		replay, err := p.prepareSubmission(ctx, opts.Submission, chat, "message", cmp.Or(opts.ModelConfigID, chat.LastModelConfigID), effort)
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		if replay {
+			return SendMessageResult{Chat: chat, Queued: opts.Submission.Receipt.QueuedMessageID != 0}, nil
+		}
+		organizationID = chat.OrganizationID
+		if settings := opts.Submission.Receipt.Settings; settings != nil {
+			opts.ModelConfigID = settings.ModelConfigID
+			opts.ReasoningEffort = settings.ReasoningEffort
+		}
+	}
+	defer func() {
+		if returnErr != nil {
+			state := "rejected"
+			if uncertain && !knownSubmissionRejection(returnErr) {
+				state = "uncertain"
+			}
+			p.finishFailedSubmission(ctx, opts.Submission, organizationID, returnErr, state)
+		}
+	}()
 	contentParts := opts.Content
 	if p.hooks.Enabled() {
 		turnID := uuid.New()
@@ -1499,10 +1570,12 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, err
 		}
+		uncertain = true
 		promptResult, err := p.hooks.Trigger(ctx, chathooks.ChatFor(chat, &turnID), promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassAdmission)
 		if err != nil {
 			return SendMessageResult{}, p.handleUserPromptDispatchError(ctx, opts.ChatID, chathooks.UserPromptDenial(err))
 		}
+		uncertain = false
 		contentParts, _, err = chathooks.ComposeUserPromptContent(contentParts, promptResult)
 		if err != nil {
 			return SendMessageResult{}, err
@@ -1519,12 +1592,16 @@ func (p *Server) SendMessage(
 
 	var result SendMessageResult
 	machine := p.newChatMachine(opts.ChatID)
+	uncertain = true
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 
+		if err := p.checkExistingChatWorkspaceAdmission(ctx, store, lockedChat); err != nil {
+			return err
+		}
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
@@ -1602,6 +1679,13 @@ func (p *Server) SendMessage(
 		// previous queue head into history; report those inserts so
 		// clients can update their caches.
 		result.InsertedMessages = sendResult.InsertedMessages
+		var queuedID int64
+		if result.QueuedMessage != nil {
+			queuedID = result.QueuedMessage.ID
+		}
+		if err := completeSubmission(ctx, store, opts.Submission, lockedChat.OrganizationID, result.Message.ID, queuedID); err != nil {
+			return err
+		}
 
 		// File-link errors must roll back the message.
 		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
@@ -1914,6 +1998,9 @@ func (p *Server) EditMessage(
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
+		}
+		if err := p.checkExistingChatWorkspaceAdmission(ctx, store, lockedChat); err != nil {
+			return err
 		}
 		if lockedChat.Archived {
 			return ErrChatArchived
@@ -2448,6 +2535,9 @@ func (p *Server) CompactChat(
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
+		if err := p.checkExistingChatWorkspaceAdmission(ctx, store, lockedChat); err != nil {
+			return err
+		}
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
@@ -2891,9 +2981,11 @@ func mergeManualTitleMessages(
 
 // Config configures a chat processor.
 type Config struct {
-	Logger    slog.Logger
-	Database  database.Store
-	ReplicaID uuid.UUID
+	// CheckWorkspaceAdmission guards workspace activity inside its mutation transaction.
+	CheckWorkspaceAdmission func(context.Context, database.Store, uuid.UUID) error
+	Logger                  slog.Logger
+	Database                database.Store
+	ReplicaID               uuid.UUID
 	// StreamPartsDialer dials remote stream parts. Nil uses the local
 	// in-process channel dialer for every stream.
 	StreamPartsDialer              StreamPartsDialer
@@ -3022,6 +3114,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		pubsub:                         ps,
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
+		checkWorkspaceAdmission:        cfg.CheckWorkspaceAdmission,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
@@ -3799,6 +3892,7 @@ func (p *Server) appendRootChatTools(
 			OwnerID: opts.chat.OwnerID,
 		}),
 		chattool.CreateWorkspace(p.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
+			CheckWorkspaceAdmission:        p.checkWorkspaceAdmission,
 			OwnerID:                        opts.chat.OwnerID,
 			CreateFn:                       p.createWorkspaceFn,
 			AgentConnFn:                    chattool.AgentConnFunc(p.agentConnFn),
@@ -3808,19 +3902,21 @@ func (p *Server) appendRootChatTools(
 			Logger:                         p.logger,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StartFn:       p.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(p.agentConnFn),
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
+			CheckWorkspaceAdmission: p.checkWorkspaceAdmission,
+			OwnerID:                 opts.chat.OwnerID,
+			StartFn:                 p.startWorkspaceFn,
+			AgentConnFn:             chattool.AgentConnFunc(p.agentConnFn),
+			WorkspaceMu:             opts.workspaceMu,
+			OnChatUpdated:           onChatUpdated,
+			Logger:                  p.logger,
 		}),
 		chattool.StopWorkspace(p.db, opts.chat.ID, chattool.StopWorkspaceOptions{
-			OwnerID:       opts.chat.OwnerID,
-			StopFn:        p.stopWorkspaceFn,
-			WorkspaceMu:   opts.workspaceMu,
-			OnChatUpdated: onChatUpdated,
-			Logger:        p.logger,
+			CheckWorkspaceAdmission: p.checkWorkspaceAdmission,
+			OwnerID:                 opts.chat.OwnerID,
+			StopFn:                  p.stopWorkspaceFn,
+			WorkspaceMu:             opts.workspaceMu,
+			OnChatUpdated:           onChatUpdated,
+			Logger:                  p.logger,
 		}),
 	)
 	if opts.isPlanModeTurn {

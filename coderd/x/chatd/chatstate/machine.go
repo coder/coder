@@ -158,7 +158,7 @@ func (m *ChatMachine) Update(
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 
-	err := m.store.InTx(func(store database.Store) error {
+	err := mutationInTx(m.store, func(store database.Store) error {
 		if _, err := store.LockChatAndBumpSnapshotVersion(ctx, m.chatID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
@@ -198,7 +198,7 @@ func (m *ChatMachine) Update(
 			}
 		}
 		return nil
-	}, nil)
+	})
 	if err != nil {
 		return err
 	}

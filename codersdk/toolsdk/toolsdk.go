@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 // Tool name constants to avoid hardcoded strings
@@ -47,6 +48,7 @@ const (
 	ToolNameUploadTarFile               = "coder_upload_tar_file"
 	ToolNameCreateTemplate              = "coder_create_template"
 	ToolNameDeleteTemplate              = "coder_delete_template"
+	ToolNameWorkspaceReadiness          = "coder_workspace_readiness"
 	ToolNameWorkspaceBash               = "coder_workspace_bash"
 	ToolNameChatGPTSearch               = "search"
 	ToolNameChatGPTFetch                = "fetch"
@@ -72,6 +74,7 @@ const (
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 	d := Deps{
 		coderClient: client,
+		clock:       quartz.NewReal(),
 	}
 	for _, opt := range opts {
 		opt(&d)
@@ -93,9 +96,11 @@ func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
 
 // Deps provides access to tool dependencies.
 type Deps struct {
-	coderClient *codersdk.Client
-	report      func(ReportTaskArgs) error
-	agentConnFn workspacesdk.AgentConnFunc
+	clock                  quartz.Clock
+	coderClient            *codersdk.Client
+	report                 func(ReportTaskArgs) error
+	agentConnFn            workspacesdk.AgentConnFunc
+	workspaceMutationCheck func(context.Context, uuid.UUID) error
 }
 
 func (d Deps) ServerURL() string {
@@ -111,6 +116,15 @@ func WithTaskReporter(fn func(ReportTaskArgs) error) func(*Deps) {
 	}
 }
 
+// WithClock overrides the clock used for bounded tool observation.
+func WithClock(clock quartz.Clock) func(*Deps) {
+	return func(d *Deps) {
+		if clock != nil {
+			d.clock = clock
+		}
+	}
+}
+
 // WithAgentConnFunc overrides how workspace tools open logical connections to
 // workspace agents.
 func WithAgentConnFunc(agentConnFn workspacesdk.AgentConnFunc) func(*Deps) {
@@ -119,15 +133,29 @@ func WithAgentConnFunc(agentConnFn workspacesdk.AgentConnFunc) func(*Deps) {
 	}
 }
 
+// WithWorkspaceMutationCheck validates legacy mutations before workspace startup or agent access.
+func WithWorkspaceMutationCheck(check func(context.Context, uuid.UUID) error) func(*Deps) {
+	return func(d *Deps) { d.workspaceMutationCheck = check }
+}
+
+// openAgentMutationConn rejects untracked mutations when a server requires durable execution.
+func openAgentMutationConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
+	return openAgentConnChecked(ctx, deps, workspace, deps.workspaceMutationCheck)
+}
+
 // openAgentConn opens a ready workspace agent session for workspace inputs in
 // [owner/]workspace[.agent] format.
 func openAgentConn(ctx context.Context, deps Deps, workspace string) (workspacesdk.AgentConn, error) {
+	return openAgentConnChecked(ctx, deps, workspace, nil)
+}
+
+func openAgentConnChecked(ctx context.Context, deps Deps, workspace string, check func(context.Context, uuid.UUID) error) (workspacesdk.AgentConn, error) {
 	if deps.coderClient == nil {
 		return nil, xerrors.New("workspace tools require an authenticated client")
 	}
 
 	workspaceName := NormalizeWorkspaceInput(workspace)
-	_, workspaceAgent, err := findWorkspaceAndAgent(ctx, deps.coderClient, workspaceName)
+	_, workspaceAgent, err := findWorkspaceAndAgentChecked(ctx, deps.coderClient, workspaceName, check)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to find workspace: %w", err)
 	}
@@ -416,6 +444,18 @@ var All = []GenericTool{
 	UploadTarFile.Generic(),
 	UpdateTemplateActiveVersion.Generic(),
 	WorkspaceBash.Generic(),
+	WorkspaceReadiness.Generic(),
+	AcquireWorkspaceExecution.Generic(),
+	GetWorkspaceExecutionSession.Generic(),
+	StartWorkspaceCommand.Generic(),
+	GetWorkspaceCommand.Generic(),
+	CancelWorkspaceCommand.Generic(),
+	RenewWorkspaceExecutionSession.Generic(),
+	RetainWorkspaceExecutionSession.Generic(),
+	RetryWorkspaceExecutionSession.Generic(),
+	ExportWorkspaceExecution.Generic(),
+	WorkspaceArtifactList.Generic(),
+	WorkspaceArtifactRead.Generic(),
 	ChatGPTSearch.Generic(),
 	ChatGPTFetch.Generic(),
 	WorkspaceLS.Generic(),
@@ -1853,7 +1893,7 @@ type WorkspaceLSResponse struct {
 var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceLS,
-		Description: `List directories in a workspace.`,
+		Description: `List directories in a workspace. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1868,7 +1908,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Required: []string{"path", "workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceLSArgs) (WorkspaceLSResponse, error) {
 		conn, err := openAgentConn(ctx, deps, args.Workspace)
@@ -1911,7 +1951,7 @@ const maxFileLimit = 1 << 20 // 1MiB
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceReadFile,
-		Description: `Read from a file in a workspace.`,
+		Description: `Read from a file in a workspace. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1934,7 +1974,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Required: []string{"path", "workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceReadFileArgs) (WorkspaceReadFileResponse, error) {
 		conn, err := openAgentConn(ctx, deps, args.Workspace)
@@ -2011,7 +2051,7 @@ content you are trying to write, then re-encode it properly.
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceWriteFileArgs) (codersdk.Response, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
+		conn, err := openAgentMutationConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return codersdk.Response{}, err
 		}
@@ -2090,7 +2130,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, WorkspaceEditFilesResponse]{
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFileArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
+		conn, err := openAgentMutationConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err
 		}
@@ -2174,7 +2214,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, WorkspaceEditFilesResponse
 	MCPAnnotations:     mcpDestructiveAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceEditFilesArgs) (WorkspaceEditFilesResponse, error) {
-		conn, err := openAgentConn(ctx, deps, args.Workspace)
+		conn, err := openAgentMutationConn(ctx, deps, args.Workspace)
 		if err != nil {
 			return WorkspaceEditFilesResponse{}, err
 		}
@@ -2207,7 +2247,7 @@ type WorkspacePortForwardResponse struct {
 var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspacePortForward,
-		Description: `Fetch URLs that forward to the specified port.`,
+		Description: `Fetch URLs that forward to the specified port. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -2222,7 +2262,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Required: []string{"workspace", "port"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspacePortForwardArgs) (WorkspacePortForwardResponse, error) {
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)
@@ -2265,7 +2305,7 @@ type WorkspaceListAppsResponse struct {
 var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 	Tool: aisdk.Tool{
 		Name:        ToolNameWorkspaceListApps,
-		Description: `List the URLs of Coder apps running in a workspace for a single agent.`,
+		Description: `List the URLs of Coder apps running in a workspace for a single agent. Starts the workspace if it is stopped.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -2276,7 +2316,7 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 			Required: []string{"workspace"},
 		},
 	},
-	MCPAnnotations:     mcpReadOnlyAnnotations,
+	MCPAnnotations:     mcpMutationAnnotations,
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args WorkspaceListAppsArgs) (WorkspaceListAppsResponse, error) {
 		workspaceName := NormalizeWorkspaceInput(args.Workspace)

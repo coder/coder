@@ -530,6 +530,11 @@ const (
 	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
 	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	ApiKeyScopeWorkspaceExecution                  APIKeyScope = "workspace_execution:*"
+	ApiKeyScopeWorkspaceExecutionCreate            APIKeyScope = "workspace_execution:create"
+	ApiKeyScopeWorkspaceExecutionRead              APIKeyScope = "workspace_execution:read"
+	ApiKeyScopeWorkspaceExecutionUpdate            APIKeyScope = "workspace_execution:update"
+	ApiKeyScopeWorkspaceExecutionSsh               APIKeyScope = "workspace_execution:ssh"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -811,7 +816,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatModelConfigRead,
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
-		ApiKeyScopeChatModelConfigShare:
+		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeWorkspaceExecution,
+		ApiKeyScopeWorkspaceExecutionCreate,
+		ApiKeyScopeWorkspaceExecutionRead,
+		ApiKeyScopeWorkspaceExecutionUpdate,
+		ApiKeyScopeWorkspaceExecutionSsh:
 		return true
 	}
 	return false
@@ -1062,6 +1072,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatModelConfigUpdate,
 		ApiKeyScopeChatModelConfigDelete,
 		ApiKeyScopeChatModelConfigShare,
+		ApiKeyScopeWorkspaceExecution,
+		ApiKeyScopeWorkspaceExecutionCreate,
+		ApiKeyScopeWorkspaceExecutionRead,
+		ApiKeyScopeWorkspaceExecutionUpdate,
+		ApiKeyScopeWorkspaceExecutionSsh,
 	}
 }
 
@@ -5282,6 +5297,24 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+// Durable admission identities. Reserved identities are never automatically redispatched, including after server restart.
+type ChatSubmission struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	OrganizationID  uuid.UUID       `db:"organization_id" json:"organization_id"`
+	ActorID         uuid.UUID       `db:"actor_id" json:"actor_id"`
+	OwnerID         uuid.UUID       `db:"owner_id" json:"owner_id"`
+	RequestID       uuid.UUID       `db:"request_id" json:"request_id"`
+	InputDigest     []byte          `db:"input_digest" json:"input_digest"`
+	Kind            string          `db:"kind" json:"kind"`
+	ChatID          uuid.UUID       `db:"chat_id" json:"chat_id"`
+	State           string          `db:"state" json:"state"`
+	Error           string          `db:"error" json:"error"`
+	Settings        json.RawMessage `db:"settings" json:"settings"`
+	MessageID       sql.NullInt64   `db:"message_id" json:"message_id"`
+	QueuedMessageID sql.NullInt64   `db:"queued_message_id" json:"queued_message_id"`
+	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
+}
+
 type ChatTable struct {
 	ID                uuid.UUID             `db:"id" json:"id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`
@@ -6779,6 +6812,77 @@ type WorkspaceBuildTable struct {
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
 	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+}
+
+// Complete execution results independent of workspace lifetime.
+type WorkspaceExecutionArtifact struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	OrganizationID       uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID `db:"owner_id" json:"owner_id"`
+	SessionID            uuid.UUID `db:"session_id" json:"session_id"`
+	PreservationRevision int64     `db:"preservation_revision" json:"preservation_revision"`
+	SourcePath           string    `db:"source_path" json:"source_path"`
+	Name                 string    `db:"name" json:"name"`
+	Mimetype             string    `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64     `db:"size_bytes" json:"size_bytes"`
+	Sha256               []byte    `db:"sha256" json:"sha256"`
+	Data                 []byte    `db:"data" json:"data"`
+	CreatedAt            time.Time `db:"created_at" json:"created_at"`
+	// Explicit effective retention boundary. NULL makes no time-based expiry promise.
+	ExpiresAt sql.NullTime `db:"expires_at" json:"expires_at"`
+}
+
+// Durable execution identities. Command and environment payloads are never stored for replay.
+type WorkspaceExecutionReceipt struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	SessionID      uuid.UUID `db:"session_id" json:"session_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	ActorID        uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+	InputDigest    []byte    `db:"input_digest" json:"input_digest"`
+	// Source identity retained after workspace deletion or purging.
+	WorkspaceID       uuid.UUID     `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID  uuid.UUID     `db:"workspace_owner_id" json:"workspace_owner_id"`
+	AgentID           uuid.UUID     `db:"agent_id" json:"agent_id"`
+	AgentInstanceID   uuid.UUID     `db:"agent_instance_id" json:"agent_instance_id"`
+	ProcessID         uuid.UUID     `db:"process_id" json:"process_id"`
+	AdmissionRevision int64         `db:"admission_revision" json:"admission_revision"`
+	CreatedAt         time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time     `db:"updated_at" json:"updated_at"`
+	Deadline          sql.NullTime  `db:"deadline" json:"deadline"`
+	State             string        `db:"state" json:"state"`
+	ExitCode          sql.NullInt32 `db:"exit_code" json:"exit_code"`
+	Error             string        `db:"error" json:"error"`
+}
+
+type WorkspaceExecutionSession struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	ActorID        uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+	// Canonical acquisition input digest; retained with request identity to prevent replay after expiry.
+	InputDigest []byte `db:"input_digest" json:"input_digest"`
+	// Recorded source workspace identity, intentionally independent of workspace deletion.
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	// Workspace owner at acquisition, checked again before automatic cleanup.
+	WorkspaceOwnerID uuid.NullUUID `db:"workspace_owner_id" json:"workspace_owner_id"`
+	CreatedAt        time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time     `db:"updated_at" json:"updated_at"`
+	State            string        `db:"state" json:"state"`
+	Disposable       bool          `db:"disposable" json:"disposable"`
+	Retained         bool          `db:"retained" json:"retained"`
+	LeaseExpiresAt   time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
+	Revision         int64         `db:"revision" json:"revision"`
+	// Immutable versioned output and cleanup declarations accepted before execution.
+	Declarations              json.RawMessage `db:"declarations" json:"declarations"`
+	DeleteBuildID             uuid.NullUUID   `db:"delete_build_id" json:"delete_build_id"`
+	NextRetryAt               sql.NullTime    `db:"next_retry_at" json:"next_retry_at"`
+	AttemptCount              int32           `db:"attempt_count" json:"attempt_count"`
+	Error                     string          `db:"error" json:"error"`
+	AcquisitionBuildID        uuid.NullUUID   `db:"acquisition_build_id" json:"acquisition_build_id"`
+	RecoveryArtifactExpiresAt sql.NullTime    `db:"recovery_artifact_expires_at" json:"recovery_artifact_expires_at"`
 }
 
 type WorkspaceLatestBuild struct {

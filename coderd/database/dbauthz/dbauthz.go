@@ -538,6 +538,7 @@ var (
 					rbac.ResourceWorkspace.Type:                   {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionSSH, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 					rbac.ResourceWorkspaceProxy.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionUpdate, policy.ActionRead},
+					rbac.ResourceWorkspaceExecution.Type:          {policy.ActionRead, policy.ActionUpdate, policy.ActionSSH},
 					rbac.ResourceDeploymentConfig.Type:            {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationMessage.Type:         {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationPreference.Type:      {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},

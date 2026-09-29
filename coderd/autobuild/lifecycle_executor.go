@@ -3,7 +3,6 @@ package autobuild
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -243,7 +242,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 
-					ok, err := tx.TryAcquireLock(e.ctx, database.GenLockID(fmt.Sprintf("lifecycle-executor:%s", wsID)))
+					ok, err := tx.TryAcquireLock(e.ctx, database.WorkspaceLifecycleLockID(wsID))
 					if err != nil {
 						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
 					}
@@ -312,6 +311,17 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 					if err != nil {
 						return xerrors.Errorf("get next transition: %w", err)
+					}
+
+					if nextTransition == database.WorkspaceTransitionDelete {
+						protected, err := tx.HasProtectedWorkspaceExecutionSession(e.ctx, database.HasProtectedWorkspaceExecutionSessionParams{WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true}, Now: currentTick})
+						if err != nil {
+							return xerrors.Errorf("check workspace execution protection: %w", err)
+						}
+						if protected {
+							log.Debug(e.ctx, "workspace execution protects durable results from deletion")
+							return nil
+						}
 					}
 
 					// No transition is due. The workspace may still need a one-time

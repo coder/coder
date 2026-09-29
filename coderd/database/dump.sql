@@ -285,7 +285,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_model_config:read',
     'chat_model_config:update',
     'chat_model_config:delete',
-    'chat_model_config:share'
+    'chat_model_config:share',
+    'workspace_execution:*',
+    'workspace_execution:create',
+    'workspace_execution:read',
+    'workspace_execution:update',
+    'workspace_execution:ssh'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -2159,6 +2164,28 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_submissions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    actor_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    request_id uuid NOT NULL,
+    input_digest bytea NOT NULL,
+    kind text NOT NULL,
+    chat_id uuid NOT NULL,
+    state text DEFAULT 'reserved'::text NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    settings jsonb DEFAULT 'null'::jsonb NOT NULL,
+    message_id bigint,
+    queued_message_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_submissions_input_digest_check CHECK ((octet_length(input_digest) = 32)),
+    CONSTRAINT chat_submissions_kind_check CHECK ((kind = ANY (ARRAY['create'::text, 'message'::text]))),
+    CONSTRAINT chat_submissions_state_check CHECK ((state = ANY (ARRAY['reserved'::text, 'accepted'::text, 'uncertain'::text, 'rejected'::text])))
+);
+
+COMMENT ON TABLE chat_submissions IS 'Durable admission identities. Reserved identities are never automatically redispatched, including after server restart.';
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -4021,6 +4048,104 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspace_execution_artifacts (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    preservation_revision bigint NOT NULL,
+    source_path text NOT NULL,
+    name text NOT NULL,
+    mimetype text NOT NULL,
+    size_bytes bigint NOT NULL,
+    sha256 bytea NOT NULL,
+    data bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone,
+    CONSTRAINT workspace_execution_artifacts_check CHECK ((octet_length(data) = size_bytes)),
+    CONSTRAINT workspace_execution_artifacts_check1 CHECK (((expires_at IS NULL) OR (expires_at > created_at))),
+    CONSTRAINT workspace_execution_artifacts_name_check CHECK ((name <> ''::text)),
+    CONSTRAINT workspace_execution_artifacts_preservation_revision_check CHECK ((preservation_revision > 0)),
+    CONSTRAINT workspace_execution_artifacts_sha256_check CHECK ((octet_length(sha256) = 32)),
+    CONSTRAINT workspace_execution_artifacts_size_bytes_check CHECK ((size_bytes >= 0)),
+    CONSTRAINT workspace_execution_artifacts_source_path_check CHECK ((source_path <> ''::text))
+);
+
+COMMENT ON TABLE workspace_execution_artifacts IS 'Complete execution results independent of workspace lifetime.';
+
+COMMENT ON COLUMN workspace_execution_artifacts.expires_at IS 'Explicit effective retention boundary. NULL makes no time-based expiry promise.';
+
+CREATE TABLE workspace_execution_receipts (
+    id uuid NOT NULL,
+    session_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    actor_id uuid NOT NULL,
+    request_id uuid NOT NULL,
+    input_digest bytea NOT NULL,
+    workspace_id uuid NOT NULL,
+    workspace_owner_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    agent_instance_id uuid NOT NULL,
+    process_id uuid NOT NULL,
+    admission_revision bigint NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    deadline timestamp with time zone,
+    state text NOT NULL,
+    exit_code integer,
+    error text DEFAULT ''::text NOT NULL,
+    CONSTRAINT workspace_execution_receipts_admission_revision_check CHECK ((admission_revision > 0)),
+    CONSTRAINT workspace_execution_receipts_check CHECK (((state = 'completed'::text) = (exit_code IS NOT NULL))),
+    CONSTRAINT workspace_execution_receipts_input_digest_check CHECK ((octet_length(input_digest) = 32)),
+    CONSTRAINT workspace_execution_receipts_state_check CHECK ((state = ANY (ARRAY['dispatching'::text, 'running'::text, 'completed'::text, 'unknown'::text, 'not_started'::text])))
+);
+
+COMMENT ON TABLE workspace_execution_receipts IS 'Durable execution identities. Command and environment payloads are never stored for replay.';
+
+COMMENT ON COLUMN workspace_execution_receipts.workspace_id IS 'Source identity retained after workspace deletion or purging.';
+
+CREATE TABLE workspace_execution_sessions (
+    id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    actor_id uuid NOT NULL,
+    request_id uuid NOT NULL,
+    input_digest bytea NOT NULL,
+    workspace_id uuid,
+    workspace_owner_id uuid,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    state text DEFAULT 'active'::text NOT NULL,
+    disposable boolean DEFAULT false NOT NULL,
+    retained boolean DEFAULT true NOT NULL,
+    lease_expires_at timestamp with time zone NOT NULL,
+    revision bigint DEFAULT 1 NOT NULL,
+    declarations jsonb NOT NULL,
+    delete_build_id uuid,
+    next_retry_at timestamp with time zone,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    acquisition_build_id uuid,
+    recovery_artifact_expires_at timestamp with time zone,
+    CONSTRAINT workspace_execution_sessions_attempt_count_check CHECK ((attempt_count >= 0)),
+    CONSTRAINT workspace_execution_sessions_check CHECK (((workspace_id IS NULL) = (workspace_owner_id IS NULL))),
+    CONSTRAINT workspace_execution_sessions_check1 CHECK (((state <> ALL (ARRAY['active'::text, 'preserving'::text, 'deleting'::text])) OR (workspace_id IS NOT NULL))),
+    CONSTRAINT workspace_execution_sessions_check2 CHECK (((state <> 'deleting'::text) OR (disposable AND (NOT retained) AND (delete_build_id IS NOT NULL)))),
+    CONSTRAINT workspace_execution_sessions_declarations_check CHECK ((jsonb_typeof(declarations) = 'object'::text)),
+    CONSTRAINT workspace_execution_sessions_input_digest_check CHECK ((octet_length(input_digest) = 32)),
+    CONSTRAINT workspace_execution_sessions_revision_check CHECK ((revision > 0)),
+    CONSTRAINT workspace_execution_sessions_state_check CHECK ((state = ANY (ARRAY['active'::text, 'preserving'::text, 'preserved'::text, 'preservation_failed'::text, 'retained'::text, 'deleting'::text, 'deletion_failed'::text, 'completed'::text])))
+);
+
+COMMENT ON COLUMN workspace_execution_sessions.input_digest IS 'Canonical acquisition input digest; retained with request identity to prevent replay after expiry.';
+
+COMMENT ON COLUMN workspace_execution_sessions.workspace_id IS 'Recorded source workspace identity, intentionally independent of workspace deletion.';
+
+COMMENT ON COLUMN workspace_execution_sessions.workspace_owner_id IS 'Workspace owner at acquisition, checked again before automatic cleanup.';
+
+COMMENT ON COLUMN workspace_execution_sessions.declarations IS 'Immutable versioned output and cleanup declarations accepted before execution.';
+
 CREATE TABLE workspaces (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -4360,6 +4485,12 @@ ALTER TABLE ONLY chat_organization_model_overrides
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_submissions
+    ADD CONSTRAINT chat_submissions_organization_id_actor_id_request_id_key UNIQUE (organization_id, actor_id, request_id);
+
+ALTER TABLE ONLY chat_submissions
+    ADD CONSTRAINT chat_submissions_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -4684,6 +4815,30 @@ ALTER TABLE ONLY workspace_builds
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_build_number_key UNIQUE (workspace_id, build_number);
 
+ALTER TABLE ONLY workspace_execution_artifacts
+    ADD CONSTRAINT workspace_execution_artifacts_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_execution_artifacts
+    ADD CONSTRAINT workspace_execution_artifacts_result_key UNIQUE (session_id, preservation_revision, source_path);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_key UNIQUE (session_id, actor_id, request_id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_process UNIQUE (agent_instance_id, process_id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_identity UNIQUE (id, organization_id, owner_id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_request_key UNIQUE (organization_id, actor_id, request_id);
+
 ALTER TABLE ONLY workspace_proxies
     ADD CONSTRAINT workspace_proxies_pkey PRIMARY KEY (id);
 
@@ -4715,6 +4870,10 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
+CREATE INDEX chat_submissions_chat_message_idx ON chat_submissions USING btree (chat_id, message_id) WHERE (message_id IS NOT NULL);
+
+CREATE INDEX chat_submissions_chat_queue_idx ON chat_submissions USING btree (chat_id, queued_message_id) WHERE (queued_message_id IS NOT NULL);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
@@ -5012,6 +5171,12 @@ CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING b
 
 CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
 
+CREATE INDEX workspace_execution_receipts_pending ON workspace_execution_receipts USING btree (session_id, state) WHERE (state = ANY (ARRAY['dispatching'::text, 'running'::text, 'unknown'::text]));
+
+CREATE INDEX workspace_execution_sessions_due_idx ON workspace_execution_sessions USING btree (next_retry_at, lease_expires_at) WHERE (state <> 'completed'::text);
+
+CREATE INDEX workspace_execution_sessions_workspace_id_idx ON workspace_execution_sessions USING btree (workspace_id);
+
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 
 CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted = false);
@@ -5230,6 +5395,15 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_submissions
+    ADD CONSTRAINT chat_submissions_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_submissions
+    ADD CONSTRAINT chat_submissions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY chat_submissions
+    ADD CONSTRAINT chat_submissions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_user_model_overrides
     ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
@@ -5596,6 +5770,33 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_execution_artifacts
+    ADD CONSTRAINT workspace_execution_artifacts_scope FOREIGN KEY (session_id, organization_id, owner_id) REFERENCES workspace_execution_sessions(id, organization_id, owner_id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_execution_receipts
+    ADD CONSTRAINT workspace_execution_receipts_session_id_organization_id_ow_fkey FOREIGN KEY (session_id, organization_id, owner_id) REFERENCES workspace_execution_sessions(id, organization_id, owner_id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_execution_sessions
+    ADD CONSTRAINT workspace_execution_sessions_workspace_owner_id_fkey FOREIGN KEY (workspace_owner_id) REFERENCES users(id);
 
 ALTER TABLE ONLY workspace_modules
     ADD CONSTRAINT workspace_modules_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

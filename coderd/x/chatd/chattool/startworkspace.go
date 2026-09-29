@@ -26,12 +26,14 @@ type StartWorkspaceFn func(
 
 // StartWorkspaceOptions configures the start_workspace tool.
 type StartWorkspaceOptions struct {
-	OwnerID       uuid.UUID
-	StartFn       StartWorkspaceFn
-	AgentConnFn   AgentConnFunc
-	WorkspaceMu   *sync.Mutex
-	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	// CheckWorkspaceAdmission serializes binding with workspace cleanup.
+	CheckWorkspaceAdmission func(context.Context, database.Store, uuid.UUID) error
+	OwnerID                 uuid.UUID
+	StartFn                 StartWorkspaceFn
+	AgentConnFn             AgentConnFunc
+	WorkspaceMu             *sync.Mutex
+	OnChatUpdated           func(database.Chat)
+	Logger                  slog.Logger
 }
 
 type startWorkspaceArgs struct {
@@ -95,7 +97,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				database.ProvisionerJobStatusRunning:
 				// Publish the build ID to the frontend so it
 				// can start streaming logs immediately.
-				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated)
+				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated, options.CheckWorkspaceAdmission)
 				if err := waitForBuild(ctx, db, build.ID); err != nil {
 					// newBuildError returns via toolResponse (IsError: false)
 					// rather than NewTextErrorResponse (IsError: true) so the
@@ -171,7 +173,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			// Persist the build ID on the chat binding so the
 			// frontend can stream logs without polling.
-			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, startBuild.ID, options.OnChatUpdated)
+			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, startBuild.ID, options.OnChatUpdated, options.CheckWorkspaceAdmission)
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
 				return buildFailureToolResponse(
 					ctx,

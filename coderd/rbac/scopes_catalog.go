@@ -22,6 +22,14 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"workspace:application_connect": {},
 	"workspace:*":                   {},
 
+	// Workspace execution sessions, commands, and preserved results. Existing
+	// workspace composites retain their original grants; consent to these
+	// additional permissions must be explicit.
+	"workspace_execution:create": {},
+	"workspace_execution:read":   {},
+	"workspace_execution:ssh":    {},
+	"workspace_execution:update": {},
+
 	// Templates
 	"template:read":   {},
 	"template:create": {},

@@ -96,6 +96,7 @@ type AgentConn interface {
 
 	AwaitReachable(ctx context.Context) bool
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
+	CancelProcess(ctx context.Context, req CancelProcessRequest) (CancelProcessResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
@@ -912,6 +913,12 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
+	// Tracked starts require both IDs and a digest. A zero Deadline means
+	// no automatic cancellation; otherwise it is an absolute execution limit.
+	ProcessID       uuid.UUID `json:"process_id,omitempty"`
+	AgentInstanceID uuid.UUID `json:"agent_instance_id,omitempty"`
+	Deadline        time.Time `json:"deadline,omitempty"`
+	InputDigest     string    `json:"input_digest,omitempty"`
 }
 
 // StartProcessResponse is returned when a process is started.
@@ -923,7 +930,9 @@ type StartProcessResponse struct {
 // ListProcessesResponse contains information about tracked
 // processes on the workspace agent.
 type ListProcessesResponse struct {
-	Processes []ProcessInfo `json:"processes"`
+	Processes       []ProcessInfo `json:"processes"`
+	ProtocolVersion int           `json:"protocol_version,omitempty"`
+	AgentInstanceID uuid.UUID     `json:"agent_instance_id,omitempty"`
 }
 
 // ProcessInfo describes a tracked process on the agent.
@@ -953,14 +962,25 @@ type ProcessOutputOptions struct {
 	// Wait enables blocking mode. When true, the request
 	// blocks until the process exits or the context expires.
 	Wait bool
+	// WaitMillis bounds a wait independently of the execution deadline.
+	// Zero preserves the default wait. Negative values are invalid.
+	WaitMillis int64
+	// AgentInstanceID requires the tracked output protocol when nonzero.
+	AgentInstanceID uuid.UUID
+	// InputDigest authenticates retained terminal state after output expires.
+	InputDigest string
 }
 
 // ProcessTruncation describes how process output was truncated.
 type ProcessTruncation struct {
-	OriginalBytes int    `json:"original_bytes"`
-	RetainedBytes int    `json:"retained_bytes"`
-	OmittedBytes  int    `json:"omitted_bytes"`
-	Strategy      string `json:"strategy"`
+	OriginalBytes int `json:"original_bytes"`
+	// RetainedBytes includes formatting markers in the returned output.
+	RetainedBytes int `json:"retained_bytes"`
+	// OmittedBytes counts source bytes removed by buffer and line limits.
+	OmittedBytes int `json:"omitted_bytes"`
+	// Strategy is "lines" for line limits alone, or "head_tail" when the
+	// buffer omitted middle bytes, possibly in addition to line limits.
+	Strategy string `json:"strategy"`
 }
 
 // SignalProcessRequest is the request body for signaling a
@@ -1370,7 +1390,12 @@ type MCPToolContent struct {
 func (c *agentConn) StartProcess(ctx context.Context, req StartProcessRequest) (StartProcessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodPost, "/api/v0/processes/start", req)
+	path := "/api/v0/processes/start"
+	if req.ProcessID != uuid.Nil || req.AgentInstanceID != uuid.Nil || !req.Deadline.IsZero() || req.InputDigest != "" {
+		// A separate route prevents old agents from ignoring tracking fields.
+		path += "-tracked"
+	}
+	res, err := c.apiRequest(ctx, http.MethodPost, path, req)
 	if err != nil {
 		return StartProcessResponse{}, xerrors.Errorf("do request: %w", err)
 	}
@@ -1437,14 +1462,38 @@ func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessO
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	path := "/api/v0/processes/" + id + "/output"
-	if opts != nil && opts.Wait {
-		path += "?wait=true"
+	query := neturl.Values{}
+	if opts != nil {
+		if opts.Wait {
+			query.Set("wait", "true")
+		}
+		if opts.WaitMillis != 0 {
+			query.Set("wait_ms", strconv.FormatInt(opts.WaitMillis, 10))
+		}
+		if opts.AgentInstanceID != uuid.Nil {
+			path += "-tracked"
+			query.Set("agent_instance_id", opts.AgentInstanceID.String())
+			query.Set("input_digest", opts.InputDigest)
+		}
 	}
+	path = agentAPIPath(path, query)
 	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return ProcessOutputResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
+	if res.StatusCode == http.StatusGone && opts != nil && opts.AgentInstanceID != uuid.Nil && opts.InputDigest != "" {
+		var expired ProcessOutputUnavailableError
+		if err := decodeAgentJSON(res, &expired); err != nil {
+			return ProcessOutputResponse{}, err
+		}
+		if !expired.OutputUnavailable || expired.AgentInstanceID != opts.AgentInstanceID ||
+			expired.InputDigest != opts.InputDigest || expired.Process.ID != id ||
+			expired.Process.Running || expired.Process.ExitCode == nil || expired.Process.ExitedAt == nil {
+			return ProcessOutputResponse{}, xerrors.New("invalid expired process output receipt")
+		}
+		return ProcessOutputResponse{}, &expired
+	}
 	if res.StatusCode != http.StatusOK {
 		return ProcessOutputResponse{}, codersdk.ReadBodyAsError(res)
 	}

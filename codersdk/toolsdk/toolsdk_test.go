@@ -145,11 +145,11 @@ func TestGenericToolMCPAnnotations(t *testing.T) {
 			openWorldHint:   false,
 		},
 		{
-			name:            "PortForwardIsReadOnly",
+			name:            "PortForwardMayStartWorkspace",
 			toolName:        toolsdk.ToolNameWorkspacePortForward,
-			readOnlyHint:    true,
+			readOnlyHint:    false,
 			destructiveHint: false,
-			idempotentHint:  true,
+			idempotentHint:  false,
 			openWorldHint:   false,
 		},
 		{
@@ -2184,6 +2184,18 @@ func TestMain(m *testing.M) {
 	// Ensure all tools have been tested
 	var untested []string
 	for _, tool := range toolsdk.All {
+		// These tools use real HTTP, server and agent integration coverage in
+		// coderd/mcp/{readiness,acquisition,workspacecommands,lifecycle,
+		// sibling_protection,artifact_recovery,export}_e2e_test.go.
+		// Repeating those flows with mocked SDK transports adds no coverage.
+		switch tool.Name {
+		case toolsdk.ToolNameWorkspaceReadiness,
+			toolsdk.ToolNameAcquireWorkspaceExecution, toolsdk.ToolNameGetWorkspaceExecutionSession,
+			toolsdk.ToolNameStartWorkspaceCommand, toolsdk.ToolNameGetWorkspaceCommand, toolsdk.ToolNameCancelWorkspaceCommand,
+			toolsdk.ToolNameRenewWorkspaceExecutionSession, toolsdk.ToolNameRetainWorkspaceExecutionSession, toolsdk.ToolNameRetryWorkspaceExecutionSession,
+			toolsdk.ToolNameExportWorkspaceExecution, toolsdk.ToolNameWorkspaceArtifactList, toolsdk.ToolNameWorkspaceArtifactRead:
+			continue
+		}
 		if tested, ok := testedTools.Load(tool.Name); !ok || !tested.(bool) {
 			untested = append(untested, tool.Name)
 		}

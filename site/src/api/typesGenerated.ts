@@ -940,6 +940,11 @@ export type APIKeyScope =
 	| "workspace_dormant:stop"
 	| "workspace_dormant:update"
 	| "workspace_dormant:update_agent"
+	| "workspace_execution:*"
+	| "workspace_execution:create"
+	| "workspace_execution:read"
+	| "workspace_execution:ssh"
+	| "workspace_execution:update"
 	| "workspace_proxy:*"
 	| "workspace_proxy:create"
 	| "workspace_proxy:delete"
@@ -1187,6 +1192,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:stop",
 	"workspace_dormant:update",
 	"workspace_dormant:update_agent",
+	"workspace_execution:*",
+	"workspace_execution:create",
+	"workspace_execution:read",
+	"workspace_execution:ssh",
+	"workspace_execution:update",
 	"workspace_proxy:*",
 	"workspace_proxy:create",
 	"workspace_proxy:delete",
@@ -1219,6 +1229,21 @@ export interface AccessURLReport extends BaseReport {
 	readonly reachable: boolean;
 	readonly status_code: number;
 	readonly healthz_response: string;
+}
+
+// From codersdk/workspaceexecutions.go
+/**
+ * AcquireWorkspaceExecutionRequest binds one request to one workspace.
+ */
+export interface AcquireWorkspaceExecutionRequest {
+	readonly request_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly create?: CreateWorkspaceRequest;
+	readonly lease_expires_at: string;
+	readonly disposable: boolean;
+	readonly retained: boolean | null;
+	readonly declarations: WorkspaceExecutionDeclarations;
 }
 
 // From codersdk/licenses.go
@@ -2016,6 +2041,8 @@ export interface ChangePasswordWithOneTimePasscodeRequest {
  * Chat represents a chat session with an AI agent.
  */
 export interface Chat {
+	readonly submission?: ChatSubmissionReceipt;
+	readonly exact_settings?: ChatExactSettings;
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
@@ -2602,6 +2629,19 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"usage_limit",
 ];
 
+// From codersdk/chatsubmissions.go
+/**
+ * ChatExactSettings is the immutable model selection admitted for a turn.
+ * ReasoningEffort is the value Coder will send, not proof the provider ran.
+ * A nil value leaves provider/configuration defaults unspecified.
+ */
+export interface ChatExactSettings {
+	readonly model_config_id: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly reasoning_effort?: string;
+}
+
 // From codersdk/chats.go
 /**
  * ChatFileDownloadURLResponse contains a short-lived URL for downloading a chat file.
@@ -2957,6 +2997,11 @@ export interface ChatMessagesResponse {
  * ChatModel is an org-scoped model configuration.
  */
 export interface ChatModel {
+	/**
+	 * ExactReasoningEfforts excludes values that Coder or its provider adapter
+	 * would silently clamp, translate, or ignore. It does not probe the provider.
+	 */
+	readonly exact_reasoning_efforts?: readonly string[];
 	readonly id: string;
 	readonly organization_id: string;
 	readonly ai_provider_id: string;
@@ -3639,6 +3684,22 @@ export interface ChatStreamToolCall {
 	readonly args: string;
 }
 
+// From codersdk/chatsubmissions.go
+/**
+ * ChatSubmissionReceipt identifies an accepted submission independently of
+ * message queue promotion. QueuedMessageID is the original queue identity.
+ */
+export interface ChatSubmissionReceipt {
+	readonly id: string;
+	readonly request_id: string;
+	readonly chat_id: string;
+	readonly state: string;
+	readonly message_id?: number;
+	readonly queued_message_id?: number;
+	readonly error?: string;
+	readonly settings?: ChatExactSettings;
+}
+
 // From codersdk/chats.go
 /**
  * ChatSystemPromptResponse is the response body for the chat system prompt
@@ -4020,6 +4081,11 @@ export interface CreateAIProviderRequest {
  * CreateChatMessageRequest is the request to add a message to a chat.
  */
 export interface CreateChatMessageRequest {
+	readonly request_id?: string;
+	/**
+	 * ExactSettings rejects reasoning substitutions. Requires RequestID.
+	 */
+	readonly exact_settings?: boolean;
 	readonly content: readonly ChatInputPart[];
 	readonly model_config_id?: string;
 	readonly mcp_server_ids?: string[];
@@ -4042,6 +4108,7 @@ export interface CreateChatMessageRequest {
  * CreateChatMessageResponse is the response from adding a message to a chat.
  */
 export interface CreateChatMessageResponse {
+	readonly submission?: ChatSubmissionReceipt;
 	readonly message?: ChatMessage;
 	/**
 	 * Messages contains all user-visible messages inserted by the send, in
@@ -4080,6 +4147,15 @@ export interface CreateChatModelRequest {
  * CreateChatRequest is the request to create a new chat.
  */
 export interface CreateChatRequest {
+	/**
+	 * RequestID makes retries converge on one durable submission. Reusing an
+	 * identity with different input is rejected, including after queue promotion.
+	 */
+	readonly request_id?: string;
+	/**
+	 * ExactSettings rejects reasoning substitutions. Requires RequestID.
+	 */
+	readonly exact_settings?: boolean;
 	readonly organization_id: string;
 	/**
 	 * OwnerID makes another user the chat owner. It defaults to the
@@ -5018,6 +5094,7 @@ export interface DeploymentValues {
 	readonly metrics_cache_refresh_interval?: number;
 	readonly agent_stat_refresh_interval?: number;
 	readonly agent_fallback_troubleshooting_url?: string;
+	readonly workspace_execution_cleanup?: boolean;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
 	readonly scim_use_legacy?: boolean;
@@ -5388,6 +5465,15 @@ export const Experiments: Experiment[] = [
 	"workspace-capable-licensing",
 	"workspace-usage",
 ];
+
+// From codersdk/workspaceexecutionexport.go
+/**
+ * ExportWorkspaceExecutionRequest names the last observed open session revision.
+ * Export ends command admission for this session without deleting its workspace.
+ */
+export interface ExportWorkspaceExecutionRequest {
+	readonly expected_revision: number;
+}
 
 // From codersdk/scopes_catalog.go
 export interface ExternalAPIKeyScopes {
@@ -8603,6 +8689,7 @@ export type RBACResource =
 	| "workspace_agent_resource_monitor"
 	| "workspace_build_orchestration"
 	| "workspace_dormant"
+	| "workspace_execution"
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
@@ -8657,6 +8744,7 @@ export const RBACResources: RBACResource[] = [
 	"workspace_agent_resource_monitor",
 	"workspace_build_orchestration",
 	"workspace_dormant",
+	"workspace_execution",
 	"workspace_proxy",
 ];
 
@@ -8716,6 +8804,15 @@ export type RegionTypes = Region | WorkspaceProxy;
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
+}
+
+// From codersdk/workspaceexecutioncontrols.go
+/**
+ * RenewWorkspaceExecutionRequest extends a session's explicit lease.
+ */
+export interface RenewWorkspaceExecutionRequest {
+	readonly expected_revision: number;
+	readonly lease_expires_at: string;
 }
 
 // From codersdk/replicas.go
@@ -9375,6 +9472,18 @@ export interface SlimRole {
 	readonly name: string;
 	readonly display_name: string;
 	readonly organization_id?: string;
+}
+
+// From codersdk/workspacecommands.go
+/**
+ * StartWorkspaceCommandRequest declares one stable command intent.
+ */
+export interface StartWorkspaceCommandRequest {
+	readonly request_id: string;
+	readonly agent_id: string;
+	readonly command: string;
+	readonly workdir?: string;
+	readonly env?: Record<string, string>;
 }
 
 // From codersdk/deployment.go
@@ -12264,6 +12373,46 @@ export interface WorkspaceBuildsRequest extends Pagination {
 	readonly since?: string;
 }
 
+// From codersdk/workspacecommands.go
+/**
+ * WorkspaceCommand is the durable receipt. Unknown is never permission to rerun.
+ */
+export interface WorkspaceCommand {
+	readonly id: string;
+	readonly session_id: string;
+	readonly request_id: string;
+	readonly workspace_id: string;
+	readonly agent_id: string;
+	readonly agent_instance_id: string;
+	readonly process_id: string;
+	readonly state: string;
+	readonly exit_code?: number;
+	readonly deadline?: string;
+	readonly error?: string;
+	readonly output?: WorkspaceCommandOutput;
+	readonly output_unavailable: boolean;
+}
+
+// From codersdk/workspacecommands.go
+/**
+ * WorkspaceCommandOutput is an ephemeral agent output snapshot.
+ */
+export interface WorkspaceCommandOutput {
+	readonly text: string;
+	readonly truncated?: WorkspaceCommandTruncation;
+}
+
+// From codersdk/workspacecommands.go
+/**
+ * WorkspaceCommandTruncation distinguishes source bytes omitted from marker bytes.
+ */
+export interface WorkspaceCommandTruncation {
+	readonly original_bytes: number;
+	readonly retained_bytes: number;
+	readonly omitted_bytes: number;
+	readonly strategy: string;
+}
+
 // From codersdk/deployment.go
 export interface WorkspaceConnectionLatencyMS {
 	readonly P50: number;
@@ -12280,6 +12429,119 @@ export interface WorkspaceDeploymentStats {
 	readonly connection_latency_ms: WorkspaceConnectionLatencyMS;
 	readonly rx_bytes: number;
 	readonly tx_bytes: number;
+}
+
+// From codersdk/workspaceexecutionartifacts.go
+/**
+ * WorkspaceExecutionArtifact describes durable bytes independent of workspace lifetime.
+ */
+export interface WorkspaceExecutionArtifact {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly session_id: string;
+	readonly preservation_revision: number;
+	readonly source_path: string;
+	readonly name: string;
+	readonly mime_type: string;
+	readonly size_bytes: number;
+	readonly sha256: string;
+	readonly created_at: string;
+	readonly expires_at?: string;
+	readonly download_url: string;
+}
+
+// From codersdk/workspaceexecutionartifacts.go
+/**
+ * WorkspaceExecutionArtifactChunk contains a byte range and the complete artifact size.
+ */
+export interface WorkspaceExecutionArtifactChunk {
+	readonly Content: string;
+	readonly SizeBytes: number;
+}
+
+// From codersdk/workspaceexecutionartifacts.go
+/**
+ * WorkspaceExecutionArtifactReadLimit bounds one retrieval response.
+ */
+export const WorkspaceExecutionArtifactReadLimit = 1048576;
+
+// From codersdk/workspaceexecutions.go
+/**
+ * WorkspaceExecutionBuild reports the acquisition build's observed outcome.
+ */
+export interface WorkspaceExecutionBuild {
+	readonly id: string;
+	readonly status: WorkspaceStatus;
+	readonly job_status: ProvisionerJobStatus;
+	readonly error?: string;
+	readonly error_code?: string;
+}
+
+// From codersdk/workspaceexecutioncontrols.go
+/**
+ * WorkspaceExecutionControlReceipt reports the committed lifecycle state.
+ */
+export interface WorkspaceExecutionControlReceipt {
+	readonly id: string;
+	readonly state: string;
+	readonly revision: number;
+	readonly retained: boolean;
+	readonly lease_expires_at: string;
+	readonly error?: string;
+	readonly effective_artifact_expires_at?: string;
+}
+
+// From codersdk/workspaceexecutioncontrols.go
+/**
+ * WorkspaceExecutionControlRequest fences a mutation to an observed revision.
+ */
+export interface WorkspaceExecutionControlRequest {
+	readonly expected_revision: number;
+	/**
+	 * LeaseExpiresAt applies only to renewal.
+	 */
+	readonly lease_expires_at?: string;
+	/**
+	 * ArtifactExpiresAt applies only to retry and explicitly extends finite retention.
+	 */
+	readonly artifact_expires_at?: string;
+}
+
+// From codersdk/workspaceexecutions.go
+/**
+ * WorkspaceExecutionDeclarations are immutable preservation and cleanup inputs.
+ */
+export interface WorkspaceExecutionDeclarations {
+	readonly result_agent_name?: string;
+	readonly result_agent_id?: string;
+	readonly result_paths: readonly string[];
+	readonly execution_deadline?: string;
+	readonly artifact_expires_at?: string;
+}
+
+// From codersdk/workspaceexecutions.go
+/**
+ * WorkspaceExecutionSession is a durable acquisition and lifecycle receipt.
+ * State describes the session, not workspace readiness or command success.
+ */
+export interface WorkspaceExecutionSession {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly actor_id: string;
+	readonly request_id: string;
+	readonly workspace_id?: string;
+	readonly acquisition_build_id?: string;
+	readonly acquisition_build?: WorkspaceExecutionBuild;
+	readonly effective_artifact_expires_at?: string;
+	readonly source_unavailable: boolean;
+	readonly state: string;
+	readonly disposable: boolean;
+	readonly retained: boolean;
+	readonly lease_expires_at: string;
+	readonly revision: number;
+	readonly declarations: WorkspaceExecutionDeclarations;
+	readonly error?: string;
 }
 
 // From codersdk/workspaces.go

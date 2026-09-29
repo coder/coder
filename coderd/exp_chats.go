@@ -1114,12 +1114,7 @@ func (api *API) validateExplicitChatModelConfigAvailable(
 	return status, resp
 }
 
-func validateChatMCPServerIDs(
-	ctx context.Context,
-	db database.Store,
-	organizationID uuid.UUID,
-	ids []uuid.UUID,
-) (normalized []uuid.UUID, invalid []uuid.UUID, err error) {
+func uniqueChatMCPServerIDs(ids []uuid.UUID) []uuid.UUID {
 	unique := make([]uuid.UUID, 0, len(ids))
 	seen := make(map[uuid.UUID]struct{}, len(ids))
 	for _, id := range ids {
@@ -1129,6 +1124,16 @@ func validateChatMCPServerIDs(
 		seen[id] = struct{}{}
 		unique = append(unique, id)
 	}
+	return unique
+}
+
+func validateChatMCPServerIDs(
+	ctx context.Context,
+	db database.Store,
+	organizationID uuid.UUID,
+	ids []uuid.UUID,
+) (normalized []uuid.UUID, invalid []uuid.UUID, err error) {
+	unique := uniqueChatMCPServerIDs(ids)
 	if len(unique) == 0 {
 		return unique, nil, nil
 	}
@@ -1210,6 +1215,7 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
+// @Failure 409 {object} codersdk.Response "Submission identity conflict or workspace admission closed"
 // @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -1329,6 +1335,17 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	// Preserve the canonical request used by existing creation receipts.
+	req.MCPServerIDs = uniqueChatMCPServerIDs(req.MCPServerIDs)
+	submission, err := chatSubmissionOptions(ctx, req.RequestID, chatd.SubmissionOptions{ActorID: apiKey.UserID, ExactSettings: req.ExactSettings}, req)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: err.Error()})
+		return
+	}
+	if api.replayChatSubmission(ownerCtx, rw, submission, req.OrganizationID, "create") {
+		return
 	}
 
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
@@ -1471,6 +1488,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	chat, err := api.chatDaemon.CreateChat(ownerCtx, chatd.CreateOptions{
+		Submission:              submission,
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 ownerID,
 		CreatedBy:               apiKey.UserID,
@@ -1491,6 +1509,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
+		if writeChatSubmissionError(ctx, rw, err) {
+			return
+		}
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
@@ -1556,6 +1577,9 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chatFiles := api.fetchChatFileMetadata(ownerCtx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
+	if submission != nil {
+		response.Submission = submission.Receipt
+	}
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
 
@@ -1594,6 +1618,16 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
+	rawSettings, settingsErr := api.Database.GetLatestChatSubmissionSettings(ctx, chat.ID)
+	if settingsErr == nil {
+		if err := json.Unmarshal(rawSettings, &sdkChat.ExactSettings); err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	} else if !errors.Is(settingsErr, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, settingsErr)
+		return
+	}
 
 	if api.chatDaemon != nil {
 		queued, err := api.chatDaemon.ChatQueuedForCapacity(ctx, chat)
@@ -2364,6 +2398,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
+// @Failure 409 {object} codersdk.Response "Workspace admission is closed"
 // @Router /api/v2/chats/{chat} [patch]
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2634,13 +2669,26 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		updatedChat, err := api.Database.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-			ID:          chat.ID,
-			WorkspaceID: workspaceID,
-			BuildID:     uuid.NullUUID{},
-			AgentID:     uuid.NullUUID{},
-		})
+		var updatedChat database.Chat
+		err := api.Database.InTx(func(tx database.Store) error {
+			if _, err := tx.GetChatByIDForUpdate(ctx, chat.ID); err != nil {
+				return err
+			}
+			if workspaceID.Valid {
+				if err := api.chatDaemon.CheckWorkspaceAdmission(ctx, tx, workspaceID.UUID); err != nil {
+					return err
+				}
+			}
+			var err error
+			updatedChat, err = tx.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID: chat.ID, WorkspaceID: workspaceID, BuildID: uuid.NullUUID{}, AgentID: uuid.NullUUID{},
+			})
+			return err
+		}, nil)
 		if err != nil {
+			if writeChatSubmissionError(ctx, rw, err) {
+				return
+			}
 			if errors.Is(err, sql.ErrNoRows) {
 				httpapi.ResourceNotFound(rw)
 				return
@@ -2737,6 +2785,7 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 200 {object} codersdk.CreateChatMessageResponse
+// @Failure 409 {object} codersdk.Response "Submission identity conflict or workspace admission closed"
 // @Router /api/v2/chats/{chat}/messages [post]
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2768,15 +2817,28 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var req codersdk.CreateChatMessageRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	submission, err := chatSubmissionOptions(ctx, req.RequestID, chatd.SubmissionOptions{ActorID: apiKey.UserID, ExactSettings: req.ExactSettings}, struct {
+		ChatID  uuid.UUID
+		Request codersdk.CreateChatMessageRequest
+	}{chatID, req})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: err.Error()})
+		return
+	}
+
+	if api.replayChatSubmission(ctx, rw, submission, chat.OrganizationID, "message") {
+		return
+	}
+
 	if chat.Archived {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot send messages to an archived chat.",
 		})
-		return
-	}
-
-	var req codersdk.CreateChatMessageRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -2888,6 +2950,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	sendResult, sendErr := api.chatDaemon.SendMessage(
 		ctx,
 		chatd.SendMessageOptions{
+			Submission:       submission,
 			ChatID:           chatID,
 			CreatedBy:        apiKey.UserID,
 			Content:          contentBlocks,
@@ -2900,6 +2963,9 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if sendErr != nil {
+		if writeChatSubmissionError(ctx, rw, sendErr) {
+			return
+		}
 		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
@@ -2967,11 +3033,14 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	response := codersdk.CreateChatMessageResponse{Queued: sendResult.Queued}
+	if submission != nil {
+		response.Submission = submission.Receipt
+	}
 	if sendResult.Queued {
 		if sendResult.QueuedMessage != nil {
 			response.QueuedMessage = convertChatQueuedMessagePtr(*sendResult.QueuedMessage)
 		}
-	} else {
+	} else if sendResult.Message.ID != 0 {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message
 	}
@@ -2997,6 +3066,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param message path int true "Message ID"
 // @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
 // @Success 200 {object} codersdk.EditChatMessageResponse
+// @Failure 409 {object} codersdk.Response "Chat state conflicts or workspace admission is closed"
 // @Router /api/v2/chats/{chat}/messages/{message} [patch]
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3083,6 +3153,9 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:    editMCPServerIDs,
 	})
 	if editErr != nil {
+		if writeChatSubmissionError(ctx, rw, editErr) {
+			return
+		}
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
@@ -3538,6 +3611,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
+// @Failure 409 {object} codersdk.Response "Chat state conflicts or workspace admission is closed"
 // @Router /api/v2/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
 // @Description Requests a manual context compaction on an idle or errored
@@ -3574,6 +3648,9 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 
 	updated, err := api.chatDaemon.CompactChat(ctx, chat)
 	if err != nil {
+		if writeChatSubmissionError(ctx, rw, err) {
+			return
+		}
 		if writeCommonChatMutationError(ctx, rw, err, "Cannot compact an archived chat.") {
 			return
 		}
@@ -7771,7 +7848,14 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
 	for _, config := range configs {
-		resp.Models = append(resp.Models, convertChatModelConfig(config))
+		model := convertChatModelConfig(config)
+		for _, provider := range providers {
+			if provider.ID == model.AIProviderID && model.ModelConfig != nil {
+				model.ExactReasoningEfforts = chatprovider.ExactReasoningEfforts(provider.Type, model.Model, *model.ModelConfig)
+				break
+			}
+		}
+		resp.Models = append(resp.Models, model)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

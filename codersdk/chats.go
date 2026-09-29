@@ -138,23 +138,25 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                  uuid.UUID    `json:"id" format:"uuid"`
-	OrganizationID      uuid.UUID    `json:"organization_id" format:"uuid"`
-	OwnerID             uuid.UUID    `json:"owner_id" format:"uuid"`
-	OwnerUsername       string       `json:"owner_username,omitempty"`
-	OwnerName           string       `json:"owner_name,omitempty"`
-	WorkspaceID         *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID             *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
-	AgentID             *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID        *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID          *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID   uuid.UUID    `json:"last_model_config_id" format:"uuid"`
-	LastReasoningEffort *string      `json:"last_reasoning_effort,omitempty"`
-	Title               string       `json:"title"`
-	Status              ChatStatus   `json:"status"`
-	PlanMode            ChatPlanMode `json:"plan_mode,omitempty"`
-	LastError           *ChatError   `json:"last_error,omitempty"`
-	LastTurnSummary     *string      `json:"last_turn_summary"`
+	Submission          *ChatSubmissionReceipt `json:"submission,omitempty"`
+	ExactSettings       *ChatExactSettings     `json:"exact_settings,omitempty"`
+	ID                  uuid.UUID              `json:"id" format:"uuid"`
+	OrganizationID      uuid.UUID              `json:"organization_id" format:"uuid"`
+	OwnerID             uuid.UUID              `json:"owner_id" format:"uuid"`
+	OwnerUsername       string                 `json:"owner_username,omitempty"`
+	OwnerName           string                 `json:"owner_name,omitempty"`
+	WorkspaceID         *uuid.UUID             `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID             *uuid.UUID             `json:"build_id,omitempty" format:"uuid"`
+	AgentID             *uuid.UUID             `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID        *uuid.UUID             `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID          *uuid.UUID             `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID   uuid.UUID              `json:"last_model_config_id" format:"uuid"`
+	LastReasoningEffort *string                `json:"last_reasoning_effort,omitempty"`
+	Title               string                 `json:"title"`
+	Status              ChatStatus             `json:"status"`
+	PlanMode            ChatPlanMode           `json:"plan_mode,omitempty"`
+	LastError           *ChatError             `json:"last_error,omitempty"`
+	LastTurnSummary     *string                `json:"last_turn_summary"`
 	// Summary is the persisted whole-chat summary, generated in the background.
 	// It is nil until the first summary has been produced.
 	Summary    *string         `json:"summary"`
@@ -651,6 +653,11 @@ type ToolResult struct {
 
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
+	// RequestID makes retries converge on one durable submission. Reusing an
+	// identity with different input is rejected, including after queue promotion.
+	RequestID *uuid.UUID `json:"request_id,omitempty" format:"uuid"`
+	// ExactSettings rejects reasoning substitutions. Requires RequestID.
+	ExactSettings  bool      `json:"exact_settings,omitempty"`
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	// OwnerID makes another user the chat owner. It defaults to the
 	// caller. The chat runs with the owner's credentials, so setting it
@@ -761,6 +768,9 @@ const (
 
 // CreateChatMessageRequest is the request to add a message to a chat.
 type CreateChatMessageRequest struct {
+	RequestID *uuid.UUID `json:"request_id,omitempty" format:"uuid"`
+	// ExactSettings rejects reasoning substitutions. Requires RequestID.
+	ExactSettings bool            `json:"exact_settings,omitempty"`
 	Content       []ChatInputPart `json:"content"`
 	ModelConfigID *uuid.UUID      `json:"model_config_id,omitempty" format:"uuid"`
 	MCPServerIDs  *[]uuid.UUID    `json:"mcp_server_ids,omitempty" format:"uuid"`
@@ -790,7 +800,8 @@ type EditChatMessageRequest struct {
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
 type CreateChatMessageResponse struct {
-	Message *ChatMessage `json:"message,omitempty"`
+	Submission *ChatSubmissionReceipt `json:"submission,omitempty"`
+	Message    *ChatMessage           `json:"message,omitempty"`
 	// Messages contains all user-visible messages inserted by the send, in
 	// insertion order. A queued send on an errored chat may promote the
 	// previous queue head, so clients must upsert the full batch.
@@ -1426,16 +1437,19 @@ type CreateUserChatProviderKeyRequest struct {
 
 // ChatModel is an org-scoped model configuration.
 type ChatModel struct {
-	ID                   uuid.UUID            `json:"id" format:"uuid"`
-	OrganizationID       uuid.UUID            `json:"organization_id" format:"uuid"`
-	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
-	Model                string               `json:"model"`
-	DisplayName          string               `json:"display_name"`
-	Enabled              bool                 `json:"enabled"`
-	IsDefault            bool                 `json:"is_default"`
-	ContextLimit         int64                `json:"context_limit"`
-	CompressionThreshold int32                `json:"compression_threshold"`
-	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
+	// ExactReasoningEfforts excludes values that Coder or its provider adapter
+	// would silently clamp, translate, or ignore. It does not probe the provider.
+	ExactReasoningEfforts []string             `json:"exact_reasoning_efforts,omitempty"`
+	ID                    uuid.UUID            `json:"id" format:"uuid"`
+	OrganizationID        uuid.UUID            `json:"organization_id" format:"uuid"`
+	AIProviderID          uuid.UUID            `json:"ai_provider_id" format:"uuid"`
+	Model                 string               `json:"model"`
+	DisplayName           string               `json:"display_name"`
+	Enabled               bool                 `json:"enabled"`
+	IsDefault             bool                 `json:"is_default"`
+	ContextLimit          int64                `json:"context_limit"`
+	CompressionThreshold  int32                `json:"compression_threshold"`
+	ModelConfig           *ChatModelCallConfig `json:"model_config,omitempty"`
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
 	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`

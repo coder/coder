@@ -244,6 +244,11 @@ const (
 	APIKeyScopeWorkspaceDormantStop                APIKeyScope = "workspace_dormant:stop"
 	APIKeyScopeWorkspaceDormantUpdate              APIKeyScope = "workspace_dormant:update"
 	APIKeyScopeWorkspaceDormantUpdateAgent         APIKeyScope = "workspace_dormant:update_agent"
+	APIKeyScopeWorkspaceExecutionAll               APIKeyScope = "workspace_execution:*"
+	APIKeyScopeWorkspaceExecutionCreate            APIKeyScope = "workspace_execution:create"
+	APIKeyScopeWorkspaceExecutionRead              APIKeyScope = "workspace_execution:read"
+	APIKeyScopeWorkspaceExecutionSsh               APIKeyScope = "workspace_execution:ssh"
+	APIKeyScopeWorkspaceExecutionUpdate            APIKeyScope = "workspace_execution:update"
 	APIKeyScopeWorkspaceProxyAll                   APIKeyScope = "workspace_proxy:*"
 	APIKeyScopeWorkspaceProxyCreate                APIKeyScope = "workspace_proxy:create"
 	APIKeyScopeWorkspaceProxyDelete                APIKeyScope = "workspace_proxy:delete"
@@ -305,4 +310,8 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeWorkspaceStart,
 	APIKeyScopeWorkspaceStop,
 	APIKeyScopeWorkspaceUpdate,
+	APIKeyScopeWorkspaceExecutionCreate,
+	APIKeyScopeWorkspaceExecutionRead,
+	APIKeyScopeWorkspaceExecutionSsh,
+	APIKeyScopeWorkspaceExecutionUpdate,
 }

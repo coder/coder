@@ -497,6 +497,16 @@ var (
 		Type: "workspace_dormant",
 	}
 
+	// ResourceWorkspaceExecution
+	// Valid Actions
+	//  - "ActionCreate" :: create a workspace execution session
+	//  - "ActionRead" :: read workspace execution session metadata
+	//  - "ActionSSH" :: execute commands and read workspace execution output
+	//  - "ActionUpdate" :: update a workspace execution session
+	ResourceWorkspaceExecution = Object{
+		Type: "workspace_execution",
+	}
+
 	// ResourceWorkspaceProxy
 	// Valid Actions
 	//  - "ActionCreate" :: create a workspace proxy
@@ -561,6 +571,7 @@ func AllResources() []Objecter {
 		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceBuildOrchestration,
 		ResourceWorkspaceDormant,
+		ResourceWorkspaceExecution,
 		ResourceWorkspaceProxy,
 	}
 }

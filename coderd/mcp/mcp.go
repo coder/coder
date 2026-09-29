@@ -180,11 +180,14 @@ func RegisterSDKTool(srv *mcp.Server, sdkTool toolsdk.GenericTool, tb toolsdk.De
 			}
 			return toolErrorResult(string(content)), nil
 		}
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(result)},
-			},
-		}, nil
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: string(result)}},
+		}
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(result, &object); err == nil && object != nil && sdkTool.Name != toolsdk.ToolNameChatGPTSearch && sdkTool.Name != toolsdk.ToolNameChatGPTFetch {
+			response.StructuredContent = object
+		}
+		return response, nil
 	})
 }
 

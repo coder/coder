@@ -405,7 +405,7 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 	}
 }
 
-var allowedProduceTypes = []string{"json", "text/event-stream", "text/html", "text/plain"}
+var allowedProduceTypes = []string{"json", "text/event-stream", "text/html", "text/plain", "application/octet-stream"}
 
 func assertProduce(t *testing.T, comment SwaggerComment) {
 	var hasResponseModel bool

@@ -200,71 +200,50 @@ func (b *HeadTailBuffer) TotalWritten() int {
 	return b.totalBytes
 }
 
-// Output returns the truncated output suitable for LLM
-// consumption, along with truncation metadata. If the total
-// output fits within the head buffer alone, the full output is
-// returned with nil truncation info. Otherwise the head and
-// tail are joined with an omission marker and long lines are
-// truncated.
+// Output returns a consistent snapshot suitable for LLM consumption.
+// Truncation metadata is nil only when no source bytes were omitted.
 func (b *HeadTailBuffer) Output() (string, *workspacesdk.ProcessTruncation) {
 	b.mu.Lock()
-	head := make([]byte, len(b.head))
-	copy(head, b.head)
-	tail := b.tailBytes()
+	head := string(b.head)
+	tail := string(b.tailBytes())
 	total := b.totalBytes
-	headFull := b.headFull
 	b.mu.Unlock()
 
-	storedLen := len(head) + len(tail)
-
-	// If everything fits, no head/tail split is needed.
-	if !headFull || len(tail) == 0 {
-		out := truncateLines(string(head))
-		if total == 0 {
-			return "", nil
-		}
-		return out, nil
-	}
-
-	// We have both head and tail data, meaning the total
-	// output exceeded the head capacity. Build the
-	// combined output with an omission marker.
-	omitted := total - storedLen
-	headStr := truncateLines(string(head))
-	tailStr := truncateLines(string(tail))
-
-	var sb strings.Builder
-	_, _ = sb.WriteString(headStr)
-	if omitted > 0 {
-		_, _ = sb.WriteString(fmt.Sprintf(
-			"\n\n... [omitted %d bytes] ...\n\n",
-			omitted,
-		))
+	omitted := total - len(head) - len(tail)
+	strategy := "lines"
+	var result string
+	if omitted == 0 {
+		// The stored portions are contiguous, including any line crossing
+		// the head/tail boundary.
+		result, omitted = truncateLines(head + tail)
 	} else {
-		// Head and tail are contiguous but were stored
-		// separately because the head filled up.
-		_, _ = sb.WriteString("\n")
+		strategy = "head_tail"
+		headStr, headOmitted := truncateLines(head)
+		tailStr, tailOmitted := truncateLines(tail)
+		result = fmt.Sprintf("%s\n\n... [omitted %d bytes] ...\n\n%s", headStr, omitted, tailStr)
+		omitted += headOmitted + tailOmitted
 	}
-	_, _ = sb.WriteString(tailStr)
-	result := sb.String()
-
+	if omitted == 0 {
+		return result, nil
+	}
 	return result, &workspacesdk.ProcessTruncation{
 		OriginalBytes: total,
 		RetainedBytes: len(result),
 		OmittedBytes:  omitted,
-		Strategy:      "head_tail",
+		Strategy:      strategy,
 	}
 }
 
 // truncateLines scans the input line by line and truncates
-// any line longer than MaxLineLength.
-func truncateLines(s string) string {
+// any line longer than MaxLineLength, returning the number of source bytes omitted.
+func truncateLines(s string) (string, int) {
 	if len(s) <= MaxLineLength {
 		// Fast path: if the entire string is shorter than
 		// the max line length, no line can exceed it.
-		return s
+		return s, 0
 	}
 
+	omitted := 0
 	var b strings.Builder
 	b.Grow(len(s))
 
@@ -286,6 +265,7 @@ func truncateLines(s string) string {
 			if cut < 0 {
 				cut = 0
 			}
+			omitted += len(line) - cut
 			_, _ = b.WriteString(line[:cut])
 			_, _ = b.WriteString(lineTruncationSuffix)
 		} else {
@@ -299,7 +279,7 @@ func truncateLines(s string) string {
 		}
 	}
 
-	return b.String()
+	return b.String(), omitted
 }
 
 // Close marks the buffer as closed and wakes any waiters.
