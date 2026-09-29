@@ -52,6 +52,7 @@ import (
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -5494,6 +5495,9 @@ func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.S
 		evaluator, err := experimentrules.New(cfg.Logger, experimentstest.Store{}, cfg.Experiments)
 		require.NoError(t, err)
 		cfg.ExperimentEvaluator = evaluator
+	}
+	if cfg.Authorizer == nil {
+		cfg.Authorizer = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	}
 	server, err := chatd.New(ps, cfg)
 	require.NoError(t, err)

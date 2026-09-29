@@ -2638,6 +2638,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `webhook_use` | `multi`, `single`           |
 | `when_busy`   | `queue`, `skip`             |
 
+## codersdk.ChatAutomationEventResponse
+
+```json
+{
+  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+  "input_id": "a7cf618d-a4a2-48f0-8b07-9196b264ab17"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `chat_id`  | string | false    |              |             |
+| `input_id` | string | false    |              |             |
+
 ## codersdk.ChatAutomationKind
 
 ```json

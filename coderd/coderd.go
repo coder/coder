@@ -951,6 +951,7 @@ func New(options *Options) *API {
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
 				ExperimentEvaluator:            api.ExperimentEvaluator,
+				Authorizer:                     options.Authorizer,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -1368,6 +1369,9 @@ func New(options *Options) *API {
 			})
 		})
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
+		// Webhook callers authenticate with the automation's secret, not
+		// with a Coder session, so this route has no API key middleware.
+		r.Post("/chat-automations/{automation}/events", api.postChatAutomationEvent)
 		r.Route("/organizations/{organization}/chat-automations", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

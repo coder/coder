@@ -202,6 +202,7 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
+	authorizer               rbac.Authorizer
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -2948,6 +2949,9 @@ type Config struct {
 	// owner. It is required.
 	ExperimentEvaluator *experiments.Evaluator
 	PrometheusRegistry  prometheus.Registerer
+	// Authorizer checks the permissions of an automation owner when an
+	// automation publishes. Publishing fails closed when it is nil.
+	Authorizer rbac.Authorizer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3070,6 +3074,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
 		experimentEvaluator:      cfg.ExperimentEvaluator,
+		authorizer:               cfg.Authorizer,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,

@@ -154,6 +154,113 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chat-automations/{automation}/events": {
+            "post": {
+                "description": "Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent to the target chat as the owner; a running turn is never interrupted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Deliver chat automation webhook event",
+                "operationId": "deliver-chat-automation-event",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer followed by the webhook secret",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Event data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationEventResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -20503,6 +20610,19 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationEventResponse": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

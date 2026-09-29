@@ -513,6 +513,16 @@ TODO (CODAGT-1208): `SendMessage` accepts an optional `AdmitInTx` callback (no H
 
 Other input states are not supported.
 
+### `POST /api/experimental/chat-automations/{automation}/events`
+
+A webhook automation with an `existing_chat` target delivers an event to its chat. The caller has no Coder session: the handler compares the SHA-256 of the bearer secret with the stored hash in constant time, and only then checks the `chat-automations` experiment for the automation owner and reads the body (at most 256 KiB of JSON). An unknown automation, a schedule automation, and a wrong secret get the same 401.
+
+The delivery runs as the automation owner and uses `SendMessage(m, queue)`, always with `busy_behavior=queue`, so an automation never interrupts a running turn. `m` has two text parts: the automation's prompt, and the event body inside `<automation_event_data>` tags with a header that labels it as untrusted data. The body is HTML-escaped JSON, so it keeps its value and cannot close the tags. Lifecycle hooks see `m` before the transaction, as for any other send.
+
+The `AdmitInTx` callback runs with the chat row locked and locks the automation through `chatstate.LockAutomations`, so the lock order is the chat row first, then the automation. Under the locks it rechecks that the automation is enabled, that the secret version still matches the one the request was verified against, that a single-use webhook is unused, that the target is unchanged and is a non-archived root chat of the owner in the automation's organization, and that the owner is active and may update the chat. It then applies When busy. A chat is busy in every state except `W` and `E0`. `skip` refuses a busy chat. `queue` refuses when the chat already holds `max(1, max_queued_messages_per_chat / 2)` queued automation messages, which leaves the other half of the queue to people. Only after these checks does the callback consume a single-use webhook, so a refused delivery leaves it usable. It returns the automation's current `queue_generation` and an input id fixed for the request, which the send stamps on the history or queued row.
+
+Target mode `new_chat` is not delivered yet and answers 501.
+
 ### `PATCH /api/v2/chats/{chat}/messages/{message}`
 
 This endpoint uses `EditMessage(k, replacement)`:

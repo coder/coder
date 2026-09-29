@@ -2,11 +2,15 @@ package coderd
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -16,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -359,6 +364,160 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 		httpapi.ResourceNotFound(rw)
 	case dbauthz.IsNotAuthorizedError(err):
 		httpapi.Forbidden(rw)
+	default:
+		httpapi.InternalServerError(rw, err)
+	}
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Deliver chat automation webhook event
+// @Description Delivers an event to a webhook automation. The caller authenticates with the automation's webhook secret as a bearer token, not with a Coder session. The body can be any JSON value up to 256 KiB. The automation owner's saved prompt and the event data are sent to the target chat as the owner; a running turn is never interrupted.
+// @ID deliver-chat-automation-event
+// @Accept json
+// @Produce json
+// @Tags Chats
+// @Param automation path string true "Automation ID" format(uuid)
+// @Param Authorization header string true "Bearer followed by the webhook secret"
+// @Param request body object true "Event data"
+// @Success 202 {object} codersdk.ChatAutomationEventResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 401 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
+// @Failure 429 {object} codersdk.Response
+// @Failure 501 {object} codersdk.Response
+// @Failure 502 {object} codersdk.Response
+// @Router /api/experimental/chat-automations/{automation}/events [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	automationID, ok := httpmw.ParseUUIDParam(rw, r, "automation")
+	if !ok {
+		return
+	}
+	if api.chatDaemon == nil {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	secret, ok := chatAutomationBearerSecret(r)
+	if !ok {
+		writeChatAutomationUnauthorized(ctx, rw)
+		return
+	}
+	// The caller has no Coder identity; the secret is checked against the
+	// stored hash before the automation is used in any other way.
+	//nolint:gocritic // Webhook callers authenticate only with the automation secret.
+	automation, err := api.Database.GetChatAutomationByID(dbauthz.AsChatd(ctx), automationID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	hash := sha256.Sum256([]byte(secret))
+	// Unknown ids, other kinds, and wrong secrets get the same response,
+	// so callers cannot probe for automation ids.
+	if err != nil || automation.Kind != database.ChatAutomationKindWebhook ||
+		subtle.ConstantTimeCompare(hash[:], automation.WebhookSecretHash) != 1 {
+		writeChatAutomationUnauthorized(ctx, rw)
+		return
+	}
+	if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, automation.OwnerID) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	body, err := io.ReadAll(http.MaxBytesReader(rw, r.Body, maxChatRequestBodyBytes))
+	if err != nil {
+		if mbe, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			httpapi.RecordRequestBodyLimit(ctx, mbe.Limit)
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: "Request body too large.",
+				Detail:  fmt.Sprintf("Maximum request body size is %d bytes.", mbe.Limit),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !json.Valid(body) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be valid JSON.",
+		})
+		return
+	}
+
+	result, err := api.chatDaemon.PublishAutomationWebhook(ctx, chatd.PublishAutomationWebhookParams{
+		AutomationID:  automation.ID,
+		SecretVersion: automation.WebhookSecretVersion,
+		Body:          body,
+	})
+	if err != nil {
+		writeChatAutomationEventError(ctx, rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatAutomationEventResponse{
+		InputID: result.InputID,
+		ChatID:  result.ChatID,
+	})
+}
+
+// chatAutomationBearerSecret returns the bearer token of the request.
+func chatAutomationBearerSecret(r *http.Request) (string, bool) {
+	scheme, secret, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", false
+	}
+	secret = strings.TrimSpace(secret)
+	return secret, secret != ""
+}
+
+func writeChatAutomationUnauthorized(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+		Message: "Invalid chat automation webhook secret.",
+		Detail:  "Send the webhook secret of the automation as a bearer token in the Authorization header.",
+	})
+}
+
+// writeChatAutomationEventError maps chatd publish errors to responses.
+func writeChatAutomationEventError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if writeChatHookErr(ctx, rw, err, "Chat automation event denied by lifecycle hook.") {
+		return
+	}
+	switch {
+	case errors.Is(err, chatd.ErrAutomationNotFound), errors.Is(err, chatd.ErrAutomationSecretChanged):
+		writeChatAutomationUnauthorized(ctx, rw)
+	case errors.Is(err, chatd.ErrAutomationDisabled):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "Chat automation is disabled."})
+	case errors.Is(err, chatd.ErrAutomationOwnerInactive):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "The owner of the chat automation is not active."})
+	case errors.Is(err, chatd.ErrAutomationForbidden), dbauthz.IsNotAuthorizedError(err):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "The owner of the chat automation cannot send messages to the target chat."})
+	case errors.Is(err, chatd.ErrAutomationWebhookConsumed):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "This single-use webhook was already used."})
+	case errors.Is(err, chatd.ErrAutomationTargetUnavailable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "The target chat of the chat automation is unavailable."})
+	case errors.Is(err, chatd.ErrAutomationChatBusy):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The target chat is busy.",
+			Detail:  "The automation skips events while the chat is busy.",
+		})
+	case errors.Is(err, chatd.ErrAutomationQueueShareFull):
+		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
+			Message: "Too many automation messages are queued in the target chat.",
+			Detail:  err.Error(),
+		})
+	case errors.Is(err, chatstate.ErrMessageQueueFull):
+		httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{Message: "Message queue is full."})
+	case errors.Is(err, chatd.ErrAutomationTargetNotSupported):
+		// new_chat targets are delivered by a follow-up change.
+		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
+			Message: "Chat automations that start a new chat cannot receive events yet.",
+		})
 	default:
 		httpapi.InternalServerError(rw, err)
 	}

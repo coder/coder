@@ -2168,6 +2168,17 @@ export interface ChatAutomation {
 }
 
 // From codersdk/chatautomations.go
+/**
+ * ChatAutomationEventResponse is returned when a webhook automation
+ * accepts an event. InputID identifies the accepted input on the message
+ * it created in ChatID.
+ */
+export interface ChatAutomationEventResponse {
+	readonly input_id: string;
+	readonly chat_id: string;
+}
+
+// From codersdk/chatautomations.go
 export type ChatAutomationKind = "schedule" | "webhook";
 
 export const ChatAutomationKinds: ChatAutomationKind[] = [

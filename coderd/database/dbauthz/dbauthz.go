@@ -1999,6 +1999,17 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
+func (q *querier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg database.ConsumeChatAutomationWebhookByIDParams) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
+		return 0, err
+	}
+	return q.db.ConsumeChatAutomationWebhookByID(ctx, arg)
+}
+
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -2042,6 +2053,14 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+}
+
+func (q *querier) CountChatQueuedAutomationMessagesByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return q.db.CountChatQueuedAutomationMessagesByChatID(ctx, chatID)
 }
 
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {

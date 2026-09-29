@@ -139,6 +139,14 @@ type ChatAutomationSchedulePreviewResponse struct {
 	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
 }
 
+// ChatAutomationEventResponse is returned when a webhook automation
+// accepts an event. InputID identifies the accepted input on the message
+// it created in ChatID.
+type ChatAutomationEventResponse struct {
+	InputID uuid.UUID `json:"input_id" format:"uuid"`
+	ChatID  uuid.UUID `json:"chat_id" format:"uuid"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", organizationID)
 }

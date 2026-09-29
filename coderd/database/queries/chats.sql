@@ -2882,6 +2882,13 @@ SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
+-- name: CountChatQueuedAutomationMessagesByChatID :one
+-- Counts the queued messages of a chat that an automation delivered.
+SELECT COUNT(*)::bigint AS count
+FROM chat_queued_messages
+WHERE chat_id = @chat_id::uuid
+    AND automation_id IS NOT NULL;
+
 -- name: GetChatQueuedMessageHead :one
 -- Returns the queue head (lowest position, then lowest id).
 SELECT * FROM chat_queued_messages

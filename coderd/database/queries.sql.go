@@ -5460,6 +5460,35 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 	return new_period, err
 }
 
+const consumeChatAutomationWebhookByID = `-- name: ConsumeChatAutomationWebhookByID :execrows
+UPDATE
+    chat_automations
+SET
+    webhook_consumed_at = $1::timestamptz,
+    updated_at = $1::timestamptz
+WHERE
+    id = $2::uuid
+    AND kind = 'webhook'
+    AND webhook_use = 'single'
+    AND webhook_consumed_at IS NULL
+`
+
+type ConsumeChatAutomationWebhookByIDParams struct {
+	Now time.Time `db:"now" json:"now"`
+	ID  uuid.UUID `db:"id" json:"id"`
+}
+
+// Marks an unconsumed single-use webhook as consumed. It affects no row
+// when the automation is not a single-use webhook or was already
+// consumed, so callers can refuse the delivery.
+func (q *sqlQuerier) ConsumeChatAutomationWebhookByID(ctx context.Context, arg ConsumeChatAutomationWebhookByIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, consumeChatAutomationWebhookByID, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const countChatAutomationsByOwnerID = `-- name: CountChatAutomationsByOwnerID :one
 SELECT
     COUNT(*)
@@ -8598,6 +8627,21 @@ func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSec
 	var i CountChatCapacityQueuedByPoolRow
 	err := row.Scan(&i.QueuedRootCount, &i.QueuedSubagentCount)
 	return i, err
+}
+
+const countChatQueuedAutomationMessagesByChatID = `-- name: CountChatQueuedAutomationMessagesByChatID :one
+SELECT COUNT(*)::bigint AS count
+FROM chat_queued_messages
+WHERE chat_id = $1::uuid
+    AND automation_id IS NOT NULL
+`
+
+// Counts the queued messages of a chat that an automation delivered.
+func (q *sqlQuerier) CountChatQueuedAutomationMessagesByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatQueuedAutomationMessagesByChatID, chatID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one

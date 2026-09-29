@@ -1591,6 +1591,14 @@ func (s *MethodTestSuite) TestChats() {
 		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
 		check.Args(arg).Asserts(object, policy.ActionUpdate).Returns(automation)
 	}))
+	s.Run("ConsumeChatAutomationWebhookByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.ConsumeChatAutomationWebhookByIDParams{ID: automation.ID, Now: dbtime.Now()}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().ConsumeChatAutomationWebhookByID(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		object := rbac.ResourceChatAutomation.WithID(automation.ID).InOrg(automation.OrganizationID).WithOwner(automation.OwnerID.String())
+		check.Args(arg).Asserts(object, policy.ActionUpdate).Returns(int64(1))
+	}))
 	s.Run("InsertChatFile", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertChatFileParams{})
 		file := testutil.Fake(s.T(), faker, database.InsertChatFileRow{OwnerID: arg.OwnerID, OrganizationID: arg.OrganizationID})
@@ -1710,6 +1718,12 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().CountChatQueuedMessages(gomock.Any(), chat.ID).Return(int64(3), nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(3))
+	}))
+	s.Run("CountChatQueuedAutomationMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().CountChatQueuedAutomationMessagesByChatID(gomock.Any(), chat.ID).Return(int64(2), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(2))
 	}))
 	s.Run("GetChatQueuedMessageHead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
