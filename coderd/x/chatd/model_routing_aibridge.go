@@ -129,9 +129,8 @@ const (
 	aiGatewayRequestFormatAnthropic
 )
 
-// stageSpanRoundTripper emits one provider_attempt stage per HTTP
-// round trip to the AI Gateway, so retried requests each get their
-// own span.
+// stageSpanRoundTripper records a provider_attempt stage per round trip,
+// so each retry gets its own span.
 type stageSpanRoundTripper struct {
 	base       http.RoundTripper
 	stages     *chatloop.StageTracer
@@ -150,14 +149,11 @@ func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
 		if err == nil && resp.StatusCode >= http.StatusBadRequest {
 			err = xerrors.Errorf("provider returned status %d", resp.StatusCode)
-			// A 4xx or 5xx marks the span as errored; the response is
-			// still returned with a nil error.
 			span.End(err)
 			return resp, nil
 		}
 	}
-	// The span closes on response headers, not on body completion; the
-	// streamed body outlives this call.
+	// Ends on response headers; the streamed body outlives this call.
 	span.End(err)
 	return resp, err
 }
@@ -296,8 +292,7 @@ func (p *Server) newModel(
 	if err != nil {
 		return chatprovider.Model{}, err
 	}
-	// The model has sent no request yet, so the transport's identity
-	// can still take the wire provider the client reports.
+	// Safe to mutate: the model has not sent a request yet.
 	stageRT.stageModel.Provider = model.Provider()
 	return model, nil
 }

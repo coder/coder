@@ -282,11 +282,8 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 	return s.span.SpanContext()
 }
 
-// End closes the stage span, records its duration, and marks the span
-// as errored when err is non-nil. It returns the span's elapsed window
-// whether or not the stage is observed. Calls after the first are
-// ignored and return zero, so a deferred End cannot double-count a
-// stage.
+// End closes the span, records its duration, and returns the elapsed
+// window. Calls after the first return zero.
 func (s *StageSpan) End(err error) time.Duration {
 	elapsed, ok := s.closeSpan(err)
 	if !ok {

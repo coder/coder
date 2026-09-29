@@ -21,8 +21,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// familyMetrics returns the series of the named family, or nil when it
-// has none.
 func familyMetrics(t *testing.T, registry *prometheus.Registry, name string) []*dto.Metric {
 	t.Helper()
 	families, err := registry.Gather()
@@ -35,7 +33,6 @@ func familyMetrics(t *testing.T, registry *prometheus.Registry, name string) []*
 	return nil
 }
 
-// stageSeries reports false when stage has no series in the family.
 func stageSeries(t *testing.T, registry *prometheus.Registry, family string, stage Stage) (*dto.Metric, bool) {
 	t.Helper()
 	for _, metric := range familyMetrics(t, registry, family) {
@@ -46,15 +43,12 @@ func stageSeries(t *testing.T, registry *prometheus.Registry, family string, sta
 	return nil, false
 }
 
-// stageSampleCount reports false when stage has no series.
 func stageSampleCount(t *testing.T, registry *prometheus.Registry, stage Stage) (uint64, bool) {
 	t.Helper()
 	metric, ok := stageSeries(t, registry, "coderd_chatd_stage_duration_seconds", stage)
 	return metric.GetHistogram().GetSampleCount(), ok
 }
 
-// histogramTotals sums the sample count and sum across every series of
-// the named histogram family.
 func histogramTotals(t *testing.T, registry *prometheus.Registry, name string) (uint64, float64) {
 	t.Helper()
 	var (
@@ -77,7 +71,6 @@ func metricLabel(metric *dto.Metric, name string) string {
 	return ""
 }
 
-// endedSpan returns the single ended span named stage.
 func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrace.ReadOnlySpan {
 	t.Helper()
 	var found sdktrace.ReadOnlySpan
@@ -92,9 +85,8 @@ func endedSpan(t *testing.T, spans *tracetest.SpanRecorder, stage Stage) sdktrac
 	return found
 }
 
-// requireEndedBefore asserts that the first span ended before the
-// second. The recorder lists spans in end order, which a mock clock's
-// equal timestamps cannot show.
+// requireEndedBefore checks the recorder's end order, since mock clock
+// timestamps can be equal.
 func requireEndedBefore(t *testing.T, spans *tracetest.SpanRecorder, first, second Stage) {
 	t.Helper()
 	var names []string
@@ -106,8 +98,6 @@ func requireEndedBefore(t *testing.T, spans *tracetest.SpanRecorder, first, seco
 	require.Equal(t, []string{string(first), string(second)}, names)
 }
 
-// recordedErrorMessage returns the message of the span's first
-// recorded error event.
 func recordedErrorMessage(t *testing.T, span sdktrace.ReadOnlySpan) string {
 	t.Helper()
 	for _, event := range span.Events() {
@@ -151,8 +141,6 @@ func newStageMetricsFixture(t *testing.T) stageMetricsFixture {
 	}
 }
 
-// guardedStream opens an anthropic/claude attempt on the fixture's
-// clock, tracer and metrics.
 func (f stageMetricsFixture) guardedStream(
 	ctx context.Context,
 	stageModel StageModel,
@@ -161,8 +149,6 @@ func (f stageMetricsFixture) guardedStream(
 	return guardedStream(ctx, "anthropic", "claude", f.clock, time.Minute, open, f.metrics, f.tracer, stageModel)
 }
 
-// requireUnobservedTTFT asserts that the time_to_first_token span
-// ended with wantErr and that neither TTFT histogram observed it.
 func (f stageMetricsFixture) requireUnobservedTTFT(t *testing.T, wantErr string) {
 	t.Helper()
 	span := endedSpan(t, f.spans, StageTimeToFirstToken)
@@ -174,8 +160,6 @@ func (f stageMetricsFixture) requireUnobservedTTFT(t *testing.T, wantErr string)
 	require.Zero(t, count)
 }
 
-// requireObservedTTFT asserts one successful time_to_first_token window
-// of want on both TTFT histograms, which observe the same elapsed time.
 func (f stageMetricsFixture) requireObservedTTFT(t *testing.T, want time.Duration) {
 	t.Helper()
 	require.Equal(t, codes.Unset, endedSpan(t, f.spans, StageTimeToFirstToken).Status().Code)
@@ -188,7 +172,6 @@ func (f stageMetricsFixture) requireObservedTTFT(t *testing.T, want time.Duratio
 	require.Equal(t, stage.GetHistogram().GetSampleSum(), sum)
 }
 
-// drainStream returns the number of parts consumed.
 func drainStream(stream fantasy.StreamResponse) int {
 	parts := 0
 	for range stream {
@@ -218,11 +201,8 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		attempt.release()
 
 		fixture.requireObservedTTFT(t, 250*time.Millisecond)
-		// Per-model time to first token is ttft_seconds only.
 		_, ok := stageSeries(t, fixture.registry, "coderd_chatd_model_stage_duration_seconds", StageTimeToFirstToken)
 		require.False(t, ok)
-		// provider is the wire protocol and provider_type the configured
-		// AI provider type.
 		providers := map[attribute.Key][]string{}
 		for _, attr := range endedSpan(t, fixture.spans, StageTimeToFirstToken).Attributes() {
 			if attr.Key == AttrProvider || attr.Key == AttrProviderType {
@@ -255,7 +235,6 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		count, sum := histogramTotals(t, fixture.registry, "coderd_chatd_ttft_seconds")
 		require.Equal(t, uint64(1), count)
 		require.InDelta(t, 0.25, sum, 1e-9)
-		// Without a tracer the stage window is not observed.
 		_, ok := stageSeries(t, fixture.registry, "coderd_chatd_stage_duration_seconds", StageTimeToFirstToken)
 		require.False(t, ok)
 	})
@@ -321,8 +300,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		drainStream(attempt.stream)
 		attempt.release()
 
-		// The window closes at the first text part, after the warnings
-		// part, and the second text part does not observe again.
+		// Warnings do not close the window; the first text part does.
 		fixture.requireObservedTTFT(t, time.Second)
 	})
 
@@ -347,8 +325,6 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		drainStream(attempt.stream)
 		attempt.release()
 
-		// A start marker is a streamed output part, so the window
-		// closes on it and the later error does not reopen it.
 		fixture.requireObservedTTFT(t, time.Second)
 	})
 
@@ -480,8 +456,8 @@ func TestGenerateAssistantStreamStage(t *testing.T) {
 			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
 		})
 
-		// Only the attempt release closes this window, and it must do so
-		// before the stream stage ends.
+		// With no output part, only the attempt release closes the TTFT
+		// window.
 		requireEndedBefore(t, fixture.spans, StageTimeToFirstToken, StageStream)
 		requireStreamObserved(t, fixture)
 	})

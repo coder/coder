@@ -121,8 +121,8 @@ func TestResolveModelCallStageModel(t *testing.T) {
 			wantEffort:   "",
 		},
 		{
-			// The model name resolves to openai, so the provider type
-			// must come from the configured provider.
+			// gpt-5 infers openai, so the provider type must come from the
+			// configured provider.
 			name:            "CopilotProviderType",
 			providerType:    database.AIProviderTypeCopilot,
 			reasoningEffort: &codersdk.ChatModelReasoningEffortConfig{Default: ptr.Ref("low")},
@@ -173,7 +173,6 @@ func TestResolveModelCallStageModel(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.wantEffort, resolved.resolvedEffort)
-			// The wire provider is the one the built client reports.
 			require.NotEmpty(t, resolved.model.Provider())
 			wantStageModel := chatloop.StageModel{Provider: resolved.model.Provider(), ProviderType: string(tt.providerType), Model: "gpt-5", Effort: tt.wantEffort}
 			require.Equal(t, wantStageModel, resolved.stageModel())

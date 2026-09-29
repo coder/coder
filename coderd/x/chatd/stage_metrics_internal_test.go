@@ -19,10 +19,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// TestServerStageMetricsFollowExperiment checks that the chat-stage-metrics
-// experiment decides whether the stage families reach the server's
-// registry. A family with no series is absent from a gather, so one
-// observation is recorded first.
 func TestServerStageMetricsFollowExperiment(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +35,7 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 				withInternalTestServerExperiments(experiments),
 				withInternalTestServerRegistry(registry),
 			)
+			// A family with no series is absent from a gather.
 			_, span := server.stages.Start(t.Context(), chatloop.StageCommit)
 			span.End(nil)
 
@@ -49,9 +46,6 @@ func TestServerStageMetricsFollowExperiment(t *testing.T) {
 	}
 }
 
-// TestServerStageTracerUsesServerConfig checks that the server's stage
-// tracer exports to the configured tracer provider and times stages on
-// the configured clock.
 func TestServerStageTracerUsesServerConfig(t *testing.T) {
 	t.Parallel()
 
