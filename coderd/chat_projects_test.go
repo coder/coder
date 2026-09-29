@@ -32,12 +32,8 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 		Name:           "Other Organization Project",
 	})
 
-	projects, err := client.ListChatProjects(ctx, firstUser.OrganizationID)
-	require.NoError(t, err)
-	require.Len(t, projects, 1)
-	require.Equal(t, project.ID, projects[0].ID)
-
-	projects, err = client.ListUserChatProjects(ctx)
+	// The list spans organizations so clients can load it in one request.
+	projects, err := client.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.ElementsMatch(t,
 		[]uuid.UUID{project.ID, otherOrganizationProject.ID},
@@ -88,12 +84,15 @@ func TestChatProjectsCRUDListAndDeleteDetaches(t *testing.T) {
 	require.NotEqual(t, project.ID, duplicate.ID)
 	duplicateAgain := createChatProject(t, client, firstUser.OrganizationID, keptName)
 	require.NotEqual(t, duplicate.ID, duplicateAgain.ID)
-	projects, err = client.ListChatProjects(ctx, firstUser.OrganizationID)
+	projects, err = client.ListChatProjects(ctx)
 	require.NoError(t, err)
-	require.Len(t, projects, 3)
+	var sameName []uuid.UUID
 	for _, listed := range projects {
-		require.Equal(t, keptName, listed.Name)
+		if listed.Name == keptName {
+			sameName = append(sameName, listed.ID)
+		}
 	}
+	require.ElementsMatch(t, []uuid.UUID{project.ID, duplicate.ID, duplicateAgain.ID}, sameName)
 	fetched, err = client.GetChatProject(ctx, firstUser.OrganizationID, duplicate.ID)
 	require.NoError(t, err)
 	require.Equal(t, duplicate.ID, fetched.ID)
@@ -119,7 +118,7 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 	member := codersdk.NewExperimentalClient(memberRaw)
 	_, err := member.GetChatProject(ctx, firstUser.OrganizationID, project.ID)
 	require.Equal(t, 404, coderdtest.SDKError(t, err).StatusCode())
-	projects, err := member.ListChatProjects(ctx, firstUser.OrganizationID)
+	projects, err := member.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Empty(t, projects)
 	_, err = member.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -139,18 +138,18 @@ func TestChatProjectsAuthorizationAndCrossOrganizationBinding(t *testing.T) {
 
 	// Members still create their own projects, which only they see.
 	memberProject := createChatProject(t, member, firstUser.OrganizationID, "Member Project")
-	projects, err = member.ListChatProjects(ctx, firstUser.OrganizationID)
+	projects, err = member.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
 	require.Equal(t, memberProject.ID, projects[0].ID)
-	projects, err = member.ListUserChatProjects(ctx)
+	// Like chats, the list holds only the caller's own projects, even for a
+	// site owner who can read others' projects by ID.
+	projects, err = client.ListChatProjects(ctx)
 	require.NoError(t, err)
 	require.Len(t, projects, 1)
-	require.Equal(t, memberProject.ID, projects[0].ID)
-	// The first user holds the site owner role and therefore sees both.
-	projects, err = client.ListChatProjects(ctx, firstUser.OrganizationID)
+	require.Equal(t, project.ID, projects[0].ID)
+	_, err = client.GetChatProject(ctx, firstUser.OrganizationID, memberProject.ID)
 	require.NoError(t, err)
-	require.Len(t, projects, 2)
 
 	otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 	otherProject := dbgen.ChatProject(t, db, database.ChatProject{

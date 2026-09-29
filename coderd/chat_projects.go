@@ -22,39 +22,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary List chat projects in an organization
-// @ID list-organization-chat-projects
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {array} codersdk.ChatProject
-// @Router /api/experimental/organizations/{organization}/chats/projects [get]
-// @x-apidocgen {"skip": true}
-func (api *API) listOrganizationChatProjects(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
-
-	projects, err := api.Database.GetChatProjectsByOrganizationID(ctx, organization.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat projects.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, slice.List(projects, db2sdk.ChatProject))
-}
-
-// @Summary List the authenticated user's chat projects
-// @ID list-user-chat-projects
+// @Summary List chat projects
+// @ID list-chat-projects
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Success 200 {array} codersdk.ChatProject
 // @Router /api/experimental/chats/projects [get]
 // @x-apidocgen {"skip": true}
-func (api *API) listUserChatProjects(rw http.ResponseWriter, r *http.Request) {
+func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 

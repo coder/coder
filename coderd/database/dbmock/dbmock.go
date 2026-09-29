@@ -3372,21 +3372,6 @@ func (mr *MockStoreMockRecorder) GetChatProjectByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectByID", reflect.TypeOf((*MockStore)(nil).GetChatProjectByID), ctx, id)
 }
 
-// GetChatProjectsByOrganizationID mocks base method.
-func (m *MockStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatProjectsByOrganizationID", ctx, organizationID)
-	ret0, _ := ret[0].([]database.ChatProject)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatProjectsByOrganizationID indicates an expected call of GetChatProjectsByOrganizationID.
-func (mr *MockStoreMockRecorder) GetChatProjectsByOrganizationID(ctx, organizationID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetChatProjectsByOrganizationID), ctx, organizationID)
-}
-
 // GetChatProjectsByOwnerID mocks base method.
 func (m *MockStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()

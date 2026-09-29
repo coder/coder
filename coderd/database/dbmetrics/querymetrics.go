@@ -1800,14 +1800,6 @@ func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatProjectsByOrganizationID(ctx, organizationID)
-	m.queryLatencies.WithLabelValues("GetChatProjectsByOrganizationID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectsByOrganizationID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectsByOwnerID(ctx, ownerID)

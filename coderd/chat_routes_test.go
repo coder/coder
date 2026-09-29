@@ -34,7 +34,6 @@ func TestChatRouteMounts(t *testing.T) {
 		"/api/v2/chats/config/system-prompt",
 		fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chat.ID),
 		"/api/experimental/chats/projects",
-		fmt.Sprintf("/api/experimental/organizations/%s/chats/projects", firstUser.OrganizationID),
 	} {
 		res, err := client.Request(ctx, http.MethodGet, route, nil)
 		require.NoError(t, err)

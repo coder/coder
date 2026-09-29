@@ -2203,24 +2203,9 @@ func chatProjectPath(organizationID, projectID uuid.UUID) string {
 	return fmt.Sprintf("%s/%s", chatProjectsPath(organizationID), projectID)
 }
 
-// ListChatProjects lists the chat projects in an organization that the
-// caller can read.
-func (c *ExperimentalClient) ListChatProjects(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
-	res, err := c.Request(ctx, http.MethodGet, chatProjectsPath(organizationID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	var projects []ChatProject
-	return projects, ReadBodyAsJSON(res, &projects)
-}
-
-// ListUserChatProjects lists the authenticated user's chat projects across
-// all organizations.
-func (c *ExperimentalClient) ListUserChatProjects(ctx context.Context) ([]ChatProject, error) {
+// ListChatProjects lists the authenticated user's chat projects across all
+// organizations.
+func (c *ExperimentalClient) ListChatProjects(ctx context.Context) ([]ChatProject, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/projects", nil)
 	if err != nil {
 		return nil, err

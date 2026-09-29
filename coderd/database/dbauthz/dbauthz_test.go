@@ -1294,13 +1294,6 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because callers provide the SQL filter.
 		check.Args(orgID, emptyPreparedAuthorized{}).Asserts()
 	}))
-	s.Run("GetChatProjectsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		organizationID := uuid.New()
-		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: organizationID})
-		rows := []database.ChatProject{project}
-		dbm.EXPECT().GetChatProjectsByOrganizationID(gomock.Any(), organizationID).Return(rows, nil).AnyTimes()
-		check.Args(organizationID).Asserts(project, policy.ActionRead).Returns(rows)
-	}))
 	s.Run("GetChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: ownerID})

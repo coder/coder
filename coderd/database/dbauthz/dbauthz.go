@@ -3642,10 +3642,6 @@ func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (databas
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
 }
 
-func (q *querier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.ChatProject, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOrganizationID)(ctx, organizationID)
-}
-
 func (q *querier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsByOwnerID)(ctx, ownerID)
 }

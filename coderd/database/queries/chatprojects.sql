@@ -15,12 +15,6 @@ SELECT *
 FROM chat_projects
 WHERE id = @id::uuid;
 
--- name: GetChatProjectsByOrganizationID :many
-SELECT *
-FROM chat_projects
-WHERE organization_id = @organization_id::uuid
-ORDER BY lower(name), id;
-
 -- name: GetChatProjectsByOwnerID :many
 SELECT *
 FROM chat_projects

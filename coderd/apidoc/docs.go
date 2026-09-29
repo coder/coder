@@ -162,8 +162,8 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "List the authenticated user's chat projects",
-                "operationId": "list-user-chat-projects",
+                "summary": "List chat projects",
+                "operationId": "list-chat-projects",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -361,45 +361,6 @@ const docTemplate = `{
             }
         },
         "/api/experimental/organizations/{organization}/chats/projects": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat projects in an organization",
-                "operationId": "list-organization-chat-projects",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.ChatProject"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            },
             "post": {
                 "consumes": [
                     "application/json"
