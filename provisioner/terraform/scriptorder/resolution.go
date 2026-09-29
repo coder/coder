@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	tfjson "github.com/hashicorp/terraform-json"
 	"golang.org/x/xerrors"
 )
 
@@ -59,12 +58,26 @@ func (w scriptOrderPhaseFilterWarning) String() string {
 	)
 }
 
-// resolvedScriptOrder contains phase- and runtime-resolved rules
-// ready for graph construction, plus warnings produced during
-// resolution.
+// resolvedScriptOrder contains phase- and runtime-resolved rules ready for
+// graph construction.
 type resolvedScriptOrder struct {
-	rules    []resolvedScriptOrderRule
-	warnings []scriptOrderPhaseFilterWarning
+	rules []resolvedScriptOrderRule
+}
+
+type preparedScriptOrderRule struct {
+	identity    scriptOrderRuleIdentity
+	phase       ScriptOrderPhase
+	requirement ScriptOrderRequirement
+	run         []resolvedScriptOrderSelector
+	after       []resolvedScriptOrderSelector
+}
+
+// preparedScriptOrder contains phase-filtered rules and the concrete scripts
+// that require runtime association before finalization.
+type preparedScriptOrder struct {
+	rules                   []preparedScriptOrderRule
+	selectedScriptAddresses []string
+	warnings                []scriptOrderPhaseFilterWarning
 }
 
 // ScriptOrder contains one deterministic dependency graph per runtime
@@ -90,24 +103,23 @@ type ScriptOrderDependency struct {
 	Requirement         ScriptOrderRequirement
 }
 
-// resolveScriptOrder collects rule declarations and resolves their
-// selectors, lifecycle phases, and runtimes. It does not construct
-// dependency graphs.
-func resolveScriptOrder(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+// prepareScriptOrder resolves selectors and lifecycle phases once, before
+// runtime association. Rules with an empty side remain valid no-ops.
+func prepareScriptOrder(
+	program *Program,
 	scripts map[string]scriptOrderScript,
-) (resolvedScriptOrder, error) {
-	declarations, err := collectScriptOrderRuleDeclarations(modules, planConfig)
+) (preparedScriptOrder, error) {
+	declarations, err := collectScriptOrderRuleDeclarations(program)
 	if err != nil {
-		return resolvedScriptOrder{}, err
+		return preparedScriptOrder{}, err
 	}
 
-	result := resolvedScriptOrder{}
+	result := preparedScriptOrder{}
+	selectedAddresses := map[string]struct{}{}
 	for _, dec := range declarations {
-		rule, warning, err := resolveScriptOrderRule(dec, scripts)
+		rule, warning, err := prepareScriptOrderRule(dec, scripts)
 		if err != nil {
-			return resolvedScriptOrder{}, err
+			return preparedScriptOrder{}, err
 		}
 		if warning != nil {
 			result.warnings = append(result.warnings, *warning)
@@ -119,30 +131,34 @@ func resolveScriptOrder(
 			continue
 		}
 		result.rules = append(result.rules, rule)
+		for _, selector := range slices.Concat(rule.run, rule.after) {
+			for _, address := range selector.addresses {
+				selectedAddresses[address] = struct{}{}
+			}
+		}
 	}
+	result.selectedScriptAddresses = slices.Sorted(maps.Keys(selectedAddresses))
 	return result, nil
 }
 
-// resolveScriptOrderRule resolves a declaration to one lifecycle
-// phase, filters module selectors to that phase, and validates script
-// and runtime compatibility. It returns a warning when inferred-phase
-// filtering omits scripts.
-func resolveScriptOrderRule(
+// prepareScriptOrderRule resolves a declaration to one lifecycle phase and
+// filters module selectors to that phase.
+func prepareScriptOrderRule(
 	declaration scriptOrderRuleDeclaration,
 	scripts map[string]scriptOrderScript,
-) (resolvedScriptOrderRule, *scriptOrderPhaseFilterWarning, error) {
+) (preparedScriptOrderRule, *scriptOrderPhaseFilterWarning, error) {
 	err := validateScriptOrderSelectedScripts(declaration, scripts)
 	if err != nil {
-		return resolvedScriptOrderRule{}, nil, err
+		return preparedScriptOrderRule{}, nil, err
 	}
 
 	phase, inferred, err := determineScriptOrderRulePhase(declaration, scripts)
 	if err != nil {
-		return resolvedScriptOrderRule{}, nil, err
+		return preparedScriptOrderRule{}, nil, err
 	}
 	err = validateScriptOrderResourceSelectorPhases(declaration, phase, scripts)
 	if err != nil {
-		return resolvedScriptOrderRule{}, nil, err
+		return preparedScriptOrderRule{}, nil, err
 	}
 
 	run, runOmissions := filterScriptOrderModuleSelectorAddressesByPhase(
@@ -151,20 +167,6 @@ func resolveScriptOrderRule(
 	after, afterOmissions := filterScriptOrderModuleSelectorAddressesByPhase(
 		declaration.after, phase, scripts,
 	)
-
-	var runtimeAddr string
-	if hasResolvedScriptOrderAddresses(run) && hasResolvedScriptOrderAddresses(after) {
-		runtimeAddr, err = validateScriptOrderRuleRuntime(
-			declaration, run, after, scripts,
-		)
-		if err != nil {
-			return resolvedScriptOrderRule{}, nil, err
-		}
-		err = validateScriptOrderNoSelfDependency(declaration, run, after)
-		if err != nil {
-			return resolvedScriptOrderRule{}, nil, err
-		}
-	}
 
 	var warning *scriptOrderPhaseFilterWarning
 	if inferred {
@@ -182,15 +184,45 @@ func resolveScriptOrderRule(
 		}
 	}
 
-	return resolvedScriptOrderRule{
-		dataSourceAddress: declaration.dataSourceAddress,
-		ruleIndex:         declaration.ruleIndex,
-		runtimeAddress:    runtimeAddr,
-		phase:             phase,
-		requirement:       declaration.requirement,
-		run:               run,
-		after:             after,
+	return preparedScriptOrderRule{
+		identity:    declaration.identity(),
+		phase:       phase,
+		requirement: declaration.requirement,
+		run:         run,
+		after:       after,
 	}, warning, nil
+}
+
+// finalizeScriptOrder validates runtime compatibility and self-dependencies
+// after every selected script has been associated with a runtime.
+func finalizeScriptOrder(
+	prepared preparedScriptOrder,
+	scripts map[string]scriptOrderScript,
+) (resolvedScriptOrder, error) {
+	result := resolvedScriptOrder{}
+	for _, rule := range prepared.rules {
+		runtimeAddress, err := validateScriptOrderRuleRuntime(
+			rule.identity, rule.run, rule.after, scripts,
+		)
+		if err != nil {
+			return resolvedScriptOrder{}, err
+		}
+		if err := validateScriptOrderNoSelfDependency(
+			rule.identity, rule.run, rule.after,
+		); err != nil {
+			return resolvedScriptOrder{}, err
+		}
+		result.rules = append(result.rules, resolvedScriptOrderRule{
+			dataSourceAddress: rule.identity.dataSourceAddress,
+			ruleIndex:         rule.identity.ruleIndex,
+			runtimeAddress:    runtimeAddress,
+			phase:             rule.phase,
+			requirement:       rule.requirement,
+			run:               rule.run,
+			after:             rule.after,
+		})
+	}
+	return result, nil
 }
 
 func validateScriptOrderSelectedScripts(
@@ -410,7 +442,7 @@ func filterScriptOrderModuleSelectorAddressesByPhase(
 }
 
 func validateScriptOrderRuleRuntime(
-	declaration scriptOrderRuleDeclaration,
+	identity scriptOrderRuleIdentity,
 	run []resolvedScriptOrderSelector,
 	after []resolvedScriptOrderSelector,
 	scripts map[string]scriptOrderScript,
@@ -425,19 +457,19 @@ func validateScriptOrderRuleRuntime(
 	firstAddr := addrs[0]
 	firstScript := scripts[firstAddr]
 	if firstScript.runtimeAddress == "" {
-		return "", scriptOrderMissingRuntimeError(declaration, firstAddr, run, after)
+		return "", scriptOrderMissingRuntimeError(identity, firstAddr, run, after)
 	}
 	for _, addr := range addrs[1:] {
 		script := scripts[addr]
 		if script.runtimeAddress == "" {
-			return "", scriptOrderMissingRuntimeError(declaration, addr, run, after)
+			return "", scriptOrderMissingRuntimeError(identity, addr, run, after)
 		}
 		if script.runtimeAddress != firstScript.runtimeAddress {
 			firstSelector := findResolvedScriptOrderSelector(firstAddr, run, after)
 			selector := findResolvedScriptOrderSelector(addr, run, after)
 			return "", scriptOrderRuleError(
-				declaration.dataSourceAddress,
-				declaration.ruleIndex,
+				identity.dataSourceAddress,
+				identity.ruleIndex,
 				xerrors.Errorf(
 					"selector %q expands to script %q executed by %q, but "+
 						"selector %q expands to script %q executed by %q; "+
@@ -452,15 +484,15 @@ func validateScriptOrderRuleRuntime(
 }
 
 func scriptOrderMissingRuntimeError(
-	declaration scriptOrderRuleDeclaration,
+	identity scriptOrderRuleIdentity,
 	address string,
 	run []resolvedScriptOrderSelector,
 	after []resolvedScriptOrderSelector,
 ) error {
 	selector := findResolvedScriptOrderSelector(address, run, after)
 	return scriptOrderRuleError(
-		declaration.dataSourceAddress,
-		declaration.ruleIndex,
+		identity.dataSourceAddress,
+		identity.ruleIndex,
 		xerrors.Errorf(
 			"%s selector %q selects script %q, but it could not be associated with an agent or devcontainer subagent",
 			selector.field, selector.raw, address,
@@ -469,7 +501,7 @@ func scriptOrderMissingRuntimeError(
 }
 
 func validateScriptOrderNoSelfDependency(
-	declaration scriptOrderRuleDeclaration,
+	identity scriptOrderRuleIdentity,
 	run []resolvedScriptOrderSelector,
 	after []resolvedScriptOrderSelector,
 ) error {
@@ -483,8 +515,8 @@ func validateScriptOrderNoSelfDependency(
 		afterSelector, ok := afterSelectorsByAddress[runSelection.address]
 		if ok {
 			return scriptOrderRuleError(
-				declaration.dataSourceAddress,
-				declaration.ruleIndex,
+				identity.dataSourceAddress,
+				identity.ruleIndex,
 				xerrors.Errorf(
 					"run selector %q and after selector %q both select script %q; a script cannot depend on itself",
 					runSelection.selector, afterSelector, runSelection.address,

@@ -43,7 +43,7 @@ func TestCollectScriptOrderRuleDeclarations(t *testing.T) {
 		}},
 	}
 
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{module}, rootScriptOrderConfigWithModuleCalls("bootstrap"),
 	)
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestCollectScriptOrderRuleDeclarationsPreservesRuleOrderAndIndexes(t *testi
 
 	// Rule indexes identify the originating Terraform rule in
 	// diagnostics, so declarations must retain source order.
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{module}, nil,
 	)
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestCollectScriptOrderRuleDeclarationsRelativeToDeclaringModule(t *testing.
 		}},
 	}
 
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{{ChildModules: []*tfjson.StateModule{declaringModule}}},
 		nestedScriptOrderConfigWithModuleCalls("development", "bootstrap"),
 	)
@@ -201,7 +201,7 @@ func TestCollectScriptOrderRuleDeclarationsAllowsEmptyScripts(t *testing.T) {
 		scriptOrderConfigForEachCoderScript("optional_each"),
 	)
 
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{module}, config,
 	)
 	require.NoError(t, err)
@@ -237,7 +237,7 @@ func TestCollectScriptOrderRuleDeclarationsAllowsEmptyModules(t *testing.T) {
 		ChildModules: []*tfjson.StateModule{{Address: "module.without_scripts"}},
 	}
 
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{module},
 		rootScriptOrderConfigWithModuleCalls("disabled", "without_scripts"),
 	)
@@ -255,7 +255,7 @@ func TestCollectScriptOrderRuleDeclarationsWithoutScriptOrderDataSources(t *test
 	t.Parallel()
 
 	// Templates that do not opt into script ordering must remain unaffected.
-	declarations, err := collectScriptOrderRuleDeclarations(
+	declarations, err := collectScriptOrderRuleDeclarationsForTest(
 		[]*tfjson.StateModule{{Resources: []*tfjson.StateResource{
 			scriptOrderManagedCoderScript("coder_script.configure", "configure"),
 			{
@@ -436,7 +436,7 @@ func TestCollectScriptOrderRuleDeclarationsRejectsInvalidInput(t *testing.T) {
 			))
 			modules := append([]*tfjson.StateModule{{Resources: resources}}, test.modules...)
 
-			declarations, err := collectScriptOrderRuleDeclarations(
+			declarations, err := collectScriptOrderRuleDeclarationsForTest(
 				modules, test.planConfig,
 			)
 			require.Error(t, err)
@@ -456,7 +456,7 @@ func TestCollectScriptOrderRuleDeclarationsDataSourceValidation(t *testing.T) {
 
 		// Malformed serialized rule values must fail with enough
 		// context to identify the data source.
-		declarations, err := collectScriptOrderRuleDeclarations(
+		declarations, err := collectScriptOrderRuleDeclarationsForTest(
 			[]*tfjson.StateModule{{Resources: []*tfjson.StateResource{{
 				Address: "data.coder_script_order.order",
 				Mode:    tfjson.DataResourceMode,
@@ -475,7 +475,7 @@ func TestCollectScriptOrderRuleDeclarationsDataSourceValidation(t *testing.T) {
 	t.Run("NoRuleBlocks", func(t *testing.T) {
 		t.Parallel()
 
-		declarations, err := collectScriptOrderRuleDeclarations(
+		declarations, err := collectScriptOrderRuleDeclarationsForTest(
 			[]*tfjson.StateModule{{Resources: []*tfjson.StateResource{
 				dataCoderScriptOrder("data.coder_script_order.order", "order"),
 			}}},

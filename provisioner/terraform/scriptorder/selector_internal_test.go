@@ -544,7 +544,7 @@ func TestResolveScriptOrderSelector(t *testing.T) {
 			selector, err := parseScriptOrderSelector(test.selector)
 			require.NoError(t, err)
 
-			resolved, err := resolveScriptOrderSelector(test.modules, test.config, test.moduleAddress, selector)
+			resolved, err := resolveScriptOrderSelectorForTest(test.modules, test.config, test.moduleAddress, selector)
 			require.NoError(t, err)
 			require.Equal(t, test.expected, resolved)
 		})
@@ -560,7 +560,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("coder_script.setup[0]")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector([]*tfjson.StateModule{{
+		_, err = resolveScriptOrderSelectorForTest([]*tfjson.StateModule{{
 			Resources: []*tfjson.StateResource{scriptOrderManagedCoderScript("not-an-address", "setup")},
 		}}, nil, "", selector)
 		require.ErrorContains(t, err, `parse Terraform resource address "not-an-address"`)
@@ -572,7 +572,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("module.bootstrap")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector([]*tfjson.StateModule{{
+		_, err = resolveScriptOrderSelectorForTest([]*tfjson.StateModule{{
 			ChildModules: []*tfjson.StateModule{{Address: "not-an-address"}},
 		}}, rootScriptOrderConfigWithModuleCalls("bootstrap"), "", selector)
 		require.ErrorContains(t, err, `parse module address "not-an-address"`)
@@ -584,7 +584,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector(
+		_, err = resolveScriptOrderSelectorForTest(
 			nil,
 			rootScriptOrderConfigWithScripts(scriptOrderConfigCoderScript("setup")),
 			"not-an-address",
@@ -599,7 +599,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector([]*tfjson.StateModule{{
+		_, err = resolveScriptOrderSelectorForTest([]*tfjson.StateModule{{
 			Resources: []*tfjson.StateResource{scriptOrderManagedCoderScript("coder_script.other", "setup")},
 		}}, nil, "", selector)
 		require.ErrorContains(t, err, `Terraform resource address "coder_script.other" does not match its state fields`)
@@ -611,7 +611,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("module.bootstrap")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector(nil, nil, "", selector)
+		_, err = resolveScriptOrderSelectorForTest(nil, nil, "", selector)
 		require.ErrorContains(t, err, "terraform plan configuration is required to resolve a module selector")
 	})
 
@@ -621,7 +621,7 @@ func TestResolveScriptOrderSelectorRejectsInvalidInput(t *testing.T) {
 		selector, err := parseScriptOrderSelector("coder_script.setup")
 		require.NoError(t, err)
 
-		_, err = resolveScriptOrderSelector(nil, nil, "", selector)
+		_, err = resolveScriptOrderSelectorForTest(nil, nil, "", selector)
 		require.ErrorContains(t, err, "cannot validate empty coder_script selector because Terraform plan configuration is unavailable")
 	})
 }

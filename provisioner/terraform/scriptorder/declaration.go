@@ -1,13 +1,12 @@
 package scriptorder
 
 import (
-	"maps"
-	"slices"
-
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
+
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // ScriptOrderRequirement describes the prerequisite outcome required
@@ -69,19 +68,40 @@ type scriptOrderRuleDeclaration struct {
 	after         []resolvedScriptOrderSelector
 }
 
+type scriptOrderRuleIdentity struct {
+	dataSourceAddress string
+	ruleIndex         int
+}
+
+func (d scriptOrderRuleDeclaration) identity() scriptOrderRuleIdentity {
+	return scriptOrderRuleIdentity{
+		dataSourceAddress: d.dataSourceAddress,
+		ruleIndex:         d.ruleIndex,
+	}
+}
+
 // collectScriptOrderRuleDeclarations decodes coder_script_order data
 // sources and resolves their selectors relative to each declaring module.
 func collectScriptOrderRuleDeclarations(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+	program *Program,
 ) ([]scriptOrderRuleDeclaration, error) {
-	srcs, err := collectScriptOrderDataSources(modules)
-	if err != nil {
-		return nil, err
+	return collectScriptOrderRuleDeclarationsWithExpansionLimit(
+		program,
+		maxScriptOrderExpandedAddresses,
+	)
+}
+
+func collectScriptOrderRuleDeclarationsWithExpansionLimit(
+	program *Program,
+	expansionLimit int,
+) ([]scriptOrderRuleDeclaration, error) {
+	if program == nil {
+		return nil, nil
 	}
 
 	var decls []scriptOrderRuleDeclaration
-	for _, src := range srcs {
+	expansionBudget := scriptOrderExpansionBudget{limit: expansionLimit}
+	for _, src := range program.dataSources {
 		var attrs scriptOrderAttributes
 		err := mapstructure.Decode(src.resource.AttributeValues, &attrs)
 		if err != nil {
@@ -107,13 +127,15 @@ func collectScriptOrderRuleDeclarations(
 			}
 
 			run, err := resolveScriptOrderSelectors(
-				modules, planConfig, src, i, "run", rule.Run,
+				program.stateIndex, program.configIndex, src, i, "run", rule.Run,
+				&expansionBudget,
 			)
 			if err != nil {
 				return nil, err
 			}
 			after, err := resolveScriptOrderSelectors(
-				modules, planConfig, src, i, "after", rule.After,
+				program.stateIndex, program.configIndex, src, i, "after", rule.After,
+				&expansionBudget,
 			)
 			if err != nil {
 				return nil, err
@@ -130,41 +152,6 @@ func collectScriptOrderRuleDeclarations(
 		}
 	}
 	return decls, nil
-}
-
-// collectScriptOrderDataSources returns unique coder_script_order
-// data sources sorted by full Terraform address for deterministic
-// rule processing and diagnostics.
-func collectScriptOrderDataSources(
-	modules []*tfjson.StateModule,
-) ([]scriptOrderDataSource, error) {
-	byAddr := map[string]scriptOrderDataSource{}
-	for _, root := range modules {
-		if err := walkStateModuleTree(root, func(module *tfjson.StateModule) error {
-			for _, rsrc := range module.Resources {
-				if rsrc == nil ||
-					rsrc.Mode != tfjson.DataResourceMode ||
-					rsrc.Type != "coder_script_order" {
-					continue
-				}
-				byAddr[rsrc.Address] = scriptOrderDataSource{
-					address:       rsrc.Address,
-					moduleAddress: module.Address,
-					resource:      rsrc,
-				}
-			}
-			return nil
-		}); err != nil {
-			return nil, err
-		}
-	}
-
-	addrs := slices.Sorted(maps.Keys(byAddr))
-	srcs := make([]scriptOrderDataSource, 0, len(addrs))
-	for _, addr := range addrs {
-		srcs = append(srcs, byAddr[addr])
-	}
-	return srcs, nil
 }
 
 func parseScriptOrderRequirement(raw string) (ScriptOrderRequirement, error) {
@@ -201,12 +188,13 @@ func parseScriptOrderPhase(raw string) (ScriptOrderPhase, error) {
 // unindexed selector naming a declared script resource or child module
 // call may expand to no scripts.
 func resolveScriptOrderSelectors(
-	modules []*tfjson.StateModule,
-	planConfig *tfjson.Config,
+	stateIndex *scriptOrderStateIndex,
+	configIndex *scriptOrderConfigIndex,
 	dataSource scriptOrderDataSource,
 	ruleIndex int,
 	selectorField string,
 	rawSelectors []string,
+	expansionBudget *scriptOrderExpansionBudget,
 ) ([]resolvedScriptOrderSelector, error) {
 	if len(rawSelectors) == 0 {
 		return nil, scriptOrderRuleError(
@@ -217,7 +205,12 @@ func resolveScriptOrderSelectors(
 	}
 
 	selectors := make([]resolvedScriptOrderSelector, 0, len(rawSelectors))
+	seen := make(map[string]struct{}, len(rawSelectors))
 	for _, raw := range rawSelectors {
+		if _, duplicate := seen[raw]; duplicate {
+			continue
+		}
+		seen[raw] = struct{}{}
 		selector, err := parseScriptOrderSelector(raw)
 		if err != nil {
 			return nil, scriptOrderRuleError(
@@ -228,7 +221,8 @@ func resolveScriptOrderSelectors(
 		}
 
 		resolution, err := resolveScriptOrderSelector(
-			modules, planConfig, dataSource.moduleAddress, selector,
+			stateIndex, configIndex, dataSource.moduleAddress, selector,
+			expansionBudget,
 		)
 		if err != nil {
 			return nil, scriptOrderRuleError(
@@ -295,6 +289,31 @@ func resolveScriptOrderSelectors(
 func scriptOrderRuleError(dataSourceAddress string, ruleIndex int, err error) error {
 	return xerrors.Errorf(
 		"script order data source %q rule %d: %w",
-		truncateScriptOrderDiagnosticValue(dataSourceAddress), ruleIndex, err,
+		truncateScriptOrderDiagnosticValue(dataSourceAddress), ruleIndex,
+		boundedScriptOrderDiagnosticError{err: err},
 	)
 }
+
+type boundedScriptOrderDiagnosticError struct {
+	err error
+}
+
+func (e boundedScriptOrderDiagnosticError) Error() string {
+	return stringutil.Truncate(
+		e.err.Error(),
+		maxScriptOrderRuleDiagnosticRunes,
+		stringutil.TruncateWithEllipsis,
+	)
+}
+
+func (e boundedScriptOrderDiagnosticError) Unwrap() error {
+	return e.err
+}
+
+const (
+	// maxScriptOrderExpandedAddresses bounds address entries retained across
+	// all selectors before no-op rules are discarded and dependency
+	// combinations are counted.
+	maxScriptOrderExpandedAddresses   = 100_000
+	maxScriptOrderRuleDiagnosticRunes = 64 << 10
+)
