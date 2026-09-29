@@ -325,6 +325,7 @@ func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
 	if outcome == TurnOutcomeCompleted {
 		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
 	}
+	s.tracer.recordTurnOutcome(outcome, s.chatKind)
 }
 
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
@@ -391,6 +392,13 @@ func (t *StageTracer) recordAnomalyIfObserved(stage Stage, reason StageAnomaly) 
 		return
 	}
 	t.RecordAnomaly(reason)
+}
+
+func (t *StageTracer) recordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.RecordTurnOutcome(outcome, chatKind)
 }
 
 func (t *StageTracer) observe(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
