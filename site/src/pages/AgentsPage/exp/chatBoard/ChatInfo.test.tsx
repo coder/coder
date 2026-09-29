@@ -62,7 +62,10 @@ describe("ChatInfoPopover", () => {
 		expect(API.experimental.getChat).not.toHaveBeenCalled();
 		wait(1);
 		expect(API.experimental.getChat).toHaveBeenCalledTimes(1);
-		expect(API.experimental.getChat).toHaveBeenCalledWith(MockChat.id);
+		expect(API.experimental.getChat).toHaveBeenCalledWith(
+			MockChat.id,
+			expect.any(AbortSignal),
+		);
 
 		fireEvent.pointerLeave(trigger);
 		wait(200);
