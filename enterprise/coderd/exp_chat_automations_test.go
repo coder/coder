@@ -31,7 +31,7 @@ import (
 // exercises: the automation routes coexist with the Enterprise
 // /api/experimental/organizations/{organization}/ai/spend routes, and the
 // real auditor, including its server-log backend, never records the
-// webhook secret or its hash.
+// webhook secret or its hash, including a rotated one.
 func TestChatAutomationsEnterprise(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +79,9 @@ func TestChatAutomationsEnterprise(t *testing.T) {
 	require.NotEmpty(t, created.WebhookSecret)
 	_, err = exp.UpdateChatAutomation(ctx, owner.OrganizationID, created.Automation.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")})
 	require.NoError(t, err)
+	rotated, err := exp.RotateChatAutomationSecret(ctx, owner.OrganizationID, created.Automation.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, rotated.WebhookSecret)
 	require.NoError(t, exp.DeleteChatAutomation(ctx, owner.OrganizationID, created.Automation.ID))
 
 	// Both experimental organization route groups resolve.
@@ -90,10 +93,11 @@ func TestChatAutomationsEnterprise(t *testing.T) {
 		LimitOpt:     10,
 	})
 	require.NoError(t, err)
-	require.Len(t, stored, 3, "create, update, and delete are audited")
+	require.Len(t, stored, 4, "create, update, rotation, and delete are audited")
 
-	hashes := webhookSecretHashEncodings(created.WebhookSecret)
-	forbidden := append([]string{created.WebhookSecret}, hashes...)
+	forbidden := []string{created.WebhookSecret, rotated.WebhookSecret}
+	forbidden = append(forbidden, webhookSecretHashEncodings(created.WebhookSecret)...)
+	forbidden = append(forbidden, webhookSecretHashEncodings(rotated.WebhookSecret)...)
 	redactedDiffs := 0
 	for _, row := range stored {
 		text := string(row.AuditLog.Diff) + string(row.AuditLog.AdditionalFields)

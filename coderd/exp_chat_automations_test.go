@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -95,6 +97,40 @@ func (e chatAutomationTestEnv) scheduleRequest() codersdk.CreateChatAutomationRe
 		ScheduleCron:         ptr.Ref("0 9 1 * *"),
 		ScheduleTimeZone:     ptr.Ref("Europe/Berlin"),
 	}
+}
+
+// queueAutomationMessage inserts a queued message into chatID as if the
+// automation had delivered it at the given queue generation. A nil
+// automationID inserts an ordinary queued message.
+func (e chatAutomationTestEnv) queueAutomationMessage(t *testing.T, chatID uuid.UUID, automationID *uuid.UUID, generation int64) database.ChatQueuedMessage {
+	t.Helper()
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
+	require.NoError(t, err)
+	arg := database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:    chatID,
+		Content:   content.RawMessage,
+		CreatedBy: e.memberID,
+	}
+	if automationID != nil {
+		arg.AutomationID = uuid.NullUUID{UUID: *automationID, Valid: true}
+		arg.InputID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		arg.QueueGeneration = sql.NullInt64{Int64: generation, Valid: true}
+	}
+	row, err := e.db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort)), arg)
+	require.NoError(t, err)
+	return row
+}
+
+// queuedMessageIDs returns the ids of the messages queued in chatID.
+func (e chatAutomationTestEnv) queuedMessageIDs(t *testing.T, chatID uuid.UUID) []int64 {
+	t.Helper()
+	rows, err := e.db.GetChatQueuedMessages(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort)), chatID)
+	require.NoError(t, err)
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	return ids
 }
 
 func rawGet(t *testing.T, client *codersdk.ExperimentalClient, path string) (int, string) {
@@ -221,22 +257,45 @@ func TestChatAutomations(t *testing.T) {
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
 		require.NoError(t, err)
 		id := created.Automation.ID
+		webhook, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
 
 		rename := codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("Renamed")}
+		disable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)}
+		enable := codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)}
 		for name, client := range map[string]*codersdk.ExperimentalClient{"OrgAdmin": orgAdmin, "SiteOwner": env.owner} {
 			_, err := client.UpdateChatAutomation(ctx, env.orgID, id, rename)
+			requireSDKError(t, err, http.StatusForbidden)
+			// Administrators can only disable: combining it with any other
+			// change, or enabling again, stays with the owner.
+			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false), Name: ptr.Ref("Renamed")})
+			requireSDKError(t, err, http.StatusForbidden)
+			disabled, err := client.UpdateChatAutomation(ctx, env.orgID, id, disable)
+			require.NoError(t, err, name)
+			require.False(t, disabled.Enabled, name)
+			_, err = client.UpdateChatAutomation(ctx, env.orgID, id, enable)
+			requireSDKError(t, err, http.StatusForbidden)
+			_, err = client.RotateChatAutomationSecret(ctx, env.orgID, webhook.Automation.ID)
 			requireSDKError(t, err, http.StatusForbidden)
 
 			list, err := client.ChatAutomations(ctx, env.orgID)
 			require.NoError(t, err, name)
-			require.Len(t, list, 1, name)
+			require.Len(t, list, 2, name)
 			_, err = client.ChatAutomation(ctx, env.orgID, id)
 			require.NoError(t, err, name)
 		}
+		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), webhook.Automation.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), stored.WebhookSecretVersion, "refused rotations change nothing")
 
 		updated, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, rename)
 		require.NoError(t, err)
 		require.Equal(t, "Renamed", updated.Name)
+		require.False(t, updated.Enabled)
+		updated, err = env.member.UpdateChatAutomation(ctx, env.orgID, id, enable)
+		require.NoError(t, err)
+		require.True(t, updated.Enabled)
+		require.NoError(t, env.owner.DeleteChatAutomation(ctx, env.orgID, webhook.Automation.ID))
 
 		// The automation is not found under another organization's path,
 		// even for a caller who can read it.
@@ -442,6 +501,196 @@ func TestChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(3), stored.ScheduleRevision)
 	})
+
+	t.Run("DisableAndDeleteRemoveQueuedMessages", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		orgAdminRaw, _ := coderdtest.CreateAnotherUser(t, env.owner.Client, env.orgID, rbac.ScopedRoleOrgAdmin(env.orgID))
+		orgAdmin := codersdk.NewExperimentalClient(orgAdminRaw)
+		// An errored chat can hold queued messages without a worker.
+		chat := dbgen.Chat(t, env.db, database.Chat{
+			OrganizationID:    env.orgID,
+			OwnerID:           env.memberID,
+			LastModelConfigID: env.modelConfig.ID,
+			Status:            database.ChatStatusError,
+		})
+		req := env.webhookRequest()
+		req.TargetChatID = &chat.ID
+		disabled, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		deleted, err := env.member.CreateChatAutomation(ctx, env.orgID, req)
+		require.NoError(t, err)
+		disabledID, deletedID := disabled.Automation.ID, deleted.Automation.ID
+		before, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), disabledID)
+		require.NoError(t, err)
+
+		env.queueAutomationMessage(t, chat.ID, &disabledID, before.QueueGeneration)
+		ordinary := env.queueAutomationMessage(t, chat.ID, nil, 0)
+		env.queueAutomationMessage(t, chat.ID, &disabledID, before.QueueGeneration)
+		other := env.queueAutomationMessage(t, chat.ID, &deletedID, before.QueueGeneration)
+		chatBefore, err := env.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		// An organization admin cannot write the member's chat, so this
+		// also proves the cleanup does not run as the caller.
+		updated, err := orgAdmin.UpdateChatAutomation(ctx, env.orgID, disabledID, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		require.False(t, updated.Enabled)
+		after, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), disabledID)
+		require.NoError(t, err)
+		require.Equal(t, before.QueueGeneration+1, after.QueueGeneration)
+		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
+		chatAfter, err := env.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Greater(t, chatAfter.QueueVersion, chatBefore.QueueVersion, "rows are deleted through the queue transition")
+
+		// A row the cleanup missed, for example because the server
+		// stopped after the disable committed, is discarded on promotion.
+		missed := env.queueAutomationMessage(t, chat.ID, &disabledID, before.QueueGeneration)
+		res, err := env.member.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/queue/%d/promote", chat.ID, missed.ID), nil)
+		require.NoError(t, err)
+		requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusNotFound)
+		_ = res.Body.Close()
+		require.ElementsMatch(t, []int64{ordinary.ID, other.ID}, env.queuedMessageIDs(t, chat.ID))
+
+		// Deleting disables first, so its queued messages go too.
+		require.NoError(t, env.member.DeleteChatAutomation(ctx, env.orgID, deletedID))
+		require.Equal(t, []int64{ordinary.ID}, env.queuedMessageIDs(t, chat.ID))
+	})
+
+	t.Run("ReenableScheduleSkipsMissedRuns", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
+		require.NoError(t, err)
+		id := created.Automation.ID
+
+		disabled, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(false)})
+		require.NoError(t, err)
+		require.Empty(t, disabled.NextRunTimes)
+
+		// Time passes while disabled: the stored cursor is now overdue.
+		row, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
+		require.NoError(t, err)
+		overdue := row.ScheduleNextRunAt.Time.AddDate(0, -3, 0)
+		ownerCtx := dbauthz.As(ctx, rbac.Subject{
+			ID:     uuid.NewString(),
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{},
+			Scope:  rbac.ScopeAll,
+		})
+		_, err = env.db.UpdateChatAutomationByID(ownerCtx, database.UpdateChatAutomationByIDParams{
+			ID:                   row.ID,
+			Name:                 row.Name,
+			Prompt:               row.Prompt,
+			TargetChatID:         row.TargetChatID,
+			NewChatModelConfigID: row.NewChatModelConfigID,
+			ReasoningEffort:      row.ReasoningEffort,
+			WhenBusy:             row.WhenBusy,
+			ScheduleCron:         row.ScheduleCron,
+			ScheduleTimeZone:     row.ScheduleTimeZone,
+			ScheduleRevision:     row.ScheduleRevision,
+			ScheduleNextRunAt:    sql.NullTime{Time: overdue, Valid: true},
+			Enabled:              row.Enabled,
+			QueueGeneration:      row.QueueGeneration,
+			UpdatedAt:            row.UpdatedAt,
+		})
+		require.NoError(t, err)
+
+		before := time.Now()
+		enabled, err := env.member.UpdateChatAutomation(ctx, env.orgID, id, codersdk.UpdateChatAutomationRequest{Enabled: ptr.Ref(true)})
+		require.NoError(t, err)
+		require.True(t, enabled.Enabled)
+		require.NotNil(t, enabled.ScheduleNextRunAt)
+		next := *enabled.ScheduleNextRunAt
+		require.True(t, next.After(before), "the cursor %s must be in the future", next)
+		// "0 9 1 * *" in Berlin runs on the first of every month, so the
+		// next occurrence is at most a month away.
+		require.True(t, next.Before(before.AddDate(0, 1, 1)), "the cursor %s must be the next occurrence", next)
+		berlin, err := time.LoadLocation("Europe/Berlin")
+		require.NoError(t, err)
+		require.Equal(t, 1, next.In(berlin).Day())
+		require.Equal(t, 9, next.In(berlin).Hour())
+		require.Len(t, enabled.NextRunTimes, 5)
+		require.True(t, enabled.NextRunTimes[0].Equal(next))
+	})
+
+	t.Run("RotateWebhookSecret", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
+		require.NoError(t, err)
+		id := created.Automation.ID
+
+		rotated, err := env.member.RotateChatAutomationSecret(ctx, env.orgID, id)
+		require.NoError(t, err)
+		require.True(t, strings.HasPrefix(rotated.WebhookSecret, "coder_automation_"), "secret %q", rotated.WebhookSecret)
+		require.NotEqual(t, created.WebhookSecret, rotated.WebhookSecret)
+		require.Equal(t, int64(2), rotated.WebhookSecretVersion)
+		stored, err := env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), id)
+		require.NoError(t, err)
+		wantHash := sha256.Sum256([]byte(rotated.WebhookSecret))
+		require.Equal(t, wantHash[:], stored.WebhookSecretHash)
+		require.Equal(t, int64(2), stored.WebhookSecretVersion)
+
+		basePath := fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", env.orgID)
+		for _, path := range []string{basePath, basePath + "/" + id.String()} {
+			status, body := rawGet(t, env.member, path)
+			require.Equal(t, http.StatusOK, status, body)
+			require.NotContains(t, body, rotated.WebhookSecret)
+		}
+
+		schedule, err := env.member.CreateChatAutomation(ctx, env.orgID, env.scheduleRequest())
+		require.NoError(t, err)
+		_, err = env.member.RotateChatAutomationSecret(ctx, env.orgID, schedule.Automation.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Len(t, sdkErr.Validations, 1, sdkErr.Error())
+		require.Equal(t, "kind", sdkErr.Validations[0].Field)
+	})
+
+	t.Run("SchedulePreview", func(t *testing.T) {
+		t.Parallel()
+		env := newChatAutomationTestEnv(t, nil, nil)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A 200 also proves /schedule-preview is not routed as an
+		// automation id.
+		preview, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{
+			ScheduleCron:     "30 6 * * 1",
+			ScheduleTimeZone: "America/New_York",
+		})
+		require.NoError(t, err)
+		require.Len(t, preview.NextRunTimes, 5)
+		newYork, err := time.LoadLocation("America/New_York")
+		require.NoError(t, err)
+		for i, run := range preview.NextRunTimes {
+			local := run.In(newYork)
+			require.Equal(t, time.Monday, local.Weekday())
+			require.Equal(t, 6, local.Hour())
+			require.Equal(t, 30, local.Minute())
+			if i > 0 {
+				require.True(t, run.After(preview.NextRunTimes[i-1]))
+			}
+		}
+
+		for _, tc := range []struct {
+			name  string
+			field string
+			req   codersdk.ChatAutomationSchedulePreviewRequest
+		}{
+			{"BadCron", "schedule_cron", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 25 * * *", ScheduleTimeZone: "UTC"}},
+			{"BadTimeZone", "schedule_time_zone", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 9 * * *", ScheduleTimeZone: "Mars/Olympus"}},
+			{"NeverRuns", "schedule_cron", codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 0 30 2 *", ScheduleTimeZone: "UTC"}},
+		} {
+			_, err := env.member.ChatAutomationSchedulePreview(ctx, env.orgID, tc.req)
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Len(t, sdkErr.Validations, 1, tc.name)
+			require.Equal(t, tc.field, sdkErr.Validations[0].Field, tc.name)
+		}
+	})
 }
 
 func TestChatAutomationsExperimentGate(t *testing.T) {
@@ -466,6 +715,10 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 		_, err = env.member.UpdateChatAutomation(ctx, env.orgID, existing.ID, codersdk.UpdateChatAutomationRequest{Name: ptr.Ref("x")})
 		requireSDKError(t, err, http.StatusNotFound)
 		err = env.member.DeleteChatAutomation(ctx, env.orgID, existing.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = env.member.RotateChatAutomationSecret(ctx, env.orgID, existing.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 9 * * *", ScheduleTimeZone: "UTC"})
 		requireSDKError(t, err, http.StatusNotFound)
 
 		_, err = env.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(ctx), existing.ID)

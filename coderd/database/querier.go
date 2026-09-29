@@ -537,6 +537,9 @@ type sqlcQuerier interface {
 	// Returns the queue head (lowest position, then lowest id).
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
+	// Returns the queued messages an automation delivered before its queue
+	// generation reached cutoff, across all chats.
+	GetChatQueuedMessagesByAutomationBelowGeneration(ctx context.Context, arg GetChatQueuedMessagesByAutomationBelowGenerationParams) ([]GetChatQueuedMessagesByAutomationBelowGenerationRow, error)
 	// Returns queued messages in state-machine order (position ASC, id ASC).
 	GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]ChatQueuedMessage, error)
 	// Returns the chat retention period in days. Chats archived longer
@@ -1495,6 +1498,9 @@ type sqlcQuerier interface {
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatAutomationByID(ctx context.Context, arg UpdateChatAutomationByIDParams) (ChatAutomation, error)
+	// Replaces the webhook secret hash and increments the secret version. The
+	// single-use marker webhook_consumed_at is intentionally kept.
+	UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg UpdateChatAutomationWebhookSecretByIDParams) (ChatAutomation, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

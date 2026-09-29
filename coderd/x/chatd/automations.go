@@ -15,11 +15,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -260,10 +262,19 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 
 // UpdateAutomation applies the set fields of req to the automation. Only
 // the owner can update an automation, even when actorID has broader
-// permissions. Each set field is validated like on create, and fields
-// that do not apply to the automation's kind or target mode are rejected.
+// permissions, with one exception: anyone allowed to update it may send a
+// request that only disables it. Each set field is validated like on
+// create, and fields that do not apply to the automation's kind or target
+// mode are rejected.
+//
+// Disabling bumps the automation's queue generation in the update
+// transaction, which touches no chat rows, and then removes the messages
+// the automation queued before that cutoff; see
+// deleteStaleAutomationQueuedMessages. Re-enabling a schedule moves its
+// cursor to the next future occurrence, so missed occurrences never run.
 func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, req codersdk.UpdateChatAutomationRequest) (database.ChatAutomation, error) {
 	now := dbtime.Time(p.clock.Now())
+	disabling := req.Enabled != nil && !*req.Enabled
 	var updated database.ChatAutomation
 	err := p.db.InTx(func(tx database.Store) error {
 		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
@@ -274,24 +285,14 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			return ErrAutomationNotFound
 		}
 		row := rows[0]
-		if actorID != row.OwnerID {
+		// Administrators can stop someone else's automation, but every
+		// other change, including enabling it again, is the owner's.
+		disableOnly := disabling && req == codersdk.UpdateChatAutomationRequest{Enabled: req.Enabled}
+		if actorID != row.OwnerID && !disableOnly {
 			return ErrAutomationOwnerOnly
 		}
 
-		arg := database.UpdateChatAutomationByIDParams{
-			ID:                   row.ID,
-			Name:                 row.Name,
-			Prompt:               row.Prompt,
-			TargetChatID:         row.TargetChatID,
-			NewChatModelConfigID: row.NewChatModelConfigID,
-			ReasoningEffort:      row.ReasoningEffort,
-			WhenBusy:             row.WhenBusy,
-			ScheduleCron:         row.ScheduleCron,
-			ScheduleTimeZone:     row.ScheduleTimeZone,
-			ScheduleRevision:     row.ScheduleRevision,
-			ScheduleNextRunAt:    row.ScheduleNextRunAt,
-			UpdatedAt:            now,
-		}
+		arg := automationUpdateParams(row, now)
 		// Work computed from an older prompt or schedule is stale once
 		// either changes.
 		scheduleChanged := false
@@ -379,6 +380,23 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 		if scheduleChanged && row.Kind == database.ChatAutomationKindSchedule {
 			arg.ScheduleRevision = row.ScheduleRevision + 1
 		}
+		switch {
+		case disabling:
+			// Disabling an already disabled automation bumps the cutoff
+			// again, so a retry also removes rows an earlier attempt
+			// missed.
+			arg.Enabled = false
+			arg.QueueGeneration = row.QueueGeneration + 1
+		case req.Enabled != nil && *req.Enabled && !row.Enabled:
+			arg.Enabled = true
+			if row.Kind == database.ChatAutomationKindSchedule {
+				sched, err := validateAutomationSchedule(arg.ScheduleCron.String, arg.ScheduleTimeZone.String, now)
+				if err != nil {
+					return err
+				}
+				arg.ScheduleNextRunAt = sql.NullTime{Time: sched.Next(now), Valid: true}
+			}
+		}
 
 		updated, err = tx.UpdateChatAutomationByID(ctx, arg)
 		if err != nil {
@@ -389,17 +407,146 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 	if err != nil {
 		return database.ChatAutomation{}, err
 	}
+	if disabling {
+		p.deleteStaleAutomationQueuedMessages(ctx, updated.ID, updated.QueueGeneration)
+	}
 	return updated, nil
 }
 
-// DeleteAutomation deletes an automation. Messages it already queued are
-// discarded when they would be promoted, because their automation no
-// longer exists.
+// DeleteAutomation disables an automation, which removes the messages it
+// queued, and then deletes it. A queued message that survives, for example
+// because the server stopped between the steps, is discarded when it would
+// be promoted, because its automation no longer exists.
 func (p *Server) DeleteAutomation(ctx context.Context, id uuid.UUID) error {
+	now := dbtime.Time(p.clock.Now())
+	var disabled database.ChatAutomation
+	err := p.db.InTx(func(tx database.Store) error {
+		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+		if err != nil {
+			return xerrors.Errorf("lock chat automation: %w", err)
+		}
+		if len(rows) == 0 {
+			return ErrAutomationNotFound
+		}
+		arg := automationUpdateParams(rows[0], now)
+		arg.Enabled = false
+		arg.QueueGeneration = rows[0].QueueGeneration + 1
+		disabled, err = tx.UpdateChatAutomationByID(ctx, arg)
+		if err != nil {
+			return xerrors.Errorf("disable chat automation: %w", err)
+		}
+		return nil
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "disable_chat_automation"})
+	if err != nil {
+		return err
+	}
+	p.deleteStaleAutomationQueuedMessages(ctx, disabled.ID, disabled.QueueGeneration)
 	if err := p.db.DeleteChatAutomationByID(ctx, id); err != nil {
 		return xerrors.Errorf("delete chat automation: %w", err)
 	}
 	return nil
+}
+
+// automationUpdateParams returns update parameters that leave row
+// unchanged apart from its update time.
+func automationUpdateParams(row database.ChatAutomation, now time.Time) database.UpdateChatAutomationByIDParams {
+	return database.UpdateChatAutomationByIDParams{
+		ID:                   row.ID,
+		Name:                 row.Name,
+		Prompt:               row.Prompt,
+		TargetChatID:         row.TargetChatID,
+		NewChatModelConfigID: row.NewChatModelConfigID,
+		ReasoningEffort:      row.ReasoningEffort,
+		WhenBusy:             row.WhenBusy,
+		ScheduleCron:         row.ScheduleCron,
+		ScheduleTimeZone:     row.ScheduleTimeZone,
+		ScheduleRevision:     row.ScheduleRevision,
+		ScheduleNextRunAt:    row.ScheduleNextRunAt,
+		Enabled:              row.Enabled,
+		QueueGeneration:      row.QueueGeneration,
+		UpdatedAt:            now,
+	}
+}
+
+// deleteStaleAutomationQueuedMessages removes the queued messages that
+// automationID delivered before its queue generation reached cutoff. Each
+// row is deleted in its own chat transaction through the same transition
+// as a manual delete, so queue versions and clients update as usual.
+// Running turns are not interrupted. Failures are only logged: the queue
+// promotion guard discards any stale row that is left behind.
+func (p *Server) deleteStaleAutomationQueuedMessages(ctx context.Context, automationID uuid.UUID, cutoff int64) {
+	// Organization admins can disable automations but cannot write the
+	// chats of other members, so the cleanup runs as chatd. The cutoff
+	// is fixed once the disable commits, so no automation lock is needed.
+	//nolint:gocritic // Disabling must clean up every chat the automation delivered to.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	logger := p.logger.With(slog.F("automation_id", automationID), slog.F("queue_generation_cutoff", cutoff))
+	rows, err := p.db.GetChatQueuedMessagesByAutomationBelowGeneration(chatdCtx, database.GetChatQueuedMessagesByAutomationBelowGenerationParams{
+		AutomationID: automationID,
+		Cutoff:       cutoff,
+	})
+	if err != nil {
+		logger.Warn(ctx, "list stale automation queued messages", slog.Error(err))
+		return
+	}
+	for _, row := range rows {
+		err := p.DeleteQueued(chatdCtx, row.ChatID, row.ID)
+		if err == nil || errors.Is(err, chatstate.ErrQueuedMessageNotFound) {
+			// A missing row was already promoted or deleted.
+			continue
+		}
+		logger.Warn(ctx, "delete stale automation queued message",
+			slog.F("chat_id", row.ChatID),
+			slog.F("queued_message_id", row.ID),
+			slog.Error(err),
+		)
+	}
+}
+
+// RotateAutomationSecret replaces the webhook secret of a webhook
+// automation and returns the new plaintext secret, which is not stored.
+// The previous secret stops matching when the rotation commits. Only the
+// owner can rotate the secret, even when actorID has broader permissions.
+func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UUID) (database.ChatAutomation, string, error) {
+	now := dbtime.Time(p.clock.Now())
+	var (
+		rotated database.ChatAutomation
+		secret  string
+	)
+	err := p.db.InTx(func(tx database.Store) error {
+		rows, err := tx.GetChatAutomationsByIDsForUpdate(ctx, []uuid.UUID{id})
+		if err != nil {
+			return xerrors.Errorf("lock chat automation: %w", err)
+		}
+		if len(rows) == 0 {
+			return ErrAutomationNotFound
+		}
+		row := rows[0]
+		if actorID != row.OwnerID {
+			return ErrAutomationOwnerOnly
+		}
+		if row.Kind != database.ChatAutomationKindWebhook {
+			return automationFieldError("kind", "only webhook automations have a secret")
+		}
+		var hash []byte
+		secret, hash, err = newAutomationWebhookSecret()
+		if err != nil {
+			return err
+		}
+		rotated, err = tx.UpdateChatAutomationWebhookSecretByID(ctx, database.UpdateChatAutomationWebhookSecretByIDParams{
+			ID:                row.ID,
+			WebhookSecretHash: hash,
+			UpdatedAt:         now,
+		})
+		if err != nil {
+			return xerrors.Errorf("rotate webhook secret: %w", err)
+		}
+		return nil
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted, TxIdentifier: "rotate_chat_automation_secret"})
+	if err != nil {
+		return database.ChatAutomation{}, "", err
+	}
+	return rotated, secret, nil
 }
 
 // AutomationNextRuns returns up to n upcoming runs of an enabled schedule
@@ -413,6 +560,20 @@ func AutomationNextRuns(row database.ChatAutomation, now time.Time, n int) []tim
 	if err != nil {
 		return nil
 	}
+	return scheduleNextRuns(sched, now, n)
+}
+
+// PreviewAutomationSchedule validates a schedule like CreateAutomation
+// does and returns its next n runs after now, in UTC.
+func PreviewAutomationSchedule(spec, timeZone string, now time.Time, n int) ([]time.Time, error) {
+	sched, err := validateAutomationSchedule(spec, timeZone, now)
+	if err != nil {
+		return nil, err
+	}
+	return scheduleNextRuns(sched, now, n), nil
+}
+
+func scheduleNextRuns(sched *cron.Schedule, now time.Time, n int) []time.Time {
 	runs := make([]time.Time, 0, n)
 	next := now
 	for range n {

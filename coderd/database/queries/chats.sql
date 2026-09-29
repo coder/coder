@@ -2854,6 +2854,21 @@ VALUES (
 )
 RETURNING *;
 
+-- name: GetChatQueuedMessagesByAutomationBelowGeneration :many
+-- Returns the queued messages an automation delivered before its queue
+-- generation reached cutoff, across all chats.
+SELECT
+    id,
+    chat_id
+FROM
+    chat_queued_messages
+WHERE
+    automation_id = @automation_id::uuid
+    AND queue_generation < @cutoff::bigint
+ORDER BY
+    chat_id,
+    id;
+
 -- name: GetChatQueuedMessagesByPosition :many
 -- Returns queued messages in state-machine order (position ASC, id ASC).
 SELECT * FROM chat_queued_messages

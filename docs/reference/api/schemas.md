@@ -2652,6 +2652,38 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------|
 | `schedule`, `webhook` |
 
+## codersdk.ChatAutomationSchedulePreviewRequest
+
+```json
+{
+  "schedule_cron": "string",
+  "schedule_time_zone": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type   | Required | Restrictions | Description |
+|----------------------|--------|----------|--------------|-------------|
+| `schedule_cron`      | string | false    |              |             |
+| `schedule_time_zone` | string | false    |              |             |
+
+## codersdk.ChatAutomationSchedulePreviewResponse
+
+```json
+{
+  "next_run_times": [
+    "2019-08-24T14:15:22Z"
+  ]
+}
+```
+
+### Properties
+
+| Name             | Type            | Required | Restrictions | Description |
+|------------------|-----------------|----------|--------------|-------------|
+| `next_run_times` | array of string | false    |              |             |
+
 ## codersdk.ChatAutomationTargetMode
 
 ```json
@@ -14141,6 +14173,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `mapping`          | object          | false    |              | Mapping is a map from OIDC groups to Coder organization roles.                                                                         |
 | » `[any property]` | array of string | false    |              |                                                                                                                                        |
 
+## codersdk.RotateChatAutomationSecretResponse
+
+```json
+{
+  "webhook_secret": "string",
+  "webhook_secret_version": 0
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `webhook_secret`         | string  | false    |              |             |
+| `webhook_secret_version` | integer | false    |              |             |
+
 ## codersdk.SSHConfig
 
 ```json
@@ -16141,6 +16189,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "enabled": true,
   "name": "string",
   "new_chat_model_config_id": "66c3acd7-ad1f-4efa-bcc7-a56a149b2787",
   "prompt": "string",
@@ -16154,16 +16203,17 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                       | Type                                                               | Required | Restrictions | Description |
-|----------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `name`                     | string                                                             | false    |              |             |
-| `new_chat_model_config_id` | string                                                             | false    |              |             |
-| `prompt`                   | string                                                             | false    |              |             |
-| `reasoning_effort`         | string                                                             | false    |              |             |
-| `schedule_cron`            | string                                                             | false    |              |             |
-| `schedule_time_zone`       | string                                                             | false    |              |             |
-| `target_chat_id`           | string                                                             | false    |              |             |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |             |
+| Name                       | Type                                                               | Required | Restrictions | Description                                                                                                                                                                                                                                   |
+|----------------------------|--------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`                  | boolean                                                            | false    |              | Enabled disables or re-enables the automation. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence; occurrences missed while it was disabled do not run. |
+| `name`                     | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `new_chat_model_config_id` | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `prompt`                   | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `reasoning_effort`         | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `schedule_cron`            | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `schedule_time_zone`       | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `target_chat_id`           | string                                                             | false    |              |                                                                                                                                                                                                                                               |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |                                                                                                                                                                                                                                               |
 
 #### Enumerated Values
 

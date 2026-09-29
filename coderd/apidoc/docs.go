@@ -496,6 +496,56 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chat-automations/schedule-preview": {
+            "post": {
+                "description": "Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Preview chat automation schedule",
+                "operationId": "preview-chat-automation-schedule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomationSchedulePreviewResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chat-automations/{automation}": {
             "get": {
                 "produces": [
@@ -578,7 +628,7 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Only the owner of an automation can update it. The kind and target mode of an automation cannot change.",
+                "description": "Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.",
                 "consumes": [
                     "application/json"
                 ],
@@ -621,6 +671,52 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate": {
+            "post": {
+                "description": "Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Rotate chat automation webhook secret",
+                "operationId": "rotate-chat-automation-secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RotateChatAutomationSecretResponse"
                         }
                     }
                 },
@@ -20421,6 +20517,29 @@ const docTemplate = `{
                 "ChatAutomationKindSchedule"
             ]
         },
+        "codersdk.ChatAutomationSchedulePreviewRequest": {
+            "type": "object",
+            "properties": {
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationSchedulePreviewResponse": {
+            "type": "object",
+            "properties": {
+                "next_run_times": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            }
+        },
         "codersdk.ChatAutomationTargetMode": {
             "type": "string",
             "enum": [
@@ -29053,6 +29172,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.RotateChatAutomationSecretResponse": {
+            "type": "object",
+            "properties": {
+                "webhook_secret": {
+                    "type": "string"
+                },
+                "webhook_secret_version": {
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.SSHConfig": {
             "type": "object",
             "properties": {
@@ -30710,6 +30840,10 @@ const docTemplate = `{
         "codersdk.UpdateChatAutomationRequest": {
             "type": "object",
             "properties": {
+                "enabled": {
+                    "description": "Enabled disables or re-enables the automation. Disabling removes the\nmessages the automation queued that have not started. Re-enabling a\nschedule resumes at its next future occurrence; occurrences missed\nwhile it was disabled do not run.",
+                    "type": "boolean"
+                },
                 "name": {
                     "type": "string"
                 },

@@ -145,7 +145,7 @@ func (api *API) chatAutomation(rw http.ResponseWriter, r *http.Request) {
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Update chat automation
-// @Description Only the owner of an automation can update it. The kind and target mode of an automation cannot change.
+// @Description Only the owner of an automation can update it, except that anyone allowed to update it can send a request that only sets enabled to false. Disabling removes the messages the automation queued that have not started. Re-enabling a schedule resumes at its next future occurrence. The kind and target mode of an automation cannot change.
 // @ID update-chat-automation
 // @Security CoderSessionToken
 // @Accept json
@@ -240,6 +240,79 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Rotate chat automation webhook secret
+// @Description Only the owner of a webhook automation can rotate its secret. The previous secret stops working, and the new secret is returned only in this response.
+// @ID rotate-chat-automation-secret
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Chats
+// @Param organization path string true "Organization ID"
+// @Param automation path string true "Automation ID" format(uuid)
+// @Success 200 {object} codersdk.RotateChatAutomationSecretResponse
+// @Router /api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	automation, ok := api.chatAutomationParam(rw, r)
+	if !ok {
+		return
+	}
+
+	auditor := api.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[database.ChatAutomation](rw, &audit.RequestParams{
+		Audit:          *auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: automation.OrganizationID,
+	})
+	aReq.Old = automation
+	defer commitAudit()
+
+	rotated, secret, err := api.chatDaemon.RotateAutomationSecret(ctx, apiKey.UserID, automation.ID)
+	if err != nil {
+		api.writeChatAutomationError(ctx, rw, err)
+		return
+	}
+	aReq.New = rotated
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RotateChatAutomationSecretResponse{
+		WebhookSecret:        secret,
+		WebhookSecretVersion: rotated.WebhookSecretVersion,
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Preview chat automation schedule
+// @Description Validates a schedule like chat automation create does and returns its next run times. Nothing is stored.
+// @ID preview-chat-automation-schedule
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Chats
+// @Param organization path string true "Organization ID"
+// @Param request body codersdk.ChatAutomationSchedulePreviewRequest true "Schedule"
+// @Success 200 {object} codersdk.ChatAutomationSchedulePreviewResponse
+// @Router /api/experimental/organizations/{organization}/chat-automations/schedule-preview [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomationSchedulePreview(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.ChatAutomationSchedulePreviewRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	runs, err := chatd.PreviewAutomationSchedule(req.ScheduleCron, req.ScheduleTimeZone, api.Clock.Now(), chatAutomationNextRunCount)
+	if err != nil {
+		api.writeChatAutomationError(ctx, rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatAutomationSchedulePreviewResponse{NextRunTimes: runs})
 }
 
 // chatAutomationParam loads the {automation} path parameter as the caller.

@@ -3693,6 +3693,15 @@ func (q *querier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (
 	return q.db.GetChatQueuedMessages(ctx, chatID)
 }
 
+func (q *querier) GetChatQueuedMessagesByAutomationBelowGeneration(ctx context.Context, arg database.GetChatQueuedMessagesByAutomationBelowGenerationParams) ([]database.GetChatQueuedMessagesByAutomationBelowGenerationRow, error) {
+	// The rows span every chat the automation delivered to, so reading
+	// them requires reading all chats.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatQueuedMessagesByAutomationBelowGeneration(ctx, arg)
+}
+
 func (q *querier) GetChatQueuedMessagesByPosition(ctx context.Context, chatID uuid.UUID) ([]database.ChatQueuedMessage, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {
@@ -7602,6 +7611,13 @@ func (q *querier) UpdateChatAutomationByID(ctx context.Context, arg database.Upd
 		}
 	}
 	return q.db.UpdateChatAutomationByID(ctx, arg)
+}
+
+func (q *querier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
+	fetch := func(ctx context.Context, arg database.UpdateChatAutomationWebhookSecretByIDParams) (database.ChatAutomation, error) {
+		return q.db.GetChatAutomationByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateChatAutomationWebhookSecretByID)(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

@@ -2176,6 +2176,25 @@ export const ChatAutomationKinds: ChatAutomationKind[] = [
 ];
 
 // From codersdk/chatautomations.go
+/**
+ * ChatAutomationSchedulePreviewRequest is a schedule to preview. It
+ * follows the same rules as the schedule of a chat automation.
+ */
+export interface ChatAutomationSchedulePreviewRequest {
+	readonly schedule_cron: string;
+	readonly schedule_time_zone: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationSchedulePreviewResponse lists the next runs of a previewed
+ * schedule.
+ */
+export interface ChatAutomationSchedulePreviewResponse {
+	readonly next_run_times: readonly string[];
+}
+
+// From codersdk/chatautomations.go
 export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
 
 export const ChatAutomationTargetModes: ChatAutomationTargetMode[] = [
@@ -4121,8 +4140,8 @@ export interface CreateChatAutomationRequest {
 // From codersdk/chatautomations.go
 /**
  * CreateChatAutomationResponse is returned when a chat automation is
- * created. WebhookSecret is set only for webhook automations, and this is
- * the only response that ever contains it.
+ * created. WebhookSecret is set only for webhook automations. Only this
+ * response and RotateChatAutomationSecretResponse ever contain a secret.
  */
 export interface CreateChatAutomationResponse {
 	readonly automation: ChatAutomation;
@@ -9162,6 +9181,17 @@ export const RoleTemplateAdmin = "template-admin";
  */
 export const RoleUserAdmin = "user-admin";
 
+// From codersdk/chatautomations.go
+/**
+ * RotateChatAutomationSecretResponse is returned when a webhook
+ * automation's secret is rotated. The previous secret stops working, and
+ * the new secret cannot be read again.
+ */
+export interface RotateChatAutomationSecretResponse {
+	readonly webhook_secret: string;
+	readonly webhook_secret_version: number;
+}
+
 // From codersdk/deployment.go
 /**
  * SSHConfig is configuration the cli & vscode extension use for configuring
@@ -10458,6 +10488,13 @@ export interface UpdateChatAutoArchiveDaysRequest {
  * The kind and target mode of an automation cannot change.
  */
 export interface UpdateChatAutomationRequest {
+	/**
+	 * Enabled disables or re-enables the automation. Disabling removes the
+	 * messages the automation queued that have not started. Re-enabling a
+	 * schedule resumes at its next future occurrence; occurrences missed
+	 * while it was disabled do not run.
+	 */
+	readonly enabled?: boolean;
 	readonly name?: string;
 	readonly prompt?: string;
 	readonly schedule_cron?: string;

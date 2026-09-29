@@ -5797,9 +5797,11 @@ SET
     schedule_time_zone = $8,
     schedule_revision = $9,
     schedule_next_run_at = $10,
-    updated_at = $11
+    enabled = $11,
+    queue_generation = $12,
+    updated_at = $13
 WHERE
-    id = $12::uuid
+    id = $14::uuid
 RETURNING
     id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
 `
@@ -5815,6 +5817,8 @@ type UpdateChatAutomationByIDParams struct {
 	ScheduleTimeZone     sql.NullString             `db:"schedule_time_zone" json:"schedule_time_zone"`
 	ScheduleRevision     int64                      `db:"schedule_revision" json:"schedule_revision"`
 	ScheduleNextRunAt    sql.NullTime               `db:"schedule_next_run_at" json:"schedule_next_run_at"`
+	Enabled              bool                       `db:"enabled" json:"enabled"`
+	QueueGeneration      int64                      `db:"queue_generation" json:"queue_generation"`
 	UpdatedAt            time.Time                  `db:"updated_at" json:"updated_at"`
 	ID                   uuid.UUID                  `db:"id" json:"id"`
 }
@@ -5831,9 +5835,64 @@ func (q *sqlQuerier) UpdateChatAutomationByID(ctx context.Context, arg UpdateCha
 		arg.ScheduleTimeZone,
 		arg.ScheduleRevision,
 		arg.ScheduleNextRunAt,
+		arg.Enabled,
+		arg.QueueGeneration,
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	var i ChatAutomation
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.CreatedByChatID,
+		&i.Kind,
+		&i.Enabled,
+		&i.TargetMode,
+		&i.TargetChatID,
+		&i.NewChatModelConfigID,
+		&i.ReasoningEffort,
+		&i.WhenBusy,
+		&i.WebhookUse,
+		&i.WebhookSecretHash,
+		&i.WebhookSecretVersion,
+		&i.WebhookConsumedAt,
+		&i.Prompt,
+		&i.ScheduleCron,
+		&i.ScheduleTimeZone,
+		&i.ScheduleRevision,
+		&i.ScheduleNextRunAt,
+		&i.QueueGeneration,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateChatAutomationWebhookSecretByID = `-- name: UpdateChatAutomationWebhookSecretByID :one
+UPDATE
+    chat_automations
+SET
+    webhook_secret_hash = $1,
+    webhook_secret_version = webhook_secret_version + 1,
+    updated_at = $2
+WHERE
+    id = $3::uuid
+RETURNING
+    id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, target_mode, target_chat_id, new_chat_model_config_id, reasoning_effort, when_busy, webhook_use, webhook_secret_hash, webhook_secret_version, webhook_consumed_at, prompt, schedule_cron, schedule_time_zone, schedule_revision, schedule_next_run_at, queue_generation, created_at, updated_at
+`
+
+type UpdateChatAutomationWebhookSecretByIDParams struct {
+	WebhookSecretHash []byte    `db:"webhook_secret_hash" json:"webhook_secret_hash"`
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	ID                uuid.UUID `db:"id" json:"id"`
+}
+
+// Replaces the webhook secret hash and increments the secret version. The
+// single-use marker webhook_consumed_at is intentionally kept.
+func (q *sqlQuerier) UpdateChatAutomationWebhookSecretByID(ctx context.Context, arg UpdateChatAutomationWebhookSecretByIDParams) (ChatAutomation, error) {
+	row := q.db.QueryRowContext(ctx, updateChatAutomationWebhookSecretByID, arg.WebhookSecretHash, arg.UpdatedAt, arg.ID)
 	var i ChatAutomation
 	err := row.Scan(
 		&i.ID,
@@ -10173,6 +10232,55 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.InputID,
 			&i.QueueGeneration,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatQueuedMessagesByAutomationBelowGeneration = `-- name: GetChatQueuedMessagesByAutomationBelowGeneration :many
+SELECT
+    id,
+    chat_id
+FROM
+    chat_queued_messages
+WHERE
+    automation_id = $1::uuid
+    AND queue_generation < $2::bigint
+ORDER BY
+    chat_id,
+    id
+`
+
+type GetChatQueuedMessagesByAutomationBelowGenerationParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	Cutoff       int64     `db:"cutoff" json:"cutoff"`
+}
+
+type GetChatQueuedMessagesByAutomationBelowGenerationRow struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Returns the queued messages an automation delivered before its queue
+// generation reached cutoff, across all chats.
+func (q *sqlQuerier) GetChatQueuedMessagesByAutomationBelowGeneration(ctx context.Context, arg GetChatQueuedMessagesByAutomationBelowGenerationParams) ([]GetChatQueuedMessagesByAutomationBelowGenerationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatQueuedMessagesByAutomationBelowGeneration, arg.AutomationID, arg.Cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatQueuedMessagesByAutomationBelowGenerationRow
+	for rows.Next() {
+		var i GetChatQueuedMessagesByAutomationBelowGenerationRow
+		if err := rows.Scan(&i.ID, &i.ChatID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -93,8 +93,8 @@ type CreateChatAutomationRequest struct {
 }
 
 // CreateChatAutomationResponse is returned when a chat automation is
-// created. WebhookSecret is set only for webhook automations, and this is
-// the only response that ever contains it.
+// created. WebhookSecret is set only for webhook automations. Only this
+// response and RotateChatAutomationSecretResponse ever contain a secret.
 type CreateChatAutomationResponse struct {
 	Automation    ChatAutomation `json:"automation"`
 	WebhookSecret string         `json:"webhook_secret,omitempty"`
@@ -103,6 +103,11 @@ type CreateChatAutomationResponse struct {
 // UpdateChatAutomationRequest changes the set fields of a chat automation.
 // The kind and target mode of an automation cannot change.
 type UpdateChatAutomationRequest struct {
+	// Enabled disables or re-enables the automation. Disabling removes the
+	// messages the automation queued that have not started. Re-enabling a
+	// schedule resumes at its next future occurrence; occurrences missed
+	// while it was disabled do not run.
+	Enabled              *bool                   `json:"enabled,omitempty"`
 	Name                 *string                 `json:"name,omitempty"`
 	Prompt               *string                 `json:"prompt,omitempty"`
 	ScheduleCron         *string                 `json:"schedule_cron,omitempty"`
@@ -111,6 +116,27 @@ type UpdateChatAutomationRequest struct {
 	WhenBusy             *ChatAutomationWhenBusy `json:"when_busy,omitempty" enums:"queue,skip"`
 	TargetChatID         *uuid.UUID              `json:"target_chat_id,omitempty" format:"uuid"`
 	NewChatModelConfigID *uuid.UUID              `json:"new_chat_model_config_id,omitempty" format:"uuid"`
+}
+
+// RotateChatAutomationSecretResponse is returned when a webhook
+// automation's secret is rotated. The previous secret stops working, and
+// the new secret cannot be read again.
+type RotateChatAutomationSecretResponse struct {
+	WebhookSecret        string `json:"webhook_secret"`
+	WebhookSecretVersion int64  `json:"webhook_secret_version"`
+}
+
+// ChatAutomationSchedulePreviewRequest is a schedule to preview. It
+// follows the same rules as the schedule of a chat automation.
+type ChatAutomationSchedulePreviewRequest struct {
+	ScheduleCron     string `json:"schedule_cron"`
+	ScheduleTimeZone string `json:"schedule_time_zone"`
+}
+
+// ChatAutomationSchedulePreviewResponse lists the next runs of a previewed
+// schedule.
+type ChatAutomationSchedulePreviewResponse struct {
+	NextRunTimes []time.Time `json:"next_run_times" format:"date-time"`
 }
 
 func chatAutomationsPath(organizationID uuid.UUID) string {
@@ -161,7 +187,7 @@ func (c *ExperimentalClient) ChatAutomation(ctx context.Context, organizationID,
 }
 
 // UpdateChatAutomation changes a chat automation. Only its owner can
-// update it.
+// update it, except that anyone allowed to update it can disable it.
 func (c *ExperimentalClient) UpdateChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID, req UpdateChatAutomationRequest) (ChatAutomation, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("%s/%s", chatAutomationsPath(organizationID), automationID), req)
 	if err != nil {
@@ -186,4 +212,34 @@ func (c *ExperimentalClient) DeleteChatAutomation(ctx context.Context, organizat
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// RotateChatAutomationSecret replaces the webhook secret of a webhook
+// automation and returns the new secret. Only its owner can rotate it.
+func (c *ExperimentalClient) RotateChatAutomationSecret(ctx context.Context, organizationID, automationID uuid.UUID) (RotateChatAutomationSecretResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/%s/secret/rotate", chatAutomationsPath(organizationID), automationID), nil)
+	if err != nil {
+		return RotateChatAutomationSecretResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return RotateChatAutomationSecretResponse{}, ReadBodyAsError(res)
+	}
+	var resp RotateChatAutomationSecretResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// ChatAutomationSchedulePreview returns the next runs of a schedule
+// without creating an automation.
+func (c *ExperimentalClient) ChatAutomationSchedulePreview(ctx context.Context, organizationID uuid.UUID, req ChatAutomationSchedulePreviewRequest) (ChatAutomationSchedulePreviewResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, chatAutomationsPath(organizationID)+"/schedule-preview", req)
+	if err != nil {
+		return ChatAutomationSchedulePreviewResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatAutomationSchedulePreviewResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAutomationSchedulePreviewResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
