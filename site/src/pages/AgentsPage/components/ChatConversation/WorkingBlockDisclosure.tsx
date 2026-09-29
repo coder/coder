@@ -1,5 +1,5 @@
 import { ListChecksIcon, TriangleAlertIcon } from "lucide-react";
-import { Component, type FC, type ReactNode } from "react";
+import { Component } from "react";
 import { useTime } from "#/hooks/useTime";
 import { ToolCall } from "../ChatElements/tools/ToolCall";
 import type { WorkingBlock } from "./workingBlockGrouping";
@@ -46,7 +46,7 @@ const countLabel = (block: WorkingBlock, count: number, noun: string) =>
 
 type LiveLabelProps = { block: WorkingBlock };
 
-const LiveLabel: FC<LiveLabelProps> = ({ block }) => {
+const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
@@ -80,7 +80,7 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 
 type WorkingBlockContentProps = {
 	memberIds: readonly number[];
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 /**
@@ -142,7 +142,7 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
-	children: ReactNode;
+	children: React.ReactNode;
 };
 
 /**
@@ -150,7 +150,7 @@ type WorkingBlockDisclosureProps = {
  * Failed steps stay inside the block but are counted on the summary so a
  * failure is never hidden without a trace.
  */
-export const WorkingBlockDisclosure: FC<WorkingBlockDisclosureProps> = ({
+export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	block,
 	expanded,
 	onExpandedChange,
