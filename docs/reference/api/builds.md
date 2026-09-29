@@ -1288,9 +1288,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ```json
 {
-  "state": [
-    0
-  ]
+  "state": "string"
 }
 ```
 
@@ -1876,9 +1874,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "value": "string"
     }
   ],
-  "state": [
-    0
-  ],
+  "state": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"

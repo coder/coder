@@ -3098,9 +3098,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -3112,9 +3110,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -3130,13 +3126,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
+      "provider_metadata": {},
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -3193,9 +3185,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "args": [
-    0
-  ],
+  "args": {},
   "args_delta": "string",
   "completed_at": "2019-08-24T14:15:22Z",
   "content": "string",
@@ -3207,9 +3197,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "context_file_skill_meta_file": "string",
   "context_file_truncated": true,
   "created_at": "2019-08-24T14:15:22Z",
-  "data": [
-    0
-  ],
+  "data": "string",
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
@@ -3225,13 +3213,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   ],
   "provider_executed": true,
-  "provider_metadata": [
-    0
-  ],
+  "provider_metadata": {},
   "reasoning_delta": "string",
-  "result": [
-    0
-  ],
+  "result": {},
   "result_delta": "string",
   "result_reset": true,
   "skill_description": "string",
@@ -3257,7 +3241,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
 |--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args`                         | object                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
@@ -3269,7 +3253,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
 | `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
 | `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
-| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `data`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_id`                      | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3281,9 +3265,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
-| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `provider_metadata`            | object                                                       | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
 | `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result`                       | object                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
@@ -3367,9 +3351,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3381,9 +3363,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3399,13 +3379,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
+          "provider_metadata": {},
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -3448,9 +3424,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -3462,9 +3436,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -3480,13 +3452,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
+          "provider_metadata": {},
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -4769,9 +4737,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -4783,9 +4749,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -4801,13 +4765,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
+      "provider_metadata": {},
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -4932,9 +4892,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -4946,9 +4904,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -4964,13 +4920,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
+        "provider_metadata": {},
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -5011,9 +4963,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "generation_attempt": 0,
     "history_version": 0,
     "part": {
-      "args": [
-        0
-      ],
+      "args": {},
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
@@ -5025,9 +4975,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context_file_skill_meta_file": "string",
       "context_file_truncated": true,
       "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
+      "data": "string",
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
@@ -5043,13 +4991,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
+      "provider_metadata": {},
       "reasoning_delta": "string",
-      "result": [
-        0
-      ],
+      "result": {},
       "result_delta": "string",
       "result_reset": true,
       "skill_description": "string",
@@ -5077,9 +5021,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -5091,9 +5033,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -5109,13 +5049,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
+          "provider_metadata": {},
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -5192,9 +5128,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "generation_attempt": 0,
   "history_version": 0,
   "part": {
-    "args": [
-      0
-    ],
+    "args": {},
     "args_delta": "string",
     "completed_at": "2019-08-24T14:15:22Z",
     "content": "string",
@@ -5206,9 +5140,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "context_file_skill_meta_file": "string",
     "context_file_truncated": true,
     "created_at": "2019-08-24T14:15:22Z",
-    "data": [
-      0
-    ],
+    "data": "string",
     "end_line": 0,
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "file_name": "string",
@@ -5224,13 +5156,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     ],
     "provider_executed": true,
-    "provider_metadata": [
-      0
-    ],
+    "provider_metadata": {},
     "reasoning_delta": "string",
-    "result": [
-      0
-    ],
+    "result": {},
     "result_delta": "string",
     "result_reset": true,
     "skill_description": "string",
@@ -5967,9 +5895,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -5981,9 +5907,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -5999,13 +5923,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
+        "provider_metadata": {},
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6047,9 +5967,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -6061,9 +5979,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -6079,13 +5995,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
+          "provider_metadata": {},
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -6128,9 +6040,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -6142,9 +6052,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -6160,13 +6068,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
+        "provider_metadata": {},
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -6444,9 +6348,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "unsafe_dynamic_tools": [
     {
       "description": "string",
-      "input_schema": [
-        0
-      ],
+      "input_schema": {},
       "name": "string"
     }
   ],
@@ -6845,9 +6747,7 @@ This is required on creation to enable a user-flow of validating a template work
 ```json
 {
   "action": "create",
-  "additional_fields": [
-    0
-  ],
+  "additional_fields": {},
   "build_reason": "autostart",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
@@ -6862,7 +6762,7 @@ This is required on creation to enable a user-flow of validating a template work
 | Name                | Type                                           | Required | Restrictions | Description |
 |---------------------|------------------------------------------------|----------|--------------|-------------|
 | `action`            | [codersdk.AuditAction](#codersdkauditaction)   | false    |              |             |
-| `additional_fields` | array of integer                               | false    |              |             |
+| `additional_fields` | object                                         | false    |              |             |
 | `build_reason`      | [codersdk.BuildReason](#codersdkbuildreason)   | false    |              |             |
 | `organization_id`   | string                                         | false    |              |             |
 | `request_id`        | string                                         | false    |              |             |
@@ -7095,9 +6995,7 @@ This is required on creation to enable a user-flow of validating a template work
       "value": "string"
     }
   ],
-  "state": [
-    0
-  ],
+  "state": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
   "transition": "start"
@@ -7114,7 +7012,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `orphan`                     | boolean                                                                                        | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
+| `state`                      | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
 | `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                                   | true     |              |                                                                                                                                                                                                               |
@@ -8934,20 +8832,18 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
   "description": "string",
-  "input_schema": [
-    0
-  ],
+  "input_schema": {},
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type             | Required | Restrictions | Description                                                                                                                                  |
-|----------------|------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| `description`  | string           | false    |              |                                                                                                                                              |
-| `input_schema` | array of integer | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
-| `name`         | string           | false    |              |                                                                                                                                              |
+| Name           | Type   | Required | Restrictions | Description                                                                                                                                  |
+|----------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `description`  | string | false    |              |                                                                                                                                              |
+| `input_schema` | object | false    |              | Input schema JSON key "input_schema" uses snake_case for SDK consistency, deviating from the camelCase "inputSchema" convention used by MCP. |
+| `name`         | string | false    |              |                                                                                                                                              |
 
 ## codersdk.EditChatMessageRequest
 
@@ -8997,9 +8893,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
-        "args": [
-          0
-        ],
+        "args": {},
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
@@ -9011,9 +8905,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "context_file_skill_meta_file": "string",
         "context_file_truncated": true,
         "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
+        "data": "string",
         "end_line": 0,
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
@@ -9029,13 +8921,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ]
         ],
         "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
+        "provider_metadata": {},
         "reasoning_delta": "string",
-        "result": [
-          0
-        ],
+        "result": {},
         "result_delta": "string",
         "result_reset": true,
         "skill_description": "string",
@@ -9077,9 +8965,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
-          "args": [
-            0
-          ],
+          "args": {},
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
@@ -9091,9 +8977,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "context_file_skill_meta_file": "string",
           "context_file_truncated": true,
           "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
+          "data": "string",
           "end_line": 0,
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
@@ -9109,13 +8993,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             ]
           ],
           "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
+          "provider_metadata": {},
           "reasoning_delta": "string",
-          "result": [
-            0
-          ],
+          "result": {},
           "result_delta": "string",
           "result_reset": true,
           "skill_description": "string",
@@ -14207,9 +14087,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "results": [
     {
       "is_error": true,
-      "output": [
-        0
-      ],
+      "output": {},
       "tool_call_id": "string"
     }
   ]
@@ -14638,9 +14516,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "prerequisites": "string",
   "variables": [
     {
-      "default": [
-        0
-      ],
+      "default": {},
       "description": "string",
       "name": "string",
       "required": true,
@@ -14703,9 +14579,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "prerequisites": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -14931,9 +14805,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "id": "string",
   "variables": [
     {
-      "default": [
-        0
-      ],
+      "default": {},
       "description": "string",
       "name": "string",
       "required": true,
@@ -14963,9 +14835,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
-  "default": [
-    0
-  ],
+  "default": {},
   "description": "string",
   "name": "string",
   "required": true,
@@ -14978,7 +14848,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name          | Type                                                                         | Required | Restrictions | Description |
 |---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
-| `default`     | array of integer                                                             | false    |              |             |
+| `default`     | object                                                                       | false    |              |             |
 | `description` | string                                                                       | false    |              |             |
 | `name`        | string                                                                       | false    |              |             |
 | `required`    | boolean                                                                      | false    |              |             |
@@ -15004,9 +14874,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "id": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -15776,20 +15644,18 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "is_error": true,
-  "output": [
-    0
-  ],
+  "output": {},
   "tool_call_id": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type             | Required | Restrictions | Description |
-|----------------|------------------|----------|--------------|-------------|
-| `is_error`     | boolean          | false    |              |             |
-| `output`       | array of integer | false    |              |             |
-| `tool_call_id` | string           | false    |              |             |
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `is_error`     | boolean | false    |              |             |
+| `output`       | object  | false    |              |             |
+| `tool_call_id` | string  | false    |              |             |
 
 ## codersdk.TraceConfig
 
@@ -16822,17 +16688,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "state": [
-    0
-  ]
+  "state": "string"
 }
 ```
 
 ### Properties
 
-| Name    | Type             | Required | Restrictions | Description |
-|---------|------------------|----------|--------------|-------------|
-| `state` | array of integer | false    |              |             |
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `state` | string | false    |              |             |
 
 ## codersdk.UpdateWorkspaceDormancy
 

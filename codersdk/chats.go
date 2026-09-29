@@ -396,7 +396,7 @@ type ChatMessagePart struct {
 	ToolCallID        string              `json:"tool_call_id,omitempty" variants:"tool-call?,tool-result?"`
 	ToolName          string              `json:"tool_name,omitempty" variants:"tool-call?,tool-result?"`
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
-	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
+	Args              json.RawMessage     `json:"args,omitempty" swaggertype:"object" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	// ParsedCommands holds parsed programs from an execute tool call's
 	// shell command, one entry per simple command in source order. Each
@@ -405,7 +405,7 @@ type ChatMessagePart struct {
 	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
 	// is "execute" and the command parses successfully; nil otherwise.
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
-	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
+	Result         json.RawMessage `json:"result,omitempty" swaggertype:"object" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
 	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
 	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
@@ -416,7 +416,7 @@ type ChatMessagePart struct {
 	Title          string          `json:"title,omitempty" variants:"source?"`
 	MediaType      string          `json:"media_type" variants:"file"`
 	Name           string          `json:"name,omitempty" variants:"file?"`
-	Data           []byte          `json:"data,omitempty" variants:"file?"`
+	Data           []byte          `json:"data,omitempty" swaggertype:"string" format:"byte" variants:"file?"`
 	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
 	FileName       string          `json:"file_name" variants:"file-reference"`
 	StartLine      int             `json:"start_line" variants:"file-reference"`
@@ -426,7 +426,7 @@ type ChatMessagePart struct {
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
-	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" swaggertype:"object" typescript:"-"`
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
@@ -645,7 +645,7 @@ type SubmitToolResultsRequest struct {
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
 	ToolCallID string          `json:"tool_call_id"`
-	Output     json.RawMessage `json:"output"`
+	Output     json.RawMessage `json:"output" swaggertype:"object"`
 	IsError    bool            `json:"is_error"`
 }
 
@@ -1946,7 +1946,7 @@ type DynamicTool struct {
 	// InputSchema's JSON key "input_schema" uses snake_case for
 	// SDK consistency, deviating from the camelCase "inputSchema"
 	// convention used by MCP.
-	InputSchema json.RawMessage `json:"input_schema"`
+	InputSchema json.RawMessage `json:"input_schema" swaggertype:"object"`
 
 	// Handler executes the tool when the LLM invokes it.
 	// Not serialized; this only exists on the client side.

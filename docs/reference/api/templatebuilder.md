@@ -41,9 +41,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
       "prerequisites": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,
@@ -285,9 +283,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/modules \
       "id": "string",
       "variables": [
         {
-          "default": [
-            0
-          ],
+          "default": {},
           "description": "string",
           "name": "string",
           "required": true,

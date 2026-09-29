@@ -263,7 +263,7 @@ type CreateTestAuditLogRequest struct {
 	Action           AuditAction     `json:"action,omitempty" enums:"create,write,delete,start,stop"`
 	ResourceType     ResourceType    `json:"resource_type,omitempty" enums:"template,template_version,user,workspace,workspace_build,git_ssh_key,auditable_group"`
 	ResourceID       uuid.UUID       `json:"resource_id,omitempty" format:"uuid"`
-	AdditionalFields json.RawMessage `json:"additional_fields,omitempty"`
+	AdditionalFields json.RawMessage `json:"additional_fields,omitempty" swaggertype:"object"`
 	Time             time.Time       `json:"time,omitempty" format:"date-time"`
 	BuildReason      BuildReason     `json:"build_reason,omitempty" enums:"autostart,autostop,initiator"`
 	OrganizationID   uuid.UUID       `json:"organization_id,omitempty" format:"uuid"`

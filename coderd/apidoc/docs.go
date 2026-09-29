@@ -20661,10 +20661,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "args_delta": {
                     "type": "string"
@@ -20713,10 +20710,8 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string",
+                    "format": "byte"
                 },
                 "end_line": {
                     "type": "integer"
@@ -20764,19 +20759,13 @@ const docTemplate = `{
                 },
                 "provider_metadata": {
                     "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "result_delta": {
                     "type": "string"
@@ -22804,10 +22793,7 @@ const docTemplate = `{
                     ]
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "build_reason": {
                     "enum": [
@@ -23161,10 +23147,8 @@ const docTemplate = `{
                     }
                 },
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string",
+                    "format": "byte"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -23875,10 +23859,7 @@ const docTemplate = `{
                 },
                 "input_schema": {
                     "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "name": {
                     "type": "string"
@@ -29369,10 +29350,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -30096,10 +30074,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "tool_call_id": {
                     "type": "string"
@@ -30927,10 +30902,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "string",
+                    "format": "byte"
                 }
             }
         },
