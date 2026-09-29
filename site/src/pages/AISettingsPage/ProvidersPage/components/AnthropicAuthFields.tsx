@@ -32,11 +32,9 @@ type AnthropicAuthMethodFieldProps = {
 	onChange: (method: AnthropicAuthMethod) => void;
 };
 
-export const AnthropicAuthMethodField: React.FC<AnthropicAuthMethodFieldProps> = ({
-	value,
-	disabled = false,
-	onChange,
-}) => {
+export const AnthropicAuthMethodField: React.FC<
+	AnthropicAuthMethodFieldProps
+> = ({ value, disabled = false, onChange }) => {
 	const id = useId();
 	return (
 		<div className="flex flex-col gap-2">
