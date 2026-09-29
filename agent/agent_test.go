@@ -4580,10 +4580,10 @@ func TestAgent_ToolCall(t *testing.T) {
 	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {uuid.NewString()}})
 
 	// Each acting SDK method runs once per tool call ID: a repeat gets
-	// the first result without acting, a cancel answers that result, and
-	// a request after the cancel is refused. Every call gets the tool call
-	// context, as chatd sends it, so a method that must not send the tool
-	// call ID would get a saved response instead of its own.
+	// the first result without acting, a cancel responds with that
+	// result, and a request after the cancel is refused. Every call gets
+	// the tool call context, as chatd sends it, so a method that must not
+	// send the tool call ID would get a saved response instead of its own.
 	tests := []struct {
 		name string
 		// fs is where the method acts: processes use the OS filesystem,
@@ -4591,7 +4591,7 @@ func TestAgent_ToolCall(t *testing.T) {
 		fs afero.Fs
 		// act writes "run" to path through the method under test.
 		act func(ctx context.Context, path string) (any, error)
-		// saved decodes a cancel answer as the method decodes its response.
+		// saved decodes a cancel response as the method decodes its own.
 		saved func(workspacesdk.CancelToolCallResponse) (any, error)
 	}{
 		{
@@ -4708,7 +4708,7 @@ func TestAgent_ToolCallOtherChat(t *testing.T) {
 
 	_, err = connB.CancelToolCall(toolCtx, id)
 	require.NoError(t, err)
-	// A cancel marks a process it kills canceled before it answers, so
+	// A cancel marks a process it kills canceled before it responds, so
 	// this read would see a wrong kill.
 	outA, err := connA.ProcessOutput(toolCtx, id.String(), nil)
 	require.NoError(t, err)

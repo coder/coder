@@ -36,8 +36,8 @@ type killed struct {
 	runsFinished int64
 }
 
-// testServer serves POST /run, which answers 201 with the number of the
-// run as its message, and POST /panic behind the table.
+// testServer serves POST /run, which responds with 201 and the number of
+// the run as its message, and POST /panic behind the table.
 type testServer struct {
 	clock    *quartz.Mock
 	handler  http.Handler
@@ -182,7 +182,8 @@ func TestConcurrentRequestsRunOnce(t *testing.T) {
 	s.block = make(chan struct{})
 	chatID, id := uuid.New(), uuid.New()
 
-	// However the requests interleave with the run, one run answers all.
+	// However the requests interleave with the run, all get the response
+	// of one run.
 	const requests = 10
 	results := make(chan *httptest.ResponseRecorder, requests)
 	for range requests {

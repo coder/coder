@@ -29,7 +29,7 @@ func ToolCallIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	return id, ok
 }
 
-// CancelToolCallResponse is the answer to a tool call cancel.
+// CancelToolCallResponse is the response to a tool call cancel.
 type CancelToolCallResponse struct {
 	// Received is false when the agent has no record of a request for
 	// the tool call: it never received one, or forgot it (records last an

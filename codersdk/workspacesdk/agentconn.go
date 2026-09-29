@@ -1558,7 +1558,7 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 
 // toolCallRequest is apiRequest that also sends CoderToolCallIDHeader
 // from ctx. Only requests that act use it: the agent runs a request with
-// a tool call ID once and answers repeats with the saved response.
+// a tool call ID once and responds to repeats with the saved response.
 func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	header := http.Header{}
 	if id, ok := ToolCallIDFromContext(ctx); ok {

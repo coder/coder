@@ -316,7 +316,7 @@ func TestStartProcess(t *testing.T) {
 		require.Contains(t, resp.Message, "cannot have an execute timeout")
 	})
 
-	// Through the real agent the tool call table answers a repeated
+	// Through the real agent the tool call table responds to a repeated
 	// start, so only this test reaches the process manager with one.
 	t.Run("RepeatedToolCallAttaches", func(t *testing.T) {
 		t.Parallel()
@@ -1077,9 +1077,9 @@ func TestChatIsolation(t *testing.T) {
 		owner     http.Header
 		requester http.Header
 		listed    bool
-		// wantOutput and wantSignal are the output and signal answers.
-		// The process has exited, so a visible one answers the signal
-		// with 409.
+		// wantOutput and wantSignal are the status codes of the output and
+		// signal responses. The process has exited, so a visible one
+		// responds to the signal with 409.
 		wantOutput int
 		wantSignal int
 	}{

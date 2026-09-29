@@ -21,8 +21,8 @@ import (
 
 // forgetAfter is how old a tool call record may get. Adding a record
 // deletes records older than this, to bound the table's memory. After
-// deletion, a retry of the tool call runs it again and a cancel answers
-// received: false.
+// deletion, a retry of the tool call runs it again and a cancel responds
+// with received: false.
 const forgetAfter = time.Hour
 
 type key struct {
@@ -66,7 +66,7 @@ func (t *Table) add(k key, e *entry) {
 }
 
 // Middleware runs a request whose chat context has a tool call ID once
-// per chat and tool call ID, and answers repeats with the saved
+// per chat and tool call ID, and responds to repeats with the saved
 // response. It refuses a canceled tool call with 409. Other requests
 // pass through.
 func (t *Table) Middleware(next http.Handler) http.Handler {
@@ -147,7 +147,7 @@ func (t *Table) Routes() http.Handler {
 // handleCancel cancels tool call {id}. A tool call the agent has no
 // record of is refused from now on, and a process with its ID is killed:
 // the process outlives the record. Otherwise the cancel waits for the run
-// to finish, kills its process, and answers the saved response.
+// to finish, kills its process, and responds with the saved response.
 func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
