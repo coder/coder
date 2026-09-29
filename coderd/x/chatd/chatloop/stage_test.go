@@ -388,7 +388,6 @@ func TestStageTracerChatKind(t *testing.T) {
 		fixture := newStageFixture(t)
 
 		ctx := chatloop.ContextWithChatKind(t.Context(), chatloop.ChatKindSubagent)
-		ctx = chatloop.ContextWithOrganization(ctx, "acme")
 		turnCtx, turn := fixture.tracer.StartRootAt(ctx, chatloop.StageChatTurn, time.Time{})
 		stepCtx, step := fixture.tracer.Start(turnCtx, chatloop.StageGenerationStep)
 		start := fixture.clock.Now().Add(-time.Second)
@@ -396,21 +395,13 @@ func TestStageTracerChatKind(t *testing.T) {
 		step.End(nil)
 		turn.End(nil)
 
-		// The organization is a span attribute only; the histogram
-		// carries the chat kind.
 		require.Equal(t, map[stageKey]uint64{
 			{stage: chatloop.StageChatTurn, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindSubagent}: 1,
 			{stage: chatloop.StageToolCall, scope: chatloop.ScopeTurn, chatKind: chatloop.ChatKindSubagent}: 1,
 		}, fixture.stageObservations(t))
-		for _, metric := range gatherFamily(t, fixture.registry, "coderd_chatd_stage_duration_seconds") {
-			require.Empty(t, labelValue(metric, "organization_name"))
-		}
-
 		for _, span := range fixture.spans.Ended() {
 			require.Contains(t, span.Attributes(),
 				attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)))
-			require.Contains(t, span.Attributes(),
-				attribute.String(chatloop.AttrOrganizationName, "acme"))
 		}
 	})
 
@@ -432,7 +423,6 @@ func TestStageTracerChatKind(t *testing.T) {
 			attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)))
 		for _, attr := range ended[0].Attributes() {
 			require.NotEqual(t, chatloop.AttrChatKind, string(attr.Key))
-			require.NotEqual(t, chatloop.AttrOrganizationName, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrProvider, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrModel, string(attr.Key))
 			require.NotEqual(t, chatloop.AttrReasoningEffort, string(attr.Key))
