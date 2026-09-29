@@ -1355,9 +1355,10 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
 		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
 		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
-		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/*.md" && \
-		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/*.md" && \
-		for f in "$$tmpdir/docs/reference/cli/"*.md; do mv "$$f" "docs/reference/cli/$$(basename "$$f")"; done && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/**/*.md" && \
+		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/**/*.md" && \
+		rm -rf docs/reference/cli && \
+		mv "$$tmpdir/docs/reference/cli" docs/reference/cli && \
 		rm -rf "$$tmpdir"
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
@@ -1404,11 +1405,14 @@ coderd/apidoc/.gen: \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | _gen
-	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
-		cp _gen/manifest-staging.json "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
-		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+# The API doc rule stages the manifest with its section rebuilt; clidocgen then
+# rebuilds the "Command Line" section on top of it so both land in the tree.
+docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md _gen/bin/clidocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpdir=$$(realpath "$$tmpdir") && \
+		cp _gen/manifest-staging.json "$$tmpdir/manifest.json" && \
+		CI=true DOCS_DIR="$$tmpdir" _gen/bin/clidocgen -manifest-only && \
+		./scripts/biome_format.sh "$$tmpdir/manifest.json" && \
+		mv "$$tmpdir/manifest.json" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
@@ -1525,10 +1529,12 @@ RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism). CI job timeout is 30m (see test-go-pg in ci.yaml),
-# keep the Go timeout 5m shorter so tests produce goroutine dumps
-# instead of the CI runner killing the process with no output.
-GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 25m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+# parallelism). CI job timeout is 30m (see test-go-pg in ci.yaml).
+# Keep the Go timeout shorter so tests produce goroutine dumps instead
+# of the CI runner stopping the process with no output. Override via
+# TEST_TIMEOUT for lanes where setup takes a large share of the job.
+GOTEST_TIMEOUT := $(or $(TEST_TIMEOUT),25m)
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout $(GOTEST_TIMEOUT) -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT

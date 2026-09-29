@@ -10,10 +10,10 @@ import (
 
 var _ Recorder = &TraceRecorder{}
 
-// Span names, preserved verbatim from [WrappedRecorder], which traced records
-// before tracing was consolidated here. Should records ever be traced at more
-// than one position in the chain, give [TraceRecorder] a name prefix per
-// position rather than reusing these names.
+// Span names, preserved verbatim from the recorder that traced records before
+// tracing was consolidated here. Should records ever be traced at more than one
+// position in the chain, give [TraceRecorder] a name prefix per position rather
+// than reusing these names.
 const (
 	spanRecordInterception      = "Intercept.RecordInterception"
 	spanRecordInterceptionEnded = "Intercept.RecordInterceptionEnded"

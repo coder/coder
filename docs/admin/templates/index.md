@@ -26,7 +26,9 @@ registry modules. Starter templates for popular platforms (AWS, Kubernetes,
 Docker, and others) are available as base templates in the builder, or through
 the [CLI](./creating-templates.md#cli).
 
-## Extending templates
+<a id="extending-templates"></a>
+
+## Extend templates
 
 It's often necessary to extend the template to make it generally useful to end
 users. Common modifications are:

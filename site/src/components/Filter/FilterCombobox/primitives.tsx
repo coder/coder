@@ -1,7 +1,13 @@
-import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { Command as CommandPrimitive } from "cmdk";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import { createContext, useContext, useRef, useState } from "react";
+import {
+	createContext,
+	useContext,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 import { Badge } from "#/components/Badge/Badge";
 import { InputGroup } from "#/components/InputGroup/InputGroup";
 import {
@@ -16,6 +22,22 @@ import {
 // `components/Combobox` single-select primitives. They overlap cosmetically
 // with `components/Command`; a future consolidation into a variant-driven
 // `Command*` layer could remove the duplication.
+
+/**
+ * Height cap for the popup, bounded only by the space Radix reports to the
+ * viewport edge, and for each menu inside it when the caller makes the popup
+ * `overflow-visible` so flyouts can extend past it, as `FilterCombobox` does.
+ */
+export const menuMaxHeightClassName = "max-h-(--radix-popper-available-height)";
+
+const LIST_NAVIGATION_KEYS = new Set(["ArrowUp", "ArrowDown", "Home", "End"]);
+// cmdk's Ctrl bindings for next (`n`, `j`) and previous (`p`, `k`).
+const LIST_NAVIGATION_CTRL_KEYS = new Set(["n", "j", "p", "k"]);
+
+/** Whether cmdk moves the highlighted row for this key press. */
+export const isListNavigationKey = (event: { key: string; ctrlKey: boolean }) =>
+	LIST_NAVIGATION_KEYS.has(event.key) ||
+	(event.ctrlKey && LIST_NAVIGATION_CTRL_KEYS.has(event.key));
 
 const FilterComboboxAnchorContext =
 	createContext<React.RefObject<HTMLDivElement | null> | null>(null);
@@ -39,23 +61,40 @@ function useFilterComboboxState(): FilterComboboxStateValue {
 	return context;
 }
 
-// cmdk keeps a running count of the rows it renders; both the content wrapper
-// and the list drive a `data-empty` styling group from it so
-// `FilterComboboxEmpty` and empty-state padding can toggle via CSS.
-function useFilterComboboxIsEmpty(): boolean {
-	return (useCommandState((state) => state.filtered.count) ?? 0) === 0;
-}
+/** Imperative handle to `FilterComboboxRoot`'s highlighted row. */
+export type FilterComboboxHighlight = {
+	get: () => string;
+	set: (value: string) => void;
+};
 
 type FilterComboboxRootProps = {
 	open?: boolean;
+	/**
+	 * Whether cmdk highlights the first row on its own. When false, a row is
+	 * highlighted only by Up, Down, Home, End, cmdk's Ctrl+N/J/P/K, the pointer,
+	 * or `highlightRef`.
+	 */
+	autoHighlight?: boolean;
 	/** Fired when Radix requests a close (escape / outside press). */
 	onDismiss?: () => void;
 	onRemoveValue?: (value: string) => void;
 	inputValue?: string;
 	onInputValueChange?: (value: string) => void;
-	onItemHighlighted?: (value: string | undefined) => void;
+	/**
+	 * The highlighted row lives here, so moving it re-renders only this root
+	 * and the rows whose highlight changes, not the caller's option lists.
+	 */
+	highlightRef?: React.Ref<FilterComboboxHighlight>;
+	/**
+	 * Called when cmdk moves the highlight, with the new value and the one it
+	 * replaced ("" when none). While `autoHighlight` is off, a row cmdk
+	 * highlights on its own is cleared at once, and this is called with "" as
+	 * the new value. Not called for `highlightRef.set`.
+	 */
+	onHighlightedValueChange?: (value: string, previous: string) => void;
 	/** Accessible label for the input. cmdk wires it via `aria-labelledby`. */
 	label?: string;
+	className?: string;
 	children?: React.ReactNode;
 };
 
@@ -72,18 +111,35 @@ type FilterComboboxRootProps = {
  */
 export function FilterComboboxRoot({
 	open = false,
+	autoHighlight = true,
 	onDismiss,
 	onRemoveValue,
 	inputValue = "",
 	onInputValueChange,
-	onItemHighlighted,
+	highlightRef,
+	onHighlightedValueChange,
 	label,
+	className,
 	children,
 }: FilterComboboxRootProps) {
 	const anchorRef = useRef<HTMLDivElement | null>(null);
-	// cmdk only reports highlight changes through `onValueChange` when its value
-	// is controlled, so track the highlighted row here and surface it to callers.
+	// cmdk only reports highlight changes when its value is controlled.
 	const [highlightedValue, setHighlightedValue] = useState("");
+	const highlightedValueRef = useRef("");
+	// Set by list navigation keys and pointer moves just before cmdk handles
+	// them, so only those highlight a row while `autoHighlight` is off.
+	const userNavigatingRef = useRef(false);
+	useImperativeHandle(
+		highlightRef,
+		() => ({
+			get: () => highlightedValueRef.current,
+			set: (value) => {
+				highlightedValueRef.current = value;
+				setHighlightedValue(value);
+			},
+		}),
+		[],
+	);
 
 	const state: FilterComboboxStateValue = {
 		inputValue,
@@ -98,11 +154,48 @@ export function FilterComboboxRoot({
 					shouldFilter={false}
 					loop
 					label={label}
-					className="flex w-full flex-col"
+					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
-					onValueChange={(highlighted) => {
-						setHighlightedValue(highlighted);
-						onItemHighlighted?.(highlighted || undefined);
+					onKeyDown={(event) => {
+						// On Enter the cmdk root selects the highlighted row and cancels
+						// the focused button's click. A button takes Enter as a click
+						// instead; preventDefault makes the root skip the key.
+						if (
+							event.key === "Enter" &&
+							event.target instanceof HTMLButtonElement
+						) {
+							event.preventDefault();
+							event.target.click();
+						}
+					}}
+					onKeyDownCapture={(event) => {
+						userNavigatingRef.current = isListNavigationKey(event);
+					}}
+					onPointerMoveCapture={() => {
+						userNavigatingRef.current = true;
+					}}
+					// Runs after the row's own handler, so the flag covers only the
+					// highlight that pointer move causes.
+					onPointerMove={() => {
+						userNavigatingRef.current = false;
+					}}
+					onValueChange={(value) => {
+						const navigating = userNavigatingRef.current;
+						userNavigatingRef.current = false;
+						const previous = highlightedValueRef.current;
+						if (!autoHighlight && !navigating) {
+							// cmdk has already stored the row it picked and only re-reads
+							// a controlled value when it changes. It trims the value, so
+							// switching between "" and " " resets it to nothing.
+							setHighlightedValue((current) => (current === "" ? " " : ""));
+							highlightedValueRef.current = "";
+							// Lets the caller re-highlight after the highlighted row unmounts.
+							onHighlightedValueChange?.("", previous);
+							return;
+						}
+						highlightedValueRef.current = value;
+						setHighlightedValue(value);
+						onHighlightedValueChange?.(value, previous);
 					}}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
@@ -133,14 +226,11 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 	...props
 }) => {
 	const anchorRef = useContext(FilterComboboxAnchorContext);
-	const isEmpty = useFilterComboboxIsEmpty();
-
 	return (
 		<PopoverContent
 			disablePortal
 			align={align}
 			sideOffset={sideOffset}
-			data-empty={isEmpty ? "" : undefined}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
 				if (
@@ -151,7 +241,8 @@ export const FilterComboboxContent: React.FC<FilterComboboxContentProps> = ({
 				}
 			}}
 			className={cn(
-				"group/combobox-content flex w-(--radix-popover-trigger-width) max-h-[min(24rem,var(--radix-popper-available-height))] flex-col overflow-y-hidden p-0",
+				menuMaxHeightClassName,
+				"flex w-(--radix-popover-trigger-width) flex-col overflow-y-hidden p-0",
 				className,
 			)}
 			{...props}
@@ -167,12 +258,9 @@ export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	className,
 	...props
 }) => {
-	const isEmpty = useFilterComboboxIsEmpty();
-
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
-			data-empty={isEmpty ? "" : undefined}
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",
 				className,
@@ -187,9 +275,8 @@ type FilterComboboxItemProps = React.ComponentProps<
 >;
 
 /**
- * A dropdown row. Rows are actions, not toggles: pass `onSelect` to run the
- * row's behavior (open a category, add a chip, navigate to a result). cmdk
- * calls `onSelect` on click and on Enter for the highlighted row.
+ * A dropdown row. Rows are actions, not toggles: cmdk calls `onSelect` on
+ * click and on Enter for the highlighted row.
  */
 export const FilterComboboxItem: React.FC<FilterComboboxItemProps> = ({
 	className,
@@ -236,26 +323,6 @@ export const FilterComboboxLabel: React.FC<FilterComboboxLabelProps> = ({
 			// The first header relies on the list's own padding for its top space.
 			className={cn(
 				"px-2 pt-4 pb-2 text-xs text-content-secondary group-first/combobox-group:pt-0",
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-type FilterComboboxEmptyProps = React.ComponentProps<"div">;
-
-export const FilterComboboxEmpty: React.FC<FilterComboboxEmptyProps> = ({
-	className,
-	...props
-}) => {
-	// Visibility is driven by the `data-empty` group set on
-	// `FilterComboboxContent`.
-	return (
-		<div
-			data-slot="combobox-empty"
-			className={cn(
-				"hidden w-full justify-center py-6 text-center text-sm text-content-secondary group-data-[empty]/combobox-content:flex",
 				className,
 			)}
 			{...props}
@@ -328,6 +395,9 @@ type FilterComboboxChipProps = React.ComponentProps<typeof Badge> & {
 	removeLabel?: string;
 };
 
+/** Height shared by chips and controls that sit in the chip row. */
+export const chipRowItemHeightClassName = "h-7";
+
 export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 	className,
 	children,
@@ -351,6 +421,7 @@ export const FilterComboboxChip: React.FC<FilterComboboxChipProps> = ({
 			svgSize="sm"
 			className={cn(
 				"group/chip pl-2 font-medium text-content-secondary hover:text-content-primary",
+				chipRowItemHeightClassName,
 				className,
 			)}
 			{...props}
@@ -400,7 +471,8 @@ export const FilterComboboxChipsInput: React.FC<
 			// without chips.
 			size={1}
 			className={cn(
-				"h-7 min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
+				chipRowItemHeightClassName,
+				"min-w-1 flex-auto field-sizing-content border-0 bg-transparent p-0 text-sm font-medium text-content-primary outline-hidden placeholder:text-content-secondary",
 				className,
 			)}
 			{...props}

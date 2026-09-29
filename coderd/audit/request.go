@@ -169,6 +169,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.ChatOperationalSettings:
 		return ""
+	case database.ExperimentRule:
+		return typed.Experiment
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
@@ -279,6 +281,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatOperationalSettings:
 		return typed.ID
+	case database.ExperimentRule:
+		// Derived from the experiment name by experiments.AuditRecord.
+		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -362,6 +367,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
 		return database.ResourceTypeChatOperationalSettings
+	case database.ExperimentRule:
+		return database.ResourceTypeExperimentRule
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -461,6 +468,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Deployment settings, not scoped to any organization.
 		return false
 	case database.ChatOperationalSettings:
+		return false
+	case database.ExperimentRule:
+		// Deployment settings, not scoped to any organization.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

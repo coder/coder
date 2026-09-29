@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/database"
@@ -129,7 +130,7 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 			provider, err := buildProvider(t.Context(), protoToProviderSpec(tt.provider), codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
-			}, nil)
+			}, slog.Make(), nil)
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 			assert.Equal(t, tt.expectedType, provider.Type())
@@ -147,7 +148,7 @@ func TestBuildProviderFromProtoBedrockWithoutSettings(t *testing.T) {
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}), codersdk.AIBridgeConfig{
 		AllowBYOK: serpent.Bool(true),
-	}, nil)
+	}, slog.Make(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }

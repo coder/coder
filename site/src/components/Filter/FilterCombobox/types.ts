@@ -21,8 +21,6 @@ export type FilterCategory = {
 	icon?: React.ReactNode;
 	/** Extra typed prefixes that enter this category, e.g. `user` for `owner`. */
 	aliases?: readonly string[];
-	/** Fixed text at the end of the category row instead of an options sample. */
-	hint?: string;
 	/**
 	 * Query keys this category owns for chip parsing. Defaults to `[key]`. A
 	 * category that commits several distinct boolean keys (e.g. Attributes
@@ -30,15 +28,25 @@ export type FilterCategory = {
 	 * round-trips them as chips instead of free text.
 	 */
 	chipKeys?: readonly string[];
-};
-
-/** Live resource preview row shown while typing free-text search. */
-export type SearchResult = {
-	label: string;
-	value: string;
-	startIcon?: React.ReactNode;
-	/** Renders an avatar when `startIcon` is not provided. */
-	imageUrl?: string;
-	/** Opaque payload for `onSearchResultSelect`, e.g. a workspace URL path. */
-	href?: string;
+	/** Render this category's options as top-level toggle rows instead of a submenu. */
+	inlineOptions?: boolean;
+	/** Heading shown above top-level options. Defaults to `${label} is…`. */
+	inlineOptionsLabel?: string;
+	/** Keep option icons when rendering the category as top-level rows. */
+	inlineOptionsIcons?: boolean;
+	/** Selecting an option replaces another selected option from this category. */
+	inlineOptionsExclusive?: boolean;
+	/** Applied chips show only the option label, without the category prefix. */
+	chipLabelOnly?: boolean;
+	/**
+	 * Leave the category out of the menu while `getOptions("")` returns at most
+	 * one option. When `getOptions("")` omits values the results can contain,
+	 * the row can hide while its one option would still narrow the results. Its
+	 * empty-query options are fetched when the filter renders. Until every
+	 * category with this flag finishes its first load, successfully or not, the
+	 * unnarrowed menu shows placeholder rows in place of all submenu rows. An
+	 * applied chip keeps it in the menu. A failed lookup keeps it until a retry
+	 * returns at most one option. Does not apply to inline categories.
+	 */
+	hideWhenSingleOption?: boolean;
 };

@@ -315,6 +315,7 @@ newStream:
 				// Capture any thinking blocks that were returned.
 				for _, t := range i.extractModelThoughts(&message) {
 					_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+						CreatedAt:      time.Now().UTC(),
 						InterceptionID: i.ID().String(),
 						Content:        t.Content,
 						Metadata:       t.Metadata,
@@ -366,6 +367,7 @@ newStream:
 						res, err := tool.Call(streamCtx, input, i.tracer)
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:       time.Now().UTC(),
 							InterceptionID:  i.ID().String(),
 							MsgID:           message.ID,
 							ToolCallID:      id,
@@ -490,6 +492,7 @@ newStream:
 						}
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:      time.Now().UTC(),
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
@@ -521,6 +524,7 @@ newStream:
 
 		if promptFound {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          message.ID,
 				Prompt:         prompt,

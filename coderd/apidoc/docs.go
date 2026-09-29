@@ -218,6 +218,86 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/experiments/rules": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "List experiment rules",
+                "operationId": "list-experiment-rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ExperimentRuleEntry"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/experiments/rules/{experiment}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Update experiment rule",
+                "operationId": "update-experiment-rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Experiment name",
+                        "name": "experiment",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Experiment rule",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PutExperimentRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExperimentRule"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/mcp/servers/{mcpServer}/oauth2/callback": {
             "get": {
                 "produces": [
@@ -18089,6 +18169,10 @@ const docTemplate = `{
                 "circuit_breaker_timeout": {
                     "type": "integer"
                 },
+                "disable_content_recording": {
+                    "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -18110,6 +18194,10 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
+                },
+                "structured_logging_source": {
+                    "description": "StructuredLoggingSource selects which process emits the records that\nStructuredLogging enables. See AIStructuredLoggingSource.",
+                    "type": "string"
                 }
             }
         },
@@ -24210,7 +24298,8 @@ const docTemplate = `{
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
-                "enable-ai-workspace-debug"
+                "enable-ai-workspace-debug",
+                "chat-board"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24218,6 +24307,7 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
+                "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatProjects": "Enables organization-scoped projects that group agent chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
@@ -24248,7 +24338,8 @@ const docTemplate = `{
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
-                "Enables debugging failed workspace builds with Coder Agents."
+                "Enables debugging failed workspace builds with Coder Agents.",
+                "Offers the Coder Agents chat board as a per-browser opt-in."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24267,7 +24358,73 @@ const docTemplate = `{
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
-                "ExperimentEnableAIWorkspaceDebug"
+                "ExperimentEnableAIWorkspaceDebug",
+                "ExperimentChatBoard"
+            ]
+        },
+        "codersdk.ExperimentRule": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "description": "Condition is the CEL expression of a condition rule.",
+                    "type": "string"
+                },
+                "mode": {
+                    "description": "Mode is one of the ExperimentRuleMode values, or empty when the\nstored rule is malformed. A malformed rule decides off until it is\nreplaced. It is a plain string so that clients can represent the\nmalformed state.",
+                    "type": "string"
+                },
+                "revision": {
+                    "description": "Revision increases on every change and starts at 1. Zero means the\nstored rule has no readable positive revision, so it is malformed.",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ExperimentRuleEntry": {
+            "type": "object",
+            "properties": {
+                "experiment": {
+                    "description": "Experiment is the experiment name. Ignored entries can name\nexperiments this version does not know, so it is a plain string.",
+                    "type": "string"
+                },
+                "ignored": {
+                    "description": "Ignored is true for a stored rule of an experiment that does not\naccept runtime rules. Such a rule has no effect.",
+                    "type": "boolean"
+                },
+                "rule": {
+                    "description": "Rule is null when no rule was ever stored.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExperimentRule"
+                        }
+                    ]
+                },
+                "static_default": {
+                    "description": "StaticDefault reports whether the experiment is in the startup\n--experiments list of the replica that answered.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ExperimentRuleMode": {
+            "type": "string",
+            "enum": [
+                "inherit",
+                "on",
+                "off",
+                "condition"
+            ],
+            "x-enum-varnames": [
+                "ExperimentRuleModeInherit",
+                "ExperimentRuleModeOn",
+                "ExperimentRuleModeOff",
+                "ExperimentRuleModeCondition"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -28115,6 +28272,32 @@ const docTemplate = `{
                 "ProxyUnregistered"
             ]
         },
+        "codersdk.PutExperimentRuleRequest": {
+            "type": "object",
+            "properties": {
+                "condition": {
+                    "description": "Condition is required for the condition mode and must be empty\notherwise.",
+                    "type": "string"
+                },
+                "expected_revision": {
+                    "description": "ExpectedRevision must equal the current revision of the stored rule,\nor zero when no rule is stored or the stored rule has no readable\npositive revision. A different revision fails with 409 Conflict.",
+                    "type": "integer"
+                },
+                "mode": {
+                    "enum": [
+                        "inherit",
+                        "on",
+                        "off",
+                        "condition"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExperimentRuleMode"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.PutExtendWorkspaceRequest": {
             "type": "object",
             "required": [
@@ -28535,7 +28718,8 @@ const docTemplate = `{
                 "user_secret",
                 "user_skill",
                 "chat_instruction_settings",
-                "chat_operational_settings"
+                "chat_operational_settings",
+                "experiment_rule"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -28578,7 +28762,8 @@ const docTemplate = `{
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
                 "ResourceTypeChatInstructionSettings",
-                "ResourceTypeChatOperationalSettings"
+                "ResourceTypeChatOperationalSettings",
+                "ResourceTypeExperimentRule"
             ]
         },
         "codersdk.Response": {

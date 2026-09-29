@@ -17,7 +17,9 @@ any developer to propose changes to a template.
 You can give different users and groups access to templates with
 [role-based access control](../template-permissions.md).
 
-## Creating templates
+<a id="creating-templates"></a>
+
+## Create templates
 
 The [template builder](../creating-templates.md#template-builder) is the
 recommended way to create templates. It guides you through selecting a base
@@ -41,7 +43,9 @@ Coder starter templates are also available on our
 As well as Coder's starter templates, you can see a list of community templates
 by our users [here](../../../../examples/templates/community-templates.md).
 
-## Editing templates
+<a id="editing-templates"></a>
+
+## Edit templates
 
 Our templates are meant to be modified for your use cases. You can edit any
 template's files directly in the Coder dashboard.
@@ -55,7 +59,9 @@ files, then `coder templates push`.
 > Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
-## Updating templates
+<a id="updating-templates"></a>
+
+## Update templates
 
 Coder tracks a template's versions, keeping all developer workspaces up-to-date.
 When you publish a new version, developers are notified to get the latest

@@ -106,11 +106,10 @@ jobs:
   backport:
     name: "Backport to ${{ matrix.branch }}"
     needs: detect
+    # Writes go through the backport GitHub App token below, so the job
+    # token only needs to read the repository for checkout.
     permissions:
-      contents: write
-      pull-requests: write
-      # Required to create the release-specific backport label if missing.
-      issues: write
+      contents: read
     if: needs.detect.outputs.branches != '[]'
     runs-on: ubuntu-latest
     strategy:
@@ -131,13 +130,30 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # GITHUB_TOKEN can never be granted the workflows permission, so GitHub
+      # rejects pushes of backport branches whose .github/workflows/ contents
+      # differ from main. An App token with workflows: write is required. It
+      # also lets the opened backport PRs trigger CI.
+      - name: Generate backport App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BACKPORT_APP_ID }}
+          private-key: ${{ secrets.BACKPORT_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+          # Required to create the release-specific backport label if missing.
+          permission-issues: write
+
       - name: Cherry-pick and open PR
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           set -euo pipefail
 
-          # Configure git to authenticate pushes with the job token
+          # Configure git to authenticate pushes with the App token
           # since persist-credentials is disabled on checkout.
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
@@ -150,8 +166,10 @@ jobs:
           # be filtered easily (e.g. backport/v2.34).
           BACKPORT_LABEL="backport/v${VERSION}"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BOT_LOGIN="${APP_SLUG}[bot]"
+          BOT_ID=$(gh api "/users/${BOT_LOGIN}" --jq .id)
+          git config user.name "$BOT_LOGIN"
+          git config user.email "${BOT_ID}+${BOT_LOGIN}@users.noreply.github.com"
 
           # Idempotency: if a backport PR already exists for this branch
           # (open, closed, or merged), there is nothing to do. This is the

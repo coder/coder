@@ -4,7 +4,9 @@ package cli_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -26,8 +28,10 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 
+	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -873,4 +877,165 @@ func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
 
 	err = inv.Run()
 	require.ErrorContains(t, err, `unknown option "introspection.prometheus.unknown_field"`)
+}
+
+// aiGatewayRecordLog is one structured interception record read from the
+// gateway's JSON log file.
+type aiGatewayRecordLog struct {
+	Msg    string         `json:"msg"`
+	Fields map[string]any `json:"fields"`
+}
+
+// readAIGatewayRecordLogs returns the interception records the gateway process
+// wrote to its JSON log. JSON logging is used rather than the terminal output
+// so that assertions do not depend on line wrapping.
+func readAIGatewayRecordLogs(t *testing.T, path string) []aiGatewayRecordLog {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	var records []aiGatewayRecordLog
+	scanner := bufio.NewScanner(bytes.NewReader(contents))
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		var line aiGatewayRecordLog
+		if err := json.Unmarshal(scanner.Bytes(), &line); err != nil {
+			continue
+		}
+		if line.Msg != recorder.InterceptionLogMarker {
+			continue
+		}
+		records = append(records, line)
+	}
+	return records
+}
+
+// requireAIGatewayRecordTypes waits until the gateway has logged an interception
+// record of each wanted type, and returns every record logged.
+func requireAIGatewayRecordTypes(ctx context.Context, t *testing.T, path string, want ...string) []aiGatewayRecordLog {
+	t.Helper()
+
+	var records []aiGatewayRecordLog
+	require.Eventuallyf(t, func() bool {
+		records = readAIGatewayRecordLogs(t, path)
+		logged := make(map[string]struct{}, len(records))
+		for _, record := range records {
+			recordType, _ := record.Fields["record_type"].(string)
+			logged[recordType] = struct{}{}
+		}
+		for _, recordType := range want {
+			if _, ok := logged[recordType]; !ok {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitLong, testutil.IntervalFast, "expected record types %v in %s", want, path)
+	_ = ctx
+	return records
+}
+
+// TestAIGatewayStartE2E_DisableContentRecording covers the deployment shape the
+// docs recommend for keeping conversation content out of the database while
+// still exporting it: the gateway process honors its own record policy, so the
+// dropped records reach its log instead of coderd's tables.
+func TestAIGatewayStartE2E_DisableContentRecording(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Given: a coderd whose database the test can read directly.
+	db, ps := dbtestutil.NewDB(t)
+	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayCoderdOptions(func(opts *coderdenttest.Options) {
+		opts.Database = db
+		opts.Pubsub = ps
+	}))
+
+	// When: the gateway starts with content recording disabled and itself as
+	// the structured logging source.
+	logPath := filepath.Join(t.TempDir(), "gateway.json")
+	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key,
+		withAIGatewayEnv("CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE", string(codersdk.AIStructuredLoggingSourceGateway)),
+		withAIGatewayEnv("CODER_LOGGING_JSON", logPath),
+	)
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+
+	// When: a user sends an LLM request through the gateway.
+	result := postChatCompletionAndRead(ctx, baseURL+aiGatewayChatCompletionPath,
+		dep.userClient.SessionToken(), aiGatewayChatCompletionRequest)
+
+	// Then: the request is served as usual.
+	require.NoError(t, result.err)
+	require.Equal(t, http.StatusOK, result.status, "body: %s", result.body)
+
+	// Then: coderd still records the interception, so cost control is unaffected.
+	sessions := requireAIGatewaySessions(ctx, t, dep, 1)
+	require.Equal(t, dep.user.Username, sessions[0].Initiator.Username)
+
+	interceptions, err := db.GetAIBridgeInterceptions(ctx)
+	require.NoError(t, err)
+	require.Len(t, interceptions, 1)
+
+	require.Eventually(t, func() bool {
+		tokens, err := db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptions[0].ID)
+		return err == nil && len(tokens) == 1
+	}, testutil.WaitLong, testutil.IntervalFast, "token usage should still be recorded")
+
+	// Then: the conversation content was not recorded.
+	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
+	require.NoError(t, err)
+	require.Empty(t, prompts, "prompts must not be recorded")
+
+	// Then: the gateway exported the records coderd never received.
+	records := requireAIGatewayRecordTypes(ctx, t, logPath,
+		recorder.RecordTypeInterceptionStart,
+		recorder.RecordTypeTokenUsage,
+		recorder.RecordTypePromptUsage,
+	)
+	var loggedPrompt string
+	for _, record := range records {
+		if recordType, _ := record.Fields["record_type"].(string); recordType != recorder.RecordTypePromptUsage {
+			continue
+		}
+		loggedPrompt, _ = record.Fields["prompt"].(string)
+	}
+	require.Equal(t, "standalone gateway e2e", loggedPrompt, "the dropped prompt should be exported")
+
+	waiter.Cancel()
+	require.NoError(t, waiter.Wait())
+}
+
+// TestAIGatewayStartE2E_WarnsContentNotExported covers the misconfiguration the
+// option's documentation warns about: content records are dropped while coderd
+// is the only emitter, so they reach neither the database nor a SIEM. Nothing
+// else reports it, so the gateway must.
+func TestAIGatewayStartE2E_WarnsContentNotExported(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	dep := setupAIGatewayDeployment(ctx, t)
+
+	logPath := filepath.Join(t.TempDir(), "gateway.json")
+	baseURL, waiter := startAIGatewayCommand(ctx, t, dep.client.URL.String(), dep.key,
+		withAIGatewayEnv("CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING", "true"),
+		withAIGatewayEnv("CODER_AI_GATEWAY_STRUCTURED_LOGGING", "true"),
+		withAIGatewayEnv("CODER_LOGGING_JSON", logPath),
+	)
+	requireEventualAIGatewayStatus(ctx, t, baseURL+aiGatewayReadyzPath, http.StatusOK)
+
+	require.Eventually(t, func() bool {
+		contents, err := os.ReadFile(logPath)
+		return err == nil && bytes.Contains(contents, []byte("content recording is disabled"))
+	}, testutil.WaitLong, testutil.IntervalFast, "the gateway should warn that content records are exported nowhere")
+
+	// Then: the gateway does not emit the records, so coderd remains the only
+	// emitter the deployment configured.
+	require.Empty(t, readAIGatewayRecordLogs(t, logPath))
+
+	waiter.Cancel()
+	require.NoError(t, waiter.Wait())
 }

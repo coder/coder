@@ -18,9 +18,22 @@ vi.mock("sonner", async (importOriginal) => ({
 }));
 
 // Windows are under test, not the chat page or the create form's loading.
-vi.mock("../../AgentChatPage", () => ({
-	default: ({ chatId }: { chatId: string }) => <p>chat {chatId}</p>,
-}));
+// Mount and unmount are recorded so a test can tell a hidden window from a
+// remounted one.
+const chatPageMounts = vi.hoisted(() => ({ mount: vi.fn(), unmount: vi.fn() }));
+
+vi.mock("../../AgentChatPage", async () => {
+	const { useEffect } = await import("react");
+	const MockChatPage = ({ chatId }: { chatId: string }) => {
+		useEffect(() => {
+			chatPageMounts.mount(chatId);
+			return () => chatPageMounts.unmount(chatId);
+		}, [chatId]);
+		return <p>chat {chatId}</p>;
+	};
+	return { default: MockChatPage };
+});
+
 vi.mock("../../components/AgentCreateForm", () => ({
 	AgentCreateForm: ({
 		onCreateChat,
@@ -68,6 +81,14 @@ const launch = (labels: Record<string, string> = {}): Chat => ({
 	title: "Launch",
 	labels,
 });
+
+/** The board's saved windows, back to front. */
+const storedWindows = () => {
+	const key = Object.keys(localStorage).find((k) =>
+		k.startsWith("agents.board."),
+	);
+	return JSON.parse(localStorage.getItem(key ?? "") ?? "{}").windows;
+};
 
 const openCardDraft = async (user: ReturnType<typeof userEvent.setup>) => {
 	await user.click(
@@ -345,5 +366,36 @@ describe("ChatBoardPage", () => {
 				}),
 			),
 		);
+	});
+
+	it("minimizes a chat window into a tab, keeping the chat mounted, and restores it", async () => {
+		const user = userEvent.setup();
+		chatPageMounts.mount.mockClear();
+		chatPageMounts.unmount.mockClear();
+		mockChats(
+			() => Promise.resolve([launch()]),
+			() => Promise.resolve([]),
+		);
+		renderWithAuth(<ChatBoardPage />);
+
+		const [openLaunch] = await screen.findAllByRole("button", {
+			name: "Open Launch",
+		});
+		await user.click(openLaunch);
+		await user.click(
+			await screen.findByRole("button", { name: "Minimize Launch" }),
+		);
+
+		expect(storedWindows()).toEqual([
+			expect.objectContaining({ chatId: "launch", minimized: true }),
+		]);
+
+		await user.click(screen.getByRole("button", { name: "Restore Launch" }));
+
+		expect(storedWindows()).toEqual([
+			expect.not.objectContaining({ minimized: true }),
+		]);
+		expect(chatPageMounts.mount).toHaveBeenCalledTimes(1);
+		expect(chatPageMounts.unmount).not.toHaveBeenCalled();
 	});
 });

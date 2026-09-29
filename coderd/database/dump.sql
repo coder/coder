@@ -622,6 +622,7 @@ CREATE TYPE resource_type AS ENUM (
     'mcp_server_config',
     'chat_model_config',
     'chat_operational_settings',
+    'experiment_rule',
     'chat_project'
 );
 
