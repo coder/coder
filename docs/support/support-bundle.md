@@ -150,6 +150,8 @@ For all options, refer to the [`coder support bundle` reference](../reference/cl
 Use your IDE's collection action to include its local diagnostics alongside the Coder bundle.
 Running the CLI separately doesn't collect those local IDE files.
 
+<div class="tabs">
+
 ### VS Code
 
 Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
@@ -206,6 +208,8 @@ Use the workspace-specific **Collect logs** action instead.
 If Coder bundle generation fails, Toolbox preserves its other diagnostics and attempts to include `coder-support-error.txt` instead of a partial Coder archive.
 
 For plugin-specific collection details, refer to [Coder support bundles in the Toolbox plugin README](https://github.com/coder/coder-jetbrains-toolbox/blob/main/README.md#coder-support-bundles).
+
+</div>
 
 ## Review and share the bundle
 
