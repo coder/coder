@@ -1487,12 +1487,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                        |
+|------------------------------|---------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                             |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                       |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1770,12 +1770,12 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property                     | Value(s)                                                                 |
-|------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
-| `workspace_build_transition` | `delete`, `start`, `stop`                                                |
-| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
-| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
+| Property                     | Value(s)                                                                        |
+|------------------------------|---------------------------------------------------------------------------------|
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                             |
+| `workspace_build_transition` | `delete`, `start`, `stop`                                                       |
+| `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`, `unknown` |
+| `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build`        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

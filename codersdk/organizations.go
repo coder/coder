@@ -81,7 +81,7 @@ type OrganizationMemberWithUserData struct {
 	Name             string     `table:"name" json:"name,omitempty"`
 	AvatarURL        string     `json:"avatar_url,omitempty"`
 	Email            string     `json:"email"`
-	Status           UserStatus `json:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status"`
 	LoginType        LoginType  `json:"login_type"`
 	LastSeenAt       time.Time  `table:"last seen at" json:"last_seen_at,omitempty" format:"date-time"`
 	UserCreatedAt    time.Time  `table:"user created at" json:"user_created_at" format:"date-time"`
@@ -128,7 +128,7 @@ type CreateTemplateVersionRequest struct {
 	Message string `json:"message,omitempty" validate:"lt=1048577"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
-	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
 	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
 	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`

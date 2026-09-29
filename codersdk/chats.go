@@ -799,7 +799,7 @@ type CreateChatMessageRequest struct {
 	// InlineMCPServers replaces the inline MCP servers.
 	// nil: no change, empty: remove all.
 	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
-	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`

@@ -17,7 +17,7 @@ type APIKey struct {
 	ExpiresAt       time.Time            `json:"expires_at" validate:"required" format:"date-time"`
 	CreatedAt       time.Time            `json:"created_at" validate:"required" format:"date-time"`
 	UpdatedAt       time.Time            `json:"updated_at" validate:"required" format:"date-time"`
-	LoginType       LoginType            `json:"login_type" validate:"required" enums:"password,github,oidc,token"`
+	LoginType       LoginType            `json:"login_type" validate:"required"`
 	Scope           APIKeyScope          `json:"scope" enums:"all,application_connect"` // Deprecated: use Scopes instead.
 	Scopes          []APIKeyScope        `json:"scopes"`
 	TokenName       string               `json:"token_name" validate:"required"`
