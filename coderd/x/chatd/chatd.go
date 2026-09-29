@@ -4864,10 +4864,8 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	// Inflight work outlives the caller, so the caller's span and stage
-	// scope are stripped from the context: spans started on this context
-	// become their own roots instead of children that end after their
-	// parent, and their stages are recorded as background work.
+	// Inflight work outlives the caller, so its spans must not be
+	// children of the caller's span.
 	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
 	detached = chatloop.ContextWithScope(detached, chatloop.ScopeBackground)
 	ctx, cancel := context.WithCancel(detached)
@@ -4878,13 +4876,8 @@ func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func(
 	}
 }
 
-// recordQueueWait emits the queue_wait stage for a message of chat that
-// sat queued from queuedAt until now. Call it after the transition that
-// promoted the message commits; a zero queuedAt, which such transitions
-// return when they promote nothing, records nothing. The span context
-// is stripped from ctx so the stage is a standalone span rather than a
-// child of the span in ctx. The stage is turn scoped and carries the
-// chat's kind, which ctx need not carry.
+// recordQueueWait records queue_wait as a trace root. Call it after the
+// promoting transition commits; a zero queuedAt records nothing.
 func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queuedAt time.Time) {
 	if queuedAt.IsZero() {
 		return
@@ -4897,15 +4890,11 @@ func (p *Server) recordQueueWait(ctx context.Context, chat database.Chat, queued
 	)
 }
 
-// inflightChatContext is inflightContext for work that belongs to a
-// known chat. The chat kind is set on the returned context so the
-// stages of the detached work carry it.
 func (p *Server) inflightChatContext(reqCtx context.Context, chat database.Chat) (context.Context, func()) {
 	ctx, stop := p.inflightContext(reqCtx)
 	return withStageIdentity(ctx, chatloop.ScopeBackground, chatKind(chat)), stop
 }
 
-// chatKind labels a chat as a subagent or a top-level chat.
 func chatKind(chat database.Chat) chatloop.ChatKind {
 	if chat.ParentChatID.Valid {
 		return chatloop.ChatKindSubagent
@@ -4913,9 +4902,6 @@ func chatKind(chat database.Chat) chatloop.ChatKind {
 	return chatloop.ChatKindRoot
 }
 
-// withStageIdentity returns ctx carrying the scope and chat kind that
-// stages started or recorded on it and on contexts derived from it
-// take.
 func withStageIdentity(ctx context.Context, scope chatloop.Scope, kind chatloop.ChatKind) context.Context {
 	ctx = chatloop.ContextWithScope(ctx, scope)
 	return chatloop.ContextWithChatKind(ctx, kind)

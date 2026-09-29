@@ -389,8 +389,7 @@ type SendMessageInput struct {
 type SendMessageResult struct {
 	InsertedMessages []database.ChatMessage
 	QueuedMessage    *database.ChatQueuedMessage
-	// PromotedQueuedAt is the queued row's creation time when this
-	// transition promoted a queue head, and the zero time otherwise.
+	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
 
@@ -858,9 +857,7 @@ type PromoteQueuedMessageResult struct {
 	QueuedMessage        database.ChatQueuedMessage
 	InsertedMessage      *database.ChatMessage
 	CancellationMessages []database.ChatMessage
-	// PromotedQueuedAt is the queued row's creation time when this
-	// transition promoted it into history, and the zero time when it
-	// only moved the row to the queue head.
+	// PromotedQueuedAt is zero when the row only moved to the queue head.
 	PromotedQueuedAt time.Time
 }
 
@@ -1365,8 +1362,7 @@ type FinishInterruptionInput struct {
 type FinishInterruptionResult struct {
 	InsertedMessages []database.ChatMessage
 	PromotedMessage  *database.ChatMessage
-	// PromotedQueuedAt is the queued row's creation time when this
-	// transition promoted a queue head, and the zero time otherwise.
+	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
 
@@ -1457,8 +1453,7 @@ type FinishTurnInput struct{}
 type FinishTurnResult struct {
 	Chat            database.Chat
 	PromotedMessage *database.ChatMessage
-	// PromotedQueuedAt is the queued row's creation time when this
-	// transition promoted a queue head, and the zero time otherwise.
+	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
 

@@ -34,13 +34,8 @@ const (
 	StageAnomalyNegativeElapsed  StageAnomaly = "negative_elapsed"
 	StageAnomalyInvertedWindow   StageAnomaly = "inverted_window"
 	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
-	// StageAnomalyFutureStart counts a stage whose explicit start was
-	// ahead of this replica's clock; the stage is measured from now.
-	StageAnomalyFutureStart StageAnomaly = "future_start"
-	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
-	// not follow the previous turn's anchor on the same runner; the
-	// turn starts now and records no acquisition.
-	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
+	StageAnomalyFutureStart      StageAnomaly = "future_start"
+	StageAnomalyStaleAnchor      StageAnomaly = "stale_anchor"
 )
 
 // observedStages get histogram samples; other stages are span-only.

@@ -66,11 +66,9 @@ type chatWorkerTaskStartInput struct {
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
 	TurnSpan                 *runnerTurnSpan
-	// TurnToken identifies the turn this task's steps run in. The zero
-	// token identifies no turn.
-	TurnToken    turnToken
-	SessionStart *sessionStartTracker
-	StopNudges   *stopNudgeTracker
+	TurnToken                turnToken
+	SessionStart             *sessionStartTracker
+	StopNudges               *stopNudgeTracker
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {

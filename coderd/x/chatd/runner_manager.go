@@ -39,8 +39,7 @@ type spawnRunnerRequest struct {
 	ChatID   uuid.UUID
 	WorkerID uuid.UUID
 	RunnerID uuid.UUID
-	// TakenOver reports that the chat was acquired from a previous owner
-	// whose heartbeat went stale, rather than while unowned.
+	// TakenOver means the previous owner's heartbeat went stale.
 	TakenOver bool
 }
 

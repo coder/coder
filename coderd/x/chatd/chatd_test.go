@@ -5466,7 +5466,6 @@ func TestActiveServer_CompactionRecordsMetric(t *testing.T) {
 		"model":    "claude-sonnet-4-20250514",
 		"result":   "success",
 	})
-	// Without an override the compaction stage carries the chat model.
 	requireCompactionSpan(t, spans, "claude-sonnet-4-20250514", chatloop.CompactionSourceAutomatic)
 }
 
@@ -14735,8 +14734,6 @@ func setupWorkspaceContextAgentConn(
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
 
-// newRecordingTracerProvider returns a tracer provider whose ended spans
-// are kept in the returned recorder.
 func newRecordingTracerProvider(t *testing.T) (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
@@ -14746,8 +14743,6 @@ func newRecordingTracerProvider(t *testing.T) (*sdktrace.TracerProvider, *tracet
 	return provider, recorder
 }
 
-// requireCompactionSpan asserts that the recorder saw one compaction
-// span, labeled with model and source.
 func requireCompactionSpan(t *testing.T, recorder *tracetest.SpanRecorder, model string, source chatloop.CompactionSource) {
 	t.Helper()
 	var compactions []sdktrace.ReadOnlySpan
@@ -14761,8 +14756,6 @@ func requireCompactionSpan(t *testing.T, recorder *tracetest.SpanRecorder, model
 	require.Equal(t, string(source), chatd.SpanAttr(t, compactions[0], chatloop.AttrCompactionSource))
 }
 
-// TestActiveServer_TracesChatTurn drives prompts through a real worker
-// with a recording tracer and checks the spans the turns produced.
 func TestActiveServer_TracesChatTurn(t *testing.T) {
 	t.Parallel()
 
@@ -14791,9 +14784,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		}}, overrides...)...)
 		return harness{db: db, server: server, recorder: recorder, registry: registry, user: user, org: org, model: model}
 	}
-	// waitForTurns waits until n chat_turn spans have ended and indexes
-	// every ended span by name. A turn span settles after the final step
-	// returns, which can be after the status is visible.
+	// A turn span can end after the chat status is visible.
 	waitForTurns := func(ctx context.Context, t *testing.T, recorder *tracetest.SpanRecorder, n int) spanIndex {
 		t.Helper()
 		var index spanIndex
@@ -14818,9 +14809,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForChatStatus(ctx, t, h.db, chat.ID, wantStatus)
 		return h, chat.ID, waitForTurns(ctx, t, h.recorder, 1)
 	}
-	// blockFirstStream returns a handler whose first streaming request
-	// signals started and then waits for release before answering with
-	// first. Later streaming requests answer with text.
 	blockFirstStream := func(started chan<- struct{}, release <-chan struct{}, first chattest.OpenAIResponse) func(*chattest.OpenAIRequest) chattest.OpenAIResponse {
 		var calls atomic.Int32
 		return func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -14838,8 +14826,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("done")...)
 		}
 	}
-	// A streaming response is consumed once, so each request builds its
-	// own.
+	// A streaming response can be consumed only once.
 	textResponse := func() chattest.OpenAIResponse {
 		return chattest.OpenAIStreamingResponse(openAITextChunksWithStop("hello")...)
 	}
@@ -14892,8 +14879,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		t.Fatal("chat has no user message")
 		return database.ChatMessage{}
 	}
-	// requireStandaloneQueueWait asserts one queue_wait span that is a
-	// trace root starting when the message was queued.
 	requireStandaloneQueueWait := func(t *testing.T, index spanIndex, queuedAt time.Time) {
 		t.Helper()
 		queueWait := single(t, index, chatloop.StageQueueWait)
@@ -14938,7 +14923,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		requireChild(t, stream, generate)
 		requireChild(t, single(t, index, chatloop.StageTimeToFirstToken), stream)
 		requireChild(t, single(t, index, chatloop.StageCommit), generate)
-		// The step and the stream report the same wire provider.
 		require.NotEmpty(t, chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Equal(t, chatd.SpanAttr(t, stream, chatloop.AttrProvider), chatd.SpanAttr(t, generate, chatloop.AttrProvider))
 		require.Empty(t, index[string(chatloop.StageQueueWait)])
@@ -14952,7 +14936,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			if !req.Stream {
 				return chattest.OpenAINonStreamingResponse("title")
 			}
-			// A 400 is non-retryable, so the turn fails on its first attempt.
+			// A 400 is non-retryable.
 			return chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error", "synthetic failure")
 		}, database.ChatStatusError)
 
@@ -15015,8 +14999,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 1)
 
-		// The failed attempt, the backoff, and the retried attempt all
-		// belong to the one completed turn.
 		turn := single(t, index, chatloop.StageChatTurn)
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
 		steps := index[string(chatloop.StageGenerationStep)]
@@ -15030,9 +15012,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Len(t, index[string(chatloop.StageStream)], 2)
 	})
 
-	// The task timeout cancels a step waiting on its provider retry
-	// backoff. The task runner retries the step, and the retry continues
-	// the same turn.
+	// The task timeout fires during the provider retry backoff.
 	t.Run("TaskTimeoutRetryKeepsTurnOpen", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -15052,8 +15032,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			return textResponse()
 		}, func(cfg *chatd.Config) { cfg.Clock = clock })
 		chat := createChatThroughServer(ctx, t, h.db, h.server, h.org.ID, h.user.ID, h.model.ID, "hello")
-		// The step is held while creating its backoff timer, so the task
-		// timeout fires before the backoff can elapse.
+		// Holding the backoff timer lets the task timeout fire first.
 		retryTimer := retryTrap.MustWait(ctx)
 		advanceMockClockBy(ctx, t, clock, chatd.DefaultTaskTimeout)
 		retryTimer.MustRelease(ctx)
@@ -15112,8 +15091,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusError)
 		index := waitForTurns(ctx, t, h.recorder, 1)
 
-		// The step commits with the tool result and fails the turn in the
-		// same transaction.
+		// The tool result commit also fails the turn.
 		turn := single(t, index, chatloop.StageChatTurn)
 		require.Equal(t, string(chatloop.TurnOutcomeError), chatd.SpanAttr(t, turn, chatloop.AttrTurnOutcome))
 		require.Equal(t, codes.Error, turn.Status().Code)
@@ -15154,8 +15132,7 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 		index := waitForTurns(ctx, t, h.recorder, 1)
 
-		// Generation continues without the server, and each connect
-		// stage reports the failure.
+		// Generation continues without the failed server.
 		connects := index[string(chatloop.StageMCPConnect)]
 		require.NotEmpty(t, connects)
 		prepares := index[string(chatloop.StagePrepare)]
@@ -15210,8 +15187,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 				}
 				turns := index[string(chatloop.StageChatTurn)]
 				requireStandaloneQueueWait(t, index, sent.QueuedMessage.CreatedAt)
-				// The promoted turn starts when the promotion inserted its
-				// message and measures its pickup as acquisition.
 				require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 				require.NotEqual(t, turns[0].SpanContext().TraceID(), turns[1].SpanContext().TraceID())
 				for _, turn := range turns {
@@ -15249,9 +15224,8 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
-	// Promoting a queued message on a running chat interrupts the turn;
-	// the queued message is promoted, and its queue_wait recorded, only
-	// once the interruption finishes.
+	// The promotion and its queue_wait happen only after the interruption
+	// finishes.
 	t.Run("PromoteQueuedWhileRunning", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -15282,8 +15256,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, string(chatloop.TurnOutcomeCompleted), chatd.SpanAttr(t, turns[1], chatloop.AttrTurnOutcome))
 	})
 
-	// A message edit replaces the prompt: the edited turn is abandoned,
-	// not interrupted, and the replacement runs in its own turn.
 	t.Run("EditAbandonsTurn", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -15309,8 +15281,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, lastUserMessage(ctx, t, h.db, chat.ID).CreatedAt.UTC(), turns[1].StartTime().UTC())
 	})
 
-	// Server shutdown cancels the running task; the runner closes the
-	// turn as abandoned when it exits.
 	t.Run("ShutdownAbandonsTurn", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -15327,8 +15297,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		require.Equal(t, codes.Unset, turn.Status().Code)
 	})
 
-	// failWithQueuedMessage runs the first prompt to an error while a
-	// second message is queued, leaving the chat in error with a queue.
 	failWithQueuedMessage := func(ctx context.Context, t *testing.T) (harness, database.Chat, database.ChatQueuedMessage) {
 		t.Helper()
 		started, release := make(chan struct{}), make(chan struct{})
@@ -15373,8 +15341,8 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		h, chat, queued := failWithQueuedMessage(ctx, t)
 
-		// The send queues its own message and promotes the head; the
-		// finishing turn then promotes the new message.
+		// The send promotes the head and queues its own message, which the
+		// finishing turn then promotes.
 		sent, err := h.server.SendMessage(ctx, chatd.SendMessageOptions{
 			ChatID:       chat.ID,
 			CreatedBy:    h.user.ID,
@@ -15427,7 +15395,6 @@ func TestActiveServer_TracesChatTurn(t *testing.T) {
 			waiting = got
 			return got.Status == database.ChatStatusRequiresAction
 		}, testutil.IntervalFast)
-		// The turn closes when the chat starts waiting for the client.
 		waitForTurns(ctx, t, h.recorder, 1)
 
 		call := requireToolCallPart(t, chatToolParts(ctx, t, h.db, chat.ID), "my_dynamic_tool")

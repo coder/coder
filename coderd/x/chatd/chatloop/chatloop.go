@@ -173,10 +173,7 @@ type ExecuteLocalToolsOptions struct {
 	// that never run. Optional.
 	BillingRecorder ToolBillingRecorder
 
-	// Stages receives one tool_call stage per local tool call. The tool
-	// runs on the stage's context. Optional.
-	Stages *StageTracer
-	// StageModel is the model identity carried by the tool_call stages.
+	Stages     *StageTracer
 	StageModel StageModel
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
@@ -1067,8 +1064,7 @@ type toolExecutionResult struct {
 
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
 // call order. Results are returned in original order after all tools finish.
-// recorder, if set, receives live start and completion timestamps. Each
-// call runs inside a tool_call stage started on stages.
+// recorder, if set, receives live start and completion timestamps.
 func executeTools(
 	ctx context.Context,
 	clock quartz.Clock,
@@ -1139,8 +1135,7 @@ func executeTools(
 
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
-		// The tool_call stage starts only for a call whose tool runs, so
-		// calls rejected as inactive or unknown record no stage.
+		// Started only if the tool runs, so rejected calls record no stage.
 		var toolSpan *StageSpan
 		startRun := func(ctx context.Context) context.Context {
 			var toolCtx context.Context
@@ -1326,10 +1321,7 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 
 // executeSingleTool executes one tool call and converts the
 // response into a ToolResultContent. The error is non-nil only when
-// tool.Run fails; the result also reports it to the model. It is nil
-// when the tool is not active, is not found, or ran and returned an
-// error result of its own. startRun, when non-nil, is called just
-// before the tool runs and returns the context it runs on.
+// tool.Run fails. startRun, if set, supplies the context the tool runs on.
 func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,

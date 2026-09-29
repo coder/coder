@@ -262,12 +262,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	if err != nil {
 		return normalizeTaskInfrastructureError(err, "lock chat for interrupt")
 	}
-	// The chat is interrupting, so the open turn, if any, is the one an
-	// interrupt request stopped, whether it came from a user, an API
-	// client, or a parent agent. It is marked before FinishInterruption
-	// commits: the commit can promote a queued prompt, and that prompt's
-	// turn would otherwise replace the stopped one and close it as
-	// abandoned.
+	// Mark before the commit: it can promote a queued prompt whose turn
+	// would otherwise close this one as abandoned.
 	stoppedTurn := input.TurnSpan.OpenToken(ctx)
 	input.TurnSpan.Invalidate(stoppedTurn, chatloop.TurnOutcomeInterrupted, nil)
 

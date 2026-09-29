@@ -6,16 +6,13 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// StageAnomalyCount returns the coderd_chatd_stage_anomalies_total
-// count recorded for reason.
+// StageAnomalyCount returns the stage anomaly count for reason.
 var StageAnomalyCount = anomalyCount
 
-// DefaultTaskTimeout is how long a task attempt runs before the task
-// timeout cancels it.
+// DefaultTaskTimeout is the per-attempt task timeout.
 const DefaultTaskTimeout = defaultTaskTimeout
 
-// SpanAttr returns the emitted value of the span attribute key, or an
-// empty string when the span does not carry it.
+// SpanAttr returns the span attribute key, or "" when unset.
 func SpanAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string) string {
 	t.Helper()
 	value, ok := spanAttribute(t, span, key)

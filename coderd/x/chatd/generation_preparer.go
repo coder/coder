@@ -813,10 +813,7 @@ func (server *Server) prepareGeneration(
 	}, nil
 }
 
-// mcpConnectOutcome counts the MCP servers that connected and that
-// failed, and returns an error naming each failed server when servers
-// were configured but none connected. A server that connected with no
-// tools counts as connected. Partial failures return a nil error.
+// mcpConnectOutcome returns an error only when no server connected.
 func mcpConnectOutcome(summaries []mcpclient.ConnectSummary) (connected, failed int, err error) {
 	var failures []string
 	for _, summary := range summaries {

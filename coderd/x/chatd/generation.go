@@ -447,18 +447,14 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if again {
 			continue
 		}
-		// The step's stage has ended by now, so a turn the step finished
-		// or invalidated closes with that stage counted. A failed step
-		// that recorded no outcome leaves the turn open.
+		// After the step's stage ends so the turn includes it.
 		input.TurnSpan.Settle(input.TurnToken)
 		return err
 	}
 }
 
-// runGenerationStep runs one step of a turn: preparation, the action
-// decision, and the action itself. again reports that another step is
-// required after reloading state; next carries the history version the
-// step advanced to.
+// runGenerationStep runs one step of a turn. again means reload state
+// and run another step.
 func (s *taskStarter) runGenerationStep(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -824,10 +820,8 @@ func (s *taskStarter) generateAssistant(
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
 }
 
-// recordThinkingStages emits one thinking stage per reasoning part of
-// a step, bounded by the part's own start and completion timestamps.
-// Parts are paired by index; a part without a completion timestamp
-// ends the sweep because later indexes cannot be paired either.
+// recordThinkingStages pairs reasoning start and completion timestamps
+// by index.
 func (s *taskStarter) recordThinkingStages(
 	ctx context.Context,
 	prepared generationPrepared,
@@ -1074,8 +1068,6 @@ func (s *taskStarter) generateCompaction(
 	}
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
-	// The compaction stage is labeled with the model that runs the
-	// summary: the chat model unless an override is configured.
 	compactionModel := prepared.StageModel
 	if override := prepared.Compaction.Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
@@ -1407,8 +1399,7 @@ func (s *taskStarter) enterRequiresAction(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
-	// The turn ends while the chat waits for the client; the submitted
-	// tool results open the next one.
+	// Submitted tool results open the next turn.
 	input.TurnSpan.Complete(input.TurnToken)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)

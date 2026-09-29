@@ -621,8 +621,7 @@ func TestExecuteLocalToolsToolCallStage(t *testing.T) {
 			Tools:       []fantasy.AgentTool{tool},
 			ActiveTools: []string{"missing"},
 			ToolCalls: []fantasy.ToolCallContent{
-				// read_file exists but is inactive; missing is active but
-				// has no tool.
+				// read_file is inactive; missing has no tool.
 				{ToolCallID: "call-1", ToolName: "read_file", Input: "{}"},
 				{ToolCallID: "call-2", ToolName: "missing", Input: "{}"},
 			},

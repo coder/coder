@@ -29,15 +29,11 @@ import (
 	"github.com/coder/quartz"
 )
 
-// turnSpansByStart returns the chat_turn spans the recorder saw,
-// ordered by start time.
 func turnSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder) []sdktrace.ReadOnlySpan {
 	t.Helper()
 	return stageSpansByStart(t, recorder, chatloop.StageChatTurn)
 }
 
-// stageSpansByStart returns the stage spans the recorder saw, ordered
-// by start time.
 func stageSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder, stage chatloop.Stage) []sdktrace.ReadOnlySpan {
 	t.Helper()
 	var spans []sdktrace.ReadOnlySpan
@@ -123,13 +119,11 @@ func TestRunnerTurnSpanRotatesOnNewerTrigger(t *testing.T) {
 
 	firstTrigger := time.Now().Add(-time.Minute)
 	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
-	// A newer prompt lands while the first turn is still open, and its
-	// task reaches Ensure before the canceled task records anything.
+	// The newer prompt's Ensure runs before the stale task invalidates.
 	secondTrigger := time.Now().Add(-10 * time.Second)
 	_, second := turn.Ensure(t.Context(), uuid.Nil, chat, secondTrigger)
 	require.NotEqual(t, first, second)
 	turn.Invalidate(first, chatloop.TurnOutcomeInterrupted, xerrors.New("canceled"))
-	// An older trigger on the open turn does not rotate it.
 	_, again := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
 	require.Equal(t, second, again)
 	turn.Complete(second)
@@ -167,8 +161,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	turn.Settle(first)
 	require.Zero(t, staleAnchors())
 
-	// The same prompt reopening the turn after an invalidation starts
-	// at now and records no second acquisition.
+	// Reopening for the same trigger counts as a stale anchor.
 	clock.Advance(time.Second).MustWait(ctx)
 	reopenedAt := clock.Now()
 	_, reopened := turn.Ensure(ctx, uuid.Nil, chat, firstTrigger)
@@ -177,7 +170,6 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	turn.Complete(reopened)
 	turn.Settle(reopened)
 
-	// So does a trigger before the previous anchor.
 	clock.Advance(time.Second).MustWait(ctx)
 	olderAt := clock.Now()
 	_, older := turn.Ensure(ctx, uuid.Nil, chat, firstTrigger.Add(-30*time.Second))
@@ -186,7 +178,6 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	turn.Complete(older)
 	turn.Settle(older)
 
-	// A trigger after the previous anchor is kept.
 	thirdTrigger := olderAt.Add(time.Millisecond)
 	clock.Advance(time.Second).MustWait(ctx)
 	_, third := turn.Ensure(ctx, uuid.Nil, chat, thirdTrigger)
@@ -215,7 +206,6 @@ func TestRunnerTurnSpanKeepsAnchorBeforePreviousClose(t *testing.T) {
 
 	firstTrigger := time.Now().Add(-time.Minute)
 	_, first := turn.Ensure(t.Context(), uuid.Nil, chat, firstTrigger)
-	// The next prompt lands while the first turn is still running.
 	secondTrigger := time.Now().Add(-10 * time.Second)
 	turn.Complete(first)
 	turn.Settle(first)
@@ -282,9 +272,6 @@ func TestRunnerTurnSpanZeroTriggerRecordsNoAcquisition(t *testing.T) {
 	require.Zero(t, anomalyCount(t, registry, chatloop.StageAnomalyInvertedWindow))
 }
 
-// TestRunnerTurnSpanEnsureClosesUnsettledTurn covers an Ensure for the
-// same trigger that arrives after the turn finished or was invalidated
-// but before Settle closed it.
 func TestRunnerTurnSpanEnsureClosesUnsettledTurn(t *testing.T) {
 	t.Parallel()
 
@@ -421,8 +408,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		return chatloop.TurnOutcome(value.AsString())
 	}
 
-	// Complete follows the committed finishing transition, so a failure
-	// after it cannot change how the turn is counted.
 	t.Run("InvalidateAfterCompleteIgnored", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
@@ -444,7 +429,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		firstErr := xerrors.New("provider refused")
 		turn.Invalidate(token, chatloop.TurnOutcomeError, firstErr)
-		// The first invalidation wins over later ones.
 		turn.Invalidate(token, chatloop.TurnOutcomeInterrupted, xerrors.New("later"))
 		turn.End(nil)
 
@@ -465,7 +449,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		span := turnSpanFor(t, recorder)
 		require.Equal(t, codes.Error, span.Status().Code)
 		require.Equal(t, chatloop.TurnOutcomeError, outcome(t, span))
-		// Runner exit after Settle records no second turn.
 		turn.End(nil)
 		require.Len(t, turnSpansByStart(t, recorder), 1)
 	})
@@ -477,7 +460,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Settle(token)
 		require.Empty(t, turnSpansByStart(t, recorder))
-		// End closes the unfinished turn as abandoned.
 		turn.End(nil)
 		span := turnSpanFor(t, recorder)
 		require.Equal(t, codes.Unset, span.Status().Code)
@@ -532,9 +514,6 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	})
 }
 
-// TestRunnerTurnSpanCanceledEnsure runs a canceled task's Ensure after
-// its replacement opened the turn for a newer prompt. The canceled task
-// gets no token, so its failure cannot close the replacement's turn.
 func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -569,10 +548,6 @@ func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 	}
 }
 
-// TestRunnerTurnSpanCanceledOpenToken runs a canceled interrupt task's
-// OpenToken after an edited prompt opened a new turn. The canceled task
-// gets no token, so the edited turn completes and the stopped turn
-// closes as abandoned.
 func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -597,9 +572,6 @@ func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
 	}
 }
 
-// TestRunnerTurnSpanObservesOnlyCompletedTurns closes one turn with each
-// outcome and checks that only the completed one is observed on the
-// stage histogram.
 func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 	t.Parallel()
 	tracer, recorder, registry := newStageMetricsTracer(t)
@@ -615,7 +587,6 @@ func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 		turn.Invalidate(token, outcome, xerrors.New(string(outcome)))
 		turn.Settle(token)
 	}
-	// Runner exit closes the last turn as abandoned.
 	turn.Ensure(t.Context(), uuid.Nil, chat, base.Add(10*time.Minute))
 	turn.End(nil)
 
@@ -623,10 +594,6 @@ func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 	require.Equal(t, uint64(1), stageObservationCount(t, registry, chatloop.StageChatTurn))
 }
 
-// TestRunnerTurnSpanSupersededTurnWaitsForHolder replaces a turn with a
-// newer prompt's turn while the task that ran it still holds it. The
-// replaced turn ends at the replacement time, and the outcome its task
-// records before releasing it is the one emitted.
 func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
 	t.Parallel()
 
@@ -687,7 +654,6 @@ func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
 			outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
 			require.Equal(t, tt.wantOutcome, chatloop.TurnOutcome(outcome.AsString()))
 
-			// Marks after emission are ignored.
 			turn.Invalidate(first, chatloop.TurnOutcomeError, failure)
 			turn.Settle(first)
 			require.Len(t, turnSpansByStart(t, recorder), 1)
@@ -695,9 +661,6 @@ func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
 	}
 }
 
-// TestRunnerTurnSpanSettleWaitsForHolders settles a turn that two tasks
-// joined. The turn is no longer current once settled, ends at the
-// settle time, and is emitted when the last holder releases it.
 func TestRunnerTurnSpanSettleWaitsForHolders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -729,8 +692,6 @@ func TestRunnerTurnSpanSettleWaitsForHolders(t *testing.T) {
 	require.Equal(t, chatloop.TurnOutcomeInterrupted, chatloop.TurnOutcome(outcome.AsString()))
 }
 
-// TestRunnerTurnSpanReleasedTurnEmitsOnClose releases the only holder
-// of the current turn before it closes; closing it emits it at once.
 func TestRunnerTurnSpanReleasedTurnEmitsOnClose(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -746,9 +707,6 @@ func TestRunnerTurnSpanReleasedTurnEmitsOnClose(t *testing.T) {
 	require.Len(t, turnSpansByStart(t, recorder), 1)
 }
 
-// TestRunnerTurnSpanEndEmitsHeldTurns ends the runner while a replaced
-// turn and the current turn are both still held. End emits both, and
-// no turn opens afterwards.
 func TestRunnerTurnSpanEndEmitsHeldTurns(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
@@ -775,8 +733,6 @@ func TestRunnerTurnSpanEndEmitsHeldTurns(t *testing.T) {
 	require.Len(t, turnSpansByStart(t, recorder), 2)
 }
 
-// stageObservationCount returns how many observations the stage
-// duration histogram recorded for stage.
 func stageObservationCount(t *testing.T, registry *prometheus.Registry, stage chatloop.Stage) uint64 {
 	t.Helper()
 	families, err := registry.Gather()
@@ -798,9 +754,7 @@ func stageObservationCount(t *testing.T, registry *prometheus.Registry, stage ch
 }
 
 // TestFinishGenerationErrorOutcomeSurvivesCommitCancel cancels the task
-// context as soon as the finishing commit publishes its state change.
-// The turn still closes as an error, because the committed FinishError
-// decides the outcome.
+// context as soon as the finishing commit publishes.
 func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	t.Parallel()
 	f := newTaskTestFixture(t)
@@ -833,8 +787,7 @@ func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 		TurnToken:         token,
 	}
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
-	// The error returned by post-commit side effects on the canceled
-	// context is irrelevant here.
+	// Post-commit side effects fail on the canceled context.
 	_ = starter.finishGenerationError(taskCtx, machine, input, xerrors.New("provider refused"), generationAttemptNotRequired)
 	require.ErrorIs(t, taskCtx.Err(), context.Canceled)
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
@@ -848,9 +801,8 @@ func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	require.Equal(t, chatloop.TurnOutcomeError, chatloop.TurnOutcome(outcome.AsString()))
 }
 
-// TestInterruptTaskInterruptsOpenTurn interrupts a chat whose turn is
-// open but held by no generation task, as between two steps. The
-// interrupt task closes that turn as interrupted.
+// TestInterruptTaskInterruptsOpenTurn uses an open but unheld turn, as
+// between two generation steps.
 func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	t.Parallel()
 	f := newTaskTestFixture(t)
@@ -883,10 +835,8 @@ func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	require.Zero(t, turn.OpenToken(t.Context()))
 }
 
-// TestInterruptTaskMarksTurnBeforeCommit opens a newer turn while the
-// interrupt task's FinishInterruption commit publishes, as a promoted
-// prompt's task can. The stopped turn was marked before the commit, so
-// the newer turn closes it as interrupted.
+// TestInterruptTaskMarksTurnBeforeCommit opens a promoted prompt's turn
+// while FinishInterruption publishes.
 func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	t.Parallel()
 	f := newTaskTestFixture(t)

@@ -30,8 +30,6 @@ func newStageTestTracer(t *testing.T) (*chatloop.StageTracer, *tracetest.SpanRec
 	return tracer, recorder
 }
 
-// newStageMetricsTracer returns a stage tracer writing spans into an
-// in-memory recorder and metrics into a private registry.
 func newStageMetricsTracer(t *testing.T, opts ...chatloop.StageTracerOption) (*chatloop.StageTracer, *tracetest.SpanRecorder, *prometheus.Registry) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
@@ -44,7 +42,6 @@ func newStageMetricsTracer(t *testing.T, opts ...chatloop.StageTracerOption) (*c
 	return chatloop.NewStageTracer(provider, chatloop.NewMetricsWithOptions(registry, chatloop.MetricsOptions{StageMetrics: true}), opts...), recorder, registry
 }
 
-// anomalyCount returns the stage anomaly count recorded for reason.
 func anomalyCount(t *testing.T, registry *prometheus.Registry, reason chatloop.StageAnomaly) float64 {
 	t.Helper()
 	families, err := registry.Gather()
@@ -175,12 +172,9 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
 
-	// The promoting request has its own span, which the queue wait must
-	// not join.
 	requestCtx, requestSpan := tracer.Start(t.Context(), chatloop.StageCommit)
 	queuedAt := clock.Now().Add(-30 * time.Second)
 	server.recordQueueWait(requestCtx, chat, queuedAt)
-	// A zero queue time means nothing was promoted.
 	server.recordQueueWait(requestCtx, chat, time.Time{})
 	requestSpan.End(nil)
 
@@ -199,7 +193,6 @@ func TestServerRecordQueueWaitIsStandalone(t *testing.T) {
 	require.False(t, queueWait.Parent().IsValid())
 	require.NotEqual(t, request.SpanContext().TraceID(), queueWait.SpanContext().TraceID())
 	require.Equal(t, queuedAt.UTC(), queueWait.StartTime().UTC())
-	// The wait ends at the tracer's now.
 	require.Equal(t, clock.Now().UTC(), queueWait.EndTime().UTC())
 	require.Contains(t, queueWait.Attributes(),
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)))
@@ -212,8 +205,8 @@ func TestServerInflightContextIsBackgroundScoped(t *testing.T) {
 	tracer, recorder := newStageTestTracer(t)
 	server := &Server{ctx: t.Context(), stages: tracer}
 
-	// The turn is for a root chat, so the subagent kind on the stage
-	// comes from the chat passed to inflightChatContext.
+	// The turn's chat is a root chat, so a subagent kind must come from
+	// inflightChatContext.
 	turn := newRunnerTurnSpan(tracer, false)
 	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now().Add(-time.Second))
 	chat := database.Chat{
