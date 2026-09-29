@@ -492,6 +492,36 @@ export interface AIProviderBedrockSettings {
  */
 export const AIProviderBedrockSettingsVersion = 1;
 
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettings configures providers that authenticate
+ * against Claude Platform for AWS: Anthropic's native Messages API hosted on
+ * AWS. It speaks the standard Messages wire format with standard Anthropic
+ * model IDs, so it is an authentication and routing variant of
+ * AIProviderTypeAnthropic rather than a provider type of its own.
+ * Requests use a client or provider API key when available, otherwise the
+ * gateway signs with its ambient AWS credentials.
+ */
+export interface AIProviderClaudePlatformAWSSettings {
+	/**
+	 * Region selects the default regional endpoint and SigV4 signing scope.
+	 * Required even when BaseURL points at a proxy.
+	 */
+	readonly region: string;
+	/**
+	 * WorkspaceID is sent as the anthropic-workspace-id header on every
+	 * request. Required regardless of the credential used.
+	 */
+	readonly workspace_id: string;
+}
+
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderClaudePlatformAWSSettingsVersion is the current schema version of
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderClaudePlatformAWSSettingsVersion = 1;
+
 // From codersdk/aiproviders.go
 /**
  * AIProviderKey is a single API key registered on a provider. The
@@ -534,6 +564,11 @@ export interface AIProviderKeyMutation {
  * fields. The custom (Un)MarshalJSON implementations on this type
  * handle the routing automatically; callers should never marshal the
  * concrete settings struct directly.
+ *
+ * AIProviderTypeBedrock is a distinct provider type for historical reasons.
+ * New Anthropic *authentication methods* do not get provider types: they are
+ * settings variants on AIProviderTypeAnthropic, which is why
+ * ClaudePlatformAWS has no matching AIProviderType.
  */
 export interface AIProviderSettings {}
 
@@ -543,6 +578,13 @@ export interface AIProviderSettings {}
  * AIProviderBedrockSettings.
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders_claude_platform_aws.go
+/**
+ * AIProviderSettingsTypeClaudePlatformAWS is the _type discriminator value for
+ * AIProviderClaudePlatformAWSSettings.
+ */
+export const AIProviderSettingsTypeClaudePlatformAWS = "claude_platform_aws";
 
 // From codersdk/aiproviders.go
 /**
