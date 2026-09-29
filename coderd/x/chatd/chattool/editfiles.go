@@ -378,8 +378,8 @@ func executeEditFilesTool(
 	if err != nil {
 		if agentWroteNothing(err, len(request.Files)) {
 			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"Applied 0 of %d edits: %s\nFix the failing edit and resend all edits.",
-				len(args.Edits), agentAPIErrorMessage(err),
+				"Applied 0 of %s: %s\nFix the failing edit and resend all edits.",
+				countEdits(len(args.Edits)), agentAPIErrorMessage(err),
 			)), nil
 		}
 		return fantasy.NewTextErrorResponse(
@@ -400,7 +400,7 @@ func executeEditFilesTool(
 	}
 	// The request is all or nothing, so success means every edit was
 	// applied.
-	result.Message = fmt.Sprintf("Applied %d of %d edits.", len(args.Edits), len(args.Edits))
+	result.Message = fmt.Sprintf("Applied %d of %s.", len(args.Edits), countEdits(len(args.Edits)))
 	return marshalToolResponse(result), nil
 }
 
@@ -423,10 +423,22 @@ type editFilesFileResult struct {
 	Diff   string `json:"diff"`
 }
 
+// countEdits renders n with the noun edit, singular when n is 1.
+func countEdits(n int) string {
+	if n == 1 {
+		return "1 edit"
+	}
+	return fmt.Sprintf("%d edits", n)
+}
+
 // rejectEditFiles returns a whole-call rejection decided before any
-// edit request reached the agent, so no file was written.
+// edit request reached the agent, so no file was written. The reason
+// gets a closing period unless it already ends a sentence.
 func rejectEditFiles(reason string) fantasy.ToolResponse {
-	return fantasy.NewTextErrorResponse(reason + ".\n" + editFilesNoneApplied)
+	if !strings.HasSuffix(reason, ".") && !strings.HasSuffix(reason, "?") && !strings.HasSuffix(reason, "!") {
+		reason += "."
+	}
+	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
 }
 
 // agentWroteNothing reports whether an EditFiles error proves that the

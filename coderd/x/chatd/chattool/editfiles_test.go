@@ -170,6 +170,26 @@ func TestEditFiles(t *testing.T) {
 				},
 				wantErr: "resolve chat-specific plan path: workspace unavailable.\nNo edits were applied.",
 			},
+			// A reason that already ends a sentence gets no second
+			// period.
+			{
+				name: "ConnectionErrorEndsWithPeriod",
+				options: chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return nil, xerrors.New("workspace agent is not connected.")
+					},
+				},
+				wantErr: "workspace agent is not connected.\nNo edits were applied.",
+			},
+			{
+				name: "ConnectionErrorEndsWithQuestionMark",
+				options: chattool.EditFilesOptions{
+					GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+						return nil, xerrors.New("is the workspace running?")
+					},
+				},
+				wantErr: "is the workspace running?\nNo edits were applied.",
+			},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -287,7 +307,7 @@ func TestEditFiles(t *testing.T) {
 				name:     "BadRequestOmitsTransportNoise",
 				input:    `{"edits":[{"path":"a.txt","old_text":"old","new_text":"new"}]}`,
 				agentErr: xerrors.Errorf("do request: %w", detailed),
-				wantErr:  "Applied 0 of 1 edits: file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 1 edit: file path must be absolute: \"a.txt\": Use an absolute path.: some detail\n- path: must be absolute\nFix the failing edit and resend all edits.",
 			},
 			{
 				name:     "BadRequestSeveralFiles",
@@ -305,7 +325,7 @@ func TestEditFiles(t *testing.T) {
 				name:     "ServerErrorOneFile",
 				input:    oneFile,
 				agentErr: agentError(http.StatusInternalServerError, "write /repo/a.go: no space left on device"),
-				wantErr:  "Applied 0 of 1 edits: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
+				wantErr:  "Applied 0 of 1 edit: write /repo/a.go: no space left on device\nFix the failing edit and resend all edits.",
 			},
 			{
 				// Two edits to one file are still a single-file request.
@@ -862,7 +882,7 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
 				{Path: "/repo/a.go", Diff: diffA},
 			}},
-			want: `{"status":"applied","message":"Applied 1 of 1 edits.","files":[` +
+			want: `{"status":"applied","message":"Applied 1 of 1 edit.","files":[` +
 				`{"path":"/repo/a.go","status":"applied","diff":"--- /repo/a.go\n+++ /repo/a.go\n@@ -1 +1 @@\n-x := 1\n+x := 2\n"}]}`,
 		},
 		{
@@ -887,7 +907,7 @@ func TestEditFiles_AppliedResult(t *testing.T) {
 			agentResp: workspacesdk.FileEditResponse{Files: []workspacesdk.FileEditResult{
 				{Path: "/repo/a.go"},
 			}},
-			want: `{"status":"applied","message":"Applied 1 of 1 edits.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
+			want: `{"status":"applied","message":"Applied 1 of 1 edit.","files":[{"path":"/repo/a.go","status":"applied","diff":""}]}`,
 		},
 		{
 			// Agents that predate per-file results return none. The
