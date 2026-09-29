@@ -28,28 +28,18 @@ const (
 // StageAnomaly is the `reason` label value of stageAnomaliesTotal.
 type StageAnomaly string
 
-// StageAnomaly values.
+// StageAnomaly values. FutureStart and StaleAnchor samples are clamped;
+// the others are dropped.
 const (
-	// StageAnomalyNegativeElapsed counts a stage whose measured duration
-	// was negative; the sample is dropped.
-	StageAnomalyNegativeElapsed StageAnomaly = "negative_elapsed"
-	// StageAnomalyInvertedWindow counts a stage reconstructed from
-	// timestamps whose end preceded its start; the sample is dropped.
-	StageAnomalyInvertedWindow StageAnomaly = "inverted_window"
-	// StageAnomalyMissingTimestamp counts a stage reconstructed from
-	// timestamps one of which was unset; the sample is dropped.
+	StageAnomalyNegativeElapsed  StageAnomaly = "negative_elapsed"
+	StageAnomalyInvertedWindow   StageAnomaly = "inverted_window"
 	StageAnomalyMissingTimestamp StageAnomaly = "missing_timestamp"
-	// StageAnomalyFutureStart counts a stage whose explicit start was
-	// ahead of this replica's clock; the stage is measured from now.
-	StageAnomalyFutureStart StageAnomaly = "future_start"
-	// StageAnomalyStaleAnchor counts a turn whose trigger timestamp did
-	// not follow the previous turn's anchor on the same runner; the
-	// anchor is clamped to the previous one.
-	StageAnomalyStaleAnchor StageAnomaly = "stale_anchor"
+	StageAnomalyFutureStart      StageAnomaly = "future_start"
+	StageAnomalyStaleAnchor      StageAnomaly = "stale_anchor"
 )
 
-// observedStages are the stages observed into stageDurationSeconds;
-// every other stage is span-only.
+// observedStages get histogram samples; other stages are span-only.
+// The stage_duration_seconds help text must list the same set.
 var observedStages = map[Stage]struct{}{
 	StageChatTurn:         {},
 	StageQueueWait:        {},
@@ -63,25 +53,19 @@ var observedStages = map[Stage]struct{}{
 	StageRetryBackoff:     {},
 }
 
-// modelStages is the set of stages observed into
-// modelStageDurationSeconds: the stages whose duration is the
-// provider's work on a model. Per-model time to first token is
+// modelStages measure provider work on a model. Per-model TTFT is
 // TTFTSeconds.
 var modelStages = map[Stage]struct{}{
 	StageStream:          {},
 	StageProviderAttempt: {},
 }
 
-// stageDurationBuckets are the edges of both stage histograms, dense
-// between 100ms and 10s and sparse out to an hour.
 var stageDurationBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 300, 1800, 3600}
 
-// MetricsOptions configures which optional metric families
-// NewMetricsWithOptions registers.
+// MetricsOptions configures optional metric families.
 type MetricsOptions struct {
-	// StageMetrics registers the chat lifecycle stage families. When
-	// false they are still constructed, against no registerer, so every
-	// recorder can be called; they never appear in a scrape.
+	// StageMetrics registers the stage families. When false they are
+	// built unregistered so recorders still work.
 	StageMetrics bool
 }
 
@@ -239,12 +223,6 @@ func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
 }
 
-// recordStageDuration observes one chat lifecycle stage duration.
-// Stages outside observedStages are dropped silently; negative
-// durations of observed stages are dropped and counted as an anomaly.
-// Turn-scoped stages in modelStages whose model is known are
-// additionally observed on modelStageDurationSeconds. No-op when m is
-// nil.
 func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {
 	if m == nil {
 		return
@@ -266,8 +244,6 @@ func (m *Metrics) recordStageDuration(stage Stage, scope Scope, chatKind ChatKin
 	}
 }
 
-// recordStageAnomaly counts a stage observation that was dropped or
-// adjusted, by reason. No-op when m is nil.
 func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 	if m == nil {
 		return
