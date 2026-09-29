@@ -31,9 +31,9 @@ func TestEditFiles(t *testing.T) {
 		require.NoError(t, err)
 		assert.JSONEq(t, `{"edits":{"type":"array","items":{
 			"type":"object","required":["path","old_text","new_text"],"properties":{
-				"path":{"type":"string","description":"Absolute path of the file to edit."},
-				"old_text":{"type":"string","description":"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."},
-				"new_text":{"type":"string","description":"Replacement text."},
+				"path":{"type":"string","description":"Absolute path of the file, for example /home/coder/project/main.go."},
+				"old_text":{"type":"string","description":"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."},
+				"new_text":{"type":"string","description":"Replacement text. Must differ from old_text."},
 				"replace_all":{"type":"boolean","description":"Replace every match of old_text."}}}}}`,
 			string(parameters))
 		assert.Equal(t, []string{"edits"}, info.Required)
@@ -57,22 +57,22 @@ func TestEditFiles(t *testing.T) {
 					`{"old_text":"old","new_text":"new"},` +
 					`{"path":"  ","old_text":"old","new_text":"new"}` +
 					`]}`,
-				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo files were applied.",
+				wantErr: "Set path to the absolute path of the file to edit in edits[1], edits[2]\nNo edits were applied.",
 			},
 			{
 				name:    "EmptyEdits",
 				input:   `{"edits":[]}`,
-				wantErr: "Add at least one edit to edits\nNo files were applied.",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "MissingEdits",
 				input:   `{}`,
-				wantErr: "Add at least one edit to edits\nNo files were applied.",
+				wantErr: "Add at least one edit to edits\nNo edits were applied.",
 			},
 			{
 				name:    "OldFilesShape",
 				input:   `{"files":[{"path":"/repo/a.go","edits":[{"old_text":"old","new_text":"new"}]}]}`,
-				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo files were applied.",
+				wantErr: "Send a flat list of edits where every edit has its own path, for example " + example + "; the files key is not supported\nNo edits were applied.",
 			},
 			{
 				// fantasy's own decode error names Go types and does
@@ -83,7 +83,7 @@ func TestEditFiles(t *testing.T) {
 				input: `{"edits":"not json"}`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects with string path, old_text and new_text, and optional boolean replace_all, for example " + example,
-					"\nNo files were applied.",
+					"\nNo edits were applied.",
 				},
 			},
 			{
@@ -91,7 +91,7 @@ func TestEditFiles(t *testing.T) {
 				input: `[]`,
 				wantContains: []string{
 					"Send edits as a JSON array of objects",
-					"\nNo files were applied.",
+					"\nNo edits were applied.",
 				},
 			},
 		}
@@ -136,7 +136,7 @@ func TestEditFiles(t *testing.T) {
 			{
 				name:    "ResolverNotConfigured",
 				options: chattool.EditFilesOptions{},
-				wantErr: "workspace connection resolver is not configured\nNo files were applied.",
+				wantErr: "workspace connection resolver is not configured\nNo edits were applied.",
 			},
 			{
 				name: "ConnectionFails",
@@ -145,7 +145,7 @@ func TestEditFiles(t *testing.T) {
 						return nil, xerrors.New("workspace agent is not connected")
 					},
 				},
-				wantErr: "workspace agent is not connected\nNo files were applied.",
+				wantErr: "workspace agent is not connected\nNo edits were applied.",
 			},
 			{
 				name: "PlanPathResolveFails",
@@ -155,7 +155,7 @@ func TestEditFiles(t *testing.T) {
 					},
 					IsPlanTurn: true,
 				},
-				wantErr: "resolve chat-specific plan path: workspace unavailable\nNo files were applied.",
+				wantErr: "resolve chat-specific plan path: workspace unavailable\nNo edits were applied.",
 			},
 		}
 		for _, tt := range tests {
@@ -197,7 +197,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo edits were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -228,7 +228,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo files were applied.", resp.Content)
+		assert.Equal(t, "Edit only "+planPath+"; during plan turns, edit_files is restricted to that file\nNo edits were applied.", resp.Content)
 		assert.False(t, getWorkspaceConnCalled)
 	})
 
@@ -334,7 +334,7 @@ func TestEditFiles(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, resp.IsError)
-		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns\nNo files were applied.", resp.Content)
+		assert.Equal(t, "the chat-specific plan path /home/coder/.coder/plans/PLAN-test-uuid.md resolves to /home/coder/README.md; symlinked plan paths are not allowed during plan turns\nNo edits were applied.", resp.Content)
 	})
 
 	t.Run("RejectsPlanPathsWhenResolvePlanPathIsConfigured", func(t *testing.T) {

@@ -30,9 +30,9 @@ type EditFilesArgs struct {
 // EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
 // carries the path of the file it changes.
 type EditFilesEdit struct {
-	Path       string `json:"path" description:"Absolute path of the file to edit."`
-	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
-	NewText    string `json:"new_text" description:"Replacement text."`
+	Path       string `json:"path" description:"Absolute path of the file, for example /home/coder/project/main.go."`
+	OldText    string `json:"old_text" description:"Text to replace. Must match one location unless replace_all is set. Whitespace and indentation differences are tolerated."`
+	NewText    string `json:"new_text" description:"Replacement text. Must differ from old_text."`
 	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
 }
 
@@ -430,7 +430,7 @@ func partialEditFilesMessage(applied int, notApplied []editFilesFileResult) stri
 // applied: a heading, then one line per file with its edits and error.
 // The heading does not claim that unknown files were not applied.
 func noneAppliedEditFilesMessage(files []editFilesFileResult) string {
-	heading := editFilesNoneApplied
+	heading := "No files were applied."
 	if slices.ContainsFunc(files, func(file editFilesFileResult) bool {
 		return file.Status == editFilesStatusUnknown
 	}) {
@@ -471,9 +471,8 @@ func formatEditIndexes(indexes []int) string {
 	return strings.Join(parts, ", ")
 }
 
-// editFilesNoneApplied appears in every edit_files error result for a
-// call that is known to have written nothing.
-const editFilesNoneApplied = "No files were applied."
+// editFilesNoneApplied ends every whole-call rejection.
+const editFilesNoneApplied = "No edits were applied."
 
 // File and result statuses in edit_files results.
 const (

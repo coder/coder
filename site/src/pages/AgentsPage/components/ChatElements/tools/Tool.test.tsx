@@ -229,7 +229,7 @@ describe("Tool edit_files rows", () => {
 			args: twoFiles,
 			result: {
 				status: "applied",
-				message: "Applied edits to 2 files.",
+				message: "Applied 2 of 2 edits.",
 				files: [
 					{ path: "/repo/a.go", status: "applied", diff: "" },
 					applied("/repo/b.go"),
