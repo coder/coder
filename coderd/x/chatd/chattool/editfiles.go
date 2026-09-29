@@ -448,8 +448,10 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
 			rejected = append(rejected, prefix+reason+".")
-		case file.Error == editFilesNoOpError:
+		case file.Error == editFilesNoOpError && len(file.Edits) == 1:
 			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend the edit with the new text.")
+		case file.Error == editFilesNoOpError:
+			rejected = append(rejected, prefix+"old_text equals new_text in each, so they would change nothing. If you meant to change this text, resend these edits with the new text.")
 		default:
 			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}

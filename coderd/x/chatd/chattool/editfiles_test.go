@@ -696,6 +696,8 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 		editC = `{"path":"/repo/c.go","old_text":"a","new_text":"b"}`
 
 		noOpLine = "old_text equals new_text, so it would change nothing. If you meant to change this text, resend the edit with the new text."
+		// noOpLines is the line form for a file with several no-ops.
+		noOpLines = "old_text equals new_text in each, so they would change nothing. If you meant to change this text, resend these edits with the new text."
 	)
 	var (
 		fileEditA = workspacesdk.FileEdit{OldText: "x := 1", NewText: "x := 2"}
@@ -937,6 +939,12 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			want:        "Applied 0 of 1 edits. Not applied:\n- edits[0] (/repo/a.go): " + noOpLine,
 		},
 		{
+			name:        "FileOfSeveralNoOpsIsNotSent",
+			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1"},{"path":"/repo/a.go","old_text":"y","new_text":"y"}]}`,
+			wantIsError: true,
+			want:        "Applied 0 of 2 edits. Not applied:\n- edits[0], edits[1] (/repo/a.go): " + noOpLines,
+		},
+		{
 			name:        "NoOpReplaceAllIsNotSent",
 			input:       `{"edits":[{"path":"/repo/a.go","old_text":"x := 1","new_text":"x := 1","replace_all":true}]}`,
 			wantIsError: true,
@@ -994,7 +1002,7 @@ func TestEditFiles_PerFileRequests(t *testing.T) {
 			},
 			want: `{"status":"partial",` +
 				`"message":"Applied 1 of 4 edits. Not applied:\n` +
-				`- edits[0], edits[3] (/repo/a.go): ` + noOpLine + `\n` +
+				`- edits[0], edits[3] (/repo/a.go): ` + noOpLines + `\n` +
 				`- edits[1] (/repo/b.go): open /repo/b.go: file does not exist. /repo/b.go is unchanged; fix and resend only these edits.",` +
 				`"files":[` +
 				`{"path":"/repo/b.go","status":"rejected","edits":[1],"error":"open /repo/b.go: file does not exist"},` +
