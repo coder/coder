@@ -7,7 +7,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { workspaceUploadAgentLookupFailedMessage } from "../hooks/useWorkspaceUploadAgent";
+import {
+	workspaceUploadAgentLookupFailedMessage,
+	workspaceUploadNoEligibleAgentMessage,
+} from "../hooks/useWorkspaceUploadAgent";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatPageInput } from "./ChatPageContent";
 
@@ -188,6 +191,35 @@ describe("ChatPageInput", () => {
 			expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
 		},
 	);
+
+	it("explains when the server selects no agent for uploads", async () => {
+		const user = userEvent.setup({ applyAccept: true });
+		vi.spyOn(toast, "error");
+		vi.spyOn(API.experimental, "getChatWorkspaceAgent").mockResolvedValue({});
+		vi.spyOn(API, "getWorkspace").mockResolvedValue(mockMultiAgentWorkspace);
+		const uploadChatWorkspaceFile = vi.spyOn(
+			API.experimental,
+			"uploadChatWorkspaceFile",
+		);
+
+		renderChatPageInput(createChatStore(), {
+			chat: {
+				...MockChat,
+				organization_id: "",
+				workspace_id: mockMultiAgentWorkspace.id,
+				agent_id: undefined,
+			},
+			workspace: mockMultiAgentWorkspace,
+		});
+
+		await waitFor(async () => {
+			await attachZipFile(user);
+			expect(toast.error).toHaveBeenLastCalledWith(
+				workspaceUploadNoEligibleAgentMessage,
+			);
+		});
+		expect(uploadChatWorkspaceFile).not.toHaveBeenCalled();
+	});
 
 	it("asks for a workspace when the chat has none", async () => {
 		const user = userEvent.setup({ applyAccept: true });

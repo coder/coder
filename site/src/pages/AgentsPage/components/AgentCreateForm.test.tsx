@@ -38,7 +38,10 @@ import {
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
-import { workspaceUploadAgentLookupFailedMessage } from "../hooks/useWorkspaceUploadAgent";
+import {
+	workspaceUploadAgentLookupFailedMessage,
+	workspaceUploadNoEligibleAgentMessage,
+} from "../hooks/useWorkspaceUploadAgent";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	AgentCreateForm,
@@ -534,6 +537,21 @@ describe("AgentCreateForm workspace file uploads", () => {
 			expect.any(Function),
 		);
 		expect(toast.error).not.toHaveBeenCalled();
+	});
+
+	it("explains when the server selects no agent for workspace files", async () => {
+		vi.mocked(API.experimental.getChatWorkspaceAgent).mockResolvedValue({});
+		vi.spyOn(API, "getWorkspace").mockResolvedValue(mockWorkspace);
+		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
+		renderForm();
+
+		// Attaching is retried until the rendered gate reflects the query state.
+		await waitFor(async () => {
+			await attachZipFile();
+			expect(toast.error).toHaveBeenLastCalledWith(
+				workspaceUploadNoEligibleAgentMessage,
+			);
+		});
 	});
 
 	it("keeps queued files while the new workspace's agent selection loads", async () => {
