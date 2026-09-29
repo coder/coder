@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -109,7 +110,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		Request:        req,
 	})
 	if err != nil {
-		writeChatAutomationError(ctx, rw, err)
+		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
 	aReq.New = automation
@@ -190,14 +191,14 @@ func (api *API) patchChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		value json.RawMessage
 	}{{"kind", req.Kind}, {"target_mode", req.TargetMode}} {
 		if fixed.value != nil {
-			writeChatAutomationError(ctx, rw, &chatd.AutomationValidationError{Field: fixed.field, Detail: "cannot be changed after the automation is created"})
+			api.writeChatAutomationError(ctx, rw, &chatd.AutomationValidationError{Field: fixed.field, Detail: "cannot be changed after the automation is created"})
 			return
 		}
 	}
 
 	updated, err := api.chatDaemon.UpdateAutomation(ctx, apiKey.UserID, automation.ID, req.UpdateChatAutomationRequest)
 	if err != nil {
-		writeChatAutomationError(ctx, rw, err)
+		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
 	aReq.New = updated
@@ -235,7 +236,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	if err := api.chatDaemon.DeleteAutomation(ctx, automation.ID); err != nil {
-		writeChatAutomationError(ctx, rw, err)
+		api.writeChatAutomationError(ctx, rw, err)
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
@@ -264,7 +265,7 @@ func (api *API) chatAutomationParam(rw http.ResponseWriter, r *http.Request) (da
 }
 
 // writeChatAutomationError maps chatd automation errors to responses.
-func writeChatAutomationError(ctx context.Context, rw http.ResponseWriter, err error) {
+func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWriter, err error) {
 	var validationErr *chatd.AutomationValidationError
 	switch {
 	case errors.As(err, &validationErr):
@@ -279,7 +280,7 @@ func writeChatAutomationError(ctx context.Context, rw http.ResponseWriter, err e
 	case errors.Is(err, chatd.ErrAutomationLimitReached):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Chat automation limit reached.",
-			Detail:  err.Error(),
+			Detail:  fmt.Sprintf("A user can own at most %d chat automations across all organizations.", api.chatLimits.MaxAutomationsPerOwner),
 		})
 	case errors.Is(err, chatd.ErrAutomationNotFound), errors.Is(err, sql.ErrNoRows):
 		httpapi.ResourceNotFound(rw)

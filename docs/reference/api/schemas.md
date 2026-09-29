@@ -6030,19 +6030,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                       | Type                                                                   | Required | Restrictions | Description |
-|----------------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |             |
-| `name`                     | string                                                                 | false    |              |             |
-| `new_chat_model_config_id` | string                                                                 | false    |              |             |
-| `prompt`                   | string                                                                 | false    |              |             |
-| `reasoning_effort`         | string                                                                 | false    |              |             |
-| `schedule_cron`            | string                                                                 | false    |              |             |
-| `schedule_time_zone`       | string                                                                 | false    |              |             |
-| `target_chat_id`           | string                                                                 | false    |              |             |
-| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |             |
-| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |             |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |             |
+| Name                       | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                 |
+|----------------------------|------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`                     | [codersdk.ChatAutomationKind](#codersdkchatautomationkind)             | false    |              |                                                                                                                                                                             |
+| `name`                     | string                                                                 | false    |              |                                                                                                                                                                             |
+| `new_chat_model_config_id` | string                                                                 | false    |              |                                                                                                                                                                             |
+| `prompt`                   | string                                                                 | false    |              |                                                                                                                                                                             |
+| `reasoning_effort`         | string                                                                 | false    |              |                                                                                                                                                                             |
+| `schedule_cron`            | string                                                                 | false    |              | Schedule cron is a standard five-field cron expression. As in standard cron, when both day of month and day of week are restricted, a time matches if either field matches. |
+| `schedule_time_zone`       | string                                                                 | false    |              |                                                                                                                                                                             |
+| `target_chat_id`           | string                                                                 | false    |              |                                                                                                                                                                             |
+| `target_mode`              | [codersdk.ChatAutomationTargetMode](#codersdkchatautomationtargetmode) | false    |              |                                                                                                                                                                             |
+| `webhook_use`              | [codersdk.ChatAutomationWebhookUse](#codersdkchatautomationwebhookuse) | false    |              |                                                                                                                                                                             |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy)     | false    |              |                                                                                                                                                                             |
 
 #### Enumerated Values
 

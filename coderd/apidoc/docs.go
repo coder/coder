@@ -22593,6 +22593,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "schedule_cron": {
+                    "description": "ScheduleCron is a standard five-field cron expression. As in standard\ncron, when both day of month and day of week are restricted, a time\nmatches if either field matches.",
                     "type": "string"
                 },
                 "schedule_time_zone": {

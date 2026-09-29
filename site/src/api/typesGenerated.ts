@@ -4109,6 +4109,11 @@ export interface CreateChatAutomationRequest {
 	readonly when_busy?: ChatAutomationWhenBusy;
 	readonly webhook_use?: ChatAutomationWebhookUse;
 	readonly prompt: string;
+	/**
+	 * ScheduleCron is a standard five-field cron expression. As in standard
+	 * cron, when both day of month and day of week are restricted, a time
+	 * matches if either field matches.
+	 */
 	readonly schedule_cron?: string;
 	readonly schedule_time_zone?: string;
 }

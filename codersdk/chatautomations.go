@@ -85,8 +85,11 @@ type CreateChatAutomationRequest struct {
 	WhenBusy             *ChatAutomationWhenBusy   `json:"when_busy,omitempty" enums:"queue,skip"`
 	WebhookUse           *ChatAutomationWebhookUse `json:"webhook_use,omitempty" enums:"single,multi"`
 	Prompt               string                    `json:"prompt"`
-	ScheduleCron         *string                   `json:"schedule_cron,omitempty"`
-	ScheduleTimeZone     *string                   `json:"schedule_time_zone,omitempty"`
+	// ScheduleCron is a standard five-field cron expression. As in standard
+	// cron, when both day of month and day of week are restricted, a time
+	// matches if either field matches.
+	ScheduleCron     *string `json:"schedule_cron,omitempty"`
+	ScheduleTimeZone *string `json:"schedule_time_zone,omitempty"`
 }
 
 // CreateChatAutomationResponse is returned when a chat automation is

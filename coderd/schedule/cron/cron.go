@@ -96,7 +96,9 @@ func TimeRange(raw string) (*Schedule, error) {
 
 // Standard parses a Schedule from a standard five-field cron spec
 // (minute, hour, day of month, month, day of week) evaluated in timeZone.
-// Unlike Weekly and Daily, every field may be restricted. The spec must
+// Unlike Weekly and Daily, every field may be restricted. As in standard
+// cron, when both day of month and day of week are restricted, a time
+// matches if either field matches. The spec must
 // not carry its own CRON_TZ= or TZ= prefix, and descriptors such as
 // @daily or @every are not supported. timeZone must be a non-empty IANA
 // time zone name other than Local.
