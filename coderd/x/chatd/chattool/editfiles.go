@@ -407,13 +407,16 @@ func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult
 	var rejected, unknown []string
 	for _, file := range notApplied {
 		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
+		// Each line appends a sentence to the error, so its own trailing
+		// periods and spaces are trimmed to avoid "..".
+		reason := strings.TrimRight(file.Error, ". ")
 		switch {
 		case file.Status == editFilesStatusUnknown:
-			unknown = append(unknown, prefix+file.Error+". Re-read "+file.Path+" before resending these edits.")
+			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
-			rejected = append(rejected, prefix+file.Error+".")
+			rejected = append(rejected, prefix+reason+".")
 		default:
-			rejected = append(rejected, prefix+file.Error+". "+file.Path+" is unchanged; fix and resend only these edits.")
+			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}
 	}
 	var sb strings.Builder
