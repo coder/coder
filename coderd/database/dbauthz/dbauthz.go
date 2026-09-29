@@ -6206,8 +6206,35 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
+// InsertChatAutomation also authorizes the chats the automation references:
+// it delivers prompts into the target chat, so the caller must be able to
+// update it, and it records the creating chat, so the caller must be able
+// to read it. The automation check runs first so an unauthorized caller
+// learns nothing about the chats.
 func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
-	return insert(q.log, q.auth, rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChatAutomation)(ctx, arg)
+	obj := rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	if arg.TargetChatID.Valid {
+		chat, err := q.db.GetChatByID(ctx, arg.TargetChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.CreatedByChatID.Valid {
+		chat, err := q.db.GetChatByID(ctx, arg.CreatedByChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	return q.db.InsertChatAutomation(ctx, arg)
 }
 
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {

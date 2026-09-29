@@ -53,6 +53,37 @@ COMMENT ON COLUMN chat_automations.schedule_revision IS 'Incremented whenever th
 COMMENT ON COLUMN chat_automations.schedule_next_run_at IS 'Schedule cursor: the next occurrence to fire. NULL when no occurrence is pending.';
 COMMENT ON COLUMN chat_automations.queue_generation IS 'Incremented to invalidate queued messages this automation delivered earlier; queued rows carry the generation they were created with.';
 
+-- A composite foreign key cannot keep these chats in the automation's
+-- organization: ON DELETE SET NULL would also clear organization_id, and
+-- column-list SET NULL needs PostgreSQL 15.
+CREATE FUNCTION enforce_chat_automation_chat_organization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.target_chat_id IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'target chat % is not in organization %', NEW.target_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	IF NEW.created_by_chat_id IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'creating chat % is not in organization %', NEW.created_by_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_enforce_chat_automation_chat_organization
+    BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id ON chat_automations
+    FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
+
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations (organization_id, owner_id);
 CREATE INDEX chat_automations_due_idx ON chat_automations (schedule_next_run_at) WHERE kind = 'schedule' AND enabled;
 

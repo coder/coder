@@ -1463,9 +1463,30 @@ func (s *MethodTestSuite) TestChats() {
 			Kind:       database.ChatAutomationKindSchedule,
 			TargetMode: database.ChatAutomationTargetModeNewChat,
 		})
+		arg.TargetChatID = uuid.NullUUID{}
+		arg.CreatedByChatID = uuid.NullUUID{}
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
 		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate).Returns(automation)
+	}))
+	s.Run("InsertChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		target := testutil.Fake(s.T(), faker, database.Chat{})
+		creator := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := testutil.Fake(s.T(), faker, database.InsertChatAutomationParams{
+			Kind:            database.ChatAutomationKindWebhook,
+			TargetMode:      database.ChatAutomationTargetModeExistingChat,
+			TargetChatID:    uuid.NullUUID{UUID: target.ID, Valid: true},
+			CreatedByChatID: uuid.NullUUID{UUID: creator.ID, Valid: true},
+		})
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: arg.OrganizationID, OwnerID: arg.OwnerID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), target.ID).Return(target, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), creator.ID).Return(creator, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		check.Args(arg).Asserts(
+			rbac.ResourceChatAutomation.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionCreate,
+			target, policy.ActionUpdate,
+			creator, policy.ActionRead,
+		).Returns(automation)
 	}))
 	s.Run("GetChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})

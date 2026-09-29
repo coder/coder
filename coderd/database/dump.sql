@@ -1045,6 +1045,30 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION enforce_chat_automation_chat_organization() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	IF NEW.target_chat_id IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.target_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'target chat % is not in organization %', NEW.target_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	IF NEW.created_by_chat_id IS NOT NULL AND NOT EXISTS (
+		SELECT 1 FROM chats
+		WHERE id = NEW.created_by_chat_id AND organization_id = NEW.organization_id
+	) THEN
+		RAISE EXCEPTION 'creating chat % is not in organization %', NEW.created_by_chat_id, NEW.organization_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'chat_automations_chat_organization';
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION enforce_user_ai_budget_override_membership() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -5201,6 +5225,8 @@ CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_p
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_group_member_delete BEFORE DELETE ON group_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_group_member_delete();
 
 CREATE TRIGGER trigger_delete_user_ai_budget_overrides_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_user_ai_budget_overrides_on_org_member_delete();
+
+CREATE TRIGGER trigger_enforce_chat_automation_chat_organization BEFORE INSERT OR UPDATE OF organization_id, target_chat_id, created_by_chat_id ON chat_automations FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
 
 CREATE TRIGGER trigger_enforce_user_ai_budget_override_membership BEFORE INSERT OR UPDATE ON user_ai_budget_overrides FOR EACH ROW EXECUTE FUNCTION enforce_user_ai_budget_override_membership();
 

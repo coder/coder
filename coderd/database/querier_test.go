@@ -1566,6 +1566,18 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 		NewChatModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
 	})
 
+	// Referenced chats must be in the automation's organization. A trigger
+	// enforces this, so the constraint name is not generated.
+	const chatOrganization database.CheckConstraint = "chat_automations_chat_organization"
+	sameOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: modelCfg.ID})
+	otherOrgChat := dbgen.Chat(t, db, database.Chat{OrganizationID: otherOrg.ID, OwnerID: owner.ID, LastModelConfigID: otherOrgModelCfg.ID})
+	sameOrgTarget := dbgen.ChatAutomation(t, db, database.ChatAutomation{
+		OrganizationID:  org.ID,
+		OwnerID:         owner.ID,
+		TargetChatID:    uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+		CreatedByChatID: uuid.NullUUID{UUID: sameOrgChat.ID, Valid: true},
+	})
+
 	valid := func() database.InsertChatAutomationParams {
 		return database.InsertChatAutomationParams{
 			ID:             uuid.New(),
@@ -1634,6 +1646,20 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			},
 			fkey: database.ForeignKeyChatAutomationsNewChatModelConfig,
 		},
+		{
+			name: "TargetChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.TargetChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
+		{
+			name: "CreatedByChatFromOtherOrg",
+			munge: func(p *database.InsertChatAutomationParams) {
+				p.CreatedByChatID = uuid.NullUUID{UUID: otherOrgChat.ID, Valid: true}
+			},
+			check: chatOrganization,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1649,6 +1675,14 @@ func TestChatAutomationShapeConstraints(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("RetargetToOtherOrgChat", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET target_chat_id = $1 WHERE id = $2`, otherOrgChat.ID, sameOrgTarget.ID)
+		require.Error(t, err)
+		require.True(t, database.IsCheckViolation(err, chatOrganization), "got %v", err)
+	})
 
 	// Queued-message provenance is all or nothing. No query writes these
 	// columns yet, so insert directly.

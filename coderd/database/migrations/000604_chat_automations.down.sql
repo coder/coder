@@ -69,6 +69,7 @@ ALTER TABLE chat_queued_messages
     DROP COLUMN automation_id;
 
 DROP TABLE IF EXISTS chat_automations;
+DROP FUNCTION IF EXISTS enforce_chat_automation_chat_organization();
 
 DROP TYPE IF EXISTS chat_automation_when_busy;
 DROP TYPE IF EXISTS chat_automation_webhook_use;
