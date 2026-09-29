@@ -3833,38 +3833,6 @@ func expectLiveWorkspace(db *dbmock.MockStore, workspaceID uuid.UUID) {
 		AnyTimes()
 }
 
-func TestServerOrganizationName(t *testing.T) {
-	t.Parallel()
-
-	t.Run("CachesResolvedName", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db, logger: slogtest.Make(t, nil)}
-		orgID := uuid.New()
-		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
-			Return(database.Organization{ID: orgID, Name: "acme"}, nil).Times(1)
-
-		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
-		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
-	})
-
-	t.Run("FailedLookupIsNotCached", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db, logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})}
-		orgID := uuid.New()
-		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
-			Return(database.Organization{}, xerrors.New("boom")).Times(1)
-		db.EXPECT().GetOrganizationByID(gomock.Any(), orgID).
-			Return(database.Organization{ID: orgID, Name: "acme"}, nil).Times(1)
-
-		require.Equal(t, "", server.organizationName(t.Context(), orgID))
-		require.Equal(t, "acme", server.organizationName(t.Context(), orgID))
-	})
-}
-
 func TestChatKind(t *testing.T) {
 	t.Parallel()
 
@@ -3878,7 +3846,7 @@ func TestWithStageIdentity(t *testing.T) {
 	t.Parallel()
 
 	tracer, recorder := newStageTestTracer(t)
-	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent, "acme")
+	ctx := withStageIdentity(t.Context(), chatloop.ScopeTurn, chatloop.ChatKindSubagent)
 	_, span := tracer.Start(ctx, chatloop.StageCommit)
 	span.End(nil)
 
@@ -3887,6 +3855,5 @@ func TestWithStageIdentity(t *testing.T) {
 	require.Subset(t, ended[0].Attributes(), []attribute.KeyValue{
 		attribute.String(chatloop.AttrScope, string(chatloop.ScopeTurn)),
 		attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)),
-		attribute.String(chatloop.AttrOrganizationName, "acme"),
 	})
 }

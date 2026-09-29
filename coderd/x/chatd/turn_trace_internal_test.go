@@ -55,7 +55,7 @@ func stageSpansByStart(t *testing.T, recorder *tracetest.SpanRecorder, stage cha
 func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	triggerAt := time.Now().Add(-2 * time.Second)
 
@@ -78,16 +78,10 @@ func TestRunnerTurnSpanStartsAtTriggerMessage(t *testing.T) {
 func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	orgID := uuid.New()
-	var resolved []uuid.UUID
-	turn := newRunnerTurnSpan(tracer, func(_ context.Context, id uuid.UUID) string {
-		resolved = append(resolved, id)
-		return "acme"
-	}, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{
-		ID:             uuid.New(),
-		OrganizationID: orgID,
-		ParentChatID:   uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ID:           uuid.New(),
+		ParentChatID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 	}
 
 	turnCtx, _ := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Second))
@@ -97,12 +91,9 @@ func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 	tracer.Record(turnCtx, chatloop.StageCommit, chatloop.StageModel{}, start, time.Now(), nil)
 	turn.End(nil)
 
-	require.Equal(t, []uuid.UUID{orgID}, resolved)
 	ended := recorder.Ended()
 	require.Len(t, ended, 4)
 	for _, span := range ended {
-		require.Contains(t, span.Attributes(),
-			attribute.String(chatloop.AttrOrganizationName, "acme"), span.Name())
 		require.Contains(t, span.Attributes(),
 			attribute.String(chatloop.AttrChatKind, string(chatloop.ChatKindSubagent)), span.Name())
 	}
@@ -111,7 +102,7 @@ func TestRunnerTurnSpanCarriesChatIdentity(t *testing.T) {
 func TestRunnerTurnSpanEnsureReusesTurnForSameTrigger(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	trigger := time.Now().Add(-time.Minute)
@@ -127,7 +118,7 @@ func TestRunnerTurnSpanEnsureReusesTurnForSameTrigger(t *testing.T) {
 func TestRunnerTurnSpanRotatesOnNewerTrigger(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	firstTrigger := time.Now().Add(-time.Minute)
@@ -164,7 +155,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	staleAnchors := func() float64 {
 		return anomalyCount(t, registry, chatloop.StageAnomalyStaleAnchor)
@@ -219,7 +210,7 @@ func TestRunnerTurnSpanClampsStaleAnchor(t *testing.T) {
 func TestRunnerTurnSpanKeepsAnchorBeforePreviousClose(t *testing.T) {
 	t.Parallel()
 	tracer, recorder, registry := newStageMetricsTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	firstTrigger := time.Now().Add(-time.Minute)
@@ -249,7 +240,7 @@ func TestRunnerTurnSpanTakenOverAnchorsAtNow(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	tracer, recorder, registry := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, true)
+	turn := newRunnerTurnSpan(tracer, true)
 	chat := database.Chat{ID: uuid.New()}
 
 	// The previous owner already ran part of this turn.
@@ -280,7 +271,7 @@ func TestRunnerTurnSpanTakenOverAnchorsAtNow(t *testing.T) {
 func TestRunnerTurnSpanZeroTriggerRecordsNoAcquisition(t *testing.T) {
 	t.Parallel()
 	tracer, recorder, registry := newStageMetricsTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 
 	_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Time{})
 	turn.Complete(token)
@@ -323,7 +314,7 @@ func TestRunnerTurnSpanEnsureClosesUnsettledTurn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tracer, recorder := newStageTestTracer(t)
-			turn := newRunnerTurnSpan(tracer, nil, false)
+			turn := newRunnerTurnSpan(tracer, false)
 			chat := database.Chat{ID: uuid.New()}
 
 			trigger := time.Now().Add(-time.Minute)
@@ -435,7 +426,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("InvalidateAfterCompleteIgnored", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Complete(token)
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("publish watch"))
@@ -449,7 +440,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		firstErr := xerrors.New("provider refused")
 		turn.Invalidate(token, chatloop.TurnOutcomeError, firstErr)
@@ -466,7 +457,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("SettleClosesInvalidatedTurn", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 		turn.Settle(token)
@@ -482,7 +473,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("SettleLeavesRunningTurnOpen", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Settle(token)
 		require.Empty(t, turnSpansByStart(t, recorder))
@@ -496,7 +487,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("ErrorThenSettled", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token, chatloop.TurnOutcomeError, xerrors.New("provider refused"))
 		turn.Complete(token)
@@ -510,7 +501,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("StaleTokenIgnored", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		_, token := turn.Ensure(t.Context(), uuid.Nil, database.Chat{ID: uuid.New()}, time.Now())
 		turn.Invalidate(token+1, chatloop.TurnOutcomeError, xerrors.New("not this turn"))
 		turn.Complete(token)
@@ -524,7 +515,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 	t.Run("StaleTokenCannotCloseReplacement", func(t *testing.T) {
 		t.Parallel()
 		tracer, recorder := newStageTestTracer(t)
-		turn := newRunnerTurnSpan(tracer, nil, false)
+		turn := newRunnerTurnSpan(tracer, false)
 		chat := database.Chat{ID: uuid.New()}
 		_, first := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Minute))
 		_, second := turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Second))
@@ -547,7 +538,7 @@ func TestRunnerTurnSpanOutcome(t *testing.T) {
 func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	firstTrigger := time.Now().Add(-time.Minute)
 	secondTrigger := time.Now().Add(-10 * time.Second)
@@ -585,7 +576,7 @@ func TestRunnerTurnSpanCanceledEnsure(t *testing.T) {
 func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 
 	turn.Ensure(t.Context(), uuid.Nil, chat, time.Now().Add(-time.Minute))
@@ -612,7 +603,7 @@ func TestRunnerTurnSpanCanceledOpenToken(t *testing.T) {
 func TestRunnerTurnSpanObservesOnlyCompletedTurns(t *testing.T) {
 	t.Parallel()
 	tracer, recorder, registry := newStageMetricsTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	base := time.Now().Add(-time.Hour)
 
@@ -673,7 +664,7 @@ func TestRunnerTurnSpanSupersededTurnWaitsForHolder(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			clock := quartz.NewMock(t)
 			tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
-			turn := newRunnerTurnSpan(tracer, nil, false)
+			turn := newRunnerTurnSpan(tracer, false)
 			chat := database.Chat{ID: uuid.New()}
 			finishing, promoted := uuid.New(), uuid.New()
 
@@ -712,7 +703,7 @@ func TestRunnerTurnSpanSettleWaitsForHolders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	tracer, recorder, _ := newStageMetricsTracer(t, chatloop.WithClock(clock))
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	firstStep, secondStep := uuid.New(), uuid.New()
 	trigger := clock.Now().Add(-time.Minute)
@@ -743,7 +734,7 @@ func TestRunnerTurnSpanSettleWaitsForHolders(t *testing.T) {
 func TestRunnerTurnSpanReleasedTurnEmitsOnClose(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	task := uuid.New()
 
 	_, token := turn.Ensure(t.Context(), task, database.Chat{ID: uuid.New()}, time.Now())
@@ -761,7 +752,7 @@ func TestRunnerTurnSpanReleasedTurnEmitsOnClose(t *testing.T) {
 func TestRunnerTurnSpanEndEmitsHeldTurns(t *testing.T) {
 	t.Parallel()
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	chat := database.Chat{ID: uuid.New()}
 	stale, current := uuid.New(), uuid.New()
 
@@ -818,7 +809,7 @@ func TestFinishGenerationErrorOutcomeSurvivesCommitCancel(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 
 	taskCtx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
 	defer cancel()
@@ -868,7 +859,7 @@ func TestInterruptTaskInterruptsOpenTurn(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 
@@ -904,7 +895,7 @@ func TestInterruptTaskMarksTurnBeforeCommit(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	tracer, recorder := newStageTestTracer(t)
-	turn := newRunnerTurnSpan(tracer, nil, false)
+	turn := newRunnerTurnSpan(tracer, false)
 	_, token := turn.Ensure(t.Context(), uuid.Nil, acquired, acquired.CreatedAt)
 	require.NotZero(t, token)
 

@@ -37,9 +37,6 @@ type turnToken uint64
 // is still unwinding reaches the turn it ran.
 type runnerTurnSpan struct {
 	stages *chatloop.StageTracer
-	// organizationName resolves a chat's organization ID to the name
-	// carried on the turn's stage spans. A nil resolver leaves it empty.
-	organizationName func(context.Context, uuid.UUID) string
 
 	mu sync.Mutex
 	// turns holds every turn that has opened and is not yet emitted.
@@ -63,11 +60,10 @@ type runnerTurnSpan struct {
 
 // turnState is one turn of a runnerTurnSpan, guarded by its mutex.
 type turnState struct {
-	token        turnToken
-	span         *chatloop.StageSpan
-	spanCtx      trace.SpanContext
-	chatKind     chatloop.ChatKind
-	organization string
+	token    turnToken
+	span     *chatloop.StageSpan
+	spanCtx  trace.SpanContext
+	chatKind chatloop.ChatKind
 	// triggerAt is the trigger time passed to the Ensure call that
 	// opened the turn, before any adjustment of the anchor.
 	triggerAt time.Time
@@ -89,12 +85,11 @@ type turnState struct {
 	holders map[uuid.UUID]struct{}
 }
 
-func newRunnerTurnSpan(stages *chatloop.StageTracer, organizationName func(context.Context, uuid.UUID) string, takenOver bool) *runnerTurnSpan {
+func newRunnerTurnSpan(stages *chatloop.StageTracer, takenOver bool) *runnerTurnSpan {
 	return &runnerTurnSpan{
-		stages:           stages,
-		organizationName: organizationName,
-		turns:            map[turnToken]*turnState{},
-		takenOver:        takenOver,
+		stages:    stages,
+		turns:     map[turnToken]*turnState{},
+		takenOver: takenOver,
 	}
 }
 
@@ -131,12 +126,6 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat data
 	if t == nil {
 		return ctx, 0
 	}
-	// The resolver may hit the database, so it runs before the lock is
-	// taken.
-	organization := ""
-	if t.organizationName != nil {
-		organization = t.organizationName(ctx, chat.OrganizationID)
-	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.shutDown || ctx.Err() != nil {
@@ -163,7 +152,7 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat data
 		t.stages.RecordAnomaly(chatloop.StageAnomalyStaleAnchor)
 	}
 	t.takenOver = false
-	turn := t.startLocked(ctx, chat, organization, triggerAt, anchorAt)
+	turn := t.startLocked(ctx, chat, triggerAt, anchorAt)
 	turn.hold(taskID)
 	return turn.context(ctx), turn.token
 }
@@ -171,18 +160,17 @@ func (t *runnerTurnSpan) Ensure(ctx context.Context, taskID uuid.UUID, chat data
 // startLocked opens a chat_turn span anchored at startAt, or at now
 // when startAt is zero, makes it the current turn, and records the
 // acquisition stage from a nonzero startAt to now.
-func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, organization string, triggerAt, startAt time.Time) *turnState {
+func (t *runnerTurnSpan) startLocked(ctx context.Context, chat database.Chat, triggerAt, startAt time.Time) *turnState {
 	anchored := !startAt.IsZero()
 	if !anchored {
 		startAt = t.stages.Now()
 	}
 	t.lastToken++
 	turn := &turnState{
-		token:        t.lastToken,
-		chatKind:     chatKind(chat),
-		organization: organization,
-		triggerAt:    triggerAt,
-		holders:      map[uuid.UUID]struct{}{},
+		token:     t.lastToken,
+		chatKind:  chatKind(chat),
+		triggerAt: triggerAt,
+		holders:   map[uuid.UUID]struct{}{},
 	}
 	t.turns[turn.token] = turn
 	t.current = turn.token
@@ -212,7 +200,7 @@ func (turn *turnState) hold(taskID uuid.UUID) {
 func (turn *turnState) context(ctx context.Context) context.Context {
 	// The stage identity is set independently of the span context so
 	// stages run on this context keep it when tracing is not recording.
-	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, turn.chatKind, turn.organization)
+	ctx = withStageIdentity(ctx, chatloop.ScopeTurn, turn.chatKind)
 	if !turn.spanCtx.IsValid() {
 		return ctx
 	}
