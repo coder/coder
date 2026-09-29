@@ -16154,16 +16154,16 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                       | Type                                                               | Required | Restrictions | Description |
-|----------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `name`                     | string                                                             | false    |              |             |
-| `new_chat_model_config_id` | string                                                             | false    |              |             |
-| `prompt`                   | string                                                             | false    |              |             |
-| `reasoning_effort`         | string                                                             | false    |              |             |
-| `schedule_cron`            | string                                                             | false    |              |             |
-| `schedule_time_zone`       | string                                                             | false    |              |             |
-| `target_chat_id`           | string                                                             | false    |              |             |
-| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |             |
+| Name                       | Type                                                               | Required | Restrictions | Description                                                                                                               |
+|----------------------------|--------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------|
+| `name`                     | string                                                             | false    |              |                                                                                                                           |
+| `new_chat_model_config_id` | string                                                             | false    |              |                                                                                                                           |
+| `prompt`                   | string                                                             | false    |              |                                                                                                                           |
+| `reasoning_effort`         | string                                                             | false    |              | Reasoning effort sets the effort of new chats. An empty string clears the override, so new chats use the model's default. |
+| `schedule_cron`            | string                                                             | false    |              |                                                                                                                           |
+| `schedule_time_zone`       | string                                                             | false    |              |                                                                                                                           |
+| `target_chat_id`           | string                                                             | false    |              |                                                                                                                           |
+| `when_busy`                | [codersdk.ChatAutomationWhenBusy](#codersdkchatautomationwhenbusy) | false    |              |                                                                                                                           |
 
 #### Enumerated Values
 

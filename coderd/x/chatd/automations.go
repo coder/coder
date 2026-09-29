@@ -342,11 +342,16 @@ func (p *Server) UpdateAutomation(ctx context.Context, actorID, id uuid.UUID, re
 			if row.TargetMode != database.ChatAutomationTargetModeNewChat {
 				return automationFieldError("reasoning_effort", "applies only to new_chat automations")
 			}
-			effort, err := validateAutomationReasoningEffort(*req.ReasoningEffort)
-			if err != nil {
-				return err
+			// An empty value clears the override, so new chats use the
+			// model's default effort.
+			arg.ReasoningEffort = database.NullChatReasoningEffort{}
+			if *req.ReasoningEffort != "" {
+				effort, err := validateAutomationReasoningEffort(*req.ReasoningEffort)
+				if err != nil {
+					return err
+				}
+				arg.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: effort, Valid: true}
 			}
-			arg.ReasoningEffort = database.NullChatReasoningEffort{ChatReasoningEffort: effort, Valid: true}
 		}
 		if req.WhenBusy != nil {
 			if row.TargetMode != database.ChatAutomationTargetModeExistingChat {

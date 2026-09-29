@@ -10462,6 +10462,10 @@ export interface UpdateChatAutomationRequest {
 	readonly prompt?: string;
 	readonly schedule_cron?: string;
 	readonly schedule_time_zone?: string;
+	/**
+	 * ReasoningEffort sets the effort of new chats. An empty string clears
+	 * the override, so new chats use the model's default.
+	 */
 	readonly reasoning_effort?: string;
 	readonly when_busy?: ChatAutomationWhenBusy;
 	readonly target_chat_id?: string;

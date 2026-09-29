@@ -103,10 +103,12 @@ type CreateChatAutomationResponse struct {
 // UpdateChatAutomationRequest changes the set fields of a chat automation.
 // The kind and target mode of an automation cannot change.
 type UpdateChatAutomationRequest struct {
-	Name                 *string                 `json:"name,omitempty"`
-	Prompt               *string                 `json:"prompt,omitempty"`
-	ScheduleCron         *string                 `json:"schedule_cron,omitempty"`
-	ScheduleTimeZone     *string                 `json:"schedule_time_zone,omitempty"`
+	Name             *string `json:"name,omitempty"`
+	Prompt           *string `json:"prompt,omitempty"`
+	ScheduleCron     *string `json:"schedule_cron,omitempty"`
+	ScheduleTimeZone *string `json:"schedule_time_zone,omitempty"`
+	// ReasoningEffort sets the effort of new chats. An empty string clears
+	// the override, so new chats use the model's default.
 	ReasoningEffort      *string                 `json:"reasoning_effort,omitempty"`
 	WhenBusy             *ChatAutomationWhenBusy `json:"when_busy,omitempty" enums:"queue,skip"`
 	TargetChatID         *uuid.UUID              `json:"target_chat_id,omitempty" format:"uuid"`
