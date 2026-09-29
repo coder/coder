@@ -27,12 +27,10 @@ var (
 
 	// exitedProcessReapAge is how long an exited process is
 	// kept before being automatically removed from the map. A tool
-	// call record lives for agenttoolcall's forgetAfter (one hour)
-	// from when it was added, and a retried execute gets the saved
-	// start response and then reads the process output. A process
-	// exits after it starts and is removed at least this long after
-	// it exits, so while the agent remembers a tool call, its process
-	// is still listed.
+	// call record is added before its process starts, and the process
+	// is kept at least this long after it exits, so for the first hour
+	// (agenttoolcall's forgetAfter) after a tool call is recorded, a
+	// retry can still read its process output.
 	exitedProcessReapAge = time.Hour
 )
 
