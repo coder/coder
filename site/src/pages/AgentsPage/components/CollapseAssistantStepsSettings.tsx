@@ -1,4 +1,4 @@
-import { type FC, useId } from "react";
+import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	preferenceSettings,
@@ -6,7 +6,7 @@ import {
 } from "#/api/queries/users";
 import { Switch } from "#/components/Switch/Switch";
 
-export const CollapseAssistantStepsSettings: FC = () => {
+export const CollapseAssistantStepsSettings: React.FC = () => {
 	const queryClient = useQueryClient();
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
