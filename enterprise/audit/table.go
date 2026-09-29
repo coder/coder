@@ -508,7 +508,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"webhook_secret_hash":      ActionSecret,
 		"webhook_secret_version":   ActionTrack,
 		"webhook_consumed_at":      ActionTrack,
-		"prompt":                   ActionTrack,
+		"prompt":                   ActionSecret, // User-authored chat content, like chat titles.
 		"schedule_cron":            ActionTrack,
 		"schedule_time_zone":       ActionTrack,
 		"schedule_revision":        ActionIgnore, // Internal schedule bookkeeping.
