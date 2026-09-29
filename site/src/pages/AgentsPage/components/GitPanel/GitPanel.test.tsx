@@ -177,6 +177,7 @@ describe("GitPanel per-ref views", () => {
 					remote_origin: "https://github.com/coder/coder",
 					git_branch: "feat/first",
 				}),
+				expect.any(AbortSignal),
 			),
 		);
 
@@ -191,6 +192,7 @@ describe("GitPanel per-ref views", () => {
 					remote_origin: "https://github.com/coder/coder",
 					git_branch: "fix/second",
 				}),
+				expect.any(AbortSignal),
 			),
 		);
 	});
@@ -220,6 +222,7 @@ describe("GitPanel per-ref views", () => {
 					remote_origin: "https://github.com/coder/coder",
 					git_branch: "feature/no-pr-yet",
 				}),
+				expect.any(AbortSignal),
 			),
 		);
 	});
@@ -254,6 +257,7 @@ describe("GitPanel per-ref views", () => {
 					remote_origin: "https://github.com/coder/coder",
 					git_branch: "feat/first",
 				}),
+				expect.any(AbortSignal),
 			),
 		);
 	});
@@ -294,6 +298,7 @@ describe("GitPanel per-ref views", () => {
 					remote_origin: "https://github.com/coder/coder",
 					git_branch: "fix/keyed",
 				}),
+				expect.any(AbortSignal),
 			),
 		);
 	});
