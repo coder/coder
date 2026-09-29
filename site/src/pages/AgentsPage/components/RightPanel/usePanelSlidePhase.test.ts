@@ -106,12 +106,14 @@ describe("usePanelSlidePhase", () => {
 			initialProps: closed,
 		});
 
-	it("settles at once when no animation runs", () => {
+	it("settles an open and a close at once when no animation runs", () => {
 		const { result, rerender } = renderPhase(document.createElement("div"));
 
 		rerender(open);
-
 		expect(result.current).toBe("open");
+
+		rerender(closed);
+		expect(result.current).toBe("closed");
 	});
 
 	it("settles when the panel's animations finish", async () => {

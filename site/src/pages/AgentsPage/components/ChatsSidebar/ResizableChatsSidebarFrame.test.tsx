@@ -96,7 +96,7 @@ describe("ResizableChatsSidebarFrame", () => {
 		expect(persistedWidth()).toBe(LEFT_SIDEBAR_DEFAULT_WIDTH + 40);
 	});
 
-	it("reports the end of its own slide but not of a child animation", () => {
+	it("reports the end of its current slide only", () => {
 		const onViewportSlideEnd = vi.fn();
 		render(
 			<ResizableChatsSidebarFrame
@@ -107,10 +107,20 @@ describe("ResizableChatsSidebarFrame", () => {
 			</ResizableChatsSidebarFrame>,
 		);
 
-		fireEvent.animationEnd(screen.getByTestId("child"));
+		// jsdom has no AnimationEvent, so set animationName on a plain event.
+		const animationEnd = (target: Element, animationName: string) =>
+			fireEvent(
+				target,
+				Object.assign(new Event("animationend", { bubbles: true }), {
+					animationName,
+				}),
+			);
+		const panel = screen.getByTestId("agents-sidebar-panel");
+		animationEnd(screen.getByTestId("child"), "panel-slide-out");
+		animationEnd(panel, "panel-slide-in");
 		expect(onViewportSlideEnd).not.toHaveBeenCalled();
 
-		fireEvent.animationEnd(screen.getByTestId("agents-sidebar-panel"));
+		animationEnd(panel, "panel-slide-out");
 		expect(onViewportSlideEnd).toHaveBeenCalledOnce();
 	});
 });
