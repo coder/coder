@@ -43,8 +43,8 @@ const (
 	// scenarioSteerBatch marks cases seeded with only steer rows, so
 	// every row enters history together.
 	scenarioSteerBatch scenario = "steer_batch"
-	// scenarioSteerJumps marks cases seeded with the queue Q1 S1 Q2,
-	// so only the steer row enters history.
+	// scenarioSteerJumps marks cases seeded with queue and steer rows
+	// mixed, so only the steer rows enter history.
 	scenarioSteerJumps scenario = "steer_jumps"
 	// scenarioQueueSteerJumps marks the SendMessage(queue) case from
 	// E1 seeded with the queue Q1 S1 Q2.
@@ -1034,11 +1034,6 @@ func matrixCases() []transitionCaseSpec {
 		finishInterruptionCase(chatstate.StateI0, chatstate.StateW, queueSeed{}),
 		finishInterruptionRejectsOutstandingToolCallCase(),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueSeed{promoted: []int{0}}),
-		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueSeed{
-			scenario:  scenarioSteerBatch,
-			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer},
-			promoted:  []int{0, 1},
-		}),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueSeed{
 			scenario:  scenarioMulti,
 			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorQueue},
@@ -1046,19 +1041,14 @@ func matrixCases() []transitionCaseSpec {
 		}),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueSeed{
 			scenario:  scenarioSteerJumps,
-			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
-			promoted:  []int{1},
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer},
+			promoted:  []int{1, 3},
 		}),
 
 		// FinishTurn cases: R0->W; from R1 every steer row enters
 		// history when any exist, otherwise the queue head.
 		finishTurnCase(chatstate.StateR0, chatstate.StateW, queueSeed{}),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueSeed{promoted: []int{0}}),
-		finishTurnCase(chatstate.StateR1, chatstate.StateR0, queueSeed{
-			scenario:  scenarioSteerBatch,
-			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer},
-			promoted:  []int{0, 1},
-		}),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueSeed{
 			scenario:  scenarioMulti,
 			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorQueue},
@@ -1066,8 +1056,8 @@ func matrixCases() []transitionCaseSpec {
 		}),
 		finishTurnCase(chatstate.StateR1, chatstate.StateR1, queueSeed{
 			scenario:  scenarioSteerJumps,
-			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
-			promoted:  []int{1},
+			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer},
+			promoted:  []int{1, 3},
 		}),
 
 		// FinishError cases.
