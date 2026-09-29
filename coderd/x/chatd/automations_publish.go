@@ -138,9 +138,12 @@ func (p *Server) publishAutomation(ctx context.Context, in automationPublish) (P
 	if !automation.Enabled {
 		return PublishAutomationResult{}, ErrAutomationDisabled
 	}
-	// A used single-use webhook is refused before the send, so a repeated
-	// request never reaches the prompt hooks. admitAutomation rechecks it
-	// under lock for concurrent requests.
+	// A rotated secret or a used single-use webhook is refused before the
+	// send, so such a request never reaches the prompt hooks.
+	// admitAutomation rechecks both under lock for concurrent requests.
+	if in.webhook && automation.WebhookSecretVersion != in.secretVersion {
+		return PublishAutomationResult{}, ErrAutomationSecretChanged
+	}
 	if in.webhook && isSingleUseWebhook(automation) && automation.WebhookConsumedAt.Valid {
 		return PublishAutomationResult{}, ErrAutomationWebhookConsumed
 	}
@@ -207,7 +210,22 @@ func (p *Server) admitAutomation(
 	automationID, chatID uuid.UUID,
 	inputID uuid.UUID,
 ) (chatstate.AutomationProvenance, error) {
-	locked, err := chatstate.LockAutomations(ctx, store, []uuid.UUID{automationID})
+	queued, err := store.GetChatQueuedMessagesByPosition(ctx, chatID)
+	if err != nil {
+		return chatstate.AutomationProvenance{}, xerrors.Errorf("get queued messages: %w", err)
+	}
+	// Lock this automation together with the automations of the queued
+	// rows in one call. LockAutomations locks in ascending id order, the
+	// order promotion uses when it locks the queued automations later in
+	// this transaction; locking this automation first could deadlock with
+	// a delivery to a chat that queues rows of each other's automations.
+	lockIDs := []uuid.UUID{automationID}
+	for _, row := range queued {
+		if row.AutomationID.Valid {
+			lockIDs = append(lockIDs, row.AutomationID.UUID)
+		}
+	}
+	locked, err := chatstate.LockAutomations(ctx, store, lockIDs)
 	if err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
@@ -241,12 +259,8 @@ func (p *Server) admitAutomation(
 	if err != nil {
 		return chatstate.AutomationProvenance{}, err
 	}
-	queued, err := store.CountChatQueuedMessages(ctx, chatID)
-	if err != nil {
-		return chatstate.AutomationProvenance{}, xerrors.Errorf("count queued messages: %w", err)
-	}
 	// Idle chats take the message directly; every other state queues it.
-	state := chatstate.ClassifyExecutionState(chat, queued > 0, true)
+	state := chatstate.ClassifyExecutionState(chat, len(queued) > 0, true)
 	if state != chatstate.StateW && state != chatstate.StateE0 {
 		switch automation.WhenBusy.ChatAutomationWhenBusy {
 		case database.ChatAutomationWhenBusySkip:
@@ -255,11 +269,7 @@ func (p *Server) admitAutomation(
 			// Automations get half of the queue, so people can still
 			// queue messages while automations fill theirs.
 			share := int64(max(1, p.chatLimits.MaxQueuedMessagesPerChat/2))
-			count, err := store.CountChatQueuedAutomationMessagesByChatID(ctx, chatID)
-			if err != nil {
-				return chatstate.AutomationProvenance{}, xerrors.Errorf("count queued automation messages: %w", err)
-			}
-			if count >= share {
+			if countPromotableAutomationRows(queued, locked) >= share {
 				return chatstate.AutomationProvenance{}, &AutomationQueueShareFullError{Max: share}
 			}
 		default:
@@ -285,6 +295,25 @@ func (p *Server) admitAutomation(
 		InputID:         inputID,
 		QueueGeneration: automation.QueueGeneration,
 	}, nil
+}
+
+// countPromotableAutomationRows counts the queued automation rows that
+// promotion would still deliver. Rows of a deleted or disabled automation,
+// or of an older queue generation, are dropped at promotion, so they do
+// not count toward the automations' share. It mirrors chatstate's
+// promotion guard; every automation of a row must be in locked.
+func countPromotableAutomationRows(rows []database.ChatQueuedMessage, locked map[uuid.UUID]database.ChatAutomation) int64 {
+	var count int64
+	for _, row := range rows {
+		if !row.AutomationID.Valid {
+			continue
+		}
+		automation, ok := locked[row.AutomationID.UUID]
+		if ok && automation.Enabled && row.QueueGeneration.Valid && row.QueueGeneration.Int64 == automation.QueueGeneration {
+			count++
+		}
+	}
+	return count
 }
 
 // isSingleUseWebhook reports whether a delivery consumes the automation's

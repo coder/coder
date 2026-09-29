@@ -1719,12 +1719,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().CountChatQueuedMessages(gomock.Any(), chat.ID).Return(int64(3), nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(3))
 	}))
-	s.Run("CountChatQueuedAutomationMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		chat := testutil.Fake(s.T(), faker, database.Chat{})
-		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().CountChatQueuedAutomationMessagesByChatID(gomock.Any(), chat.ID).Return(int64(2), nil).AnyTimes()
-		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(int64(2))
-	}))
 	s.Run("GetChatQueuedMessageHead", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		qm := testutil.Fake(s.T(), faker, database.ChatQueuedMessage{ChatID: chat.ID})
