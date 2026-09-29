@@ -305,65 +305,81 @@ func executeEditFilesTool(
 		planPathErr    error
 		planPathLoaded bool
 	)
-	// checkFile returns the reason to reject a file before any agent
-	// request for it, or "" when the file passes.
-	checkFile := func(path string, indexes []int) string {
+	// checkPath runs the coderd checks tied to one path and returns the
+	// reason to reject that file, or "" when it passes.
+	checkPath := func(path string) string {
 		hasPlanFileName := looksLikePlanFileName(path)
 		if hasPlanFileName && !isAbsolutePath(path) {
 			return "Use the chat-specific absolute plan path; plan files must use absolute paths"
 		}
-		if resolvePlanPath != nil && hasPlanFileName {
-			if !planPathLoaded {
-				chatPath, home, planPathErr = resolvePlanPath(ctx)
-				planPathLoaded = true
-			}
-			if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
-				return resp.Content
-			}
-		}
-		// An edit whose old_text equals new_text changes nothing, so it is
-		// rejected instead of reported as applied, and it rejects its whole
-		// file as every other error does. The comparison is byte for byte
-		// because texts that differ only in whitespace or line endings can
-		// still change the file.
-		var noOps []int
-		for _, i := range indexes {
-			if args.Edits[i].OldText == args.Edits[i].NewText {
-				noOps = append(noOps, i)
-			}
-		}
-		switch len(noOps) {
-		case 0:
+		if resolvePlanPath == nil || !hasPlanFileName {
 			return ""
-		case 1:
-			return "Change new_text or remove the edit: " + formatEditIndexes(noOps) + " has identical old_text and new_text, so it changes nothing"
-		default:
-			return "Change new_text or remove the edits: " + formatEditIndexes(noOps) + " have identical old_text and new_text, so they change nothing"
 		}
+		if !planPathLoaded {
+			chatPath, home, planPathErr = resolvePlanPath(ctx)
+			planPathLoaded = true
+		}
+		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
+			return resp.Content
+		}
+		return ""
 	}
 
-	var applied, notApplied []editFilesFileResult
+	// notApplied holds the files entries that were not applied. reports
+	// holds, in file order, every group of edits the message lists as
+	// not applied: those entries and the no-ops dropped from files that
+	// were sent.
+	var applied, notApplied, reports []editFilesFileResult
 	appliedEdits := 0
 	for _, file := range GroupEditsByPath(args.Edits) {
 		indexes := editIndexes[file.Path]
+		reject := func(result editFilesFileResult) {
+			notApplied = append(notApplied, result)
+			reports = append(reports, result)
+		}
 		// The interrupt handler can persist this result, so a file not yet
 		// sent is reported as not applied; sending it now would fail and
-		// report its outcome as unknown. This check runs before checkFile
+		// report its outcome as unknown. This check runs before checkPath
 		// so the interrupt is the reason given.
 		if ctx.Err() != nil {
-			notApplied = append(notApplied, editFilesFileResult{
+			reject(editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: editFilesInterruptedError,
 			})
 			continue
 		}
-		if reason := checkFile(file.Path, indexes); reason != "" {
-			notApplied = append(notApplied, editFilesFileResult{
+		if reason := checkPath(file.Path); reason != "" {
+			reject(editFilesFileResult{
 				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: reason,
 			})
 			continue
 		}
+		// An edit whose old_text equals new_text changes nothing, so it is
+		// dropped and reported instead of sent and reported as applied;
+		// the rest of its file is still sent. The comparison is byte for
+		// byte because texts that differ only in whitespace or line
+		// endings can still change the file.
+		sent := workspacesdk.FileEdits{Path: file.Path}
+		var sentIndexes, noOps []int
+		for j, edit := range file.Edits {
+			if edit.OldText == edit.NewText {
+				noOps = append(noOps, indexes[j])
+				continue
+			}
+			sent.Edits = append(sent.Edits, edit)
+			sentIndexes = append(sentIndexes, indexes[j])
+		}
+		if len(noOps) > 0 {
+			noOpResult := editFilesFileResult{
+				Path: file.Path, Status: editFilesStatusRejected, Edits: noOps, Error: editFilesNoOpError,
+			}
+			if len(sent.Edits) == 0 {
+				reject(noOpResult)
+				continue
+			}
+			reports = append(reports, noOpResult)
+		}
 		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
-			Files:       []workspacesdk.FileEdits{file},
+			Files:       []workspacesdk.FileEdits{sent},
 			IncludeDiff: true,
 		})
 		if err != nil {
@@ -376,8 +392,8 @@ func executeEditFilesTool(
 			if isAgentResponse(err) {
 				status = editFilesStatusRejected
 			}
-			notApplied = append(notApplied, editFilesFileResult{
-				Path: file.Path, Status: status, Edits: indexes, Error: agentAPIErrorMessage(err),
+			reject(editFilesFileResult{
+				Path: file.Path, Status: status, Edits: sentIndexes, Error: agentAPIErrorMessage(err),
 			})
 			continue
 		}
@@ -388,18 +404,18 @@ func executeEditFilesTool(
 			result.Diff = &diff
 		}
 		applied = append(applied, result)
-		appliedEdits += len(indexes)
+		appliedEdits += len(sentIndexes)
 	}
 
-	message := editFilesResultMessage(appliedEdits, len(args.Edits), notApplied)
+	message := editFilesResultMessage(appliedEdits, len(args.Edits), reports)
 	switch {
-	case len(notApplied) == 0:
+	case appliedEdits == len(args.Edits):
 		return marshalToolResponse(editFilesResult{
 			Status:  editFilesStatusApplied,
 			Message: message,
 			Files:   applied,
 		}), nil
-	case len(applied) > 0:
+	case appliedEdits > 0:
 		return marshalToolResponse(editFilesResult{
 			Status:  editFilesStatusPartial,
 			Message: message,
@@ -418,17 +434,19 @@ func isAgentResponse(err error) bool {
 }
 
 // editFilesResultMessage counts the applied edits out of total, then
-// lists one line per file that was not applied, in the order of
-// notApplied, with files of unknown outcome under their own heading.
-func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult) string {
+// lists one line per entry of reports, in order, with edits of unknown
+// outcome under their own heading.
+func editFilesResultMessage(applied, total int, reports []editFilesFileResult) string {
 	var rejected, unknown []string
-	for _, file := range notApplied {
+	for _, file := range reports {
 		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
 		switch {
 		case file.Status == editFilesStatusUnknown:
 			unknown = append(unknown, prefix+file.Error+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
 			rejected = append(rejected, prefix+file.Error+".")
+		case file.Error == editFilesNoOpError:
+			rejected = append(rejected, prefix+file.Error+". If you meant to change this text, resend the edit with the new text.")
 		default:
 			rejected = append(rejected, prefix+file.Error+". "+file.Path+" is unchanged; fix and resend only these edits.")
 		}
@@ -459,6 +477,11 @@ func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult
 // with such a file, and the user may have interrupted to stop it, so
 // its line has no resend instruction.
 const editFilesInterruptedError = "not sent because the tool call was interrupted"
+
+// editFilesNoOpError is the error of edits whose old_text equals
+// new_text. They were not sent, so their line says to resend them only
+// if a change was meant.
+const editFilesNoOpError = "old_text equals new_text, so it would change nothing"
 
 // formatEditIndexes renders indexes as "edits[1], edits[3]".
 func formatEditIndexes(indexes []int) string {
