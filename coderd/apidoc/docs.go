@@ -17861,6 +17861,10 @@ const docTemplate = `{
                 "circuit_breaker_timeout": {
                     "type": "integer"
                 },
+                "disable_content_recording": {
+                    "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
