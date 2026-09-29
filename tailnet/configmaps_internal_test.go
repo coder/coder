@@ -1072,6 +1072,8 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	require.Equal(t, map[int]string{1: "AUH", 1001: "DXB"}, d.DERPRegionNames)
 	require.Equal(t, p1tcn, d.ReceivedNode)
 	require.Equal(t, hst, d.LastWireguardHandshake)
+	require.EqualValues(t, 1234, d.TxBytes)
+	require.EqualValues(t, 5678, d.RxBytes)
 
 	done := make(chan struct{})
 	go func() {
@@ -1095,6 +1097,8 @@ func expectStatusWithHandshake(
 			b.AddPeer(k, &ipnstate.PeerStatus{
 				PublicKey:     k,
 				LastHandshake: lastHandshake,
+				TxBytes:       1234,
+				RxBytes:       5678,
 				Active:        true,
 			})
 			select {

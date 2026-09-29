@@ -1062,6 +1062,14 @@ func Test_ResolveRequest(t *testing.T) {
 		// It'll either be "connecting" or "disconnected". Both are OK for this
 		// test.
 		require.Contains(t, bodyStr, `Agent state is "`)
+
+		metrics, err := api.PrometheusRegistry.Gather()
+		require.NoError(t, err)
+		counted := func(status string) bool {
+			return testutil.PromCounterAssertion(t, metrics, func(v float64) bool { return v >= 1 },
+				"coder_workspaceapps_offline_total", "path", status)
+		}
+		require.True(t, counted("connecting") || counted("disconnected"), "offline page was not counted")
 	})
 
 	// Initializing apps are now permitted to connect anyways. This wasn't

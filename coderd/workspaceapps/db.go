@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -47,6 +48,12 @@ type DBTokenProvider struct {
 	WorkspaceAgentInactiveTimeout   time.Duration
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
+
+	// appOfflineTotal counts how often the offline page was served, by agent
+	// status and access method. Browser tabs left open on stopped workspaces
+	// produce a steady baseline, so a change in rate matters more than the
+	// absolute value.
+	appOfflineTotal *prometheus.CounterVec
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
@@ -62,6 +69,7 @@ func NewDBTokenProvider(ctx context.Context,
 	workspaceAgentInactiveTimeout time.Duration,
 	workspaceAppAuditSessionTimeout time.Duration,
 	signer cryptokeys.SigningKeycache,
+	reg prometheus.Registerer,
 ) SignedTokenProvider {
 	if workspaceAgentInactiveTimeout == 0 {
 		workspaceAgentInactiveTimeout = 1 * time.Minute
@@ -69,6 +77,14 @@ func NewDBTokenProvider(ctx context.Context,
 	if workspaceAppAuditSessionTimeout == 0 {
 		workspaceAppAuditSessionTimeout = time.Hour
 	}
+
+	appOfflineTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "coder",
+		Subsystem: "workspaceapps",
+		Name:      "offline_total",
+		Help:      "Number of workspace app requests answered with the offline page because the agent was not connected.",
+	}, []string{"status", "access_method"})
+	reg.MustRegister(appOfflineTotal)
 
 	return &DBTokenProvider{
 		Logger:                          log,
@@ -82,6 +98,7 @@ func NewDBTokenProvider(ctx context.Context,
 		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
 		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
 		Keycache:                        signer,
+		appOfflineTotal:                 appOfflineTotal,
 	}
 }
 
@@ -233,6 +250,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(dbtime.Now(), p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
+		p.appOfflineTotal.WithLabelValues(string(agentStatus.Status), string(appReq.AccessMethod)).Inc()
 		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
 	}

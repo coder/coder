@@ -24,6 +24,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
@@ -72,6 +73,13 @@ func NewServerTailnet(
 	}
 	serverCtx, cancel := context.WithCancel(ctx)
 
+	derpReconnects := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coder",
+		Subsystem: "servertailnet",
+		Name:      "derp_reconnects_total",
+		Help:      "Number of times the server tailnet connected to the embedded DERP relay. The value is 1 after startup and only rises when that connection is rebuilt.",
+	})
+
 	// This is set to allow local DERP traffic to be proxied through memory
 	// instead of needing to hit the external access URL. Don't use the ctx
 	// given in this callback, it's only valid while connecting.
@@ -81,6 +89,7 @@ func NewServerTailnet(
 			if !region.EmbeddedRelay || ctx.Err() != nil {
 				return nil
 			}
+			derpReconnects.Inc()
 			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
 			left, right := net.Pipe()
 			go func() {
@@ -125,6 +134,20 @@ func NewServerTailnet(
 			Name:      "connections_total",
 			Help:      "Total number of TCP connections made to workspace agents.",
 		}, []string{"network"}),
+		derpReconnects: derpReconnects,
+		agentUnreachable: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "servertailnet",
+			Name:      "agent_unreachable_total",
+			Help:      "Number of connection attempts where the workspace agent did not answer before the request ended, by peer state.",
+		}, []string{"reason"}),
+		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "coder",
+			Subsystem: "servertailnet",
+			Name:      "await_reachable_seconds",
+			Help:      "Time until a workspace agent answered the first ping when a new connection was opened.",
+			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		}),
 	}
 	tn.transport.DialContext = tn.dialContext
 	// These options are mostly just picked at random, and they can likely be
@@ -159,11 +182,17 @@ func (s *ServerTailnet) Conn() *tailnet.Conn {
 func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
 	s.connsPerAgent.Describe(descs)
 	s.totalConns.Describe(descs)
+	s.derpReconnects.Describe(descs)
+	s.agentUnreachable.Describe(descs)
+	s.awaitReachable.Describe(descs)
 }
 
 func (s *ServerTailnet) Collect(metrics chan<- prometheus.Metric) {
 	s.connsPerAgent.Collect(metrics)
 	s.totalConns.Collect(metrics)
+	s.derpReconnects.Collect(metrics)
+	s.agentUnreachable.Collect(metrics)
+	s.awaitReachable.Collect(metrics)
 }
 
 type ServerTailnet struct {
@@ -183,8 +212,11 @@ type ServerTailnet struct {
 
 	transport *http.Transport
 
-	connsPerAgent *prometheus.GaugeVec
-	totalConns    *prometheus.CounterVec
+	connsPerAgent    *prometheus.GaugeVec
+	totalConns       *prometheus.CounterVec
+	derpReconnects   prometheus.Counter
+	agentUnreachable *prometheus.CounterVec
+	awaitReachable   prometheus.Histogram
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
@@ -305,13 +337,67 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	// Since we now have an open conn, be careful to close it if we error
 	// without returning it to the user.
 
+	start := time.Now()
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
 		ret()
-		return nil, nil, xerrors.New("agent is unreachable")
+		return nil, nil, s.agentUnreachableError(ctx, agentID, time.Since(start))
 	}
+	s.awaitReachable.Observe(time.Since(start).Seconds())
 
 	return conn, ret, nil
+}
+
+// peerDiagnosticsTimeout caps how long a failed connection waits for peer
+// diagnostics. Reading them takes WireGuard engine locks, which may be busy
+// during an incident, and the error response should not wait on them.
+const peerDiagnosticsTimeout = time.Second
+
+// agentUnreachableError builds the error returned when an agent did not
+// answer before the context ended. It counts the failure, adds the peer
+// diagnostics to the request log line if the context has one, and returns
+// the same diagnostics in the error so other callers can log them.
+func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.UUID, after time.Duration) error {
+	fields := []slog.Field{
+		slog.F("agent_id", agentID),
+		slog.F("unreachable_after", after),
+	}
+	reason := "diagnostics_timeout"
+
+	diagCh := make(chan tailnet.PeerDiagnostics, 1)
+	go func() {
+		diagCh <- s.conn.GetPeerDiagnostics(agentID)
+	}()
+	select {
+	case d := <-diagCh:
+		fields = append(fields,
+			slog.F("peer_node_received", d.ReceivedNode != nil),
+			slog.F("peer_last_handshake", d.LastWireguardHandshake),
+			slog.F("preferred_derp", d.PreferredDERP),
+		)
+		switch {
+		case d.ReceivedNode == nil:
+			reason = "no_node"
+		case d.LastWireguardHandshake.IsZero():
+			reason = "no_handshake"
+		default:
+			reason = "handshake_ok"
+		}
+		if d.ReceivedNode != nil {
+			fields = append(fields,
+				slog.F("peer_tx_bytes", d.TxBytes),
+				slog.F("peer_rx_bytes", d.RxBytes),
+			)
+		}
+	case <-time.After(peerDiagnosticsTimeout):
+		fields = append(fields, slog.F("peer_diagnostics_timeout", true))
+	}
+	s.agentUnreachable.WithLabelValues(reason).Inc()
+
+	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+		rl.WithFields(fields...)
+	}
+	return &workspaceapps.AgentUnreachableError{Fields: fields}
 }
 
 func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {

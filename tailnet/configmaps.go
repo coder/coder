@@ -655,6 +655,8 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 		return
 	}
 	d.LastWireguardHandshake = ps.LastHandshake
+	d.TxBytes = ps.TxBytes
+	d.RxBytes = ps.RxBytes
 }
 
 func (c *configMaps) knownPeerIDs() []uuid.UUID {

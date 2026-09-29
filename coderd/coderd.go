@@ -751,6 +751,7 @@ func New(options *Options) *API {
 		options.AgentInactiveDisconnectTimeout,
 		options.WorkspaceAppAuditSessionTimeout,
 		options.AppSigningKeyCache,
+		options.PrometheusRegistry,
 	)
 
 	f := appearance.NewDefaultFetcher(options.Database, api.DeploymentValues.DocsURL.String())

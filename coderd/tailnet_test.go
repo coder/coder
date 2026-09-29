@@ -1,7 +1,9 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -22,10 +24,14 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -45,11 +51,88 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	agents, serverTailnet := setupServerTailnetAgent(t, 1)
 	a := agents[0]
 
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
 	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
 	require.NoError(t, err)
 	defer release()
 
 	assert.True(t, conn.AwaitReachable(ctx))
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
+	assert.False(t, testutil.PromCounterGathered(t, metrics, "coder_servertailnet_agent_unreachable_total", "no_node"))
+}
+
+func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// No agent is registered with the coordinator, so the ServerTailnet never
+	// receives a node for this ID and the wait ends when the deadline passes.
+	_, serverTailnet := setupServerTailnetAgent(t, 0)
+	agentID := uuid.New()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, testutil.IntervalSlow)
+	defer dialCancel()
+	_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
+	var unreachable *workspaceapps.AgentUnreachableError
+	require.ErrorAs(t, err, &unreachable)
+
+	requestLogger.WriteLog(ctx, http.StatusBadGateway)
+	var entry struct {
+		Level  string         `json:"level"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, "WARN", entry.Level)
+	assert.Equal(t, agentID.String(), entry.Fields["agent_id"])
+	assert.Equal(t, false, entry.Fields["peer_node_received"])
+	assert.Contains(t, entry.Fields, "unreachable_after")
+	assert.Contains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "preferred_derp")
+	assert.NotContains(t, entry.Fields, "peer_tx_bytes")
+	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_agent_unreachable_total", "no_node"))
+	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
+}
+
+func TestServerTailnet_DERPReconnects(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	agents, serverTailnet := setupServerTailnetAgent(t, 1, tailnettest.DisableSTUN, tailnettest.DERPIsEmbedded)
+	a := agents[0]
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	conn, release, err := serverTailnet.AgentConn(ctx, a.id)
+	require.NoError(t, err)
+	defer release()
+	require.True(t, conn.AwaitReachable(ctx))
+
+	// One connection to the embedded relay for the life of the process.
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_reconnects_total"))
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
