@@ -654,9 +654,6 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 		},
 		testCase{name: "invalid", args: []string{"--" + flags[1], "Bad: Header"}, wantErr: `invalid AI Gateway actor header name "Bad: Header" for CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
 		testCase{name: "duplicate", args: []string{"--" + flags[0], "X-User", "--" + flags[1], "x-user"}, wantErr: `duplicate AI Gateway actor header name "x-user" for CODER_AI_GATEWAY_ACTOR_HEADER_ID and CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`},
-		testCase{name: "auth", args: []string{"--" + flags[0], "authorization"}, wantErr: "reserved"},
-		testCase{name: "transport", args: []string{"--" + flags[0], "Content-Type"}, wantErr: "reserved"},
-		testCase{name: "internal", args: []string{"--" + flags[0], "X-Coder-AI-Governance-Token"}, wantErr: "reserved"},
 		testCase{name: "legacy metadata", args: []string{"--" + flags[0], "X-AI-Bridge-Actor-Metadata-Other"}, wantErr: "reserved"},
 	)
 	for _, tc := range cases {
@@ -698,6 +695,30 @@ func TestAIGatewayActorHeaderNames(t *testing.T) {
 			require.True(t, called, "configuration must reach validation")
 		})
 	}
+
+	t.Run("reserved names", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{
+			"Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number",
+		} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := codersdk.AIBridgeConfig{ActorHeaderID: serpent.String(name)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", name))
+
+				lower := strings.ToLower(name)
+				cfg = codersdk.AIBridgeConfig{ActorHeaderUsername: serpent.String(lower)}
+				require.EqualError(t, cfg.ValidateActorHeaderNames(), fmt.Sprintf("reserved AI Gateway actor header name %q", lower))
+			})
+		}
+	})
 }
 
 func TestAIGatewayCompatibilityAliases(t *testing.T) {
