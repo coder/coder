@@ -561,7 +561,7 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 - `A1 -> PromoteQueuedMessage(qid) -> R0` if promoting the last queued message
 - `A1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
 
-`PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
+`PromoteQueuedMessage` moves `qid` to the queue head and makes it a `steer` message. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix. Because `qid` is now the first `steer` message, it goes into history first, followed by any other `steer` messages.
 
 Either way, the resulting history message has `queued_message_id = qid`.
 

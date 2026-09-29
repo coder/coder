@@ -1388,8 +1388,8 @@ type sqlcQuerier interface {
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
-	// Sets the target queued message's position to one less than the
-	// current minimum position for that chat, moving it to the head.
+	// Moves the target queued message to the head of the chat's queue and
+	// marks it as a steer message, so the next promotion delivers it first.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named

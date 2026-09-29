@@ -1656,19 +1656,18 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 				// Target must still be present and now at the head.
 				queued := requireQueuedMessageByID(ctx, t, f, seeded.chatID, targetID)
 				require.Equal(t, targetID, queued.ID)
+				require.Equal(t, database.ChatBusyBehaviorSteer, queued.BusyBehavior,
+					"R1/I1 promote makes the target a steer row so FinishInterruption delivers it first")
 				require.NotEmpty(t, afterQueueIDs)
 				require.Equal(t, targetID, afterQueueIDs[0],
 					"R1/I1 promote brings the target to the queue head")
 				require.NotEmpty(t, seeded.queuedMessageBodies,
 					"R1/I1 seed must record queued message bodies")
+				require.Greater(t, after.QueueVersion, base.queueVersion,
+					"R1/I1 promote advances queue_version")
 				if targetIdx == 0 {
-					// Head-target: zero rows updated, so the
-					// queue order is unchanged and queue_version
-					// stays put.
 					require.Equal(t, base.queueIDs, afterQueueIDs,
 						"head-target promote preserves queue order")
-					require.Equal(t, base.queueVersion, after.QueueVersion,
-						"head-target promote leaves queue_version unchanged")
 					assertQueueBodiesInOrder(ctx, t, f, seeded.chatID, seeded.queuedMessageBodies)
 				} else {
 					// Non-head: target moves to the head, the rest
@@ -1676,8 +1675,6 @@ func promoteQueuedCase(from, want chatstate.ExecutionState, shape queueShape, ta
 					wantQueue := append([]int64{targetID}, remainingExcluding(base.queueIDs, targetIdx)...)
 					require.Equal(t, wantQueue, afterQueueIDs,
 						"non-head promote moves the target to the head and preserves the rest")
-					require.Greater(t, after.QueueVersion, base.queueVersion,
-						"non-head promote advances queue_version")
 					wantBodies := append([]string{seeded.queuedMessageBodies[targetIdx]},
 						remainingBodiesExcluding(seeded.queuedMessageBodies, targetIdx)...)
 					assertQueueBodiesInOrder(ctx, t, f, seeded.chatID, wantBodies)

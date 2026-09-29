@@ -1000,8 +1000,9 @@ type PromoteQueuedMessageResult struct {
 	CancellationMessages []database.ChatMessage
 }
 
-// PromoteQueuedMessage promotes the target queued message to the
-// queue head; from E1/A1 it also pops it into active history.
+// PromoteQueuedMessage moves the target queued message to the queue
+// head as a steer message; from E1/A1 it also pops it into active
+// history.
 func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueuedMessageResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionPromoteQueuedMessage)
 	if err != nil {
@@ -1027,8 +1028,9 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 
 	// R1/I1: leave the target at the queue head and transition to
 	// status `interrupting` so the worker can drain the in-flight
-	// generation before promoting the queue head into active history.
-	// No history row is inserted here and no queue rows are deleted.
+	// generation before FinishInterruption promotes the target, with
+	// any other steer rows, into active history. No history row is
+	// inserted here and no queue rows are deleted.
 	if from == StateR1 || from == StateI1 {
 		if _, err := tx.applyExecutionState(executionStateUpdate{
 			Status:                   database.ChatStatusInterrupting,

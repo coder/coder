@@ -12068,13 +12068,10 @@ UPDATE chat_queued_messages AS target
 SET position = COALESCE(
     (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
     0
-) - 1
+) - 1,
+    busy_behavior = 'steer'
 WHERE target.id = $2::bigint
   AND target.chat_id = $1::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
-    target.position
-  )
 `
 
 type ReorderChatQueuedMessageToHeadParams struct {
@@ -12082,8 +12079,8 @@ type ReorderChatQueuedMessageToHeadParams struct {
 	ID     int64     `db:"id" json:"id"`
 }
 
-// Sets the target queued message's position to one less than the
-// current minimum position for that chat, moving it to the head.
+// Moves the target queued message to the head of the chat's queue and
+// marks it as a steer message, so the next promotion delivers it first.
 func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToHead, arg.ChatID, arg.ID)
 	if err != nil {
