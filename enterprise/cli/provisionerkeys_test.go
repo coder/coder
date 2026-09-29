@@ -1,6 +1,8 @@
 package cli_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -96,5 +98,42 @@ func TestProvisionerKeys(t *testing.T) {
 		require.NoError(t, err)
 		line = stdout.ReadLine(ctx)
 		require.Contains(t, line, "No provisioner keys found")
+	})
+
+	t.Run("CreateJSON", func(t *testing.T) {
+		t.Parallel()
+
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+
+		name := "json-key"
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, conf := newCLI(
+			t,
+			"provisioner", "keys", "create", name, "--tag", "foo=bar", "--output", "json",
+		)
+		clitest.SetupConfig(t, orgAdminClient, conf)
+
+		var stdout bytes.Buffer
+		inv.Stdout = &stdout
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var created struct {
+			codersdk.ProvisionerKey
+			Key string `json:"key"`
+		}
+		require.NoError(t, json.Unmarshal(stdout.Bytes(), &created))
+		require.Equal(t, name, created.Name)
+		require.NotEmpty(t, created.ID)
+		require.Equal(t, owner.OrganizationID, created.OrganizationID)
+		require.Equal(t, "bar", created.Tags["foo"])
+		require.NoError(t, provisionerkey.Validate(created.Key))
 	})
 }

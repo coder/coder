@@ -31,10 +31,31 @@ func (r *RootCmd) provisionerKeys() *serpent.Command {
 	return cmd
 }
 
+// createProvisionerKeyResponse includes the one-time secret, which is only
+// available at creation time.
+type createProvisionerKeyResponse struct {
+	codersdk.ProvisionerKey
+	Key string `json:"key"`
+}
+
 func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 	var (
 		orgContext = agpl.NewOrganizationContext()
 		rawTags    []string
+		formatter  = cliui.NewOutputFormatter(
+			cliui.ChangeFormatterData(cliui.TextFormat(), func(data any) (any, error) {
+				typed, ok := data.(createProvisionerKeyResponse)
+				if !ok {
+					return "", xerrors.Errorf("expected createProvisionerKeyResponse, got %T", data)
+				}
+				return fmt.Sprintf(
+					"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(typed.Name)),
+					pretty.Sprint(cliui.DefaultStyles.Keyword, typed.Key),
+				), nil
+			}),
+			cliui.JSONFormat(),
+		)
 	)
 
 	cmd := &serpent.Command{
@@ -68,14 +89,29 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 				return xerrors.Errorf("create provisioner key: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(
-				inv.Stdout,
-				"Successfully created provisioner key %s! Save this authentication token, it will not be shown again.\n\n%s\n",
-				pretty.Sprint(cliui.DefaultStyles.Keyword, strings.ToLower(inv.Args[0])),
-				pretty.Sprint(cliui.DefaultStyles.Keyword, res.Key),
-			)
+			// CreateProvisionerKey only returns the secret, so list keys for the metadata.
+			// The key already exists, so never fail here and lose the one-time secret.
+			key := codersdk.ProvisionerKey{Name: inv.Args[0], OrganizationID: org.ID}
+			keys, err := client.ListProvisionerKeys(ctx, org.ID)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Could not fetch metadata for the created provisioner key: %v", err)
+			}
+			for _, k := range keys {
+				if strings.EqualFold(k.Name, inv.Args[0]) {
+					key = k
+					break
+				}
+			}
 
-			return nil
+			out, err := formatter.Format(inv.Context(), createProvisionerKeyResponse{
+				ProvisionerKey: key,
+				Key:            res.Key,
+			})
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
 
@@ -89,6 +125,7 @@ func (r *RootCmd) provisionerKeysCreate() *serpent.Command {
 		},
 	}
 	orgContext.AttachOptions(cmd)
+	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
 }
