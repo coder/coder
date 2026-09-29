@@ -32,11 +32,13 @@ func TestHeadersFromActor(t *testing.T) {
 				Metadata: recorder.Metadata{
 					"Username": "alice",
 					"Count":    42,
+					"Role":     "admin",
 				},
 			},
 			names: map[string]string{
 				"id":       "X-Downstream-User-Id",
 				"username": "X-Downstream-Username",
+				"Role":     "X-Downstream-Role",
 			},
 			want: map[string]string{
 				"X-Downstream-User-Id":  "user-123",
