@@ -685,7 +685,7 @@ function OptionRowContent({ icon, label, selected }: OptionRowContentProps) {
 	return (
 		<>
 			{icon ? <OptionIcon>{icon}</OptionIcon> : null}
-			<span>{label}</span>
+			<span className="min-w-0 truncate">{label}</span>
 			{selected && (
 				<CheckIcon aria-hidden className="ml-auto size-4 shrink-0" />
 			)}
@@ -701,14 +701,14 @@ function ChipLabel({
 	value: string;
 }): React.ReactNode {
 	if (prefix.length === 0) {
-		return value;
+		return <span className="min-w-0 truncate">{value}</span>;
 	}
 	return (
 		<>
-			<span className="text-content-secondary group-hover/chip:text-content-primary">
+			<span className="shrink-0 text-content-secondary group-hover/chip:text-content-primary">
 				{prefix}:
 			</span>
-			<span className="text-content-primary">{value}</span>
+			<span className="min-w-0 truncate text-content-primary">{value}</span>
 		</>
 	);
 }
