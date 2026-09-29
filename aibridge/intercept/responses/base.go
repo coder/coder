@@ -110,7 +110,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -401,6 +401,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 response.ID,
+		ProviderModel:         response.Model,
 		Input:                 inputNonCacheTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
