@@ -659,7 +659,8 @@ LIMIT COALESCE(NULLIF(@limit_::integer, 0), 1000);
 
 -- name: ListAIBridgeSessionThreads :many
 -- Returns all interceptions belonging to paginated threads within a session.
--- Threads are paginated by (started_at, thread_id) cursor.
+-- Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+-- returns every thread in the session.
 WITH paginated_threads AS (
 	SELECT
 		-- Find thread root interceptions (thread_root_id IS NULL), apply cursor
@@ -689,7 +690,7 @@ WITH paginated_threads AS (
 	ORDER BY
 		aibridge_interceptions.started_at ASC,
 		aibridge_interceptions.id ASC
-	LIMIT COALESCE(NULLIF(@limit_::integer, 0), 50)
+	LIMIT NULLIF(@limit_::integer, 0)
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,

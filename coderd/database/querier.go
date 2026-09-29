@@ -1290,7 +1290,8 @@ type sqlcQuerier interface {
 	// that lands on the limit boundary is stable across identical requests.
 	ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error)
 	// Returns all interceptions belonging to paginated threads within a session.
-	// Threads are paginated by (started_at, thread_id) cursor.
+	// Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+	// returns every thread in the session.
 	ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error)
 	// Returns paginated sessions with aggregated metadata, token counts, and
 	// the most recent user prompt. A "session" is a logical grouping of

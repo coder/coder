@@ -2195,7 +2195,7 @@ WITH paginated_threads AS (
 	ORDER BY
 		aibridge_interceptions.started_at ASC,
 		aibridge_interceptions.id ASC
-	LIMIT COALESCE(NULLIF($4::integer, 0), 50)
+	LIMIT NULLIF($4::integer, 0)
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
@@ -2230,7 +2230,8 @@ type ListAIBridgeSessionThreadsRow struct {
 }
 
 // Returns all interceptions belonging to paginated threads within a session.
-// Threads are paginated by (started_at, thread_id) cursor.
+// Threads are paginated by (started_at, thread_id) cursor. A limit of 0
+// returns every thread in the session.
 func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionThreads,
 		arg.SessionID,
