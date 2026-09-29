@@ -1963,7 +1963,7 @@ Stop recording the content of intercepted conversations. No user prompt, tool ca
 | YAML        | <code>ai_gateway.send_actor_headers</code>        |
 | Default     | <code>false</code>                                |
 
-Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID, username, and email names and any configured actor-header destinations before adding authenticated values.
 
 ### --ai-gateway-actor-header-id
 
@@ -1986,6 +1986,16 @@ Header name for the authenticated user's ID. Empty disables this header. Require
 | Default     | <code>X-AI-Bridge-Actor-Metadata-Username</code>     |
 
 Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.
+
+### --ai-gateway-actor-header-email
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL</code> |
+| YAML        | <code>ai_gateway.actor_header_email</code>        |
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
 
 ### --ai-gateway-dump-dir
 

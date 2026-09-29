@@ -390,6 +390,7 @@ title: Schemas
 
 ```json
 {
+  "actor_header_email": "string",
   "actor_header_id": "string",
   "actor_header_username": "string",
   "allow_byok": true,
@@ -417,6 +418,7 @@ title: Schemas
 
 | Name                                | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                            |
 |-------------------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actor_header_email`                | string  | false    |              |                                                                                                                                                                                                                                                                        |
 | `actor_header_id`                   | string  | false    |              |                                                                                                                                                                                                                                                                        |
 | `actor_header_username`             | string  | false    |              |                                                                                                                                                                                                                                                                        |
 | `allow_byok`                        | boolean | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1039,6 +1041,7 @@ title: Schemas
     "upstream_proxy_ca": "string"
   },
   "bridge": {
+    "actor_header_email": "string",
     "actor_header_id": "string",
     "actor_header_username": "string",
     "allow_byok": true,
@@ -7570,6 +7573,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "upstream_proxy_ca": "string"
       },
       "bridge": {
+        "actor_header_email": "string",
         "actor_header_id": "string",
         "actor_header_username": "string",
         "allow_byok": true,
@@ -8207,6 +8211,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "upstream_proxy_ca": "string"
     },
     "bridge": {
+      "actor_header_email": "string",
       "actor_header_id": "string",
       "actor_header_username": "string",
       "allow_byok": true,

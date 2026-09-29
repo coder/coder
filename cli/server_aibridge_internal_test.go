@@ -151,10 +151,12 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 	const (
 		actorID          = "authenticated-user"
 		actorUsername    = "authenticated-username"
+		actorEmail       = "authenticated@example.com"
 		clientID         = "client-user"
 		clientName       = "client-username"
 		customIDHeader   = "X-Downstream-User-ID"
 		customNameHeader = "X-Downstream-Username"
+		customMailHeader = "X-Downstream-Email"
 	)
 
 	tests := []struct {
@@ -163,6 +165,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 		sendActorHeaders    bool
 		actorHeaderID       string
 		actorHeaderName     string
+		actorHeaderEmail    string
 		wantCustomHeaders   bool
 		wantStandardHeaders bool
 	}{
@@ -171,6 +174,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			providerType:        database.AIProviderTypeOpenai,
 			actorHeaderID:       customIDHeader,
 			actorHeaderName:     customNameHeader,
+			actorHeaderEmail:    customMailHeader,
 			wantStandardHeaders: true,
 		},
 		{
@@ -184,6 +188,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			sendActorHeaders:  true,
 			actorHeaderID:     customIDHeader,
 			actorHeaderName:   customNameHeader,
+			actorHeaderEmail:  customMailHeader,
 			wantCustomHeaders: true,
 		},
 		{
@@ -192,6 +197,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			sendActorHeaders:    true,
 			actorHeaderID:       customIDHeader,
 			actorHeaderName:     customNameHeader,
+			actorHeaderEmail:    customMailHeader,
 			wantStandardHeaders: true,
 		},
 	}
@@ -218,11 +224,12 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 				SendActorHeaders:    serpent.Bool(tt.sendActorHeaders),
 				ActorHeaderID:       serpent.String(tt.actorHeaderID),
 				ActorHeaderUsername: serpent.String(tt.actorHeaderName),
+				ActorHeaderEmail:    serpent.String(tt.actorHeaderEmail),
 			}, slog.Make(), nil)
 			require.NoError(t, err)
 
 			request := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`))
-			request = request.WithContext(aibridge.AsActor(request.Context(), actorID, aibridge.Metadata{"Username": actorUsername}))
+			request = request.WithContext(aibridge.AsActor(request.Context(), actorID, actorEmail, aibridge.Metadata{"Username": actorUsername}))
 			request.Header.Set("Authorization", "Bearer client-key")
 			request.Header.Set(headers.ActorIDHeader, clientID)
 			request.Header.Set(headers.ActorMetadataHeader("Username"), clientName)
@@ -239,9 +246,11 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			if tt.wantCustomHeaders {
 				assert.Equal(t, actorID, receivedHeaders.Get(customIDHeader))
 				assert.Equal(t, actorUsername, receivedHeaders.Get(customNameHeader))
+				assert.Equal(t, actorEmail, receivedHeaders.Get(customMailHeader))
 			} else {
 				assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(customIDHeader))
 				assert.NotContains(t, receivedHeaders, customNameHeader)
+				assert.NotContains(t, receivedHeaders, customMailHeader)
 			}
 			if tt.wantStandardHeaders {
 				assert.Equal(t, clientID, receivedHeaders.Get(headers.ActorIDHeader))

@@ -486,10 +486,12 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkHeaders.Set("Authorization", "Bearer provider-key")
 		sdkHeaders.Set(headers.ActorIDHeader, "sdk-id")
 		sdkHeaders.Set(headers.ActorMetadataHeader("Username"), "sdk-name")
+		sdkHeaders.Set(headers.ActorMetadataHeader("Email"), "sdk-email")
 		clientHeaders := http.Header{}
 		clientHeaders.Set("Authorization", "Bearer client-key")
 		clientHeaders.Set(headers.ActorIDHeader, "client-id")
 		clientHeaders.Set(headers.ActorMetadataHeader("Username"), "client-name")
+		clientHeaders.Set(headers.ActorMetadataHeader("Email"), "client-email")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
 		for _, tc := range []struct {
@@ -503,6 +505,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 					"Authorization":                       {"Bearer provider-key"},
 					"X-Ai-Bridge-Actor-Id":                {"client-id"},
 					"X-Ai-Bridge-Actor-Metadata-Username": {"client-name"},
+					"X-Ai-Bridge-Actor-Metadata-Email":    {"client-email"},
 				},
 			},
 			{
@@ -540,13 +543,13 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		}{
 			{
 				name:  "configured actor",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
+				actor: &context.Actor{ID: "user-123", Email: "alice@example.com", Metadata: recorder.Metadata{"Username": "alice"}},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}, "X-Downstream-Email": {"alice@example.com"}},
 			},
 			{
-				name:  "missing username",
-				actor: &context.Actor{ID: "user-123"},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+				name:  "missing email",
+				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": "alice"}},
+				want:  http.Header{"X-Downstream-User-Id": {"user-123"}, "X-Downstream-Username": {"alice"}},
 			},
 			{
 				name:  "empty username",
@@ -554,11 +557,9 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
 			},
 			{
-				name:  "non-string username",
-				actor: &context.Actor{ID: "user-123", Metadata: recorder.Metadata{"Username": 42}},
-				want:  http.Header{"X-Downstream-User-Id": {"user-123"}},
+				name: "nil actor",
+				want: http.Header{},
 			},
-			{name: "nil actor", want: http.Header{}},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -574,6 +575,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 				result := headers.BuildUpstreamHeaders(sdkHeaders, clientHeaders, "Authorization", map[string]string{
 					"id":       "X-Downstream-User-Id",
 					"username": "X-Downstream-Username",
+					"email":    "X-Downstream-Email",
 				}, tc.actor)
 
 				require.Equal(t, tc.want, result)
@@ -589,10 +591,12 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		sdkHeaders := http.Header{}
 		sdkHeaders.Set(headers.ActorIDHeader, "sdk-id")
 		sdkHeaders.Set(headers.ActorMetadataHeader("Username"), "sdk-name")
+		sdkHeaders.Set(headers.ActorMetadataHeader("Email"), "sdk-email")
 		sdkHeaders.Set("Authorization", "Bearer provider-key")
 		clientHeaders := http.Header{}
 		clientHeaders.Set(headers.ActorIDHeader, "client-id")
 		clientHeaders.Set(headers.ActorMetadataHeader("Username"), "client-name")
+		clientHeaders.Set(headers.ActorMetadataHeader("Email"), "client-email")
 		clientHeaders.Set("X-Unrelated", "preserved")
 		sdkCopy, clientCopy := sdkHeaders.Clone(), clientHeaders.Clone()
 
@@ -601,10 +605,18 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		require.Equal(t, "user-123", result.Get("X-Downstream-User-Id"))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorIDHeader))
 		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
+		require.NotContains(t, result, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Email")))
 		require.Equal(t, "Bearer provider-key", result.Get("Authorization"))
 		require.Equal(t, "preserved", result.Get("X-Unrelated"))
 		require.Equal(t, sdkCopy, sdkHeaders)
 		require.Equal(t, clientCopy, clientHeaders)
+	})
+
+	t.Run("missing actor email does not reuse stale header", func(t *testing.T) {
+		t.Parallel()
+
+		result := headers.BuildUpstreamHeaders(http.Header{"X-Email": {"sdk-email"}}, http.Header{"X-Email": {"client-email"}}, "Authorization", map[string]string{"email": "X-Email"}, &context.Actor{ID: "user-123"})
+		require.NotContains(t, result, "X-Email")
 	})
 
 	t.Run("authenticated actor overrides client and SDK values", func(t *testing.T) {

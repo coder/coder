@@ -66,20 +66,26 @@ For upgrade and rollback ordering, refer to [Version compatibility](./standalone
 Enable `--ai-gateway-send-actor-headers`, `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`, or `ai_gateway.send_actor_headers` to add actor identity to intercepted upstream requests.
 The setting is disabled by default.
 
-When enabled, AI Gateway emits these headers by default:
+When actor forwarding is enabled, AI Gateway uses these default header settings:
 
 | Actor attribute | Default header                        | Value                                              |
 |-----------------|---------------------------------------|----------------------------------------------------|
 | `id`            | `X-AI-Bridge-Actor-ID`                | The authenticated Coder user ID.                   |
 | `username`      | `X-AI-Bridge-Actor-Metadata-Username` | The username from the authenticated Coder account. |
+| `email`         | *(empty)*                             | The authenticated Coder account email address.     |
 
 Configure the ID header with `--ai-gateway-actor-header-id`, `CODER_AI_GATEWAY_ACTOR_HEADER_ID`, or `ai_gateway.actor_header_id`.
 Configure the username header with `--ai-gateway-actor-header-username`, `CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME`, or `ai_gateway.actor_header_username`.
+Configure the email header with `--ai-gateway-actor-header-email`, `CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`, or `ai_gateway.actor_header_email`.
 
 Each option uses its own precedence: the CLI flag overrides the environment variable, the environment variable overrides the YAML value, and the default applies when none is set.
-Set an option to an empty value to disable that actor attribute without disabling the other attribute.
+Set an option to an empty value to disable that actor attribute without disabling the other attributes.
+Email forwarding requires both the global `send_actor_headers` setting and a non-empty email header name.
 
 AI Gateway uses values from the authenticated Coder account, not client-supplied headers.
+AI Gateway omits the email header when the authenticated account has no email address.
+Actor header settings apply to every configured provider.
+Email is personal information, so set the email option only if every upstream may receive it.
 Gateway does not inject actor headers on passthrough routes.
 
 ### Header name restrictions

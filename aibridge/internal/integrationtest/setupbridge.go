@@ -190,7 +190,7 @@ func newBridgeTestServer(
 	actorID, md := cfg.userID, cfg.metadata
 	srv := httptest.NewUnstartedServer(bridge)
 	srv.Config.BaseContext = func(_ net.Listener) context.Context {
-		return aibcontext.AsActor(ctx, actorID, md)
+		return aibcontext.AsActor(ctx, actorID, "", md)
 	}
 	srv.Start()
 	t.Cleanup(srv.Close)

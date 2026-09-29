@@ -1021,8 +1021,8 @@ ai_gateway:
   # Add configured headers identifying the authenticated user to intercepted
   # upstream requests. Use this when a proxy between AI Gateway and an upstream AI
   # provider needs user identity. When enabled, removes client-supplied headers at
-  # the standard ID and username names and any configured actor-header destinations
-  # before adding authenticated values.
+  # the standard ID, username, and email names and any configured actor-header
+  # destinations before adding authenticated values.
   # (default: false, type: bool)
   send_actor_headers: false
   # Header name for the authenticated user's ID. Empty disables this header.
@@ -1033,6 +1033,11 @@ ai_gateway:
   # Requires AI Gateway actor headers to be enabled.
   # (default: X-AI-Bridge-Actor-Metadata-Username, type: string)
   actor_header_username: X-AI-Bridge-Actor-Metadata-Username
+  # Header name for the authenticated user's email address. Empty disables this
+  # header. Requires AI Gateway actor headers to be enabled. Applies to every
+  # configured provider; email is personal information.
+  # (default: <unset>, type: string)
+  actor_header_email: ""
   # Base directory for dumping AI Gateway request/response pairs to disk for
   # debugging. When set, each provider writes under a subdirectory named after the
   # provider. Sensitive headers are redacted. Leave empty to disable.

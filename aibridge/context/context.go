@@ -11,12 +11,15 @@ type (
 )
 
 type Actor struct {
-	ID       string
+	ID string
+	// Email is kept out of Metadata so it is never recorded or logged. It is
+	// only read when forwarding actor headers upstream.
+	Email    string
 	Metadata recorder.Metadata
 }
 
-func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {
-	return context.WithValue(ctx, actorContextKey{}, &Actor{ID: actorID, Metadata: metadata})
+func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metadata) context.Context {
+	return context.WithValue(ctx, actorContextKey{}, &Actor{ID: actorID, Email: email, Metadata: metadata})
 }
 
 func ActorFromContext(ctx context.Context) *Actor {

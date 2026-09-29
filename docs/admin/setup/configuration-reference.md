@@ -253,6 +253,14 @@ Base directory for dumping AI Gateway request/response pairs to disk for debuggi
 - CLI flag: [`--ai-gateway-dump-dir`](../../reference/cli/server/index.md#--ai-gateway-dump-dir)
 - YAML key: `ai_gateway.api_dump_dir`
 
+### Actor header email
+
+Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.
+
+- Environment variable: `CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL`
+- CLI flag: [`--ai-gateway-actor-header-email`](../../reference/cli/server/index.md#--ai-gateway-actor-header-email)
+- YAML key: `ai_gateway.actor_header_email`
+
 ### Actor header ID
 
 Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.
@@ -336,7 +344,7 @@ Maximum number of AI Gateway requests per second per replica. Set to 0 to disabl
 
 ### Send actor headers
 
-Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID and username names and any configured actor-header destinations before adding authenticated values.
+Add configured headers identifying the authenticated user to intercepted upstream requests. Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. When enabled, removes client-supplied headers at the standard ID, username, and email names and any configured actor-header destinations before adding authenticated values.
 
 - Environment variable: `CODER_AI_GATEWAY_SEND_ACTOR_HEADERS`
 - CLI flag: [`--ai-gateway-send-actor-headers`](../../reference/cli/server/index.md#--ai-gateway-send-actor-headers)
