@@ -85,6 +85,8 @@ CREATE TRIGGER trigger_enforce_chat_automation_chat_organization
     FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_chat_organization();
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations (organization_id, owner_id);
+-- Serves owner lookups without an organization, including the users cascade.
+CREATE INDEX chat_automations_owner_id_idx ON chat_automations (owner_id);
 -- Chat deletion enforces ON DELETE SET NULL through these columns.
 CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations (target_chat_id) WHERE target_chat_id IS NOT NULL;
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations (created_by_chat_id) WHERE created_by_chat_id IS NOT NULL;

@@ -4832,6 +4832,8 @@ CREATE INDEX chat_automations_due_idx ON chat_automations USING btree (schedule_
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations USING btree (organization_id, owner_id);
 
+CREATE INDEX chat_automations_owner_id_idx ON chat_automations USING btree (owner_id);
+
 CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations USING btree (target_chat_id) WHERE (target_chat_id IS NOT NULL);
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
