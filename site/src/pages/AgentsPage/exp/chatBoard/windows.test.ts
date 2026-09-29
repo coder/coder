@@ -177,6 +177,17 @@ describe("window list", () => {
 		expect(raise(toggled, "draft").at(-1)?.kind).toBe("draft");
 	});
 
+	it("keeps a draft minimized while its chat was being created", () => {
+		viewport(1400, 900);
+		const draft = { ...draftWindow({ cardId: "p" }), x: 30, y: 40 };
+		const list = minimizeWindow([draft, win("a")], "draft");
+
+		expect(replaceDraftWithChat(list, { cardId: "p" }, "n")).toEqual([
+			win("a"),
+			{ ...win("n"), x: 30, y: 40, width: 520, height: 640, minimized: true },
+		]);
+	});
+
 	it("hands the draft's frame to the chat it created, else opens the chat centred", () => {
 		viewport(1400, 900);
 		const draft = { ...draftWindow({ cardId: "p" }), x: 30, y: 40 };

@@ -97,7 +97,7 @@ export const WindowTabs: React.FC<WindowTabsProps> = ({
 	return (
 		<nav
 			aria-label="Minimized chats"
-			className="flex h-10 shrink-0 items-end justify-end gap-2 overflow-x-auto border-0 border-t border-solid border-border bg-surface-secondary px-5"
+			className="flex h-10 shrink-0 items-end justify-end-safe gap-2 overflow-x-auto border-0 border-t border-solid border-border bg-surface-secondary px-5"
 		>
 			{tabs.map((tab) => (
 				<Tab

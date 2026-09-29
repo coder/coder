@@ -161,6 +161,8 @@ export const replaceDraftWithChat = (
 					width: w.width,
 					height: w.height,
 					pinned: true,
+					// A draft minimized while its chat was created stays in the tab bar.
+					minimized: w.minimized,
 				}
 			: w,
 	);
