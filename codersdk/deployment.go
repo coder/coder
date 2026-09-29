@@ -5064,12 +5064,12 @@ type LinkConfig struct {
 // actor identity before any upstream requests can be sent.
 func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 	headers := []struct {
-		attribute string
-		name      string
-		standard  string
+		env      string
+		name     string
+		standard string
 	}{
-		{"id", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
-		{"username", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
 	}
 	seen := make(map[string]string, len(headers))
 	for _, header := range headers {
@@ -5077,13 +5077,13 @@ func (c AIBridgeConfig) ValidateActorHeaderNames() error {
 			continue
 		}
 		if !httpguts.ValidHeaderFieldName(header.name) {
-			return xerrors.Errorf("invalid AI Gateway actor header name %q for %s", header.name, header.attribute)
+			return xerrors.Errorf("invalid AI Gateway actor header name %q for %s", header.name, header.env)
 		}
 		canonical := http.CanonicalHeaderKey(header.name)
 		if prior, ok := seen[canonical]; ok {
-			return xerrors.Errorf("duplicate AI Gateway actor header name %q for %s and %s", header.name, prior, header.attribute)
+			return xerrors.Errorf("duplicate AI Gateway actor header name %q for %s and %s", header.name, prior, header.env)
 		}
-		seen[canonical] = header.attribute
+		seen[canonical] = header.env
 		if strings.EqualFold(header.name, header.standard) {
 			continue
 		}
