@@ -232,31 +232,48 @@ const longOptionCategory = (key: string, label: string): FilterCategory => ({
 	],
 });
 
+const LongOptionLabelsHarness = () => (
+	<FilterComboboxHarness
+		initialQuery=""
+		categories={[
+			longOptionCategory("template", "Template"),
+			longOptionCategory("organization", "Organization"),
+		]}
+	/>
+);
+
+const openOrganizationOptions = async (
+	canvasElement: HTMLElement,
+	open: (row: HTMLElement) => Promise<void>,
+) => {
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		within(canvasElement).getByRole("combobox", {
+			name: "Search and filter…",
+		}),
+	);
+	await open(await body.findByRole("option", { name: "Organization" }));
+	await body.findByText(/A organization name/);
+};
+
 export const LongFlyoutOptionLabels: Story = {
-	render: () => (
-		<FilterComboboxHarness
-			initialQuery=""
-			categories={[
-				longOptionCategory("template", "Template"),
-				longOptionCategory("organization", "Organization"),
-			]}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		await userEvent.click(
-			within(canvasElement).getByRole("combobox", {
-				name: "Search and filter…",
-			}),
-		);
-		for (const [key, label] of [
-			["template", "Template"],
-			["organization", "Organization"],
-		]) {
-			await userEvent.hover(await body.findByRole("option", { name: label }));
-			await body.findByRole("button", { name: new RegExp(`A ${key} name`) });
-		}
+	render: () => <LongOptionLabelsHarness />,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.hover(row)),
+};
+
+export const LongOptionLabelsMobile: Story = {
+	render: () => <LongOptionLabelsHarness />,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
+	beforeEach: () =>
+		setupMatchMedia({
+			[mobileViewportMediaQuery]: true,
+		}).restore,
+	play: ({ canvasElement }) =>
+		openOrganizationOptions(canvasElement, (row) => userEvent.click(row)),
 };
 
 // The search field stays in the flyout when nothing matches.
