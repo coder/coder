@@ -101,7 +101,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatModelConfig:               {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceChatProject:                   {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceChatProjectMemory:             {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChatProjectMemory:             {ActionCreate, ActionDelete, ActionRead},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},

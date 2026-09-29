@@ -41,13 +41,12 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, created.Body, got.Body)
 
-	updatedDescription := "Updated release notes"
-	updated, err := client.UpdateChatProjectMemory(ctx, project.OrganizationID, project.ID, created.ID, codersdk.UpdateChatProjectMemoryRequest{
-		Description: &updatedDescription,
+	_, err = client.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
+		Name:        "Not A Valid Name",
+		Description: "Invalid",
+		Body:        "Invalid body.",
 	})
-	require.NoError(t, err)
-	require.Equal(t, updatedDescription, updated.Description)
-	require.Equal(t, created.CreatedByUsername, updated.CreatedByUsername)
+	require.Equal(t, 400, coderdtest.SDKError(t, err).StatusCode())
 
 	_, err = client.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
 		Name:        "release-process",
@@ -77,10 +76,6 @@ func TestChatProjectMemoriesCRUD(t *testing.T) {
 	memories, err = admin.ListChatProjectMemories(ctx, project.OrganizationID, project.ID)
 	require.NoError(t, err)
 	require.Len(t, memories, 1)
-	adminBody := "Org admins can edit project memory."
-	adminUpdated, err := admin.UpdateChatProjectMemory(ctx, project.OrganizationID, project.ID, created.ID, codersdk.UpdateChatProjectMemoryRequest{Body: &adminBody})
-	require.NoError(t, err)
-	require.Equal(t, adminBody, adminUpdated.Body)
 	adminCreated, err := admin.CreateChatProjectMemory(ctx, project.OrganizationID, project.ID, codersdk.CreateChatProjectMemoryRequest{
 		Name:        "admin-note",
 		Description: "Added by an org admin",

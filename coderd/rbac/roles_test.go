@@ -1503,8 +1503,8 @@ func TestRolePermissions(t *testing.T) {
 		{
 			// Memory is owned by the project creator; org admins reach every
 			// project's memory.
-			Name:     "ChatProjectMemoryCRUD",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Name:     "ChatProjectMemoryCRD",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin, orgAgentsAccessUser},
@@ -1513,7 +1513,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "ChatProjectMemoryOtherOwner",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 			Resource: rbac.ResourceChatProjectMemory.WithID(uuid.New()).InOrg(orgID).WithOwner(uuid.NewString()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},

@@ -1881,7 +1881,7 @@ func ChatProjectMemoryRows(rows []database.GetChatProjectMemoriesByProjectIDRow)
 }
 
 func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUsername string) codersdk.ChatProjectMemory {
-	result := codersdk.ChatProjectMemory{
+	return codersdk.ChatProjectMemory{
 		ID:                memory.ID,
 		ProjectID:         memory.ProjectID,
 		OrganizationID:    memory.OrganizationID,
@@ -1891,12 +1891,7 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 		CreatedBy:         memory.CreatedBy,
 		CreatedByUsername: createdByUsername,
 		CreatedAt:         memory.CreatedAt,
-		UpdatedAt:         memory.UpdatedAt,
 	}
-	if memory.SourceChatID.Valid {
-		result.SourceChatID = &memory.SourceChatID.UUID
-	}
-	return result
 }
 
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces

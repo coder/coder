@@ -815,7 +815,7 @@ var (
 					rbac.ResourceAIProvider.Type:        {policy.ActionRead},
 					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
-					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:         {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type:  {policy.ActionRead},
@@ -2315,13 +2315,13 @@ func (q *querier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 	return q.db.DeleteChatProjectMemoryByID(ctx, id)
 }
 
-func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) error {
+func (q *querier) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (int64, error) {
 	row, err := q.db.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams(arg))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.authorizeChatProjectMemory(ctx, policy.ActionDelete, row.ChatProjectMemory); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.DeleteChatProjectMemoryByName(ctx, arg)
 }
@@ -7797,17 +7797,6 @@ func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.Update
 	}, q.db.UpdateChatProjectByID)(ctx, arg)
 }
 
-func (q *querier) UpdateChatProjectMemoryByID(ctx context.Context, arg database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
-	row, err := q.db.GetChatProjectMemoryByID(ctx, arg.ID)
-	if err != nil {
-		return database.ChatProjectMemory{}, err
-	}
-	if err := q.authorizeChatProjectMemory(ctx, policy.ActionUpdate, row.ChatProjectMemory); err != nil {
-		return database.ChatProjectMemory{}, err
-	}
-	return q.db.UpdateChatProjectMemoryByID(ctx, arg)
-}
-
 func (q *querier) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	// UpdateChatRetryState is used by the chat processor to publish
 	// transient retry state. It should be called with system context.
@@ -9276,14 +9265,6 @@ func (q *querier) UpsertChatPlanModeInstructions(ctx context.Context, value stri
 		return err
 	}
 	return q.db.UpsertChatPlanModeInstructions(ctx, value)
-}
-
-func (q *querier) UpsertChatProjectMemoryByName(ctx context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
-	// An upsert may create, so require the wider action.
-	if _, err := q.authorizeChatProjectMemories(ctx, policy.ActionCreate, arg.ProjectID); err != nil {
-		return database.ChatProjectMemory{}, err
-	}
-	return q.db.UpsertChatProjectMemoryByName(ctx, arg)
 }
 
 func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

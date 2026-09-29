@@ -3437,7 +3437,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
 		"ask_user_question", "attach_file",
-		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName:
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":

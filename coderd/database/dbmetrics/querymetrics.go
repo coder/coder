@@ -584,12 +584,12 @@ func (m queryMetricsStore) DeleteChatProjectMemoryByID(ctx context.Context, id u
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) error {
+func (m queryMetricsStore) DeleteChatProjectMemoryByName(ctx context.Context, arg database.DeleteChatProjectMemoryByNameParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.DeleteChatProjectMemoryByName(ctx, arg)
+	r0, r1 := m.s.DeleteChatProjectMemoryByName(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatProjectMemoryByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatProjectMemoryByName").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteChatQueuedMessage(ctx context.Context, arg database.DeleteChatQueuedMessageParams) error {
@@ -5520,14 +5520,6 @@ func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateChatProjectMemoryByID(ctx context.Context, arg database.UpdateChatProjectMemoryByIDParams) (database.ChatProjectMemory, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatProjectMemoryByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatProjectMemoryByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectMemoryByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateChatRetryState(ctx context.Context, arg database.UpdateChatRetryStateParams) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateChatRetryState(ctx, arg)
@@ -6566,14 +6558,6 @@ func (m queryMetricsStore) UpsertChatPlanModeInstructions(ctx context.Context, v
 	m.queryLatencies.WithLabelValues("UpsertChatPlanModeInstructions").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatPlanModeInstructions").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpsertChatProjectMemoryByName(ctx context.Context, arg database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertChatProjectMemoryByName(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatProjectMemoryByName").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatProjectMemoryByName").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error {

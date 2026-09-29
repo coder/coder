@@ -88,7 +88,6 @@ var chatProjectActions = map[Action]ActionDefinition{
 var chatProjectMemoryActions = map[Action]ActionDefinition{
 	ActionCreate: "create a chat project memory",
 	ActionRead:   "read chat project memories",
-	ActionUpdate: "update a chat project memory",
 	ActionDelete: "delete a chat project memory",
 }
 

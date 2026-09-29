@@ -294,7 +294,6 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat_project_memory:*',
     'chat_project_memory:create',
     'chat_project_memory:read',
-    'chat_project_memory:update',
     'chat_project_memory:delete'
 );
 
@@ -2143,16 +2142,14 @@ CREATE TABLE chat_project_memories (
     name text NOT NULL,
     description text NOT NULL,
     body text NOT NULL,
-    source_chat_id uuid,
     created_by uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT chat_project_memories_body_length CHECK ((octet_length(body) <= 8192)),
     CONSTRAINT chat_project_memories_description_length CHECK ((length(description) <= 150)),
     CONSTRAINT chat_project_memories_name_format CHECK ((name ~ '^[a-z0-9][a-z0-9_-]{0,63}$'::text))
 );
 
-COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects.';
+COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
 
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4897,8 +4894,6 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
-CREATE INDEX idx_chat_project_memories_project_updated_at ON chat_project_memories USING btree (project_id, updated_at DESC);
-
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
 
 CREATE INDEX idx_chat_projects_owner_id ON chat_projects USING btree (owner_id);
@@ -5299,9 +5294,6 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_project_memories
-    ADD CONSTRAINT chat_project_memories_source_chat_id_fkey FOREIGN KEY (source_chat_id) REFERENCES chats(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

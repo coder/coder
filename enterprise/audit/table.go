@@ -35,7 +35,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -510,10 +510,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"name":            ActionTrack,
 		"description":     ActionTrack,
 		"body":            ActionTrack,
-		"source_chat_id":  ActionTrack,
 		"created_by":      ActionTrack,
 		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.

@@ -833,70 +833,6 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
-            },
-            "patch": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Update chat project memory",
-                "operationId": "update-chat-project-memory",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat project ID",
-                        "name": "project",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Chat project memory ID",
-                        "name": "memory",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Update memory request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateChatProjectMemoryRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatProjectMemory"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
             }
         },
         "/api/experimental/users/email": {
@@ -19296,7 +19232,6 @@ const docTemplate = `{
                 "chat_project_memory:create",
                 "chat_project_memory:delete",
                 "chat_project_memory:read",
-                "chat_project_memory:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -19553,7 +19488,6 @@ const docTemplate = `{
                 "APIKeyScopeChatProjectMemoryCreate",
                 "APIKeyScopeChatProjectMemoryDelete",
                 "APIKeyScopeChatProjectMemoryRead",
-                "APIKeyScopeChatProjectMemoryUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -22165,14 +22099,6 @@ const docTemplate = `{
                 "project_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "source_chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
@@ -30958,20 +30884,6 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "plan_mode_instructions": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.UpdateChatProjectMemoryRequest": {
-            "type": "object",
-            "properties": {
-                "body": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "name": {
                     "type": "string"
                 }
             }

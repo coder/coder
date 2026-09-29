@@ -226,29 +226,21 @@ type UpdateChatProjectRequest struct {
 
 // ChatProjectMemory is a durable memory shared by chats in a project.
 type ChatProjectMemory struct {
-	ID                uuid.UUID  `json:"id" format:"uuid"`
-	ProjectID         uuid.UUID  `json:"project_id" format:"uuid"`
-	OrganizationID    uuid.UUID  `json:"organization_id" format:"uuid"`
-	Name              string     `json:"name"`
-	Description       string     `json:"description"`
-	Body              string     `json:"body"`
-	SourceChatID      *uuid.UUID `json:"source_chat_id,omitempty" format:"uuid"`
-	CreatedBy         uuid.UUID  `json:"created_by" format:"uuid"`
-	CreatedByUsername string     `json:"created_by_username"`
-	CreatedAt         time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time  `json:"updated_at" format:"date-time"`
+	ID                uuid.UUID `json:"id" format:"uuid"`
+	ProjectID         uuid.UUID `json:"project_id" format:"uuid"`
+	OrganizationID    uuid.UUID `json:"organization_id" format:"uuid"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	Body              string    `json:"body"`
+	CreatedBy         uuid.UUID `json:"created_by" format:"uuid"`
+	CreatedByUsername string    `json:"created_by_username"`
+	CreatedAt         time.Time `json:"created_at" format:"date-time"`
 }
 
 type CreateChatProjectMemoryRequest struct {
 	Name        string `json:"name" validate:"required"`
 	Description string `json:"description" validate:"required"`
 	Body        string `json:"body" validate:"required"`
-}
-
-type UpdateChatProjectMemoryRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Body        *string `json:"body,omitempty"`
 }
 
 // ChatContext reports a chat's pinned workspace context and whether it has
@@ -2331,20 +2323,6 @@ func (c *ExperimentalClient) CreateChatProjectMemory(ctx context.Context, organi
 // GetChatProjectMemory gets a project memory.
 func (c *ExperimentalClient) GetChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID) (ChatProjectMemory, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), nil)
-	if err != nil {
-		return ChatProjectMemory{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatProjectMemory{}, ReadBodyAsError(res)
-	}
-	var memory ChatProjectMemory
-	return memory, ReadBodyAsJSON(res, &memory)
-}
-
-// UpdateChatProjectMemory updates a project memory.
-func (c *ExperimentalClient) UpdateChatProjectMemory(ctx context.Context, organizationID, projectID, memoryID uuid.UUID, req UpdateChatProjectMemoryRequest) (ChatProjectMemory, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("%s/memories/%s", chatProjectPath(organizationID, projectID), memoryID), req)
 	if err != nil {
 		return ChatProjectMemory{}, err
 	}

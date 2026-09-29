@@ -769,7 +769,6 @@ export type APIKeyScope =
 	| "chat_project_memory:create"
 	| "chat_project_memory:delete"
 	| "chat_project_memory:read"
-	| "chat_project_memory:update"
 	| "chat_project:read"
 	| "chat_project:update"
 	| "chat:read"
@@ -1026,7 +1025,6 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_project_memory:create",
 	"chat_project_memory:delete",
 	"chat_project_memory:read",
-	"chat_project_memory:update",
 	"chat_project:read",
 	"chat_project:update",
 	"chat:read",
@@ -3422,11 +3420,9 @@ export interface ChatProjectMemory {
 	readonly name: string;
 	readonly description: string;
 	readonly body: string;
-	readonly source_chat_id?: string;
 	readonly created_by: string;
 	readonly created_by_username: string;
 	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/chats.go
@@ -10495,13 +10491,6 @@ export interface UpdateChatPersonalModelOverridesAdminSettingsRequest {
  */
 export interface UpdateChatPlanModeInstructionsRequest {
 	readonly plan_mode_instructions: string;
-}
-
-// From codersdk/chats.go
-export interface UpdateChatProjectMemoryRequest {
-	readonly name?: string;
-	readonly description?: string;
-	readonly body?: string;
 }
 
 // From codersdk/chats.go

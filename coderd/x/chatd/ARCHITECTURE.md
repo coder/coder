@@ -906,6 +906,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - memory tools (`read_memory`, `save_memory`, `delete_memory`) for root chats in a project, see [Project memory](#project-memory)
+  <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
   - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
@@ -919,6 +920,8 @@ The generation goroutine supports:
 ##### Project memory
 
 Root chats in a project share durable memory; other chats have none. The agent saves memory itself with `save_memory`; there is no background extraction. The system prompt gets only the memory guidance block; the live index lives in the `read_memory` tool description so the prompt prefix stays cacheable. Saves and deletes take a per-project advisory lock, and a project holds at most 200 memories. There is no background cleanup: from 180 memories `save_memory` results carry a reminder to prune, and at the cap a save of a new name fails with an error telling the agent to delete or fold in the same turn.
+
+<!-- TODO(f0ssel): memories are now immutable (no update or upsert; save fails on an existing name). Consolidation is agent-driven via `consolidate_memory`, which deletes and saves in one transaction under the per-project advisory lock and rolls back on a missing delete, duplicate name, or result over the cap. The nudge now fires from 160 memories (80%) and asks the agent to get under 140 (70%), mirroring Claude Code's memory index nudge. -->
 
 ##### Reasoning effort
 

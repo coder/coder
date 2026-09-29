@@ -647,7 +647,7 @@ func (server *Server) prepareGeneration(
 	}
 	tools, _ = appendCurrentSkillTools(tools)
 	if hasMemory {
-		tools = append(tools, chattool.ReadMemory(memoryStore, memoryEntries), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName))
+		tools = append(tools, chattool.ReadMemory(memoryStore, memoryEntries), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
