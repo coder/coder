@@ -26,8 +26,14 @@ var (
 	errProcessNotRunning = xerrors.New("process is not running")
 
 	// exitedProcessReapAge is how long an exited process is
-	// kept before being automatically removed from the map.
-	exitedProcessReapAge = 5 * time.Minute
+	// kept before being automatically removed from the map. A tool
+	// call record lives for agenttoolcall's forgetAfter (one hour)
+	// from when it was added, and a retried execute gets the saved
+	// start response and then reads the process output. A process
+	// exits after it starts and is removed at least this long after
+	// it exits, so while the agent remembers a tool call, its process
+	// is still listed.
+	exitedProcessReapAge = time.Hour
 )
 
 // process represents a running or completed process.
@@ -283,8 +289,8 @@ func (m *manager) list(chatID uuid.UUID) []workspacesdk.ProcessInfo {
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
 	for k, proc := range m.procs {
 		info := proc.info()
-		// Reap processes that exited more than 5 minutes ago
-		// to prevent unbounded map growth.
+		// Reap processes that exited more than
+		// exitedProcessReapAge ago to prevent unbounded map growth.
 		if !info.Running && info.ExitedAt != nil {
 			exitedAt := time.Unix(*info.ExitedAt, 0)
 			if now.Sub(exitedAt) > exitedProcessReapAge {
