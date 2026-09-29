@@ -2320,6 +2320,22 @@ describe("FilterCombobox", () => {
 		expect(input).not.toHaveFocus();
 	});
 
+	it("closes the menu on a click beside the field", async () => {
+		const { user, input, filtersButton } = setup([ownerCategory]);
+
+		await user.click(filtersButton);
+		await screen.findByRole("option", { name: "Owner" });
+		const root = input.closest<HTMLElement>("[cmdk-root]");
+		expect(root).not.toBeNull();
+		await user.click(root as HTMLElement);
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("option", { name: "Owner" }),
+			).not.toBeInTheDocument(),
+		);
+	});
+
 	it("reaches Clear all from the input with Escape and Tab", async () => {
 		const { user, input } = setup(
 			[ownerCategory, statusCategory, attributesCategory],
