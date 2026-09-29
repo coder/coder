@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -14,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
+import { SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
@@ -32,11 +31,14 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
-	filterMenus: SpendFilterMenus | undefined;
+	canFilterDimensions: boolean;
+	filterQuery: string;
+	onFilterQueryChange: (query: string) => void;
+	filterError: string | undefined;
 	reportQuery: SpendReportQuery;
 };
 
-export const SpendPageView: FC<SpendPageViewProps> = ({
+export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	...contentProps
@@ -76,7 +78,7 @@ type SpendPageContentProps = Omit<
 	"isEntitled" | "isEnabled"
 >;
 
-const SpendPageContent: FC<SpendPageContentProps> = ({
+const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	now,
 	organizations,
 	organization,
@@ -86,7 +88,10 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
-	filterMenus,
+	canFilterDimensions,
+	filterQuery,
+	onFilterQueryChange,
+	filterError,
 	reportQuery,
 }) => {
 	if (isOrganizationsLoading) {
@@ -138,7 +143,10 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 				organizations={organizations}
 				organization={organization}
 				onOrganizationChange={onOrganizationChange}
-				menus={filterMenus}
+				canFilterDimensions={canFilterDimensions}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				filterError={filterError}
 				now={now}
 				period={period}
 				minDate={minDate}

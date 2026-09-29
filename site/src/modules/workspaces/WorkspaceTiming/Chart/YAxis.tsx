@@ -1,7 +1,6 @@
 import { cn } from "cn";
-import type { FC, HTMLProps } from "react";
 
-export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
+export const YAxis: React.FC<React.HTMLProps<HTMLDivElement>> = (props) => {
 	return (
 		<div
 			{...props}
@@ -14,7 +13,9 @@ export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	);
 };
 
-export const YAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
+export const YAxisSection: React.FC<React.HTMLProps<HTMLDivElement>> = (
+	props,
+) => {
 	return (
 		<section
 			{...props}
@@ -27,7 +28,9 @@ export const YAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	);
 };
 
-export const YAxisHeader: FC<HTMLProps<HTMLSpanElement>> = (props) => {
+export const YAxisHeader: React.FC<React.HTMLProps<HTMLSpanElement>> = (
+	props,
+) => {
 	return (
 		<header
 			{...props}
@@ -46,7 +49,9 @@ export const YAxisHeader: FC<HTMLProps<HTMLSpanElement>> = (props) => {
 	);
 };
 
-export const YAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
+export const YAxisLabels: React.FC<React.HTMLProps<HTMLUListElement>> = (
+	props,
+) => {
 	return (
 		<ul
 			{...props}
@@ -64,11 +69,11 @@ export const YAxisLabels: FC<HTMLProps<HTMLUListElement>> = (props) => {
 	);
 };
 
-type YAxisLabelProps = Omit<HTMLProps<HTMLLIElement>, "id"> & {
+type YAxisLabelProps = Omit<React.HTMLProps<HTMLLIElement>, "id"> & {
 	id: string;
 };
 
-export const YAxisLabel: FC<YAxisLabelProps> = ({ id, ...props }) => {
+export const YAxisLabel: React.FC<YAxisLabelProps> = ({ id, ...props }) => {
 	return (
 		<li
 			{...props}

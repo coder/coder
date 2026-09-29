@@ -13,17 +13,12 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	type FC,
-	useEffect,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -191,6 +186,8 @@ type AgentChatInputProps = {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	// Caution shown at the top of the composer, owned by the parent.
+	warning?: string;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -257,7 +254,7 @@ const pillSizingClasses =
 
 // Pills clamp to the popover width so a long name truncates instead
 // of pushing its X out of view.
-const BadgePopoverContent: FC<PopoverContentProps> = ({
+const BadgePopoverContent: React.FC<PopoverContentProps> = ({
 	className,
 	...props
 }) => (
@@ -295,7 +292,7 @@ const badgeKey = (badge: ToolBadgeData, index: number) => {
 // workspace, MCP server, planning indicator) to dismiss or disable
 // the badge without opening the `+` menu. Callers pass the action
 // handler and a descriptive aria-label.
-const BadgeDismissButton: FC<{
+const BadgeDismissButton: React.FC<{
 	onClick: () => void;
 	ariaLabel: string;
 	isDisabled?: boolean;
@@ -320,7 +317,7 @@ type MCPGroupBadgeProps = {
 	className: string;
 };
 
-const MCPGroupBadge: FC<MCPGroupBadgeProps> = ({
+const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	servers,
 	onRemoveMcp,
 	isDisabled,
@@ -361,7 +358,7 @@ const MCPGroupBadge: FC<MCPGroupBadgeProps> = ({
 	);
 };
 
-const ToolBadge: FC<{
+const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
@@ -496,7 +493,7 @@ const ToolBadge: FC<{
 	);
 };
 
-export const AgentChatInput: FC<AgentChatInputProps> = ({
+export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
 	isDisabled,
@@ -528,6 +525,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	warning,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -560,6 +558,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
 		preferencesQuery.data?.agent_chat_send_shortcut,
@@ -1365,7 +1364,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					isEditingHistoryMessage &&
+					(isEditingHistoryMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 				onKeyDown={handleComposerKeyDown}
@@ -1373,6 +1372,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{warning && (
+					<div
+						id={warningId}
+						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+					>
+						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
+						{warning}
+					</div>
+				)}
 				{isEditingHistoryMessage && (
 					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
@@ -1417,6 +1425,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
 					onPaste={resetPromptCycle}
 					aria-label="Chat message"
+					aria-describedby={warning ? warningId : undefined}
 					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 					placeholder={placeholder}
 					initialValue={initialValue}
@@ -2035,7 +2044,7 @@ type WorkspacePickerListProps = {
 	onSelect: (id: string | null) => void;
 };
 
-const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
+const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	workspaceOptions,
 	selectedWorkspaceId,
 	chatOrganizationId,

@@ -49,7 +49,7 @@ To use the default configuration:
 ## Disable the Default GitHub App
 
 You can disable the default GitHub app by [configuring your own app](#step-1-configure-the-oauth-application-in-github)
-or by adding the following environment variable to your [control plane configuration](../../reference/cli/server.md#options):
+or by adding the following environment variable to your [control plane configuration](../../reference/cli/server/index.md#options):
 
 ```sh
 CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
@@ -69,7 +69,7 @@ CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE=false
 1. GitHub will ask you for the following Coder parameters:
 
    - **Homepage URL**: Set to your Coder deployment's
-     [`CODER_ACCESS_URL`](../../reference/cli/server.md#--access-url) (e.g.
+     [`CODER_ACCESS_URL`](../../reference/cli/server/index.md#--access-url) (e.g.
      `https://coder.domain.com`)
    - **User Authorization Callback URL**: Set to `https://coder.domain.com`
 

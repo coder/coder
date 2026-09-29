@@ -1,12 +1,11 @@
 import { cn } from "cn";
-import type { FC, PropsWithChildren, ReactNode } from "react";
 
 type FullWidthPageHeaderProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	sticky?: boolean;
 };
 
-export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
+export const FullWidthPageHeader: React.FC<FullWidthPageHeaderProps> = ({
 	children,
 	sticky = true,
 }) => {
@@ -25,15 +24,21 @@ export const FullWidthPageHeader: FC<FullWidthPageHeaderProps> = ({
 	);
 };
 
-const _PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
+const _PageHeaderActions: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <div className="ml-auto md:ml-0">{children}</div>;
 };
 
-export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
+export const PageHeaderTitle: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return <h1 className="text-lg font-medium m-0 leading-6">{children}</h1>;
 };
 
-export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
+export const PageHeaderSubtitle: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	return (
 		<span className="text-sm text-content-secondary block">{children}</span>
 	);

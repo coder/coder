@@ -48,7 +48,7 @@ Refer to [Default member roles](./organizations.md#default-member-roles) for how
 The preceding table describes a default deployment.
 A deployment that sets `CODER_DISABLE_OWNER_WORKSPACE_ACCESS` removes the Owner role's SSH, application, and terminal access to other users' workspaces.
 Owners keep that access to workspaces they own.
-Refer to [`--disable-owner-workspace-access`](../../reference/cli/server.md#--disable-owner-workspace-access) for the flag, environment variable, and YAML forms.
+Refer to [`--disable-owner-workspace-access`](../../reference/cli/server/index.md#--disable-owner-workspace-access) for the flag, environment variable, and YAML forms.
 
 ## Organization roles
 
@@ -103,7 +103,9 @@ Custom roles can also be applied to
 - A `CI` role can update manage templates but cannot create workspaces or view
   users
 
-### Creating custom roles
+<a id="creating-custom-roles"></a>
+
+### Create custom roles
 
 Selecting "Create custom role" opens a UI to select the desired permissions for a given persona.
 

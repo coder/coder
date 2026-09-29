@@ -20,7 +20,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -584,7 +584,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 					req := httptest.NewRequest(route.method, route.path, bytes.NewReader(route.body))
 					if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
-						req.Header.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
+						req.Header.Set(aibheaders.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
 					}
 					if tc.byokKey != "" {
 						header := tc.byokHeader
@@ -618,7 +618,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 							assert.Empty(t, r.Body)
 						}
 						if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {
-							assert.Equal(t, "wrkspc_config", r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+							assert.Equal(t, "wrkspc_config", r.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 						}
 						if tc.byokKey != "" {
 							assert.Equal(t, tc.byokKey, key)
@@ -630,8 +630,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 								assert.Equal(t, "Bearer "+tc.byokKey, r.Header.Get("Authorization"))
 							} else {
 								assert.Equal(t, tc.byokKey, r.Header.Get(header))
-								if header == intercept.AuthHeaderXAPIKey {
-									assert.Empty(t, r.Header.Get(intercept.AuthHeaderAuthorization))
+								if header == aibheaders.AuthHeaderXAPIKey {
+									assert.Empty(t, r.Header.Get(aibheaders.AuthHeaderAuthorization))
 								}
 							}
 						} else if prov.name == "claude_platform_iam" || prov.name == "claude_platform_api_key" {

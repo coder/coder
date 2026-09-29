@@ -76,6 +76,10 @@ import (
 const (
 	chatStreamBatchSize = 256
 
+	// maxChatRequestBodyBytes is the maximum JSON body size for chat
+	// creation and tool result requests.
+	maxChatRequestBodyBytes = 256 * 1024
+
 	defaultChatContextCompressionThreshold = int32(70)
 	// Large-context models (1M) compact earlier; 70% of a 1M window
 	// carries too much stale context.
@@ -83,7 +87,6 @@ const (
 	largeContextLimitTokens                 = int64(500_000)
 	minChatContextCompressionThreshold      = int32(0)
 	maxChatContextCompressionThreshold      = int32(100)
-	maxSystemPromptLenBytes                 = 131072 // 128 KiB
 )
 
 // defaultCompressionThresholdForContextLimit returns the compaction
@@ -410,7 +413,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `status:<waiting\|running\|error\|requires_action\|interrupting>` (chat status, repeated or comma-separated), `pr_status:<draft\|open\|merged\|closed\|none>` (none matches chats with no pull request) as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
@@ -491,6 +494,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		DiffURL:             searchParams.DiffURL,
 		TitleQuery:          searchParams.TitleQuery,
 		HasUnread:           searchParams.HasUnread,
+		ChatStatuses:        searchParams.ChatStatuses,
 		PullRequestStatuses: searchParams.PullRequestStatuses,
 		PrNumber:            searchParams.PrNumber,
 		RepoQuery:           searchParams.RepoQuery,
@@ -1217,7 +1221,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	// Limit memory used to decode dynamic tool schemas.
 	var req codersdk.CreateChatRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 
@@ -1490,7 +1494,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, err, "Chat creation denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, err) {
+		if api.writeChatFileError(ctx, rw, err) {
 			return
 		}
 		if xerrors.Is(err, chatd.ErrInvalidModelConfigID) {
@@ -2349,7 +2353,8 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 }
 
 // patchChat updates a chat resource. Supports updating labels,
-// workspace binding, archiving, pinning, and pinned-chat ordering.
+// workspace binding, archiving, pinning, pinned-chat ordering, and the
+// owner's read state.
 //
 // @Summary Update chat
 // @ID update-chat
@@ -2398,6 +2403,17 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 		}
 		resolvedPlanMode := planModeToNullChatPlanMode(*req.PlanMode)
 		planModeUpdate = &resolvedPlanMode
+	}
+
+	// The read cursor is owner-scoped, so an admin with update
+	// permission must not move another user's unread state. Checked
+	// before any write so a rejected request does not commit the
+	// other fields of a multi-field update.
+	if req.Read != nil && chat.OwnerID != httpmw.APIKey(r).UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its read state.",
+		})
+		return
 	}
 
 	if req.Title != nil {
@@ -2570,6 +2586,31 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 					Detail:  err.Error(),
 				})
 			}
+			return
+		}
+	}
+
+	if req.Read != nil {
+		markRead := *req.Read
+		var err error
+		if markRead {
+			err = api.advanceChatReadCursor(ctx, chat.ID)
+		} else {
+			err = api.clearChatReadCursor(ctx, chat.ID)
+		}
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			action := "read"
+			if !markRead {
+				action = "unread"
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: fmt.Sprintf("Failed to mark chat as %s.", action),
+				Detail:  err.Error(),
+			})
 			return
 		}
 	}
@@ -2862,7 +2903,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, sendErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, sendErr) {
+		if api.writeChatFileError(ctx, rw, sendErr) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
@@ -3045,7 +3086,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
 			return
 		}
-		if writeChatFileError(ctx, rw, editErr) {
+		if api.writeChatFileError(ctx, rw, editErr) {
 			return
 		}
 
@@ -3259,32 +3300,48 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 // messages as seen. This is called on stream connect and disconnect
 // to avoid per-message API calls during active streaming.
 func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
+	if err := api.advanceChatReadCursor(ctx, chatID); err != nil {
+		api.Logger.Warn(ctx, "failed to mark chat as read",
+			slog.F("chat_id", chatID),
+			slog.Error(err),
+		)
+	}
+}
+
+// advanceChatReadCursor moves the chat's owner-scoped read cursor to the
+// latest assistant message, so nothing in the chat is unread.
+func (api *API) advanceChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
 	lastMsg, err := api.Database.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 		ChatID: chatID,
 		Role:   database.ChatMessageRoleAssistant,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		// No assistant messages yet, nothing to mark as read.
-		return
+		// No assistant messages yet, so nothing can be unread.
+		return nil
 	}
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to get last assistant message for read marker",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return
+		return xerrors.Errorf("get last assistant message: %w", err)
 	}
 
-	err = api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chatID,
-		LastReadMessageID: lastMsg.ID,
-	})
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to update chat last read message ID",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
+	}); err != nil {
+		return xerrors.Errorf("update chat last read message id: %w", err)
 	}
+	return nil
+}
+
+// clearChatReadCursor clears the chat's owner-scoped read cursor, so every
+// assistant message in the chat counts as unread again.
+func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error {
+	if err := api.Database.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+		ID:                chatID,
+		LastReadMessageID: sql.NullInt64{},
+	}); err != nil {
+		return xerrors.Errorf("clear chat last read message id: %w", err)
+	}
+	return nil
 }
 
 // @Summary Stream chat events via WebSockets
@@ -4650,16 +4707,14 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatSystemPromptRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 	sanitizedPrompt := codersdk.SanitizePromptText(req.SystemPrompt)
-	// 128 KiB is generous for a system prompt while still
-	// preventing abuse or accidental pastes of large content.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "System prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -4806,15 +4861,15 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var req codersdk.UpdateChatPlanModeInstructionsRequest
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
 		return
 	}
 
 	sanitizedInstructions := codersdk.SanitizePromptText(req.PlanModeInstructions)
-	if len(sanitizedInstructions) > maxSystemPromptLenBytes {
+	if len(sanitizedInstructions) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Plan mode instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedInstructions)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedInstructions)),
 		})
 		return
 	}
@@ -6152,16 +6207,16 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
 	var params codersdk.UserChatCustomPrompt
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &params) {
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &params) {
 		return
 	}
 
 	sanitizedPrompt := codersdk.SanitizePromptText(params.CustomPrompt)
-	// Apply the same 128 KiB limit as the deployment system prompt.
-	if len(sanitizedPrompt) > maxSystemPromptLenBytes {
+	// The same limit applies as for the deployment system prompt.
+	if len(sanitizedPrompt) > api.chatLimits.MaxPromptBytes {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Custom prompt exceeds maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", maxSystemPromptLenBytes, len(sanitizedPrompt)),
+			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(sanitizedPrompt)),
 		})
 		return
 	}
@@ -7320,12 +7375,19 @@ func createChatInputFromParts(
 	return content, pasteData, nil
 }
 
-func writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+// maxPromptRequestBodyBytes allows twice the prompt limit for JSON escaping
+// and characters that sanitization removes, but never less than
+// maxChatRequestBodyBytes, so small limits still return the 400 length error.
+func (api *API) maxPromptRequestBodyBytes() int64 {
+	return max(maxChatRequestBodyBytes, 2*int64(api.chatLimits.MaxPromptBytes))
+}
+
+func (api *API) writeChatFileError(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, chatstate.ErrChatFileCapExceeded):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Chat attachment limit reached.",
-			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", codersdk.MaxChatFileIDs),
+			Detail:  fmt.Sprintf("A message can include at most %d attachments. Remove some attachments and retry.", api.chatLimits.MaxAttachmentsPerChat),
 		})
 	case errors.Is(err, chatstate.ErrChatFileUnavailable):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -8810,7 +8872,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Cap the raw request body to prevent excessive memory use.
 	var req codersdk.SubmitToolResultsRequest
 
-	if !httpapi.ReadLimit(ctx, rw, r, int64(2*maxSystemPromptLenBytes), &req) {
+	if !httpapi.ReadLimit(ctx, rw, r, maxChatRequestBodyBytes, &req) {
 		return
 	}
 

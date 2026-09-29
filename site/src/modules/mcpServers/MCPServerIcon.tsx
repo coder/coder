@@ -1,7 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
 import { ServerIcon } from "lucide-react";
-import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 const iconVariants = cva(
@@ -24,7 +23,7 @@ type MCPServerIconProps = VariantProps<typeof iconVariants> & {
 	className?: string;
 };
 
-export const MCPServerIcon: FC<MCPServerIconProps> = ({
+export const MCPServerIcon: React.FC<MCPServerIconProps> = ({
 	iconUrl,
 	className,
 	variant,

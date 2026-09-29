@@ -24,7 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -129,17 +129,17 @@ func TestClaudePlatformIntegration(t *testing.T) {
 	// and workspace header, rather than merely checking for an auth prefix.
 	verifySignature := func(t *testing.T, r *http.Request, body []byte) {
 		t.Helper()
-		auth := r.Header.Get(intercept.AuthHeaderAuthorization)
+		auth := r.Header.Get(aibheaders.AuthHeaderAuthorization)
 		require.True(t, strings.HasPrefix(auth, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", auth)
 		require.Contains(t, auth, "/us-west-2/aws-external-anthropic/aws4_request")
 		signedHeaders := strings.Split(extractSigV4Field(auth, "SignedHeaders="), ";")
-		require.Contains(t, signedHeaders, strings.ToLower(intercept.HeaderAnthropicWorkspaceID))
-		require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
-		require.Empty(t, r.Header.Get(intercept.AuthHeaderXAPIKey))
+		require.Contains(t, signedHeaders, strings.ToLower(aibheaders.HeaderAnthropicWorkspaceID))
+		require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
+		require.Empty(t, r.Header.Get(aibheaders.AuthHeaderXAPIKey))
 		require.NotContains(t, r.Header.Get("User-Agent"), awssig.PRMUserAgent)
 
 		verifyReq := r.Clone(r.Context())
-		verifyReq.Header.Del(intercept.AuthHeaderAuthorization)
+		verifyReq.Header.Del(aibheaders.AuthHeaderAuthorization)
 		for h := range verifyReq.Header {
 			if !slices.Contains(signedHeaders, strings.ToLower(h)) {
 				verifyReq.Header.Del(h)
@@ -154,7 +154,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		}, verifyReq, hex.EncodeToString(hash[:]), config.ClaudePlatformSigningService, "us-west-2", signingTime)
 		require.NoError(t, err)
 		require.Equal(t, extractSigV4Field(auth, "Signature="),
-			extractSigV4Field(verifyReq.Header.Get(intercept.AuthHeaderAuthorization), "Signature="))
+			extractSigV4Field(verifyReq.Header.Get(aibheaders.AuthHeaderAuthorization), "Signature="))
 	}
 
 	t.Run("iam/v1/messages", func(t *testing.T) {
@@ -184,7 +184,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
 					require.NoError(t, err)
 					resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
-						intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
+						aibheaders.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
 					})
 					require.NoError(t, err)
 					defer resp.Body.Close()
@@ -214,9 +214,9 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		key        string
 	}{
 		{name: "api_key/v1/messages", key: apiKey},
-		{name: "api_key BYOK without pool", byokHeader: intercept.AuthHeaderXAPIKey, key: "user-key"},
-		{name: "byok api key wins over ambient IAM", byokHeader: intercept.AuthHeaderXAPIKey, key: "user-key"},
-		{name: "byok bearer wins over ambient IAM", byokHeader: intercept.AuthHeaderAuthorization, key: "Bearer user-token"},
+		{name: "api_key BYOK without pool", byokHeader: aibheaders.AuthHeaderXAPIKey, key: "user-key"},
+		{name: "byok api key wins over ambient IAM", byokHeader: aibheaders.AuthHeaderXAPIKey, key: "user-key"},
+		{name: "byok bearer wins over ambient IAM", byokHeader: aibheaders.AuthHeaderAuthorization, key: "Bearer user-token"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -228,7 +228,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 					fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
 					upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 					cfg := config.Anthropic{}
-					headers := http.Header{intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"}}
+					headers := http.Header{aibheaders.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"}}
 					if tc.byokHeader == "" {
 						cfg = anthropicCfg(upstream.URL, tc.key)
 					} else {
@@ -248,14 +248,14 @@ func TestClaudePlatformIntegration(t *testing.T) {
 					require.Len(t, received, 1)
 					require.Equal(t, "/v1/messages", received[0].Path)
 					require.JSONEq(t, string(reqBody), string(received[0].Body))
-					if tc.byokHeader == intercept.AuthHeaderAuthorization {
-						require.Equal(t, tc.key, received[0].Header.Get(intercept.AuthHeaderAuthorization))
-						require.Empty(t, received[0].Header.Get(intercept.AuthHeaderXAPIKey))
+					if tc.byokHeader == aibheaders.AuthHeaderAuthorization {
+						require.Equal(t, tc.key, received[0].Header.Get(aibheaders.AuthHeaderAuthorization))
+						require.Empty(t, received[0].Header.Get(aibheaders.AuthHeaderXAPIKey))
 					} else {
-						require.Equal(t, tc.key, received[0].Header.Get(intercept.AuthHeaderXAPIKey))
-						require.Empty(t, received[0].Header.Get(intercept.AuthHeaderAuthorization), "API keys must not be combined with IAM signing")
+						require.Equal(t, tc.key, received[0].Header.Get(aibheaders.AuthHeaderXAPIKey))
+						require.Empty(t, received[0].Header.Get(aibheaders.AuthHeaderAuthorization), "API keys must not be combined with IAM signing")
 					}
-					require.Equal(t, claudePlatformWorkspaceID, received[0].Header.Get(intercept.HeaderAnthropicWorkspaceID))
+					require.Equal(t, claudePlatformWorkspaceID, received[0].Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 					require.NotContains(t, received[0].Header.Get("User-Agent"), awssig.PRMUserAgent)
 					bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 				})
@@ -277,8 +277,8 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
 		require.NoError(t, err)
 		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, reqBody, http.Header{
-			intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
-			intercept.AuthHeaderXAPIKey:          {"rejected-user-key"},
+			aibheaders.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
+			aibheaders.AuthHeaderXAPIKey:          {"rejected-user-key"},
 		})
 		require.NoError(t, err)
 		_, err = io.ReadAll(resp.Body)
@@ -287,8 +287,8 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		received := upstream.ReceivedRequests()
 		require.Len(t, received, 1, "BYOK 401 must not retry with ambient IAM credentials")
-		require.Equal(t, "rejected-user-key", received[0].Header.Get(intercept.AuthHeaderXAPIKey))
-		require.Empty(t, received[0].Header.Get(intercept.AuthHeaderAuthorization), "BYOK must not be replaced by IAM signing")
+		require.Equal(t, "rejected-user-key", received[0].Header.Get(aibheaders.AuthHeaderXAPIKey))
+		require.Empty(t, received[0].Header.Get(aibheaders.AuthHeaderAuthorization), "BYOK must not be replaced by IAM signing")
 		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 	})
 	t.Run("iam passthrough", func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestClaudePlatformIntegration(t *testing.T) {
 		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 			withCustomProvider(aibridgetest.NewClaudePlatformProvider(t, config.Anthropic{}, claudePlatformCfg(upstream.URL))))
 		resp, err := bridgeServer.makeRequest(t, http.MethodGet, "/anthropic/v1/models", nil, http.Header{
-			intercept.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
+			aibheaders.HeaderAnthropicWorkspaceID: {"wrkspc_from_client"},
 		})
 		require.NoError(t, err)
 		defer resp.Body.Close()

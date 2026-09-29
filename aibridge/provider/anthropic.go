@@ -16,12 +16,13 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/messages"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 var _ Provider = &Anthropic{}
@@ -202,21 +203,21 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 // claude-code behavior. Centralized requests require a key pool, except for
 // AWS-signed providers (Bedrock and Claude Platform), which
 // authenticate via request signing rather than a pool.
-func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, error) {
-	if apiKey := r.Header.Get(intercept.AuthHeaderXAPIKey); apiKey != "" {
-		return intercept.BYOK{Secret: apiKey, Header: intercept.AuthHeaderXAPIKey}, nil
+func (p *Anthropic) resolveCredential(r *http.Request) (credential.Credential, error) {
+	if apiKey := r.Header.Get(aibheaders.AuthHeaderXAPIKey); apiKey != "" {
+		return credential.BYOK{Secret: apiKey, Header: aibheaders.AuthHeaderXAPIKey}, nil
 	}
-	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
-		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	if token := aibheaders.ExtractBearerToken(r.Header.Get(aibheaders.AuthHeaderAuthorization)); token != "" {
+		return credential.BYOK{Secret: token, Header: aibheaders.AuthHeaderAuthorization}, nil
 	}
 	if p.cfg.KeyPool != nil {
-		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+		return &credential.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
 	if p.bedrock != nil {
-		return intercept.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
+		return credential.AWSSigV4{AccessKey: p.bedrock.Cfg.AccessKey}, nil
 	}
 	if p.claudePlatform != nil {
-		return intercept.AWSSigV4{}, nil
+		return credential.AWSSigV4{}, nil
 	}
 	return nil, ErrNoCredential
 }
@@ -244,7 +245,7 @@ func (p *Anthropic) WrapPassthroughTransport(inner http.RoundTripper) http.Round
 }
 
 func (*Anthropic) AuthHeader() string {
-	return intercept.AuthHeaderXAPIKey
+	return aibheaders.AuthHeaderXAPIKey
 }
 
 func (p *Anthropic) KeyPool() *keypool.Pool {
@@ -256,10 +257,10 @@ func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverCon
 		Pool:   p.cfg.KeyPool,
 		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
-			return r.Header.Get(intercept.AuthHeaderXAPIKey) != "" || r.Header.Get(intercept.AuthHeaderAuthorization) != ""
+			return r.Header.Get(aibheaders.AuthHeaderXAPIKey) != "" || r.Header.Get(aibheaders.AuthHeaderAuthorization) != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
-			h.Set(intercept.AuthHeaderXAPIKey, key)
+			h.Set(aibheaders.AuthHeaderXAPIKey, key)
 		},
 		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
 			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()

@@ -1,6 +1,5 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
@@ -10,7 +9,7 @@ import { ChatPageInput } from "./ChatPageContent";
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<ComponentProps<typeof ChatPageInput>> = {},
+	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
 ) =>
 	renderWithAuth(
 		<ChatPageInput

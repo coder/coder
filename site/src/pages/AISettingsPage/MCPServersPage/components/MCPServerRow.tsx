@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
@@ -13,7 +12,10 @@ type MCPServerRowProps = {
 	onClick?: () => void;
 };
 
-export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
+export const MCPServerRow: React.FC<MCPServerRowProps> = ({
+	server,
+	onClick,
+}) => {
 	const clickableProps = useClickableTableRow({
 		onClick: () => onClick?.(),
 	});

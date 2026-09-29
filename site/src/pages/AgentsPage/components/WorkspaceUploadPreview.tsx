@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { HardDriveUploadIcon, XIcon } from "lucide-react";
 import prettyBytes from "pretty-bytes";
-import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -37,7 +36,7 @@ const uploadStatusLabel = (upload: WorkspaceFileUpload): string => {
  * reference from the draft message; bytes already written stay in the
  * workspace.
  */
-export const WorkspaceUploadPreview: FC<{
+export const WorkspaceUploadPreview: React.FC<{
 	uploads: readonly WorkspaceFileUpload[];
 	onRemove: (id: string) => void;
 }> = ({ uploads, onRemove }) => {

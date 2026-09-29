@@ -10,7 +10,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/awssig"
 )
 
@@ -45,13 +45,13 @@ func (t *claudePlatformTransport) RoundTrip(req *http.Request) (*http.Response, 
 	req = req.Clone(req.Context())
 	// Set the required workspace header from provider
 	// configuration, overwriting anything the client sent.
-	req.Header.Set(intercept.HeaderAnthropicWorkspaceID, t.cfg.WorkspaceID)
+	req.Header.Set(aibheaders.HeaderAnthropicWorkspaceID, t.cfg.WorkspaceID)
 
 	// A request that already carries a credential is BYOK or a centralized key
 	// selected before this transport runs. Leave it alone: signing on
 	// top would produce two credentials on one request.
-	if req.Header.Get(intercept.AuthHeaderXAPIKey) != "" ||
-		req.Header.Get(intercept.AuthHeaderAuthorization) != "" {
+	if req.Header.Get(aibheaders.AuthHeaderXAPIKey) != "" ||
+		req.Header.Get(aibheaders.AuthHeaderAuthorization) != "" {
 		t.logger.Debug(req.Context(), "claude platform authentication", slog.F("auth_path", "existing_credential"))
 		return t.inner.RoundTrip(req)
 	}

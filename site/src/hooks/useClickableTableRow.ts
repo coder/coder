@@ -15,7 +15,6 @@
  */
 
 import { cn } from "cn";
-import type { ComponentProps, MouseEventHandler } from "react";
 import {
 	type ClickableAriaRole,
 	isFromPortal,
@@ -24,7 +23,7 @@ import {
 } from "./useClickable";
 
 type TableRowClickHandlers = Pick<
-	ComponentProps<"tr">,
+	React.ComponentProps<"tr">,
 	"onClick" | "onDoubleClick" | "onAuxClick"
 >;
 
@@ -34,14 +33,14 @@ type UseClickableTableRowResult<
 	TableRowClickHandlers & {
 		className: string;
 		hover: true;
-		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
+		onAuxClick: React.MouseEventHandler<HTMLTableRowElement>;
 	};
 
 type UseClickableTableRowConfig<TRole extends ClickableAriaRole> =
 	TableRowClickHandlers & {
 		role?: TRole;
-		onClick: MouseEventHandler<HTMLTableRowElement>;
-		onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
+		onClick: React.MouseEventHandler<HTMLTableRowElement>;
+		onMiddleClick?: React.MouseEventHandler<HTMLTableRowElement>;
 	};
 
 export const useClickableTableRow = <

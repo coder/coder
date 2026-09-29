@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { type ComponentProps, type FC, useState } from "react";
+import { useState } from "react";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import {
@@ -11,8 +11,8 @@ import { withToaster } from "#/testHelpers/storybook";
 import { UserActionDialogs, type UserAdminAction } from "./UserActionDialogs";
 import { UserMoreActions } from "./UserMoreActions";
 
-const UserMoreActionsWithDialogs: FC<
-	ComponentProps<typeof UserMoreActions>
+const UserMoreActionsWithDialogs: React.FC<
+	React.ComponentProps<typeof UserMoreActions>
 > = ({ onAction, ...props }) => {
 	const [action, setAction] = useState<UserAdminAction>();
 

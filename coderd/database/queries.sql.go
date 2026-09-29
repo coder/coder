@@ -1230,8 +1230,8 @@ WITH per_request AS (
 			c.root_chat_id = $1::uuid
 			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
 		)
-		-- Restrict to aibridge.ClientCoderAgents so another client's session
-		-- reference cannot match a chat ID.
+		-- Restrict to aibridge/client.CoderAgents so another client's
+		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id
@@ -10101,71 +10101,91 @@ WHERE
         ) = $11::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($12::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
+    -- "none" matches chats with no pull request: no diff-status row, or a
+    -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN EXISTS (
-            SELECT 1
-            FROM chat_diff_statuses cds
-            WHERE cds.chat_id = chats_expanded.id
-                AND (
-                    CASE
-                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                        WHEN cds.pull_request_state = 'open' THEN 'open'
-                        ELSE cds.pull_request_state
-                    END
-                ) = ANY($12::text[])
+        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN (
+            (
+                'none' = ANY($13::text[])
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND NULLIF(cds.pull_request_state, '') IS NOT NULL
+                )
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM chat_diff_statuses cds
+                WHERE cds.chat_id = chats_expanded.id
+                    AND (
+                        CASE
+                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                            WHEN cds.pull_request_state = 'open' THEN 'open'
+                            ELSE cds.pull_request_state
+                        END
+                    ) = ANY($13::text[])
+            )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $13::int != 0 THEN EXISTS (
+        WHEN $14::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $13
+                AND cds.pr_number = $14
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $14::text != '' THEN EXISTS (
+        WHEN $15::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $14 || '%'
-                    OR cds.url ILIKE '%' || $14 || '%'
+                    cds.git_remote_origin ILIKE '%' || $15 || '%'
+                    OR cds.url ILIKE '%' || $15 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $15::text != '' THEN EXISTS (
+        WHEN $16::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $15 || '%'
+                AND cds.pull_request_title ILIKE '%' || $16 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $16::text != '' THEN (
+        WHEN $17::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $16)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $17)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $16)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $17)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -10179,18 +10199,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $17))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $17))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $16 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $17 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $16::bigint
+                        AND cds.pr_number = $17::bigint
                 )
                 ELSE false
             END
@@ -10213,11 +10233,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $17
+OFFSET $18
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($18 :: int, 0), 50)
+    COALESCE(NULLIF($19 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -10232,6 +10252,7 @@ type GetChatsParams struct {
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
 	TitleQuery          string                `db:"title_query" json:"title_query"`
 	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	ChatStatuses        []string              `db:"chat_statuses" json:"chat_statuses"`
 	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
 	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
 	RepoQuery           string                `db:"repo_query" json:"repo_query"`
@@ -10259,6 +10280,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.DiffURL,
 		arg.TitleQuery,
 		arg.HasUnread,
+		pq.Array(arg.ChatStatuses),
 		pq.Array(arg.PullRequestStatuses),
 		arg.PrNumber,
 		arg.RepoQuery,
@@ -11634,8 +11656,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files
 `
 
 type LinkChatFilesAfterLockParams struct {
@@ -11651,9 +11673,9 @@ type LinkChatFilesAfterLockParams struct {
 // exceeds the cap.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
 	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, pq.Array(arg.FileIds), arg.MaxFileLinks, arg.ChatID)
-	var rejected_new_files int32
-	err := row.Scan(&rejected_new_files)
-	return rejected_new_files, err
+	var rejected_files int32
+	err := row.Scan(&rejected_files)
+	return rejected_files, err
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
@@ -13180,12 +13202,13 @@ WHERE id = $2::uuid
 `
 
 type UpdateChatLastReadMessageIDParams struct {
-	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
-	ID                uuid.UUID `db:"id" json:"id"`
+	LastReadMessageID sql.NullInt64 `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
 }
 
 // Updates the last read message ID for a chat. This is used to track
-// which messages the owner has seen, enabling unread indicators.
+// which messages the owner has seen, enabling unread indicators. A NULL
+// value clears the cursor, marking every message unread again.
 func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
 	return err

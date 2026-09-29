@@ -2254,6 +2254,58 @@ func TestLinkChatFilesDeduplicatesInput(t *testing.T) {
 	require.Equal(t, file.ID, files[0].ID)
 }
 
+// TestLinkChatFilesRejectsOverCapBatchOfLinkedFiles verifies that a batch
+// larger than the cap is rejected even when every file in it is already
+// linked, which happens after the cap is lowered below a chat's file count.
+func TestLinkChatFilesRejectsOverCapBatchOfLinkedFiles(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+	fileIDs := make([]uuid.UUID, 0, 3)
+	for i := range 3 {
+		file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			Name:           fmt.Sprintf("linked-%d.txt", i),
+			Mimetype:       "text/plain",
+			Data:           []byte("linked"),
+		})
+		require.NoError(t, err)
+		fileIDs = append(fileIDs, file.ID)
+	}
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      fileIDs,
+		MaxFileLinks: 5,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	rejected, err = db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       chat.ID,
+		FileIds:      fileIDs,
+		MaxFileLinks: 2,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, rejected, "a batch above the lowered cap must be rejected even though nothing is new")
+}
+
 func TestLinkChatFilesEvictsOldest(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -17490,7 +17542,7 @@ func TestGetChatsFilter(t *testing.T) {
 		require.NoError(t, err)
 		err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 			ID:                chatID,
-			LastReadMessageID: lastMsg.ID,
+			LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 		})
 		require.NoError(t, err)
 	}
@@ -17524,6 +17576,27 @@ func TestGetChatsFilter(t *testing.T) {
 	unreadNoPR := createRoot("unread no pr")
 	makeUnread(unreadNoPR.ID)
 
+	setStatus := func(chat database.Chat, status database.ChatStatus) {
+		t.Helper()
+		_, err := store.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: status,
+		})
+		require.NoError(t, err)
+	}
+
+	// Inbox status is computed from lifecycle status, then unread.
+	// A running chat with unread messages stays working.
+	workingUnread := createRoot("working unread chat")
+	makeUnread(workingUnread.ID)
+	setStatus(workingUnread, database.ChatStatusRunning)
+	needsAttention := createRoot("needs attention chat")
+	setStatus(needsAttention, database.ChatStatusRequiresAction)
+	failedChat := createRoot("failed chat")
+	setStatus(failedChat, database.ChatStatusError)
+	interruptingChat := createRoot("interrupting chat")
+	setStatus(interruptingChat, database.ChatStatusInterrupting)
+
 	// Read chat (message exists but marked read).
 	readChat := createRoot("read chat")
 	makeUnread(readChat.ID)
@@ -17549,14 +17622,33 @@ func TestGetChatsFilter(t *testing.T) {
 	prTitleChat := createRoot("pr title filter chat")
 	linkPRFull(prTitleChat.ID, "https://github.com/acme/widget/pull/99", "open", false, 99, "https://github.com/acme/widget.git", "Deploy new dashboard")
 
+	// Diff status exists, but the pull request was cleared.
+	clearedPR := createRoot("cleared pr chat")
+	now := time.Now()
+	_, err = store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:      clearedPR.ID,
+		RefreshedAt: now,
+		StaleAt:     now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
 	// All root chat IDs (for "returns everything" baseline).
 	allRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		draftPR.ID, openPR.ID, mergedPR.ID, closedPR.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID,
-		prNumberChat.ID, repoChat.ID, prTitleChat.ID,
+		prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID,
+		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
 	}
+	noPRRootIDs := []uuid.UUID{
+		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
+		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
+		unreadNoPR.ID, readChat.ID, childParent.ID, clearedPR.ID,
+		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
+	}
+	noPROrOpenRootIDs := append(append([]uuid.UUID{}, noPRRootIDs...),
+		openPR.ID, prNumberChat.ID, prTitleChat.ID)
 
 	// --- test cases ---
 
@@ -17583,11 +17675,22 @@ func TestGetChatsFilter(t *testing.T) {
 		{"PRStatus/Merged", database.GetChatsParams{PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedPR.ID, repoChat.ID}},
 		{"PRStatus/Closed", database.GetChatsParams{PullRequestStatuses: []string{"closed"}}, []uuid.UUID{closedPR.ID}},
 		{"PRStatus/MultiStatus", database.GetChatsParams{PullRequestStatuses: []string{"draft", "closed"}}, []uuid.UUID{draftPR.ID, closedPR.ID}},
+		{"PRStatus/None", database.GetChatsParams{PullRequestStatuses: []string{"none"}}, noPRRootIDs},
+		{"PRStatus/NoneAndOpen", database.GetChatsParams{PullRequestStatuses: []string{"none", "open"}}, noPROrOpenRootIDs},
 
 		// Unread filter.
-		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
+		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID, workingUnread.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID}},
+
+		// chat_status enum, the same value the sidebar row icon uses.
+		{"Status/Running", database.GetChatsParams{ChatStatuses: []string{"running"}}, []uuid.UUID{workingUnread.ID}},
+		{"Status/Interrupting", database.GetChatsParams{ChatStatuses: []string{"interrupting"}}, []uuid.UUID{interruptingChat.ID}},
+		{"Status/RequiresAction", database.GetChatsParams{ChatStatuses: []string{"requires_action"}}, []uuid.UUID{needsAttention.ID}},
+		{"Status/Error", database.GetChatsParams{ChatStatuses: []string{"error"}}, []uuid.UUID{failedChat.ID}},
+		{"Status/Waiting", database.GetChatsParams{ChatStatuses: []string{"waiting"}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, draftPR.ID, unreadNoPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
+		{"Status/RunningAndError", database.GetChatsParams{ChatStatuses: []string{"running", "error"}}, []uuid.UUID{workingUnread.ID, failedChat.ID}},
+		{"Status/EmptyIsNoOp", database.GetChatsParams{ChatStatuses: nil}, allRootIDs},
 
 		// PR number filter.
 		{"PRNumber/ExactMatch", database.GetChatsParams{PrNumber: 42}, []uuid.UUID{prNumberChat.ID}},
@@ -17993,7 +18096,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	require.False(t, getHasUnread(), "chat should not be unread after marking as read")
@@ -18011,7 +18114,7 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
 		ID:                chat.ID,
-		LastReadMessageID: lastMsg.ID,
+		LastReadMessageID: sql.NullInt64{Int64: lastMsg.ID, Valid: true},
 	})
 	require.NoError(t, err)
 	insertMsg(database.ChatMessageRoleUser, "user msg")

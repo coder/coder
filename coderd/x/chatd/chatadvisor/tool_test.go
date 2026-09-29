@@ -35,6 +35,7 @@ func TestAdvisorToolSuccess(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -84,6 +85,7 @@ func TestAdvisorToolPublishesLiveDeltasWithToolCallID(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -168,6 +170,7 @@ func TestAdvisorToolPublishesLiveOutputResetWithToolCallID(t *testing.T) {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 128,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -345,6 +348,7 @@ func TestAdvisorToolReportsNestedError(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -384,6 +388,7 @@ func TestAdvisorToolReportsLimitReached(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -422,6 +427,7 @@ func TestAdvisorToolReportsEmptyModelOutput(t *testing.T) {
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 
@@ -461,6 +467,7 @@ func mustAdvisorRuntime(t *testing.T) *chatadvisor.Runtime {
 		},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 	return runtime
@@ -486,6 +493,7 @@ func advisorToolCapturingQuestion(t *testing.T, capturedQuestion *string) fantas
 		},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
+		MaxRetries:      1,
 	})
 	require.NoError(t, err)
 

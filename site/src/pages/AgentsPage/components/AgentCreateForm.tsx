@@ -1,4 +1,4 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
@@ -84,16 +84,18 @@ export type CreateChatOptions = {
 
 /**
  * Prefilled content for a chat opened from a deep link. The form reads it on
- * mount (remount with a new `key` to change it), uploads the attachment
+ * mount (remount with a new `key` to change it), uploads any attachment
  * without sending, and neither reads nor writes the saved draft or
  * attachments.
  */
 export type AgentCreatePrefill = {
 	message: string;
-	attachment: {
+	attachment?: {
 		name: string;
 		text: string;
 	};
+	/** Shown in the composer until the user edits the message or sends it. */
+	warning?: string;
 };
 
 /**
@@ -185,7 +187,7 @@ type AgentCreateFormProps = {
 	prefill?: AgentCreatePrefill;
 };
 
-export const AgentCreateForm: FC<AgentCreateFormProps> = ({
+export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	onCreateChat,
 	isCreating,
 	createError,
@@ -206,6 +208,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		submitDraft,
 		resetDraft,
 	} = useEmptyStateDraft(prefill?.message);
+	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -703,7 +706,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	};
 
 	const [prefillFile] = useState(() =>
-		prefill
+		prefill?.attachment
 			? new File([prefill.attachment.text], prefill.attachment.name, {
 					type: "text/plain",
 				})
@@ -825,7 +828,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						isLoading={isSubmitPending}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
-						onContentChange={handleContentChange}
+						onContentChange={(content, serializedEditorState, hasRefs) => {
+							if (content !== prefill?.message) {
+								setIsPrefillEdited(true);
+							}
+							handleContentChange(content, serializedEditorState, hasRefs);
+						}}
+						warning={isPrefillEdited ? undefined : prefill?.warning}
 						selectedModel={selectedModel}
 						onModelChange={handleModelChange}
 						modelOptions={modelOptions}

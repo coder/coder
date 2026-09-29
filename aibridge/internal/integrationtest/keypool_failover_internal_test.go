@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -199,7 +199,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 
 			clientHeaders := http.Header{}
 			if tc.claudePlatform {
-				clientHeaders.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
+				clientHeaders.Set(aibheaders.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
 			}
 
 			// Request 1: walker starts at k0, fails over to k1 after 429.
@@ -224,9 +224,9 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 				require.Equal(t, http.MethodPost, r.Method)
 				require.Equal(t, "/v1/messages", r.Path)
 				require.JSONEq(t, string(requestBody), string(r.Body))
-				require.Empty(t, r.Header.Get(intercept.AuthHeaderAuthorization), "pooled bridged requests must not be AWS signed")
+				require.Empty(t, r.Header.Get(aibheaders.AuthHeaderAuthorization), "pooled bridged requests must not be AWS signed")
 				if tc.claudePlatform {
-					require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+					require.Equal(t, claudePlatformWorkspaceID, r.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 				}
 			}
 			require.Equal(t, []string{"k0", "k1", "k1"}, seenKeys, "seen keys")

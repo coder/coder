@@ -36,7 +36,7 @@ func (t *DRPCRecorder) RecordInterception(ctx context.Context, req *Interception
 		Metadata:                    marshalForProto(req.Metadata),
 		StartedAt:                   timestamppb.New(req.StartedAt),
 		CorrelatingToolCallId:       req.CorrelatingToolCallID,
-		CredentialKind:              req.CredentialKind,
+		CredentialKind:              string(req.CredentialKind),
 		CredentialHint:              req.CredentialHint,
 		AgentFirewallSessionId:      req.AgentFirewallSessionID,
 		AgentFirewallSequenceNumber: req.AgentFirewallSequenceNumber,

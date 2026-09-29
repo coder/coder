@@ -20,7 +20,8 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/aibridge/config"
-	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/credential"
+	aibheaders "github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 )
 
@@ -102,7 +103,7 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 		p := newTestClaudePlatform(t, config.Anthropic{}, claudePlatformIAMCfg())
 		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
-		require.IsType(t, intercept.AWSSigV4{}, cred)
+		require.IsType(t, credential.AWSSigV4{}, cred)
 	})
 
 	t.Run("BYOK takes precedence without loading AWS", func(t *testing.T) {
@@ -112,17 +113,17 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 		p, err := NewAnthropic(context.Background(), config.Anthropic{}, nil, claudePlatformIAMCfg())
 		require.NoError(t, err)
 		req := httptest.NewRequest(http.MethodPost, routeMessages, nil)
-		req.Header.Set(intercept.AuthHeaderXAPIKey, "user-key")
+		req.Header.Set(aibheaders.AuthHeaderXAPIKey, "user-key")
 		cred, err := p.resolveCredential(req)
 		require.NoError(t, err)
-		require.Equal(t, intercept.BYOK{Secret: "user-key", Header: intercept.AuthHeaderXAPIKey}, cred)
+		require.Equal(t, credential.BYOK{Secret: "user-key", Header: aibheaders.AuthHeaderXAPIKey}, cred)
 		inner := &captureTransport{}
 		p.claudePlatform.inner = inner
 		resp, err := p.claudePlatform.RoundTrip(req)
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
-		require.Equal(t, "user-key", inner.req.Header.Get(intercept.AuthHeaderXAPIKey))
-		require.Empty(t, inner.req.Header.Get(intercept.AuthHeaderAuthorization))
+		require.Equal(t, "user-key", inner.req.Header.Get(aibheaders.AuthHeaderXAPIKey))
+		require.Empty(t, inner.req.Header.Get(aibheaders.AuthHeaderAuthorization))
 	})
 
 	t.Run("pool is selected before ambient IAM", func(t *testing.T) {
@@ -130,7 +131,7 @@ func TestAnthropic_ClaudePlatformResolveCredential(t *testing.T) {
 		p := newTestClaudePlatform(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "workspace-key")}, claudePlatformIAMCfg())
 		cred, err := p.resolveCredential(httptest.NewRequest(http.MethodPost, routeMessages, nil))
 		require.NoError(t, err)
-		require.IsType(t, &intercept.CentralizedPool{}, cred)
+		require.IsType(t, &credential.CentralizedPool{}, cred)
 	})
 }
 
@@ -362,16 +363,16 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 			inner := &captureTransport{}
 			wrapped := p.WrapPassthroughTransport(inner)
 			req := httptest.NewRequest(http.MethodGet, "https://aws-external-anthropic.us-west-2.api.aws/v1/models", nil)
-			req.Header.Set(intercept.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
+			req.Header.Set(aibheaders.HeaderAnthropicWorkspaceID, "wrkspc_from_client")
 			original := req.Header.Clone()
 
 			resp, err := wrapped.RoundTrip(req)
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			require.NotNil(t, inner.req)
-			firstAuth := inner.req.Header.Get(intercept.AuthHeaderAuthorization)
+			firstAuth := inner.req.Header.Get(aibheaders.AuthHeaderAuthorization)
 			firstDate := inner.req.Header.Get("X-Amz-Date")
-			require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID),
+			require.Equal(t, "wrkspc_config", inner.req.Header.Get(aibheaders.HeaderAnthropicWorkspaceID),
 				"provider configuration must own the workspace ID")
 			require.True(t, strings.HasPrefix(firstAuth, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", firstAuth)
 			require.Contains(t, firstAuth, "/aws-external-anthropic/aws4_request",
@@ -382,9 +383,9 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 			require.NoError(t, err)
 			_ = resp.Body.Close()
 			require.NotNil(t, inner.req)
-			require.NotEqual(t, firstAuth, inner.req.Header.Get(intercept.AuthHeaderAuthorization))
+			require.NotEqual(t, firstAuth, inner.req.Header.Get(aibheaders.AuthHeaderAuthorization))
 			require.NotEqual(t, firstDate, inner.req.Header.Get("X-Amz-Date"))
-			require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+			require.Equal(t, "wrkspc_config", inner.req.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 			require.Equal(t, original, req.Header, "signing must not mutate the caller request")
 		})
 	})
@@ -401,7 +402,7 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 		inner := &captureTransport{}
 
 		req := httptest.NewRequest(http.MethodGet, "https://aws-external-anthropic.us-west-2.api.aws/v1/models", nil)
-		req.Header.Set(intercept.AuthHeaderXAPIKey, "user-key")
+		req.Header.Set(aibheaders.AuthHeaderXAPIKey, "user-key")
 
 		resp, err := p.WrapPassthroughTransport(inner).RoundTrip(req)
 		require.NoError(t, err)
@@ -409,10 +410,10 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 
 		require.NotNil(t, inner.req)
 		require.False(t, called, "BYOK must not resolve IAM credentials")
-		require.Equal(t, "user-key", inner.req.Header.Get(intercept.AuthHeaderXAPIKey))
-		require.Empty(t, inner.req.Header.Get(intercept.AuthHeaderAuthorization),
+		require.Equal(t, "user-key", inner.req.Header.Get(aibheaders.AuthHeaderXAPIKey))
+		require.Empty(t, inner.req.Header.Get(aibheaders.AuthHeaderAuthorization),
 			"a request that already carries a credential must not also be signed")
-		require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+		require.Equal(t, "wrkspc_config", inner.req.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 	})
 
 	for _, transport := range []string{"messages", "passthrough"} {
@@ -420,8 +421,8 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 			name, header, credential, authPath string
 		}{
 			{name: "ambient IAM", authPath: "aws_sigv4"},
-			{name: "API key", header: intercept.AuthHeaderXAPIKey, credential: "test-api-key", authPath: "existing_credential"},
-			{name: "bearer token", header: intercept.AuthHeaderAuthorization, credential: "Bearer test-bearer-token", authPath: "existing_credential"},
+			{name: "API key", header: aibheaders.AuthHeaderXAPIKey, credential: "test-api-key", authPath: "existing_credential"},
+			{name: "bearer token", header: aibheaders.AuthHeaderAuthorization, credential: "Bearer test-bearer-token", authPath: "existing_credential"},
 		} {
 			for _, level := range []slog.Level{slog.LevelDebug, slog.LevelInfo} {
 				t.Run(transport+"/"+tt.name+"/"+level.String(), func(t *testing.T) {
@@ -444,9 +445,9 @@ func TestAnthropic_WrapPassthroughTransport(t *testing.T) {
 					resp, err := wrapped.RoundTrip(req)
 					require.NoError(t, err)
 					require.NoError(t, resp.Body.Close())
-					require.Equal(t, "wrkspc_config", inner.req.Header.Get(intercept.HeaderAnthropicWorkspaceID))
+					require.Equal(t, "wrkspc_config", inner.req.Header.Get(aibheaders.HeaderAnthropicWorkspaceID))
 					if tt.header == "" {
-						require.True(t, strings.HasPrefix(inner.req.Header.Get(intercept.AuthHeaderAuthorization), "AWS4-HMAC-SHA256"))
+						require.True(t, strings.HasPrefix(inner.req.Header.Get(aibheaders.AuthHeaderAuthorization), "AWS4-HMAC-SHA256"))
 					} else {
 						require.Equal(t, tt.credential, inner.req.Header.Get(tt.header))
 					}

@@ -1,5 +1,4 @@
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import type { TimingStage } from "#/api/typesGenerated";
 import {
 	Tooltip,
@@ -80,7 +79,7 @@ type StagesChartProps = {
 	onSelectStage: (stage: Stage) => void;
 };
 
-export const StagesChart: FC<StagesChartProps> = ({
+export const StagesChart: React.FC<StagesChartProps> = ({
 	timings,
 	onSelectStage,
 }) => {
