@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentrsa"
+	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -73,14 +74,6 @@ const (
 // BlockedFileTransferCommands contains a list of restricted file transfer commands.
 var BlockedFileTransferCommands = []string{"nc", "rsync", "scp", "sftp"}
 
-type ConnectionReport struct {
-	AppName         string
-	IP              string
-	ClientSessionID string
-}
-
-type reportConnectionFunc func(uuid.UUID, ConnectionReport) (disconnected func(code int, reason string))
-
 // startSessionFunc counts a session until endSession is called, which must
 // happen exactly once.
 type startSessionFunc func(sessionType string) (endSession func())
@@ -120,8 +113,8 @@ type Config struct {
 	BlockReversePortForwarding bool
 	// BlockLocalPortForwarding disables local port forwarding (ssh -L).
 	BlockLocalPortForwarding bool
-	// ReportConnection.
-	ReportConnection reportConnectionFunc
+	// ConnectionReporter reports connect and disconnect events.
+	ConnectionReporter proto.ConnectionReporter
 	// Experimental: allow connecting to running containers via Docker exec.
 	// Note that this is different from the devcontainers feature, which uses
 	// subagents.
@@ -187,8 +180,8 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 	if config.EnvInfo == nil {
 		config.EnvInfo = &usershell.SystemEnvInfo{}
 	}
-	if config.ReportConnection == nil {
-		config.ReportConnection = func(uuid.UUID, ConnectionReport) func(int, string) { return func(int, string) {} }
+	if config.ConnectionReporter == nil {
+		config.ConnectionReporter = &proto.NoopConnectionReporter{}
 	}
 
 	forwardHandler := &ssh.ForwardedTCPHandler{}
@@ -229,7 +222,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// Wrapper is designed to find and track JetBrains Gateway connections.
-				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ReportConnection, newChan, s.startSession)
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, s.config.ConnectionReporter, newChan, s.startSession)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
@@ -435,6 +428,20 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		)
 	}
 
+	// Connection_Type is a fixed enum, stored as a database enum in the
+	// connection log, so it can only hold a family.
+	var connectionType proto.Connection_Type
+	switch family {
+	case codersdk.AppFamilySSH:
+		connectionType = proto.Connection_SSH
+	case codersdk.AppFamilyVSCode:
+		connectionType = proto.Connection_VSCODE
+	case codersdk.AppFamilyJetBrains:
+		connectionType = proto.Connection_JETBRAINS
+	default:
+		connectionType = proto.Connection_TYPE_UNSPECIFIED
+	}
+
 	// It's not safe to assume RemoteAddr() returns a non-nil value. slog.F usage is fine because it correctly
 	// handles nil.
 	// c.f. https://github.com/coder/internal/issues/1143
@@ -447,11 +454,16 @@ func (s *Server) sessionHandler(session ssh.Session) {
 	if !s.trackSession(session, true) {
 		reason := "unable to accept new session, server is closing"
 		// Report connection attempt even if we couldn't accept it.
-		disconnected := s.config.ReportConnection(id, ConnectionReport{
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:      id,
+			Type:    connectionType,
 			AppName: appName,
 			IP:      remoteAddrString,
 		})
-		defer disconnected(1, reason)
+		defer connReporter.Disconnect(proto.DisconnectEvent{
+			Code:   1,
+			Reason: reason,
+		})
 
 		logger.Info(ctx, reason)
 		// See (*Server).Close() for why we call Close instead of Exit.
@@ -479,7 +491,9 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		scr := &sessionCloseTracker{Session: session}
 		session = scr
 
-		disconnected := s.config.ReportConnection(id, ConnectionReport{
+		connReporter := s.config.ConnectionReporter.Connect(proto.ConnectEvent{
+			ID:      id,
+			Type:    connectionType,
 			AppName: appName,
 			IP:      remoteAddrString,
 		})
@@ -490,7 +504,10 @@ func (s *Server) sessionHandler(session ssh.Session) {
 				reason.SlogExpectedField(),
 				slog.F("exit_code", scr.exitCode()),
 			)
-			disconnected(scr.exitCode(), string(reason))
+			connReporter.Disconnect(proto.DisconnectEvent{
+				Code:   scr.exitCode(),
+				Reason: string(reason),
+			})
 		}()
 	}
 
