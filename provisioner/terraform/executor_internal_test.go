@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -20,6 +22,111 @@ var _ logSink = &mockLogger{}
 
 func (m *mockLogger) ProvisionLog(l proto.LogLevel, o string) {
 	m.logs = append(m.logs, &proto.Log{Level: l, Output: o})
+}
+
+func TestExecutorRunGraphOutputLimit(t *testing.T) {
+	t.Parallel()
+
+	fakeTerraform, err := os.Executable()
+	require.NoError(t, err)
+
+	const outputLimit = 4
+	tests := []struct {
+		name       string
+		output     string
+		wantOutput string
+		wantError  string
+	}{
+		{
+			name:       "ExactLimit",
+			output:     "abcd",
+			wantOutput: "abcd",
+		},
+		{
+			name:      "ExceedsLimit",
+			output:    "abcde",
+			wantError: "graph output exceeds the script order limit of 4 bytes",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := testutil.Logger(t)
+			executor := executor{
+				logger:     logger,
+				server:     &server{logger: logger},
+				binaryPath: fakeTerraform,
+				files:      tfpath.Layout(t.TempDir()),
+			}
+			output, err := executor.runGraph(
+				t.Context(),
+				t.Context(),
+				[]string{
+					"-test.run=^TestTerraformGraphFakeBinary$",
+					"--",
+					"--terraform-graph-output",
+					test.output,
+				},
+				outputLimit,
+			)
+			if test.wantError != "" {
+				require.EqualError(t, err, test.wantError)
+				require.Empty(t, output)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.wantOutput, output)
+		})
+	}
+}
+
+func TestTerraformGraphFakeBinary(t *testing.T) {
+	if len(os.Args) >= 3 && os.Args[len(os.Args)-2] == "--terraform-graph-output" {
+		_, err := os.Stdout.WriteString(os.Args[len(os.Args)-1])
+		if err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	t.Parallel()
+}
+
+func TestTerraformGraphOutput(t *testing.T) {
+	t.Parallel()
+
+	stopCalls := 0
+	output := terraformGraphOutput{
+		limit: 4,
+		stop: func() {
+			stopCalls++
+		},
+	}
+	written, err := output.Write([]byte("abc"))
+	require.NoError(t, err)
+	require.Equal(t, 3, written)
+	require.Zero(t, stopCalls)
+	written, err = output.Write([]byte("def"))
+	require.NoError(t, err)
+	require.Equal(t, 3, written)
+	require.Equal(t, 1, stopCalls)
+	written, err = output.Write([]byte("ghi"))
+	require.NoError(t, err)
+	require.Equal(t, 3, written)
+	require.Equal(t, "abcd", output.value.String())
+	require.True(t, output.exceeded)
+	require.Equal(t, 1, stopCalls)
+}
+
+func TestExecutorRunGraphCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	output, err := (&executor{}).runGraph(ctx, t.Context(), nil, 1)
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, output)
 }
 
 func TestLogWriter_Mainline(t *testing.T) {

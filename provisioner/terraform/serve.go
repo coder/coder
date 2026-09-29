@@ -145,13 +145,14 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	execMut       *sync.Mutex
-	binaryPath    string
-	cachePath     string
-	cliConfigPath string
-	logger        slog.Logger
-	tracer        trace.Tracer
-	exitTimeout   time.Duration
+	execMut                *sync.Mutex
+	scriptOrderPlanConfigs sync.Map
+	binaryPath             string
+	cachePath              string
+	cliConfigPath          string
+	logger                 slog.Logger
+	tracer                 trace.Tracer
+	exitTimeout            time.Duration
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

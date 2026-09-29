@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/provisioner/terraform/tfgraph"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/terraform-provider-coder/v2/provider"
@@ -210,10 +211,19 @@ func (s *server) Plan(
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	resp, scriptOrderConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
+	}
+	// State JSON omits configuration, so retain the portion needed by the
+	// post-apply graph.
+	s.scriptOrderPlanConfigs.Delete(sess)
+	if scriptOrderConfig != nil {
+		s.scriptOrderPlanConfigs.Store(sess, scriptOrderConfig)
+		context.AfterFunc(sess.Context(), func() {
+			s.scriptOrderPlanConfigs.Delete(sess)
+		})
 	}
 
 	resp.Timings = e.timings.aggregate()
@@ -236,37 +246,121 @@ func (s *server) Graph(
 	logTerraformEnvVars(sess)
 
 	modules := []*tfjson.StateModule{}
+	var planConfig *tfjson.Config
+	convertScriptOrder := request.GetMetadata().GetWorkspaceTransition() ==
+		proto.WorkspaceTransition_START
+	scriptOrderSource := scriptOrderConversionSourceState
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
+		scriptOrderSource = scriptOrderConversionSourcePlan
+		e.mut.Lock()
 		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+		e.mut.Unlock()
 		if err != nil {
 			return provisionersdk.GraphError("parse plan for graph: %s", err)
 		}
 
 		modules = planModules(plan)
+		if convertScriptOrder {
+			planConfig = plan.Config
+		}
 	case proto.GraphSource_SOURCE_STATE:
+		e.mut.Lock()
 		tfState, err := e.state(ctx, killCtx)
+		e.mut.Unlock()
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
 		if tfState.Values != nil {
 			modules = []*tfjson.StateModule{tfState.Values.RootModule}
 		}
+		if convertScriptOrder && hasScriptOrderDataSource(modules) {
+			cachedConfig, ok := s.scriptOrderPlanConfigs.Load(sess)
+			if ok {
+				planConfig, ok = cachedConfig.(*tfjson.Config)
+				if !ok {
+					return provisionersdk.GraphError(
+						"load cached plan configuration for script ordering: unexpected type %T",
+						cachedConfig,
+					)
+				}
+			} else {
+				// Graph requests do not require a preceding plan.
+				e.mut.Lock()
+				plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+				e.mut.Unlock()
+				if err != nil {
+					return provisionersdk.GraphError(
+						"parse plan configuration for script ordering: %s", err,
+					)
+				}
+				planConfig = plan.Config
+			}
+		}
 	default:
 		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
 	}
 
+	var scriptOrderInput *scriptOrderRuntimeBindingInput
+	if convertScriptOrder {
+		var err error
+		scriptOrderInput, err = prepareScriptOrderRuntimeBindingInput(
+			ctx, modules, planConfig, scriptOrderSource,
+		)
+		if err != nil {
+			return provisionersdk.GraphError(
+				"prepare script order conversion: %s", err,
+			)
+		}
+	}
+
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	e.mut.Lock()
 	rawGraph, err := e.graph(ctx, killCtx)
-	endStage(err)
+	e.mut.Unlock()
 	if err != nil {
+		endStage(err)
 		return provisionersdk.GraphError("generate graph: %s", err)
 	}
 
-	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
+	if scriptOrderSource == scriptOrderConversionSourcePlan &&
+		scriptOrderInput != nil &&
+		(scriptOrderInput.preparationErr != nil ||
+			scriptOrderInput.prepared == nil ||
+			len(scriptOrderInput.prepared.SelectedScriptAddresses()) > 0) {
+		e.mut.Lock()
+		rawPlanGraph, graphErr := e.savedPlanGraph(
+			ctx, killCtx, e.files.PlanFilePath(),
+		)
+		e.mut.Unlock()
+		if graphErr != nil {
+			endStage(graphErr)
+			return provisionersdk.GraphError(
+				"generate saved plan graph for script ordering: %s", graphErr,
+			)
+		}
+		planGraph, graphErr := tfgraph.Parse(ctx, rawPlanGraph)
+		if graphErr != nil {
+			endStage(graphErr)
+			return provisionersdk.GraphError(
+				"index saved plan graph for script ordering: %s", graphErr,
+			)
+		}
+		scriptOrderInput.planGraph = planGraph
+		runtimeProgram := scriptOrderInput.runtimeProgram
+		scriptOrderInput.loadRuntimeProvenance = func(ctx context.Context) error {
+			return runtimeProgram.LoadProvenance(ctx, e.files.WorkDirectory())
+		}
+	}
+	endStage(nil)
+
+	conversion, err := convertState(
+		ctx, modules, rawGraph, e.server.logger, scriptOrderInput,
+	)
 	if err != nil {
 		return provisionersdk.GraphError("convert state for graph: %s", err)
 	}
+	state := conversion.state
 
 	return &proto.GraphComplete{
 		Error:                 "",

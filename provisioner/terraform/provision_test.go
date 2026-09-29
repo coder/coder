@@ -152,6 +152,280 @@ func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSourc
 	}}})
 }
 
+func TestGraphCapturesSavedPlanGraphWhenRequired(t *testing.T) {
+	t.Parallel()
+
+	const selectedPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
+		]}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+		]}}
+	}`
+	const emptySelectionPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.optional"],"after":["coder_script.prerequisite"]}]}}
+		]}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0},
+			{"address":"coder_script.optional","mode":"managed","type":"coder_script","name":"optional","schema_version":0,"count_expression":{"constant_value":0}}
+		]}}
+	}`
+	const noDeclarationPlanJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}}
+		]}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","schema_version":0}
+		]}}
+	}`
+	const graphDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+
+	tests := []struct {
+		name           string
+		transition     proto.WorkspaceTransition
+		planJSON       string
+		savedPlanGraph string
+		wantGraphs     int
+		errorContains  string
+	}{
+		{
+			name:       "StartSelectedScripts",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   selectedPlanJSON,
+			wantGraphs: 2,
+		},
+		{
+			name:       "StartEmptySelection",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   emptySelectionPlanJSON,
+			wantGraphs: 1,
+		},
+		{
+			name:       "StartWithoutDeclaration",
+			transition: proto.WorkspaceTransition_START,
+			planJSON:   noDeclarationPlanJSON,
+			wantGraphs: 1,
+		},
+		{
+			name:       "Stop",
+			transition: proto.WorkspaceTransition_STOP,
+			planJSON:   selectedPlanJSON,
+			wantGraphs: 1,
+		},
+		{
+			name:       "Destroy",
+			transition: proto.WorkspaceTransition_DESTROY,
+			planJSON:   selectedPlanJSON,
+			wantGraphs: 1,
+		},
+		{
+			name:           "MalformedSavedPlanGraph",
+			transition:     proto.WorkspaceTransition_START,
+			planJSON:       selectedPlanJSON,
+			savedPlanGraph: "not a graph",
+			wantGraphs:     2,
+			errorContains:  "index saved plan graph for script ordering",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			planPath := filepath.Join(dir, "plan.json")
+			graphPath := filepath.Join(dir, "graph.dot")
+			savedPlanGraphPath := filepath.Join(dir, "saved-plan-graph.dot")
+			graphArgsPath := filepath.Join(dir, "graph-args")
+			require.NoError(t, os.WriteFile(planPath, []byte(test.planJSON), 0o600))
+			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+			savedPlanGraph := test.savedPlanGraph
+			if savedPlanGraph == "" {
+				savedPlanGraph = graphDOT
+			}
+			require.NoError(t, os.WriteFile(
+				savedPlanGraphPath, []byte(savedPlanGraph), 0o600,
+			))
+
+			binaryPath := filepath.Join(dir, "terraform")
+			binary := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	cat %q
+	;;
+graph)
+	printf '%%s\n' "$*" >> %q
+	case "$*" in
+	*-plan=*) cat %q ;;
+	*) cat %q ;;
+	esac
+	;;
+init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, planPath, graphArgsPath, savedPlanGraphPath, graphPath)
+			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+			require.Empty(t, init.Error)
+			require.NoError(t, sess.Send(&proto.Request{
+				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+					Metadata: &proto.Metadata{WorkspaceTransition: test.transition},
+					Source:   proto.GraphSource_SOURCE_PLAN,
+				}},
+			}))
+			_, response := readProvisionLog(t, sess)
+			graph := response.GetGraph()
+			require.NotNil(t, graph)
+			if test.errorContains == "" {
+				require.Empty(t, graph.Error)
+			} else {
+				require.Contains(t, graph.Error, test.errorContains)
+			}
+
+			graphArgs, err := os.ReadFile(graphArgsPath)
+			require.NoError(t, err)
+			commands := strings.Split(strings.TrimSpace(string(graphArgs)), "\n")
+			require.Len(t, commands, test.wantGraphs)
+			require.Equal(t, "graph -type=plan", commands[0])
+			if test.wantGraphs == 2 {
+				savedPlanPath, ok := strings.CutPrefix(
+					commands[1], "graph -plan=",
+				)
+				require.True(t, ok)
+				require.Equal(t, "terraform.tfplan", filepath.Base(savedPlanPath))
+			}
+		})
+	}
+}
+
+func TestGraphReusesCachedScriptOrderPlanConfiguration(t *testing.T) {
+	t.Parallel()
+
+	const planJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
+		]}},
+		"configuration":{"root_module":{"resources":[
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","schema_version":0}
+		]}}
+	}`
+	const stateJSON = `{
+		"format_version":"1.0",
+		"terraform_version":"1.15.0",
+		"values":{"root_module":{"resources":[
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}},
+			{"address":"coder_script.prerequisite","mode":"managed","type":"coder_script","name":"prerequisite","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"coder_script.dependent","mode":"managed","type":"coder_script","name":"dependent","values":{"agent_id":"agent-id","run_on_start":true}},
+			{"address":"data.coder_script_order.order","mode":"data","type":"coder_script_order","name":"order","values":{"rule":[{"run":["coder_script.dependent"],"after":["coder_script.prerequisite"]}]}}
+		]}}
+	}`
+	const graphDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
+
+	dir := t.TempDir()
+	planPath := filepath.Join(dir, "plan.json")
+	statePath := filepath.Join(dir, "state.json")
+	graphPath := filepath.Join(dir, "graph.dot")
+	showArgsPath := filepath.Join(dir, "show-args")
+	require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
+	require.NoError(t, os.WriteFile(statePath, []byte(stateJSON), 0o600))
+	require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+
+	binaryPath := filepath.Join(dir, "terraform")
+	binary := fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+show)
+	printf '%%s\n' "$*" >> %q
+	if [ "$#" -eq 3 ]; then
+		cat %q
+	else
+		cat %q
+	fi
+	;;
+graph)
+	cat %q
+	;;
+plan|init)
+	exit 0
+	;;
+*)
+	exit 1
+	;;
+esac
+`, showArgsPath, statePath, planPath, graphPath)
+	require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
+
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath: binaryPath,
+	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+	require.Empty(t, init.Error)
+	require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+	_, response := readProvisionLog(t, sess)
+	plan := response.GetPlan()
+	require.NotNil(t, plan)
+	require.Empty(t, plan.Error)
+	require.NoError(t, sess.Send(&proto.Request{
+		Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
+			Metadata: &proto.Metadata{
+				WorkspaceTransition: proto.WorkspaceTransition_START,
+			},
+			Source: proto.GraphSource_SOURCE_STATE,
+		}},
+	}))
+	_, response = readProvisionLog(t, sess)
+	graph := response.GetGraph()
+	require.NotNil(t, graph)
+	require.Empty(t, graph.Error)
+
+	showArgs, err := os.ReadFile(showArgsPath)
+	require.NoError(t, err)
+	commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
+	require.Len(t, commands, 2)
+	require.Contains(t, commands[0], "terraform.tfplan")
+	require.Equal(t, "show -json -no-color", commands[1])
+}
+
 // below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest

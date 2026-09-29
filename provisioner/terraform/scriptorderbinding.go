@@ -27,10 +27,13 @@ const (
 )
 
 type scriptOrderRuntimeBindingInput struct {
-	source         scriptOrderConversionSource
-	program        *scriptorder.Program
-	runtimeProgram *agentruntime.Program
-	planGraph      *tfgraph.Index
+	source                scriptOrderConversionSource
+	program               *scriptorder.Program
+	runtimeProgram        *agentruntime.Program
+	prepared              *scriptorder.Prepared
+	preparationErr        error
+	planGraph             *tfgraph.Index
+	loadRuntimeProvenance func(context.Context) error
 }
 
 type scriptOrderConversionResult struct {
@@ -58,9 +61,10 @@ type scriptOrderRuntimeTarget struct {
 // scriptOrderRuntimeBinding records the Terraform and conversion objects used
 // to associate selected scripts with agent runtimes. It is request-local.
 type scriptOrderRuntimeBinding struct {
-	source         scriptOrderConversionSource
-	runtimeProgram *agentruntime.Program
-	planGraph      *tfgraph.Index
+	source                scriptOrderConversionSource
+	runtimeProgram        *agentruntime.Program
+	planGraph             *tfgraph.Index
+	loadRuntimeProvenance func(context.Context) error
 
 	prepared       *scriptorder.Prepared
 	scripts        map[string]scriptorder.Script
@@ -134,9 +138,16 @@ func newScriptOrderRuntimeBinding(
 			Cron:       attributes.Cron,
 		}
 	}
-	prepared, err := input.program.Prepare(scripts)
-	if err != nil {
-		return nil, err
+	if input.preparationErr != nil {
+		return nil, input.preparationErr
+	}
+	prepared := input.prepared
+	if prepared == nil {
+		var err error
+		prepared, err = input.program.Prepare(scripts)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, address := range prepared.SelectedScriptAddresses() {
 		record := records[address]
@@ -145,9 +156,10 @@ func newScriptOrderRuntimeBinding(
 	}
 
 	return &scriptOrderRuntimeBinding{
-		source:         input.source,
-		runtimeProgram: input.runtimeProgram,
-		planGraph:      input.planGraph,
+		source:                input.source,
+		runtimeProgram:        input.runtimeProgram,
+		planGraph:             input.planGraph,
+		loadRuntimeProvenance: input.loadRuntimeProvenance,
 
 		prepared:       prepared,
 		scripts:        scripts,
@@ -259,6 +271,11 @@ func (b *scriptOrderRuntimeBinding) resolveSelectedScriptRuntimes(
 			return xerrors.New(
 				"saved plan graph is required for plan-time script ordering",
 			)
+		}
+		if b.loadRuntimeProvenance != nil {
+			if err := b.loadRuntimeProvenance(ctx); err != nil {
+				return xerrors.Errorf("load agent runtime provenance: %w", err)
+			}
 		}
 		targets := make(
 			[]agentruntime.Target,

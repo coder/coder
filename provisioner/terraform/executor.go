@@ -288,7 +288,14 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 }
 
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
+func (e *executor) plan(
+	ctx context.Context,
+	killCtx context.Context,
+	env []string,
+	vars []string,
+	logr logSink,
+	req *proto.PlanRequest,
+) (*proto.PlanComplete, *tfjson.Config, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -325,17 +332,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal plan: %w", err)
+		return nil, nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	isPrebuildClaimAttempt := !destroy &&
@@ -357,7 +364,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("convert plan state: %w", err)
+		return nil, nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
 	var resReps []*proto.ResourceReplacement
@@ -377,7 +384,14 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	return msg, nil
+	var scriptOrderConfig *tfjson.Config
+	if plan.PlannedValues != nil &&
+		hasScriptOrderDataSource([]*tfjson.StateModule{
+			plan.PlannedValues.RootModule,
+		}) {
+		scriptOrderConfig = plan.Config
+	}
+	return msg, scriptOrderConfig, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
@@ -488,28 +502,97 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if ver.GreaterThanOrEqual(version170) {
 		args = append(args, "-type=plan")
 	}
+	return e.runGraph(ctx, killCtx, args, 0)
+}
 
-	var out strings.Builder
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+// savedPlanGraph renders the apply graph for a specific saved plan. Existing
+// state conversion continues to use graph's configuration-oriented output.
+//
+// savedPlanGraph must only be called while the lock is held.
+func (e *executor) savedPlanGraph(
+	ctx context.Context,
+	killCtx context.Context,
+	planFilePath string,
+) (string, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	return e.runGraph(
+		ctx, killCtx, []string{"graph", "-plan=" + planFilePath},
+		maxSavedPlanGraphBytes,
+	)
+}
+
+const maxSavedPlanGraphBytes = 64 << 20
+
+type terraformGraphOutput struct {
+	value    strings.Builder
+	limit    int
+	exceeded bool
+	stop     context.CancelFunc
+}
+
+func (w *terraformGraphOutput) Write(p []byte) (int, error) {
+	if w.limit <= 0 {
+		return w.value.Write(p)
+	}
+
+	written := len(p)
+	remaining := max(w.limit-w.value.Len(), 0)
+	if len(p) > remaining {
+		p = p[:remaining]
+		if !w.exceeded {
+			w.exceeded = true
+			w.stop()
+		}
+	}
+	_, err := w.value.Write(p)
+	if err != nil {
+		return 0, err
+	}
+	// Consume the full write while CommandContext stops Terraform. Wait reaps it.
+	return written, nil
+}
+
+func (e *executor) runGraph(
+	ctx context.Context,
+	killCtx context.Context,
+	args []string,
+	maxOutputBytes int,
+) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+
+	commandCtx, stopCommand := context.WithCancel(killCtx)
+	defer stopCommand()
+	out := terraformGraphOutput{limit: maxOutputBytes, stop: stopCommand}
+	cmd := exec.CommandContext(commandCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out
 	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
 		slog.F("binary_path", e.binaryPath),
-		slog.F("args", "graph"),
+		slog.F("args", args),
 	)
-	err = cmd.Start()
+	err := cmd.Start()
 	if err != nil {
 		return "", err
 	}
-	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+	interruptCommandOnCancel(ctx, commandCtx, e.logger, cmd)
 
 	err = cmd.Wait()
+	if out.exceeded {
+		return "", xerrors.Errorf(
+			"graph output exceeds the script order limit of %d bytes",
+			maxOutputBytes,
+		)
+	}
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}
-	return out.String(), nil
+	return out.value.String(), nil
 }
 
 func (e *executor) apply(
