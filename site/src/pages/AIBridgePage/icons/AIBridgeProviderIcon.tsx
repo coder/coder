@@ -1,15 +1,15 @@
 import { cn } from "cn";
-import { CircleQuestionMarkIcon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 export const AIBridgeProviderIcon = ({
 	provider,
 	className,
-	...props
 }: {
 	provider: string;
-} & React.ComponentProps<"svg">) => {
+	className?: string;
+}) => {
 	const iconClassName = "shrink-0";
+	const fallbackIconClassName = "shrink-0 rounded-full bg-surface-tertiary";
 	switch (provider) {
 		case "openai":
 			return (
@@ -69,10 +69,7 @@ export const AIBridgeProviderIcon = ({
 			);
 		default:
 			return (
-				<CircleQuestionMarkIcon
-					className={cn(iconClassName, className)}
-					{...props}
-				/>
+				<span aria-hidden className={cn(fallbackIconClassName, className)} />
 			);
 	}
 };

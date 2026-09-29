@@ -18,7 +18,6 @@ const pendingReportQuery = {
 
 const renderView = (organization: typeof MockOrganization | undefined) => {
 	const onOrganizationChange = vi.fn();
-	const onFilterQueryChange = vi.fn();
 	render(
 		<SpendPageView
 			isEntitled
@@ -36,41 +35,41 @@ const renderView = (organization: typeof MockOrganization | undefined) => {
 			}}
 			minDate={undefined}
 			onPeriodChange={vi.fn()}
+			canFilterDimensions={false}
 			filterQuery=""
-			onFilterQueryChange={onFilterQueryChange}
-			canFilterDimensions
-			onExportCSV={vi.fn()}
-			isExportingCSV={false}
+			onFilterQueryChange={vi.fn()}
+			filterError={undefined}
 			reportQuery={pendingReportQuery}
 			unpricedModels={{
 				forUser: () => undefined,
 				total: undefined,
 				setPricingHref: undefined,
 			}}
+			onExportCSV={vi.fn()}
+			isExportingCSV={false}
 		/>,
 	);
-	return { onFilterQueryChange, onOrganizationChange };
+	return { onOrganizationChange };
 };
 
-it("reports the organization picked from the unified filter", async () => {
-	const user = userEvent.setup({ skipHover: true });
-	const { onFilterQueryChange } = renderView(MockOrganization);
+it("reports the organization picked from the switcher", async () => {
+	const user = userEvent.setup();
+	const { onOrganizationChange } = renderView(MockOrganization);
 
 	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
+		screen.getByRole("button", {
+			name: `Organization ${MockOrganization.display_name}`,
+		}),
 	);
-	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		await screen.findByRole("button", { name: MockOrganization2.display_name }),
+		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
 
-	expect(onFilterQueryChange).toHaveBeenCalledWith(
-		`org:${MockOrganization2.name}`,
-	);
+	expect(onOrganizationChange).toHaveBeenCalledWith(MockOrganization2);
 });
 
 it("reports the organization picked to recover from a denied one", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { onOrganizationChange } = renderView(undefined);
 
 	await user.click(

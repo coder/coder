@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { To } from "react-router";
 import { formatCostMicros } from "#/utils/currency";
 import { UnpricedModelsWarning } from "./UnpricedModelsWarning";
@@ -17,7 +16,7 @@ type SpendAmountProps = {
  * pricing. The icon sits before the amount so right-aligned figures stay
  * lined up.
  */
-export const SpendAmount: FC<SpendAmountProps> = ({
+export const SpendAmount: React.FC<SpendAmountProps> = ({
 	costMicros,
 	unpricedUsageCount,
 	user,

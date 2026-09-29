@@ -1,4 +1,4 @@
-import { type FC, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { createTemplate } from "#/api/queries/templates";
@@ -12,7 +12,7 @@ import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
 import type { CreateTemplatePageViewProps } from "./types";
 import { UploadTemplateView } from "./UploadTemplateView";
 
-const CreateTemplatePage: FC = () => {
+const CreateTemplatePage: React.FC = () => {
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const [searchParams] = useSearchParams();

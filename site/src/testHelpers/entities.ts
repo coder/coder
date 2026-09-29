@@ -21,7 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
-	default_org_member_roles: ["organization-workspace-access"],
+	default_org_member_roles: ["organization-workspace-access", "agents-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -378,6 +378,18 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
+export const MockAgentsAccessRole: TypesGen.AssignableRoles = {
+	name: "agents-access",
+	display_name: "Coder Agents User",
+	assignable: true,
+	built_in: true,
+	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
+};
+
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -510,6 +522,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	thinking_display_mode: "auto",
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
+	collapse_assistant_steps: false,
 	agent_chat_send_shortcut: "enter",
 };
 
@@ -1567,7 +1580,7 @@ export const MockFailedWorkspaceBuild = (
 ): TypesGen.WorkspaceBuild => ({
 	build_number: 1,
 	created_at: "2022-05-17T17:39:01.382927298Z",
-	id: "1",
+	id: "9f0e7d0e-4b2b-4ac9-8f1a-1a7a1f0c9d11",
 	initiator_id: MockUserOwner.id,
 	initiator_name: MockUserOwner.username,
 	job: MockFailedProvisionerJob,

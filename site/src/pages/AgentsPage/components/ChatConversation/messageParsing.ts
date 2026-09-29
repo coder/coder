@@ -16,6 +16,7 @@ import type {
 	ParsedToolCall,
 	ParsedToolResult,
 	RenderBlock,
+	StreamState,
 } from "./types";
 
 /** Concatenate text chunks, skipping whitespace-only values. */
@@ -134,6 +135,21 @@ export const getPendingToolCallIDs = (
 
 type MergeToolsOptions = {
 	pendingToolCallIDs?: ReadonlySet<string>;
+	// Live results for calls whose assistant message is already durable. The
+	// server persists that message before its tools run, so a streamed result
+	// has no live call to attach to and renders on the durable call instead.
+	// Absent when no stream is active.
+	liveToolResults?: StreamState["toolResults"];
+};
+
+export const getToolResultStatus = (result: {
+	isError: boolean;
+	isStreaming?: boolean;
+}): MergedTool["status"] => {
+	if (result.isStreaming) {
+		return "running";
+	}
+	return result.isError ? "error" : "completed";
 };
 
 export const mergeTools = (
@@ -147,7 +163,12 @@ export const mergeTools = (
 
 	for (const call of calls) {
 		seen.add(call.id);
-		const result = resultById.get(call.id);
+		const durableResult = resultById.get(call.id);
+		// A durable result is final; live data for the same call is stale.
+		const liveResult = durableResult
+			? undefined
+			: options.liveToolResults?.[call.id];
+		const result = durableResult ?? liveResult;
 		// Extract model_intent from the tool call args if present.
 		const callArgs = call.args as Record<string, unknown> | undefined;
 		const modelIntent =
@@ -155,9 +176,7 @@ export const mergeTools = (
 				? callArgs.model_intent
 				: undefined;
 		const status = result
-			? result.isError
-				? "error"
-				: "completed"
+			? getToolResultStatus(result)
 			: options.pendingToolCallIDs?.has(call.id)
 				? "running"
 				: "completed";
@@ -166,6 +185,7 @@ export const mergeTools = (
 			name: call.name,
 			args: call.args,
 			result: result?.result,
+			reasoning: liveResult?.reasoning,
 			isError: result?.isError ?? false,
 			isMedia: result?.isMedia,
 			status,
@@ -304,6 +324,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "workspace-file-reference": {
+				parsed.blocks.push(part);
+				break;
+			}
 			default: {
 				const _exhaustive: never = part;
 				break;
@@ -318,8 +342,11 @@ const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 
 const isEditableUserMessageFileBlock = (
 	block: RenderBlock,
-): block is TypesGen.ChatFilePart =>
-	block.type === "file" && isEditableAttachmentMediaType(block.media_type);
+): block is TypesGen.ChatFilePart | TypesGen.ChatWorkspaceFileReferencePart =>
+	(block.type === "file" && isEditableAttachmentMediaType(block.media_type)) ||
+	// Workspace file bytes already live in the workspace; editing
+	// preserves the reference (or drops it when the chip is removed).
+	block.type === "workspace-file-reference";
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
@@ -341,13 +368,9 @@ export const getEditableUserMessagePayload = (
 	};
 };
 
-type ParseMessagesWithMergedToolsOptions = {
-	pendingToolCallIDs?: ReadonlySet<string>;
-};
-
 export const parseMessagesWithMergedTools = (
 	messages: readonly TypesGen.ChatMessage[],
-	options: ParseMessagesWithMergedToolsOptions = {},
+	options: MergeToolsOptions = {},
 ): ParsedMessageEntry[] => {
 	const rawParsed = messages.map((message) => ({
 		message,
@@ -377,7 +400,7 @@ export const parseMessagesWithMergedTools = (
 		parsed.tools = mergeTools(
 			parsed.toolCalls,
 			Array.from(resultById.values()),
-			{ pendingToolCallIDs: options.pendingToolCallIDs },
+			options,
 		);
 	}
 

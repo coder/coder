@@ -17,7 +17,7 @@ All of these examples use
 for the script declaration. With heredoc strings, you can script without messy
 escape codes, just as if you were working in your terminal.
 
-Some of the examples use the [`coder stat`](../../../reference/cli/stat.md)
+Some of the examples use the [`coder stat`](../../../reference/cli/stat/index.md)
 command. This is useful for determining CPU and memory usage of the VM or
 container that the workspace is running in, which is more accurate than resource
 usage about the workspace's host.
@@ -123,7 +123,9 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 1   1  98   0   0|3422k   25M|   0     0 | 153k  904k| 123k  174k
 ```
 
-## Managing the database load
+<a id="managing-the-database-load"></a>
+
+## Manage the database load
 
 Agent metadata can generate a significant write load and overwhelm your Coder
 database if you're not careful. The approximate writes per second can be
@@ -137,7 +139,7 @@ For example, let's say you have
 
 - 10 running agents
 - each with 6 metadata snippets
-- with an average interval of 4 seconds
+- with an average interval of 4&nbsp;seconds
 
 You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 

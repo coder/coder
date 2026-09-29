@@ -4,6 +4,9 @@ import dayjs from "dayjs";
 import { saveAs } from "file-saver";
 import { createMemoryRouter } from "react-router";
 import { afterEach, expect, it, vi } from "vitest";
+
+vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
+
 import { API, withDefaultFeatures } from "#/api/api";
 import { paginatedOrganizationAISpend } from "#/api/queries/aiBridge";
 import type {
@@ -15,7 +18,6 @@ import type { Permissions } from "#/modules/permissions";
 import {
 	MockAIProviders,
 	MockEntitlements,
-	MockGroup,
 	MockNoPermissions,
 	MockOrganization,
 	MockOrganization2,
@@ -32,7 +34,6 @@ const sessionViewerPermissions: Permissions = {
 	viewAnyAIBridgeInterception: true,
 };
 const auth = { permissions: sessionViewerPermissions };
-vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
@@ -91,7 +92,7 @@ function mockSpendApi(
 			: { [MockOrganization.id]: true, [MockOrganization2.id]: true },
 	);
 	const buildReport = (
-		params: Parameters<typeof API.getOrganizationAISpendUsers>[1],
+		params: Parameters<typeof API.experimental.getOrganizationAISpendUsers>[1],
 	): OrganizationAISpendReport => ({
 		...MockOrganizationAISpendReport,
 		...period,
@@ -104,9 +105,9 @@ function mockSpendApi(
 		...report,
 	});
 	const spendSpy = vi
-		.spyOn(API, "getOrganizationAISpendUsers")
+		.spyOn(API.experimental, "getOrganizationAISpendUsers")
 		.mockImplementation(async (_organizationId, params) => buildReport(params));
-	return { spendSpy, buildReport, users };
+	return { spendSpy, buildReport };
 }
 
 function renderSpend(
@@ -114,27 +115,10 @@ function renderSpend(
 	report: Partial<OrganizationAISpendReport> = {},
 	canManageModelPrices = false,
 ) {
-	const { spendSpy, buildReport, users } = mockSpendApi(
-		report,
-		canManageModelPrices,
-	);
+	const { spendSpy, buildReport } = mockSpendApi(report, canManageModelPrices);
 	vi.spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
 	vi.spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
 	vi.spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
-	vi.spyOn(API, "getUsers").mockImplementation(async ({ q = "" }) => {
-		const normalizedQuery = q.toLowerCase();
-		const matched = users
-			.map((spendUser) => ({
-				...MockUserMember,
-				id: spendUser.user_id,
-				username: spendUser.username,
-				name: spendUser.name,
-			}))
-			.filter((candidate) =>
-				candidate.username.toLowerCase().includes(normalizedQuery),
-			);
-		return { users: matched, count: matched.length };
-	});
 	const router = createMemoryRouter(
 		[
 			{
@@ -148,20 +132,13 @@ function renderSpend(
 	return { router, spendSpy, buildReport };
 }
 
-/** Text of each body row in the spend table. */
-const spendRows = () =>
-	within(screen.getByRole("table", { name: "Spend by user" }))
-		.getAllByRole("row")
-		.slice(1)
-		.map((row) => row.textContent ?? "");
-
 const searchParam = (
 	router: ReturnType<typeof createMemoryRouter>,
 	key: string,
 ) => new URLSearchParams(router.state.location.search).get(key);
 
 it("requests the default organization and switches organizations from the first page", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(spendSpy).toHaveBeenCalledWith(
@@ -170,11 +147,12 @@ it("requests the default organization and switches organizations from the first 
 	);
 
 	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
+		screen.getByRole("button", {
+			name: `Organization ${MockOrganization.display_name}`,
+		}),
 	);
-	await user.click(await screen.findByRole("option", { name: "Organization" }));
 	await user.click(
-		await screen.findByRole("button", { name: MockOrganization2.display_name }),
+		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -182,7 +160,7 @@ it("requests the default organization and switches organizations from the first 
 			expect.objectContaining({ ...period, offset: 0 }),
 		),
 	);
-	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
+	expect(searchParam(router, "org")).toBe(MockOrganization2.name);
 	expect(searchParam(router, "page")).toBeNull();
 });
 
@@ -201,14 +179,14 @@ it("requests the last 7 days when the URL has no dates", async () => {
 });
 
 it("requests no spend for a denied organization until another one is picked", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&org=missing`);
-	await screen.findByRole("alert");
+	const organizationPicker = await screen.findByRole("button", {
+		name: /Select an organization/,
+	});
 	expect(spendSpy).not.toHaveBeenCalled();
 
-	await user.click(
-		screen.getByRole("button", { name: /Select an organization/ }),
-	);
+	await user.click(organizationPicker);
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
@@ -222,11 +200,11 @@ it("requests no spend for a denied organization until another one is picked", as
 		MockOrganization.id,
 		expect.anything(),
 	);
-	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
+	expect(searchParam(router, "org")).toBe(MockOrganization2.name);
 });
 
 it("applies a date preset and resets pagination", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
@@ -247,6 +225,7 @@ it("applies a date preset and resets pagination", async () => {
 });
 
 it("keeps the retention bound while a filtered report is pending", async () => {
+	// Synthetic hover events read as leaving the menu and close the flyout.
 	const user = userEvent.setup({ skipHover: true });
 	const retentionStart = fixedNow.subtract(10, "day");
 	const { spendSpy } = renderSpend(initialSearch, {
@@ -257,9 +236,9 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
 	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
+		screen.getByRole("combobox", { name: /Filter by provider/ }),
 	);
-	await user.click(await screen.findByRole("option", { name: "Provider" }));
+	await user.click(await screen.findByRole("option", { name: /^Provider/ }));
 	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -301,7 +280,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 });
 
 it("applies a second range from the keyboard after the first one resolves", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 
@@ -332,7 +311,7 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 
 it("shows spend without dimension filters to viewers who cannot read AI sessions", async () => {
 	auth.permissions = MockNoPermissions;
-	const { spendSpy } = renderSpend(`${initialSearch}&filter=provider%3Aopenai`);
+	const { spendSpy } = renderSpend(`${initialSearch}&provider_name=openai`);
 	await screen.findByRole("table", { name: "Spend by user" });
 	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
 	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
@@ -344,47 +323,108 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 	expect(spendSpy.mock.calls[0][1]).not.toHaveProperty("provider_name");
 });
 
-it("applies user and unconfigured pricing filters", async () => {
-	const user = userEvent.setup({ skipHover: true });
-	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
-	await screen.findByRole("table", { name: "Spend by user" });
+it.each([
+	{
+		category: "Provider",
+		option: "OpenAI",
+		key: "provider_name",
+		value: "openai",
+	},
+	{
+		category: "Client",
+		option: "Claude Code",
+		key: "client",
+		value: "Claude Code",
+	},
+	{ category: "Model", option: "gpt-4o", key: "model", value: "gpt-4o" },
+])(
+	"applies and removes the $category filter and resets pagination",
+	async ({ category, option, key, value }) => {
+		// Synthetic hover events read as leaving the menu and close the flyout.
+		const user = userEvent.setup({ skipHover: true });
+		const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
+		await screen.findByRole("table", { name: "Spend by user" });
+		await user.click(
+			screen.getByRole("combobox", { name: /Filter by provider/ }),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: new RegExp(`^${category}`) }),
+		);
+		await user.click(await screen.findByRole("button", { name: option }));
+		await waitFor(() =>
+			expect(spendSpy).toHaveBeenCalledWith(
+				MockOrganization.id,
+				expect.objectContaining({ ...period, [key]: value, offset: 0 }),
+			),
+		);
+		expect(searchParam(router, key)).toBe(value);
+		expect(searchParam(router, "page")).toBeNull();
 
-	const filterInput = screen.getByRole("combobox", {
-		name: "Search and filter users…",
+		await user.click(
+			screen.getByRole("button", { name: new RegExp(`^Remove ${key}:`) }),
+		);
+		await waitFor(() => expect(searchParam(router, key)).toBeNull());
+		await waitFor(() =>
+			expect(spendSpy).toHaveBeenLastCalledWith(
+				MockOrganization.id,
+				expect.objectContaining({ ...period, [key]: undefined, offset: 0 }),
+			),
+		);
+		expect(searchParam(router, "startDate")).toBe(period.period_start);
+	},
+);
+
+it("keeps unsupported free text out of the URL and report requests", async () => {
+	const user = userEvent.setup();
+	const { router, spendSpy } = renderSpend(
+		`${initialSearch}&page=2&provider_name=openai`,
+	);
+	const input = await screen.findByRole("combobox", {
+		name: /Filter by provider/,
 	});
-	await user.click(filterInput);
-	await user.click(await screen.findByRole("option", { name: "User" }));
-	await user.click(await screen.findByRole("button", { name: /user01/ }));
+	await screen.findByRole("table", { name: "Spend by user" });
+	const callsBeforeTyping = spendSpy.mock.calls.length;
+	await user.type(input, "alice");
 	await waitFor(() =>
-		expect(searchParam(router, "filter")).toBe("user:user01"),
-	);
-	await waitFor(() =>
-		expect(spendRows()).toEqual([expect.stringContaining("@user01")]),
-	);
-	expect(searchParam(router, "page")).toBeNull();
-
-	// The endpoint does not accept these filters yet, so every user is loaded
-	// and filtered in the browser.
-	expect(spendSpy).toHaveBeenLastCalledWith(
-		MockOrganization.id,
-		expect.objectContaining({ limit: 100 }),
-	);
-	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("username");
-
-	// No mocked user has unpriced usage.
-	await user.click(filterInput);
-	await user.click(
-		await screen.findByRole("option", {
-			name: "Uses models with unconfigured pricing",
-		}),
-	);
-	await waitFor(() =>
-		expect(searchParam(router, "filter")).toBe(
-			"user:user01 pricing:unconfigured",
+		expect(input).toHaveAccessibleErrorMessage(
+			"Free-text search isn't supported. Results reflect only the provider, client, and model filters.",
 		),
 	);
-	await screen.findByText("No AI Gateway spend found");
-	expect(spendSpy.mock.calls.at(-1)?.[1]).not.toHaveProperty("pricing");
+	expect(searchParam(router, "search")).toBeNull();
+	expect(searchParam(router, "page")).toBe("2");
+	expect(searchParam(router, "provider_name")).toBe("openai");
+	expect(spendSpy).toHaveBeenCalledTimes(callsBeforeTyping);
+
+	await user.clear(input);
+	await waitFor(() => expect(input).not.toHaveAccessibleErrorMessage());
+	expect(searchParam(router, "provider_name")).toBe("openai");
+	expect(searchParam(router, "page")).toBe("2");
+	expect(spendSpy).toHaveBeenCalledTimes(callsBeforeTyping);
+});
+
+it("exports the filtered period as CSV", async () => {
+	const user = userEvent.setup();
+	const csv = new Blob(["user_id,username\n"], { type: "text/csv" });
+	const exportSpy = vi
+		.spyOn(API, "exportOrganizationAISpend")
+		.mockResolvedValue(csv);
+	renderSpend(`${initialSearch}&provider_name=openai&client=Cursor`);
+	await screen.findByRole("table", { name: "Spend by user" });
+
+	await user.click(screen.getByRole("button", { name: "Export CSV" }));
+
+	await waitFor(() =>
+		expect(saveAs).toHaveBeenCalledWith(
+			csv,
+			`ai-spend-export-${MockOrganization.name}-2026-02-10-to-2026-03-12.csv`,
+		),
+	);
+	// The export endpoint rejects the client filter, so it is left out.
+	expect(exportSpy).toHaveBeenCalledWith(MockOrganization.id, {
+		...period,
+		provider_name: "openai",
+		model: undefined,
+	});
 });
 
 it("lists unpriced models and links admins to set their pricing", async () => {
@@ -424,6 +464,7 @@ it("lists unpriced models and links admins to set their pricing", async () => {
 	const user = userEvent.setup();
 
 	await screen.findByRole("table", { name: "Spend by user" });
+	// The summary loads every matching user to list their unpriced models.
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -444,117 +485,8 @@ it("lists unpriced models and links admins to set their pricing", async () => {
 	).toHaveAttribute("href", `/ai/settings/models?org=${MockOrganization.name}`);
 });
 
-it("filters by group members and unconfigured pricing in the browser", async () => {
-	const users = Array.from({ length: 4 }, (_, i) => ({
-		...MockOrganizationAISpendUser,
-		user_id: `user-${i + 1}`,
-		username: `user${String(i + 1).padStart(2, "0")}`,
-		name: `User ${i + 1}`,
-		unpriced_usage_count: i % 2 === 0 ? 3 : 0,
-	}));
-	vi.spyOn(API, "getGroup").mockResolvedValue({
-		...MockGroup,
-		name: "devs",
-		members: ["user-1", "user-2", "user-4"].map((id) => ({
-			...MockUserMember,
-			id,
-		})),
-	});
-	const search = new URLSearchParams(initialSearch);
-	search.set("filter", "group:devs pricing:unconfigured");
-	renderSpend(search.toString(), { count: users.length, users });
-
-	await waitFor(() =>
-		expect(spendRows()).toEqual([expect.stringContaining("@user01")]),
-	);
-	expect(API.getGroup).toHaveBeenCalledWith(MockOrganization.id, "devs", {
-		exclude_members: false,
-	});
-});
-
-it("applies the organization filter", async () => {
-	const user = userEvent.setup({ skipHover: true });
-	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
-	await screen.findByRole("table", { name: "Spend by user" });
-
-	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
-	);
-	await user.click(await screen.findByRole("option", { name: "Organization" }));
-	await user.click(
-		await screen.findByRole("button", { name: MockOrganization2.display_name }),
-	);
-
-	await waitFor(() =>
-		expect(spendSpy).toHaveBeenCalledWith(
-			MockOrganization2.id,
-			expect.objectContaining({ offset: 0 }),
-		),
-	);
-	expect(searchParam(router, "filter")).toBe(`org:${MockOrganization2.name}`);
-	expect(searchParam(router, "page")).toBeNull();
-});
-
-it("applies the provider filter and resets pagination", async () => {
-	const user = userEvent.setup({ skipHover: true });
-	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
-	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(
-		screen.getByRole("combobox", { name: "Search and filter users…" }),
-	);
-	await user.click(await screen.findByRole("option", { name: "Provider" }));
-	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
-	await waitFor(() =>
-		expect(spendSpy).toHaveBeenCalledWith(
-			MockOrganization.id,
-			expect.objectContaining({ provider_name: "openai", offset: 0 }),
-		),
-	);
-	expect(searchParam(router, "filter")).toBe("provider:openai");
-	expect(searchParam(router, "page")).toBeNull();
-});
-
-it("exports the filtered period as CSV", async () => {
-	const user = userEvent.setup({ skipHover: true });
-	const csv = new Blob(["user_id,username\n"], { type: "text/csv" });
-	const exportSpy = vi
-		.spyOn(API, "exportOrganizationAISpend")
-		.mockResolvedValue(csv);
-	vi.spyOn(API, "getUser").mockResolvedValue({
-		...MockUserMember,
-		id: "user-1",
-		username: "user01",
-	});
-	vi.spyOn(API, "getGroup").mockResolvedValue({
-		...MockGroup,
-		name: "devs",
-		members: [{ ...MockUserMember, id: "user-1" }],
-	});
-	const search = new URLSearchParams(initialSearch);
-	search.set("filter", "provider:openai user:user01 group:devs");
-	renderSpend(search.toString());
-	await screen.findByRole("table", { name: "Spend by user" });
-
-	await user.click(screen.getByRole("button", { name: "Export CSV" }));
-
-	await waitFor(() =>
-		expect(saveAs).toHaveBeenCalledWith(
-			csv,
-			`ai-spend-export-${MockOrganization.name}-2026-02-10-to-2026-03-12.csv`,
-		),
-	);
-	expect(exportSpy).toHaveBeenCalledWith(MockOrganization.id, {
-		...period,
-		provider_name: "openai",
-		model: undefined,
-		user_id: "user-1",
-		group_id: MockGroup.id,
-	});
-	expect(API.getUser).toHaveBeenCalledWith("user01");
-});
-
 it("requests the next page offset", async () => {
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 	await user.click(screen.getByRole("button", { name: "Next page" }));

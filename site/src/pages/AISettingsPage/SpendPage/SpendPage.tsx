@@ -1,5 +1,5 @@
 import { saveAs } from "file-saver";
-import { type FC, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -7,7 +7,6 @@ import { getErrorDetail } from "#/api/errors";
 import {
 	aiSpendOrganizations,
 	exportOrganizationAISpend,
-	type OrganizationAISpendQuery,
 	organizationAISpendAllUsers,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
@@ -18,10 +17,6 @@ import type {
 	OrganizationAISpendUser,
 } from "#/api/typesGenerated";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import {
-	parseFilterQuery,
-	stringifyFilter,
-} from "#/components/Filter/filterQuery";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -31,6 +26,11 @@ import {
 	selectModelOrganization,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
+import {
+	queryToSpendFilter,
+	type SpendDimensions,
+	spendFilterToQuery,
+} from "./components/spendFilterQuery";
 import { SpendPageView } from "./SpendPageView";
 import { defaultSpendPeriod } from "./spendPeriod";
 import { findUnpricedModels, pricedModelKeys } from "./unpricedModels";
@@ -48,11 +48,6 @@ const modelPricePermissionChecks = {
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
-
-type SpendDimensions = Pick<
-	OrganizationAISpendFilter,
-	"provider_name" | "client" | "model"
->;
 
 /** Extracts an explicit period from the URL, or null if absent or invalid. */
 const parsePeriod = (
@@ -79,7 +74,7 @@ type SpendPageProps = {
 	now?: Date;
 };
 
-const SpendPage: FC<SpendPageProps> = ({ now }) => {
+const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const { entitlements } = useDashboard();
 	const { isEntitled, isEnabled } = getAIBridgePermissions(
@@ -111,22 +106,13 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		);
 	};
 
-	const filterQuery = searchParams.get("filter") ?? "";
-	const filterValues = parseFilterQuery(filterQuery);
-
-	const setFilterQuery = (query: string) =>
-		setFilterParams({ filter: query || undefined });
-	const setFilterValue = (key: string, value: string | undefined) => {
-		setFilterQuery(stringifyFilter({ ...filterValues, [key]: value }));
-	};
-
 	const organizationsQuery = useQuery({
 		...aiSpendOrganizations(),
 		enabled: isSpendAvailable,
 	});
 	const organizationSelection = selectModelOrganization(
 		organizationsQuery.data ?? [],
-		filterValues.org ?? searchParams.get(modelOrganizationSearchParam),
+		searchParams.get(modelOrganizationSearchParam),
 	);
 	// A requested organization the viewer cannot see gets a warning, not
 	// another organization's spend.
@@ -136,11 +122,28 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 
 	const dimensions: SpendDimensions = canFilterDimensions
 		? {
-				provider_name: filterValues.provider,
-				client: filterValues.client,
-				model: filterValues.model,
+				provider_name: searchParams.get("provider_name") || undefined,
+				client: searchParams.get("client") || undefined,
+				model: searchParams.get("model") || undefined,
 			}
 		: {};
+	const [unsupportedText, setUnsupportedText] = useState("");
+	const filterQuery = spendFilterToQuery(dimensions, unsupportedText);
+	const onFilterQueryChange = (query: string) => {
+		const { dimensions: next, search } = queryToSpendFilter(query);
+		setUnsupportedText(search);
+		if (
+			next.provider_name !== dimensions.provider_name ||
+			next.client !== dimensions.client ||
+			next.model !== dimensions.model
+		) {
+			setFilterParams({
+				provider_name: next.provider_name,
+				client: next.client,
+				model: next.model,
+			});
+		}
+	};
 
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
@@ -161,13 +164,10 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				? lastPicked.preset
 				: undefined;
 
-	const spendFilter: OrganizationAISpendQuery = {
+	const spendFilter: OrganizationAISpendFilter = {
 		period_start: period.start.toISOString(),
 		period_end: period.end.toISOString(),
 		...dimensions,
-		username: filterValues.user,
-		group: filterValues.group,
-		unconfiguredPricing: filterValues.pricing === "unconfigured" || undefined,
 	};
 
 	const onPeriodChange = (value: DateTimeRangeValue) => {
@@ -255,8 +255,7 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 		exportMutation.mutate(
 			{
 				organizationId: organization.id,
-				username: filterValues.user,
-				group: filterValues.group,
+				// The export endpoint rejects the client filter.
 				filter: {
 					period_start: spendFilter.period_start,
 					period_end: spendFilter.period_end,
@@ -291,19 +290,27 @@ const SpendPage: FC<SpendPageProps> = ({ now }) => {
 				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
-				onOrganizationChange={(next) => setFilterValue("org", next.name)}
+				onOrganizationChange={(next) => {
+					setUnsupportedText("");
+					setFilterParams({ [modelOrganizationSearchParam]: next.name });
+				}}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
 				period={{ ...period, preset }}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
-				filterQuery={filterQuery}
-				onFilterQueryChange={setFilterQuery}
 				canFilterDimensions={canFilterDimensions}
-				onExportCSV={onExportCSV}
-				isExportingCSV={exportMutation.isPending}
+				filterQuery={filterQuery}
+				onFilterQueryChange={onFilterQueryChange}
+				filterError={
+					unsupportedText
+						? "Free-text search isn't supported. Results reflect only the provider, client, and model filters."
+						: undefined
+				}
 				reportQuery={reportQuery}
 				unpricedModels={unpricedModels}
+				onExportCSV={onExportCSV}
+				isExportingCSV={exportMutation.isPending}
 			/>
 		</>
 	);

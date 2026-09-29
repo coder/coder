@@ -1,5 +1,4 @@
 import { TriangleAlertIcon } from "lucide-react";
-import type { FC } from "react";
 import { Link, type To } from "react-router";
 import {
 	Tooltip,
@@ -27,7 +26,7 @@ type UnpricedModelsWarningProps = {
  * A warning icon whose hover card explains that spend excludes usage of
  * models without pricing, and lists those models.
  */
-export const UnpricedModelsWarning: FC<UnpricedModelsWarningProps> = ({
+export const UnpricedModelsWarning: React.FC<UnpricedModelsWarningProps> = ({
 	label,
 	models,
 	setPricingHref,

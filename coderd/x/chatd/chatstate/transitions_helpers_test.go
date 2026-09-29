@@ -2,6 +2,7 @@ package chatstate_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -123,6 +124,7 @@ func createTestChatWithDynamicTools(t *testing.T, f *testFixture, toolName strin
 			RawMessage: dynamicToolJSON(toolName),
 			Valid:      true,
 		},
+		InitialStatus: database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("hello", f.User.ID, f.Model.ID),
 		},
@@ -723,6 +725,15 @@ func assertFetchedUserMessage(ctx context.Context, t *testing.T, f *testFixture,
 	require.Equal(t, f.Model.ID, fetched.ModelConfigID.UUID)
 	require.Equal(t, chatprompt.CurrentContentVersion, fetched.ContentVersion)
 	return fetched
+}
+
+// requireQueuedMessageLink asserts that msg was promoted from the queued
+// message queuedID.
+func requireQueuedMessageLink(t *testing.T, msg database.ChatMessage, queuedID int64) {
+	t.Helper()
+	require.NotZero(t, queuedID, "queued message ids start at 1")
+	require.Equal(t, sql.NullInt64{Int64: queuedID, Valid: true}, msg.QueuedMessageID,
+		"message %d must link to queued message %d", msg.ID, queuedID)
 }
 
 func assertFetchedQueuedMessage(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, queued database.ChatQueuedMessage) database.ChatQueuedMessage {

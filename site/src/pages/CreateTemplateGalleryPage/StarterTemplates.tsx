@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
@@ -51,7 +50,7 @@ type StarterTemplatesProps = {
 	templateBuilderEnabled: boolean;
 };
 
-export const StarterTemplates: FC<StarterTemplatesProps> = ({
+export const StarterTemplates: React.FC<StarterTemplatesProps> = ({
 	starterTemplatesByTag,
 	templateBuilderEnabled,
 }) => {

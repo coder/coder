@@ -6,7 +6,7 @@ import {
 	UserIcon,
 	UserKeyIcon,
 } from "lucide-react";
-import { type FC, useMemo } from "react";
+import { useMemo } from "react";
 import { useQueryClient } from "react-query";
 import {
 	getValidationErrorMessage,
@@ -33,7 +33,7 @@ type WorkspaceFilterProps = Readonly<{
 	error: unknown;
 }>;
 
-export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
+export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 	filter,
 	error,
 }) => {
@@ -59,18 +59,14 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			{
 				key: "owner",
 				label: "Owner",
-				hint: "me",
 				icon: <UserKeyIcon />,
-				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
 				// Workspaces the user owns or that are shared with them.
 				key: "user",
 				label: "User",
-				hint: "me",
 				icon: <UserIcon />,
-				showWhenSingleOption: true,
 				getOptions: getUserOptions,
 			},
 			{
@@ -78,7 +74,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				label: "Status",
 				icon: <CircleDotIcon />,
 				inlineOptions: true,
-				inlineOptionIcons: true,
+				inlineOptionsIcons: true,
 				getOptions: getStatusFilterOptions,
 			},
 			{
@@ -92,13 +88,16 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				inlineOptions: true,
 				inlineOptionsLabel: "Workspace is…",
 				inlineOptionsExclusive: true,
-				inlineOptionsLabelOnly: true,
+				chipLabelOnly: true,
 				getOptions: (query) =>
 					getAttributeFilterOptions(query, { canFilterDormant }),
 			},
 			{
 				key: "template",
 				label: "Template",
+				// Deprecated templates are not offered, so the row can hide while
+				// its one active template would still narrow the results.
+				hideWhenSingleOption: true,
 				icon: <LayoutPanelTopIcon />,
 				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
 			},
@@ -107,7 +106,10 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 		if (showOrganizations) {
 			next.push({
 				key: "organization",
-				label: "Organizations",
+				label: "Organization",
+				// Only organizations with `audit_log:read` are offered, so the row
+				// can hide while its one option would still narrow the results.
+				hideWhenSingleOption: true,
 				icon: <Building2Icon />,
 				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
 			});
@@ -127,6 +129,8 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				onChange={filter.update}
 				categories={categories}
 				placeholder="Search and filter workspaces…"
+				// Full width on mobile. From `sm` up it starts at a compact width
+				// and widens to fit chips before wrapping.
 				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
 				errorMessage={
 					showValidationError ? getValidationErrorMessage(error) : undefined

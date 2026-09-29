@@ -1,5 +1,5 @@
 import { isAxiosError } from "axios";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import {
 } from "../organizationModels";
 import UpdateModelPageView from "./UpdateModelPageView";
 
-const UpdateModelPage: FC = () => {
+const UpdateModelPage: React.FC = () => {
 	const { modelId } = useParams<{ modelId: string }>();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

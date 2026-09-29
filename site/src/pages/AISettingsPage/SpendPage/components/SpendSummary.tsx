@@ -1,6 +1,5 @@
 import dayjs from "dayjs";
 import { CalendarIcon, CircleDollarSignIcon, UsersIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
 import type { To } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { formatCostMicros } from "#/utils/currency";
@@ -32,7 +31,7 @@ type SpendSummaryProps = {
 /**
  * Summarizes every user matching the filters, not only the current page.
  */
-export const SpendSummary: FC<SpendSummaryProps> = ({
+export const SpendSummary: React.FC<SpendSummaryProps> = ({
 	report,
 	period,
 	unpricedModels,
@@ -73,11 +72,11 @@ export const SpendSummary: FC<SpendSummaryProps> = ({
 type SummaryCardProps = {
 	value: string;
 	label: string;
-	icon: ReactNode;
-	children?: ReactNode;
+	icon: React.ReactNode;
+	children?: React.ReactNode;
 };
 
-const SummaryCard: FC<SummaryCardProps> = ({
+const SummaryCard: React.FC<SummaryCardProps> = ({
 	value,
 	label,
 	icon,

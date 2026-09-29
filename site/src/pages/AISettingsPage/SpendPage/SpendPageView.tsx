@@ -1,7 +1,7 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { ExperimentalBadge } from "#/components/Badge/PresetBadges";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
@@ -32,16 +32,17 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
+	canFilterDimensions: boolean;
 	filterQuery: string;
 	onFilterQueryChange: (query: string) => void;
-	canFilterDimensions: boolean;
-	onExportCSV: () => void;
-	isExportingCSV: boolean;
+	filterError: string | undefined;
 	reportQuery: SpendReportQuery;
 	unpricedModels: UnpricedModelsInfo;
+	onExportCSV: () => void;
+	isExportingCSV: boolean;
 };
 
-export const SpendPageView: FC<SpendPageViewProps> = ({
+export const SpendPageView: React.FC<SpendPageViewProps> = ({
 	isEntitled,
 	isEnabled,
 	...contentProps
@@ -59,12 +60,18 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	return (
 		<div className="flex max-w-[1100px] flex-col gap-4">
 			<SettingsHeader>
-				<SettingsHeaderTitle>User spend</SettingsHeaderTitle>
+				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
+					User spend
+				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
 					organization.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
+			<Alert severity="warning">
+				This page is experimental. Reports may load slowly on large deployments,
+				and the page may change or be removed.
+			</Alert>
 			<SpendPageContent {...contentProps} />
 		</div>
 	);
@@ -75,7 +82,7 @@ type SpendPageContentProps = Omit<
 	"isEntitled" | "isEnabled"
 >;
 
-const SpendPageContent: FC<SpendPageContentProps> = ({
+const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	now,
 	organizations,
 	organization,
@@ -85,13 +92,14 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
+	canFilterDimensions,
 	filterQuery,
 	onFilterQueryChange,
-	canFilterDimensions,
-	onExportCSV,
-	isExportingCSV,
+	filterError,
 	reportQuery,
 	unpricedModels,
+	onExportCSV,
+	isExportingCSV,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -141,15 +149,17 @@ const SpendPageContent: FC<SpendPageContentProps> = ({
 			<SpendFilters
 				organizations={organizations}
 				organization={organization}
+				onOrganizationChange={onOrganizationChange}
+				canFilterDimensions={canFilterDimensions}
 				filterQuery={filterQuery}
 				onFilterQueryChange={onFilterQueryChange}
-				canFilterDimensions={canFilterDimensions}
-				onExportCSV={onExportCSV}
-				isExportingCSV={isExportingCSV}
+				filterError={filterError}
 				now={now}
 				period={period}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
+				onExportCSV={onExportCSV}
+				isExportingCSV={isExportingCSV}
 			/>
 			<SpendUsersTable
 				reportQuery={reportQuery}

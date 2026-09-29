@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import dayjs, { type Dayjs } from "dayjs";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
-import { type FC, type ReactNode, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
@@ -32,11 +32,11 @@ import {
 import { isWorkspaceOn } from "#/utils/workspace";
 
 type WorkspaceScheduleContainerProps = {
-	children?: ReactNode;
+	children?: React.ReactNode;
 	onClickIcon?: () => void;
 };
 
-const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
+const WorkspaceScheduleContainer: React.FC<WorkspaceScheduleContainerProps> = ({
 	children,
 	onClickIcon,
 }) => {
@@ -79,11 +79,9 @@ type WorkspaceScheduleControlsProps = {
 	canUpdateSchedule: boolean;
 };
 
-export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
-	workspace,
-	template,
-	canUpdateSchedule,
-}) => {
+export const WorkspaceScheduleControls: React.FC<
+	WorkspaceScheduleControlsProps
+> = ({ workspace, template, canUpdateSchedule }) => {
 	if (!shouldDisplayScheduleControls(workspace)) {
 		return null;
 	}
@@ -116,7 +114,7 @@ type AutostopDisplayProps = {
 	canUpdateSchedule: boolean;
 };
 
-const AutostopDisplay: FC<AutostopDisplayProps> = ({
+const AutostopDisplay: React.FC<AutostopDisplayProps> = ({
 	workspace,
 	template,
 	canUpdateSchedule,

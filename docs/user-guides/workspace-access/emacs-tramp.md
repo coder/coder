@@ -5,7 +5,9 @@ title: Emacs TRAMP
 [Emacs TRAMP](https://www.emacswiki.org/emacs/TrampMode) is a method of running
 editing operations on a remote server.
 
-## Connecting To A Workspace
+<a id="connecting-to-a-workspace"></a>
+
+## Connect to a workspace
 
 To connect to your workspace first run:
 
@@ -19,7 +21,9 @@ Then you can connect to your workspace by its name in the format:
 In Emacs type `C-x d` and then input: `/-:coder.<WORKSPACE NAME>:` and hit
 enter. This will open up Dired on the workspace's home directory.
 
-### Using SSH
+<a id="using-ssh"></a>
+
+### Use SSH
 
 By default Emacs TRAMP is setup to use SCP to access files on the Coder
 workspace instance. However you might want to use SSH if you have a jumpbox or

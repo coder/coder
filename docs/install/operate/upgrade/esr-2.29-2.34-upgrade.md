@@ -1,5 +1,5 @@
 ---
-title: Upgrading from ESR 2.29 to 2.34
+title: Upgrade from ESR 2.29 to 2.34
 ---
 
 ## Guide Overview
@@ -203,7 +203,9 @@ updates, or change administrator expectations:
 | External provisioner daemons use the 2.29 provisionerd protocol.                                                | The provisionerd protocol changed for provisioner operations and file upload/download.                                                                      | Update external provisioner daemons to the matching 2.34 protocol. The protocol reserves removed fields such as `stop_modules`, `exp_reuse_terraform_workspace`, and `user_secrets`, and adds `DownloadFile`.                                                                                  |
 | Helm chart health probes and observability bind addresses use older chart defaults.                             | Readiness and liveness probes have `enabled` toggles and more fields, and Prometheus/pprof addresses are overridable.                                       | Review custom Helm values for probe behavior and observability bindings. Prefer restricting pprof to a local address when exposing diagnostics.                                                                                                                                                |
 
-## Upgrading
+<a id="upgrading"></a>
+
+## Upgrade recommendations
 
 > [!NOTE]
 > You can upgrade directly from 2.29 to 2.34. Stepping through intermediate

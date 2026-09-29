@@ -47,9 +47,11 @@ There is other data that is held in the database and is associated with a chat, 
 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.
 
-File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds. When a message's files would push the chat over the cap, the oldest files on the chat are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa.
+File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds, set by the `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT` deployment option (50 by default). The core state machine does not read deployment configuration: every caller that writes links passes the cap in, and a cap below 1 fails the write instead of selecting a default. When a message's files would push the chat over the cap, the chat's earliest-uploaded files are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa. Desktop recordings and their thumbnails are linked to the parent chat the same way, one file per transaction; with a cap of 1 the thumbnail is skipped so it cannot evict its own recording.
 
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
+
+TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
@@ -113,6 +115,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 ### Transitions used by the HTTP endpoints
 
 - `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
+- TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
@@ -136,6 +139,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
+
+Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Execution state transition diagram
 
@@ -445,6 +450,8 @@ This endpoint uses `Create(initialMessages)`:
 
 - `N -> Create(initialMessages) -> R0`
 
+TODO (#27111): a request with an empty `content` array now takes `N -> Create(initialMessages) -> W`: the chat is created idle with system messages only and no worker picks it up, so clients can use the chat ID (for example for workspace file uploads) before the first `POST /api/v2/chats/{chat}/messages` starts generation. Describe this here.
+
 No other input states are supported.
 
 ### `PATCH /api/v2/chats/{chat}`
@@ -471,9 +478,9 @@ For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 - `W -> SendMessage(m, queue) -> R0`
 - `E0 -> SendMessage(m, queue) -> R0`
 - `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, and clears the error. The scenario where this happens is:
-    - the user queued some messages
-    - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-    - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user queued some messages
+  - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
 - `I0 -> SendMessage(m, queue) -> I1`
@@ -494,6 +501,8 @@ For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
 - `A1 -> SendMessage(m, interrupt) -> R1`
 
 When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
+
+The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
 
 Other input states are not supported.
 
@@ -543,6 +552,8 @@ This endpoint uses `PromoteQueuedMessage(qid)`:
 
 `PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
 
+Either way, the resulting history message has `queued_message_id = qid`.
+
 No other input states are supported.
 
 ### `POST /api/v2/chats/{chat}/interrupt`
@@ -586,6 +597,10 @@ This endpoint uses `ClearContext`:
 
 No other input states are supported: generating chats and chats with queued messages get a conflict error, and archived chats are rejected. Unlike `/compact`, there is no worker round-trip and no model call: the endpoint builds the boundary triplet itself and commits it synchronously inside the API transaction. The transcript is preserved; only future prompts stop seeing pre-clear history. Clearing from an error state clears `last_error`, so a context-overflowed chat gets an instant recovery path that discards the oversized history instead of summarizing it. The prompt-assembly query needs no changes because the clear boundary reuses the compressed model-only anchor shape produced by compaction. Boundary detection (`latestContextBoundaryIndex`) recognizes both `chat_summarized` and `chat_cleared` boundaries, so clear and compaction never reach across each other's boundary. If no active model-visible non-system message follows the latest boundary, the transaction rolls back with a "nothing to clear" conflict, so an empty or already-cleared chat never gains a duplicate boundary. The endpoint is owner-only for symmetry with `/compact`. The web UI surfaces it as the `/clear` slash command.
 
+### `POST /api/v2/chats/{chat}/workspace-files`
+
+TODO (#27079): this owner-only endpoint uses no transition. It streams the raw request body to the chat's workspace agent (`/api/v0/upload-chat-file`), preferring the bound agent and otherwise falling back to `agentselect.FindChatAgent` without persisting a binding, and returns the final path so the client can attach a `workspace-file-reference` part to its next message. Describe this here.
+
 ## Pubsub
 
 The chat worker and the stream loop need real-time notifications when the chat state changes to ensure they are responsive. To achieve this, we use pubsub.
@@ -597,22 +612,21 @@ As with the transitions section, I don't recommend reading the rest of this sect
 There are 2 notification channels:
 
 - `chat:ownership` is a global channel consumed by chat workers. Its payload is:
-    - `chat_id`
-    - `snapshot_version`
+  - `chat_id`
+  - `snapshot_version`
     It notifies chat workers about chats that need processing by a chat worker, but aren't owned by a chat worker. A worker then picks the chat up.
 - `chat:update:{chat_id}` is a per-chat channel consumed by a chat worker that owns the chat and by active stream loops. Its payload is:
-    - `snapshot_version`
-    - `worker_id`
-    - `runner_id`
-    - `history_version`
-    - `queue_version`
-    - `retry_state_version`
-    - `generation_attempt`
-    - `status`
-    - `archived`
-    
+  - `snapshot_version`
+  - `worker_id`
+  - `runner_id`
+  - `history_version`
+  - `queue_version`
+  - `retry_state_version`
+  - `generation_attempt`
+  - `status`
+  - `archived`
+
     It notifies receivers that a chat's execution state changed. Receivers use the payload as a hint to decide whether they should fetch the latest state from the database.
-    
 
 ### Notification emission rules
 
@@ -868,6 +882,10 @@ It inspects the chat's message history, and decides what's the next step to take
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.
 - `EnterRequiresAction`: applied when there are pending dynamic tool calls.
 
+The retry limit is the `CODER_CHAT_MAX_GENERATION_RETRIES` deployment option (25 by default). When an attempt fails with a retryable error and `generation_attempt` exceeds the limit, the goroutine applies `FinishError` instead of retrying, so the default allows 26 attempts. A non-retryable error applies `FinishError` immediately. Because `generation_attempt` resets whenever `history_version` changes, the limit counts consecutive failed attempts since the last history change, and every committed step restores the full budget. Advisor calls and the background generation of chat titles, summaries, and turn status labels retry through `chatretry` with the same limit. Each of those calls has its own budget, which `generation_attempt` does not track. An advisor call that runs out of retries returns an error tool result, and background generation that runs out leaves the chat status unchanged.
+
+The step limit is the `CODER_CHAT_MAX_STEPS_PER_TURN` deployment option (1200 by default). A step is one committed assistant response; compressed compaction and clear messages do not count. The count starts after the latest user message that is not model-only, so hook context and replayed compaction input do not restart it. After the tool calls requested by the last response have run, the goroutine checks the count, and once it reaches the limit, the goroutine finishes the turn the way it finishes a completed one instead of calling the LLM API again. The chat shows no error and gets no final assistant reply. With lifecycle hooks enabled, that finish dispatches the `stop` hook first, and a `stop` response with model context can continue the turn once, so a turn can exceed the limit by one response.
+
 The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 
 When receiving streaming message parts from the LLM API, the generation goroutine adds them to the [Message part buffer](#message-part-buffer) in real time. Whenever it starts a new generation attempt, it must start a new episode in the buffer, and mark it as closed when the attempt is finished; either because the LLM API call returned a response, or the attempt was cancelled. If `AddPart` returns an error, the goroutine ignores it. Storing parts in the buffer is best-effort: if the buffer is full, or the episode is closed, the parts are dropped. A stale generation goroutine may keep on adding parts to the buffer until it is cancelled or exits.
@@ -883,7 +901,7 @@ The generation goroutine supports:
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
-    - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
+  - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
 - plan mode
@@ -977,7 +995,6 @@ Details that follow from the override:
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
 - Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
-- TODO (#29436): the summary request carries the chat model's tool definitions only when the override resolves to the chat model itself (same provider instance and model); any other override sends the summary without tool definitions.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine
@@ -1015,8 +1032,6 @@ The worker periodically archives old, unused chats.
 
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
-TODO (#29436): the summary request now carries the turn's tool definitions (and, on Anthropic, the same cache-control breakpoints as the turn) so it shares the turn's cached prefix. When the provider rejects that request for its size (context window or HTTP 413), the summary is regenerated once without tool definitions. Describe this here.
-
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
 
 Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
@@ -1052,7 +1067,7 @@ The stream loop powers the `GET /api/v2/chats/{chat}/stream` endpoint. It is sco
 The following chat stream events, delivered to the client over WebSocket, are supported:
 
 - `message_part`: a streaming message part emitted by the chat worker. Each carries the `history_version` and `generation_attempt` of the episode it belongs to, so a client knows which episode a message part comes from.
-- `message`: a committed chat message present in the database.
+- `message`: a committed chat message present in the database. Messages promoted from the queue carry `queued_message_id`, so clients can match them to the queued entry without comparing content. A missing field means unknown, since older servers don't write it.
 - `status`: the chat's status.
 - `error`: the chat's persisted error payload.
 - `queue_update`: the full current queued-message list.
@@ -1085,8 +1100,8 @@ The stream loop stores:
 - latest synchronized `queue_version`;
 - latest synchronized `retry_state_version`;
 - known committed messages:
-    - message ID;
-    - latest message revision sent to the client;
+  - message ID;
+  - latest message revision sent to the client;
 - latest status sent to the client;
 - `history_version` for the last sent error;
 - latest `history_version` for which `action_required` was sent;
@@ -1355,8 +1370,8 @@ Control message shape:
 
 ```json
 {
-	"history_version": 12,
-	"generation_attempt": 3
+    "history_version": 12,
+    "generation_attempt": 3
 }
 ```
 

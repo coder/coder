@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import type { To } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -50,7 +49,7 @@ type SpendUsersTableProps = {
 	unpricedModels: UnpricedModelsInfo;
 };
 
-export const SpendUsersTable: FC<SpendUsersTableProps> = ({
+export const SpendUsersTable: React.FC<SpendUsersTableProps> = ({
 	reportQuery,
 	period,
 	unpricedModels,
@@ -149,7 +148,10 @@ type SpendUserRowProps = {
 	unpricedModels: UnpricedModelsInfo;
 };
 
-const SpendUserRow: FC<SpendUserRowProps> = ({ user, unpricedModels }) => (
+const SpendUserRow: React.FC<SpendUserRowProps> = ({
+	user,
+	unpricedModels,
+}) => (
 	<TableRow>
 		{/* The row header gives the count badges and warning their user. */}
 		<TableHead

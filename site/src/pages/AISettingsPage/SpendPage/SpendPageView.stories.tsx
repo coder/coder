@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import {
+	MockAIProviders,
 	MockOrganization,
 	MockOrganization2,
 	MockOrganizationAISpendReport,
@@ -34,6 +36,11 @@ const mockPendingReportQuery = {
 const meta = {
 	title: "pages/AISettingsPage/SpendPage/SpendPageView",
 	component: SpendPageView,
+	beforeEach: () => {
+		spyOn(API, "getAIBridgeProviders").mockResolvedValue(MockAIProviders);
+		spyOn(API, "getAIBridgeClients").mockResolvedValue(["Claude Code"]);
+		spyOn(API, "getAIBridgeModels").mockResolvedValue(["gpt-4o"]);
+	},
 	args: {
 		isEntitled: true,
 		isEnabled: true,
@@ -49,17 +56,18 @@ const meta = {
 		},
 		minDate: new Date("2026-01-12T00:00:00Z"),
 		onPeriodChange: fn(),
+		canFilterDimensions: true,
 		filterQuery: "",
 		onFilterQueryChange: fn(),
-		canFilterDimensions: true,
-		onExportCSV: fn(),
-		isExportingCSV: false,
+		filterError: undefined,
 		reportQuery: mockReportQuery,
 		unpricedModels: {
 			forUser: () => undefined,
 			total: undefined,
 			setPricingHref: undefined,
 		},
+		onExportCSV: fn(),
+		isExportingCSV: false,
 	},
 } satisfies Meta<typeof SpendPageView>;
 
@@ -108,55 +116,30 @@ export const Loading: Story = {
 
 export const Users: Story = {};
 
+export const UnsupportedFreeText: Story = {
+	args: {
+		filterQuery: "provider_name:openai alice",
+		filterError:
+			"Free-text search isn't supported. Results reflect only the provider, client, and model filters.",
+	},
+};
+
 export const WithoutDimensionFilters: Story = {
 	args: { canFilterDimensions: false },
 };
 
-export const PricingPreset: Story = {
-	args: { filterQuery: "pricing:unconfigured" },
+export const SingleOrganization: Story = {
+	args: { organizations: [MockOrganization] },
 };
 
-export const ManyFilterChips: Story = {
-	args: {
-		filterQuery:
-			"user:alice group:engineering provider:openai model:gpt-4o client:cursor pricing:unconfigured",
-	},
-};
-
-const openFilterMenu: Story["play"] = async ({ canvasElement }) => {
-	await userEvent.click(
-		within(canvasElement).getByRole("combobox", {
-			name: "Search and filter users…",
-		}),
-	);
-};
-
-export const FilterMenu: Story = {
-	play: openFilterMenu,
-};
-
-export const FilterMenuPricingSelected: Story = {
-	args: { filterQuery: "pricing:unconfigured" },
-	play: openFilterMenu,
-};
-
-export const OrganizationFlyout: Story = {
-	play: async (context) => {
-		await openFilterMenu(context);
-		await userEvent.hover(
-			await within(context.canvasElement).findByRole("option", {
-				name: "Organization",
+export const OrganizationMenu: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: `Organization ${MockOrganization.display_name}`,
 			}),
 		);
 	},
-};
-
-export const ExportingCSV: Story = {
-	args: { isExportingCSV: true },
-};
-
-export const SingleOrganization: Story = {
-	args: { organizations: [MockOrganization] },
 };
 
 export const RequestedOrganizationDenied: Story = {
@@ -164,7 +147,7 @@ export const RequestedOrganizationDenied: Story = {
 };
 
 export const Mobile: Story = {
-	globals: { viewport: { value: "mobile2", isRotated: false } },
+	globals: { viewport: { value: "iphone12", isRotated: false } },
 };
 
 // The content width a 1024px viewport leaves beside the settings sidebar.
@@ -176,4 +159,8 @@ export const NarrowContainer: Story = {
 			</div>
 		),
 	],
+};
+
+export const ExportingCSV: Story = {
+	args: { isExportingCSV: true },
 };
