@@ -290,6 +290,19 @@ func TestAnthropicMessages(t *testing.T) {
 		}
 	})
 
+	// A message_delta without a stop reason is not terminal, so it must keep
+	// the pending injected tool call.
+	t.Run("streaming injected tool with interim message_delta", func(t *testing.T) {
+		t.Parallel()
+
+		interim := []byte("event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":null,\"stop_sequence\":null},\"usage\":{\"output_tokens\":1}}\n\nevent: message_delta")
+		fixture := bytes.Replace(fixtures.AntSingleInjectedTool, []byte("event: message_delta"), interim, 1)
+		_, mockMCP, resp := setupInjectedToolTest(t, fixture, true, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
+		defer resp.Body.Close()
+
+		require.Len(t, mockMCP.getCallsByTool(mockToolName), 1)
+	})
+
 	// When the upstream's first response is an injected tool call with no
 	// text preamble and the next upstream call fails, the response must
 	// remain a well-formed SSE stream. The upstream error is relayed as a

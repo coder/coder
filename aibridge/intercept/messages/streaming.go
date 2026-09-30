@@ -230,7 +230,16 @@ newStream:
 		var accumulateErr error
 		var messageStopped bool
 
-		for stream.Next() {
+		for {
+			if !stream.Next() {
+				// An upstream that closes cleanly before message_stop leaves the
+				// client without a terminal event, so the accumulation failure
+				// must be reported.
+				if accumulateErr != nil && !messageStopped {
+					lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
+				}
+				break
+			}
 			iterationStarted = true
 			event := stream.Current()
 			if err := message.Accumulate(event); err != nil && accumulateErr == nil {
@@ -293,9 +302,10 @@ newStream:
 					ServiceTier:  serviceTier,
 				})
 
-				// A turn that did not stop for tool use (e.g. max_tokens) may carry
-				// truncated tool input, so injected tools must not run.
-				if delta.Delta.StopReason != anthropic.StopReasonToolUse {
+				// A turn that stopped for another reason (e.g. max_tokens) may carry
+				// truncated tool input, so injected tools must not run. An empty
+				// stop reason marks an interim delta.
+				if stopReason := delta.Delta.StopReason; stopReason != "" && stopReason != anthropic.StopReasonToolUse {
 					clear(pendingToolCalls)
 				}
 
@@ -543,12 +553,6 @@ newStream:
 				lastErr = xerrors.Errorf("relay event: %w", err)
 				break
 			}
-		}
-
-		// An upstream that closes cleanly before message_stop leaves the client
-		// without a terminal event, so the accumulation failure must be reported.
-		if accumulateErr != nil && !messageStopped && lastErr == nil {
-			lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
 		}
 
 		if promptFound {
