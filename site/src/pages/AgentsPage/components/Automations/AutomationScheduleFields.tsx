@@ -71,7 +71,7 @@ const parseTime = (value: string): Time | undefined => {
 	return { hour, minute };
 };
 
-const formatRunTime = (value: string, timeZone: string): string =>
+const formatRunTimeIn = (value: string, timeZone: string): string =>
 	formatDate(new Date(value), {
 		locale: "en-US",
 		timeZone,
@@ -84,6 +84,18 @@ const formatRunTime = (value: string, timeZone: string): string =>
 		minute: "2-digit",
 		second: undefined,
 	});
+
+// The server's tzdata can know zones that this browser's Intl rejects.
+const formatRunTime = (value: string, timeZone: string): string => {
+	try {
+		return formatRunTimeIn(value, timeZone);
+	} catch (error) {
+		if (!(error instanceof RangeError)) {
+			throw error;
+		}
+		return formatRunTimeIn(value, "UTC");
+	}
+};
 
 type AutomationScheduleFieldsProps = {
 	organizationId: string;

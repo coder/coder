@@ -165,6 +165,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const isSchedule = !automation || automation.kind === "schedule";
 	const existingChatId = useId();
 	const newChatId = useId();
+	const modelErrorId = useId();
 	// Radix returns focus to a DialogTrigger on close; this dialog has none.
 	const [opener] = useState(() =>
 		document.activeElement instanceof HTMLElement
@@ -259,7 +260,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		<Dialog
 			open
 			onOpenChange={(open) => {
-				if (!open) {
+				if (!open && !isSubmitting) {
 					onClose();
 				}
 			}}
@@ -417,34 +418,50 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									<span className="text-sm font-medium text-content-primary">
 										Model
 									</span>
-									<ModelSelector
-										className="w-fit"
-										triggerAriaLabel="Model"
-										placeholder={getModelSelectorPlaceholder(
-											modelOptions,
-											isModelCatalogLoading,
-											hasConfiguredModels,
-											modelCatalog,
-										)}
-										options={modelOptions}
-										value={form.values.new_chat_model_config_id}
-										onValueChange={(modelId) => {
-											form.setFieldValue("new_chat_model_config_id", modelId);
-											form.setFieldValue("reasoning_effort", "");
-										}}
-										reasoningEffort={
-											selectedModel
-												? pickReasoningEffort(
-														form.values.reasoning_effort,
-														selectedModel.reasoningEfforts ?? [],
-														selectedModel.reasoningEffortDefault,
-													)
-												: form.values.reasoning_effort
-										}
-										onReasoningEffortChange={(effort) =>
-											form.setFieldValue("reasoning_effort", effort)
-										}
-									/>
+									<div>
+										<ModelSelector
+											className="w-fit"
+											triggerAriaLabel="Model"
+											triggerAriaInvalid={modelField.error}
+											triggerAriaDescribedBy={
+												modelField.error ? modelErrorId : undefined
+											}
+											placeholder={getModelSelectorPlaceholder(
+												modelOptions,
+												isModelCatalogLoading,
+												hasConfiguredModels,
+												modelCatalog,
+											)}
+											options={modelOptions}
+											value={form.values.new_chat_model_config_id}
+											onValueChange={(modelId) => {
+												form.setFieldValue("new_chat_model_config_id", modelId);
+												form.setFieldValue("reasoning_effort", "");
+											}}
+											reasoningEffort={
+												selectedModel
+													? pickReasoningEffort(
+															form.values.reasoning_effort,
+															selectedModel.reasoningEfforts ?? [],
+															selectedModel.reasoningEffortDefault,
+														)
+													: form.values.reasoning_effort
+											}
+											onReasoningEffortChange={(effort) =>
+												form.setFieldValue("reasoning_effort", effort)
+											}
+										/>
+										<div aria-live="polite">
+											{modelField.error && (
+												<p
+													id={modelErrorId}
+													className="m-0 mt-2 text-xs text-content-destructive"
+												>
+													{modelField.helperText}
+												</p>
+											)}
+										</div>
+									</div>
 									{modelSelectorHelp && (
 										<span className="text-xs text-content-secondary">
 											{modelSelectorHelp}
@@ -455,17 +472,17 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											Could not load models.
 										</span>
 									)}
-									{modelField.error && (
-										<span className="text-xs text-content-destructive">
-											{modelField.helperText}
-										</span>
-									)}
 								</div>
 							)}
 						</section>
 					</div>
 					<DialogFooter className="border-0 border-t border-solid border-border-default px-6 py-4">
-						<Button type="button" variant="outline" onClick={onClose}>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={isSubmitting}
+							onClick={onClose}
+						>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={isSubmitting}>

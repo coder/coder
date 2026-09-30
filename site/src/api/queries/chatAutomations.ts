@@ -4,6 +4,7 @@ import {
 	queryOptions,
 } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -70,7 +71,8 @@ export const chatAutomationSchedulePreview = (
 				signal,
 			),
 		// A 400 is the server's answer about invalid input, not a transient error.
-		retry: false,
+		retry: (failureCount, error) =>
+			getErrorStatus(error) !== 400 && failureCount < 2,
 	});
 
 export const updateChatAutomation = (
