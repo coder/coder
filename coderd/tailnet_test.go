@@ -181,7 +181,7 @@ func TestServerTailnet_DERPConnects(t *testing.T) {
 	defer release()
 	require.True(t, conn.AwaitReachable(ctx))
 
-	// One connection to the embedded relay for the life of the process.
+	// One connection to the embedded relay after startup.
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
 	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_connects_total"))

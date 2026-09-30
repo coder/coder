@@ -1,7 +1,6 @@
 package workspaceapps
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,7 +9,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -165,30 +163,12 @@ func (unreachableAgentProvider) ServeHTTPDebug(http.ResponseWriter, *http.Reques
 
 func (unreachableAgentProvider) Close() error { return nil }
 
-// lockedBuffer lets the handler goroutine log while the test reads.
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedBuffer) Lines() []string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return strings.Split(strings.TrimSpace(b.buf.String()), "\n")
-}
-
 func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	var logs lockedBuffer
-	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	logs := testutil.NewWaitBuffer()
+	logger := slog.Make(slogjson.Sink(logs)).Leveled(slog.LevelDebug)
 
 	agentID := uuid.New()
 	basePath := fmt.Sprintf("/api/v2/workspaceagents/%s/pty", agentID)
@@ -232,7 +212,7 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 	require.Contains(t, closeErr.Reason, "agent is unreachable")
 
 	var found bool
-	for _, line := range logs.Lines() {
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
 		var entry struct {
 			Level  string         `json:"level"`
 			Msg    string         `json:"msg"`

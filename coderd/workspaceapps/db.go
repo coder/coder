@@ -49,12 +49,12 @@ type DBTokenProvider struct {
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
 
-	// appOfflineTotal counts requests that got the agent offline page. Unlike
+	// agentOfflineTotal counts requests that got the agent offline page. Unlike
 	// coderd_agents_connections, which samples agent status once a minute, it
 	// records every failed request, so it can alert on the offline page now
 	// that the page is a 404 and not a 502. Open tabs on workspaces with a
 	// disconnected agent produce a steady baseline, so alert on rate changes.
-	appOfflineTotal *prometheus.CounterVec
+	agentOfflineTotal *prometheus.CounterVec
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
@@ -79,13 +79,13 @@ func NewDBTokenProvider(ctx context.Context,
 		workspaceAppAuditSessionTimeout = time.Hour
 	}
 
-	appOfflineTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+	agentOfflineTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coder",
 		Subsystem: "workspaceapps",
 		Name:      "agent_offline_total",
 		Help:      "Number of workspace app requests that got the offline page because the agent was not connected.",
 	}, []string{"status", "access_method"})
-	reg.MustRegister(appOfflineTotal)
+	reg.MustRegister(agentOfflineTotal)
 
 	return &DBTokenProvider{
 		Logger:                          log,
@@ -99,7 +99,7 @@ func NewDBTokenProvider(ctx context.Context,
 		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
 		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
 		Keycache:                        signer,
-		appOfflineTotal:                 appOfflineTotal,
+		agentOfflineTotal:               agentOfflineTotal,
 	}
 }
 
@@ -251,7 +251,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	// Check that the agent is online.
 	agentStatus := dbReq.Agent.Status(dbtime.Now(), p.WorkspaceAgentInactiveTimeout)
 	if agentStatus.Status != database.WorkspaceAgentStatusConnected {
-		p.appOfflineTotal.WithLabelValues(string(agentStatus.Status), string(appReq.AccessMethod)).Inc()
+		p.agentOfflineTotal.WithLabelValues(string(agentStatus.Status), string(appReq.AccessMethod)).Inc()
 		WriteWorkspaceAppOffline(p.Logger, p.DashboardURL, rw, r, &appReq, fmt.Sprintf("Agent state is %q, not %q", agentStatus.Status, database.WorkspaceAgentStatusConnected))
 		return nil, "", false
 	}
