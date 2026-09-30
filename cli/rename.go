@@ -16,6 +16,12 @@ func (r *RootCmd) rename() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "rename <workspace> <new name>",
 		Short:       "Rename a workspace",
+		Long: FormatExamples(
+			Example{
+				Description: "Rename a workspace without a confirmation prompt",
+				Command:     "coder rename <workspace> <new name> --yes",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(2),
 		),
