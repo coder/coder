@@ -59,7 +59,8 @@ func (p *Server) subscribeStreamLoop(
 	}
 
 	pollerCh, unregisterPoller := p.streamSyncPoller.Register(chatID)
-	loop := newStreamLoop(chat, p.db, logger, afterMessageID)
+	goalMarkers := p.experiments.Enabled(codersdk.ExperimentChatGoals) && isRootChat(chat)
+	loop := newStreamLoop(chat, p.db, logger, afterMessageID, goalMarkers)
 	// The immediate sync builds the initial snapshot returned to the caller
 	// and the relay target for the forwarder. Hints only fire on state
 	// changes, so without it an idle chat would never deliver a snapshot and
