@@ -2,11 +2,13 @@ package chatd //nolint:testpackage // Uses unexported chatworker helpers.
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/testutil"
@@ -58,7 +60,43 @@ func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {
 	requireTaskCanceled(t, first)
 	second := starter.waitCall(t, taskKindInterrupt, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
-	require.NotNil(t, second.input.Interrupt, "interrupt tasks share retry state across attempts")
+}
+
+// failFirstInterruptStarter fails the first interrupt attempt with a
+// retryable error after its gate is released.
+type failFirstInterruptStarter struct {
+	*recordingTaskStarter
+	failed atomic.Bool
+}
+
+func (s *failFirstInterruptStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
+	if err := s.recordingTaskStarter.StartInterrupt(ctx, input); err != nil {
+		return err
+	}
+	if s.failed.CompareAndSwap(false, true) {
+		return taskRetryableError{err: xerrors.New("injected interrupt failure")}
+	}
+	return nil
+}
+
+func TestRunner_InterruptRetriesShareInterruptState(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	starter := &failFirstInterruptStarter{recordingTaskStarter: newBlockingTaskStarter(false)}
+	defer starter.releaseAll()
+	opts := testOptions(t, f, starter)
+	opts.TaskRetryInitialBackoff = time.Millisecond
+	startWorker(t, opts)
+	starter.waitCall(t, taskKindGeneration, chat.ID)
+
+	interruptChat(t, f, chat.ID)
+	first := starter.waitCall(t, taskKindInterrupt, chat.ID)
+	require.NotNil(t, first.input.Interrupt)
+	// Gate 0 belongs to the generation call.
+	starter.release(t, 1)
+	retry := starter.waitCall(t, taskKindInterrupt, chat.ID)
+	require.Same(t, first.input.Interrupt, retry.input.Interrupt)
 }
 
 func TestRunner_CleansUpOnOwnershipTakeover(t *testing.T) {

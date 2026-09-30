@@ -291,7 +291,18 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	if snapshot == nil {
 		snapshot = &interruptTaskState{}
 	}
-	if !snapshot.captured || snapshot.key != key {
+	if snapshot.bufferRead && snapshot.key != key {
+		// Unreachable today: a history change fails the task fence and the
+		// generation attempt cannot change while interrupting. Exit loudly
+		// rather than commit a snapshot of a different episode.
+		s.opts.Logger.Error(ctx, "interrupt message part episode key changed between attempts",
+			slog.F("chat_id", input.ChatID),
+			slog.F("captured_generation_attempt", snapshot.key.GenerationAttempt),
+			slog.F("generation_attempt", key.GenerationAttempt),
+		)
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("interrupt message part episode key changed between attempts"))
+	}
+	if !snapshot.captured {
 		if err := s.captureInterruptSnapshot(ctx, key, snapshot); err != nil {
 			return err
 		}
@@ -375,20 +386,32 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 // keeps retry delay out of the billed runtime. Attempts run sequentially,
 // so the state needs no lock.
 type interruptTaskState struct {
-	captured        bool
+	// bufferRead reports that key, modelInvokedAt and toolCompletions were
+	// read. They are read before CloseEpisode and never again, so a retry
+	// after a partial capture does not read them after the close.
+	bufferRead      bool
 	key             messagepartbuffer.Key
-	parts           []messagepartbuffer.Part
 	modelInvokedAt  time.Time
 	toolCompletions map[int]messagepartbuffer.ToolCompletion
-	interruptedAt   time.Time
+	// captured reports that parts and interruptedAt are set too.
+	captured      bool
+	parts         []messagepartbuffer.Part
+	interruptedAt time.Time
 }
 
 // captureInterruptSnapshot closes the episode and records its buffered
-// state in snapshot. It leaves snapshot unchanged on error so a retry
-// captures again.
+// state in snapshot. On error, snapshot keeps any fields already read so a
+// retry resumes the capture instead of rereading them.
 func (s *taskStarter) captureInterruptSnapshot(ctx context.Context, key messagepartbuffer.Key, snapshot *interruptTaskState) error {
-	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
-	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
+	if !snapshot.bufferRead {
+		*snapshot = interruptTaskState{
+			bufferRead:      true,
+			key:             key,
+			modelInvokedAt:  s.opts.MessagePartBuffer.ModelInvokedAt(key),
+			toolCompletions: s.opts.MessagePartBuffer.ToolCompletions(key),
+		}
+	}
+	// Idempotent, so a retry after a failed GetParts may close again.
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
@@ -406,14 +429,9 @@ func (s *taskStarter) captureInterruptSnapshot(ctx context.Context, key messagep
 		}
 		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
 	}
-	*snapshot = interruptTaskState{
-		captured:        true,
-		key:             key,
-		parts:           parts,
-		modelInvokedAt:  modelInvokedAt,
-		toolCompletions: toolCompletions,
-		interruptedAt:   s.opts.Clock.Now("chatworker", "interrupt"),
-	}
+	snapshot.parts = parts
+	snapshot.interruptedAt = s.opts.Clock.Now("chatworker", "interrupt")
+	snapshot.captured = true
 	return nil
 }
 
