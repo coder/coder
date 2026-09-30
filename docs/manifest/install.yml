@@ -1,0 +1,144 @@
+title: Install
+description: Plan, prepare, install, validate, and operate a Coder deployment in your own infrastructure.
+path: ./install/index.md
+icon_path: ./images/icons/download.svg
+children:
+  - title: Coder CLI
+    description: Install the standalone Coder CLI binary on Linux, macOS, or Windows to run the control plane and client.
+    path: ./install/cli.md
+    icon_path: ./images/icons/terminal.svg
+  - title: Plan your deployment
+    description: Learn the architecture, size the deployment, and record the decisions that shape it.
+    path: ./install/plan/index.md
+    icon_path: ./images/icons/notes.svg
+    children:
+      - title: Architecture
+        description: Learn about Coder's architecture and the components that make up a deployment.
+        path: ./install/plan/architecture.md
+      - title: Coder Validated Architecture
+        description: Reference designs and best practices for sizing a Coder deployment, from 1,000 to 10,000 users.
+        path: ./install/plan/sizing/index.md
+        children:
+          - title: Up to 1,000 users
+            description: Hardware specifications and architecture guidance for Coder deployments that support up to 1,000 users
+            path: ./install/plan/sizing/1k-users.md
+          - title: Up to 2,000 users
+            description: Hardware specifications and architecture guidance for Coder deployments that support up to 2,000 users
+            path: ./install/plan/sizing/2k-users.md
+          - title: Up to 3,000 users
+            description: Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users
+            path: ./install/plan/sizing/3k-users.md
+          - title: Up to 10,000 users
+            description: Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users
+            path: ./install/plan/sizing/10k-users.md
+  - title: Prepare prerequisites
+    description: Gather the DNS records, certificates, database, license, and identity provider application a deployment needs.
+    path: ./install/prepare/index.md
+    icon_path: ./images/icons/dependency.svg
+    children:
+      - title: Licensing
+        description: Add and manage Coder licenses to unlock Premium and AI Governance features.
+        path: ./install/prepare/licensing.md
+        icon_path: ./images/icons/licensing.svg
+      - title: Air-gapped deployments
+        description: Run Coder in air-gapped, disconnected, or offline environments where all features remain supported.
+        path: ./install/prepare/airgap.md
+        icon_path: ./images/icons/lan.svg
+      - title: Mirror the registry
+        description: Use JFrog Artifactory to mirror the Coder Registry for air-gapped deployments
+        path: ./install/prepare/registry-mirror.md
+  - title: Install the control plane
+    description: Choose a platform and install the Coder control plane on it.
+    path: ./install/server/index.md
+    icon_path: ./images/icons/download.svg
+    children:
+      - title: Docker
+        description: Install and run Coder using the official Docker images for a quick single-machine deployment.
+        path: ./install/server/docker.md
+        icon_path: ./images/icons/docker.svg
+      - title: Kubernetes
+        description: Install Coder on a Kubernetes cluster using the official Helm chart for production deployments.
+        path: ./install/server/kubernetes/index.md
+        icon_path: ./images/icons/kubernetes.svg
+        children:
+          - title: Deploy Coder on Azure with an Application Gateway
+            description: Deploy Coder on Azure Kubernetes Service behind an Azure Application Gateway ingress controller.
+            path: ./install/server/kubernetes/kubernetes-azure-app-gateway.md
+      - title: Rancher
+        description: Deploy Coder on Rancher as a Kubernetes workload using the Rancher UI and Helm.
+        path: ./install/server/rancher.md
+        icon_path: ./images/icons/rancher.svg
+      - title: OpenShift
+        description: Install Coder on a Red Hat OpenShift cluster using Helm, with the required security context settings.
+        path: ./install/server/openshift.md
+        icon_path: ./images/icons/openshift.svg
+      - title: RHEL-family Linux
+        description: Install the Coder control plane from an RPM package on Red Hat Enterprise Linux and other RHEL-family distributions.
+        path: ./install/server/rpm.md
+        icon_path: ./images/icons/system.svg
+      - title: Cloud platforms
+        description: Install guides and example templates for deploying Coder on AWS, Google Cloud, and Azure.
+        path: ./install/server/cloud/index.md
+        icon_path: ./images/icons/cloud.svg
+        children:
+          - title: AWS Marketplace
+            description: Deploy a Coder proof-of-concept on AWS using the listing available in the AWS Marketplace.
+            path: ./install/server/cloud/aws-marketplace.md
+          - title: GCP Compute Engine
+            description: Deploy the Coder control plane on a Google Cloud Compute Engine virtual machine.
+            path: ./install/server/cloud/compute-engine.md
+          - title: Azure VM
+            description: Set up the Coder control plane on a Microsoft Azure virtual machine, step by step.
+            path: ./install/server/cloud/azure-vm.md
+      - title: Community install methods
+        description: Community-contributed methods for installing Coder on platforms Coder doesn't package itself.
+        path: ./install/server/community.md
+        icon_path: ./images/icons/generic.svg
+  - title: Validate your deployment
+    description: Harden the deployment, then prove it works and holds up under load.
+    path: ./install/validate/index.md
+    icon_path: ./images/icons/health.svg
+    children:
+      - title: Scale testing
+        description: Plan and run scale tests to make sure your Coder deployment can handle your organization's load.
+        path: ./install/validate/scale-testing.md
+        children:
+          - title: Scale tests and utilities
+            description: Use Coder's built-in scale-testing utility to benchmark and load-test your deployment.
+            path: ./install/validate/scale-testing/utility.md
+          - title: Scale Coder
+            description: Best practices for preparing and tuning a Coder deployment so it scales to many users.
+            path: ./tutorials/best-practices/scale-coder.md
+  - title: Operate and maintain
+    description: Run the deployment day to day, add external provisioners, upgrade it, and remove it when needed.
+    path: ./install/operate/index.md
+    icon_path: ./images/icons/wrench.svg
+    children:
+      - title: External provisioners
+        description: Run external provisioner daemons to isolate builds and scale workspace provisioning.
+        path: ./install/operate/provisioners/index.md
+        icon_path: ./images/icons/key.svg
+        state: [premium]
+        children:
+          - title: Manage provisioner jobs
+            description: Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.
+            path: ./install/operate/provisioners/manage-provisioner-jobs.md
+            state: [premium]
+      - title: Upgrade
+        description: Learn how to upgrade your Coder deployment to a newer version, with steps for each install method.
+        path: ./install/operate/upgrade.md
+        icon_path: ./images/icons/upgrade.svg
+        children:
+          - title: Upgrade best practices
+            description: Follow best practices and troubleshooting tips to plan and carry out Coder upgrades.
+            path: ./install/operate/upgrade/best-practices.md
+          - title: Upgrade from ESR 2.24 to 2.29
+            description: A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.24 to 2.29.
+            path: ./install/operate/upgrade/esr-2.24-2.29-upgrade.md
+          - title: Upgrade from ESR 2.29 to 2.34
+            description: A step-by-step guide to upgrade a Coder deployment from Extended Support Release 2.29 to 2.34.
+            path: ./install/operate/upgrade/esr-2.29-2.34-upgrade.md
+      - title: Uninstall
+        description: Learn how to uninstall your Coder deployment and remove its associated resources.
+        path: ./install/operate/uninstall.md
+        icon_path: ./images/icons/trash.svg

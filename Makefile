@@ -76,6 +76,8 @@ endif
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	docs/manifest.json \
+	docs/manifest/generated/cli.json \
+	docs/manifest/generated/rest-api.json \
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
@@ -110,6 +112,15 @@ CLIDOCGEN_INPUTS := \
 	$(filter-out %_test.go,$(wildcard scripts/docgenenv/*.go)) \
 	scripts/clidocgen/command.tpl \
 	$(CLIDOC_SRC_FILES)
+
+# Hand-edited YAML sidebar sources that docsmanifestgen compiles, together
+# with the generated fragments under docs/manifest/generated, into
+# docs/manifest.json.
+DOCS_MANIFEST_SOURCES := $(wildcard docs/manifest/*.yml)
+
+DOCSMANIFESTGEN_INPUTS := \
+	$(filter-out %_test.go,$(wildcard scripts/docsmanifestgen/*.go)) \
+	$(filter-out %_test.go,$(wildcard scripts/docgenenv/*.go))
 
 # Helper binaries that import repo packages need their compile-time inputs on
 # the binary target. Most generated outputs keep these binaries as order-only
@@ -158,6 +169,10 @@ _gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | 
 _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
+
+_gen/bin/docsmanifestgen: $(DOCSMANIFESTGEN_INPUTS) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/docsmanifestgen
 
 # configdocgen reflects over codersdk.DeploymentValues to produce the
 # configuration reference page.
@@ -632,7 +647,7 @@ YELLOW := $(shell tput setaf 3 2>/dev/null)
 DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
-fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
+fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown fmt/docs-manifest
 .PHONY: fmt
 
 # Subset of fmt that does not require Go or Node toolchains.
@@ -739,11 +754,25 @@ else
 endif
 .PHONY: fmt/markdown
 
+# Formats the YAML sidebar sources under docs/manifest: canonical key order,
+# two-space indentation, and quoting only where YAML needs it.
+fmt/docs-manifest: _gen/bin/docsmanifestgen
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/docs-manifest$(RESET)"
+	_gen/bin/docsmanifestgen fmt
+.PHONY: fmt/docs-manifest
+
+# Formats the sidebar sources and rebuilds docs/manifest.json from them and
+# the committed generated fragments. Run this after editing the sidebar. It
+# skips regenerating the CLI and REST API fragments, which make gen does.
+gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
+	$(build-docs-manifest)
+.PHONY: gen/docs-manifest
+
 # Note: we don't run zizmor in the lint target because it takes a while.
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -795,6 +824,14 @@ lint/docs-html:
 	echo "--- check for invalid inline HTML in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
+
+# Fails when the YAML sidebar sources under docs/manifest are unformatted or
+# invalid: unknown or misordered keys, missing pages, overlays that match no
+# generated route, or source files that nothing references.
+lint/docs-manifest: _gen/bin/docsmanifestgen
+	echo "--- check docs sidebar sources"
+	_gen/bin/docsmanifestgen check
+.PHONY: lint/docs-manifest
 
 # Fails when the style guide claims a prose rule is enforced by tooling that is
 # not enabled, when an enabled rule has no style guide section, or when the
@@ -1036,6 +1073,8 @@ GEN_FILES := \
 	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
+	docs/manifest/generated/cli.json \
+	docs/manifest/generated/rest-api.json \
 	provisioner/terraform/testdata/generation.sha1 \
 	scripts/metricsdocgen/generated_metrics \
 	site/e2e/provisionerGenerated.ts \
@@ -1134,6 +1173,8 @@ gen/mark-fresh:
 		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
+		docs/manifest/generated/cli.json \
+		docs/manifest/generated/rest-api.json \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
@@ -1353,7 +1394,7 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 	tmpdir=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && \
 		mkdir -p "$$tmpdir/docs/reference/cli" && \
-		cp docs/manifest.json "$$tmpdir/docs/manifest.json" && \
+		cp -R docs/manifest "$$tmpdir/docs/manifest" && \
 		CI=true DOCS_DIR="$$tmpdir/docs" _gen/bin/clidocgen && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/docs/reference/cli/**/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/docs/reference/cli/**/*.md" && \
@@ -1393,26 +1434,43 @@ coderd/apidoc/.gen: \
 	tmpdir=$$(mktemp -d -p _gen) && swagtmp=$$(mktemp -d -p _gen) && \
 		tmpdir=$$(realpath "$$tmpdir") && swagtmp=$$(realpath "$$swagtmp") && \
 		mkdir -p "$$tmpdir/reference/api" && \
-		cp docs/manifest.json "$$tmpdir/manifest.json" && \
+		cp -R docs/manifest "$$tmpdir/manifest" && \
 		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
 		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
+		./scripts/biome_format.sh "$$tmpdir/manifest/generated/rest-api.json" && \
 		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
-		mv "$$tmpdir/manifest.json" _gen/manifest-staging.json && \
+		mv "$$tmpdir/manifest/generated/rest-api.json" docs/manifest/generated/rest-api.json && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
 		mv "$$swagtmp/swagger.json" coderd/apidoc/swagger.json && \
 		rm -rf "$$tmpdir" "$$swagtmp"
 	touch "$@"
 
-# The API doc rule stages the manifest with its section rebuilt; clidocgen then
-# rebuilds the "Command Line" section on top of it so both land in the tree.
-docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md _gen/bin/clidocgen | _gen
+# apidocgen writes the REST API sidebar fragment named by children_from in
+# docs/manifest; the rule above moves it into place.
+docs/manifest/generated/rest-api.json: coderd/apidoc/.gen
+	touch "$@"
+
+# clidocgen writes the "Command Line" sidebar fragment named by children_from
+# in docs/manifest, built from the command tree.
+docs/manifest/generated/cli.json: site/node_modules/.installed _gen/bin/clidocgen | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpdir=$$(realpath "$$tmpdir") && \
-		cp _gen/manifest-staging.json "$$tmpdir/manifest.json" && \
+		cp -R docs/manifest "$$tmpdir/manifest" && \
 		CI=true DOCS_DIR="$$tmpdir" _gen/bin/clidocgen -manifest-only && \
-		./scripts/biome_format.sh "$$tmpdir/manifest.json" && \
-		mv "$$tmpdir/manifest.json" "$@" && rm -rf "$$tmpdir"
+		./scripts/biome_format.sh "$$tmpdir/manifest/generated/cli.json" && \
+		mv "$$tmpdir/manifest/generated/cli.json" "$@" && rm -rf "$$tmpdir"
+
+# Compiles the sidebar sources and generated fragments into docs/manifest.json.
+define build-docs-manifest
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/manifest.json && \
+		_gen/bin/docsmanifestgen build -out "$$tmpfile" && \
+		./scripts/biome_format.sh "$$tmpfile" && \
+		mv "$$tmpfile" docs/manifest.json && rm -rf "$$tmpdir"
+endef
+
+docs/manifest.json: $(DOCS_MANIFEST_SOURCES) docs/manifest/generated/cli.json docs/manifest/generated/rest-api.json site/node_modules/.installed _gen/bin/docsmanifestgen docs/reference/cli/index.md | _gen
+	$(build-docs-manifest)
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen
 	touch "$@"
