@@ -1091,6 +1091,8 @@ The runner maintains the following local state:
 - a list of goroutines it has spawned to perform side effects, each identified by a unique ID, together with cancellation handles and go channels that the goroutines use to notify they have finished.
 - the ID of the currently active goroutine, if there is one.
 
+TODO: document the runner-owned workspace context (cached agent, connection, and home directory; released on runner exit).
+
 ### Event processing
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:

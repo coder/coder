@@ -163,8 +163,9 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:      created.Chat,
+		Messages:  created.InitialMessages,
+		Workspace: server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(env.Close)
@@ -272,8 +273,9 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:     created.Chat,
-				Messages: created.InitialMessages,
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
@@ -457,8 +459,9 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:     created.Chat,
-				Messages: created.InitialMessages,
+				Chat:      created.Chat,
+				Messages:  created.InitialMessages,
+				Workspace: server.newTurnWorkspaceContext(),
 			})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -641,7 +644,7 @@ func TestBuildTurnEnvironmentWorkspaceAgentLookup(t *testing.T) {
 
 			store := &workspaceLookupErrorStore{Store: db, workspaceID: ws.ID, err: tt.lookupErr}
 			server := newInternalTestServer(t, store, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerTransportFactory(&aibridgeTestFactory{}))
-			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages})
+			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{Chat: created.Chat, Messages: created.InitialMessages, Workspace: server.newTurnWorkspaceContext()})
 			if tt.wantErr {
 				require.ErrorIs(t, err, tt.lookupErr)
 				require.ErrorContains(t, err, "get workspace agent")
@@ -708,8 +711,9 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:      created.Chat,
+		Messages:  created.InitialMessages,
+		Workspace: server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -977,8 +981,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:     chat,
-				Messages: messages,
+				Chat:      chat,
+				Messages:  messages,
+				Workspace: server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(env.Close)
