@@ -110,3 +110,9 @@ export const Mobile: Story = {
 		);
 	},
 };
+
+export const IconOnlyCoolExpired: Story = {
+	args: {
+		isCacheExpired: true,
+	},
+};

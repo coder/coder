@@ -1,4 +1,4 @@
-import { FlameIcon } from "lucide-react";
+import { ClockIcon, FlameIcon } from "lucide-react";
 import { useState } from "react";
 import {
 	Popover,
@@ -97,8 +97,10 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 			{isCacheExpired && (
 				<span
 					aria-hidden="true"
-					className="absolute right-1 top-1 size-1.5 rounded-full bg-content-warning"
-				/>
+					className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-solid border-border-default bg-surface-primary text-content-primary"
+				>
+					<ClockIcon className="size-2.5" strokeWidth={2.5} />
+				</span>
 			)}
 		</button>
 	);
