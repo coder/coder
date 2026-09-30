@@ -218,6 +218,9 @@ type ServerTailnet struct {
 	derpReconnects   prometheus.Counter
 	agentUnreachable *prometheus.CounterVec
 	awaitReachable   prometheus.Histogram
+
+	// peerDiagnosticsBusy is set while a peer diagnostics read is in flight.
+	peerDiagnosticsBusy atomic.Bool
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
@@ -411,7 +414,7 @@ func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid
 	phase, elapsed := dialStateFromContext(ctx).get()
 	switch phase {
 	case dialPhaseAwaitReachable:
-		unreachable := s.agentUnreachableError(ctx, agentID, elapsed, slog.F("dial_phase", phase.String()))
+		unreachable := s.recordAgentUnreachable(ctx, agentID, elapsed, slog.F("dial_phase", phase.String()))
 		if errors.Is(err, errAgentUnreachable) {
 			return err
 		}
@@ -441,7 +444,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	start := time.Now()
 	conn, release, err := s.acquireAgent(ctx, agentID)
 	if errors.Is(err, errAgentUnreachable) {
-		return nil, nil, s.agentUnreachableError(ctx, agentID, time.Since(start))
+		return nil, nil, s.recordAgentUnreachable(ctx, agentID, time.Since(start))
 	}
 	return conn, release, err
 }
@@ -483,40 +486,27 @@ func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (wo
 }
 
 // peerDiagnosticsTimeout caps how long a failed connection waits for peer
-// diagnostics. Reading them takes WireGuard engine locks, which may be busy
-// during an incident, and the error response should not wait on them.
+// diagnostics, which need WireGuard engine locks that may be busy during an
+// incident.
 const peerDiagnosticsTimeout = time.Second
 
-// agentUnreachableError builds the error returned when an agent did not
-// answer before the context ended. It counts the failure and adds the peer
-// diagnostics to the request log line.
-func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.UUID, after time.Duration, extra ...slog.Field) error {
+// recordAgentUnreachable counts a connection attempt that the agent did not
+// answer, adds the peer state to the request log line, and returns an error
+// carrying the same fields.
+func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid.UUID, after time.Duration, extra ...slog.Field) error {
 	fields := append([]slog.Field{
 		slog.F("agent_id", agentID),
 		slog.F("unreachable_after", after),
 	}, extra...)
 	reason := "diagnostics_timeout"
 
-	diagCh := make(chan tailnet.PeerDiagnostics, 1)
-	go func() {
-		diagCh <- s.conn.GetPeerDiagnostics(agentID)
-	}()
-	select {
-	case d := <-diagCh:
-		fields = append(fields,
-			slog.F("peer_node_received", d.ReceivedNode != nil),
-			slog.F("peer_last_handshake", d.LastWireguardHandshake),
-			slog.F("preferred_derp", d.PreferredDERP),
-		)
+	d, ok, skipped := s.peerDiagnostics(agentID)
+	switch {
+	case ok:
+		fields = append(fields, unreachableFields(d)...)
 		reason = unreachableReason(d, time.Now())
-		if d.ReceivedNode != nil {
-			fields = append(fields,
-				slog.F("peer_tx_bytes", d.TxBytes),
-				slog.F("peer_rx_bytes", d.RxBytes),
-			)
-		}
-	case <-time.After(peerDiagnosticsTimeout):
-		fields = append(fields, slog.F("peer_diagnostics_timeout", true))
+	case skipped:
+		fields = append(fields, slog.F("peer_diagnostics_skipped", true))
 	}
 	s.agentUnreachable.WithLabelValues(reason).Inc()
 
@@ -524,6 +514,52 @@ func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.
 		rl.WithFields(fields...)
 	}
 	return &workspaceapps.AgentUnreachableError{Fields: fields}
+}
+
+// peerDiagnostics reads the peer state with a timeout. Only one read runs at
+// a time, so a held engine lock parks one goroutine and later calls return
+// at once with skipped set.
+func (s *ServerTailnet) peerDiagnostics(agentID uuid.UUID) (d tailnet.PeerDiagnostics, ok bool, skipped bool) {
+	if !s.peerDiagnosticsBusy.CompareAndSwap(false, true) {
+		return tailnet.PeerDiagnostics{}, false, true
+	}
+	diagCh := make(chan tailnet.PeerDiagnostics, 1)
+	go func() {
+		defer s.peerDiagnosticsBusy.Store(false)
+		diagCh <- s.conn.GetPeerDiagnostics(agentID)
+	}()
+	select {
+	case d := <-diagCh:
+		return d, true, false
+	case <-time.After(peerDiagnosticsTimeout):
+		return tailnet.PeerDiagnostics{}, false, false
+	}
+}
+
+// unreachableFields describes the peer state for the request log line.
+// server_preferred_derp is this server's home relay. The peer_* fields
+// describe the agent.
+func unreachableFields(d tailnet.PeerDiagnostics) []slog.Field {
+	fields := []slog.Field{
+		slog.F("peer_node_received", d.ReceivedNode != nil),
+		slog.F("server_preferred_derp", d.PreferredDERP),
+	}
+	if !d.LastWireguardHandshake.IsZero() {
+		fields = append(fields, slog.F("peer_last_handshake", d.LastWireguardHandshake))
+	}
+	if d.ReceivedNode != nil {
+		// The node's DERP is "127.3.3.40:N" where N is the region ID.
+		region := d.ReceivedNode.DERP
+		if _, after, found := strings.Cut(region, ":"); found {
+			region = after
+		}
+		fields = append(fields,
+			slog.F("peer_preferred_derp", region),
+			slog.F("peer_tx_bytes", d.TxBytes),
+			slog.F("peer_rx_bytes", d.RxBytes),
+		)
+	}
+	return fields
 }
 
 // unreachableReason is the reason label for agent_unreachable_total. A

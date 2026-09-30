@@ -101,8 +101,8 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.Equal(t, agentID.String(), entry.Fields["agent_id"])
 	assert.Equal(t, false, entry.Fields["peer_node_received"])
 	assert.Contains(t, entry.Fields, "unreachable_after")
-	assert.Contains(t, entry.Fields, "peer_last_handshake")
-	assert.Contains(t, entry.Fields, "preferred_derp")
+	assert.NotContains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "server_preferred_derp")
 	assert.NotContains(t, entry.Fields, "peer_tx_bytes")
 	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
 
@@ -235,8 +235,8 @@ func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
 	assert.Equal(t, "await_reachable", entry.Fields["dial_phase"])
 	assert.Equal(t, false, entry.Fields["peer_node_received"])
 	assert.Contains(t, entry.Fields, "unreachable_after")
-	assert.Contains(t, entry.Fields, "peer_last_handshake")
-	assert.Contains(t, entry.Fields, "preferred_derp")
+	assert.NotContains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "server_preferred_derp")
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
