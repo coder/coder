@@ -510,6 +510,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				rbac.RoleAIGatewayUnrestricted():   false,
 			}),
 		},
 		{
@@ -545,6 +546,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       false,
 				{Name: codersdk.RoleTemplateAdmin}: false,
 				{Name: codersdk.RoleUserAdmin}:     false,
+				rbac.RoleAIGatewayUnrestricted():   false,
 			}),
 		},
 		{
@@ -580,6 +582,7 @@ func TestListRoles(t *testing.T) {
 				{Name: codersdk.RoleAuditor}:       true,
 				{Name: codersdk.RoleTemplateAdmin}: true,
 				{Name: codersdk.RoleUserAdmin}:     true,
+				rbac.RoleAIGatewayUnrestricted():   true,
 			}),
 		},
 		{

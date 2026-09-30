@@ -11,6 +11,8 @@ const (
 	APIKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	APIKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 	APIKeyScopeAiGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
+	APIKeyScopeAiGatewayUnrestrictedAll            APIKeyScope = "ai_gateway_unrestricted:*"
+	APIKeyScopeAiGatewayUnrestrictedUse            APIKeyScope = "ai_gateway_unrestricted:use"
 	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
 	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
@@ -253,6 +255,7 @@ const (
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
 var PublicAPIKeyScopes = []APIKeyScope{
+	APIKeyScopeAiGatewayUnrestrictedUse,
 	APIKeyScopeApiKeyAll,
 	APIKeyScopeApiKeyCreate,
 	APIKeyScopeApiKeyDelete,

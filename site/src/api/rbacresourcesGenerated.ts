@@ -14,6 +14,9 @@ export const RBACResourceActions: Partial<
 		read: "read AI Gateway keys",
 		update: "update an AI Gateway key",
 	},
+	ai_gateway_unrestricted: {
+		use: "use any AI Gateway model",
+	},
 	ai_model_price: {
 		read: "read AI model prices",
 		update: "update AI model prices",

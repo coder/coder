@@ -11,6 +11,7 @@ const (
 	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
 	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
 	ScopeAiGatewayKeyUpdate                  ScopeName = "ai_gateway_key:update"
+	ScopeAiGatewayUnrestrictedUse            ScopeName = "ai_gateway_unrestricted:use"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -205,6 +206,7 @@ func (e ScopeName) Valid() bool {
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
 		ScopeAiGatewayKeyUpdate,
+		ScopeAiGatewayUnrestrictedUse,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -400,6 +402,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAiGatewayKeyDelete,
 		ScopeAiGatewayKeyRead,
 		ScopeAiGatewayKeyUpdate,
+		ScopeAiGatewayUnrestrictedUse,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,

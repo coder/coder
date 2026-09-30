@@ -36,6 +36,7 @@ const (
 	orgTemplateAdmin        string = "organization-template-admin"
 	orgWorkspaceCreationBan string = "organization-workspace-creation-ban"
 	orgWorkspaceAccess      string = "organization-workspace-access"
+	aiGatewayUnrestricted   string = "ai-gateway-unrestricted"
 	agentsAccess            string = "agents-access"
 )
 
@@ -143,6 +144,9 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
+
+// RoleAIGatewayUnrestricted grants unrestricted model use through AI Gateway.
+func RoleAIGatewayUnrestricted() RoleIdentifier { return RoleIdentifier{Name: aiGatewayUnrestricted} }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -515,7 +519,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleUserAdmin(),
 		DisplayName: "User Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceAssignRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
+			ResourceAIGatewayUnrestricted.Type: {policy.ActionUse},
+			ResourceAssignRole.Type:            {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
 			// Need organization assign as well to create users. At present, creating a user
 			// will always assign them to some organization.
 			ResourceAssignOrgRole.Type: {policy.ActionAssign, policy.ActionUnassign, policy.ActionRead},
@@ -716,6 +721,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
+		aiGatewayUnrestricted: func(_ uuid.UUID) Role {
+			return Role{
+				Identifier: RoleAIGatewayUnrestricted(), DisplayName: "AI Gateway Unrestricted",
+				Site: Permissions(map[string][]policy.Action{ResourceAIGatewayUnrestricted.Type: {policy.ActionUse}}),
+				User: []Permission{}, ByOrgID: map[string]OrgPermissions{},
+			}
+		},
 		orgWorkspaceAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: orgWorkspaceAccess, OrganizationID: organizationID},
@@ -775,6 +787,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		aiGatewayUnrestricted:   true,
 		agentsAccess:            true,
 		templateAdmin:           true,
 		userAdmin:               true,
@@ -792,6 +805,7 @@ var assignRoles = map[string]map[string]bool{
 		orgTemplateAdmin:        true,
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
+		aiGatewayUnrestricted:   true,
 		agentsAccess:            true,
 		templateAdmin:           true,
 		userAdmin:               true,

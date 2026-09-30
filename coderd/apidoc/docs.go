@@ -18745,6 +18745,8 @@ const docTemplate = `{
                 "ai_gateway_key:delete",
                 "ai_gateway_key:read",
                 "ai_gateway_key:update",
+                "ai_gateway_unrestricted:*",
+                "ai_gateway_unrestricted:use",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -18992,6 +18994,8 @@ const docTemplate = `{
                 "APIKeyScopeAiGatewayKeyDelete",
                 "APIKeyScopeAiGatewayKeyRead",
                 "APIKeyScopeAiGatewayKeyUpdate",
+                "APIKeyScopeAiGatewayUnrestrictedAll",
+                "APIKeyScopeAiGatewayUnrestrictedUse",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -28094,6 +28098,7 @@ const docTemplate = `{
             "enum": [
                 "*",
                 "ai_gateway_key",
+                "ai_gateway_unrestricted",
                 "ai_model_price",
                 "ai_provider",
                 "ai_seat",
@@ -28148,6 +28153,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ResourceWildcard",
                 "ResourceAIGatewayKey",
+                "ResourceAIGatewayUnrestricted",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",
                 "ResourceAiSeat",

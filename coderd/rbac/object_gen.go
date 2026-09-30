@@ -25,6 +25,13 @@ var (
 		Type: "ai_gateway_key",
 	}
 
+	// ResourceAIGatewayUnrestricted
+	// Valid Actions
+	//  - "ActionUse" :: use any AI Gateway model
+	ResourceAIGatewayUnrestricted = Object{
+		Type: "ai_gateway_unrestricted",
+	}
+
 	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
@@ -512,6 +519,7 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAIGatewayKey,
+		ResourceAIGatewayUnrestricted,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
 		ResourceAiSeat,

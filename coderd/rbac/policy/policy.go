@@ -94,6 +94,10 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionShare:  "share a chat model config with other users or groups",
 }
 
+var aiGatewayUnrestrictedActions = map[Action]ActionDefinition{
+	ActionUse: "use any AI Gateway model",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -122,6 +126,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"chat_model_config": {
 		Actions: chatModelConfigActions,
+	},
+	"ai_gateway_unrestricted": {
+		Name:    "AIGatewayUnrestricted",
+		Actions: aiGatewayUnrestrictedActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {
