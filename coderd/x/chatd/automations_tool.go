@@ -347,13 +347,8 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 			req.NewChatModelConfigID = &chat.LastModelConfigID
 		}
 	}
-	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}
-	if req.TargetChatID != nil {
-		target.chatID = uuid.NullUUID{UUID: *req.TargetChatID, Valid: true}
-	}
-	if req.NewChatModelConfigID != nil {
-		target.modelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
-	}
+	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}.
+		with(req.TargetChatID, req.NewChatModelConfigID)
 	if err := p.manageAutomationsContained(ownerCtx, chat, target); err != nil {
 		return nil, err
 	}
@@ -427,18 +422,10 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 	if err := p.manageAutomationsContained(ownerCtx, chat, before); err != nil {
 		return nil, err
 	}
-	after := before
-	if req.TargetChatID != nil {
-		after.chatID = uuid.NullUUID{UUID: *req.TargetChatID, Valid: true}
-	}
-	if req.NewChatModelConfigID != nil {
-		after.modelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
-	}
+	after := before.with(req.TargetChatID, req.NewChatModelConfigID)
 	if err := p.manageAutomationsContained(ownerCtx, chat, after); err != nil {
 		return nil, err
 	}
-	// The owner check stays in the service: the tool always acts as the
-	// chat owner.
 	updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req)
 	if err != nil {
 		return nil, p.manageAutomationsError(ctx, action, err)
@@ -448,10 +435,8 @@ func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat dat
 }
 
 // manageAutomationsRun publishes the prompt of a contained schedule
-// automation now. Like the run endpoint, it records no automation audit
-// entry, because a run changes no configuration; a chat it creates gets
-// the same audit entry as one the endpoint creates, naming the calling
-// chat as well.
+// automation now. Like the run endpoint, it audits only a chat it
+// creates, and that entry also names the calling chat.
 func (p *Server) manageAutomationsRun(ctx, ownerCtx context.Context, chat database.Chat, row database.ChatAutomation) (map[string]any, error) {
 	if err := p.manageAutomationsContained(ownerCtx, chat, automationTargetOf(row)); err != nil {
 		return nil, err
@@ -478,15 +463,22 @@ func automationTargetOf(row database.ChatAutomation) automationTarget {
 	return automationTarget{mode: row.TargetMode, chatID: row.TargetChatID, modelConfigID: row.NewChatModelConfigID}
 }
 
+// with returns t with the target fields that are set replaced.
+func (t automationTarget) with(chatID, modelConfigID *uuid.UUID) automationTarget {
+	if chatID != nil {
+		t.chatID = uuid.NullUUID{UUID: *chatID, Valid: true}
+	}
+	if modelConfigID != nil {
+		t.modelConfigID = uuid.NullUUID{UUID: *modelConfigID, Valid: true}
+	}
+	return t
+}
+
 // manageAutomationsContained reports whether the tool may send runs to
 // target: an existing_chat target must be the calling chat, and a new_chat
-// target must not get more tools than the calling chat has. A new chat
-// gets no workspace, no dynamic tools, no selected MCP servers, and the
-// switch off; Force On MCP servers apply to it as they apply to the
-// calling chat every turn. Only its model config's provider tools can
-// differ, so until tool sets exist the config must be the calling chat's
-// or have no provider tools. Provider tools are derived from the config
-// options the same way generation derives them.
+// target must not get more tools than the calling chat has. Only the model
+// config's provider tools can differ, so the config must be the calling
+// chat's or have no provider tools.
 func (p *Server) manageAutomationsContained(ownerCtx context.Context, chat database.Chat, target automationTarget) error {
 	switch target.mode {
 	case database.ChatAutomationTargetModeExistingChat:

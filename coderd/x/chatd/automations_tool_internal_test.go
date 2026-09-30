@@ -312,28 +312,21 @@ func TestManageAutomationsTool(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, secret)
-		require.NotEmpty(t, webhook.WebhookSecretHash)
 		schedule := f.newChat(ctx, t, f.server, "0 9 * * *", "UTC")
-		requireNoSecret := func(content string) {
-			t.Helper()
-			require.NotContains(t, content, secret)
-			require.NotContains(t, content, hex.EncodeToString(webhook.WebhookSecretHash))
-			require.NotContains(t, content, base64.StdEncoding.EncodeToString(webhook.WebhookSecretHash))
-		}
 
 		require.ElementsMatch(t, []uuid.UUID{webhook.ID, schedule.ID}, f.listIDs(ctx, t, f.chat.ID))
 		content, isError := f.call(ctx, t, f.chat.ID, "list", uuid.Nil)
 		require.False(t, isError, content)
-		requireNoSecret(content)
+		requireNoWebhookSecret(t, content, webhook, secret)
 
 		content, isError = f.call(ctx, t, f.chat.ID, "get", webhook.ID)
 		require.False(t, isError, content)
 		require.Contains(t, content, webhook.ID.String())
-		requireNoSecret(content)
+		requireNoWebhookSecret(t, content, webhook, secret)
 
 		content, isError = f.call(ctx, t, f.chat.ID, "disable", webhook.ID)
 		require.False(t, isError, content)
-		requireNoSecret(content)
+		requireNoWebhookSecret(t, content, webhook, secret)
 		row, err := f.db.GetChatAutomationByID(ctx, webhook.ID)
 		require.NoError(t, err)
 		require.False(t, row.Enabled)
