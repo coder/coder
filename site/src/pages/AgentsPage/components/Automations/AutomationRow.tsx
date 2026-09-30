@@ -214,19 +214,23 @@ export const AutomationRow = memo<AutomationRowProps>(
 								disabled={
 									!automation.enabled || isTargetMissing || isRunPending
 								}
+								aria-label={`Run now ${automation.name}`}
 								onClick={() => onRunNow(automation)}
 							>
 								<Spinner loading={isRunning} />
 								Run now
 							</Button>
 						)}
-						<Button
-							size="sm"
-							variant="outline"
-							onClick={() => onViewChats(automation)}
-						>
-							View chats
-						</Button>
+						{isOwner && (
+							<Button
+								size="sm"
+								variant="outline"
+								aria-label={`View chats ${automation.name}`}
+								onClick={() => onViewChats(automation)}
+							>
+								View chats
+							</Button>
+						)}
 					</div>
 				</TableCell>
 			</TableRow>

@@ -147,7 +147,11 @@ describe("AgentAutomationsPage", () => {
 			),
 		);
 
-		await user.click(await screen.findByRole("button", { name: "Run now" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Run now ${mockAutomation.name}`,
+			}),
+		);
 
 		const alert = await screen.findByRole("alert");
 		expect(alert.textContent).toContain(message);
@@ -158,7 +162,11 @@ describe("AgentAutomationsPage", () => {
 		const user = userEvent.setup();
 		const requests = setup();
 
-		await user.click(await screen.findByRole("button", { name: "View chats" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			}),
+		);
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
@@ -182,7 +190,11 @@ describe("AgentAutomationsPage", () => {
 			}),
 		);
 
-		await user.click(await screen.findByRole("button", { name: "View chats" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			}),
+		);
 		await user.click(await screen.findByRole("button", { name: "Load more" }));
 
 		await waitFor(() => {
