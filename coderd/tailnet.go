@@ -230,6 +230,7 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 	proxy := httputil.NewSingleHostReverseProxy(&tgt)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, theErr error) {
+		theErr = s.reportProxyDialFailure(r.Context(), agentID, theErr)
 		var (
 			desc           = "Failed to proxy request to application: " + theErr.Error()
 			additionalInfo = ""
@@ -285,14 +286,81 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 
 type agentIDKey struct{}
 
-// director makes sure agentIDKey is set on the context in the reverse proxy.
-// This allows the transport to correctly identify which agent to dial to.
+// director makes sure agentIDKey and a dialState are set on the context in the
+// reverse proxy. The transport uses the agent ID to pick which agent to dial,
+// and the dial and the error handler share the dialState.
 func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) func(req *http.Request) {
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), agentIDKey{}, agentID)
+		ctx = context.WithValue(ctx, dialStateKey{}, &dialState{})
 		*req = *req.WithContext(ctx)
 		prev(req)
 	}
+}
+
+// proxyDialTimeout caps a reverse proxy dial. The HTTP transport keeps dialing
+// after the request ends, so without a cap an unreachable agent is pinged
+// until the ServerTailnet closes.
+const proxyDialTimeout = time.Minute
+
+// dialPhase is the step of a reverse proxy dial that was in progress when the
+// request ended.
+type dialPhase int
+
+const (
+	dialPhaseNone dialPhase = iota
+	dialPhaseAwaitReachable
+	dialPhaseTCPDial
+	dialPhaseDone
+)
+
+func (p dialPhase) String() string {
+	switch p {
+	case dialPhaseAwaitReachable:
+		return "await_reachable"
+	case dialPhaseTCPDial:
+		return "tcp_dial"
+	case dialPhaseDone:
+		return "done"
+	default:
+		return "none"
+	}
+}
+
+// dialState is shared by the request goroutine and the transport's dial
+// goroutine through the request context. The error handler reads it to tell
+// a dial that never finished from a failure on an established connection.
+type dialState struct {
+	mu    sync.Mutex
+	phase dialPhase
+	since time.Time
+}
+
+type dialStateKey struct{}
+
+func dialStateFromContext(ctx context.Context) *dialState {
+	ds, _ := ctx.Value(dialStateKey{}).(*dialState)
+	return ds
+}
+
+func (d *dialState) set(phase dialPhase) {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.phase = phase
+	d.since = time.Now()
+}
+
+// get returns the current phase and how long it has been in progress.
+func (d *dialState) get() (dialPhase, time.Duration) {
+	if d == nil {
+		return dialPhaseNone, 0
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.phase, time.Since(d.since)
 }
 
 func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -300,22 +368,87 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	if !ok {
 		return nil, xerrors.Errorf("no agent id attached")
 	}
+	// Only the connect steps below use the context. The returned conn is not
+	// tied to it, so canceling after the dial is safe.
+	ctx, cancel := context.WithTimeout(ctx, proxyDialTimeout)
+	defer cancel()
 
-	nc, err := s.DialAgentNetConn(ctx, agentID, network, addr)
+	// A dial that fails after the request ended is reported by the reverse
+	// proxy's error handler from the request goroutine, not here, so this
+	// path uses acquireAgent instead of AgentConn.
+	ds := dialStateFromContext(ctx)
+	ds.set(dialPhaseAwaitReachable)
+	conn, release, err := s.acquireAgent(ctx, agentID)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("acquire agent conn: %w", err)
 	}
+
+	ds.set(dialPhaseTCPDial)
+	nc, err := conn.DialContext(ctx, network, addr)
+	if err != nil {
+		release()
+		return nil, xerrors.Errorf("dial context: %w", err)
+	}
+	ds.set(dialPhaseDone)
 
 	s.connsPerAgent.WithLabelValues("tcp").Inc()
 	s.totalConns.WithLabelValues("tcp").Inc()
 	return &instrumentedConn{
-		Conn:          nc,
+		Conn:          &netConnCloser{Conn: nc, close: release},
 		agentID:       agentID,
 		connsPerAgent: s.connsPerAgent,
 	}, nil
 }
 
+// reportProxyDialFailure records a reverse proxy request that ended while its
+// dial was still in progress. It runs on the request goroutine before the 502
+// is written, which is the last point where the request log line can still
+// take fields: the transport detaches the dial from the request deadline, so
+// the dial goroutine learns of the failure later, or not at all. Errors on an
+// established connection are returned unchanged.
+func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid.UUID, err error) error {
+	phase, elapsed := dialStateFromContext(ctx).get()
+	switch phase {
+	case dialPhaseAwaitReachable:
+		unreachable := s.agentUnreachableError(ctx, agentID, elapsed, slog.F("dial_phase", phase.String()))
+		if errors.Is(err, errAgentUnreachable) {
+			return err
+		}
+		return xerrors.Errorf("%s: %w", unreachable.Error(), err)
+	case dialPhaseTCPDial:
+		// The agent answered a ping, so the tunnel is up and the failure is
+		// above it: the netstack dial or an app that is not accepting. Name
+		// the phase on the log line, but do not count it as unreachable.
+		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+			rl.WithFields(
+				slog.F("agent_id", agentID),
+				slog.F("dial_phase", phase.String()),
+				slog.F("tcp_dial_after", elapsed),
+			)
+		}
+		return err
+	default:
+		return err
+	}
+}
+
+// errAgentUnreachable is returned by acquireAgent when the agent did not
+// answer a ping before the context ended.
+var errAgentUnreachable = xerrors.New("agent is unreachable")
+
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	start := time.Now()
+	conn, release, err := s.acquireAgent(ctx, agentID)
+	if errors.Is(err, errAgentUnreachable) {
+		return nil, nil, s.agentUnreachableError(ctx, agentID, time.Since(start))
+	}
+	return conn, release, err
+}
+
+// acquireAgent adds the agent to the coordinator and waits for it to answer a
+// ping. On timeout it returns errAgentUnreachable and leaves logging and
+// metrics to the caller, which knows whether a request is still waiting.
+func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	var (
 		conn workspacesdk.AgentConn
 		ret  func()
@@ -341,7 +474,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	reachable := conn.AwaitReachable(ctx)
 	if !reachable {
 		ret()
-		return nil, nil, s.agentUnreachableError(ctx, agentID, time.Since(start))
+		return nil, nil, errAgentUnreachable
 	}
 	s.awaitReachable.Observe(time.Since(start).Seconds())
 
@@ -354,14 +487,13 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 const peerDiagnosticsTimeout = time.Second
 
 // agentUnreachableError builds the error returned when an agent did not
-// answer before the context ended. It counts the failure, adds the peer
-// diagnostics to the request log line if the context has one, and returns
-// the same diagnostics in the error so other callers can log them.
-func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.UUID, after time.Duration) error {
-	fields := []slog.Field{
+// answer before the context ended. It counts the failure and adds the peer
+// diagnostics to the request log line.
+func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.UUID, after time.Duration, extra ...slog.Field) error {
+	fields := append([]slog.Field{
 		slog.F("agent_id", agentID),
 		slog.F("unreachable_after", after),
-	}
+	}, extra...)
 	reason := "diagnostics_timeout"
 
 	diagCh := make(chan tailnet.PeerDiagnostics, 1)
@@ -398,26 +530,6 @@ func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.
 		rl.WithFields(fields...)
 	}
 	return &workspaceapps.AgentUnreachableError{Fields: fields}
-}
-
-func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {
-	conn, release, err := s.AgentConn(ctx, agentID)
-	if err != nil {
-		return nil, xerrors.Errorf("acquire agent conn: %w", err)
-	}
-
-	// Since we now have an open conn, be careful to close it if we error
-	// without returning it to the user.
-
-	nc, err := conn.DialContext(ctx, network, addr)
-	if err != nil {
-		release()
-		return nil, xerrors.Errorf("dial context: %w", err)
-	}
-
-	return &netConnCloser{Conn: nc, close: func() {
-		release()
-	}}, err
 }
 
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {

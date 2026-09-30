@@ -182,6 +182,67 @@ func TestServerTailnet_ReverseProxy_ProxyEnv(t *testing.T) {
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 }
 
+func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// No agent is registered with the coordinator, so the dial never gets a
+	// pong. The request ends first, as when a load balancer gives up on a
+	// hung request, and the transport keeps dialing without it.
+	_, serverTailnet := setupServerTailnetAgent(t, 0)
+	agentID := uuid.New()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+
+	u, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", workspacesdk.AgentHTTPAPIServerPort))
+	require.NoError(t, err)
+
+	rp := serverTailnet.ReverseProxy(u, u, agentID, appurl.ApplicationURL{}, "")
+
+	reqCtx, reqCancel := context.WithTimeout(loggermw.WithRequestLogger(ctx, requestLogger), testutil.IntervalSlow)
+	defer reqCancel()
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		u.String(),
+		nil,
+	).WithContext(reqCtx)
+
+	rp.ServeHTTP(rw, req)
+	res := rw.Result()
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "agent is unreachable")
+
+	requestLogger.WriteLog(ctx, res.StatusCode)
+	var entry struct {
+		Level  string         `json:"level"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, "WARN", entry.Level)
+	assert.Equal(t, agentID.String(), entry.Fields["agent_id"])
+	assert.Equal(t, "await_reachable", entry.Fields["dial_phase"])
+	assert.Equal(t, false, entry.Fields["peer_node_received"])
+	assert.Contains(t, entry.Fields, "unreachable_after")
+	assert.Contains(t, entry.Fields, "peer_last_handshake")
+	assert.Contains(t, entry.Fields, "preferred_derp")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_agent_unreachable_total", "no_node"))
+}
+
 func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 
