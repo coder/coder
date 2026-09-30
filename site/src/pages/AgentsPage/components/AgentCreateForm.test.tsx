@@ -504,6 +504,19 @@ describe("AgentCreateForm manage automations toggle", () => {
 		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
 		expect(submittedOptions(onCreateChat).manageAutomationsEnabled).toBe(true);
 	});
+
+	it("hides the toggle while the chat-automations experiment is off", async () => {
+		renderForm();
+
+		await user().click(screen.getByRole("button", { name: "More options" }));
+
+		expect(
+			await screen.findByRole("menuitemcheckbox", { name: "Plan first" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("menuitemcheckbox", { name: "Manage automations" }),
+		).not.toBeInTheDocument();
+	});
 });
 
 describe("AgentCreateForm prefill", () => {
