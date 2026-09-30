@@ -784,13 +784,6 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
-const deletedAutomationId = "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b";
-
-/**
- * Automation input carries a label naming the automation and the input.
- * An automation missing from the name map (deleted) is shown by ID, and
- * an ordinary message has no label.
- */
 export const AutomationUserMessages: Story = {
 	args: {
 		...buildStoryArgs(
@@ -802,7 +795,7 @@ export const AutomationUserMessages: Story = {
 			buildUserMessage({ id: 2, text: "Thanks, anything else?" }),
 			{
 				...buildUserMessage({ id: 3, text: "Summarize open issues." }),
-				automation_id: deletedAutomationId,
+				automation_id: "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
 				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
 			},
 		),

@@ -65,14 +65,12 @@ export const SeveralMessages: Story = {
 	},
 };
 
-const longNameAutomation = {
+const mockLongNameAutomation = {
 	...MockChatAutomation,
 	id: "5c4b3a29-1807-4f6e-9d5c-4b3a29180706",
 	name: "Nightly regression triage for the payments service across every staging region and canary cluster, with a summary of flaky tests",
 };
 
-// Automation input shows its label; a deleted automation is shown by ID.
-// A long name truncates while the input ID stays visible at phone width.
 export const AutomationMessages: Story = {
 	decorators: [
 		(Story) => (
@@ -95,14 +93,14 @@ export const AutomationMessages: Story = {
 			},
 			{
 				...buildMessage(3, textContent("Triage last night's failures.")),
-				automation_id: longNameAutomation.id,
+				automation_id: mockLongNameAutomation.id,
 				input_id: "1d2e3f4a-5b6c-4d7e-8f9a-0b1c2d3e4f5a",
 			},
 			buildMessage(4, textContent("Run the test suite")),
 		],
 		automationNames: new Map([
 			[MockChatAutomation.id, MockChatAutomation.name],
-			[longNameAutomation.id, longNameAutomation.name],
+			[mockLongNameAutomation.id, mockLongNameAutomation.name],
 		]),
 	},
 };

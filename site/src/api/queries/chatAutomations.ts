@@ -13,10 +13,6 @@ export const chatAutomations = (organizationId: string) => ({
 		API.experimental.getChatAutomations(organizationId),
 });
 
-/**
- * Marks every cached automation list stale so labels pick up automations
- * created or renamed after the list loaded. Only lists that a mounted
- * query uses are refetched.
- */
+/** Refetches automation names, for example after new automation input. */
 export const invalidateChatAutomations = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: chatAutomationsFamilyKey });

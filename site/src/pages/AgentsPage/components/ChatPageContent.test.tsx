@@ -165,10 +165,9 @@ describe("ChatPageInput", () => {
 			`Automation run · ${deletedAutomationId} · input 9a8b7c6d`,
 		]);
 
-		// A truncated name stays readable in the tooltip, and the ID
-		// fallback explains why the name is missing. Keyboard focus opens
-		// each tooltip in turn; jsdom hover leaves Radix's pointer grace
-		// area engaged and keeps the second tooltip closed.
+		// Keyboard focus opens each tooltip in turn; jsdom hover leaves
+		// Radix's pointer grace area engaged and keeps the second tooltip
+		// closed.
 		act(() => labels[0].focus());
 		expect(await screen.findByRole("tooltip")).toHaveTextContent(
 			"Automation: CI heartbeat",

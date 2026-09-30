@@ -8,8 +8,6 @@ import {
 type AutomationLabelProps = {
 	automationId: string;
 	inputId?: string;
-	// Undefined when the automation was deleted or is not readable by the
-	// viewer; the label then names the automation by its ID.
 	automationName?: string;
 };
 
@@ -29,9 +27,8 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 					variant="outline"
 					className="min-w-0 max-w-full gap-0"
 				>
-					{/* The name is the only part that truncates, so the input ID
-					    stays visible. The split spans would otherwise lose the
-					    separator spaces from the accessible name. */}
+					{/* The aria-label keeps the separator spaces that the split
+					    spans would drop from the accessible name. */}
 					<button
 						type="button"
 						className="cursor-default"
@@ -49,10 +46,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 				{automationName ? (
 					<div>Automation: {automationName}</div>
 				) : (
-					<div>
-						Automation name unavailable. It may have been deleted, or you may
-						not have access to it.
-					</div>
+					<div>Automation name unavailable.</div>
 				)}
 				<div className="font-mono">Automation ID: {automationId}</div>
 				{inputId && <div className="font-mono">Input ID: {inputId}</div>}

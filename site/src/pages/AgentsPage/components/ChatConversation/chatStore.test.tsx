@@ -1847,7 +1847,7 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
-	const queuedAutomationInput: TypesGen.ChatQueuedMessage = {
+	const mockQueuedAutomationInput: TypesGen.ChatQueuedMessage = {
 		...buildQueuedMessage("chat-1", 10, "nightly"),
 		automation_id: "automation-1",
 		input_id: "input-1",
@@ -1879,21 +1879,19 @@ describe("useChatStore", () => {
 			event: {
 				type: "queue_update",
 				chat_id: "chat-1",
-				queued_messages: [queuedAutomationInput],
+				queued_messages: [mockQueuedAutomationInput],
 			},
 			rows: 2,
 			refreshesNames: true,
 		},
 		{
-			// Queue updates that only repeat known automation input, for
-			// example when an ordinary message is queued, do not refetch.
 			name: "a queue update with already queued automation input",
-			initialQueued: [queuedAutomationInput],
+			initialQueued: [mockQueuedAutomationInput],
 			event: {
 				type: "queue_update",
 				chat_id: "chat-1",
 				queued_messages: [
-					queuedAutomationInput,
+					mockQueuedAutomationInput,
 					buildQueuedMessage("chat-1", 11, "hi"),
 				],
 			},
