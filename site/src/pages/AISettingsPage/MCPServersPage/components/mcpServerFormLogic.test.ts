@@ -31,6 +31,18 @@ describe("mcpServerFormLogic", () => {
 		expect(values.signingSecret).toBe(SECRET_PLACEHOLDER);
 	});
 
+	it("defaults the API key header name to Authorization", () => {
+		expect(buildInitialMCPServerFormValues().apiKeyHeader).toBe(
+			"Authorization",
+		);
+		expect(
+			buildInitialMCPServerFormValues({
+				...MockCoderMCPServer,
+				api_key_header: "X-API-Key",
+			}).apiKeyHeader,
+		).toBe("X-API-Key");
+	});
+
 	it("requires display name, slug, and URL before submitting", () => {
 		expect(canSubmitMCPServerForm(validValues(), false)).toBe(true);
 		expect(

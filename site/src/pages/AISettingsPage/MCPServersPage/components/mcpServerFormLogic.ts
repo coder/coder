@@ -98,7 +98,9 @@ export const buildInitialMCPServerFormValues = (
 	oauth2TokenURL: server?.oauth2_token_url ?? "",
 	oauth2RevocationURL: server?.oauth2_revocation_url ?? "",
 	oauth2Scopes: server?.oauth2_scopes ?? "",
-	apiKeyHeader: server?.api_key_header ?? "",
+	// Most API-key MCP servers expect the Authorization header, and the
+	// backend rejects API-key auth without a header name.
+	apiKeyHeader: server?.api_key_header || "Authorization",
 	apiKeyValue: server?.has_api_key ? SECRET_PLACEHOLDER : "",
 	apiKeyTouched: false,
 	availability: server?.availability ?? "default_off",
