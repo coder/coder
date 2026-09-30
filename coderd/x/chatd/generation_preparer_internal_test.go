@@ -905,7 +905,7 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 func TestBindingCompactionTrigger(t *testing.T) {
 	t.Parallel()
 
-	chat := func(threshold int32, limit int64) compactionTrigger {
+	trigger := func(threshold int32, limit int64) compactionTrigger {
 		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
 	}
 
@@ -917,57 +917,57 @@ func TestBindingCompactionTrigger(t *testing.T) {
 	}{
 		{
 			name:     "lower override point wins",
-			chat:     chat(70, 200_000),
-			override: chat(70, 32_000),
-			want:     chat(70, 32_000),
+			chat:     trigger(70, 200_000),
+			override: trigger(70, 32_000),
+			want:     trigger(70, 32_000),
 		},
 		{
 			name:     "lower chat point wins over higher override point",
-			chat:     chat(70, 100_000),
-			override: chat(95, 80_000),
-			want:     chat(70, 100_000),
+			chat:     trigger(70, 100_000),
+			override: trigger(95, 80_000),
+			want:     trigger(70, 100_000),
 		},
 		{
 			name:     "tie prefers the chat trigger",
-			chat:     chat(70, 100_000),
-			override: chat(70, 100_000),
-			want:     chat(70, 100_000),
+			chat:     trigger(70, 100_000),
+			override: trigger(70, 100_000),
+			want:     trigger(70, 100_000),
 		},
 		{
 			name:     "chat trigger disabled by threshold 100 yields override",
-			chat:     chat(100, 200_000),
-			override: chat(70, 32_000),
-			want:     chat(70, 32_000),
+			chat:     trigger(100, 200_000),
+			override: trigger(70, 32_000),
+			want:     trigger(70, 32_000),
 		},
 		{
 			name:     "chat trigger disabled by zero limit yields override",
-			chat:     chat(70, 0),
-			override: chat(70, 32_000),
-			want:     chat(70, 32_000),
+			chat:     trigger(70, 0),
+			override: trigger(70, 32_000),
+			want:     trigger(70, 32_000),
 		},
 		{
 			name:     "override disabled by threshold 100 yields chat",
-			chat:     chat(70, 200_000),
-			override: chat(100, 32_000),
-			want:     chat(70, 200_000),
+			chat:     trigger(70, 200_000),
+			override: trigger(100, 32_000),
+			want:     trigger(70, 200_000),
 		},
 		{
 			name:     "override disabled by zero limit yields chat",
-			chat:     chat(70, 200_000),
-			override: chat(70, 0),
-			want:     chat(70, 200_000),
+			chat:     trigger(70, 200_000),
+			override: trigger(70, 0),
+			want:     trigger(70, 200_000),
 		},
 		{
 			name:     "both disabled passes the chat pair through",
-			chat:     chat(100, 200_000),
-			override: chat(100, 32_000),
-			want:     chat(100, 200_000),
+			chat:     trigger(100, 200_000),
+			override: trigger(100, 32_000),
+			want:     trigger(100, 200_000),
 		},
 		{
 			name:     "threshold zero fires immediately and wins",
-			chat:     chat(70, 200_000),
-			override: chat(0, 32_000),
-			want:     chat(0, 32_000),
+			chat:     trigger(70, 200_000),
+			override: trigger(0, 32_000),
+			want:     trigger(0, 32_000),
 		},
 	}
 	for _, tc := range cases {

@@ -146,7 +146,7 @@ const (
 var errCompactionStillOverLimit = chaterror.WithClassification(
 	xerrors.New("compaction left the chat above the compaction limit"),
 	chaterror.ClassifiedError{
-		Message: "Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
+		Message: "Conversation compaction could not reduce the history below the compaction limit. Start a new conversation, or raise the compaction threshold for this model or for the organization's compaction model.",
 		Kind:    codersdk.ChatErrorKindConfig,
 	},
 )
@@ -287,9 +287,9 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 	return compaction.Options.ThresholdPercent
 }
 
-// generationCompactionContextLimit returns the limit used to select the
-// compaction trigger. The still-over-limit check must use the same limit to
-// avoid repeated compactions instead of surfacing errCompactionStillOverLimit.
+// generationCompactionContextLimit returns the binding trigger's context
+// limit. The still-over-limit check must use it, or a binding override
+// trigger compacts repeatedly instead of returning errCompactionStillOverLimit.
 func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	if compaction == nil {
 		return 0
@@ -1232,6 +1232,7 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
 		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
+		compactionOpts.SummaryContextLimit = override.Config.ContextLimit
 		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
 		// Prompt caches are model-scoped and provider-native tools are
 		// model-specific, so unless the override resolves to the chat model
