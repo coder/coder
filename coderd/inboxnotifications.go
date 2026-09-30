@@ -18,6 +18,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -149,6 +151,12 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "starting_before query parameter should be any of 'all', 'read', 'unread'.",
 		})
+		return
+	}
+
+	// Refuse before upgrading, not on the first message.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(apikey.UserID.String())) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -322,6 +330,11 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(apikey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	createdBefore := dbtime.Now()
 	if startingBefore != uuid.Nil {
 		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, startingBefore)
@@ -391,6 +404,13 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
+	// Check read too: the response reads the notification back.
+	inbox := rbac.ResourceInboxNotification.WithOwner(apikey.UserID.String())
+	if !api.Authorize(r, policy.ActionUpdate, inbox) || !api.Authorize(r, policy.ActionRead, inbox) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	err := api.Database.UpdateInboxNotificationReadStatus(ctx, database.UpdateInboxNotificationReadStatusParams{
 		ID: notificationID,
 		ReadAt: func() sql.NullTime {
@@ -448,6 +468,11 @@ func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.
 		ctx    = r.Context()
 		apikey = httpmw.APIKey(r)
 	)
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceInboxNotification.WithOwner(apikey.UserID.String())) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
 		UserID: apikey.UserID,

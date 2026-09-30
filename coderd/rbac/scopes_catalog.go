@@ -47,6 +47,10 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"file:create": {},
 	"file:*":      {},
 
+	// Inbox notifications. No wildcard: create is server-only.
+	"inbox_notification:read":   {},
+	"inbox_notification:update": {},
+
 	// Users
 	"user:read":            {},
 	"user:read_personal":   {},
