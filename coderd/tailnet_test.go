@@ -122,44 +122,72 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
 }
 
-func TestServerTailnet_AgentConn_Abandoned(t *testing.T) {
+func TestServerTailnet_AgentConn_NotCounted(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
-	// The caller gave up on the dial on purpose, as chatd does when the
-	// workspace has a newer agent, so no unreachable agent is recorded.
-	_, serverTailnet := setupServerTailnetAgent(t, 0)
-	agentID := uuid.New()
-
-	registry := prometheus.NewRegistry()
-	require.NoError(t, registry.Register(serverTailnet))
-
-	var logs bytes.Buffer
-	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
-	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
-	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
-
-	dialCtx, dialCancel := context.WithCancelCause(ctx)
-	dialCancel(workspacesdk.ErrDialAbandoned)
-	_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
-	require.Error(t, err)
-	var unreachable *workspaceapps.AgentUnreachableError
-	require.NotErrorAs(t, err, &unreachable)
-
-	requestLogger.WriteLog(ctx, http.StatusBadGateway)
-	var entry struct {
-		Fields map[string]any `json:"fields"`
+	tests := []struct {
+		name    string
+		dialCtx func(ctx context.Context) (context.Context, context.CancelFunc)
+	}{
+		{
+			// The caller gave up on the dial on purpose, as chatd does when
+			// the workspace has a newer agent.
+			name: "Abandoned",
+			dialCtx: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				dialCtx, dialCancel := context.WithCancelCause(ctx)
+				dialCancel(workspacesdk.ErrDialAbandoned)
+				return dialCtx, func() {}
+			},
+		},
+		{
+			// The caller is polling an agent that may still be booting, as
+			// the chat tools do after they create or start a workspace.
+			name: "ReadinessProbeTimeout",
+			dialCtx: func(ctx context.Context) (context.Context, context.CancelFunc) {
+				return context.WithTimeoutCause(ctx, testutil.IntervalSlow, workspacesdk.ErrReadinessProbeTimeout)
+			},
+		},
 	}
-	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
-	assert.NotContains(t, entry.Fields, "agent_id")
-	assert.NotContains(t, entry.Fields, "reason")
 
-	metrics, err := registry.Gather()
-	require.NoError(t, err)
-	for _, m := range metrics {
-		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+			defer cancel()
+
+			_, serverTailnet := setupServerTailnetAgent(t, 0)
+			agentID := uuid.New()
+
+			registry := prometheus.NewRegistry()
+			require.NoError(t, registry.Register(serverTailnet))
+
+			var logs bytes.Buffer
+			logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+			requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+			ctx = loggermw.WithRequestLogger(ctx, requestLogger)
+
+			dialCtx, dialCancel := tt.dialCtx(ctx)
+			defer dialCancel()
+			_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
+			require.Error(t, err)
+			var unreachable *workspaceapps.AgentUnreachableError
+			require.NotErrorAs(t, err, &unreachable)
+
+			requestLogger.WriteLog(ctx, http.StatusBadGateway)
+			var entry struct {
+				Fields map[string]any `json:"fields"`
+			}
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+			assert.NotContains(t, entry.Fields, "agent_id")
+			assert.NotContains(t, entry.Fields, "reason")
+
+			metrics, err := registry.Gather()
+			require.NoError(t, err)
+			for _, m := range metrics {
+				assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+			}
+		})
 	}
 }
 

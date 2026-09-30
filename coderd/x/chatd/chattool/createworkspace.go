@@ -637,7 +637,7 @@ func waitForAgentReady(
 
 		var lastErr error
 		for {
-			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
+			attemptCtx, attemptCancel := context.WithTimeoutCause(agentCtx, agentAttemptTimeout, workspacesdk.ErrReadinessProbeTimeout)
 			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {
