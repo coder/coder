@@ -584,6 +584,60 @@ WHERE id = $1`, automation.ID, edited)
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
 	})
 
+	t.Run("SlowOccurrenceDoesNotBlockOthers", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		other := dbgen.Chat(t, f.db, database.Chat{
+			OrganizationID:    f.org.ID,
+			OwnerID:           f.owner.ID,
+			LastModelConfigID: f.model.ID,
+			Title:             "other target",
+			Status:            database.ChatStatusWaiting,
+		})
+		blocked := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		free := f.createFor(ctx, t, server, f.owner.ID, codersdk.CreateChatAutomationRequest{
+			TargetMode:   codersdk.ChatAutomationTargetModeExistingChat,
+			TargetChatID: &other.ID,
+		}, "* * * * *", "UTC")
+		due := blocked.ScheduleNextRunAt.Time.UTC()
+		// The blocked occurrence comes first in the scan's order.
+		_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = $1 WHERE id = $2", due.Add(-time.Second), blocked.ID)
+		require.NoError(t, err)
+		f.advanceTo(ctx, t, due)
+		held := f.lockRow(ctx, t, lockChatRow, f.chat.ID)
+
+		wait := scanAsync(ctx, server)
+		// The other chat gets its message while the first occurrence
+		// still waits for the chat lock.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			var n int
+			err := f.sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND role = 'user'", other.ID).Scan(&n)
+			return err == nil && n == 1
+		}, testutil.IntervalFast, "the free occurrence is accepted")
+		require.Zero(t, f.inputs(ctx, t))
+		require.NoError(t, held.Commit())
+		wait()
+		require.Equal(t, 1, f.inputs(ctx, t))
+		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, free.ID))
+	})
+
+	t.Run("NewChatTitleNamesOccurrence", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.newChat(ctx, t, server, "* * * * *", "Asia/Tokyo")
+		// Accepted at the end of the grace window, a minute after the
+		// 10:01 UTC occurrence.
+		f.advanceTo(ctx, t, automation.ScheduleNextRunAt.Time.Add(automationScheduleGrace))
+		server.scanAutomationSchedules(ctx)
+		chats := f.createdChats(ctx, t)
+		require.Len(t, chats, 1)
+		require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
+	})
+
 	t.Run("PagesPastRowsThatStayDue", func(t *testing.T) {
 		t.Parallel()
 		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)

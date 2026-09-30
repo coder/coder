@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -32,6 +33,10 @@ const (
 	// automationScheduleBatchSize is how many due automations a scan
 	// reads per page.
 	automationScheduleBatchSize = 500
+	// automationScheduleConcurrency bounds the occurrences one scan
+	// publishes at once, so an occurrence that waits for a lock or a slow
+	// hook does not hold back the others past the grace window.
+	automationScheduleConcurrency = 8
 )
 
 var (
@@ -134,8 +139,13 @@ func (p *Server) scanAutomationSchedules(ctx context.Context) {
 // scanAutomationSchedulePages reads the due rows in pages of batchSize
 // until a page comes back short. Rows that stay due, such as those of
 // owners with the experiment off, therefore never hide the rows behind
-// them.
+// them. Occurrences are published concurrently, at most
+// automationScheduleConcurrency at a time, and the scan returns once all
+// of them are done.
 func (p *Server) scanAutomationSchedulePages(ctx context.Context, batchSize int32) {
+	var publishes errgroup.Group
+	publishes.SetLimit(automationScheduleConcurrency)
+	defer func() { _ = publishes.Wait() }()
 	now := dbtime.Time(p.clock.Now())
 	// The experiment is decided once per owner per scan. Owners with it
 	// off keep their cursors; a cursor that falls behind is missed once
@@ -161,7 +171,10 @@ func (p *Server) scanAutomationSchedulePages(ctx context.Context, batchSize int3
 				enabled[row.OwnerID] = on
 			}
 			if on {
-				p.runAutomationOccurrence(ctx, row, now)
+				publishes.Go(func() error {
+					p.runAutomationOccurrence(ctx, row, now)
+					return nil
+				})
 			}
 		}
 		if len(rows) < int(batchSize) {
