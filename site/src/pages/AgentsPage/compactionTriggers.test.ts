@@ -12,6 +12,7 @@ import {
 	isCompactionPointBeyondWindow,
 	isCompactionTriggerEnabled,
 	organizationCompactionTrigger,
+	resolveChatCompactionThreshold,
 	resolveCompactionThreshold,
 	resolveCompactionTriggersByOrganization,
 	resolveOrganizationCompactionTrigger,
@@ -392,6 +393,68 @@ describe("compaction triggers", () => {
 					organizationTrigger(50, 32_000),
 				),
 			).toBeUndefined();
+		});
+	});
+
+	describe("resolveChatCompactionThreshold", () => {
+		const chatModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "chat-model",
+			context_limit: 128_000,
+			compression_threshold: 80,
+		};
+		const compactionModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "compaction-model",
+			context_limit: 32_000,
+			compression_threshold: 50,
+		};
+		const bindingOverrides: TypesGen.ChatModelOverridesResponse = {
+			overrides: [
+				{ context: "compaction", model_config_id: compactionModel.id },
+			],
+		};
+		const providers = providerInfoByIDFromDescriptors([
+			MockChatModelProviderDescriptor,
+		]);
+		const error = new Error("Network Error");
+		const resolve = (
+			data: TypesGen.ChatModelOverridesResponse | undefined,
+			queryError: unknown,
+		) =>
+			resolveChatCompactionThreshold(
+				chatModel.id,
+				undefined,
+				[chatModel, compactionModel],
+				providers,
+				{ data, error: queryError },
+			);
+
+		it("flags the chat threshold when the first overrides load failed", () => {
+			expect(resolve(undefined, error)).toEqual({
+				percent: 80,
+				source: "model",
+				organizationOverrideUnavailable: true,
+			});
+		});
+
+		it("does not flag a failed refetch with cached overrides", () => {
+			expect(resolve({ overrides: [] }, error)).toEqual({
+				percent: 80,
+				source: "model",
+			});
+			expect(resolve(bindingOverrides, error)).toEqual({
+				percent: 12.5,
+				source: "organization",
+				pointTokens: 16_000,
+			});
+		});
+
+		it("does not flag loaded overrides without a compaction override", () => {
+			expect(resolve({ overrides: [] }, null)).toEqual({
+				percent: 80,
+				source: "model",
+			});
 		});
 	});
 });

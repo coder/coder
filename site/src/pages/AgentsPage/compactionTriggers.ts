@@ -16,7 +16,13 @@ export type OrganizationCompactionTrigger = {
 };
 
 export type ResolvedCompactionThreshold =
-	| { readonly percent: number; readonly source: "user" | "model" }
+	| {
+			readonly percent: number;
+			readonly source: "user" | "model";
+			// The organization overrides never loaded, so a binding organization
+			// override may exist that this threshold does not reflect.
+			readonly organizationOverrideUnavailable?: boolean;
+	  }
 	| {
 			readonly percent: number;
 			readonly source: "organization";
@@ -126,11 +132,20 @@ export type CompactionTriggerLoadError = {
 	readonly error: unknown;
 };
 
-type OrganizationOverridesState = {
-	readonly organizationID: string;
+type OverridesQueryState = {
 	readonly data: TypesGen.ChatModelOverridesResponse | undefined;
 	readonly error: unknown;
 };
+
+type OrganizationOverridesState = OverridesQueryState & {
+	readonly organizationID: string;
+};
+
+const compactionOverrideModelConfigID = (
+	data: TypesGen.ChatModelOverridesResponse | undefined,
+) =>
+	data?.overrides.find((override) => override.context === "compaction")
+		?.model_config_id;
 
 /**
  * Maps each organization to its usable compaction trigger. A failed overrides
@@ -160,8 +175,7 @@ export const resolveCompactionTriggersByOrganization = (
 			loadErrors.push({ organizationID, error });
 		}
 		const trigger = resolveOrganizationCompactionTrigger(
-			data?.overrides.find((override) => override.context === "compaction")
-				?.model_config_id,
+			compactionOverrideModelConfigID(data),
 			organizationModels,
 			providerInfoByID,
 		);
@@ -234,4 +248,35 @@ export const resolveCompactionThreshold = (
 	}
 
 	return { percent: thresholdPercent, source };
+};
+
+// Resolves the threshold the chat gauge shows. An initial overrides failure
+// keeps the chat threshold but flags it; a failed background refetch keeps
+// using the cached overrides.
+export const resolveChatCompactionThreshold = (
+	modelID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+	overrides: OverridesQueryState,
+): ResolvedCompactionThreshold | undefined => {
+	const threshold = resolveCompactionThreshold(
+		modelID,
+		userThresholds,
+		models,
+		resolveOrganizationCompactionTrigger(
+			compactionOverrideModelConfigID(overrides.data),
+			models,
+			providerInfoByID,
+		),
+	);
+	if (
+		threshold &&
+		threshold.source !== "organization" &&
+		overrides.error != null &&
+		overrides.data === undefined
+	) {
+		return { ...threshold, organizationOverrideUnavailable: true };
+	}
+	return threshold;
 };

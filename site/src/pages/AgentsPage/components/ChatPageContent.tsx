@@ -14,10 +14,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
-import {
-	resolveCompactionThreshold,
-	resolveOrganizationCompactionTrigger,
-} from "../compactionTriggers";
+import { resolveChatCompactionThreshold } from "../compactionTriggers";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -407,20 +404,14 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modelOverridesQuery = useQuery(
 		organizationChatModelOverrides(organizationId),
 	);
-	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
-		modelOverridesQuery.data?.overrides.find(
-			(override) => override.context === "compaction",
-		)?.model_config_id,
-		modelCatalog?.models,
-		providerInfoByIDFromDescriptors(modelCatalog?.providers),
-	);
 	const compactionThreshold = modelOverridesQuery.isPending
 		? undefined
-		: resolveCompactionThreshold(
+		: resolveChatCompactionThreshold(
 				chat.last_model_config_id,
 				thresholdsQuery.data?.thresholds,
 				modelCatalog?.models,
-				organizationCompactionTrigger,
+				providerInfoByIDFromDescriptors(modelCatalog?.providers),
+				modelOverridesQuery,
 			);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
