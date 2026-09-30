@@ -21885,7 +21885,18 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.Chat"
                 },
                 "kind": {
-                    "$ref": "#/definitions/codersdk.ChatWatchEventKind"
+                    "type": "string",
+                    "enum": [
+                        "created",
+                        "deleted",
+                        "title_change",
+                        "summary_change",
+                        "chat_summary_change",
+                        "status_change",
+                        "diff_status_change",
+                        "context_dirty",
+                        "action_required"
+                    ]
                 },
                 "tool_calls": {
                     "type": "array",
@@ -21894,31 +21905,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "codersdk.ChatWatchEventKind": {
-            "type": "string",
-            "enum": [
-                "status_change",
-                "summary_change",
-                "chat_summary_change",
-                "title_change",
-                "created",
-                "deleted",
-                "diff_status_change",
-                "action_required",
-                "context_dirty"
-            ],
-            "x-enum-varnames": [
-                "ChatWatchEventKindStatusChange",
-                "ChatWatchEventKindSummaryChange",
-                "ChatWatchEventKindChatSummaryChange",
-                "ChatWatchEventKindTitleChange",
-                "ChatWatchEventKindCreated",
-                "ChatWatchEventKindDeleted",
-                "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired",
-                "ChatWatchEventKindContextDirty"
-            ]
         },
         "codersdk.ChatWorkspaceTTLResponse": {
             "type": "object",
@@ -24008,7 +23994,8 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-board"
+                "chat-board",
+                "chat-goals"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24017,6 +24004,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
+                "ExperimentChatGoals": "Enables durable goals for root agent chats.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
@@ -24046,7 +24034,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Offers the Coder Agents chat board as a per-browser opt-in."
+                "Offers the Coder Agents chat board as a per-browser opt-in.",
+                "Enables durable goals for root agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24065,7 +24054,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatBoard"
+                "ExperimentChatBoard",
+                "ExperimentChatGoals"
             ]
         },
         "codersdk.ExperimentRule": {
