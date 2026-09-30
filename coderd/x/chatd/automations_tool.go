@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -29,21 +32,105 @@ const manageAutomationsNextRunCount = 5
 
 const manageAutomationsDescription = "Manage the chat owner's automations in this chat's organization. " +
 	"Automations are webhook or schedule triggers that send a prompt to an existing chat or start a new chat. " +
-	"Actions: list returns the automations; get returns one automation; " +
-	"disable stops an automation from running until its owner enables it again; " +
-	"delete removes an automation permanently. get, disable, and delete require automation_id. " +
-	"When the current turn was started by an automation, only automations that target this chat " +
-	"or that created this chat are visible."
+	"Actions: list returns the automations; get returns one automation; create adds an enabled automation; " +
+	"update changes only the fields you pass; enable turns an automation on again; " +
+	"disable stops an automation from running until it is enabled again; delete removes an automation permanently; " +
+	"run_now sends the prompt of an enabled schedule automation now. " +
+	"Every action except list and create requires automation_id. kind, target_mode, and webhook_use cannot change after create. " +
+	"A heartbeat is a schedule automation with target_mode existing_chat on this chat: create it with kind schedule, " +
+	"target_mode existing_chat, a prompt, schedule_cron, and schedule_time_zone, and omit target_chat_id. " +
+	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
+	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
+	"update, enable, and run_now work only on automations that follow these rules. " +
+	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
+	"A single-use webhook secret is returned once, by create, only for a webhook that targets this chat. " +
+	"When the current turn was started by an automation, create, update, enable, and run_now are refused, " +
+	"and only automations that target this chat or that created this chat are visible."
 
-// manageAutomationsLaterActions return a clear error instead of an
-// unknown-action error until a later version supports them.
-var manageAutomationsLaterActions = []string{"create", "update", "enable", "run_now"}
+var manageAutomationsActions = []string{"list", "get", "create", "update", "enable", "disable", "delete", "run_now"}
+
+// manageAutomationsWriteActions are refused in a turn an automation
+// reached, because they can add or widen what automations do.
+var manageAutomationsWriteActions = []string{"create", "update", "enable", "run_now"}
 
 var errManageAutomationsNotFound = xerrors.New("automation not found")
 
+// manageAutomationsSecretNotShown replaces a webhook secret the tool does
+// not return.
+//
+//nolint:gosec // Explains that a secret is withheld; it is not a credential.
+const manageAutomationsSecretNotShown = "The webhook secret is not shown. The owner can rotate the secret in the automations UI to get a new one."
+
 type manageAutomationsArgs struct {
-	Action       string `json:"action" enum:"list,get,disable,delete" description:"The action to perform."`
-	AutomationID string `json:"automation_id,omitempty" description:"Automation UUID. Required for get, disable, and delete."`
+	Action       string `json:"action" enum:"list,get,create,update,enable,disable,delete,run_now" description:"The action to perform."`
+	AutomationID string `json:"automation_id,omitempty" description:"Automation UUID. Required for every action except list and create."`
+	// The fields below apply to create and update only. Pointers tell an
+	// omitted field from an empty one, so update changes only the fields
+	// that are set.
+	Name                 *string `json:"name,omitempty" description:"create (required) and update: the automation name."`
+	Kind                 *string `json:"kind,omitempty" enum:"webhook,schedule" description:"create only (required): webhook or schedule."`
+	TargetMode           *string `json:"target_mode,omitempty" enum:"existing_chat,new_chat" description:"create only (required): send to this chat (existing_chat) or start a new chat per run (new_chat)."`
+	TargetChatID         *string `json:"target_chat_id,omitempty" description:"existing_chat only: must be this chat's ID. Defaults to this chat on create."`
+	NewChatModelConfigID *string `json:"new_chat_model_config_id,omitempty" description:"new_chat only: model config UUID for new chats. Defaults to this chat's model config on create."`
+	ReasoningEffort      *string `json:"reasoning_effort,omitempty" description:"new_chat only: reasoning effort for new chats. On update, an empty value clears it."`
+	WhenBusy             *string `json:"when_busy,omitempty" enum:"queue,skip" description:"existing_chat only: queue or skip a run while the chat is busy. Schedules default to skip, webhooks to queue."`
+	WebhookUse           *string `json:"webhook_use,omitempty" enum:"single,multi" description:"create only, webhook only: single-use or multi-use secret. Defaults to multi."`
+	Prompt               *string `json:"prompt,omitempty" description:"create (required) and update: the prompt each run sends."`
+	ScheduleCron         *string `json:"schedule_cron,omitempty" description:"schedule only, required on create: a standard five-field cron expression."`
+	ScheduleTimeZone     *string `json:"schedule_time_zone,omitempty" description:"schedule only, required on create: an IANA time zone such as UTC or Europe/Berlin."`
+}
+
+// setFields returns the names of the create and update fields that are
+// set, in schema order.
+func (a manageAutomationsArgs) setFields() []string {
+	var set []string
+	for _, field := range []struct {
+		name  string
+		value *string
+	}{
+		{"name", a.Name},
+		{"kind", a.Kind},
+		{"target_mode", a.TargetMode},
+		{"target_chat_id", a.TargetChatID},
+		{"new_chat_model_config_id", a.NewChatModelConfigID},
+		{"reasoning_effort", a.ReasoningEffort},
+		{"when_busy", a.WhenBusy},
+		{"webhook_use", a.WebhookUse},
+		{"prompt", a.Prompt},
+		{"schedule_cron", a.ScheduleCron},
+		{"schedule_time_zone", a.ScheduleTimeZone},
+	} {
+		if field.value != nil {
+			set = append(set, field.name)
+		}
+	}
+	return set
+}
+
+// checkFields rejects fields that do not apply to action, so the tool
+// never silently drops part of a request.
+func (a manageAutomationsArgs) checkFields(action string) error {
+	set := a.setFields()
+	switch action {
+	case "create":
+		if strings.TrimSpace(a.AutomationID) != "" {
+			return xerrors.New("create does not take automation_id")
+		}
+	case "update":
+		for _, fixed := range []string{"kind", "target_mode", "webhook_use"} {
+			if slices.Contains(set, fixed) {
+				return xerrors.Errorf("%s cannot be changed after the automation is created", fixed)
+			}
+		}
+		if len(set) == 0 {
+			return xerrors.New("update needs at least one field to change")
+		}
+	default:
+		if len(set) > 0 {
+			return xerrors.Errorf("%s does not take %s", action, strings.Join(set, ", "))
+		}
+	}
+	return nil
 }
 
 // automationTurnTrigger identifies the automation input that reached the
@@ -119,13 +206,11 @@ func (p *Server) manageAutomationsTool(chatID uuid.UUID) fantasy.AgentTool {
 
 func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, args manageAutomationsArgs) (map[string]any, error) {
 	action := strings.TrimSpace(args.Action)
-	switch action {
-	case "list", "get", "disable", "delete":
-	default:
-		if slices.Contains(manageAutomationsLaterActions, action) {
-			return nil, xerrors.Errorf("action %q is not available in this version", action)
-		}
-		return nil, xerrors.Errorf("unknown action %q: use list, get, disable, or delete", action)
+	if !slices.Contains(manageAutomationsActions, action) {
+		return nil, xerrors.Errorf("unknown action %q: use one of %s", action, strings.Join(manageAutomationsActions, ", "))
+	}
+	if err := args.checkFields(action); err != nil {
+		return nil, err
 	}
 
 	//nolint:gocritic // The tool reloads its own chat; the owner's permissions apply below.
@@ -153,8 +238,12 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		return nil, xerrors.New("failed to load chat history")
 	}
 	trigger := automationTurnTriggerFromHistory(history)
+	if trigger.AutomationID.Valid && slices.Contains(manageAutomationsWriteActions, action) {
+		return nil, xerrors.Errorf("%s is not available in a turn that an automation started", action)
+	}
 
-	if action == "list" {
+	switch action {
+	case "list":
 		rows, err := p.db.GetChatAutomationsByOrganizationIDAndOwnerID(ownerCtx, database.GetChatAutomationsByOrganizationIDAndOwnerIDParams{
 			OrganizationID: chat.OrganizationID,
 			OwnerID:        chat.OwnerID,
@@ -169,6 +258,8 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 			}
 		}
 		return map[string]any{"automations": automations}, nil
+	case "create":
+		return p.manageAutomationsCreate(ctx, ownerCtx, chat, trigger, args)
 	}
 
 	id, err := uuid.Parse(strings.TrimSpace(args.AutomationID))
@@ -189,21 +280,253 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	switch action {
 	case "get":
 		return map[string]any{"automation": p.manageAutomationsView(row)}, nil
+	case "update":
+		req, err := args.updateRequest()
+		if err != nil {
+			return nil, err
+		}
+		return p.manageAutomationsUpdate(ctx, ownerCtx, chat, trigger, action, row, req)
+	case "enable":
+		enabled := true
+		return p.manageAutomationsUpdate(ctx, ownerCtx, chat, trigger, action, row, codersdk.UpdateChatAutomationRequest{Enabled: &enabled})
+	case "run_now":
+		return p.manageAutomationsRun(ctx, ownerCtx, chat, row)
 	case "disable":
 		disabled := false
 		updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, codersdk.UpdateChatAutomationRequest{Enabled: &disabled})
 		if err != nil {
-			return nil, manageAutomationsError(err)
+			return nil, p.manageAutomationsError(ctx, action, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
 	default: // delete
 		if err := p.DeleteAutomation(ownerCtx, row.ID); err != nil {
-			return nil, manageAutomationsError(err)
+			return nil, p.manageAutomationsError(ctx, action, err)
 		}
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionDelete, row, database.ChatAutomation{})
 		return map[string]any{"deleted": true, "automation_id": row.ID.String()}, nil
 	}
+}
+
+// manageAutomationsCreate creates an automation owned by the chat owner in
+// the chat's organization and records the calling chat as its creator.
+// Omitted targets default to this chat and this chat's model config.
+func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat database.Chat, trigger automationTurnTrigger, args manageAutomationsArgs) (map[string]any, error) {
+	targetChatID, err := parseManageAutomationsUUID("target_chat_id", args.TargetChatID)
+	if err != nil {
+		return nil, err
+	}
+	modelConfigID, err := parseManageAutomationsUUID("new_chat_model_config_id", args.NewChatModelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	req := codersdk.CreateChatAutomationRequest{
+		Name:                 ptr.NilToEmpty(args.Name),
+		Kind:                 codersdk.ChatAutomationKind(ptr.NilToEmpty(args.Kind)),
+		TargetMode:           codersdk.ChatAutomationTargetMode(ptr.NilToEmpty(args.TargetMode)),
+		TargetChatID:         targetChatID,
+		NewChatModelConfigID: modelConfigID,
+		ReasoningEffort:      args.ReasoningEffort,
+		Prompt:               ptr.NilToEmpty(args.Prompt),
+		ScheduleCron:         args.ScheduleCron,
+		ScheduleTimeZone:     args.ScheduleTimeZone,
+	}
+	if args.WhenBusy != nil {
+		req.WhenBusy = ptr.Ref(codersdk.ChatAutomationWhenBusy(*args.WhenBusy))
+	}
+	if args.WebhookUse != nil {
+		req.WebhookUse = ptr.Ref(codersdk.ChatAutomationWebhookUse(*args.WebhookUse))
+	}
+	switch req.TargetMode {
+	case codersdk.ChatAutomationTargetModeExistingChat:
+		if req.TargetChatID == nil {
+			req.TargetChatID = &chat.ID
+		}
+	case codersdk.ChatAutomationTargetModeNewChat:
+		if req.NewChatModelConfigID == nil {
+			req.NewChatModelConfigID = &chat.LastModelConfigID
+		}
+	}
+	target := automationTarget{mode: database.ChatAutomationTargetMode(req.TargetMode)}
+	if req.TargetChatID != nil {
+		target.chatID = uuid.NullUUID{UUID: *req.TargetChatID, Valid: true}
+	}
+	if req.NewChatModelConfigID != nil {
+		target.modelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
+	}
+	if err := p.manageAutomationsContained(ownerCtx, chat, target); err != nil {
+		return nil, err
+	}
+
+	row, secret, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
+		OrganizationID:  chat.OrganizationID,
+		OwnerID:         chat.OwnerID,
+		CreatedByChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+		Request:         req,
+	})
+	if err != nil {
+		return nil, p.manageAutomationsError(ctx, "create", err)
+	}
+	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionCreate, database.ChatAutomation{}, row)
+	result := map[string]any{"automation": p.manageAutomationsView(row)}
+	if row.Kind == database.ChatAutomationKindWebhook {
+		if manageAutomationsShowsSecret(chat, trigger, row) {
+			result["webhook_secret"] = secret
+		} else {
+			result["webhook_secret_note"] = manageAutomationsSecretNotShown
+		}
+	}
+	return result, nil
+}
+
+// manageAutomationsShowsSecret reports whether create may return the
+// webhook secret of row. Only a single-use webhook that targets the
+// calling chat qualifies, and only in a turn no automation reached: its
+// secret can deliver one event, to a chat the agent already writes to.
+// Multi-use secrets are never returned.
+func manageAutomationsShowsSecret(chat database.Chat, trigger automationTurnTrigger, row database.ChatAutomation) bool {
+	return !trigger.AutomationID.Valid &&
+		row.Kind == database.ChatAutomationKindWebhook &&
+		row.WebhookUse.Valid && row.WebhookUse.ChatAutomationWebhookUse == database.ChatAutomationWebhookUseSingle &&
+		row.TargetMode == database.ChatAutomationTargetModeExistingChat &&
+		row.TargetChatID.Valid && row.TargetChatID.UUID == chat.ID
+}
+
+// updateRequest converts the update fields of a to an update request.
+// checkFields has already rejected the fields that cannot change.
+func (a manageAutomationsArgs) updateRequest() (codersdk.UpdateChatAutomationRequest, error) {
+	targetChatID, err := parseManageAutomationsUUID("target_chat_id", a.TargetChatID)
+	if err != nil {
+		return codersdk.UpdateChatAutomationRequest{}, err
+	}
+	modelConfigID, err := parseManageAutomationsUUID("new_chat_model_config_id", a.NewChatModelConfigID)
+	if err != nil {
+		return codersdk.UpdateChatAutomationRequest{}, err
+	}
+	req := codersdk.UpdateChatAutomationRequest{
+		Name:                 a.Name,
+		Prompt:               a.Prompt,
+		ScheduleCron:         a.ScheduleCron,
+		ScheduleTimeZone:     a.ScheduleTimeZone,
+		ReasoningEffort:      a.ReasoningEffort,
+		TargetChatID:         targetChatID,
+		NewChatModelConfigID: modelConfigID,
+	}
+	if a.WhenBusy != nil {
+		req.WhenBusy = ptr.Ref(codersdk.ChatAutomationWhenBusy(*a.WhenBusy))
+	}
+	return req, nil
+}
+
+// manageAutomationsUpdate applies req to row. The stored row and the row
+// as it would be after the update must both be contained, so the tool can
+// neither change an automation that already reaches beyond this chat nor
+// widen one.
+func (p *Server) manageAutomationsUpdate(ctx, ownerCtx context.Context, chat database.Chat, trigger automationTurnTrigger, action string, row database.ChatAutomation, req codersdk.UpdateChatAutomationRequest) (map[string]any, error) {
+	before := automationTargetOf(row)
+	if err := p.manageAutomationsContained(ownerCtx, chat, before); err != nil {
+		return nil, err
+	}
+	after := before
+	if req.TargetChatID != nil {
+		after.chatID = uuid.NullUUID{UUID: *req.TargetChatID, Valid: true}
+	}
+	if req.NewChatModelConfigID != nil {
+		after.modelConfigID = uuid.NullUUID{UUID: *req.NewChatModelConfigID, Valid: true}
+	}
+	if err := p.manageAutomationsContained(ownerCtx, chat, after); err != nil {
+		return nil, err
+	}
+	// The owner check stays in the service: the tool always acts as the
+	// chat owner.
+	updated, err := p.UpdateAutomation(ownerCtx, chat.OwnerID, row.ID, req)
+	if err != nil {
+		return nil, p.manageAutomationsError(ctx, action, err)
+	}
+	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
+	return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
+}
+
+// manageAutomationsRun publishes the prompt of a contained schedule
+// automation now. Like the run endpoint, it records no automation audit
+// entry, because a run changes no configuration; a chat it creates gets
+// the same audit entry as one the endpoint creates, naming the calling
+// chat as well.
+func (p *Server) manageAutomationsRun(ctx, ownerCtx context.Context, chat database.Chat, row database.ChatAutomation) (map[string]any, error) {
+	if err := p.manageAutomationsContained(ownerCtx, chat, automationTargetOf(row)); err != nil {
+		return nil, err
+	}
+	result, err := p.RunAutomation(ownerCtx, chat.OwnerID, row.ID)
+	if err != nil {
+		return nil, p.manageAutomationsError(ctx, "run", err)
+	}
+	if row.TargetMode == database.ChatAutomationTargetModeNewChat {
+		logger := p.logger.With(slog.F("chat_id", chat.ID), slog.F("automation_id", row.ID), slog.F("tool", manageAutomationsToolName))
+		p.auditAutomationCreatedChat(ctx, logger, row, result, map[string]string{"created_by_chat_id": chat.ID.String()})
+	}
+	return map[string]any{"input_id": result.InputID.String(), "chat_id": result.ChatID.String()}, nil
+}
+
+// automationTarget is where an automation sends its runs.
+type automationTarget struct {
+	mode          database.ChatAutomationTargetMode
+	chatID        uuid.NullUUID
+	modelConfigID uuid.NullUUID
+}
+
+func automationTargetOf(row database.ChatAutomation) automationTarget {
+	return automationTarget{mode: row.TargetMode, chatID: row.TargetChatID, modelConfigID: row.NewChatModelConfigID}
+}
+
+// manageAutomationsContained reports whether the tool may send runs to
+// target: an existing_chat target must be the calling chat, and a new_chat
+// target must not get more tools than the calling chat has. A new chat
+// gets no workspace, no dynamic tools, no selected MCP servers, and the
+// switch off; Force On MCP servers apply to it as they apply to the
+// calling chat every turn. Only its model config's provider tools can
+// differ, so until tool sets exist the config must be the calling chat's
+// or have no provider tools. Provider tools are derived from the config
+// options the same way generation derives them.
+func (p *Server) manageAutomationsContained(ownerCtx context.Context, chat database.Chat, target automationTarget) error {
+	switch target.mode {
+	case database.ChatAutomationTargetModeExistingChat:
+		if !target.chatID.Valid || target.chatID.UUID != chat.ID {
+			return xerrors.New("an existing_chat automation managed by this tool must target this chat")
+		}
+		return nil
+	case database.ChatAutomationTargetModeNewChat:
+		if !target.modelConfigID.Valid {
+			return automationFieldError("new_chat_model_config_id", "is required for new_chat automations")
+		}
+		if target.modelConfigID.UUID == chat.LastModelConfigID {
+			return nil
+		}
+		config, err := p.db.GetChatModelConfigByID(ownerCtx, target.modelConfigID.UUID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) || dbauthz.IsNotAuthorizedError(err) {
+				return automationFieldError("new_chat_model_config_id", "model config not found")
+			}
+			return xerrors.New("failed to load model config")
+		}
+		callConfig, err := parseModelConfigOptions(config.Options)
+		if err != nil || len(buildProviderTools(callConfig.ProviderOptions)) > 0 {
+			return xerrors.New("a new_chat automation managed by this tool must use this chat's model config or a model config without provider tools such as web search")
+		}
+		return nil
+	default:
+		return automationFieldError("target_mode", fmt.Sprintf("must be one of %q", database.AllChatAutomationTargetModeValues()))
+	}
+}
+
+func parseManageAutomationsUUID(field string, value *string) (*uuid.UUID, error) {
+	if value == nil {
+		return nil, nil //nolint:nilnil // A nil ID means the field was omitted.
+	}
+	id, err := uuid.Parse(strings.TrimSpace(*value))
+	if err != nil {
+		return nil, xerrors.Errorf("%s must be a valid UUID", field)
+	}
+	return &id, nil
 }
 
 // manageAutomationsVisible reports whether the tool may see row. Rows of
@@ -229,8 +552,11 @@ func (p *Server) manageAutomationsView(row database.ChatAutomation) codersdk.Cha
 	return db2sdk.ChatAutomation(row, AutomationNextRuns(row, p.clock.Now(), manageAutomationsNextRunCount))
 }
 
-func manageAutomationsError(err error) error {
+// manageAutomationsError maps service errors to tool errors that reveal
+// no more than the management API does. verb names the failed operation.
+func (p *Server) manageAutomationsError(ctx context.Context, verb string, err error) error {
 	var validationErr *AutomationValidationError
+	var denied *chathooks.UserPromptDeniedError
 	switch {
 	case errors.Is(err, ErrAutomationNotFound), dbauthz.IsNotAuthorizedError(err):
 		return errManageAutomationsNotFound
@@ -238,9 +564,29 @@ func manageAutomationsError(err error) error {
 		return xerrors.New("only the automation owner can change it")
 	case errors.As(err, &validationErr):
 		return validationErr
-	default:
-		return xerrors.New("failed to update automation")
+	case errors.As(err, &denied):
+		return denied
+	case errors.Is(err, ErrAutomationLimitReached):
+		return err
+	case errors.Is(err, ErrAutomationDisabled):
+		return xerrors.New("the automation is disabled: enable it before running it")
+	case errors.Is(err, ErrAutomationChatBusy):
+		return xerrors.New("the target chat is busy, and the automation skips runs while it is busy")
 	}
+	for _, refusal := range []error{
+		ErrAutomationQueueShareFull,
+		ErrAutomationTargetUnavailable,
+		ErrAutomationModelUnavailable,
+		ErrAutomationOwnerInactive,
+		ErrAutomationForbidden,
+		ErrAutomationsExperimentDisabled,
+	} {
+		if errors.Is(err, refusal) {
+			return refusal
+		}
+	}
+	p.logger.Warn(ctx, "manage_automations action failed", slog.F("action", verb), slog.Error(err))
+	return xerrors.Errorf("failed to %s automation", verb)
 }
 
 // auditManageAutomations records a tool change to an automation. There is
@@ -265,7 +611,10 @@ func (p *Server) auditManageAutomations(ctx context.Context, chat database.Chat,
 	// Marshaling a map of strings cannot fail.
 	raw, _ := json.Marshal(fields)
 	status := http.StatusOK
-	if action == database.AuditActionDelete {
+	switch action {
+	case database.AuditActionCreate:
+		status = http.StatusCreated
+	case database.AuditActionDelete:
 		status = http.StatusNoContent
 	}
 	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.ChatAutomation]{

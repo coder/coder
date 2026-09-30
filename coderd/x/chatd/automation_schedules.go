@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"time"
 
@@ -232,7 +233,7 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		logger.Info(ctx, "chat automation schedule occurrence accepted",
 			slog.F("chat_id", result.ChatID), slog.F("input_id", result.InputID))
 		if row.TargetMode == database.ChatAutomationTargetModeNewChat {
-			p.auditAutomationCreatedChat(ctx, logger, row, result)
+			p.auditAutomationCreatedChat(ctx, logger, row, result, nil)
 		}
 	case errors.Is(err, ErrAutomationChatBusy),
 		errors.Is(err, ErrAutomationQueueShareFull),
@@ -258,11 +259,12 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 	}
 }
 
-// auditAutomationCreatedChat records the chat that a new_chat schedule
-// automation created, as chat creation through the chat API and webhook
-// deliveries do. The entry names the automation owner, whose authority
-// created the chat, and carries the automation and input ids.
-func (p *Server) auditAutomationCreatedChat(ctx context.Context, logger slog.Logger, automation database.ChatAutomation, result PublishAutomationResult) {
+// auditAutomationCreatedChat records the chat that a new_chat automation
+// created on its schedule or through the manage_automations tool, as chat
+// creation through the chat API and webhook deliveries do. The entry names
+// the automation owner, whose authority created the chat, and carries the
+// automation and input ids plus extraFields.
+func (p *Server) auditAutomationCreatedChat(ctx context.Context, logger slog.Logger, automation database.ChatAutomation, result PublishAutomationResult, extraFields map[string]string) {
 	if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
 		return
 	}
@@ -276,10 +278,12 @@ func (p *Server) auditAutomationCreatedChat(ctx context.Context, logger slog.Log
 		logger.Warn(ctx, "load chat created by automation for audit", slog.F("chat_id", result.ChatID), slog.Error(err))
 		return
 	}
-	fields, err := json.Marshal(map[string]string{
+	additional := map[string]string{
 		"automation_id": automation.ID.String(),
 		"input_id":      result.InputID.String(),
-	})
+	}
+	maps.Copy(additional, extraFields)
+	fields, err := json.Marshal(additional)
 	if err != nil {
 		fields = nil
 	}
