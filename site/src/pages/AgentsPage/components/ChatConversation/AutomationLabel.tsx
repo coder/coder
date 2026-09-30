@@ -23,7 +23,6 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	// flash the UUID.
 	const showNameLoading = !automationName && isNameLoading;
 	const nameOrId = showNameLoading ? "" : (automationName ?? automationId);
-	const namePart = nameOrId ? ` · ${nameOrId}` : "";
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
@@ -38,7 +37,7 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 					<button
 						type="button"
 						className="cursor-default"
-						aria-label={`Automation run${namePart}${inputPart}`}
+						aria-label={`Automation run${nameOrId ? ` · ${nameOrId}` : ""}${inputPart}`}
 					>
 						<span className="shrink-0 whitespace-pre">Automation run</span>
 						{nameOrId && (

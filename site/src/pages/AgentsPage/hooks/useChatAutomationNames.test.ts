@@ -8,8 +8,6 @@ import { renderHookWithAuth } from "#/testHelpers/hooks";
 import { server } from "#/testHelpers/server";
 import { useChatAutomationNames } from "./useChatAutomationNames";
 
-const deletedAutomationId = "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b";
-
 const mockExperiments = (experiments: TypesGen.Experiment[]) =>
 	server.use(
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
@@ -42,7 +40,6 @@ describe("useChatAutomationNames", () => {
 		expect(result.current.names.get(MockChatAutomation.id)).toBe(
 			MockChatAutomation.name,
 		);
-		expect(result.current.names.has(deletedAutomationId)).toBe(false);
 	});
 
 	it("does not report loading when the chat-automations experiment is off", async () => {

@@ -108,7 +108,6 @@ export const AutomationMessages: Story = {
 	},
 };
 
-// Names missing from the map while the list fetches show no ID yet.
 export const AutomationMessagesLoading: Story = {
 	...AutomationMessages,
 	args: {
