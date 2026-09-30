@@ -308,7 +308,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 			ThresholdPercent:       70,
 			UsagePercent:           81.5,
 			ContextTokens:          815,
-			ContextLimit:           1000,
+			ChatContextLimit:       1000,
 			TriggerContextLimit:    500,
 			Runtime:                1500 * time.Millisecond,
 			EstimatedContextTokens: 5,
@@ -368,7 +368,7 @@ func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
 			ThresholdPercent: 70,
 			UsagePercent:     81.5,
 			ContextTokens:    815,
-			ContextLimit:     1000,
+			ChatContextLimit: 1000,
 			Runtime:          0,
 		},
 	})
@@ -523,7 +523,7 @@ func TestBuildCompactionMessages_ManualSource(t *testing.T) {
 			UsagePercent:           10,
 			EstimatedContextTokens: 5,
 			ContextTokens:          100,
-			ContextLimit:           1000,
+			ChatContextLimit:       1000,
 			TriggerContextLimit:    500,
 		},
 	})
@@ -874,6 +874,20 @@ func TestCompactionStatusFromHistory(t *testing.T) {
 		require.Equal(t, compactionStatusStillOverLimit, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 100))
 		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 40, 100))
 		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 90))
+	})
+
+	t.Run("summary without trigger limit compares context limit", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70}`))),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70,"context_limit_tokens":1000}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 800, 1000),
+		}
+
+		require.Equal(t, compactionStatusStillOverLimit, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 1000))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 500))
 	})
 
 	t.Run("still over limit includes exact threshold boundary", func(t *testing.T) {

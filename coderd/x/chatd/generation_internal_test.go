@@ -83,7 +83,7 @@ func TestCompactionStillOverLimitError(t *testing.T) {
 
 	const chatMessage = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
 	require.Equal(t, chatMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, false, 70, 100)).Message)
-	// The history may also exceed the enabled override trigger.
+	// The history also reaches the enabled override trigger.
 	require.Equal(t, chatMessage+" An administrator may also need to raise the organization override's compaction threshold.",
 		chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, true, 70, 100)).Message)
 }
