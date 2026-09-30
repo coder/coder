@@ -171,6 +171,7 @@ type EffectiveCompactionThresholdProps = {
 	modelConfig: TypesGen.ChatModel;
 	chatTrigger: CompactionTrigger | undefined;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
+	organizationTriggerPercentLabel: string | undefined;
 	isOrganizationPointBeyondWindow: boolean;
 };
 
@@ -180,23 +181,14 @@ const EffectiveCompactionThreshold: React.FC<
 	modelConfig,
 	chatTrigger,
 	organizationTrigger,
+	organizationTriggerPercentLabel,
 	isOrganizationPointBeyondWindow,
 }) => {
 	const modelName = modelConfig.display_name || modelConfig.model;
-	const organizationTriggerPercent = organizationTrigger
-		? compactionPointAsPercent(
-				organizationTrigger.pointTokens,
-				modelConfig.context_limit,
-			)
-		: undefined;
-	const organizationTriggerPercentLabel =
-		organizationTriggerPercent?.toLocaleString("en-US", {
-			maximumFractionDigits: 1,
-		});
 	const isOrganizationTriggerBinding =
 		chatTrigger !== undefined &&
 		organizationTrigger !== undefined &&
-		organizationTriggerPercent !== undefined &&
+		organizationTriggerPercentLabel !== undefined &&
 		bindingCompactionTriggerSource(chatTrigger, organizationTrigger.trigger) ===
 			"organization";
 	const off = <span className="text-content-secondary">Off</span>;
@@ -298,9 +290,16 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 			organizationTrigger.pointTokens,
 			modelConfig.context_limit,
 		);
+	const organizationTriggerPercentLabel = organizationTrigger
+		? compactionPointAsPercent(
+				organizationTrigger.pointTokens,
+				modelConfig.context_limit,
+			)?.toLocaleString("en-US", { maximumFractionDigits: 1 })
+		: undefined;
 	const disablingCompactionWarning =
-		organizationTrigger && !isOrganizationPointBeyondWindow
-			? "Setting 100% turns off this model's own compaction threshold. Chats still compact when they reach the organization override's trigger."
+		organizationTriggerPercentLabel !== undefined &&
+		!isOrganizationPointBeyondWindow
+			? `Setting 100% turns off this model's own compaction threshold. Chats still compact at about ${organizationTriggerPercentLabel}% of this model's window, set by the organization override.`
 			: "Setting 100% turns off automatic compaction for this model.";
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const providerLabel = formatProviderLabel(provider);
@@ -428,6 +427,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				modelConfig={modelConfig}
 				chatTrigger={chatTrigger}
 				organizationTrigger={organizationTrigger}
+				organizationTriggerPercentLabel={organizationTriggerPercentLabel}
 				isOrganizationPointBeyondWindow={isOrganizationPointBeyondWindow}
 			/>
 		</TableRow>
