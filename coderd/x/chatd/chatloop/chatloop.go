@@ -19,6 +19,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -127,6 +128,9 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
+	Stages             *StageTracer
+	// StageModel should match the model identity on provider_attempt stages.
+	StageModel StageModel
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -173,6 +177,11 @@ type ExecuteLocalToolsOptions struct {
 	// siblings settle, so interrupts bill actual starts and skip calls
 	// that never run. Optional.
 	BillingRecorder ToolBillingRecorder
+	// ToolCallContext returns the context to run tc with. Optional.
+	ToolCallContext func(ctx context.Context, tc fantasy.ToolCallContent) context.Context
+
+	Stages     *StageTracer
+	StageModel StageModel
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -275,6 +284,9 @@ type stepResult struct {
 	toolResultCreatedAt  map[string]time.Time
 	reasoningStartedAt   []time.Time
 	reasoningCompletedAt []time.Time
+	// unfinishedToolCalls holds local calls whose input started streaming
+	// but never completed into a ToolCall.
+	unfinishedToolCalls []fantasy.ToolCallContent
 }
 
 // reasoningState accumulates reasoning content and provider
@@ -287,7 +299,7 @@ type reasoningState struct {
 
 // GenerateAssistant performs one assistant model stream and returns the
 // durable assistant-side content. It does not execute tools, retry, or persist.
-func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (AssistantOutcome, error) {
+func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ AssistantOutcome, retErr error) {
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
@@ -331,8 +343,10 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
+	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
+	streamSpan.SetModel(opts.StageModel)
 	attempt, streamErr := guardedStream(
-		stepCtx,
+		streamCtx,
 		provider,
 		modelName,
 		opts.Clock,
@@ -341,16 +355,24 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
+		opts.Stages,
+		opts.StageModel,
 	)
 	if streamErr != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		streamSpan.End(wrappedErr)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	defer attempt.release()
+	// release closes the time_to_first_token window, so it must run
+	// before the stream stage ends.
+	defer func() {
+		attempt.release()
+		streamSpan.End(retErr)
+	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
@@ -367,6 +389,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	if result.finishReason == fantasy.FinishReasonLength {
+		resolveOutputLimitToolCalls(&result, call.MaxOutputTokens, opts.Clock, publishMessagePart)
+	}
 	// A content-filter finish without user-visible output means the
 	// provider's safety classifiers blocked the whole response (e.g.
 	// Anthropic stop_reason "refusal"). The refusal can arrive after
@@ -397,6 +422,62 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
 		FinishReason: result.finishReason,
 	}, nil
+}
+
+// resolveOutputLimitToolCalls gives every call whose input the output token
+// limit cut off an error result, so the model learns why the call failed
+// instead of retrying the same oversized input or silently losing the call.
+func resolveOutputLimitToolCalls(
+	result *stepResult,
+	maxOutputTokens *int64,
+	clock quartz.Clock,
+	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) {
+	limit := "the output token limit"
+	if maxOutputTokens != nil && *maxOutputTokens > 0 {
+		limit = fmt.Sprintf("the output token limit (%d tokens)", *maxOutputTokens)
+	}
+	message := "This tool call was not executed because the response reached " + limit +
+		" while writing its input. Split the content into smaller tool calls."
+	appendResult := func(toolCall fantasy.ToolCallContent) {
+		toolResult := fantasy.ToolResultContent{
+			ToolCallID: toolCall.ToolCallID,
+			ToolName:   toolCall.ToolName,
+			Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(message)},
+		}
+		result.content = append(result.content, toolResult)
+		now := clockNow(clock)
+		if result.toolResultCreatedAt == nil {
+			result.toolResultCreatedAt = make(map[string]time.Time)
+		}
+		result.toolResultCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolResult)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleTool, part)
+	}
+
+	var truncated []fantasy.ToolCallContent
+	for _, block := range result.content {
+		toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](block)
+		if ok && !toolCall.ProviderExecuted && !json.Valid([]byte(toolCall.Input)) {
+			truncated = append(truncated, toolCall)
+		}
+	}
+	for _, toolCall := range truncated {
+		appendResult(toolCall)
+	}
+	for _, toolCall := range result.unfinishedToolCalls {
+		result.content = append(result.content, toolCall)
+		now := clockNow(clock)
+		if result.toolCallCreatedAt == nil {
+			result.toolCallCreatedAt = make(map[string]time.Time)
+		}
+		result.toolCallCreatedAt[toolCall.ToolCallID] = now
+		part := chatprompt.PartFromContent(toolCall)
+		part.CreatedAt = &now
+		publishMessagePart(codersdk.ChatMessageRoleAssistant, part)
+		appendResult(toolCall)
+	}
 }
 
 func wrapProviderStreamError(provider string, err error) error {
@@ -534,7 +615,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		}, nil
 	}
 
-	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
+	maxResultBytes := ToolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
 	toolExecutions := executeTools(
 		ctx,
@@ -554,6 +635,9 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		opts.ToolCallContext,
+		opts.Stages,
+		opts.StageModel,
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -776,6 +860,8 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
+var errNoFirstToken = xerrors.New("stream ended before the first token")
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -783,6 +869,8 @@ func guardedStream(
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 	metrics *Metrics,
+	stages *StageTracer,
+	stageModel StageModel,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
@@ -791,34 +879,60 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
+	// A nil tracer still times the window for TTFTSeconds.
+	if stages == nil {
+		stages = NewStageTracer(nil, nil, WithClock(clock))
+	}
+	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
+	ttftSpan.SetModel(stageModel)
+	var ttftOnce sync.Once
+	// A silence guard cancellation surfaces as a context error, so it is
+	// replaced with the classified timeout.
+	finishTTFT := func(err error) {
+		ttftOnce.Do(func() {
+			if err != nil {
+				if errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
+					err = classifyStreamSilenceTimeout(attemptCtx, provider, nil)
+				}
+				ttftSpan.EndWithoutObservation(err)
+				return
+			}
+			elapsed := ttftSpan.End(nil)
+			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(elapsed.Seconds())
+		})
+	}
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
 			guard.Disarm()
 			cancelAttempt(nil)
+			finishTTFT(errNoFirstToken)
 		})
 	}
 
-	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
+		finishTTFT(err)
 		release()
 		return guardedAttempt{}, err
 	}
 
-	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
-			clock.Since(streamStart).Seconds(),
-		)
-	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
 				kick(timeout)
-				recordTTFT()
+				switch part.Type {
+				case fantasy.StreamPartTypeError:
+					finishTTFT(part.Error)
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
+					// Neither is model output, so the window stays open.
+				default:
+					// Start markers such as text_start count as output.
+					finishTTFT(nil)
+				}
 				if !yield(part) {
 					return
 				}
@@ -852,6 +966,7 @@ func processStepStream(
 	activeReasoningContent := make(map[string]reasoningState)
 	// Track tool names by ID for input delta publishing.
 	toolNames := make(map[string]string)
+	var startedToolInputIDs []string
 
 	for part := range stream {
 		switch part.Type {
@@ -910,6 +1025,9 @@ func processStepStream(
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
+			if _, exists := providerExecutedCalls[part.ID]; !exists {
+				startedToolInputIDs = append(startedToolInputIDs, part.ID)
+			}
 			providerExecutedCalls[part.ID] = part.ProviderExecuted
 			if strings.TrimSpace(part.ToolCallName) != "" {
 				toolNames[part.ID] = part.ToolCallName
@@ -1013,6 +1131,17 @@ func processStepStream(
 		}
 	}
 
+	for _, id := range startedToolInputIDs {
+		providerExecuted, unfinished := providerExecutedCalls[id]
+		if !unfinished || providerExecuted {
+			continue
+		}
+		result.unfinishedToolCalls = append(result.unfinishedToolCalls, fantasy.ToolCallContent{
+			ToolCallID: id,
+			ToolName:   toolNames[id],
+		})
+	}
+
 	return result, nil
 }
 
@@ -1057,6 +1186,9 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	toolCallContext func(context.Context, fantasy.ToolCallContent) context.Context,
+	stages *StageTracer,
+	stageModel StageModel,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1108,13 +1240,25 @@ func executeTools(
 
 	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
+		// Started only if the tool runs, so rejected calls record no stage.
+		var toolSpan *StageSpan
+		startRun := func(ctx context.Context) context.Context {
+			var toolCtx context.Context
+			toolCtx, toolSpan = stages.Start(ctx, StageToolCall,
+				attribute.String(AttrToolName, tc.ToolName),
+			)
+			toolSpan.SetModel(stageModel)
+			return toolCtx
+		}
+		var execErr error
 		defer func() {
 			if r := recover(); r != nil {
+				execErr = xerrors.Errorf("tool panicked: %v", r)
 				executions[i].content = fantasy.ToolResultContent{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result: fantasy.ToolResultOutputContentError{
-						Error: xerrors.Errorf("tool panicked: %v", r),
+						Error: execErr,
 					},
 				}
 			}
@@ -1126,9 +1270,14 @@ func executeTools(
 			if recorder != nil {
 				recorder.RecordComplete(i, completedAt)
 			}
+			toolSpan.End(execErr)
 		}()
-		executions[i].content = executeSingleTool(
-			ctx,
+		callCtx := ctx
+		if toolCallContext != nil {
+			callCtx = toolCallContext(ctx, tc)
+		}
+		executions[i].content, execErr = executeSingleTool(
+			callCtx,
 			toolMap,
 			tc,
 			metrics,
@@ -1142,6 +1291,7 @@ func executeTools(
 			resultProviderMetadata,
 			maxResultBytes,
 			toolNameAliases,
+			startRun,
 		)
 	}
 	// SerialToolCalls run in call order after concurrent siblings settle, so
@@ -1279,7 +1429,8 @@ func exclusiveToolSkippedErrorMessage(toolName string) string {
 }
 
 // executeSingleTool executes one tool call and converts the
-// response into a ToolResultContent.
+// response into a ToolResultContent. The error is non-nil only when
+// tool.Run fails. startRun, if set, supplies the context the tool runs on.
 func executeSingleTool(
 	ctx context.Context,
 	toolMap map[string]fantasy.AgentTool,
@@ -1294,7 +1445,8 @@ func executeSingleTool(
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
 	toolNameAliases map[string]string,
-) fantasy.ToolResultContent {
+	startRun func(context.Context) context.Context,
+) (fantasy.ToolResultContent, error) {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
 		ToolName:         tc.ToolName,
@@ -1326,7 +1478,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
-		return result
+		return result, nil
 	}
 
 	tool, exists := toolMap[resolvedName]
@@ -1334,7 +1486,7 @@ func executeSingleTool(
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not found: " + resolvedName),
 		}
-		return result
+		return result, nil
 	}
 
 	logger.Debug(ctx, "tool execution",
@@ -1344,6 +1496,9 @@ func executeSingleTool(
 		slog.F("builtin", builtinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
+	if startRun != nil {
+		ctx = startRun(ctx)
+	}
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
 		Name:  resolvedName,
@@ -1359,7 +1514,7 @@ func executeSingleTool(
 			slog.F("tool_call_id", tc.ToolCallID),
 			slog.Error(err),
 		)
-		return result
+		return result, err
 	}
 
 	result.ClientMetadata = resp.Metadata
@@ -1367,7 +1522,7 @@ func executeSingleTool(
 	// Bound text so one tool result cannot overflow the model's context window.
 	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
-	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
+	if truncated, didTruncate := TruncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
 		logger.Warn(ctx, "tool result truncated to fit model context",
 			slog.F("tool_name", tc.ToolName),
@@ -1415,7 +1570,7 @@ func executeSingleTool(
 	}
 
 	if _, isError := result.Result.(fantasy.ToolResultOutputContentError); isError {
-		return result
+		return result, nil
 	}
 	if len(result.ProviderMetadata) == 0 {
 		if callback := resultProviderMetadata[tc.ToolName]; callback != nil {
@@ -1425,7 +1580,7 @@ func executeSingleTool(
 			}
 		}
 	}
-	return result
+	return result, nil
 }
 
 // normalizeToolMedia bounds persisted payloads and corrects image MIME types

@@ -1,5 +1,5 @@
 ---
-title: External Authentication
+title: External authentication
 ---
 
 Coder supports external authentication via OAuth2.0. This allows enabling any OAuth provider as well as integrations with Git providers,

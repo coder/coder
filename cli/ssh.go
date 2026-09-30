@@ -263,7 +263,18 @@ func (r *RootCmd) ssh() *serpent.Command {
 			wg.Add(1)
 			defer wg.Done()
 
-			if logDirPath != "" {
+			// Session diagnostic logging is on by default; --log-dir overrides the
+			// default user state directory.
+			{
+				logDir := logDirPath
+				if logDir == "" {
+					logDir = defaultSessionLogDir()
+				}
+				if err := os.MkdirAll(logDir, 0o700); err != nil {
+					return xerrors.Errorf("create log dir %q: %w", logDir, err)
+				}
+				pruneErr := pruneSessionLogs(logDir, keepSessionLogFiles)
+
 				nonce, err := cryptorand.StringCharset(cryptorand.Lower, 5)
 				if err != nil {
 					return xerrors.Errorf("generate nonce: %w", err)
@@ -287,14 +298,14 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 				logFileBaseName += ".log"
 
-				logFilePath := filepath.Join(logDirPath, logFileBaseName)
+				logFilePath := filepath.Join(logDir, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
 					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
 					0o600,
 				)
 				if err != nil {
-					return xerrors.Errorf("error opening %s for logging: %w", logDirPath, err)
+					return xerrors.Errorf("error opening %s for logging: %w", logDir, err)
 				}
 				dc := cliutil.DiscardAfterClose(logFile)
 				go func() {
@@ -302,9 +313,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 					_ = dc.Close()
 				}()
 
-				logger = logger.AppendSinks(sloghuman.Sink(dc))
-				if r.verbose {
-					logger = logger.Leveled(slog.LevelDebug)
+				// Record debug detail in memory and write it to the log file only
+				// when the command logs an error (via the deferred error log above),
+				// so normal operation stays quiet. Verbose writes debug directly.
+				logger = r.flightRecorder(logger, sloghuman.Sink(dc), r.flightRecorderSize)
+
+				// Pruning is best effort, so surface any failures in the log file
+				// rather than aborting the session.
+				if pruneErr != nil {
+					logger.Warn(ctx, "failed to prune old session logs", slog.Error(pruneErr))
 				}
 
 				// log HTTP requests
