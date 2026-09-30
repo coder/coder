@@ -2684,6 +2684,15 @@ func (api *API) updateChat(
 		})
 	}
 
+	// The binding decides where the owner's later prompts and tool calls
+	// run. Checking the owner's SSH access to the target is not enough,
+	// because a non-owner can first share their own workspace with them.
+	if req.WorkspaceID != nil && chat.OwnerID != callerID {
+		return database.Chat{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner can change its workspace.",
+		})
+	}
+
 	var title string
 	if req.Title != nil {
 		normalized, resp := normalizeChatTitle(*req.Title)
