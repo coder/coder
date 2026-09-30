@@ -895,9 +895,7 @@ When receiving streaming message parts from the LLM API, the generation goroutin
 
 Since the runner doesn't wait for goroutines to finish when it cancels them, and spawns new goroutines to perform new work immediately, the runner does not guarantee that any interrupted tool calls are fully stopped before continuing. Tool call interrupts are best-effort.
 
-Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
-
-TODO (CODAGT-757): each local tool call's context now carries a tool call ID (UUIDv5 of chat ID, assistant message ID, and provider tool call ID; none when the provider tool call ID is empty or repeats in the message), sent as the `Coder-Tool-Call-Id` header on `execute` start, `edit_files`, and `write_file` requests, so the agent runs each such call once while it keeps running and a retry gets the first result. The interrupt task cancels unresolved `execute`, `edit_files`, and `write_file` calls on the agent before committing and records what the agent did; a foreground `execute` retry waits only for the rest of its timeout. Rewrite the two paragraphs above.
+Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Exception: the workspace agent runs `execute`, `edit_files`, and `write_file` calls once, unless it restarts. Future work may include adding a mechanism to ensure at most once semantics.
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
@@ -1011,7 +1009,8 @@ The goroutine does the following in order:
 1. It fetches the generation attempt number from the database.
 2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
-4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
+4. It cancels the chat's unresolved `execute`, `edit_files`, and `write_file` calls on the workspace agent, waiting up to 30 seconds for their results.
+5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 #### Dynamic tools timeout goroutine
 
