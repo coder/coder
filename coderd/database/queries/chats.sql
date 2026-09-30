@@ -421,18 +421,30 @@ WHERE
 ORDER BY
     id ASC;
 
--- name: GetDeletedChatMessagesByChatID :many
--- Includes every visibility because a model-only row can hold the result of
--- a tool call.
+-- name: GetDeletedChatMessagesFromLastAssistant :many
+-- Returns the last deleted assistant message and the deleted rows after it.
+-- Every visibility is included: a model-only row can hold a tool call's result.
 SELECT
     *
 FROM
     chat_messages
 WHERE
     chat_id = @chat_id::uuid
-    AND id > @after_id::bigint
-    AND id < @before_id::bigint
     AND deleted = true
+    AND id < @user_message_id::bigint
+    AND id >= (
+        SELECT
+            max(id)
+        FROM
+            chat_messages
+        WHERE
+            chat_id = @chat_id::uuid
+            AND deleted = true
+            AND compressed = false
+            AND role = 'assistant'
+            AND id > @previous_message_id::bigint
+            AND id < @user_message_id::bigint
+    )
 ORDER BY
     id ASC;
 

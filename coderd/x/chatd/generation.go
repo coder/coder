@@ -472,9 +472,10 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 }
 
 // cancelErasedToolCalls cancels on the chat's agent the unresolved tool
-// calls in the rows that edits erased at the current turn's prompt. Their
-// results can no longer be committed, so the work would otherwise continue
-// unseen by the model. Failures are logged and do not affect the turn.
+// calls in the rows that edits erased before the current turn's user
+// message. Their results can no longer be committed, so the work would
+// otherwise continue unseen by the model. Failures are logged and do not
+// affect the turn.
 func (s *taskStarter) cancelErasedToolCalls(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -485,18 +486,19 @@ func (s *taskStarter) cancelErasedToolCalls(
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
 		return
 	}
-	promptIndex := lastUserPromptIndex(messages)
-	if promptIndex == -1 {
+	userMessageIndex := lastUserPromptIndex(messages)
+	if userMessageIndex == -1 {
 		return
 	}
-	// An edit erases its target and everything after it, so the erased rows
-	// lie between the prompt and the message loaded before it.
-	params := database.GetDeletedChatMessagesByChatIDParams{
-		ChatID:   chat.ID,
-		BeforeID: messages[promptIndex].ID,
+	// An edit deletes the edited message and every message after it, so the
+	// erased rows lie between the user message and the visible message
+	// before it.
+	params := database.GetDeletedChatMessagesFromLastAssistantParams{
+		ChatID:        chat.ID,
+		UserMessageID: messages[userMessageIndex].ID,
 	}
-	if promptIndex > 0 {
-		params.AfterID = messages[promptIndex-1].ID
+	if userMessageIndex > 0 {
+		params.PreviousMessageID = messages[userMessageIndex-1].ID
 	}
 	var erased []database.ChatMessage
 	err := machine.ReadLock(ctx, func(store database.Store) error {
@@ -504,7 +506,7 @@ func (s *taskStarter) cancelErasedToolCalls(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		var err error
-		erased, err = store.GetDeletedChatMessagesByChatID(ctx, params)
+		erased, err = store.GetDeletedChatMessagesFromLastAssistant(ctx, params)
 		return err
 	})
 	if err != nil {
