@@ -342,8 +342,10 @@ const LeaveBeforeSecretPrompt: React.FC<LeaveBeforeSecretPromptProps> = ({
 			onClose={onStay}
 			onConfirm={onLeave}
 			onCloseAutoFocus={(event) => {
-				event.preventDefault();
-				opener?.focus();
+				if (opener?.isConnected) {
+					event.preventDefault();
+					opener.focus();
+				}
 			}}
 		/>
 	);

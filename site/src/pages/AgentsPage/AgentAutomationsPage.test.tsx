@@ -1031,6 +1031,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(rotatingButton).toHaveFocus();
 		});
+		expect(router.state.location.pathname).toBe("/");
 		releaseRotate();
 
 		const secretDialog = await screen.findByRole("dialog", {
