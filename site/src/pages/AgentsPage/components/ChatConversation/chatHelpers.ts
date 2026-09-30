@@ -44,17 +44,26 @@ export const extractContextUsageFromMessage = (
 	};
 };
 
+/**
+ * Returns the part that marks a compaction or clear boundary, if any. Usage
+ * recorded before a boundary no longer describes the model-visible context.
+ */
+export const findContextBoundaryPart = (
+	message: TypesGen.ChatMessage,
+): TypesGen.ChatMessagePart | undefined =>
+	message.content?.find(
+		(part) =>
+			(part.type === "tool-call" || part.type === "tool-result") &&
+			(part.tool_name === "chat_summarized" ||
+				part.tool_name === "chat_cleared"),
+	);
+
 export const getLatestContextUsage = (
 	messages: readonly TypesGen.ChatMessage[],
 	activeContextLimit?: number,
 ): AgentContextUsage | null => {
 	for (const message of messages.toReversed()) {
-		const contextBoundary = message.content?.find(
-			(part) =>
-				(part.type === "tool-call" || part.type === "tool-result") &&
-				(part.tool_name === "chat_summarized" ||
-					part.tool_name === "chat_cleared"),
-		);
+		const contextBoundary = findContextBoundaryPart(message);
 		if (contextBoundary) {
 			if (
 				contextBoundary.type !== "tool-result" ||
