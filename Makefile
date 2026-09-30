@@ -1114,7 +1114,9 @@ GEN_FILES := \
 	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 	$(AIBRIDGED_MOCKS)
 
-# all gen targets should be added here and to gen/mark-fresh
+# all gen targets should be added here and to gen/mark-fresh. Outputs or
+# inputs under docs/ must also match the docs-gen filter in
+# .github/workflows/ci.yaml, or CI skips gen for PRs that edit them.
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
 # start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=
