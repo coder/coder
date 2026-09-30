@@ -729,6 +729,7 @@ func TestWriteWorkspaceAgentUploadError(t *testing.T) {
 		wantStatus  int
 		wantMessage string
 	}{
+		{name: "BadRequest", agentStatus: http.StatusBadRequest, wantStatus: http.StatusBadRequest, wantMessage: "rejected the upload request"},
 		{name: "Conflict", agentStatus: http.StatusConflict, wantStatus: http.StatusConflict, wantMessage: "conflicts with existing files"},
 		{name: "Forbidden", agentStatus: http.StatusForbidden, wantStatus: http.StatusForbidden, wantMessage: "denied permission"},
 		{name: "Unauthorized", agentStatus: http.StatusUnauthorized, wantStatus: http.StatusBadGateway, wantMessage: "Failed to upload file to workspace agent"},
