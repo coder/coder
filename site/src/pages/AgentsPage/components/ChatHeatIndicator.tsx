@@ -14,6 +14,7 @@ import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useTime } from "#/hooks/useTime";
 import { coarsePointerMediaQuery, isMobileViewport } from "#/utils/mobile";
 import {
+	CACHE_IDLE_TTL_MS,
 	type ChatHeat,
 	isCacheLikelyExpired,
 } from "./ChatConversation/chatHeat";
@@ -26,6 +27,7 @@ const HEAT_LABELS: Record<ChatHeat["label"], string> = {
 };
 
 const EXPIRY_CHECK_INTERVAL_MS = 15_000;
+const CACHE_IDLE_TTL_MINUTES = CACHE_IDLE_TTL_MS / 60_000;
 
 // Blends success to warning over the first half of the heat range and
 // warning to destructive over the second half.
@@ -55,6 +57,11 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	const ariaLabel = `Chat heat: ${label}, ${formatPercent(heat.heat)}.${
 		isCacheExpired ? " Cache likely expired." : ""
 	}`;
+	const actionHint = isCacheExpired
+		? `Reply within ${CACHE_IDLE_TTL_MINUTES} minutes to reuse the cache, or compact before stepping away.`
+		: heat.label === "hot"
+			? `Replies after ${CACHE_IDLE_TTL_MINUTES} minutes re-send the context.`
+			: undefined;
 
 	const panelContent = (
 		<div className="flex max-w-64 flex-col gap-1 text-xs text-content-primary">
@@ -80,6 +87,9 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 				<span className="text-content-warning">
 					{`Cache likely expired. Your next message will likely resend about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}
 				</span>
+			)}
+			{actionHint && (
+				<span className="text-content-secondary">{actionHint}</span>
 			)}
 		</div>
 	);

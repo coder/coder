@@ -1,9 +1,14 @@
 import { act, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
-import { CACHE_IDLE_TTL_MS, getChatHeat } from "./ChatConversation/chatHeat";
-import { LiveChatHeatIndicator } from "./ChatHeatIndicator";
+import {
+	CACHE_IDLE_TTL_MS,
+	type ChatHeat,
+	getChatHeat,
+} from "./ChatConversation/chatHeat";
+import { ChatHeatIndicator, LiveChatHeatIndicator } from "./ChatHeatIndicator";
 
 const LAST_REQUEST_AT = "2026-01-01T00:00:00Z";
 
@@ -82,5 +87,30 @@ describe("LiveChatHeatIndicator", () => {
 			vi.advanceTimersByTime(60_000);
 		});
 		expect(button).not.toHaveAccessibleName(/cache likely expired/i);
+	});
+});
+
+describe("ChatHeatIndicator", () => {
+	const openTooltip = async (heat: ChatHeat, isCacheExpired: boolean) => {
+		renderComponent(
+			<ChatHeatIndicator heat={heat} isCacheExpired={isCacheExpired} />,
+		);
+		await userEvent.hover(screen.getByRole("button", { name: /chat heat/i }));
+		return screen.findByRole("tooltip");
+	};
+
+	it("suggests replying sooner when hot", async () => {
+		const tooltip = await openTooltip({ ...getHeat(), label: "hot" }, false);
+		expect(tooltip).toHaveTextContent(/replies after 5 minutes re-send/i);
+	});
+
+	it("suggests replying or compacting once the cache expired", async () => {
+		const tooltip = await openTooltip(getHeat(), true);
+		expect(tooltip).toHaveTextContent(/reply within 5 minutes.*or compact/i);
+	});
+
+	it("shows no action when not hot", async () => {
+		const tooltip = await openTooltip(getHeat(), false);
+		expect(tooltip).not.toHaveTextContent(/reply within|replies after/i);
 	});
 });
