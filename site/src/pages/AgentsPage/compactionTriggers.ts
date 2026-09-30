@@ -77,6 +77,11 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
+/**
+ * Builds the trigger fields for a model without the enabled, provider, or
+ * disabled-threshold checks. Production code should call
+ * resolveOrganizationCompactionTrigger.
+ */
 export const organizationCompactionTrigger = (
 	model: TypesGen.ChatModel,
 ): OrganizationCompactionTrigger => {
@@ -127,7 +132,13 @@ type OrganizationOverridesState = {
 	readonly error: unknown;
 };
 
-export const resolveOrganizationCompactionTriggers = (
+/**
+ * Maps each organization to its usable compaction trigger. A failed overrides
+ * fetch is reported only when no cached data exists and the organization has
+ * an enabled model, because only those organizations have rows in the
+ * thresholds table.
+ */
+export const resolveCompactionTriggersByOrganization = (
 	organizationOverrides: readonly OrganizationOverridesState[],
 	models: readonly TypesGen.ChatModel[],
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,

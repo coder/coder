@@ -98,9 +98,10 @@ const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 		</h3>
 		<p className="mt-0.5! m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each
-			model. Setting 100% turns off automatic compaction for that model.
-			{hasOrganizationCompactionOverride &&
-				" An organization override may still compact its chats."}
+			model.{" "}
+			{hasOrganizationCompactionOverride
+				? "Setting 100% turns off that model's own compaction threshold. An organization compaction model may still compact its chats."
+				: "Setting 100% turns off automatic compaction for that model."}
 		</p>
 	</div>
 );
@@ -290,7 +291,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 		draftValue === String(compactionDisabledThresholdPercent) &&
 		draft !== undefined;
 	const disablingCompactionWarning = organizationTrigger
-		? "Setting 100% turns off automatic compaction for this model. An organization override may still compact its chats."
+		? "Setting 100% turns off this model's own compaction threshold. Chats still compact when they reach the organization compaction model's trigger."
 		: "Setting 100% turns off automatic compaction for this model.";
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const providerLabel = formatProviderLabel(provider);
