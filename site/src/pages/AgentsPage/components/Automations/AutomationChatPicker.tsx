@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { getErrorStatus } from "#/api/errors";
 import { chat, chatSearch } from "#/api/queries/chats";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
+	ComboboxButton,
 	ComboboxContent,
 	ComboboxEmpty,
 	ComboboxInput,
@@ -15,23 +15,21 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 
-type AutomationChatPickerProps = {
-	id: string;
+type AutomationChatPickerProps = Pick<
+	React.ComponentProps<"button">,
+	"id" | "aria-invalid" | "aria-describedby"
+> & {
 	value: string;
 	currentUserId: string;
-	invalid: boolean;
-	describedBy?: string;
 	onChange: (chatId: string) => void;
 };
 
 /** Picks one of the current user's root chats as an automation target. */
 export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
-	id,
 	value,
 	currentUserId,
-	invalid,
-	describedBy,
 	onChange,
+	...buttonProps
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
@@ -51,7 +49,6 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	// The chats API returns root chats only; automations target your own.
 	const chats = (searchQuery.data ?? []).filter(
 		(c) => c.owner_id === currentUserId,
 	);
@@ -60,12 +57,18 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		...chat(value),
 		enabled: Boolean(value) && !listedChat,
 	});
-	const selectedChat = listedChat ?? selectedQuery.data;
-	let triggerLabel = "Select a chat";
-	if (value) {
-		triggerLabel = selectedQuery.isLoading
-			? "Loading chat"
-			: selectedChat?.title || "Untitled";
+	let selectedLabel: string | undefined;
+	if (listedChat) {
+		selectedLabel = listedChat.title || "Untitled";
+	} else if (selectedQuery.data) {
+		selectedLabel = selectedQuery.data.title || "Untitled";
+	} else if (selectedQuery.isLoading) {
+		selectedLabel = "Loading chat";
+	} else if (value) {
+		selectedLabel =
+			getErrorStatus(selectedQuery.error) === 404
+				? "Chat not found"
+				: "Could not load chat";
 	}
 
 	return (
@@ -85,16 +88,13 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 			}}
 		>
 			<ComboboxTrigger asChild>
-				<Button
-					id={id}
-					variant="outline"
-					className="justify-between"
-					aria-invalid={invalid}
-					aria-describedby={describedBy}
-				>
-					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon className="p-0.5" />
-				</Button>
+				<ComboboxButton
+					{...buttonProps}
+					selectedOption={
+						selectedLabel ? { label: selectedLabel, value } : undefined
+					}
+					placeholder="Select a chat"
+				/>
 			</ComboboxTrigger>
 			<ComboboxContent
 				shouldFilter={false}
@@ -116,7 +116,7 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 							Could not load chats.
 						</p>
 					)}
-					{!searchQuery.isLoading && (
+					{!searchQuery.isLoading && !searchQuery.isError && (
 						<ComboboxEmpty>No chats found.</ComboboxEmpty>
 					)}
 					{chats.map((c) => (

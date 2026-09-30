@@ -24,13 +24,8 @@ import {
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+import { SelectItem } from "#/components/Select/Select";
+import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
@@ -105,7 +100,7 @@ const buildCreateRequest = (
 	};
 };
 
-/** Sends only the changed fields that apply to the automation's kind and mode. */
+/** Builds a PATCH body with only the changed fields that apply to the automation's kind and target mode. */
 const buildUpdateRequest = (
 	automation: ChatAutomation,
 	initial: AutomationFormValues,
@@ -141,7 +136,7 @@ const buildUpdateRequest = (
 
 type AutomationEditorDialogProps = {
 	organizationId: string;
-	/** Edits this automation; creates a schedule when unset. */
+	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
 	error: unknown;
@@ -163,16 +158,14 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 }) => {
 	const isCreate = !automation;
 	const isSchedule = !automation || automation.kind === "schedule";
-	const chatPickerId = useId();
-	const chatErrorId = useId();
-	const whenBusyId = useId();
+	const existingChatId = useId();
+	const newChatId = useId();
 	// Radix returns focus to a DialogTrigger on close; this dialog has none.
 	const [opener] = useState(() =>
 		document.activeElement instanceof HTMLElement
 			? document.activeElement
 			: null,
 	);
-	// Server field errors apply only while a field keeps its submitted value.
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
 	const modelsQuery = useQuery(chatModels(organizationId));
@@ -228,20 +221,19 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			form,
 			submittedValues?.[name] === form.values[name] ? error : undefined,
 		)(name, options);
-	const chatField = getFieldHelpers("target_chat_id");
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isExistingChat = form.values.target_mode === "existing_chat";
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
 	);
 
-	// Validations on rendered fields show on the field; everything else shows
-	// in the alert.
 	const renderedFields: readonly string[] = [
 		"name",
 		"prompt",
 		...(isSchedule ? ["schedule_cron", "schedule_time_zone"] : []),
-		isExistingChat ? "target_chat_id" : "new_chat_model_config_id",
+		...(isExistingChat
+			? ["target_chat_id", "when_busy"]
+			: ["new_chat_model_config_id"]),
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
@@ -261,7 +253,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			}}
 		>
 			<DialogContent
-				className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={(event) => {
 					if (opener?.isConnected) {
 						event.preventDefault();
@@ -351,7 +343,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								Target
 							</h3>
 							{!isCreate && (
-								<p className="m-0 text-xs text-content-secondary">
+								<p className="m-0 text-sm text-content-secondary">
 									Changes apply to the next run.
 								</p>
 							)}
@@ -365,14 +357,18 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										}
 									}}
 								>
-									<Label className="flex items-center gap-2 font-normal">
-										<RadioGroupItem value="existing_chat" />
-										Existing chat
-									</Label>
-									<Label className="flex items-center gap-2 font-normal">
-										<RadioGroupItem value="new_chat" />
-										New chat each run
-									</Label>
+									<div className="flex items-center gap-2">
+										<RadioGroupItem id={existingChatId} value="existing_chat" />
+										<Label htmlFor={existingChatId} className="font-normal">
+											Existing chat
+										</Label>
+									</div>
+									<div className="flex items-center gap-2">
+										<RadioGroupItem id={newChatId} value="new_chat" />
+										<Label htmlFor={newChatId} className="font-normal">
+											New chat each run
+										</Label>
+									</div>
 								</RadioGroup>
 							) : (
 								<p className="m-0 text-sm text-content-secondary">
@@ -381,46 +377,32 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							)}
 							{isExistingChat ? (
 								<div className="grid grid-cols-2 gap-4">
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={chatPickerId}>Chat</Label>
-										<AutomationChatPicker
-											id={chatPickerId}
-											value={form.values.target_chat_id}
-											currentUserId={currentUserId}
-											invalid={chatField.error}
-											describedBy={chatField.error ? chatErrorId : undefined}
-											onChange={(chatId) =>
-												form.setFieldValue("target_chat_id", chatId)
-											}
-										/>
-										{chatField.error && (
-											<span
-												id={chatErrorId}
-												className="text-xs text-content-destructive"
-											>
-												{chatField.helperText}
-											</span>
-										)}
-									</div>
-									<div className="flex flex-col gap-2">
-										<Label htmlFor={whenBusyId}>When busy</Label>
-										<Select
-											value={form.values.when_busy}
-											onValueChange={(value) => {
-												if (value === "skip" || value === "queue") {
-													form.setFieldValue("when_busy", value);
+									<FormField
+										field={getFieldHelpers("target_chat_id")}
+										label="Chat"
+										control={(props) => (
+											<AutomationChatPicker
+												{...props}
+												value={form.values.target_chat_id}
+												currentUserId={currentUserId}
+												onChange={(chatId) =>
+													form.setFieldValue("target_chat_id", chatId)
 												}
-											}}
-										>
-											<SelectTrigger id={whenBusyId}>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="skip">Skip the run</SelectItem>
-												<SelectItem value="queue">Queue the prompt</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
+											/>
+										)}
+									/>
+									<SelectField
+										field={getFieldHelpers("when_busy")}
+										label="When busy"
+										onValueChange={(value) => {
+											if (value === "skip" || value === "queue") {
+												form.setFieldValue("when_busy", value);
+											}
+										}}
+									>
+										<SelectItem value="skip">Skip the run</SelectItem>
+										<SelectItem value="queue">Queue the prompt</SelectItem>
+									</SelectField>
 								</div>
 							) : (
 								<div className="flex flex-col gap-2">

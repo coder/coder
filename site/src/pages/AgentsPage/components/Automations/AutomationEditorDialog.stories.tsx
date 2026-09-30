@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, spyOn, userEvent, within } from "storybook/test";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import { chatAutomationSchedulePreviewKey } from "#/api/queries/chatAutomations";
-import { chat, organizationChatModelsKey } from "#/api/queries/chats";
+import { chatEntityKey, organizationChatModelsKey } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
 	ChatModel,
@@ -98,9 +98,8 @@ export const NewChatTarget: Story = {
 		],
 	},
 	play: async () => {
-		const body = within(document.body);
 		await userEvent.click(
-			await body.findByRole("radio", { name: "New chat each run" }),
+			await screen.findByRole("radio", { name: "New chat each run" }),
 		);
 	},
 };
@@ -113,7 +112,7 @@ export const Edit: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			{ key: chat(MockChat.id).queryKey, data: MockChat },
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",
@@ -163,7 +162,7 @@ export const SaveForbidden: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			{ key: chat(MockChat.id).queryKey, data: MockChat },
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",

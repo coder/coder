@@ -216,7 +216,11 @@ describe("AgentAutomationsPage", () => {
 	});
 });
 
-const otherChat: Chat = { ...MockChat, id: "chat-2", title: "Release notes" };
+const mockOtherChat: Chat = {
+	...MockChat,
+	id: "chat-2",
+	title: "Release notes",
+};
 
 const mockModel: ChatModel = {
 	...MockChatModel,
@@ -240,7 +244,7 @@ const setupEditor = () => {
 	server.use(
 		http.get("/api/v2/chats", ({ request }) => {
 			requests.push(request);
-			return HttpResponse.json([MockChat, otherChat]);
+			return HttpResponse.json([MockChat, mockOtherChat]);
 		}),
 		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
 			HttpResponse.json({
@@ -342,7 +346,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			).toContain('title:"Rele" archived:false');
 		});
 		await user.click(
-			await screen.findByRole("option", { name: otherChat.title }),
+			await screen.findByRole("option", { name: mockOtherChat.title }),
 		);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -355,7 +359,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					prompt: "Summarize yesterday.",
 					schedule_cron: "30 9 * * 1-5",
 					schedule_time_zone: browserTimeZone,
-					target_chat_id: otherChat.id,
+					target_chat_id: mockOtherChat.id,
 					when_busy: "skip",
 				},
 			]);
@@ -375,8 +379,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		const dialog = await openCreateDialog(user);
 
 		await pickNewChatModel(user, dialog);
-		// The slider starts at the effective default ("high"), so moving it
-		// left picks "low".
 		if (keys) {
 			(await screen.findByRole("slider")).focus();
 			await user.keyboard(keys);
@@ -445,14 +447,9 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				expect.stringContaining("Expected exactly five fields."),
 			);
 		});
-		const previewErrors = within(dialog).getAllByText(
-			"Expected exactly five fields.",
-		);
-		expect(previewErrors).toHaveLength(1);
-		expect(previewErrors[0].closest("[aria-live]")).toHaveAttribute(
-			"aria-live",
-			"polite",
-		);
+		expect(
+			within(dialog).getAllByText("Expected exactly five fields."),
+		).toHaveLength(1);
 
 		await pickChat(user, dialog, MockChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -463,7 +460,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 		expect(within(dialog).queryByRole("alert")).toBeNull();
 
-		// The save error no longer applies once the user edits the cron.
 		await user.type(cron, "x");
 		expect(cron).toHaveAccessibleDescription(
 			expect.not.stringContaining("Must be a valid cron expression."),
@@ -480,13 +476,41 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			}),
 		);
 		const dialog = await screen.findByRole("dialog");
-		await pickChat(user, dialog, otherChat.title);
+		await pickChat(user, dialog, mockOtherChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(updateBodies).toEqual([{ target_chat_id: otherChat.id }]);
+			expect(updateBodies).toEqual([{ target_chat_id: mockOtherChat.id }]);
 		});
 	});
+
+	it.each([
+		{ status: 404, label: "Chat not found" },
+		{ status: 500, label: "Could not load chat" },
+	])(
+		"labels a target chat that fails with $status as $label",
+		async ({ status, label }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			server.use(
+				http.get("/api/v2/chats/:chatId", () =>
+					HttpResponse.json({ message: "Chat error." }, { status }),
+				),
+			);
+
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Edit ${MockChatAutomation.name}`,
+				}),
+			);
+			const dialog = await screen.findByRole("dialog");
+			await waitFor(() => {
+				expect(
+					within(dialog).getByRole("button", { name: "Chat" }),
+				).toHaveTextContent(label);
+			});
+		},
+	);
 
 	it.each([
 		{

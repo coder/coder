@@ -11,6 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
 import type { FormHelpers } from "#/utils/formUtils";
@@ -23,41 +24,40 @@ const repeatOptions = [
 	{
 		value: "every-5-minutes",
 		label: "Every 5 minutes",
+		usesTime: false,
 		cron: () => "*/5 * * * *",
 	},
 	{
 		value: "every-15-minutes",
 		label: "Every 15 minutes",
+		usesTime: false,
 		cron: () => "*/15 * * * *",
 	},
 	{
 		value: "hourly",
 		label: "Hourly",
+		usesTime: true,
 		cron: (t: Time) => `${t.minute} * * * *`,
 	},
 	{
 		value: "daily",
 		label: "Daily",
+		usesTime: true,
 		cron: (t: Time) => `${t.minute} ${t.hour} * * *`,
 	},
 	{
 		value: "weekdays",
 		label: "Weekdays",
+		usesTime: true,
 		cron: (t: Time) => `${t.minute} ${t.hour} * * 1-5`,
 	},
 	{
 		value: "weekly-monday",
 		label: "Weekly on Monday",
+		usesTime: true,
 		cron: (t: Time) => `${t.minute} ${t.hour} * * 1`,
 	},
 ] as const;
-
-const timeInputRepeats: readonly string[] = [
-	"hourly",
-	"daily",
-	"weekdays",
-	"weekly-monday",
-];
 
 const parseTime = (value: string): Time | undefined => {
 	const [hour, minute] = value.split(":").map((part) => Number(part));
@@ -66,10 +66,6 @@ const parseTime = (value: string): Time | undefined => {
 	}
 	return { hour, minute };
 };
-
-const previewErrorText = (error: unknown): string =>
-	getValidationErrorMessage(error) ||
-	getErrorMessage(error, "Could not preview the schedule.");
 
 const formatRunTime = (value: string, timeZone: string): string =>
 	formatDate(new Date(value), {
@@ -94,11 +90,7 @@ type AutomationScheduleFieldsProps = {
 	onTimeZoneChange: (timeZone: string) => void;
 };
 
-/**
- * Edits a schedule. The cron expression is the stored value; Repeat and
- * Time only write generated expressions into it, and every upcoming run
- * comes from the server.
- */
+/** The cron field is the stored value; upcoming runs come only from the server. */
 export const AutomationScheduleFields: React.FC<
 	AutomationScheduleFieldsProps
 > = ({
@@ -114,8 +106,6 @@ export const AutomationScheduleFields: React.FC<
 	const cronId = useId();
 	const cronDescriptionId = useId();
 	const cronErrorId = useId();
-	const timeZoneId = useId();
-	const timeZoneErrorId = useId();
 	const [repeat, setRepeat] = useState<string>(isCreate ? "daily" : "");
 	const [time, setTime] = useState("09:00");
 
@@ -131,10 +121,9 @@ export const AutomationScheduleFields: React.FC<
 		enabled: Boolean(organizationId && debouncedCron && debouncedTimeZone),
 	});
 	const previewError = previewQuery.isError
-		? previewErrorText(previewQuery.error)
+		? getValidationErrorMessage(previewQuery.error) ||
+			getErrorMessage(previewQuery.error, "Could not preview the schedule.")
 		: undefined;
-	// A save error on the cron field wins over the preview error, so the
-	// field shows one message.
 	const cronError = cronField.error ? cronField.helperText : previewError;
 
 	const applyShortcut = (nextRepeat: string, nextTime: string) => {
@@ -199,7 +188,9 @@ export const AutomationScheduleFields: React.FC<
 						id={timeId}
 						type="time"
 						value={time}
-						disabled={!timeInputRepeats.includes(repeat)}
+						disabled={
+							!repeatOptions.find((option) => option.value === repeat)?.usesTime
+						}
 						onChange={(event) => {
 							setTime(event.target.value);
 							applyShortcut(repeat, event.target.value);
@@ -247,33 +238,18 @@ export const AutomationScheduleFields: React.FC<
 					</div>
 				</div>
 			</div>
-			<div className="flex flex-col gap-2">
-				<Label htmlFor={timeZoneId}>Time zone</Label>
-				<Select value={timeZone} onValueChange={onTimeZoneChange}>
-					<SelectTrigger
-						id={timeZoneId}
-						aria-invalid={timeZoneField.error}
-						aria-describedby={timeZoneField.error ? timeZoneErrorId : undefined}
-					>
-						<SelectValue placeholder="Select a time zone" />
-					</SelectTrigger>
-					<SelectContent>
-						{timeZones.map((zone) => (
-							<SelectItem key={zone} value={zone}>
-								{zone}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				{timeZoneField.error && (
-					<span
-						id={timeZoneErrorId}
-						className="text-xs text-content-destructive"
-					>
-						{timeZoneField.helperText}
-					</span>
-				)}
-			</div>
+			<SelectField
+				field={timeZoneField}
+				label="Time zone"
+				placeholder="Select a time zone"
+				onValueChange={onTimeZoneChange}
+			>
+				{timeZones.map((zone) => (
+					<SelectItem key={zone} value={zone}>
+						{zone}
+					</SelectItem>
+				))}
+			</SelectField>
 			<section aria-label="Upcoming runs" className="flex flex-col gap-2">
 				<h3 className="m-0 text-sm font-medium text-content-primary">
 					Upcoming runs
