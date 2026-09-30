@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -17,6 +22,7 @@ import {
 	type AutomationRunError,
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
+import { AgentPageHeader } from "./components/AgentPageHeader";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
@@ -58,8 +64,10 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
 		enabled: Boolean(organizationId),
+		// Keeps the server-computed next run current while the page is open.
+		refetchInterval: 60_000,
 	});
-	const chatsQuery = useQuery({
+	const chatsQuery = useInfiniteQuery({
 		...automationChats(chatsAutomation?.id ?? ""),
 		enabled: Boolean(chatsAutomation),
 	});
@@ -107,6 +115,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 
 	return (
 		<AgentAutomationsPageView
+			header={
+				<AgentPageHeader mobileBack={{ to: "/agents", label: "Agents" }} />
+			}
 			currentUserId={user.id}
 			organizationName={selectedOrg?.display_name || selectedOrg?.name}
 			organizationSelector={
@@ -138,9 +149,12 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 			chatsDialog={
 				chatsAutomation && {
 					automation: chatsAutomation,
-					chats: chatsQuery.data,
+					chats: chatsQuery.data?.pages.flat(),
 					isLoading: chatsQuery.isLoading,
 					error: chatsQuery.error,
+					hasNextPage: chatsQuery.hasNextPage,
+					isFetchingNextPage: chatsQuery.isFetchingNextPage,
+					onLoadMore: () => void chatsQuery.fetchNextPage(),
 					onClose: () => setChatsAutomation(undefined),
 				}
 			}

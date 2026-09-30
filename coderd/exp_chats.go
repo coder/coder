@@ -475,6 +475,13 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Has("automation_id") && chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, apiKey.UserID) {
 		parser := httpapi.NewQueryParamParser()
 		automationID = parser.UUID(r.URL.Query(), uuid.Nil, "automation_id")
+		// The query treats the nil UUID as "no filter".
+		if len(parser.Errors) == 0 && automationID == uuid.Nil {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "automation_id",
+				Detail: "Query param \"automation_id\" must not be the nil UUID.",
+			})
+		}
 		if len(parser.Errors) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Query parameters have invalid values.",

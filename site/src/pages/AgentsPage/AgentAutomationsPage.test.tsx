@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatAutomation } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
 import {
@@ -12,6 +12,11 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentAutomationsPage from "./AgentAutomationsPage";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
+
+// AgentPageHeader needs the layout's outlet context.
+vi.mock("./components/AgentPageHeader", () => ({
+	AgentPageHeader: () => null,
+}));
 
 const mockAutomation: ChatAutomation = {
 	...MockChatAutomation,
@@ -157,7 +162,32 @@ describe("AgentAutomationsPage", () => {
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=0`,
+			);
+		});
+	});
+
+	it("loads more of an automation's chats", async () => {
+		const user = userEvent.setup();
+		const requests = setup();
+		const fullPage = Array.from({ length: 25 }, (_, index) => ({
+			...MockChat,
+			id: `chat-${index}`,
+		}));
+		server.use(
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(request);
+				const offset = new URL(request.url).searchParams.get("offset");
+				return HttpResponse.json(offset === "0" ? fullPage : [MockChat]);
+			}),
+		);
+
+		await user.click(await screen.findByRole("button", { name: "View chats" }));
+		await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=25`,
 			);
 		});
 	});

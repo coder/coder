@@ -18,6 +18,8 @@ type AutomationRowProps = {
 	isOwner: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
+	/** One run request at a time, so a pending run disables every row. */
+	isRunPending: boolean;
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
@@ -131,6 +133,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		isOwner,
 		isUpdating,
 		isRunning,
+		isRunPending,
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
@@ -139,9 +142,12 @@ export const AutomationRow = memo<AutomationRowProps>(
 			automation.target_mode === "existing_chat"
 				? automation.target_chat_id
 				: undefined;
+		// Chat titles are looked up only for the viewer's own automations:
+		// the per-owner cap bounds the requests, and other owners' chats are
+		// usually unreadable, which would look like a missing target.
 		const targetQuery = useQuery({
 			...chat(targetChatId ?? ""),
-			enabled: Boolean(targetChatId),
+			enabled: isOwner && Boolean(targetChatId),
 		});
 		// A deleted target clears target_chat_id; an archived one refuses runs.
 		const isTargetMissing =
@@ -157,9 +163,14 @@ export const AutomationRow = memo<AutomationRowProps>(
 						<span className="font-medium text-content-primary">
 							{automation.name}
 						</span>
-						{automation.created_by_chat_id && (
-							<CreatingChat chatId={automation.created_by_chat_id} />
-						)}
+						{automation.created_by_chat_id &&
+							(isOwner ? (
+								<CreatingChat chatId={automation.created_by_chat_id} />
+							) : (
+								<span className="text-xs text-content-secondary">
+									Created by agent
+								</span>
+							))}
 					</div>
 				</TableCell>
 				<TableCell>
@@ -172,6 +183,8 @@ export const AutomationRow = memo<AutomationRowProps>(
 						<Badge variant="warning" size="sm">
 							Missing target
 						</Badge>
+					) : !isOwner ? (
+						<span className="text-content-secondary">Existing chat</span>
 					) : (
 						<ChatTitleLink
 							chat={targetQuery.data}
@@ -186,7 +199,8 @@ export const AutomationRow = memo<AutomationRowProps>(
 				<TableCell>
 					<Switch
 						checked={automation.enabled}
-						disabled={isUpdating}
+						// Only the owner can re-enable an automation.
+						disabled={isUpdating || (!isOwner && !automation.enabled)}
 						aria-label={`Enable ${automation.name}`}
 						onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
 					/>
@@ -197,7 +211,9 @@ export const AutomationRow = memo<AutomationRowProps>(
 							<Button
 								size="sm"
 								variant="outline"
-								disabled={!automation.enabled || isTargetMissing || isRunning}
+								disabled={
+									!automation.enabled || isTargetMissing || isRunPending
+								}
 								onClick={() => onRunNow(automation)}
 							>
 								<Spinner loading={isRunning} />

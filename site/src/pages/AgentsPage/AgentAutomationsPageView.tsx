@@ -3,6 +3,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -13,6 +14,7 @@ import {
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -35,10 +37,14 @@ type AutomationChatsDialogState = {
 	chats: readonly Chat[] | undefined;
 	isLoading: boolean;
 	error: unknown;
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onLoadMore: () => void;
 	onClose: () => void;
 };
 
 type AgentAutomationsPageViewProps = {
+	header?: React.ReactNode;
 	currentUserId: string;
 	organizationName: string | undefined;
 	organizationSelector?: React.ReactNode;
@@ -86,6 +92,19 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 						</Link>
 					</li>
 				))}
+				{state.hasNextPage && (
+					<li>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={state.isFetchingNextPage}
+							onClick={state.onLoadMore}
+						>
+							<Spinner loading={state.isFetchingNextPage} />
+							Load more
+						</Button>
+					</li>
+				)}
 			</ul>
 		);
 	}
@@ -114,6 +133,7 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 export const AgentAutomationsPageView: React.FC<
 	AgentAutomationsPageViewProps
 > = ({
+	header,
 	currentUserId,
 	organizationName,
 	organizationSelector,
@@ -147,6 +167,7 @@ export const AgentAutomationsPageView: React.FC<
 				isOwner={automation.owner_id === currentUserId}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
+				isRunPending={runningAutomationId !== undefined}
 				onToggleEnabled={onToggleEnabled}
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
@@ -156,6 +177,7 @@ export const AgentAutomationsPageView: React.FC<
 
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+			{header}
 			<div className="p-4 pt-8">
 				<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 					<SectionHeader
