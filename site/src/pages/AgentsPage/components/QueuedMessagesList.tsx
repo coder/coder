@@ -15,11 +15,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ChatAutomationNames } from "../hooks/useChatAutomationNames";
 import { AutomationLabel } from "./ChatConversation/AutomationLabel";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	automationNames?: ReadonlyMap<string, string>;
+	automationNames?: ChatAutomationNames;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
@@ -187,7 +188,8 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 								<AutomationLabel
 									automationId={item.automationId}
 									inputId={item.inputId}
-									automationName={automationNames?.get(item.automationId)}
+									automationName={automationNames?.names.get(item.automationId)}
+									isNameLoading={automationNames?.isLoading}
 								/>
 							</div>
 						)}

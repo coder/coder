@@ -66,6 +66,7 @@ import {
 	isMobileViewport,
 	mobileViewportMediaQuery,
 } from "#/utils/mobile";
+import type { ChatAutomationNames } from "../hooks/useChatAutomationNames";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
@@ -184,7 +185,7 @@ type AgentChatInputProps = {
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
-	automationNames?: ReadonlyMap<string, string>;
+	automationNames?: ChatAutomationNames;
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.

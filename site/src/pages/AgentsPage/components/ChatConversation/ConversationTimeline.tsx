@@ -17,6 +17,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
+import type { ChatAutomationNames } from "../../hooks/useChatAutomationNames";
 
 import { ConversationItem } from "../ChatElements/Conversation";
 import { Message, MessageContent } from "../ChatElements/Message";
@@ -98,6 +99,7 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	automationName?: string;
+	isAutomationNameLoading?: boolean;
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -141,6 +143,7 @@ const ChatMessageItem = memo<{
 		renderKey,
 		message,
 		automationName,
+		isAutomationNameLoading,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -240,6 +243,7 @@ const ChatMessageItem = memo<{
 							automationId={message.automation_id}
 							inputId={message.input_id}
 							automationName={automationName}
+							isNameLoading={isAutomationNameLoading}
 						/>
 					</div>
 				)}
@@ -418,7 +422,7 @@ const ChatMessageItem = memo<{
 type ConversationTimelineProps = {
 	organizationId: string | undefined;
 	parsedMessages: readonly ParsedMessageEntry[];
-	automationNames?: ReadonlyMap<string, string>;
+	automationNames?: ChatAutomationNames;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	initialActiveTurnMaxMessageId?: number;
 	streamState?: StreamState | null;
@@ -619,8 +623,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								message={message}
 								automationName={
 									message.automation_id
-										? automationNames?.get(message.automation_id)
+										? automationNames?.names.get(message.automation_id)
 										: undefined
+								}
+								// Only automation rows read the loading state, so other
+								// memoized rows skip re-rendering when fetching toggles.
+								isAutomationNameLoading={
+									message.automation_id ? automationNames?.isLoading : undefined
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}

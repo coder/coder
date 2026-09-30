@@ -2,6 +2,13 @@ import { useQuery } from "react-query";
 import { chatAutomations } from "#/api/queries/chatAutomations";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 
+export type ChatAutomationNames = {
+	names: ReadonlyMap<string, string>;
+	// True while the automations list is fetching, so a missing name may
+	// still resolve.
+	isLoading: boolean;
+};
+
 /**
  * Maps automation IDs to names for labeling automation input. Deleted or
  * unreadable automations are absent from the map.
@@ -9,7 +16,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 export const useChatAutomationNames = (
 	organizationId: string | undefined,
 	hasAutomationInput: boolean,
-): ReadonlyMap<string, string> => {
+): ChatAutomationNames => {
 	const { experiments } = useDashboard();
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId ?? ""),
@@ -18,10 +25,13 @@ export const useChatAutomationNames = (
 			hasAutomationInput &&
 			experiments.includes("chat-automations"),
 	});
-	return new Map(
-		automationsQuery.data?.map((automation) => [
-			automation.id,
-			automation.name,
-		]),
-	);
+	return {
+		names: new Map(
+			automationsQuery.data?.map((automation) => [
+				automation.id,
+				automation.name,
+			]),
+		),
+		isLoading: automationsQuery.isFetching,
+	};
 };
