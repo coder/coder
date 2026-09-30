@@ -150,10 +150,15 @@ var errCompactionStillOverLimit = xerrors.New("compaction left the chat above th
 
 // compactionStillOverLimitError wraps errCompactionStillOverLimit with a
 // message naming the setting that can clear the binding trigger.
-func compactionStillOverLimitError(source compactionTriggerSource, thresholdPercent int32, contextLimit int64) error {
+func compactionStillOverLimitError(source compactionTriggerSource, overrideEnabled bool, thresholdPercent int32, contextLimit int64) error {
 	message := "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
-	if source == compactionTriggerSourceOrganization {
-		message = "Conversation compaction could not reduce the history below the organization compaction model's compaction threshold. Start a new conversation, or ask an administrator to raise that model's compaction threshold or choose a compaction model with a larger context window."
+	switch {
+	case source == compactionTriggerSourceOrganization:
+		message = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window."
+	case overrideEnabled:
+		// Raising the chat threshold can move the binding to the override
+		// trigger, which the history may also exceed.
+		message += " An administrator may also need to raise the organization override's compaction threshold."
 	}
 	return chaterror.WithClassification(
 		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),
@@ -219,6 +224,7 @@ type generationDecisionInput struct {
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
 	compactionTriggerSource    compactionTriggerSource
+	compactionOverrideEnabled  bool
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -288,6 +294,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusStillOverLimit:
 		return generationDecision{}, terminalGeneration(compactionStillOverLimitError(
 			input.compactionTriggerSource,
+			input.compactionOverrideEnabled,
 			input.compactionThresholdPercent,
 			input.compactionContextLimit,
 		))
@@ -653,6 +660,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
 				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
+				compactionOverrideEnabled:  prepared.Compaction != nil && prepared.Compaction.Override != nil,
 			})
 		})
 	}

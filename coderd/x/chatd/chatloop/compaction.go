@@ -130,9 +130,10 @@ type CompactionOptions struct {
 }
 
 // CompactionResult is one generated summary. ThresholdPercent and
-// ContextLimit echo the requested trigger rather than the normalized one, so
-// a later check comparing the persisted summary with a new request compares
-// like with like.
+// TriggerContextLimit echo the requested trigger, not the normalized one, so
+// chatd's summaryRecordedUnderOtherTrigger compares like with like;
+// UsagePercent is still measured against the resolved limit. ContextLimit is
+// ContextLimitFallback, the chat model's window shown in chat usage.
 type CompactionResult struct {
 	SystemSummary    string
 	SummaryReport    string
@@ -143,6 +144,7 @@ type CompactionResult struct {
 	ContextLimit     int64
 	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
 	EstimatedContextTokens int64
+	TriggerContextLimit    int64
 	// Runtime is the wall-clock duration of the summarization model
 	// call, the compaction step's billable runtime (see
 	// PersistedStep.Runtime). Zero when the run was gated off before
@@ -156,13 +158,14 @@ type CompactionResult struct {
 // CompactionToolResult is the chat_summarized tool result payload, both
 // streamed and persisted.
 type CompactionToolResult struct {
-	Summary                string           `json:"summary"`
-	Source                 CompactionSource `json:"source"`
-	ThresholdPercent       int32            `json:"threshold_percent"`
-	UsagePercent           float64          `json:"usage_percent"`
-	ContextTokens          int64            `json:"context_tokens"`
-	ContextLimitTokens     int64            `json:"context_limit_tokens"`
-	EstimatedContextTokens int64            `json:"estimated_context_tokens"`
+	Summary                   string           `json:"summary"`
+	Source                    CompactionSource `json:"source"`
+	ThresholdPercent          int32            `json:"threshold_percent"`
+	UsagePercent              float64          `json:"usage_percent"`
+	ContextTokens             int64            `json:"context_tokens"`
+	ContextLimitTokens        int64            `json:"context_limit_tokens"`
+	EstimatedContextTokens    int64            `json:"estimated_context_tokens"`
+	TriggerContextLimitTokens int64            `json:"trigger_context_limit_tokens"`
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -246,25 +249,27 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		SystemSummary: strings.TrimSpace(
 			config.SystemSummaryPrefix + "\n\n" + summary,
 		),
-		SummaryReport:      summary,
-		Source:             config.Source,
-		ThresholdPercent:   opts.ThresholdPercent,
-		UsagePercent:       usagePercent,
-		ContextTokens:      contextTokens,
-		ContextLimit:       opts.ContextLimit,
-		Runtime:            summaryRuntime,
-		ProviderResponseID: responseID,
+		SummaryReport:       summary,
+		Source:              config.Source,
+		ThresholdPercent:    opts.ThresholdPercent,
+		UsagePercent:        usagePercent,
+		ContextTokens:       contextTokens,
+		ContextLimit:        opts.ContextLimitFallback,
+		TriggerContextLimit: opts.ContextLimit,
+		Runtime:             summaryRuntime,
+		ProviderResponseID:  responseID,
 	}
 	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(CompactionToolResult{
-			Summary:                summary,
-			Source:                 result.Source,
-			ThresholdPercent:       result.ThresholdPercent,
-			UsagePercent:           usagePercent,
-			ContextTokens:          contextTokens,
-			ContextLimitTokens:     result.ContextLimit,
-			EstimatedContextTokens: result.EstimatedContextTokens,
+			Summary:                   summary,
+			Source:                    result.Source,
+			ThresholdPercent:          result.ThresholdPercent,
+			UsagePercent:              usagePercent,
+			ContextTokens:             contextTokens,
+			ContextLimitTokens:        result.ContextLimit,
+			EstimatedContextTokens:    result.EstimatedContextTokens,
+			TriggerContextLimitTokens: result.TriggerContextLimit,
 		})
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleTool,

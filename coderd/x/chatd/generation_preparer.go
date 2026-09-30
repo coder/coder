@@ -868,7 +868,7 @@ func (server *Server) prepareGeneration(
 		Messages:             compactionPromptMessages,
 		ThresholdPercent:     binding.thresholdPercent,
 		ContextLimit:         binding.contextLimit,
-		ContextLimitFallback: binding.contextLimit,
+		ContextLimitFallback: modelConfig.ContextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,

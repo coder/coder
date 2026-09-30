@@ -57,6 +57,7 @@ type compactionOutcome struct {
 	ContextTokens          int64
 	ContextLimit           int64
 	EstimatedContextTokens int64
+	TriggerContextLimit    int64
 	Runtime                time.Duration
 	ProviderResponseID     string
 }

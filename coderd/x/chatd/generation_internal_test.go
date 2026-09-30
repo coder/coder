@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -76,9 +77,15 @@ func TestCompactionMetricIdentity(t *testing.T) {
 func TestCompactionStillOverLimitError(t *testing.T) {
 	t.Parallel()
 
-	err := compactionStillOverLimitError(compactionTriggerSourceOrganization, 70, 100)
+	err := compactionStillOverLimitError(compactionTriggerSourceOrganization, true, 70, 100)
 	require.ErrorIs(t, err, errCompactionStillOverLimit)
 	require.Equal(t, "organization trigger at 70% of 100 tokens: compaction left the chat above the compaction limit", err.Error())
+
+	const chatMessage = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
+	require.Equal(t, chatMessage, chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, false, 70, 100)).Message)
+	// The history may also exceed the enabled override trigger.
+	require.Equal(t, chatMessage+" An administrator may also need to raise the organization override's compaction threshold.",
+		chaterror.Classify(compactionStillOverLimitError(compactionTriggerSourceChat, true, 70, 100)).Message)
 }
 
 func TestGenerationCompactionContextLimit(t *testing.T) {
