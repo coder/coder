@@ -1,6 +1,5 @@
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_gateway_unrestricted:*';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_gateway_unrestricted:use';
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_model_config:use';
 
 -- Built-in roles take precedence during expansion. Do not reinterpret an
 -- existing custom role as an unrestricted Gateway grant.

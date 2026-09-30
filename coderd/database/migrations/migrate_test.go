@@ -4164,7 +4164,7 @@ func testMigration000606AIGatewayModelAccess(t *testing.T, sqlDB *sql.DB, next m
 		require.NoError(t, err)
 		require.Equal(t, org.roles, roles)
 	}
-	for _, scope := range []string{"ai_gateway_unrestricted:*", "ai_gateway_unrestricted:use", "chat_model_config:use"} {
+	for _, scope := range []string{"ai_gateway_unrestricted:*", "ai_gateway_unrestricted:use"} {
 		var got string
 		err := tx.QueryRowContext(ctx, "SELECT $1::api_key_scope::text", scope).Scan(&got)
 		require.NoError(t, err, "scope enum values must survive rollback")

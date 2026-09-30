@@ -82,7 +82,6 @@ export const RBACResourceActions: Partial<
 		read: "read chat model configs",
 		share: "share a chat model config with other users or groups",
 		update: "update a chat model config",
-		use: "use a chat model config",
 	},
 	connection_log: {
 		read: "read connection logs",

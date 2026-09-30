@@ -142,7 +142,6 @@ var (
 	//  - "ActionRead" :: read chat model configs
 	//  - "ActionShare" :: share a chat model config with other users or groups
 	//  - "ActionUpdate" :: update a chat model config
-	//  - "ActionUse" :: use a chat model config
 	ResourceChatModelConfig = Object{
 		Type: "chat_model_config",
 	}

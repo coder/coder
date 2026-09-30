@@ -1493,15 +1493,6 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "ChatModelConfigUse",
-			Actions:  []policy.Action{policy.ActionUse},
-			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true:  {owner, orgAdmin, orgMemberMe},
-				false: {memberMe, orgWorkspaceAccessUser, orgAgentsAccessUser, auditor, orgAuditor, userAdmin, orgUserAdmin, otherOrgUserAdmin, templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin, otherOrgAdmin, otherOrgAuditor},
-			},
-		},
-		{
 			Name:     "ChatModelConfigRead",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),

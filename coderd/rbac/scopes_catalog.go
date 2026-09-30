@@ -39,7 +39,6 @@ var externalLowLevel = map[ScopeName]struct{}{
 
 	// Chat model configs
 	"chat_model_config:read":      {},
-	"chat_model_config:use":       {},
 	"ai_gateway_unrestricted:use": {},
 	"chat_model_config:share":     {},
 

@@ -767,7 +767,6 @@ export type APIKeyScope =
 	| "chat_model_config:read"
 	| "chat_model_config:share"
 	| "chat_model_config:update"
-	| "chat_model_config:use"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -1017,7 +1016,6 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat_model_config:read",
 	"chat_model_config:share",
 	"chat_model_config:update",
-	"chat_model_config:use",
 	"chat:read",
 	"chat:share",
 	"chat:update",

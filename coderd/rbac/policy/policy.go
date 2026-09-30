@@ -92,7 +92,6 @@ var chatModelConfigActions = map[Action]ActionDefinition{
 	ActionUpdate: "update a chat model config",
 	ActionDelete: "delete a chat model config",
 	ActionShare:  "share a chat model config with other users or groups",
-	ActionUse:    "use a chat model config",
 }
 
 var aiGatewayUnrestrictedActions = map[Action]ActionDefinition{

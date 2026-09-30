@@ -1174,7 +1174,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// In all modes of workspace sharing but `none`, members need to
@@ -1250,7 +1249,6 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceOrganization.Type: {policy.ActionRead},
 		// Can read available roles.
 		ResourceAssignOrgRole.Type: {policy.ActionRead},
-		"chat_model_config":        {policy.ActionUse},
 	}
 
 	// When workspace sharing is enabled, service accounts need to see
