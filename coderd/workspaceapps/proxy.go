@@ -808,10 +808,9 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
-		// The response is 101, so the request log line stays at debug. Report
-		// an unreachable agent here instead, with the peer state from the error.
-		var unreachable *AgentUnreachableError
-		if errors.As(err, &unreachable) {
+		// A 101 response logs the request at debug, so log unreachable agents
+		// at warn here. Use s.Logger: Fields already has agent_id.
+		if unreachable, ok := errors.AsType[*AgentUnreachableError](err); ok {
 			s.Logger.Warn(ctx, "dial workspace agent", append(unreachable.Fields, slog.Error(err))...)
 		} else {
 			log.Debug(ctx, "dial workspace agent", slog.Error(err))
