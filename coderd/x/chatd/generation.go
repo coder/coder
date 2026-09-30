@@ -50,9 +50,6 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
-	// TurnExperiments holds the turn's user-scoped experiment
-	// decisions, shared by every step of the turn. Required.
-	TurnExperiments *turnExperimentDecisions
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -481,9 +478,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	if input.StopNudges == nil {
 		input.StopNudges = &stopNudgeTracker{}
 	}
-	if input.TurnExperiments == nil {
-		input.TurnExperiments = &turnExperimentDecisions{}
-	}
 	if input.TurnID == uuid.Nil {
 		input.TurnID = uuid.New()
 	}
@@ -601,7 +595,6 @@ func (s *taskStarter) runGenerationStep(
 		Chat:                      chat,
 		Messages:                  messages,
 		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
-		TurnExperiments:           input.TurnExperiments,
 	}
 	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
 	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (turnEnvironment, error) {

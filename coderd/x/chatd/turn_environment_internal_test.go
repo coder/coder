@@ -162,9 +162,8 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(env.Close)
@@ -272,9 +271,8 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
@@ -412,9 +410,8 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
 			})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -664,9 +661,8 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -946,9 +942,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            chat,
-				Messages:        messages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     chat,
+				Messages: messages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(env.Close)
@@ -956,6 +951,10 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			var offered []string
 			for _, definition := range chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools) {
 				offered = append(offered, definition.GetName())
+			}
+			// Deferred MCP tools reach the model through the find_tools catalog.
+			for name := range env.AllowInactiveTools {
+				offered = append(offered, name)
 			}
 			loaded := make(map[string]bool, len(env.Tools))
 			for _, tool := range env.Tools {

@@ -946,7 +946,6 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
-				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
