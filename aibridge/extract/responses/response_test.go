@@ -232,8 +232,10 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 		// wantUsage is whether the completed response was still recorded.
 		wantUsage bool
 		wantID    string
-		// clean is set for the one valid input, which must add no notes.
+		// clean is set for valid inputs, which must add no notes.
 		clean bool
+		// wantErr is whether the outcome carries a provider error.
+		wantErr bool
 	}{
 		{
 			name: "malformed_event",
@@ -272,6 +274,20 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 				require.Equal(t, extract.TerminalCompleted, h.ext.Outcome().Terminal.Status)
 			},
 			wantUsage: true, wantID: "resp_ws",
+		},
+		{
+			// A terminal response after an error event is still recorded,
+			// but the earlier error stays the outcome.
+			name: "terminal_after_error",
+			run: func(h harness) {
+				h.ext.OnEvent("", []byte(wsFrames[0]))
+				h.ext.OnEvent("", []byte(`{"type":"error","code":"server_error","message":"boom"}`))
+				h.ext.OnEvent("", completed)
+				out := h.ext.Outcome()
+				require.Equal(t, extract.TerminalFailed, out.Terminal.Status)
+				require.Error(t, out.Err)
+			},
+			wantUsage: true, wantID: "resp_ws", wantErr: true, clean: true,
 		},
 		{
 			// A stream cut mid-event keeps the response ID and records the
@@ -315,7 +331,7 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 			tc.run(h)
 			out := h.ext.Outcome()
 			require.Equal(t, tc.clean, len(h.notes.list()) == 0, "notes: %v", h.notes.list())
-			require.NoError(t, out.Err)
+			require.Equal(t, tc.wantErr, out.Err != nil, "err: %v", out.Err)
 			require.Equal(t, tc.wantUsage, len(h.rec.RecordedTokenUsages()) == 1)
 			require.Equal(t, tc.wantID, out.ResponseID)
 		})

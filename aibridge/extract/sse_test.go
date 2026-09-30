@@ -51,6 +51,13 @@ func TestSSEStream(t *testing.T) {
 			want: []string{"next=ok"},
 		},
 		{
+			// SSE allows CR, LF, and CRLF line endings. A CRLF split
+			// across writes is one line ending, not two.
+			name:   "bare_cr_and_split_crlf",
+			writes: []string{"event: a\rdata: one\r\r", "event: b\r", "\ndata: two\r", "\n\r\n"},
+			want:   []string{"a=one", "b=two"},
+		},
+		{
 			// An event without its terminating blank line is not
 			// dispatched when the stream ends.
 			name:   "unterminated_event_dropped",

@@ -73,8 +73,8 @@ type ResponseExtraction struct {
 	// recorded is set once a terminal response object was recorded.
 	recorded bool
 	// settled is set once any terminal event, response object or error,
-	// was observed. Later errors are parse notes and do not change the
-	// outcome.
+	// was observed. The first one decides the outcome: later errors are
+	// parse notes, and a later terminal response is only recorded.
 	settled bool
 	notes   extract.ParseNotes
 }
@@ -211,18 +211,23 @@ func (e *ResponseExtraction) finish(status extract.TerminalStatus, r gjson.Resul
 		return
 	}
 	e.recorded = true
+	// A terminal response after an error event is still recorded, since
+	// the usage was consumed, but the earlier error stays the outcome.
+	erroredFirst := e.settled
 	e.settled = true
 	e.observeResponseID(r)
 
-	e.outcome.Terminal = extract.Terminal{Status: status}
-	switch status {
-	case extract.TerminalIncomplete:
-		e.outcome.Terminal.Reason = r.Get("incomplete_details.reason").String()
-	case extract.TerminalFailed:
-		errObj := r.Get("error")
-		code := errObj.Get("code").String()
-		e.outcome.Terminal.Reason = code
-		e.outcome.Err = providerError(0, errObj.Get("message").String(), errObj.Get("type").String(), code, "response failed")
+	if !erroredFirst {
+		e.outcome.Terminal = extract.Terminal{Status: status}
+		switch status {
+		case extract.TerminalIncomplete:
+			e.outcome.Terminal.Reason = r.Get("incomplete_details.reason").String()
+		case extract.TerminalFailed:
+			errObj := r.Get("error")
+			code := errObj.Get("code").String()
+			e.outcome.Terminal.Reason = code
+			e.outcome.Err = providerError(0, errObj.Get("message").String(), errObj.Get("type").String(), code, "response failed")
+		}
 	}
 
 	// Records use the terminal object's own ID and model, as the
