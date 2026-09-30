@@ -12,6 +12,7 @@ import {
 	type OrganizationCompactionTrigger,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
+import type { CompactionTriggerLoadError } from "./components/UserCompactionThresholdSettings";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
 	providerInfoByIDFromDescriptors,
@@ -56,16 +57,21 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const isCompactionOverridesLoading = modelOverrideQueries.some(
 		(query) => query.isLoading,
 	);
-	const compactionOverridesError = modelOverrideQueries.find(
-		(query) => query.error,
-	)?.error;
+	const compactionTriggerLoadErrors: CompactionTriggerLoadError[] = [];
 	const compactionTriggersByOrganizationID = new Map<
 		string,
 		OrganizationCompactionTrigger
 	>();
 	for (const [index, organization] of organizations.entries()) {
+		const overridesQuery = modelOverrideQueries[index];
+		if (overridesQuery?.error && overridesQuery.data === undefined) {
+			compactionTriggerLoadErrors.push({
+				organizationID: organization.id,
+				error: overridesQuery.error,
+			});
+		}
 		const trigger = resolveOrganizationCompactionTrigger(
-			modelOverrideQueries[index]?.data?.overrides.find(
+			overridesQuery?.data?.overrides.find(
 				(override) => override.context === "compaction",
 			)?.model_config_id,
 			organizationModels.models.filter(
@@ -88,7 +94,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			isLoadingModels={
 				organizationModels.isLoading || isCompactionOverridesLoading
 			}
-			compactionTriggersError={compactionOverridesError}
+			compactionTriggerLoadErrors={compactionTriggerLoadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}

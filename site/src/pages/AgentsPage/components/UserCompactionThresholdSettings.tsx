@@ -43,10 +43,16 @@ import {
 	bindingCompactionTriggerPoint,
 	bindingCompactionTriggerSource,
 	type CompactionTrigger,
+	compactionDisabledThresholdPercent,
 	compactionPointAsPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 } from "../compactionTriggers";
+
+export type CompactionTriggerLoadError = {
+	readonly organizationID: string;
+	readonly error: unknown;
+};
 
 type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
@@ -57,7 +63,7 @@ type UserCompactionThresholdSettingsProps = {
 		OrganizationCompactionTrigger
 	>;
 	modelsError?: unknown;
-	compactionTriggersError?: unknown;
+	compactionTriggerLoadErrors?: readonly CompactionTriggerLoadError[];
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -98,7 +104,7 @@ const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 			Control when conversation context is automatically summarized for each
 			model. Setting 100% turns off automatic compaction for that model.
 			{hasOrganizationCompactionOverride &&
-				" An organization override may still compact it."}
+				" An organization override may still compact its chats."}
 		</p>
 	</div>
 );
@@ -184,8 +190,6 @@ const EffectiveCompactionThreshold: React.FC<
 		organizationTriggerPercent?.toLocaleString("en-US", {
 			maximumFractionDigits: 1,
 		});
-	// Setting 100% disables only the chat model
-	// trigger, not the organization override.
 	const isOrganizationTriggerBinding =
 		chatTrigger !== undefined &&
 		organizationTrigger !== undefined &&
@@ -248,7 +252,7 @@ const EffectiveCompactionThreshold: React.FC<
 		<TableCell className="w-0 whitespace-nowrap tabular-nums">
 			{chatTrigger === undefined
 				? null
-				: chatTrigger.thresholdPercent >= 100
+				: chatTrigger.thresholdPercent >= compactionDisabledThresholdPercent
 					? off
 					: `${chatTrigger.thresholdPercent}%`}
 		</TableCell>
@@ -287,7 +291,8 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	const isInvalid = draftValue.length > 0 && parsedDraftValue === null;
 	// Only warn when user-typed, not when loaded from the server.
 	const isDraftDisablingCompaction =
-		draftValue === "100" && draft !== undefined;
+		draftValue === String(compactionDisabledThresholdPercent) &&
+		draft !== undefined;
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const providerLabel = formatProviderLabel(provider);
 	const effectiveThresholdPercent =
@@ -371,7 +376,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 								{isInvalid
 									? "Enter a whole number between 0 and 100."
 									: organizationTrigger
-										? "Setting 100% turns off automatic compaction for this model. An organization override may still compact it."
+										? "Setting 100% turns off automatic compaction for this model. An organization override may still compact its chats."
 										: "Setting 100% turns off automatic compaction for this model."}
 							</TooltipContent>
 						)}
@@ -410,7 +415,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 					<span className="sr-only" aria-live="polite">
 						Setting 100% turns off automatic compaction for this model.
 						{organizationTrigger &&
-							" An organization override may still compact it."}
+							" An organization override may still compact its chats."}
 					</span>
 				)}
 			</TableCell>
@@ -431,7 +436,7 @@ export const UserCompactionThresholdSettings: React.FC<
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
-	compactionTriggersError,
+	compactionTriggerLoadErrors = [],
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -665,15 +670,22 @@ export const UserCompactionThresholdSettings: React.FC<
 							)}
 						</p>
 					)}
-					{compactionTriggersError != null && (
+					{compactionTriggerLoadErrors.length > 0 && (
 						<p className="m-0 text-xs text-content-destructive">
 							{getErrorMessage(
-								compactionTriggersError,
+								compactionTriggerLoadErrors[0]?.error,
 								"Failed to load organization compaction settings.",
 							)}
 							<span className="block">
-								Effective values ignore the organization override. Reload the
-								page to retry.
+								Effective values in{" "}
+								{compactionTriggerLoadErrors
+									.map(
+										({ organizationID }) =>
+											organizationNameByID.get(organizationID) ??
+											organizationID,
+									)
+									.join(", ")}{" "}
+								ignore the organization override. Reload the page to retry.
 							</span>
 						</p>
 					)}

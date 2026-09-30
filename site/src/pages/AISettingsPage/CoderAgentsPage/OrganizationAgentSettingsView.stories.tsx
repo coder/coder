@@ -39,7 +39,7 @@ const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
 const mockWarningModels = [
 	mockSmallCompactionModel,
 	model,
-	alternateModel,
+	{ ...alternateModel, compression_threshold: 100 },
 	mockTinyModelWithCompactionOff,
 ];
 const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -196,6 +196,7 @@ export const CompactionTriggerWarning: Story = {
 	args: {
 		overrides: mockWarningOverrides,
 		enabledModels: mockWarningModels,
+		// available: false covers the alert's "organization" scope.
 		providerInfoByID: new Map([
 			[
 				model.ai_provider_id,

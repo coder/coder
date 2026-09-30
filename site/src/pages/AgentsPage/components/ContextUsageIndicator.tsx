@@ -31,6 +31,7 @@ import {
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
 import {
+	compactionDisabledThresholdPercent,
 	compactionPointAsPercent,
 	isCompactionPointBeyondWindow,
 	type ResolvedCompactionThreshold,
@@ -291,16 +292,14 @@ export const ContextUsageIndicator: React.FC<{
 					displayedLimitTokens,
 				) ?? compaction.percent)
 			: compaction?.percent;
-	// A chat threshold of 100 is the disabled sentinel, while an organization
-	// point at exactly 100% of the displayed window still fires; past it
-	// nothing can compact within this window.
 	const isCompactionReachable =
 		compaction?.source === "organization"
 			? !isCompactionPointBeyondWindow(
 					compaction.pointTokens,
 					displayedLimitTokens,
 				)
-			: compactionPercent !== undefined && compactionPercent < 100;
+			: compactionPercent !== undefined &&
+				compactionPercent < compactionDisabledThresholdPercent;
 	const compactionLabel =
 		compaction !== undefined &&
 		compactionPercent !== undefined &&
