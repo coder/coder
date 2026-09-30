@@ -83,6 +83,9 @@ func (r *RootCmd) shareWorkspace() *serpent.Command {
 		Use:     "add <workspace> --user <user>:<role> --group <group>:<role>",
 		Aliases: []string{"share"},
 		Short:   "Share a workspace with a user or group.",
+		Long: "This command fails if workspace sharing is disabled for the deployment, or if the " +
+			"organization's sharing policy doesn't allow sharing the workspace. See " +
+			"https://coder.com/docs/user-guides/shared-workspaces#policies for sharing policies.",
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",
@@ -182,6 +185,9 @@ func (r *RootCmd) unshareWorkspace() *serpent.Command {
 		Use:     "remove <workspace> --user <user> --group <group>",
 		Aliases: []string{"unshare"},
 		Short:   "Remove shared access for users or groups from a workspace.",
+		Long: "This command fails if workspace sharing is disabled for the deployment, or if the " +
+			"organization's sharing policy doesn't allow sharing the workspace. See " +
+			"https://coder.com/docs/user-guides/shared-workspaces#policies for sharing policies.",
 		Options: serpent.OptionSet{
 			{
 				Name:        "user",

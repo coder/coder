@@ -8,6 +8,11 @@ USAGE:
 
   Aliases: share
 
+  This command fails if workspace sharing is disabled for the deployment, or if
+  the organization's sharing policy doesn't allow sharing the workspace. See
+  https://coder.com/docs/user-guides/shared-workspaces#policies for sharing
+  policies.
+
 OPTIONS:
       --group string-array
           A comma separated list of groups to share the workspace with.

@@ -19,6 +19,12 @@ Aliases:
 coder sharing remove [flags] <workspace> --user <user> --group <group>
 ```
 
+## Description
+
+```console
+This command fails if workspace sharing is disabled for the deployment, or if the organization's sharing policy doesn't allow sharing the workspace. See https://coder.com/docs/user-guides/shared-workspaces#policies for sharing policies.
+```
+
 ## Options
 
 ### --user
