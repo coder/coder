@@ -227,9 +227,9 @@ These tools are conditionally available based on the workspace contents.
 
 This tool runs in the control plane and replaces the full MCP tool schemas with a searchable catalog, so a large MCP surface does not consume the context window.
 
-| Tool         | What it does                                                                                                                                                                                           |
-|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `find_tools` | Searches the deferred MCP tool catalog by keyword or exact name and activates the matching tools. Available only when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer. |
+| Tool         | What it does                                                                                                                                           |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `find_tools` | Searches the deferred MCP tool catalog by keyword or exact name and activates the matching tools. Available only when the turn has MCP tools to defer. |
 
 ## What runs where
 

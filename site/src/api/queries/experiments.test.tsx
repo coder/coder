@@ -14,7 +14,7 @@ import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { experiments } from "./experiments";
 
 const mockEmbeddedExperiments: Experiment[] = ["example"];
-const mockFetchedExperiments: Experiment[] = ["mcp-tool-search"];
+const mockFetchedExperiments: Experiment[] = [];
 
 const mockOwnerPageMetadata: Pick<RuntimeHtmlMetadata, "user" | "experiments"> =
 	{

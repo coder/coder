@@ -936,7 +936,7 @@ func New(options *Options) *API {
 					options.PrometheusRegistry,
 				)
 			}
-			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
+			api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
 				ReplicaID:                      api.ID,
@@ -950,7 +950,6 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
-				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -967,9 +966,6 @@ func New(options *Options) *API {
 				Auditor:                        &api.Auditor,
 				Limits:                         api.chatLimits,
 			})
-			if err != nil {
-				panic(xerrors.Errorf("create chat daemon: %w", err))
-			}
 			if !options.ChatWorkerDisabled {
 				api.chatDaemon.Start()
 			}

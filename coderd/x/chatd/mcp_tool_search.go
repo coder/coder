@@ -112,16 +112,14 @@ func workspaceMCPServerName(tool fantasy.AgentTool) string {
 }
 
 type mcpToolSearchInput struct {
-	experimentEnabled bool
-	candidates        []deferredMCPTool
-	dynamicToolNames  map[string]bool
+	candidates       []deferredMCPTool
+	dynamicToolNames map[string]bool
 }
 
 // decideMCPToolSearch reports whether MCP tool schemas are deferred
-// behind find_tools. With the experiment enabled, every generation with
-// deferrable candidates defers.
+// behind find_tools. Every generation with deferrable candidates defers.
 func decideMCPToolSearch(input mcpToolSearchInput) bool {
-	if !input.experimentEnabled || len(input.candidates) == 0 {
+	if len(input.candidates) == 0 {
 		return false
 	}
 	// A client-executed dynamic tool named find_tools would otherwise be

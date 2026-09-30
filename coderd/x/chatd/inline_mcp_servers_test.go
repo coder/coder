@@ -143,7 +143,6 @@ func TestChatInlineMCPServers(t *testing.T) {
 		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			withoutMCPToolSearch(cfg)
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
 		})
 
@@ -212,7 +211,6 @@ func TestChatInlineMCPServers(t *testing.T) {
 				model := newChatInlineMCPModel(t, "")
 				user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 				server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-					withoutMCPToolSearch(cfg)
 					tc.configure(cfg)
 					cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
 				})
@@ -254,7 +252,6 @@ func TestChatInlineMCPServers(t *testing.T) {
 		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			withoutMCPToolSearch(cfg)
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
 		})
 
@@ -290,7 +287,6 @@ func TestChatInlineMCPServers(t *testing.T) {
 		model := newChatInlineMCPModel(t, "bot__echo")
 		user, org, modelConfig := seedChatDependenciesWithProvider(t, db, "openai-compat", model.url)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			withoutMCPToolSearch(cfg)
 			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, model.url))
 		})
 

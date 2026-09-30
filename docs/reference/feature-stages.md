@@ -95,9 +95,9 @@ Each user-scoped experiment has at most one rule:
 For example, to turn on an experiment for users in one group, widen it to every member of the `coder` organization, and then turn it off for everyone:
 
 ```sh
-coder exp experiment-rules set mcp-tool-search '"coder/beta-testers" in user.groups'
-coder exp experiment-rules set mcp-tool-search '"coder/Everyone" in user.groups'
-coder exp experiment-rules off mcp-tool-search
+coder exp experiment-rules set example '"coder/beta-testers" in user.groups'
+coder exp experiment-rules set example '"coder/Everyone" in user.groups'
+coder exp experiment-rules off example
 ```
 
 Reset doesn't turn an experiment off.

@@ -30,8 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	experimentrules "github.com/coder/coder/v2/coderd/experiments"
-	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -155,10 +153,7 @@ func newInternalTestServer(
 		opt(&cfg)
 	}
 
-	experiments := experimentsOrDefault(cfg.experiments)
-	evaluator, err := experimentrules.New(cfg.logger, experimentstest.Store{}, experiments)
-	require.NoError(t, err)
-	server, err := New(ps, Config{
+	server := New(ps, Config{
 		Logger:    cfg.logger,
 		Database:  db,
 		ReplicaID: uuid.New(),
@@ -167,12 +162,10 @@ func newInternalTestServer(
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
-		Experiments:                experiments,
-		ExperimentEvaluator:        evaluator,
+		Experiments:                experimentsOrDefault(cfg.experiments),
 		AIBridgeTransportFactory:   cfg.transportFactory,
 		Limits:                     cfg.limits,
 	})
-	require.NoError(t, err)
 	if cfg.startWorker {
 		server.Start()
 	}

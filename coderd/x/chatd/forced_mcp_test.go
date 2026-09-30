@@ -54,10 +54,7 @@ func newToolRecordingOpenAI(t *testing.T) (string, func() [][]string) {
 		if !req.Stream {
 			return chattest.OpenAINonStreamingResponse("title")
 		}
-		names := make([]string, 0, len(req.Tools))
-		for _, tool := range req.Tools {
-			names = append(names, tool.Function.Name)
-		}
+		names := offeredToolNames(req)
 		mu.Lock()
 		calls = append(calls, names)
 		mu.Unlock()
@@ -119,7 +116,6 @@ func TestCreateChat_ForceOnMCPServerEnforced(t *testing.T) {
 		coderdtest.AccessControlStorePointer(),
 	)
 	server := newActiveTestServer(t, authzDB, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -197,7 +193,6 @@ func TestSendMessage_ForceOnMCPServerEnforced(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -270,7 +265,6 @@ func TestGeneration_ForceOnMCPServerEnforcedForExistingChats(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 

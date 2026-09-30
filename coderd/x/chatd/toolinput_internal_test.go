@@ -166,9 +166,8 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
