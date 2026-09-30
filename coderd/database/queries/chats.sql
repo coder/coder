@@ -421,6 +421,21 @@ WHERE
 ORDER BY
     id ASC;
 
+-- name: GetDeletedChatMessagesByChatID :many
+-- Includes every visibility because a model-only row can hold the result of
+-- a tool call.
+SELECT
+    *
+FROM
+    chat_messages
+WHERE
+    chat_id = @chat_id::uuid
+    AND id > @after_id::bigint
+    AND id < @before_id::bigint
+    AND deleted = true
+ORDER BY
+    id ASC;
+
 -- name: GetChatMessagesByRevisionForStream :many
 -- Stream deltas and reset snapshots must use the same message order.
 SELECT
