@@ -914,7 +914,8 @@ lint/mise-versions:
 
 # Fails when the docs-gen filter in .github/workflows/ci.yaml misses a file
 # make gen writes under a path the docs filter matches: one in GEN_FILES, or a
-# tracked page with a generated-file header, such as a nested CLI page.
+# tracked page that opens with the generated-content banner, such as a nested
+# CLI page.
 lint/docs-gen-filter:
 	go run ./scripts/docsgenfiltercheck $(GEN_FILES)
 .PHONY: lint/docs-gen-filter
