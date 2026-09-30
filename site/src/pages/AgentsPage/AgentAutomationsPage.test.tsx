@@ -1000,6 +1000,9 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		).toBeNull();
 		// The editor stays open mid-rotation so focus can return to the button.
 		await user.keyboard("{Escape}");
+		const unload = new Event("beforeunload", { cancelable: true });
+		window.dispatchEvent(unload);
+		expect(unload.defaultPrevented).toBe(true);
 		releaseRotate();
 
 		const secretDialog = await screen.findByRole("dialog", {
