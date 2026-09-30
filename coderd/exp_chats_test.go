@@ -76,7 +76,6 @@ func newChatTestOptions(
 	// Enable experiment-gated chat endpoints in tests.
 	if len(values.Experiments) == 0 {
 		values.Experiments = serpent.StringArray{
-			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
 			string(codersdk.ExperimentAgentLifecycleHooks),
 			string(codersdk.ExperimentChatInlineMCPServers),
@@ -16216,7 +16215,7 @@ func TestChatModelOverridesComputerUseRequiresVirtualDesktopExperiment(t *testin
 	t.Parallel()
 
 	values := coderdtest.DeploymentValues(t)
-	values.Experiments = serpent.StringArray{string(codersdk.ExperimentChatAdvisor)}
+	values.Experiments = serpent.StringArray{string(codersdk.ExperimentAgentLifecycleHooks)}
 	adminClient := newChatClientWithDeploymentValues(t, values)
 	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
 
@@ -17321,18 +17320,6 @@ func TestChatAdvisorConfig(t *testing.T) {
 		sdkErr := requireSDKError(t, err, http.StatusInternalServerError)
 		require.Contains(t, sdkErr.Message, "invalid")
 	})
-}
-
-func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = serpent.StringArray{string(codersdk.ExperimentAgentLifecycleHooks)}
-	adminClient := newChatClientWithDeploymentValues(t, values)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-	resp, err := adminClient.GetChatAdvisorConfig(ctx)
-	require.NoError(t, err)
-	require.False(t, resp.Enabled)
 }
 
 func TestChatWorkspaceTTL(t *testing.T) {

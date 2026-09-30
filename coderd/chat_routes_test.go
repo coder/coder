@@ -32,6 +32,7 @@ func TestChatRouteMounts(t *testing.T) {
 	for _, route := range []string{
 		"/api/v2/chats",
 		"/api/v2/chats/config/system-prompt",
+		"/api/v2/chats/config/advisor",
 		fmt.Sprintf("/api/experimental/chats/%s/debug/runs", chat.ID),
 		"/api/experimental/chats/projects",
 	} {
@@ -48,6 +49,7 @@ func TestChatRouteMounts(t *testing.T) {
 		// Promoted routes no longer answer on /api/experimental.
 		{http.MethodGet, "/api/experimental/chats"},
 		{http.MethodGet, "/api/experimental/chats/config/system-prompt"},
+		{http.MethodGet, "/api/experimental/chats/config/advisor"},
 		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", firstUser.OrganizationID)},
 		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", firstUser.OrganizationID)},
 		{http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", uuid.New())},

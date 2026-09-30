@@ -746,21 +746,15 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
-	// The stored config says enabled, so RootAdvisorOff shows that the experiment alone gates the advisor.
 	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	newServer := func(experiments ...codersdk.Experiment) *Server {
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}, experiments...)),
-		)
-		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
-		return server
-	}
-	advisorServer := newServer(codersdk.ExperimentChatAdvisor)
-	advisorOffServer := newServer()
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
+	)
+	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -780,8 +774,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		mode     database.NullChatMode
 		planMode database.NullChatPlanMode
 		child    bool
-		// advisorOff prepares the turn on a server without the advisor experiment.
-		advisorOff bool
 		// spawn delegates to a general sub-agent, which must keep the
 		// parent's plan mode.
 		spawn bool
@@ -803,13 +795,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
-		},
-		{
-			name:       "RootAdvisorOff",
-			advisorOff: true,
-			prompt:     []string{acpSubagentPromptBlock},
-			want:       []string{"spawn_agent"},
-			dontWant:   []string{chatadvisor.ToolName},
 		},
 		{
 			name:     "GeneralChild",
@@ -913,10 +898,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			require.NoError(t, err)
 			if !tt.child {
 				dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
-			}
-			server := advisorServer
-			if tt.advisorOff {
-				server = advisorOffServer
 			}
 
 			chat, messages := created.Chat, created.InitialMessages

@@ -41,7 +41,6 @@ type OrganizationAgentSettingsViewProps = {
 	overridesRefetchError: unknown;
 	modelsError: unknown;
 	canEdit: boolean;
-	showAdvisor: boolean;
 	showComputerUse: boolean;
 	saveByContext: ReadonlyMap<
 		TypesGen.ChatModelOverrideContext,
@@ -256,7 +255,6 @@ const OrganizationAgentSettingsView: React.FC<
 	overridesRefetchError,
 	modelsError,
 	canEdit,
-	showAdvisor,
 	showComputerUse,
 	saveByContext,
 	savingContexts,
@@ -270,9 +268,7 @@ const OrganizationAgentSettingsView: React.FC<
 	const visibleSettings =
 		overridesLoadError == null
 			? settings.filter(
-					(setting) =>
-						(setting.context !== "advisor" || showAdvisor) &&
-						(setting.context !== "computer_use" || showComputerUse),
+					(setting) => setting.context !== "computer_use" || showComputerUse,
 				)
 			: [];
 

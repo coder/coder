@@ -3874,7 +3874,7 @@ class ExperimentalApiMethods {
 
 	getChatAdvisorConfig = async (): Promise<AdvisorConfig> => {
 		const response = await this.axios.get<AdvisorConfig>(
-			"/api/experimental/chats/config/advisor",
+			"/api/v2/chats/config/advisor",
 		);
 		return response.data;
 	};
@@ -3882,7 +3882,7 @@ class ExperimentalApiMethods {
 	updateChatAdvisorConfig = async (
 		req: UpdateAdvisorConfigRequest,
 	): Promise<void> => {
-		await this.axios.put("/api/experimental/chats/config/advisor", req);
+		await this.axios.put("/api/v2/chats/config/advisor", req);
 	};
 
 	getChatWorkspaceTTL =

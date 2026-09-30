@@ -5624,11 +5624,6 @@ func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	if overrideContext == codersdk.ChatModelOverrideContextAdvisor &&
-		!api.Experiments.Enabled(codersdk.ExperimentChatAdvisor) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
 	if overrideContext == codersdk.ChatModelOverrideContextComputerUse &&
 		!api.Experiments.Enabled(codersdk.ExperimentChatVirtualDesktop) {
 		httpapi.ResourceNotFound(rw)
@@ -6300,7 +6295,13 @@ func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat advisor config
+// @ID get-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.AdvisorConfig
+// @Router /api/v2/chats/config/advisor [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
@@ -6322,12 +6323,19 @@ func (api *API) getChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	resp.Enabled = api.Experiments.Enabled(codersdk.ExperimentChatAdvisor)
+	resp.Enabled = true
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat advisor config
+// @ID update-chat-advisor-config
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateAdvisorConfigRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/advisor [put]
 func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {

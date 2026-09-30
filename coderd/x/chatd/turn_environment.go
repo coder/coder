@@ -283,7 +283,7 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)

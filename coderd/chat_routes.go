@@ -67,6 +67,8 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
 			r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
 			r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
+			r.Get("/advisor", api.getChatAdvisorConfig)
+			r.Put("/advisor", api.putChatAdvisorConfig)
 		})
 		r.Route("/{chat}", func(r chi.Router) {
 			r.Use(httpmw.ExtractChatParam(api.Database))
@@ -113,11 +115,12 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
 		r.Get("/projects", api.listChatProjects)
+		// Reserve the promoted /config segment so it returns 404 instead
+		// of falling into the {chat} wildcard and failing UUID parsing
+		// with a 400.
 		r.Route("/config", func(r chi.Router) {
-			r.Group(func(r chi.Router) {
-				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-				r.Get("/advisor", api.getChatAdvisorConfig)
-				r.Put("/advisor", api.putChatAdvisorConfig)
+			r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+				httpapi.RouteNotFound(rw)
 			})
 		})
 		r.Route("/{chat}", func(r chi.Router) {

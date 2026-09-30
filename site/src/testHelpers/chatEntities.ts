@@ -1,4 +1,5 @@
 import type {
+	AdvisorConfig,
 	Chat,
 	ChatAttachment,
 	ChatContext,
@@ -138,6 +139,12 @@ export const MockChatContextACPHarnessIssue: ChatContext = {
 			error: "cannot start harness",
 		},
 	],
+};
+
+export const MockAdvisorConfig: AdvisorConfig = {
+	enabled: true,
+	max_uses_per_run: 5,
+	max_output_tokens: 2048,
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {
