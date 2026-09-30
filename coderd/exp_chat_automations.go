@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -462,9 +463,49 @@ func (api *API) postChatAutomationEvent(rw http.ResponseWriter, r *http.Request)
 		writeChatAutomationEventError(ctx, rw, err)
 		return
 	}
+	if automation.TargetMode == database.ChatAutomationTargetModeNewChat {
+		api.auditChatAutomationCreatedChat(ctx, r, automation, result)
+	}
 	httpapi.Write(ctx, rw, http.StatusAccepted, codersdk.ChatAutomationEventResponse{
 		InputID: result.InputID,
 		ChatID:  result.ChatID,
+	})
+}
+
+// auditChatAutomationCreatedChat records the chat that a new_chat
+// automation created, as chat creation through the chat API does. The
+// webhook caller has no Coder identity, so the entry names the automation
+// owner, whose authority created the chat, and carries the automation and
+// input ids.
+func (api *API) auditChatAutomationCreatedChat(ctx context.Context, r *http.Request, automation database.ChatAutomation, result chatd.PublishAutomationResult) {
+	//nolint:gocritic // The webhook caller has no Coder identity; the audit entry needs the chat the owner's automation created.
+	chat, err := api.Database.GetChatByID(dbauthz.AsChatd(ctx), result.ChatID)
+	if err != nil {
+		api.Logger.Warn(ctx, "load chat created by automation for audit",
+			slog.F("automation_id", automation.ID),
+			slog.F("chat_id", result.ChatID),
+			slog.Error(err),
+		)
+		return
+	}
+	fields, err := json.Marshal(map[string]string{
+		"automation_id": automation.ID.String(),
+		"input_id":      result.InputID.String(),
+	})
+	if err != nil {
+		fields = nil
+	}
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+		Audit:            *api.Auditor.Load(),
+		Log:              api.Logger,
+		UserID:           automation.OwnerID,
+		OrganizationID:   automation.OrganizationID,
+		Action:           database.AuditActionCreate,
+		New:              chat,
+		Status:           http.StatusAccepted,
+		IP:               r.RemoteAddr,
+		UserAgent:        r.UserAgent(),
+		AdditionalFields: fields,
 	})
 }
 

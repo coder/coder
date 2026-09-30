@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -215,7 +216,8 @@ func TestChatAutomationEvents(t *testing.T) {
 
 	t.Run("NewChatTarget", func(t *testing.T) {
 		t.Parallel()
-		env := newChatAutomationTestEnv(t, nil, nil)
+		auditor := audit.NewMock()
+		env := newChatAutomationTestEnv(t, nil, func(o *coderdtest.Options) { o.Auditor = auditor })
 		ctx := testutil.Context(t, testutil.WaitLong)
 		req := env.webhookRequest()
 		req.TargetMode = codersdk.ChatAutomationTargetModeNewChat
@@ -236,6 +238,13 @@ func TestChatAutomationEvents(t *testing.T) {
 		_, err = time.Parse("2006-01-02 15:04 UTC", strings.TrimPrefix(chat.Title, "Deploy hook "))
 		require.NoError(t, err, "the title ends with the acceptance time in UTC")
 		require.Equal(t, codersdk.ChatClientTypeAPI, chat.ClientType)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:         database.AuditActionCreate,
+			ResourceType:   database.ResourceTypeChat,
+			ResourceID:     res.ChatID,
+			UserID:         env.memberID,
+			OrganizationID: env.orgID,
+		}), "the created chat is audited as created by the automation owner")
 
 		messages, err := env.member.GetChatMessages(ctx, res.ChatID, nil)
 		require.NoError(t, err)
