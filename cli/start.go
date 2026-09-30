@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -18,7 +20,8 @@ func (r *RootCmd) start() *serpent.Command {
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
 
-		noWait bool
+		noWait          bool
+		templateVersion string
 	)
 
 	cmd := &serpent.Command{
@@ -35,6 +38,11 @@ func (r *RootCmd) start() *serpent.Command {
 				Value:       serpent.BoolOf(&noWait),
 				Hidden:      false,
 			},
+			{
+				Flag:        "template-version",
+				Description: "Start with a named version of the workspace template.",
+				Value:       serpent.StringOf(&templateVersion),
+			},
 			cliui.SkipPromptOption(),
 		},
 		Handler: func(inv *serpent.Invocation) error {
@@ -50,9 +58,16 @@ func (r *RootCmd) start() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			versionID, err := resolveWorkspaceTemplateVersion(inv.Context(), client, workspace, templateVersion)
+			if err != nil {
+				return err
+			}
+			if versionID != uuid.Nil && (workspace.LatestBuild.Status == codersdk.WorkspaceStatusPending || workspace.LatestBuild.Status == codersdk.WorkspaceStatusStarting) {
+				return xerrors.Errorf("cannot start with a template version while the workspace is %s; wait for the current build to finish", workspace.LatestBuild.Status)
+			}
 			var build codersdk.WorkspaceBuild
-			switch workspace.LatestBuild.Status {
-			case codersdk.WorkspaceStatusPending:
+			switch {
+			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusPending:
 				// The above check is technically duplicated in cliutil.WarnmatchedProvisioners
 				// but we still want to avoid users spamming multiple builds that will
 				// not be picked up.
@@ -69,13 +84,13 @@ func (r *RootCmd) start() *serpent.Command {
 				}); err != nil {
 					return err
 				}
-			case codersdk.WorkspaceStatusRunning:
+			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning && versionID == uuid.Nil:
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already running!\n",
 					cliui.Keyword(workspace.Name),
 				)
 				return nil
-			case codersdk.WorkspaceStatusStarting:
+			case workspace.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already starting.\n",
 					cliui.Keyword(workspace.Name),
@@ -105,12 +120,12 @@ func (r *RootCmd) start() *serpent.Command {
 						return err
 					}
 				}
-				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceStart)
+				build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceStart, versionID)
 				// It's possible for a workspace build to fail due to the template requiring starting
 				// workspaces with the active version.
-				if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusForbidden {
+				if cerr, ok := codersdk.AsError(err); ok && versionID == uuid.Nil && cerr.StatusCode() == http.StatusForbidden {
 					_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with the template version from the last build. Policy may require you to restart with the current active template version.")
-					build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate)
+					build, err = startWorkspace(inv, client, workspace, parameterFlags, bflags, WorkspaceUpdate, uuid.Nil)
 					if err != nil {
 						return xerrors.Errorf("start workspace with active template version: %w", err)
 					}
@@ -143,14 +158,16 @@ func (r *RootCmd) start() *serpent.Command {
 	return cmd
 }
 
-func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.CreateWorkspaceBuildRequest, error) {
+func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction, templateVersionID uuid.UUID) (codersdk.CreateWorkspaceBuildRequest, error) {
 	version := workspace.LatestBuild.TemplateVersionID
 
-	if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || workspace.TemplateRequireActiveVersion || action == WorkspaceUpdate {
+	if templateVersionID != uuid.Nil {
+		version = templateVersionID
+	} else if workspace.AutomaticUpdates == codersdk.AutomaticUpdatesAlways || workspace.TemplateRequireActiveVersion || action == WorkspaceUpdate {
 		version = workspace.TemplateActiveVersionID
-		if version != workspace.LatestBuild.TemplateVersionID {
-			action = WorkspaceUpdate
-		}
+	}
+	if version != workspace.LatestBuild.TemplateVersionID {
+		action = WorkspaceUpdate
 	}
 
 	lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
@@ -207,7 +224,7 @@ func buildWorkspaceStartRequest(inv *serpent.Invocation, client *codersdk.Client
 	return wbr, nil
 }
 
-func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction) (codersdk.WorkspaceBuild, error) {
+func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace codersdk.Workspace, parameterFlags workspaceParameterFlags, buildFlags buildFlags, action WorkspaceCLIAction, templateVersionID uuid.UUID) (codersdk.WorkspaceBuild, error) {
 	if workspace.DormantAt != nil {
 		_, _ = fmt.Fprintln(inv.Stdout, "Activating dormant workspace...")
 		err := client.UpdateWorkspaceDormancy(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceDormancy{
@@ -217,7 +234,7 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 			return codersdk.WorkspaceBuild{}, xerrors.Errorf("activate workspace: %w", err)
 		}
 	}
-	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, buildFlags, action)
+	req, err := buildWorkspaceStartRequest(inv, client, workspace, parameterFlags, buildFlags, action, templateVersionID)
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, err
 	}
@@ -229,4 +246,15 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
 
 	return build, nil
+}
+
+func resolveWorkspaceTemplateVersion(ctx context.Context, client *codersdk.Client, workspace codersdk.Workspace, name string) (uuid.UUID, error) {
+	if name == "" {
+		return uuid.Nil, nil
+	}
+	version, err := client.TemplateVersionByName(ctx, workspace.TemplateID, name)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get template version by name: %w", err)
+	}
+	return version.ID, nil
 }

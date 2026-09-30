@@ -41,6 +41,14 @@ OPTIONS:
           template. The file should be in YAML format, containing key-value
           pairs for the parameters.
 
+      --stop-template-version string
+          Stop with a named version of the workspace template. Defaults to the
+          workspace's current version.
+
+      --template-version string
+          Start with a named version of the workspace template. Defaults to the
+          active version.
+
       --use-parameter-defaults bool, $CODER_WORKSPACE_USE_PARAMETER_DEFAULTS
           Automatically accept parameter defaults when no value is provided.
 
