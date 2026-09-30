@@ -88,7 +88,7 @@ type ExecuteResult struct {
 	Command             string                          `json:"command,omitempty"`
 	Running             bool                            `json:"running,omitempty"`
 	Backgrounded        bool                            `json:"backgrounded,omitempty"`
-	// Canceled is true when the user's interrupt killed the command.
+	// Canceled is true if an interrupt canceled the command while it ran.
 	Canceled bool `json:"canceled,omitempty"`
 }
 

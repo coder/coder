@@ -406,7 +406,7 @@ export const parseMessagesWithMergedTools = (
 
 	// Annotate execute/process_output tools whose process was
 	// later killed or terminated via process_signal, and execute
-	// tools an interrupt killed.
+	// tools an interrupt canceled.
 	const signaledProcesses = new Map<string, "kill" | "terminate">();
 	for (const { parsed } of rawParsed) {
 		for (const tool of parsed.tools) {

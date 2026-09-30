@@ -73,8 +73,8 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 			}
 		}
 		// Read the output even without a record, since the process can
-		// outlive it. Wait, because the cancel can return before the killed
-		// process exits.
+		// outlive it. Wait, because the cancel can return before the process
+		// exits.
 		output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 		var sdkErr *codersdk.Error
 		if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {

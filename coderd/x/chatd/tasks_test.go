@@ -873,8 +873,8 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		want          string
 	}{
 		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"tool call was canceled before it ran; no changes were made"}`},
-		// The agent has no record, but the cancel killed the call's process.
-		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"output":"partial","success":false}`},
+		// The agent has no record, but the cancel stopped the call's process.
+		{name: "ExecuteNoRecordProcessCanceled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"output":"partial","success":false}`},
 		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "tool call was canceled before it ran; no changes were made"},
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
