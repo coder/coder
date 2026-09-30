@@ -11,6 +11,7 @@ import {
 	automationChats,
 	chatAutomations,
 	createChatAutomation,
+	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
 } from "#/api/queries/chatAutomations";
@@ -31,6 +32,10 @@ import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AutomationEditorDialog } from "./components/Automations/AutomationEditorDialog";
 import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
+import {
+	AutomationWebhookSecretDialog,
+	webhookEventsUrl,
+} from "./components/Automations/AutomationWebhookSecretDialog";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
@@ -72,6 +77,11 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const [runError, setRunError] = useState<AutomationRunError>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
 	const [editor, setEditor] = useState<EditorState>();
+	// The only copy of a new webhook secret. Never cache or persist it.
+	const [webhookSecret, setWebhookSecret] = useState<{
+		automationId: string;
+		secret: string;
+	}>();
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -95,18 +105,43 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
+	const rotateMutation = useMutation(
+		rotateChatAutomationSecret(queryClient, organizationId),
+	);
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
 		editMutation.reset();
+		rotateMutation.reset();
 		setEditor(next);
 	};
 
+	// Secret-bearing mutations are reset after success so their responses do
+	// not linger in the mutation cache.
 	const handleCreate = (req: CreateChatAutomationRequest) => {
 		createMutation.mutate(req, {
-			onSuccess: ({ automation }) => {
+			onSuccess: ({ automation, webhook_secret }) => {
 				toast.success(`Created ${automation.name}.`);
 				setEditor(undefined);
+				if (webhook_secret) {
+					setWebhookSecret({
+						automationId: automation.id,
+						secret: webhook_secret,
+					});
+				}
+				createMutation.reset();
+			},
+		});
+	};
+
+	const handleRotateSecret = (automation: ChatAutomation) => {
+		rotateMutation.mutate(automation.id, {
+			onSuccess: ({ webhook_secret }) => {
+				setWebhookSecret({
+					automationId: automation.id,
+					secret: webhook_secret,
+				});
+				rotateMutation.reset();
 			},
 		});
 	};
@@ -205,6 +240,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 						organizationId={organizationId}
 						automation={editor.mode === "edit" ? editor.automation : undefined}
 						currentUserId={user.id}
+						origin={window.location.origin}
 						error={
 							editor.mode === "edit" ? editMutation.error : createMutation.error
 						}
@@ -219,7 +255,26 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 								handleUpdate(editor.automation, req);
 							}
 						}}
+						rotateSecretError={rotateMutation.error}
+						isRotatingSecret={rotateMutation.isPending}
+						onRotateSecret={() => {
+							if (editor.mode === "edit") {
+								handleRotateSecret(editor.automation);
+							}
+						}}
 						onClose={() => setEditor(undefined)}
+					/>
+				)
+			}
+			webhookSecretDialog={
+				webhookSecret && (
+					<AutomationWebhookSecretDialog
+						endpoint={webhookEventsUrl(
+							window.location.origin,
+							webhookSecret.automationId,
+						)}
+						secret={webhookSecret.secret}
+						onClose={() => setWebhookSecret(undefined)}
 					/>
 				)
 			}

@@ -1,18 +1,22 @@
 import { useFormik } from "formik";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
+	ChatAutomationKind,
 	ChatAutomationTargetMode,
+	ChatAutomationWebhookUse,
 	ChatAutomationWhenBusy,
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import {
 	Dialog,
 	DialogContent,
@@ -30,11 +34,13 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { getFormHelpers } from "#/utils/formUtils";
+import { formatDate } from "#/utils/time";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { resolveModelSelector } from "../../utils/modelOptions";
 import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { AutomationChatPicker } from "./AutomationChatPicker";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
+import { webhookEventsUrl } from "./AutomationWebhookSecretDialog";
 
 const NAME_MAX_LENGTH = 128;
 
@@ -42,6 +48,8 @@ const NAME_MAX_LENGTH = 128;
 type AutomationFormValues = {
 	name: string;
 	prompt: string;
+	kind: ChatAutomationKind;
+	webhook_use: ChatAutomationWebhookUse;
 	schedule_cron: string;
 	schedule_time_zone: string;
 	target_mode: ChatAutomationTargetMode;
@@ -51,11 +59,17 @@ type AutomationFormValues = {
 	reasoning_effort: string;
 };
 
+// Matches the server defaults: webhooks queue, schedules skip.
+const defaultWhenBusy = (kind: ChatAutomationKind): ChatAutomationWhenBusy =>
+	kind === "webhook" ? "queue" : "skip";
+
 const initialFormValues = (
 	automation: ChatAutomation | undefined,
 ): AutomationFormValues => ({
 	name: automation?.name ?? "",
 	prompt: automation?.prompt ?? "",
+	kind: automation?.kind ?? "schedule",
+	webhook_use: automation?.webhook_use ?? "multi",
 	schedule_cron: automation ? (automation.schedule_cron ?? "") : "0 9 * * *",
 	schedule_time_zone: automation
 		? (automation.schedule_time_zone ?? "")
@@ -78,12 +92,16 @@ const buildCreateRequest = (
 ): CreateChatAutomationRequest => {
 	const shared = {
 		name: values.name,
-		kind: "schedule",
 		target_mode: values.target_mode,
 		prompt: values.prompt,
-		schedule_cron: values.schedule_cron,
-		schedule_time_zone: values.schedule_time_zone,
-	} as const;
+		kind: values.kind,
+		...(values.kind === "schedule"
+			? {
+					schedule_cron: values.schedule_cron,
+					schedule_time_zone: values.schedule_time_zone,
+				}
+			: { webhook_use: values.webhook_use }),
+	};
 	if (values.target_mode === "existing_chat") {
 		return {
 			...shared,
@@ -139,10 +157,15 @@ type AutomationEditorDialogProps = {
 	/** Edits this automation; creates a new one when unset. */
 	automation?: ChatAutomation;
 	currentUserId: string;
+	/** Origin of the webhook publish endpoint, usually `window.location.origin`. */
+	origin: string;
 	error: unknown;
 	isSubmitting: boolean;
+	rotateSecretError: unknown;
+	isRotatingSecret: boolean;
 	onCreate: (req: CreateChatAutomationRequest) => void;
 	onUpdate: (req: UpdateChatAutomationRequest) => void;
+	onRotateSecret: () => void;
 	onClose: () => void;
 };
 
@@ -150,16 +173,25 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	organizationId,
 	automation,
 	currentUserId,
+	origin,
 	error,
 	isSubmitting,
+	rotateSecretError,
+	isRotatingSecret,
 	onCreate,
 	onUpdate,
+	onRotateSecret,
 	onClose,
 }) => {
 	const isCreate = !automation;
-	const isSchedule = !automation || automation.kind === "schedule";
 	const existingChatId = useId();
 	const newChatId = useId();
+	const scheduleKindId = useId();
+	const webhookKindId = useId();
+	const multiUseId = useId();
+	const singleUseId = useId();
+	const rotateButtonRef = useRef<HTMLButtonElement>(null);
+	const [confirmingRotate, setConfirmingRotate] = useState(false);
 	// Radix returns focus to a DialogTrigger on close; this dialog has none.
 	const [opener] = useState(() =>
 		document.activeElement instanceof HTMLElement
@@ -186,9 +218,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					`Name must be at most ${NAME_MAX_LENGTH} characters.`,
 				),
 			prompt: Yup.string().trim().required("Prompt is required."),
-			schedule_cron: isSchedule
-				? Yup.string().trim().required("Cron expression is required.")
-				: Yup.string(),
+			schedule_cron: Yup.string().when("kind", {
+				is: "schedule",
+				then: (schema) =>
+					schema.trim().required("Cron expression is required."),
+			}),
 			target_chat_id: Yup.string().when("target_mode", {
 				is: "existing_chat",
 				then: (schema) => schema.required("Choose a chat."),
@@ -222,6 +256,13 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			submittedValues?.[name] === form.values[name] ? error : undefined,
 		)(name, options);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
+	const isSchedule = form.values.kind === "schedule";
+	const handleKindChange = (kind: ChatAutomationKind) => {
+		if (form.values.when_busy === defaultWhenBusy(form.values.kind)) {
+			form.setFieldValue("when_busy", defaultWhenBusy(kind));
+		}
+		form.setFieldValue("kind", kind);
+	};
 	const isExistingChat = form.values.target_mode === "existing_chat";
 	const selectedModel = modelOptions.find(
 		(option) => option.id === form.values.new_chat_model_config_id,
@@ -239,6 +280,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) => !renderedFields.includes(validation.field),
 	);
+	const rotateApiError = isApiError(rotateSecretError)
+		? rotateSecretError.response.data
+		: undefined;
 	const showAlert =
 		Boolean(error) &&
 		(!apiError?.validations?.length || alertValidations.length > 0);
@@ -272,7 +316,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						</DialogTitle>
 						<DialogDescription>
 							{isCreate
-								? "Send a prompt to an agent on a schedule."
+								? "Create a schedule or webhook that sends a prompt to an agent."
 								: "The trigger and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
@@ -299,6 +343,19 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								)}
 							</Alert>
 						)}
+						{Boolean(rotateSecretError) && (
+							<Alert severity="error" prominent>
+								<AlertTitle>
+									{getErrorMessage(
+										rotateSecretError,
+										"Could not rotate the webhook secret.",
+									)}
+								</AlertTitle>
+								{rotateApiError?.detail && (
+									<AlertDescription>{rotateApiError.detail}</AlertDescription>
+								)}
+							</Alert>
+						)}
 						<FormField
 							field={getFieldHelpers("name", { maxLength: NAME_MAX_LENGTH })}
 							label="Name"
@@ -317,12 +374,42 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							)}
 						/>
 						<section className="flex flex-col gap-4">
-							<h3 className="m-0 text-sm font-medium text-content-primary">
-								Trigger:{" "}
-								<span className="font-normal text-content-secondary">
-									{isSchedule ? "Schedule" : "Webhook"}
-								</span>
-							</h3>
+							{isCreate ? (
+								<>
+									<h3 className="m-0 text-sm font-medium text-content-primary">
+										Trigger
+									</h3>
+									<RadioGroup
+										aria-label="Trigger"
+										value={form.values.kind}
+										onValueChange={(value) => {
+											if (value === "schedule" || value === "webhook") {
+												handleKindChange(value);
+											}
+										}}
+									>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem id={scheduleKindId} value="schedule" />
+											<Label htmlFor={scheduleKindId} className="font-normal">
+												Schedule
+											</Label>
+										</div>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem id={webhookKindId} value="webhook" />
+											<Label htmlFor={webhookKindId} className="font-normal">
+												Webhook
+											</Label>
+										</div>
+									</RadioGroup>
+								</>
+							) : (
+								<h3 className="m-0 text-sm font-medium text-content-primary">
+									Trigger:{" "}
+									<span className="font-normal text-content-secondary">
+										{isSchedule ? "Schedule" : "Webhook"}
+									</span>
+								</h3>
+							)}
 							{isSchedule && (
 								<AutomationScheduleFields
 									organizationId={organizationId}
@@ -336,6 +423,77 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										form.setFieldValue("schedule_time_zone", timeZone)
 									}
 								/>
+							)}
+							{!isSchedule && isCreate && (
+								<div className="flex flex-col gap-2">
+									<span className="text-sm font-medium text-content-primary">
+										Use
+									</span>
+									<RadioGroup
+										aria-label="Use"
+										value={form.values.webhook_use}
+										onValueChange={(value) => {
+											if (value === "single" || value === "multi") {
+												form.setFieldValue("webhook_use", value);
+											}
+										}}
+									>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem id={singleUseId} value="single" />
+											<Label htmlFor={singleUseId} className="font-normal">
+												Single use
+											</Label>
+										</div>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem id={multiUseId} value="multi" />
+											<Label htmlFor={multiUseId} className="font-normal">
+												Multi use
+											</Label>
+										</div>
+									</RadioGroup>
+									<span className="text-xs text-content-secondary">
+										A single-use webhook accepts one event.
+									</span>
+								</div>
+							)}
+							{automation?.kind === "webhook" && (
+								<>
+									<p className="m-0 text-sm text-content-secondary">
+										{automation.webhook_use === "single"
+											? "Single use"
+											: "Multi use"}
+									</p>
+									{automation.webhook_consumed_at && (
+										<p className="m-0 text-sm text-content-secondary">
+											Used on{" "}
+											{formatDate(new Date(automation.webhook_consumed_at), {
+												locale: "en-US",
+												timeZoneName: "short",
+											})}
+										</p>
+									)}
+									<div className="flex flex-col gap-2">
+										<span className="text-sm font-medium text-content-primary">
+											Publish endpoint
+										</span>
+										<CodeExample
+											secret={false}
+											code={webhookEventsUrl(origin, automation.id)}
+										/>
+									</div>
+									<Button
+										ref={rotateButtonRef}
+										type="button"
+										variant="outline"
+										size="sm"
+										className="w-fit"
+										disabled={isRotatingSecret}
+										onClick={() => setConfirmingRotate(true)}
+									>
+										<Spinner loading={isRotatingSecret} />
+										Rotate secret
+									</Button>
+								</>
 							)}
 						</section>
 						<section className="flex flex-col gap-4">
@@ -454,6 +612,22 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						</Button>
 					</DialogFooter>
 				</form>
+				<ConfirmDialog
+					open={confirmingRotate}
+					type="delete"
+					title="Rotate the webhook secret?"
+					description="The current secret stops working immediately."
+					confirmText="Rotate secret"
+					onClose={() => setConfirmingRotate(false)}
+					onConfirm={() => {
+						setConfirmingRotate(false);
+						onRotateSecret();
+					}}
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						rotateButtonRef.current?.focus();
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

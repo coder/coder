@@ -31,7 +31,8 @@ export const invalidateChatAutomations = (queryClient: QueryClient) =>
 
 /**
  * Creates an automation. The response is never written to a query cache
- * because a webhook response carries the secret.
+ * because a webhook response carries the secret. `gcTime: 0` drops the
+ * settled mutation, and its response, once the caller resets it.
  */
 export const createChatAutomation = (
 	queryClient: QueryClient,
@@ -39,6 +40,24 @@ export const createChatAutomation = (
 ) => ({
 	mutationFn: (req: CreateChatAutomationRequest) =>
 		API.experimental.createChatAutomation(organizationId, req),
+	gcTime: 0,
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: chatAutomationsKey(organizationId),
+		}),
+});
+
+/**
+ * Rotates a webhook secret. Like create, the response carries the secret, so
+ * it is never written to a query cache.
+ */
+export const rotateChatAutomationSecret = (
+	queryClient: QueryClient,
+	organizationId: string,
+) => ({
+	mutationFn: (automationId: string) =>
+		API.experimental.rotateChatAutomationSecret(organizationId, automationId),
+	gcTime: 0,
 	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),

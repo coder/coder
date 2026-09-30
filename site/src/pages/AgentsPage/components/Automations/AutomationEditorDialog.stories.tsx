@@ -8,7 +8,11 @@ import type {
 	ChatModel,
 	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
-import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatAutomation,
+	MockWebhookChatAutomation,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -34,6 +38,12 @@ const mockAutomation: ChatAutomation = {
 	target_chat_id: MockChat.id,
 };
 
+const mockWebhookAutomation: ChatAutomation = {
+	...MockWebhookChatAutomation,
+	organization_id: organizationId,
+	target_chat_id: MockChat.id,
+};
+
 const nextRunTimes = [
 	"2026-10-01T09:00:00Z",
 	"2026-10-02T09:00:00Z",
@@ -52,10 +62,14 @@ const meta: Meta<typeof AutomationEditorDialog> = {
 	args: {
 		organizationId,
 		currentUserId: MockUserOwner.id,
+		origin: "https://coder.example.com",
 		error: undefined,
 		isSubmitting: false,
+		rotateSecretError: undefined,
+		isRotatingSecret: false,
 		onCreate: fn(),
 		onUpdate: fn(),
+		onRotateSecret: fn(),
 		onClose: fn(),
 	},
 };
@@ -170,6 +184,98 @@ export const SaveForbidden: Story = {
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
+		],
+	},
+};
+
+export const CreateWebhook: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: getPreferredTimezone(),
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("radio", { name: "Webhook" }),
+		);
+	},
+};
+
+export const EditWebhook: Story = {
+	args: { automation: mockWebhookAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const EditUsedSingleUseWebhook: Story = {
+	args: {
+		automation: {
+			...mockWebhookAutomation,
+			webhook_use: "single",
+			webhook_consumed_at: "2026-09-30T10:15:00Z",
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const ConfirmRotateSecret: Story = {
+	args: { automation: mockWebhookAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Rotate secret" }),
+		);
+	},
+};
+
+export const RotateSecretForbidden: Story = {
+	args: {
+		automation: mockWebhookAutomation,
+		currentUserId: "another-user",
+		rotateSecretError: mockApiError({
+			message: "Only the owner of a chat automation can change it.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
 	},
 };
