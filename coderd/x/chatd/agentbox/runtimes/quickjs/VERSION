@@ -1,0 +1,3 @@
+version=v0.17.0
+url=https://github.com/quickjs-ng/quickjs/releases/download/v0.17.0/qjs-wasi.wasm
+sha256=42a732a676ec2d93488c19411e0fad283bf72658fdad746f089914b523c783b1

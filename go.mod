@@ -564,6 +564,8 @@ require (
 	mvdan.cc/sh/v3 v3.14.0
 )
 
+require github.com/tetratelabs/wazero v1.12.0
+
 require (
 	cel.dev/cel-go v0.32.0
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
