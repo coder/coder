@@ -23,6 +23,99 @@ type EditFilesArgs struct {
 	Files []workspacesdk.FileEdits `json:"files" description:"Files to edit. Every entry must include path and at least one edit."`
 }
 
+// EditFilesEdit is a single edit that, unlike workspacesdk.FileEdit,
+// carries the path of the file it changes.
+type EditFilesEdit struct {
+	Path       string `json:"path" description:"Absolute path of the file to edit."`
+	OldText    string `json:"old_text" description:"Exact text to replace. Must match exactly one location unless replace_all is true. Must differ from new_text."`
+	NewText    string `json:"new_text" description:"Replacement text."`
+	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text."`
+}
+
+// GroupEditsByPath groups edits into one file per path for the
+// workspace agent request. Paths are compared exactly as given. Files
+// are ordered by each path's first edit, and each file keeps its edits
+// in their original order. Empty input returns an empty slice, not nil.
+func GroupEditsByPath(edits []EditFilesEdit) []workspacesdk.FileEdits {
+	files := make([]workspacesdk.FileEdits, 0, len(edits))
+	indexByPath := make(map[string]int, len(edits))
+	for _, edit := range edits {
+		i, ok := indexByPath[edit.Path]
+		if !ok {
+			i = len(files)
+			indexByPath[edit.Path] = i
+			files = append(files, workspacesdk.FileEdits{Path: edit.Path})
+		}
+		files[i].Edits = append(files[i].Edits, workspacesdk.FileEdit{
+			OldText:    edit.OldText,
+			NewText:    edit.NewText,
+			ReplaceAll: edit.ReplaceAll,
+		})
+	}
+	return files
+}
+
+// EditFilesHookInput is edit_files input grouped by path, in the shape
+// pre_tool_use hooks read as tool_input and send as input_override.
+//
+// It does not reuse workspacesdk.FileEdits: hooks must see and send
+// only old_text/new_text, but the JSON methods on workspacesdk.FileEdit
+// also write the deprecated search/replace keys and fall back to
+// reading them.
+type EditFilesHookInput struct {
+	Files []EditFilesHookFile `json:"files"`
+}
+
+// EditFilesHookFile holds the edits for one path in
+// EditFilesHookInput.
+type EditFilesHookFile struct {
+	Path  string              `json:"path"`
+	Edits []EditFilesHookEdit `json:"edits"`
+}
+
+// EditFilesHookEdit is one edit in EditFilesHookFile.
+type EditFilesHookEdit struct {
+	OldText    string `json:"old_text"`
+	NewText    string `json:"new_text"`
+	ReplaceAll bool   `json:"replace_all,omitempty"`
+}
+
+// NewEditFilesHookInput groups edits by path with the same ordering
+// as GroupEditsByPath.
+func NewEditFilesHookInput(edits []EditFilesEdit) EditFilesHookInput {
+	grouped := GroupEditsByPath(edits)
+	input := EditFilesHookInput{Files: make([]EditFilesHookFile, 0, len(grouped))}
+	for _, file := range grouped {
+		hookFile := EditFilesHookFile{
+			Path:  file.Path,
+			Edits: make([]EditFilesHookEdit, 0, len(file.Edits)),
+		}
+		for _, edit := range file.Edits {
+			hookFile.Edits = append(hookFile.Edits, EditFilesHookEdit(edit))
+		}
+		input.Files = append(input.Files, hookFile)
+	}
+	return input
+}
+
+// Edits flattens the grouped input: files in order, then each file's
+// edits in order. It returns an empty slice, not nil, when there are no
+// edits.
+func (in EditFilesHookInput) Edits() []EditFilesEdit {
+	edits := make([]EditFilesEdit, 0)
+	for _, file := range in.Files {
+		for _, edit := range file.Edits {
+			edits = append(edits, EditFilesEdit{
+				Path:       file.Path,
+				OldText:    edit.OldText,
+				NewText:    edit.NewText,
+				ReplaceAll: edit.ReplaceAll,
+			})
+		}
+	}
+	return edits
+}
+
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"edit_files",
