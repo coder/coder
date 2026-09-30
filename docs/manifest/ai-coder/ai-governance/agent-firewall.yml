@@ -1,0 +1,15 @@
+title: Agent Firewall
+description: Restrict and audit the network access of AI agents with Agent Firewall, a process-level firewall.
+path: ./ai-coder/agent-firewall/index.md
+state: [premium]
+children:
+  - include: ai-coder/ai-governance/agent-firewall/nsjail.yml
+  - title: Landjail jail type
+    description: Learn how Agent Firewall's landjail jail type isolates agents using Landlock v4.
+    path: ./ai-coder/agent-firewall/landjail.md
+  - title: Rules engine
+    description: Learn how the Agent Firewall rules engine filters agent network requests with configurable rules.
+    path: ./ai-coder/agent-firewall/rules-engine.md
+  - title: Version requirements
+    description: Check the Coder and Claude Code module version requirements for running Agent Firewall.
+    path: ./ai-coder/agent-firewall/version.md

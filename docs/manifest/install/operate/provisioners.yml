@@ -1,0 +1,10 @@
+title: External provisioners
+description: Run external provisioner daemons to isolate builds and scale workspace provisioning.
+path: ./install/operate/provisioners/index.md
+icon_path: ./images/icons/key.svg
+state: [premium]
+children:
+  - title: Manage provisioner jobs
+    description: Monitor and manage provisioner jobs for workspace builds, including canceling stuck jobs.
+    path: ./install/operate/provisioners/manage-provisioner-jobs.md
+    state: [premium]
