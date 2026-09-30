@@ -36,19 +36,35 @@ const (
 
 // Span attribute keys.
 const (
-	AttrProvider          = "provider"
-	AttrProviderType      = "provider_type"
-	AttrModel             = "model"
-	AttrReasoningEffort   = "reasoning_effort"
-	AttrChatID            = "chat_id"
-	AttrChatKind          = "chat_kind"
-	AttrGenerationAttempt = "generation_attempt"
-	AttrGenerationAction  = "generation_action"
-	AttrToolName          = "tool_name"
-	AttrHTTPStatusCode    = "http_status_code"
-	AttrHTTPMethod        = "http_method"
-	AttrCompactionSource  = "compaction_source"
-	AttrScope             = "scope"
+	AttrProvider            = "provider"
+	AttrProviderType        = "provider_type"
+	AttrModel               = "model"
+	AttrReasoningEffort     = "reasoning_effort"
+	AttrChatID              = "chat_id"
+	AttrChatKind            = "chat_kind"
+	AttrGenerationAttempt   = "generation_attempt"
+	AttrGenerationAction    = "generation_action"
+	AttrToolName            = "tool_name"
+	AttrHTTPStatusCode      = "http_status_code"
+	AttrHTTPMethod          = "http_method"
+	AttrCompactionSource    = "compaction_source"
+	AttrScope               = "scope"
+	AttrTurnOutcome         = "turn_outcome"
+	AttrMCPServersConnected = "mcp_servers_connected"
+	AttrMCPServersFailed    = "mcp_servers_failed"
+)
+
+// TurnOutcome is how a chat turn closed.
+type TurnOutcome string
+
+// TurnOutcome values.
+const (
+	TurnOutcomeCompleted   TurnOutcome = "completed"
+	TurnOutcomeInterrupted TurnOutcome = "interrupted"
+	TurnOutcomeError       TurnOutcome = "error"
+	// TurnOutcomeAbandoned covers any other close, such as a newer prompt
+	// or runner exit.
+	TurnOutcomeAbandoned TurnOutcome = "abandoned"
 )
 
 // Scope separates stages attributable to a prompt (turn) from detached
@@ -298,18 +314,35 @@ func (s *StageSpan) EndWithoutObservation(err error) {
 	s.closeSpan(err)
 }
 
+// EndTurn closes a chat_turn span at end. Only completed turns are
+// observed on the histogram.
+func (s *StageSpan) EndTurn(outcome TurnOutcome, err error, end time.Time) {
+	if s == nil || s.ended {
+		return
+	}
+	s.span.SetAttributes(attribute.String(AttrTurnOutcome, string(outcome)))
+	elapsed := s.closeSpanAt(err, end)
+	if outcome == TurnOutcomeCompleted {
+		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+	}
+	s.tracer.recordTurnOutcome(outcome, s.chatKind)
+}
+
 func (s *StageSpan) closeSpan(err error) (elapsed time.Duration, ok bool) {
 	if s == nil || s.ended {
 		return 0, false
 	}
+	return s.closeSpanAt(err, s.tracer.Now()), true
+}
+
+func (s *StageSpan) closeSpanAt(err error, end time.Time) time.Duration {
 	s.ended = true
-	end := s.tracer.Now()
 	if err != nil {
 		s.span.RecordError(err)
 		s.span.SetStatus(codes.Error, err.Error())
 	}
 	s.span.End(trace.WithTimestamp(end))
-	return end.Sub(s.start), true
+	return end.Sub(s.start)
 }
 
 // Record emits a finished stage span with explicit timestamps. Windows
@@ -359,6 +392,13 @@ func (t *StageTracer) recordAnomalyIfObserved(stage Stage, reason StageAnomaly) 
 		return
 	}
 	t.RecordAnomaly(reason)
+}
+
+func (t *StageTracer) recordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
+	if t == nil || t.metrics == nil {
+		return
+	}
+	t.metrics.RecordTurnOutcome(outcome, chatKind)
 }
 
 func (t *StageTracer) observe(stage Stage, scope Scope, chatKind ChatKind, model StageModel, elapsed time.Duration) {

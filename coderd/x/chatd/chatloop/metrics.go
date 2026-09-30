@@ -80,6 +80,7 @@ type Metrics struct {
 	TTFTSeconds               *prometheus.HistogramVec
 	stageDurationSeconds      *prometheus.HistogramVec
 	modelStageDurationSeconds *prometheus.HistogramVec
+	TurnOutcomesTotal         *prometheus.CounterVec
 	stageAnomaliesTotal       *prometheus.CounterVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
@@ -155,7 +156,7 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_duration_seconds",
-			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Failed windows are observed, except time_to_first_token, which observes only windows closed by an output part. Registered only with the chat-stage-metrics experiment.",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap, so this is a stage-time profile, not a partition of the turn. scope separates latency attributable to a prompt (stages inside a chat turn, and queue_wait before it) from detached background work; chat_kind is empty without a known chat. Observed: chat_turn, queue_wait, acquisition, mcp_connect, stream, time_to_first_token, provider_attempt, tool_call, commit, retry_backoff; other stages are span-only. Failed windows are observed, except time_to_first_token, which observes only windows closed by an output part, and chat_turn, which observes only completed turns. chat_turn runs from its trigger (the prompt, a submitted client tool result, or a compaction request) to the end of its turn, includes acquisition, and excludes queue_wait and time waiting in requires_action, so a prompt that waits in requires_action is observed once per segment. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "scope", "chat_kind"}),
 		modelStageDurationSeconds: stageFactory.NewHistogramVec(prometheus.HistogramOpts{
@@ -165,11 +166,17 @@ func NewMetricsWithOptions(reg prometheus.Registerer, opts MetricsOptions) *Metr
 			Help:      "Wall time of the stages that are a provider's work on a model: stream (open to close) and provider_attempt (one HTTP round trip, closed on response headers). Time to first token per model is ttft_seconds. Failed stream and provider_attempt windows are observed. Observed only for turn-scoped stages, which are also observed on stage_duration_seconds; background-scoped model stages appear on stage_duration_seconds only. provider_type is the configured AI provider type (for example bedrock), not the wire protocol other chatd metrics report as provider. Registered only with the chat-stage-metrics experiment.",
 			Buckets:   stageDurationBuckets,
 		}, []string{"stage", "provider_type", "chat_kind", "model"}),
+		TurnOutcomesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "turn_outcomes_total",
+			Help:      "Total closed chat turns by outcome: completed (the turn finished, including a turn that ends when the chat enters requires_action; the submitted tool result opens a new turn), interrupted (an interrupt request from a user, an API client, or a parent agent stopped it), error (a failure stopped it), abandoned (a newer prompt, such as a message edit, or runner exit closed it before it finished; an edit sent while the chat is interrupting can close the stopped turn as abandoned rather than interrupted). Every closed turn is counted exactly once. Registered only with the chat-stage-metrics experiment.",
+		}, []string{"outcome", "chat_kind"}),
 		stageAnomaliesTotal: stageFactory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "stage_anomalies_total",
-			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (turn anchor clamped to the previous turn's anchor). Registered only with the chat-stage-metrics experiment.",
+			Help:      "Chat lifecycle stage observations dropped or adjusted, by reason: negative_elapsed and inverted_window (end before start, clock skew), missing_timestamp (unset start or end), future_start (start ahead of this replica's clock, span started now), stale_anchor (trigger not after the previous turn's anchor, turn started now). Registered only with the chat-stage-metrics experiment.",
 		}, []string{"reason"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
@@ -249,6 +256,14 @@ func (m *Metrics) recordStageAnomaly(reason StageAnomaly) {
 		return
 	}
 	m.stageAnomaliesTotal.WithLabelValues(string(reason)).Inc()
+}
+
+// RecordTurnOutcome counts a closed turn by outcome.
+func (m *Metrics) RecordTurnOutcome(outcome TurnOutcome, chatKind ChatKind) {
+	if m == nil {
+		return
+	}
+	m.TurnOutcomesTotal.WithLabelValues(string(outcome), string(chatKind)).Inc()
 }
 
 // RecordCompaction classifies and records a compaction attempt.
