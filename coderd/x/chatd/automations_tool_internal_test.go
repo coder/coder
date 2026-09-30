@@ -702,6 +702,33 @@ func TestManageAutomationsTool(t *testing.T) {
 		require.Len(t, f.auditor.AuditLogs(), 1, "a run to an existing chat changes no configuration")
 	})
 
+	t.Run("RejectsFieldsThatDoNotApply", func(t *testing.T) {
+		t.Parallel()
+		f := newManageAutomationsFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		heartbeat := f.existingChat(ctx, t, f.server, "0 9 * * *", "UTC", codersdk.ChatAutomationWhenBusySkip)
+
+		// Each call would succeed without the check, so a silently
+		// dropped field would go unnoticed.
+		createWithID := heartbeatArgs()
+		createWithID.AutomationID = heartbeat.ID.String()
+		for _, tc := range []struct {
+			args manageAutomationsArgs
+			want string
+		}{
+			{createWithID, "create does not take automation_id"},
+			{manageAutomationsArgs{Action: "update", AutomationID: heartbeat.ID.String()}, "update needs at least one field to change"},
+			{manageAutomationsArgs{Action: "enable", AutomationID: heartbeat.ID.String(), Prompt: ptr.Ref("Changed.")}, "enable does not take prompt"},
+		} {
+			content, isError := f.callArgs(ctx, t, f.chat.ID, tc.args)
+			require.True(t, isError, content)
+			require.Equal(t, tc.want, content)
+		}
+		f.requireUnchanged(ctx, t, heartbeat)
+		require.Len(t, f.ownerAutomations(ctx, t), 1)
+		require.Empty(t, f.auditor.AuditLogs())
+	})
+
 	t.Run("WebhookSecrets", func(t *testing.T) {
 		t.Parallel()
 		f := newManageAutomationsFixture(t)
