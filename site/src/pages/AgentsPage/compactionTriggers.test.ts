@@ -5,8 +5,8 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
-	bindingCompactionTrigger,
 	bindingCompactionTriggerPoint,
+	bindingCompactionTriggerSource,
 	compactionPointAsPercent,
 	compactionTriggerPoint,
 	isCompactionPointBeyondWindow,
@@ -53,19 +53,19 @@ describe("compaction triggers", () => {
 		const chat = { thresholdPercent: 80, contextLimit: 100_000 };
 
 		expect(
-			bindingCompactionTrigger(chat, {
+			bindingCompactionTriggerSource(chat, {
 				thresholdPercent: 50,
 				contextLimit: 100_000,
 			}),
 		).toBe("organization");
 		expect(
-			bindingCompactionTrigger(chat, {
+			bindingCompactionTriggerSource(chat, {
 				thresholdPercent: 80,
 				contextLimit: 100_000,
 			}),
 		).toBe("chat");
 		expect(
-			bindingCompactionTrigger(chat, {
+			bindingCompactionTriggerSource(chat, {
 				thresholdPercent: 100,
 				contextLimit: 100_000,
 			}),
@@ -74,13 +74,13 @@ describe("compaction triggers", () => {
 
 	it("uses the organization trigger when the chat trigger is disabled", () => {
 		expect(
-			bindingCompactionTrigger(
+			bindingCompactionTriggerSource(
 				{ thresholdPercent: 100, contextLimit: 100_000 },
 				{ thresholdPercent: 80, contextLimit: 100_000 },
 			),
 		).toBe("organization");
 		expect(
-			bindingCompactionTrigger(
+			bindingCompactionTriggerSource(
 				{ thresholdPercent: 100, contextLimit: 100_000 },
 				{ thresholdPercent: 100, contextLimit: 100_000 },
 			),
@@ -92,7 +92,7 @@ describe("compaction triggers", () => {
 		const organizationTrigger = {
 			model: MockChatModel,
 			trigger: { thresholdPercent: 50, contextLimit: 32_000 },
-			point: 16_000,
+			pointTokens: 16_000,
 		};
 
 		expect(bindingCompactionTriggerPoint(chat, undefined)).toBe(102_400);
@@ -133,33 +133,33 @@ describe("compaction triggers", () => {
 			context_limit: 40_000,
 			compression_threshold: 50,
 		};
-		const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
-			{ context: "compaction", model_config_id: model.id },
-		];
 		const providers = providerInfoByIDFromDescriptors([
 			MockChatModelProviderDescriptor,
 		]);
 
 		expect(
-			resolveOrganizationCompactionTrigger(overrides, [model], providers),
+			resolveOrganizationCompactionTrigger(model.id, [model], providers),
 		).toEqual({
 			model,
 			trigger: { thresholdPercent: 50, contextLimit: 40_000 },
-			point: 20_000,
+			pointTokens: 20_000,
 		});
 		expect(
-			resolveOrganizationCompactionTrigger(overrides, [], providers),
+			resolveOrganizationCompactionTrigger(undefined, [model], providers),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(model.id, [], providers),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				overrides,
+				model.id,
 				[{ ...model, enabled: false }],
 				providers,
 			),
 		).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(
-				overrides,
+				model.id,
 				[{ ...model, compression_threshold: 100 }],
 				providers,
 			),
@@ -173,19 +173,49 @@ describe("compaction triggers", () => {
 			context_limit: 40_000,
 			compression_threshold: 50,
 		};
-		const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
-			{ context: "compaction", model_config_id: model.id },
-		];
+		const providers = providerInfoByIDFromDescriptors([
+			{ ...MockChatModelProviderDescriptor, enabled: false },
+		]);
 
 		expect(
+			resolveOrganizationCompactionTrigger(model.id, [model], providers),
+		).toBeUndefined();
+		expect(
 			resolveOrganizationCompactionTrigger(
-				overrides,
+				model.id,
 				[model],
-				providerInfoByIDFromDescriptors([
-					{ ...MockChatModelProviderDescriptor, enabled: false },
-				]),
+				providers,
+				"organization",
 			),
 		).toBeUndefined();
+	});
+
+	it("ignores an override the viewer lacks provider credentials for", () => {
+		const model: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "compaction-model",
+			context_limit: 40_000,
+			compression_threshold: 50,
+		};
+		const providers = providerInfoByIDFromDescriptors([
+			{
+				...MockChatModelProviderDescriptor,
+				available: false,
+				unavailable_reason: "user_api_key_required",
+			},
+		]);
+
+		expect(
+			resolveOrganizationCompactionTrigger(model.id, [model], providers),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(
+				model.id,
+				[model],
+				providers,
+				"organization",
+			),
+		).toMatchObject({ model, pointTokens: 20_000 });
 	});
 
 	describe("resolveCompactionThreshold", () => {
@@ -201,7 +231,7 @@ describe("compaction triggers", () => {
 		) => ({
 			model: { ...MockChatModel, id: "compaction-model" },
 			trigger: { thresholdPercent, contextLimit },
-			point: (contextLimit * thresholdPercent) / 100,
+			pointTokens: (contextLimit * thresholdPercent) / 100,
 		});
 
 		it("returns the organization percent when its trigger binds", () => {

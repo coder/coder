@@ -28,7 +28,20 @@ const mockDisabledCompactionModel: TypesGen.ChatModel = {
 	...mockSmallCompactionModel,
 	compression_threshold: 100,
 };
-const mockWarningModels = [mockSmallCompactionModel, model, alternateModel];
+const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "tiny-model",
+	model: "tiny",
+	display_name: "Tiny Model",
+	context_limit: 8_000,
+	compression_threshold: 100,
+};
+const mockWarningModels = [
+	mockSmallCompactionModel,
+	model,
+	alternateModel,
+	mockTinyModelWithCompactionOff,
+];
 const mockWarningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
 	{ context: "compaction", model_config_id: model.id },
 ];
@@ -183,6 +196,17 @@ export const CompactionTriggerWarning: Story = {
 	args: {
 		overrides: mockWarningOverrides,
 		enabledModels: mockWarningModels,
+		providerInfoByID: new Map([
+			[
+				model.ai_provider_id,
+				{
+					provider: "openai",
+					displayName: "OpenAI",
+					icon: "",
+					available: false,
+				},
+			],
+		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

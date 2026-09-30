@@ -161,6 +161,7 @@ export const providerInfoByIDFromDescriptors = (
 				displayName: providerDescriptor.display_name,
 				icon: providerDescriptor.icon,
 				enabled: providerDescriptor.enabled,
+				available: providerDescriptor.available,
 			},
 		]),
 	);

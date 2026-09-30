@@ -4,10 +4,7 @@ import {
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
-import {
-	type AgentContextUsage,
-	ContextUsageIndicator,
-} from "./ContextUsageIndicator";
+import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
 const meta: Meta<typeof ContextUsageIndicator> = {
 	title: "pages/AgentsPage/ContextUsageIndicator",
@@ -19,29 +16,6 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
-
-const mockOrganizationCompactionUsage: AgentContextUsage = {
-	usedTokens: 64_000,
-	contextLimitTokens: 128_000,
-	compactionThreshold: { percent: 25, source: "organization" },
-};
-const mockModelCompactionUsage: AgentContextUsage = {
-	usedTokens: 64_000,
-	contextLimitTokens: 128_000,
-	compactionThreshold: { percent: 80, source: "model" },
-};
-
-export const OrganizationCompactionModelBinding: Story = {
-	args: {
-		usage: mockOrganizationCompactionUsage,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.hover(
-			canvas.getByRole("button", { name: /Context usage 50%/i }),
-		);
-	},
-};
 
 export const OrganizationCompactionPointUsesReportedLimit: Story = {
 	args: {
@@ -101,7 +75,11 @@ export const ChatModelCompactionDisabled: Story = {
 
 export const ChatModelCompactionBinding: Story = {
 	args: {
-		usage: mockModelCompactionUsage,
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: { percent: 80, source: "model" },
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

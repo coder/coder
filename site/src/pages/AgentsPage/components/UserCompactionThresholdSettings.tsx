@@ -40,8 +40,8 @@ import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
 import {
-	bindingCompactionTrigger,
 	bindingCompactionTriggerPoint,
+	bindingCompactionTriggerSource,
 	type CompactionTrigger,
 	compactionPointAsPercent,
 	isCompactionPointBeyondWindow,
@@ -96,9 +96,9 @@ const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 		</h3>
 		<p className="mt-0.5! m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each
-			model. Setting 100% disables that model&apos;s compaction trigger.
+			model. Setting 100% turns off automatic compaction for that model.
 			{hasOrganizationCompactionOverride &&
-				" An organization override may still trigger compaction."}
+				" An organization override may still compact it."}
 		</p>
 	</div>
 );
@@ -176,7 +176,7 @@ const EffectiveCompactionThreshold: React.FC<
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const organizationTriggerPercent = organizationTrigger
 		? compactionPointAsPercent(
-				organizationTrigger.point,
+				organizationTrigger.pointTokens,
 				modelConfig.context_limit,
 			)
 		: undefined;
@@ -186,15 +186,15 @@ const EffectiveCompactionThreshold: React.FC<
 		});
 	// Setting 100% disables only the chat model
 	// trigger, not the organization override.
-	const isOrganizationTriggerEarlier =
+	const isOrganizationTriggerBinding =
 		chatTrigger !== undefined &&
 		organizationTrigger !== undefined &&
 		organizationTriggerPercent !== undefined &&
-		bindingCompactionTrigger(chatTrigger, organizationTrigger.trigger) ===
+		bindingCompactionTriggerSource(chatTrigger, organizationTrigger.trigger) ===
 			"organization";
 	const off = <span className="text-content-secondary">Off</span>;
 
-	if (isOrganizationTriggerEarlier && organizationTrigger) {
+	if (isOrganizationTriggerBinding && organizationTrigger) {
 		const organizationModelName =
 			organizationTrigger.model.display_name.trim() ||
 			organizationTrigger.model.model;
@@ -203,7 +203,7 @@ const EffectiveCompactionThreshold: React.FC<
 		// A point past this window can only bind while the chat trigger is
 		// off, so no trigger fires within this window.
 		const isBeyondWindow = isCompactionPointBeyondWindow(
-			organizationTrigger.point,
+			organizationTrigger.pointTokens,
 			modelConfig.context_limit,
 		);
 
@@ -222,11 +222,13 @@ const EffectiveCompactionThreshold: React.FC<
 						{isBeyondWindow ? (
 							<>
 								{organizationModelName} compacts at{" "}
-								{organizationTrigger.point.toLocaleString("en-US")} tokens (
-								{organizationTrigger.model.compression_threshold}% of its{" "}
+								{organizationTrigger.pointTokens.toLocaleString("en-US")} tokens
+								({organizationTrigger.model.compression_threshold}% of its{" "}
 								{organizationWindowLabel}-token window), beyond this
 								model&apos;s {modelConfig.context_limit.toLocaleString("en-US")}
-								-token window.
+								-token window. Chats with this model do not compact
+								automatically. Set a threshold below 100% to turn compaction
+								back on.
 							</>
 						) : (
 							<>
@@ -369,8 +371,8 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 								{isInvalid
 									? "Enter a whole number between 0 and 100."
 									: organizationTrigger
-										? "Setting 100% disables this model's compaction trigger. The organization override may still trigger compaction."
-										: "Setting 100% disables this model's compaction trigger."}
+										? "Setting 100% turns off automatic compaction for this model. An organization override may still compact it."
+										: "Setting 100% turns off automatic compaction for this model."}
 							</TooltipContent>
 						)}
 					</Tooltip>
@@ -406,9 +408,9 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				)}
 				{isDraftDisablingCompaction && (
 					<span className="sr-only" aria-live="polite">
-						Setting 100% disables this model&apos;s compaction trigger.
+						Setting 100% turns off automatic compaction for this model.
 						{organizationTrigger &&
-							" The organization override may still trigger compaction."}
+							" An organization override may still compact it."}
 					</span>
 				)}
 			</TableCell>
@@ -665,8 +667,14 @@ export const UserCompactionThresholdSettings: React.FC<
 					)}
 					{compactionTriggersError != null && (
 						<p className="m-0 text-xs text-content-destructive">
-							Failed to load organization compaction settings. Effective values
-							may not account for the organization override.
+							{getErrorMessage(
+								compactionTriggersError,
+								"Failed to load organization compaction settings.",
+							)}
+							<span className="block">
+								Effective values ignore the organization override. Reload the
+								page to retry.
+							</span>
 						</p>
 					)}
 					{organizationOptions.length > 1 && activeOrganization && (
