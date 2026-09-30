@@ -225,6 +225,19 @@ export const EditWebhook: Story = {
 	},
 };
 
+export const RotatingSecret: Story = {
+	args: { automation: mockWebhookAutomation, isRotatingSecret: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
 export const EditUsedSingleUseWebhook: Story = {
 	args: {
 		automation: {

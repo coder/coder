@@ -18,8 +18,8 @@ type AutomationWebhookFieldsProps = {
 	/** Shows this saved webhook; shows the Use choice when unset. */
 	automation?: ChatAutomation;
 	origin: string;
-	use: ChatAutomationWebhookUse;
-	onUseChange: (use: ChatAutomationWebhookUse) => void;
+	webhookUse: ChatAutomationWebhookUse;
+	onWebhookUseChange: (webhookUse: ChatAutomationWebhookUse) => void;
 	rotateSecretError: unknown;
 	isRotatingSecret: boolean;
 	isSubmitting: boolean;
@@ -31,8 +31,8 @@ export const AutomationWebhookFields: React.FC<
 > = ({
 	automation,
 	origin,
-	use,
-	onUseChange,
+	webhookUse,
+	onWebhookUseChange,
 	rotateSecretError,
 	isRotatingSecret,
 	isSubmitting,
@@ -55,10 +55,10 @@ export const AutomationWebhookFields: React.FC<
 				<RadioGroup
 					aria-labelledby={useLabelId}
 					aria-describedby={useHelpId}
-					value={use}
+					value={webhookUse}
 					onValueChange={(value) => {
 						if (value === "single" || value === "multi") {
-							onUseChange(value);
+							onWebhookUseChange(value);
 						}
 					}}
 				>
@@ -78,12 +78,12 @@ export const AutomationWebhookFields: React.FC<
 	const rotateErrorDetail = getErrorDetail(rotateSecretError);
 	return (
 		<>
-			<h3 className="m-0 text-sm font-medium text-content-primary">
+			<p className="m-0 text-sm font-medium text-content-primary">
 				Use:{" "}
 				<span className="font-normal text-content-secondary">
 					{isSingleUse ? "Single-use" : "Multi-use"}
 				</span>
-			</h3>
+			</p>
 			{automation.webhook_consumed_at && (
 				<p className="m-0 text-sm text-content-secondary">
 					{`Used on ${formatDate(new Date(automation.webhook_consumed_at), {

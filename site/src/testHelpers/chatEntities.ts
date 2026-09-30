@@ -183,19 +183,13 @@ export const MockChatAutomation: ChatAutomation = {
 };
 
 export const MockWebhookChatAutomation: ChatAutomation = {
+	...MockChatAutomation,
 	id: "2b8e4f6a-1c3d-4e5f-8a9b-0c1d2e3f4a5b",
-	organization_id: "test-org-id",
-	owner_id: MockUserOwner.id,
 	name: "Deploy notifier",
 	kind: "webhook",
-	enabled: true,
-	target_mode: "existing_chat",
-	target_chat_id: "chat-1",
-	when_busy: "queue",
 	webhook_use: "multi",
 	webhook_secret_version: 1,
 	prompt: "Summarize the deploy event.",
-	next_run_times: [],
-	created_at: MOCK_TIMESTAMP,
-	updated_at: MOCK_TIMESTAMP,
+	schedule_cron: undefined,
+	schedule_time_zone: undefined,
 };

@@ -13,7 +13,7 @@ import {
 type AutomationWebhookSecretDialogProps = {
 	endpoint: string;
 	secret: string;
-	/** Receives focus on close, since the opener may no longer exist. */
+	/** The dialog has no trigger, so Radix cannot restore focus on its own. */
 	returnFocusTo: HTMLElement | null;
 	onClose: () => void;
 };
@@ -23,7 +23,6 @@ export const AutomationWebhookSecretDialog: React.FC<
 	AutomationWebhookSecretDialogProps
 > = ({ endpoint, secret, returnFocusTo, onClose }) => {
 	const doneButtonRef = useRef<HTMLButtonElement>(null);
-	const curl = `curl -X POST ${endpoint} -H "Authorization: Bearer ${secret}" -H "Content-Type: application/json" -d '{"event":"deploy"}'`;
 
 	return (
 		<Dialog
@@ -35,7 +34,7 @@ export const AutomationWebhookSecretDialog: React.FC<
 			}}
 		>
 			<DialogContent
-				// A stray click outside would lose the secret for good.
+				// Only Escape and Done dismiss it; a stray outside click would lose the secret.
 				onInteractOutside={(event) => event.preventDefault()}
 				// Focusing the first copy button would open its tooltip.
 				onOpenAutoFocus={(event) => {
@@ -60,20 +59,20 @@ export const AutomationWebhookSecretDialog: React.FC<
 						{
 							label: "Publish endpoint",
 							code: endpoint,
-							copy: "Copy endpoint",
+							copyLabel: "Copy endpoint",
 						},
-						{ label: "Secret", code: secret, copy: "Copy secret" },
+						{ label: "Secret", code: secret, copyLabel: "Copy secret" },
 						{
 							label: "Example request",
-							code: curl,
-							copy: "Copy example request",
+							code: `curl -X POST ${endpoint} -H "Authorization: Bearer ${secret}" -H "Content-Type: application/json" -d '{"event":"deploy"}'`,
+							copyLabel: "Copy example request",
 						},
-					].map(({ label, code, copy }) => (
+					].map(({ label, code, copyLabel }) => (
 						<div key={label} className="flex flex-col gap-1">
 							<span className="text-sm font-medium text-content-primary">
 								{label}
 							</span>
-							<CodeExample secret={false} code={code} copyLabel={copy} />
+							<CodeExample secret={false} code={code} copyLabel={copyLabel} />
 						</div>
 					))}
 				</div>

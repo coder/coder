@@ -33,7 +33,7 @@ export const invalidateChatAutomations = (queryClient: QueryClient) =>
 export const webhookPublishEndpoint = (origin: string, automationId: string) =>
 	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
 
-/** Creates an automation. A webhook response carries the secret. */
+/** A webhook response carries the secret. */
 export const createChatAutomation = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -48,7 +48,7 @@ export const createChatAutomation = (
 		}),
 });
 
-/** Rotates a webhook secret. The response carries the new secret. */
+/** The response carries the new secret. */
 export const rotateChatAutomationSecret = (
 	queryClient: QueryClient,
 	organizationId: string,

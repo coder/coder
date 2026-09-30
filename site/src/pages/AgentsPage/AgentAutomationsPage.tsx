@@ -18,7 +18,6 @@ import {
 } from "#/api/queries/chatAutomations";
 import type {
 	ChatAutomation,
-	CreateChatAutomationRequest,
 	Organization,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
@@ -100,13 +99,26 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const runMutation = useMutation(
 		runChatAutomation(queryClient, organizationId),
 	);
-	const createMutation = useMutation(
-		createChatAutomation(queryClient, organizationId),
-	);
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
-	// A mutation-level callback still runs after a reset detaches per-call ones.
+	// On the mutation, not mutate(): a reset mid-flight would drop a per-call
+	// onSuccess and lose the secret.
+	const createMutation = useMutation({
+		...createChatAutomation(queryClient, organizationId),
+		onSuccess: ({ automation, webhook_secret }) => {
+			toast.success(`Created ${automation.name}.`);
+			setEditor(undefined);
+			if (webhook_secret) {
+				setWebhookSecret({
+					automationId: automation.id,
+					secret: webhook_secret,
+					returnFocusTo: editorOpenerRef.current,
+				});
+			}
+			createMutation.reset();
+		},
+	});
 	const rotateMutation = useMutation({
 		...rotateChatAutomationSecret(queryClient, organizationId),
 		onSuccess: ({ webhook_secret }, automationId) => {
@@ -123,31 +135,12 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
 		editMutation.reset();
-		if (!rotateMutation.isPending) {
-			rotateMutation.reset();
-		}
+		rotateMutation.reset();
 		editorOpenerRef.current =
 			document.activeElement instanceof HTMLElement
 				? document.activeElement
 				: null;
 		setEditor(next);
-	};
-
-	const handleCreate = (req: CreateChatAutomationRequest) => {
-		createMutation.mutate(req, {
-			onSuccess: ({ automation, webhook_secret }) => {
-				toast.success(`Created ${automation.name}.`);
-				setEditor(undefined);
-				if (webhook_secret) {
-					setWebhookSecret({
-						automationId: automation.id,
-						secret: webhook_secret,
-						returnFocusTo: editorOpenerRef.current,
-					});
-				}
-				createMutation.reset();
-			},
-		});
 	};
 
 	// Each save or rotate replaces the other's error so alerts do not stack.
@@ -264,7 +257,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 								? editMutation.isPending
 								: createMutation.isPending
 						}
-						onCreate={handleCreate}
+						onCreate={createMutation.mutate}
 						onUpdate={(req) => {
 							if (editor.mode === "edit") {
 								handleUpdate(editor.automation, req);

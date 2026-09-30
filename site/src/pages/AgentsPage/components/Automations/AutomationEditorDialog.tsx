@@ -77,7 +77,7 @@ const initialFormValues = (
 		: getPreferredTimezone(),
 	target_mode: automation?.target_mode ?? "existing_chat",
 	target_chat_id: automation?.target_chat_id ?? "",
-	when_busy: automation?.when_busy ?? defaultWhenBusy("schedule"),
+	when_busy: automation?.when_busy ?? "skip",
 	new_chat_model_config_id: automation?.new_chat_model_config_id ?? "",
 	reasoning_effort: automation?.reasoning_effort ?? "",
 });
@@ -282,7 +282,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) => !renderedFields.includes(validation.field),
 	);
-	const isBusy = isSubmitting || isRotatingSecret;
+	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
 		Boolean(error) &&
 		(!apiError?.validations?.length || alertValidations.length > 0);
@@ -291,7 +291,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		<Dialog
 			open
 			onOpenChange={(open) => {
-				if (!open && !isBusy) {
+				if (!open && !isPending) {
 					onClose();
 				}
 			}}
@@ -317,13 +317,15 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						<DialogDescription>
 							{isCreate
 								? "Create a schedule or webhook that sends a prompt to an agent."
-								: "The trigger and target type cannot change after creation."}
+								: isSchedule
+									? "The trigger and target type cannot change after creation."
+									: "The trigger, webhook use, and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
 						{automation && automation.owner_id !== currentUserId && (
 							<p className="m-0 text-sm text-content-secondary">
-								Only the owner of this automation can save changes.
+								Only the owner of this automation can change it.
 							</p>
 						)}
 						{showAlert && (
@@ -410,8 +412,10 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								<AutomationWebhookFields
 									automation={automation}
 									origin={origin}
-									use={form.values.webhook_use}
-									onUseChange={(use) => form.setFieldValue("webhook_use", use)}
+									webhookUse={form.values.webhook_use}
+									onWebhookUseChange={(webhookUse) =>
+										form.setFieldValue("webhook_use", webhookUse)
+									}
 									rotateSecretError={rotateSecretError}
 									isRotatingSecret={isRotatingSecret}
 									isSubmitting={isSubmitting}
@@ -543,12 +547,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						<Button
 							type="button"
 							variant="outline"
-							disabled={isBusy}
+							disabled={isPending}
 							onClick={onClose}
 						>
 							Cancel
 						</Button>
-						<Button type="submit" disabled={isBusy}>
+						<Button type="submit" disabled={isPending}>
 							<Spinner loading={isSubmitting} />
 							Save
 						</Button>

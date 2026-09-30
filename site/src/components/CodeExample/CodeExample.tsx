@@ -19,7 +19,7 @@ type CodeExampleProps = {
 	redactReplacement?: string;
 	/** Show a button to reveal the redacted parts of the code */
 	showRevealButton?: boolean;
-	/** Accessible name of the copy button, for telling several examples apart */
+	/** Accessible name of the copy button. */
 	copyLabel?: string;
 	className?: string;
 };

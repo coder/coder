@@ -2,10 +2,9 @@ import { useId } from "react";
 import { Label } from "#/components/Label/Label";
 import { RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 
-export const RadioOption: React.FC<{ value: string; label: string }> = ({
-	value,
-	label,
-}) => {
+type RadioOptionProps = { value: string; label: string };
+
+export const RadioOption: React.FC<RadioOptionProps> = ({ value, label }) => {
 	const id = useId();
 	return (
 		<div className="flex items-center gap-2">

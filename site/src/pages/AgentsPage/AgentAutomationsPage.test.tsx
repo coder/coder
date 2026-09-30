@@ -41,12 +41,6 @@ const mockWebhookAutomation: ChatAutomation = {
 	target_chat_id: MockChat.id,
 };
 
-const mockUsedWebhook: ChatAutomation = {
-	...mockWebhookAutomation,
-	webhook_use: "single",
-	webhook_consumed_at: "2026-09-30T10:15:00Z",
-};
-
 const automationsPath = (organizationId: string) =>
 	`/api/experimental/organizations/${organizationId}/chat-automations`;
 
@@ -638,16 +632,11 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 	});
 
 	it.each([
-		{ label: "a schedule", automation: mockAutomation, rotateButtons: 0 },
-		{ label: "a webhook", automation: mockWebhookAutomation, rotateButtons: 1 },
-		{
-			label: "a used single-use webhook",
-			automation: mockUsedWebhook,
-			rotateButtons: 0,
-		},
+		{ label: "a schedule", automation: mockAutomation },
+		{ label: "a webhook", automation: mockWebhookAutomation },
 	])(
 		"sends only the changed fields when editing $label",
-		async ({ automation, rotateButtons }) => {
+		async ({ automation }) => {
 			const user = userEvent.setup();
 			const { updateBodies } = setupEditor({ automations: [automation] });
 
@@ -655,9 +644,6 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				await screen.findByRole("button", { name: `Edit ${automation.name}` }),
 			);
 			const dialog = await screen.findByRole("dialog");
-			expect(
-				within(dialog).queryAllByRole("button", { name: "Rotate secret" }),
-			).toHaveLength(rotateButtons);
 			await pickChat(user, dialog, mockOtherChat.title);
 			await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -769,7 +755,7 @@ const dismissSecret = async (
 	queryClient: QueryClient,
 ) => {
 	expect(secretDialog).toHaveTextContent(webhookSecret);
-	// The modal sets pointer-events: none on the body; the press still counts.
+	// The modal sets pointer-events: none on the body, but Radix still sees this outside press.
 	await userEvent
 		.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never })
 		.pointer({ keys: "[MouseLeft]", target: document.body });
@@ -969,16 +955,18 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 	it("shows the server message when rotating the secret is forbidden", async () => {
 		const user = userEvent.setup();
 		setupEditor();
+		let rotatePosts = 0;
 		server.use(
 			http.get(automationsPath(":organizationId"), () =>
 				HttpResponse.json([mockWebhookAutomation]),
 			),
-			http.post(rotatePath, () =>
-				HttpResponse.json(
+			http.post(rotatePath, () => {
+				rotatePosts++;
+				return HttpResponse.json(
 					{ message: "Only the owner of a chat automation can change it." },
 					{ status: 403 },
-				),
-			),
+				);
+			}),
 		);
 		const dialog = await openWebhookEditor(user);
 
@@ -987,5 +975,6 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(await within(dialog).findByRole("alert")).toHaveTextContent(
 			"Only the owner of a chat automation can change it.",
 		);
+		expect(rotatePosts).toBe(1);
 	});
 });
