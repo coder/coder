@@ -24,6 +24,8 @@ SUBCOMMANDS:
     prebuilds              Manage Coder prebuilds
     provisioner            View and manage provisioner daemons and jobs
     server                 Start a Coder server
+    workspace-proxy        Workspace proxies provide low-latency experiences for
+                           geo-distributed teams.
 
 GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment

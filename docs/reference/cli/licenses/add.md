@@ -39,3 +39,12 @@ License string.
 | Type | <code>bool</code> |
 
 Output license claims for debugging.
+
+### -o, --output
+
+|         |                         |
+|---------|-------------------------|
+| Type    | <code>text\|json</code> |
+| Default | <code>text</code>       |
+
+Output format.

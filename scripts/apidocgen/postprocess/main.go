@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -246,7 +245,7 @@ func writeDocs(sections [][]byte) error {
 	}
 	restAPI.Children = children
 
-	manifestFile, err := json.MarshalIndent(m, "", "  ")
+	manifestFile, err := m.Marshal()
 	if err != nil {
 		return xerrors.Errorf("json.Marshal failed: %w", err)
 	}

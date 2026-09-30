@@ -26,6 +26,14 @@ coder users activate [flags] <username|user_id>
 
 ## Options
 
+### -y, --yes
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Bypass confirmation prompts.
+
 ### -c, --column
 
 |         |                                                    |

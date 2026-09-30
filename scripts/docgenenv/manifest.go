@@ -1,6 +1,7 @@
 package docgenenv
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 
@@ -39,6 +40,20 @@ func LoadManifest(path string) (*Manifest, error) {
 		return nil, xerrors.Errorf("unmarshal manifest %q: %w", path, err)
 	}
 	return &m, nil
+}
+
+// Marshal encodes the manifest as indented JSON with a trailing newline.
+// Unlike json.MarshalIndent, it leaves &, < and > unescaped so titles such as
+// "Groups & Roles" stay readable in the file. Both forms decode identically.
+func (m *Manifest) Marshal() ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(m); err != nil {
+		return nil, xerrors.Errorf("marshal manifest: %w", err)
+	}
+	return buf.Bytes(), nil
 }
 
 // FindRoute walks the manifest, following titles as a breadcrumb from the

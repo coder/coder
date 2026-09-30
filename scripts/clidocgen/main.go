@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"os"
 	"path/filepath"
@@ -94,7 +93,7 @@ func main() {
 	// manifest loaded above, so mutating it updates the manifest in place.
 	cmdLine.Children = cliManifestChildren(cmd)
 
-	manifestByt, err := json.MarshalIndent(man, "", "  ")
+	manifestByt, err := man.Marshal()
 	if err != nil {
 		flog.Fatalf("marshaling manifest: %v", err)
 	}
