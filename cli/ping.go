@@ -192,7 +192,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			opts := &workspacesdk.DialAgentOptions{}
 
 			if r.verbose {
-				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = inv.Logger.AppendSinks(sloghuman.Sink(diagOut)).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {
@@ -302,11 +302,13 @@ func (r *RootCmd) ping() *serpent.Command {
 				if err != nil {
 					if xerrors.Is(err, context.DeadlineExceeded) {
 						_, _ = fmt.Fprintf(diagOut, "ping to %q timed out \n", workspaceName)
-						pongs = append(pongs, PingJSONPong{
-							Sequence: n,
-							Time:     &pongTime,
-							Error:    "timed out",
-						})
+						if jsonOutput {
+							pongs = append(pongs, PingJSONPong{
+								Sequence: n,
+								Time:     &pongTime,
+								Error:    "timed out",
+							})
+						}
 						if n == int(pingNum) {
 							if jsonOutput {
 								return emitJSON()
@@ -323,20 +325,24 @@ func (r *RootCmd) ping() *serpent.Command {
 					}
 
 					if err.Error() == "no matching peer" {
+						if jsonOutput {
+							pongs = append(pongs, PingJSONPong{
+								Sequence: n,
+								Time:     &pongTime,
+								Error:    err.Error(),
+							})
+						}
+						continue
+					}
+
+					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
+					if jsonOutput {
 						pongs = append(pongs, PingJSONPong{
 							Sequence: n,
 							Time:     &pongTime,
 							Error:    err.Error(),
 						})
-						continue
 					}
-
-					_, _ = fmt.Fprintf(diagOut, "ping to %q failed %s\n", workspaceName, err.Error())
-					pongs = append(pongs, PingJSONPong{
-						Sequence: n,
-						Time:     &pongTime,
-						Error:    err.Error(),
-					})
 					if n == int(pingNum) {
 						if jsonOutput {
 							return emitJSON()
@@ -346,7 +352,7 @@ func (r *RootCmd) ping() *serpent.Command {
 					continue
 				}
 
-				dur = dur.Round(time.Millisecond)
+				dispDur := dur.Round(time.Millisecond)
 				var via string
 				var derpRegionName string
 				direct := p2p
@@ -384,17 +390,19 @@ func (r *RootCmd) ping() *serpent.Command {
 					displayTime,
 					pretty.Sprint(cliui.DefaultStyles.Keyword, workspaceName),
 					via,
-					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dur.String()),
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, dispDur.String()),
 				)
 
-				latencyMS := float64(dur) / float64(time.Millisecond)
-				pongs = append(pongs, PingJSONPong{
-					Sequence:   n,
-					Time:       &pongTime,
-					LatencyMS:  &latencyMS,
-					Direct:     &direct,
-					DERPRegion: derpRegionName,
-				})
+				if jsonOutput {
+					latencyMS := float64(dur) / float64(time.Millisecond)
+					pongs = append(pongs, PingJSONPong{
+						Sequence:   n,
+						Time:       &pongTime,
+						LatencyMS:  &latencyMS,
+						Direct:     &direct,
+						DERPRegion: derpRegionName,
+					})
+				}
 
 				select {
 				case <-notifyCtx.Done():
