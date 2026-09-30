@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { defaultUrlTransform } from "streamdown";
 import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
@@ -36,6 +37,7 @@ const meta: Meta<typeof Tool> = {
 	component: Tool,
 	args: {
 		organizationId: MockChatModel.organization_id,
+		mcpServers: [],
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
@@ -2938,11 +2940,16 @@ export const AllToolIconsTranscript: Story = {
 						]}
 						tools={[]}
 						keyPrefix="all-tool-icons-thinking"
+						organizationId="organization-id"
+						mcpServers={[]}
+						urlTransform={defaultUrlTransform}
 					/>
 					{allToolShowcaseItems.map((tool, index) => (
 						<Tool
 							key={`${tool.name}-${index}`}
 							name={tool.name}
+							organizationId="organization-id"
+							mcpServers={[]}
 							status={tool.status ?? "completed"}
 							args={tool.args}
 							result={tool.result}
@@ -3016,6 +3023,8 @@ export const PolicyBadgeCoversEveryRenderer: Story = {
 						>
 							<Tool
 								name={tool.name}
+								organizationId="organization-id"
+								mcpServers={[]}
 								status={tool.status ?? "completed"}
 								args={tool.args}
 								result={tool.result}

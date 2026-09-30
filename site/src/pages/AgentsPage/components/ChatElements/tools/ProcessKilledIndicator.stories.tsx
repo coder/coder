@@ -6,6 +6,7 @@ const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
 const meta: Meta<typeof Tool> = {
 	title: "components/ai-elements/tool/ProcessKilledIndicator",
 	component: Tool,
+	args: { organizationId: "organization-id", mcpServers: [] },
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;
