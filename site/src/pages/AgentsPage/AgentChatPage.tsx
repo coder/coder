@@ -11,6 +11,11 @@ import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
+	type ChatGoalAction,
+	chatGoalActionUnavailableReason,
+	isChatBusyStatus,
+} from "#/api/queries/chatGoal";
+import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
 	chatQueueConvergence,
@@ -26,6 +31,8 @@ import {
 	openChat,
 	patchChatEntity,
 	promoteChatQueuedMessage,
+	setCachedChatGoal,
+	updateChatGoal,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -59,7 +66,10 @@ import {
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
-import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
+import {
+	getParentChatID,
+	getWorkspaceAgent,
+} from "./components/ChatConversation/chatHelpers";
 import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
@@ -73,6 +83,7 @@ import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watc
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
+import { runGoalAction } from "./goalActions";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -183,6 +194,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
 	);
+	const areChatGoalsEnabled = experiments.includes("chat-goals");
 	const desktopEnabled = experiments.includes("chat-virtual-desktop");
 	const debugLoggingEnabled = Boolean(
 		userDebugLoggingQuery.data?.debug_logging_enabled,
@@ -239,6 +251,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
 		chat !== undefined && currentUser.id !== chat.owner_id;
+	const isRootChat = chat !== undefined && getParentChatID(chat) === undefined;
 	const planModeEnabled = chat?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -341,10 +354,21 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		},
 	});
 
+	const updateChatGoalBase = updateChatGoal(queryClient);
+	const {
+		isPending: isUpdateChatGoalPending,
+		mutateAsync: updateChatGoalAsync,
+	} = useMutation({
+		...updateChatGoalBase,
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to update goal."));
+		},
+	});
+
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
-		mutate: updateChatPlanModeMutate,
+		mutateAsync: updateChatPlanModeAsync,
 	} = useMutation({
 		...updateChatPlanModeBase,
 		onError: (error, variables, context) => {
@@ -489,7 +513,9 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		isCompactPending ||
 		isClearPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+		isUpdateChatPlanModePending ||
+		isUpdateChatWorkspacePending ||
+		isUpdateChatGoalPending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -497,15 +523,67 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		isViewerNotOwner ||
 		aiGatewayDisabled;
 	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
+	const canMutateGoal = areChatGoalsEnabled && isRootChat && !isViewerNotOwner;
+	const isGoalActionDisabled =
+		isArchived || isViewerNotOwner || aiGatewayDisabled;
+	const isChatWorking = isChatBusyStatus(liveChatStatus);
+	const hasQueuedInput = (chatQueuedMessages?.length ?? 0) > 0;
+	// Setting a goal is message-bound; a busy chat would queue the
+	// message and the server rejects queued goal mutations.
+	const canSetGoalNow = !isChatWorking && !hasQueuedInput;
+	const goalActionUnavailableReasons = {
+		resume: chatGoalActionUnavailableReason("resume", {
+			chatStatus: liveChatStatus,
+			hasQueuedInput,
+			planModeEnabled,
+			hasModelOptions,
+		}),
+	};
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 	const handlePlanModeToggle = (enabled: boolean) => {
 		if (enabled === planModeEnabled) {
 			return;
 		}
-		updateChatPlanModeMutate({
+		// Goal mode awaits a plan-mode disable and clears itself on failure;
+		// other callers ignore the result, and onError already toasts.
+		const update = updateChatPlanModeAsync({
 			chatId: agentId,
 			planMode: enabled ? "plan" : undefined,
 		});
+		void update.catch(() => undefined);
+		return update;
+	};
+
+	const handleGoalAction = async (
+		action: ChatGoalAction,
+		completionSummary?: string,
+	) => {
+		if (!canMutateGoal) {
+			toast.warning("Goals can only be changed from the root chat.");
+			return;
+		}
+		await runGoalAction({
+			agentId,
+			goal: chatQuery.data?.goal,
+			action,
+			completionSummary,
+			updateGoal: updateChatGoalAsync,
+			liveChatStatus,
+			hasQueuedInput,
+			planModeEnabled,
+			hasModelOptions,
+			onMissingGoal: () => {
+				toast.info("No current goal.");
+			},
+			onActionUnavailable: (reason) => {
+				toast.info(reason);
+			},
+			onPausedRunningGoal: () => {
+				toast.info(
+					"Goal paused. The current turn keeps running; Stop halts it.",
+				);
+			},
+		}).catch(() => undefined);
 	};
 
 	const handleRequestError = (error: unknown): void => {
@@ -655,12 +733,15 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		fetchQueueConvergence: (chatId: string) =>
 			queryClient.fetchQuery(chatQueueConvergence(chatId)),
 		setCachedChatPlanMode,
+		setCachedChatGoal: (chatId: string, goal: TypesGen.ChatGoal | undefined) =>
+			setCachedChatGoal(queryClient, chatId, goal),
 	};
 
 	async function handleSend({
 		message,
 		attachments,
 		workspaceUploads,
+		goalMutation,
 		editedMessageID,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
@@ -669,6 +750,10 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 			attachments,
 			workspaceUploads,
 			editedMessageID,
+			goalMutation:
+				editedMessageID === undefined && canMutateGoal && !isGoalActionDisabled
+					? goalMutation
+					: undefined,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
 		});
 	}
@@ -778,6 +863,15 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
 					sshCommand={sshCommand}
+					goal={areChatGoalsEnabled ? chatQuery.data?.goal : undefined}
+					showPursueGoal={areChatGoalsEnabled && isRootChat}
+					canMutateGoal={canMutateGoal}
+					isGoalActionPending={isUpdateChatGoalPending}
+					isGoalActionDisabled={isGoalActionDisabled}
+					isChatWorking={isChatWorking}
+					canSetGoalNow={canSetGoalNow}
+					goalActionUnavailableReasons={goalActionUnavailableReasons}
+					onGoalAction={handleGoalAction}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}

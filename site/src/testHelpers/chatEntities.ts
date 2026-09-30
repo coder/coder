@@ -3,6 +3,7 @@ import type {
 	ChatContext,
 	ChatContextResource,
 	ChatFileMetadata,
+	ChatGoal,
 	ChatMessage,
 	ChatQueuedMessage,
 	MCPServerConfig,
@@ -79,6 +80,17 @@ const MockChatContextResources: ChatContextResource[] = [
 		error: 'front-matter name "coder-review" does not match directory "moo"',
 	},
 ];
+
+export const MockChatGoal: ChatGoal = {
+	id: "goal-1",
+	root_chat_id: MockChat.id,
+	objective: "Fix the flaky tests",
+	status: "active",
+	created_by_user_id: MockUserOwner.id,
+	completed_by_agent: false,
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+};
 
 export const MockChatContextClean: ChatContext = {
 	dirty: false,

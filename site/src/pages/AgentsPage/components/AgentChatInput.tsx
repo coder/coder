@@ -6,6 +6,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	LockIcon,
+	type LucideIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -13,6 +14,7 @@ import {
 	PlusIcon,
 	ServerIcon,
 	SquareIcon,
+	TargetIcon,
 	TriangleAlertIcon,
 	UnlinkIcon,
 	XIcon,
@@ -133,8 +135,15 @@ const workspaceRequiredAttachmentMessage =
 const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
+export type AgentChatInputSendOptions = {
+	goalMutation?: TypesGen.ChatGoalSetRequest;
+};
+
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (
+		message: string,
+		options?: AgentChatInputSendOptions,
+	) => Promise<void> | void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -163,7 +172,9 @@ type AgentChatInputProps = {
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
+	onPlanModeToggle?: (enabled: boolean) => unknown;
+	showPursueGoal?: boolean;
+	canPursueGoal?: boolean;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
@@ -493,6 +504,30 @@ const ToolBadge: React.FC<{
 	);
 };
 
+const MenuCheckboxItem: React.FC<{
+	icon: LucideIcon;
+	label: string;
+	checked: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}> = ({ icon: Icon, label, checked, disabled, onClick }) => (
+	// An unavailable item stays focusable with aria-disabled so keyboard
+	// and screen-reader users can still discover it; a hard-disabled
+	// button cannot be focused.
+	<button
+		type="button"
+		role="menuitemcheckbox"
+		aria-checked={checked}
+		aria-disabled={disabled || undefined}
+		onClick={disabled ? undefined : onClick}
+		className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:text-content-secondary"
+	>
+		<Icon className="size-3.5 shrink-0" />
+		<span>{label}</span>
+		{checked && <CheckIcon className="ml-auto size-icon-sm shrink-0" />}
+	</button>
+);
+
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
 	placeholder = "Type a message...",
@@ -513,6 +548,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onReasoningEffortChange,
 	planModeEnabled = false,
 	onPlanModeToggle,
+	showPursueGoal = false,
+	canPursueGoal = false,
 	isModelCatalogLoading = false,
 	isStreaming = false,
 	onInterrupt,
@@ -614,6 +651,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const mcpDisconnectMutation = useMutation(
 		disconnectMCPServerOAuth2(queryClient),
 	);
+	const [pursueGoalEnabled, setPursueGoalEnabled] = useState(false);
 
 	const [hasFileReferences, setHasFileReferences] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
@@ -787,12 +825,43 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
 
+	const isGoalModeUnavailable =
+		!showPursueGoal || !canPursueGoal || isEditingHistoryMessage;
+	// Availability loss clears the stored selection during render so goal
+	// mode cannot silently reactivate once availability returns.
+	if (pursueGoalEnabled && isGoalModeUnavailable) {
+		setPursueGoalEnabled(false);
+	}
+	const isPursueGoalActive = pursueGoalEnabled && !isGoalModeUnavailable;
+
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		const nextEnabled = !planModeEnabled;
+		if (nextEnabled) {
+			setPursueGoalEnabled(false);
+		}
+		onPlanModeToggle?.(nextEnabled);
+		setPlusMenuOpen(false);
+	};
+
+	const handleGoalModeToggle = () => {
+		if (isDisabled || isGoalModeUnavailable) {
+			return;
+		}
+		const nextEnabled = !pursueGoalEnabled;
+		setPursueGoalEnabled(nextEnabled);
+		if (nextEnabled && planModeEnabled) {
+			// Persistent plan mode deterministically rejects a goal-bound
+			// send, so when the requested disable fails, clear goal mode
+			// instead of presenting both modes together.
+			void Promise.resolve(onPlanModeToggle?.(false)).catch(() =>
+				setPursueGoalEnabled(false),
+			);
+		}
 		setPlusMenuOpen(false);
 	};
 
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisableGoalMode = () => setPursueGoalEnabled(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -1115,8 +1184,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		workspaceUploadEntries.length > 0 ||
 		hasFileReferences;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
-	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+	const hasSendableContent = isPursueGoalActive
+		? hasContent
+		: hasContent || hasUploadedAttachments || hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isReadOnly &&
@@ -1124,7 +1194,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const handleSubmit = async () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
 		// If the input is empty and there are queued messages,
@@ -1155,7 +1225,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		if (isPursueGoalActive && !text) {
+			return;
+		}
+
+		const sendOptions: AgentChatInputSendOptions | undefined =
+			isPursueGoalActive
+				? { goalMutation: { action: "set", objective: text } }
+				: undefined;
+		try {
+			await onSend(text, sendOptions);
+		} catch {
+			return;
+		}
+		if (pursueGoalEnabled) {
+			setPursueGoalEnabled(false);
+		}
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
@@ -1433,7 +1518,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					remountKey={remountKey}
 					onChange={handleContentChange}
 					onKeyDown={handleEditorKeyDown}
-					onEnter={handleSubmit}
+					onEnter={() => {
+						void handleSubmit();
+					}}
 					sendShortcut={sendShortcut}
 					disabled={isReadOnly || isLoading}
 					hasWorkspace={hasSkillsWorkspace}
@@ -1551,20 +1638,22 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											</button>
 										)}
 										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
+											<MenuCheckboxItem
+												icon={PencilIcon}
+												label="Plan first"
+												checked={planModeEnabled}
+												disabled={isDisabled || isPursueGoalActive}
 												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
+											/>
+										)}
+										{showPursueGoal && (
+											<MenuCheckboxItem
+												icon={TargetIcon}
+												label="Pursue goal"
+												checked={isPursueGoalActive}
+												disabled={isDisabled || isGoalModeUnavailable}
+												onClick={handleGoalModeToggle}
+											/>
 										)}
 										{workspaceOptions &&
 											onWorkspaceChange &&
@@ -1747,6 +1836,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										isDisabled={isDisabled}
 									/>
 								)}
+							</span>
+						)}
+						{isPursueGoalActive && (
+							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+								<TargetIcon className="size-3" />
+								Pursuing goal
+								<BadgeDismissButton
+									onClick={handleDisableGoalMode}
+									ariaLabel="Disable goal mode"
+									isDisabled={isDisabled}
+								/>
 							</span>
 						)}
 						{/* Badges and the +N pill stay mounted for measurement:
@@ -1933,7 +2033,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										variant="default"
 										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
 										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
+											speech.isRecording
+												? handleAcceptRecording
+												: () => {
+														void handleSubmit();
+													}
 										}
 										disabled={speech.isRecording ? false : !canSend}
 										aria-keyshortcuts={sendButtonKeyShortcuts}

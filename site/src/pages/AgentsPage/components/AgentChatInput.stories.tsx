@@ -164,8 +164,43 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(sendButton);
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
+	},
+};
+
+export const PursueGoalMode: Story = {
+	args: {
+		initialValue: "  stabilize the release  ",
+		onPlanModeToggle: fn(),
+		showPursueGoal: true,
+		canPursueGoal: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		);
+		// Reopen the menu so the snapshot captures the checked pursue-goal
+		// item and the disabled plan-mode item.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	},
+};
+
+export const PursueGoalDisabledWhileChatBusy: Story = {
+	args: {
+		onPlanModeToggle: fn(),
+		showPursueGoal: true,
+		// The page passes canPursueGoal={false} while the chat is busy
+		// because a goal set sent with a queued message is rejected.
+		canPursueGoal: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 	},
 };
 
@@ -185,7 +220,7 @@ export const EnterSendsByDefault: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -222,7 +257,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -485,6 +520,34 @@ export const AttachmentsOnly: Story = {
 			initialValue: "",
 		};
 	})(),
+};
+
+export const AttachmentsOnlyPursueGoalBlocksSend: Story = {
+	args: (() => {
+		const file = createMockFile("photo.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploaded", fileId: "f-only" }],
+			]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+			onAttach: fn(),
+			onRemoveAttachment: fn(),
+			onSend: fn(),
+			initialValue: "",
+			showPursueGoal: true,
+			canPursueGoal: true,
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			within(document.body).getByRole("menuitemcheckbox", {
+				name: "Pursue goal",
+			}),
+		);
+	},
 };
 
 const LARGE_PASTE_MARKER = "__PASTE_MARKER_TEST__";

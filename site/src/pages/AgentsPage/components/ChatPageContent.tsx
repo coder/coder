@@ -125,6 +125,7 @@ type ChatPageTimelineProps = {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	goalSourceMessageId?: number;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
@@ -145,6 +146,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	onFetchMoreMessages,
 	onEditUserMessage,
 	editingMessageId,
+	goalSourceMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	urlTransform,
@@ -236,6 +238,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 					subagentVariants={subagentVariants}
 					onEditUserMessage={onEditUserMessage}
 					editingMessageId={editingMessageId}
+					goalSourceMessageId={goalSourceMessageId}
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
@@ -279,6 +282,7 @@ export type SendChatMessageOptions = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
 	workspaceUploads?: readonly PendingWorkspaceUpload[];
+	goalMutation?: TypesGen.ChatGoalSetRequest;
 };
 
 type ChatPageInputProps = {
@@ -307,6 +311,8 @@ type ChatPageInputProps = {
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
+	showPursueGoal?: boolean;
+	canPursueGoal?: boolean;
 	isModelCatalogLoading?: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
@@ -364,6 +370,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
+	showPursueGoal = false,
+	canPursueGoal = false,
 	isModelCatalogLoading = false,
 	inputRef,
 	initialValue,
@@ -708,86 +716,82 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 
 	const inputElement = (
 		<AgentChatInput
-			onSend={(message) => {
-				void (async () => {
-					const hasActiveUploads =
-						attachments.some((file) =>
-							isUploadInProgress(uploadStates.get(file)),
-						) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
-					if (hasActiveUploads) {
-						toast.warning("Wait for file uploads to finish before sending.");
-						return;
+			onSend={async (message, options) => {
+				const hasActiveUploads =
+					attachments.some((file) =>
+						isUploadInProgress(uploadStates.get(file)),
+					) || visibleWorkspaceUploads.some(isWorkspaceUploadInProgress);
+				if (hasActiveUploads) {
+					toast.warning("Wait for file uploads to finish before sending.");
+					return;
+				}
+				// Collect uploaded attachment metadata for the optimistic
+				// transcript builder while keeping the server payload
+				// shape unchanged downstream.
+				const pendingAttachments: PendingAttachment[] = [];
+				let skippedErrors = 0;
+				for (const file of attachments) {
+					const state = uploadStates.get(file);
+					if (state?.status === "error") {
+						skippedErrors++;
+						continue;
 					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							});
-						}
-					}
-					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
-					let skippedWorkspaceErrors = 0;
-					for (const upload of visibleWorkspaceUploads) {
-						if (upload.status === "error") {
-							skippedWorkspaceErrors++;
-							continue;
-						}
-						if (upload.status === "uploaded" && upload.response) {
-							pendingWorkspaceUploads.push({
-								path: upload.response.path,
-								name: upload.response.name,
-								size: upload.response.size,
-								mediaType: upload.response.media_type,
-								workspaceId: upload.response.workspace_id,
-							});
-						}
-					}
-					if (skippedErrors > 0) {
-						toast.warning(
-							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					if (skippedWorkspaceErrors > 0) {
-						toast.warning(
-							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
-						);
-					}
-					const attachmentsArg =
-						pendingAttachments.length > 0 ? pendingAttachments : undefined;
-					const workspaceUploadsArg =
-						pendingWorkspaceUploads.length > 0
-							? pendingWorkspaceUploads
-							: undefined;
-					try {
-						await onSend({
-							message,
-							attachments: attachmentsArg,
-							workspaceUploads: workspaceUploadsArg,
+					if (state?.status === "uploaded" && state.fileId) {
+						pendingAttachments.push({
+							fileId: state.fileId,
+							mediaType: file.type || "application/octet-stream",
 						});
-					} catch {
-						// Attachments preserved for retry on failure.
-						return;
 					}
-					if (isEditing) {
-						editAttachments.resetAttachments();
-						resetEditWorkspaceUploads();
-						setPreservedWorkspaceUploads([]);
-					} else {
-						composeAttachments.resetAttachments();
-						composeWorkspaceUploads.reset();
+				}
+				const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
+				let skippedWorkspaceErrors = 0;
+				for (const upload of visibleWorkspaceUploads) {
+					if (upload.status === "error") {
+						skippedWorkspaceErrors++;
+						continue;
 					}
-				})();
+					if (upload.status === "uploaded" && upload.response) {
+						pendingWorkspaceUploads.push({
+							path: upload.response.path,
+							name: upload.response.name,
+							size: upload.response.size,
+							mediaType: upload.response.media_type,
+							workspaceId: upload.response.workspace_id,
+						});
+					}
+				}
+				if (skippedErrors > 0) {
+					toast.warning(
+						`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+					);
+				}
+				if (skippedWorkspaceErrors > 0) {
+					toast.warning(
+						`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+					);
+				}
+				const attachmentsArg =
+					pendingAttachments.length > 0 ? pendingAttachments : undefined;
+				const workspaceUploadsArg =
+					pendingWorkspaceUploads.length > 0
+						? pendingWorkspaceUploads
+						: undefined;
+				// A rejection propagates to the input, which preserves the
+				// draft, goal mode, and attachments for retry.
+				await onSend({
+					message,
+					attachments: attachmentsArg,
+					workspaceUploads: workspaceUploadsArg,
+					goalMutation: options?.goalMutation,
+				});
+				if (isEditing) {
+					editAttachments.resetAttachments();
+					resetEditWorkspaceUploads();
+					setPreservedWorkspaceUploads([]);
+				} else {
+					composeAttachments.resetAttachments();
+					composeWorkspaceUploads.reset();
+				}
 			}}
 			attachments={attachments}
 			onAttach={handleAttach}
@@ -831,6 +835,8 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onReasoningEffortChange={onReasoningEffortChange}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={onPlanModeToggle}
+			showPursueGoal={showPursueGoal}
+			canPursueGoal={canPursueGoal}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
