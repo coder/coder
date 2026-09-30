@@ -36,7 +36,7 @@ const (
 	// AgentHTTPAPIServerPort serves a HTTP server with endpoints for e.g.
 	// gathering agent statistics.
 	AgentHTTPAPIServerPort        = 4
-	AgentHTTPAPIServerIdleTimeout = 15 * time.Minute // Must exceed the idle timeout of pooling clients.
+	AgentHTTPAPIServerIdleTimeout = 15 * time.Minute // Must exceed agentAPIIdleConnTimeout.
 
 	// AgentMinimumListeningPort is the minimum port that the listening-ports
 	// endpoint will return to the client, and the minimum port that is accepted
@@ -361,7 +361,6 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
-		Logger: options.Logger,
 	})
 
 	// Agent HTTP API requests use a separate per-request HTTP client that does

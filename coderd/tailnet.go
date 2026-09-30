@@ -11,7 +11,6 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,22 +35,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-var tailnetTransport *http.Transport
-
-func init() {
-	tp, valid := http.DefaultTransport.(*http.Transport)
-	if !valid {
-		panic("dev error: default transport is the wrong type")
-	}
-	tailnetTransport = tp.Clone()
-	// We do not want to respect the proxy settings from the environment, since
-	// all network traffic happens over wireguard.
-	tailnetTransport.Proxy = nil
-}
-
 var _ workspaceapps.AgentProvider = (*ServerTailnet)(nil)
-
-const agentDialTimeout = 30 * time.Second // Matches http.DefaultTransport's dialer.
 
 // NewServerTailnet creates a new tailnet intended for use by coderd.
 func NewServerTailnet(
@@ -102,7 +86,11 @@ func NewServerTailnet(
 	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
 	// there is an embedded relay, we use the local in-memory dialer.
 	controller.DERPCtrl = tailnet.NewBasicDERPController(logger, nil, conn)
-	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn)
+	transports := &agentTransports{
+		api:  make(map[uuid.UUID]*workspacesdk.AgentAPITransport),
+		apps: make(map[uuid.UUID]*workspacesdk.AgentAppTransport),
+	}
+	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn, transports.forget)
 	controller.CoordCtrl = coordCtrl
 	// TODO: support controller.TelemetryCtrl
 
@@ -115,8 +103,7 @@ func NewServerTailnet(
 		coordinatee: conn,
 		controller:  controller,
 		coordCtrl:   coordCtrl,
-		transport:   tailnetTransport.Clone(),
-		dialTimeout: agentDialTimeout,
+		transports:  transports,
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -129,25 +116,6 @@ func NewServerTailnet(
 			Name:      "connections_total",
 			Help:      "Total number of TCP connections made to workspace agents.",
 		}, []string{"network"}),
-	}
-	tn.transport.DialContext = tn.dialContext
-	// These options are mostly just picked at random, and they can likely be
-	// fine-tuned further. Generally, users are running applications in dev mode
-	// which can generate hundreds of requests per page load, so we increased
-	// MaxIdleConnsPerHost from 2 to 6 and removed the limit of total idle
-	// conns.
-	tn.transport.MaxIdleConnsPerHost = 6
-	tn.transport.MaxIdleConns = 0
-	tn.transport.IdleConnTimeout = 10 * time.Minute // Must stay below workspacesdk.AgentHTTPAPIServerIdleTimeout.
-	// We intentionally don't verify the certificate chain here.
-	// The connection to the workspace is already established and most
-	// apps are already going to be accessed over plain HTTP, this config
-	// simply allows apps being run over HTTPS to be accessed without error --
-	// many of which may be using self-signed certs.
-	tn.transport.TLSClientConfig = &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		//nolint:gosec
-		InsecureSkipVerify: true,
 	}
 
 	tn.controller.Run(tn.ctx)
@@ -185,18 +153,15 @@ type ServerTailnet struct {
 	controller *tailnet.Controller
 	coordCtrl  *MultiAgentController
 
-	transport   *http.Transport
-	dialTimeout time.Duration
+	transports *agentTransports
 
 	connsPerAgent *prometheus.GaugeVec
 	totalConns    *prometheus.CounterVec
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
-	// Rewrite the targetURL's Host to point to the agent's IP. This is
-	// necessary because due to TCP connection caching, each agent needs to be
-	// addressed invidivually. Otherwise, all connections get dialed as
-	// "localhost:port", causing connections to be shared across agents.
+	// The transport dials agentID whatever the host. The host still sets the
+	// TLS server name for HTTPS apps, and an IP sends none.
 	tgt := *targetURL
 	_, port, _ := net.SplitHostPort(tgt.Host)
 	tgt.Host = net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(agentID).String(), port)
@@ -250,114 +215,126 @@ func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID u
 			AdditionalInfo: additionalInfo,
 		})
 	}
-	proxy.Director = s.director(agentID, proxy.Director)
-	proxy.Transport = s.transport
+	proxy.Transport = s.appTransport(agentID)
 
 	return proxy
 }
 
-type agentIDKey struct{}
-
-// director makes sure agentIDKey is set on the context in the reverse proxy.
-// This allows the transport to correctly identify which agent to dial to.
-func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) func(req *http.Request) {
-	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), agentIDKey{}, agentID)
-		*req = *req.WithContext(ctx)
-		prev(req)
-	}
-}
-
-func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	agentID, ok := ctx.Value(agentIDKey{}).(uuid.UUID)
-	if !ok {
-		return nil, xerrors.Errorf("no agent id attached")
-	}
-
-	// Transport dials outlive their request. Bound them so an unreachable
-	// agent cannot hold a tunnel ticket indefinitely.
-	ctx, cancel := context.WithTimeout(ctx, s.dialTimeout)
-	defer cancel()
-
-	nc, err := s.DialAgentNetConn(ctx, agentID, network, addr)
-	if err != nil {
-		return nil, err
-	}
-
-	s.connsPerAgent.WithLabelValues("tcp").Inc()
-	s.totalConns.WithLabelValues("tcp").Inc()
-	return &instrumentedConn{
-		Conn:          nc,
-		agentID:       agentID,
-		connsPerAgent: s.connsPerAgent,
-	}, nil
-}
-
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	conn, release, err := s.acquireAgentConn(agentID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !conn.AwaitReachable(ctx) {
-		release()
-		return nil, nil, xerrors.New("agent is unreachable")
-	}
-	return conn, release, nil
-}
+	var (
+		conn workspacesdk.AgentConn
+		ret  func()
+	)
 
-func (s *ServerTailnet) DialAgentNetConn(ctx context.Context, agentID uuid.UUID, network, addr string) (net.Conn, error) {
-	conn, release, err := s.acquireAgentConn(agentID)
-	if err != nil {
-		return nil, xerrors.Errorf("acquire agent conn: %w", err)
-	}
-	// DialContext awaits reachability.
-	nc, err := conn.DialContext(ctx, network, addr)
-	if err != nil {
-		release()
-		return nil, xerrors.Errorf("dial context: %w", err)
-	}
-	return &netConnCloser{Conn: nc, close: release}, nil
-}
-
-// acquireAgentConn does not await reachability.
-func (s *ServerTailnet) acquireAgentConn(agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
-	if err := s.coordCtrl.ensureAgent(agentID); err != nil {
+	err := s.coordCtrl.ensureAgent(agentID)
+	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
 	}
-	release := s.coordCtrl.acquireTicket(agentID)
-	conn := workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
-		AgentID:   agentID,
-		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
-		Logger:    s.logger,
-		APITransport: agentRoundTripper{
-			agentID:   agentID,
-			transport: s.transport,
-		},
+	ret = s.coordCtrl.acquireTicket(agentID)
+
+	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
+		AgentID:      agentID,
+		CloseFunc:    func() error { return workspacesdk.ErrSkipClose },
+		APITransport: s.apiTransport(agentID),
 	})
-	return conn, release, nil
-}
 
-// agentRoundTripper sets the agent ID that dialContext reads, like
-// ReverseProxy's director. The transport reuses idle connections by URL
-// host, not agent ID, so a request to another host could reuse another
-// agent's connection.
-type agentRoundTripper struct {
-	agentID   uuid.UUID
-	transport http.RoundTripper
-}
+	// Since we now have an open conn, be careful to close it if we error
+	// without returning it to the user.
 
-func (rt agentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiHost := net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(rt.agentID).String(), strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
-	if req.URL.Host != apiHost {
-		if req.Body != nil {
-			_ = req.Body.Close() // Required by the http.RoundTripper contract.
-		}
-		return nil, xerrors.Errorf("request host %q does not match agent API address %q", req.URL.Host, apiHost)
+	reachable := conn.AwaitReachable(ctx)
+	if !reachable {
+		ret()
+		return nil, nil, xerrors.New("agent is unreachable")
 	}
-	ctx := req.Context()
-	ctx = context.WithValue(ctx, agentIDKey{}, rt.agentID)
-	return rt.transport.RoundTrip(req.WithContext(ctx))
+
+	return conn, ret, nil
+}
+
+// agentTransports holds each agent's HTTP transports, so a pooled
+// connection only serves requests for the agent it was dialed to.
+type agentTransports struct {
+	mu   sync.Mutex
+	api  map[uuid.UUID]*workspacesdk.AgentAPITransport
+	apps map[uuid.UUID]*workspacesdk.AgentAppTransport
+}
+
+// forget removes agentID's transports and closes their idle connections.
+func (t *agentTransports) forget(agentID uuid.UUID) {
+	t.mu.Lock()
+	api, apps := t.api[agentID], t.apps[agentID]
+	delete(t.api, agentID)
+	delete(t.apps, agentID)
+	t.mu.Unlock()
+	if api != nil {
+		api.CloseIdleConnections()
+	}
+	if apps != nil {
+		apps.CloseIdleConnections()
+	}
+}
+
+func (t *agentTransports) closeIdleConnections() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, api := range t.api {
+		api.CloseIdleConnections()
+	}
+	for _, apps := range t.apps {
+		apps.CloseIdleConnections()
+	}
+}
+
+func (s *ServerTailnet) apiTransport(agentID uuid.UUID) *workspacesdk.AgentAPITransport {
+	s.transports.mu.Lock()
+	defer s.transports.mu.Unlock()
+	t, ok := s.transports.api[agentID]
+	if !ok {
+		t = workspacesdk.NewAgentAPITransport(s.agentDialer(agentID))
+		s.transports.api[agentID] = t
+	}
+	return t
+}
+
+func (s *ServerTailnet) appTransport(agentID uuid.UUID) *workspacesdk.AgentAppTransport {
+	s.transports.mu.Lock()
+	defer s.transports.mu.Unlock()
+	t, ok := s.transports.apps[agentID]
+	if !ok {
+		t = workspacesdk.NewAgentAppTransport(s.agentDialer(agentID))
+		s.transports.apps[agentID] = t
+	}
+	return t
+}
+
+// agentDialer returns a dialer for agentID. Each connection holds a tunnel
+// ticket until it closes, so the agent does not expire while a connection
+// is open or pooled.
+func (s *ServerTailnet) agentDialer(agentID uuid.UUID) workspacesdk.AgentDialer {
+	addr := tailnet.TailscaleServicePrefix.AddrFromUUID(agentID)
+	return func(ctx context.Context, port uint16) (net.Conn, error) {
+		if err := s.coordCtrl.ensureAgent(agentID); err != nil {
+			return nil, xerrors.Errorf("ensure agent: %w", err)
+		}
+		release := s.coordCtrl.acquireTicket(agentID)
+		if !s.conn.AwaitReachable(ctx, addr) {
+			release()
+			return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+		}
+		nc, err := s.conn.DialContextTCP(ctx, netip.AddrPortFrom(addr, port))
+		if err != nil {
+			release()
+			return nil, xerrors.Errorf("dial agent: %w", err)
+		}
+
+		s.connsPerAgent.WithLabelValues("tcp").Inc()
+		s.totalConns.WithLabelValues("tcp").Inc()
+		return &instrumentedConn{
+			Conn:          &netConnCloser{Conn: nc, close: release},
+			agentID:       agentID,
+			connsPerAgent: s.connsPerAgent,
+		}, nil
+	}
 }
 
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
@@ -379,7 +356,7 @@ func (s *ServerTailnet) Close() error {
 	defer s.logger.Debug(s.ctx, "server tailnet close complete")
 	s.cancel()
 	_ = s.conn.Close()
-	s.transport.CloseIdleConnections()
+	s.transports.closeIdleConnections()
 	s.coordCtrl.Close()
 	<-s.controller.Closed()
 	return nil
@@ -417,6 +394,8 @@ type MultiAgentController struct {
 	// connections to the destination
 	tickets      map[uuid.UUID]map[uuid.UUID]struct{}
 	coordination *tailnet.BasicCoordination
+	// onExpire runs, without mu held, for each agent removed by expiry.
+	onExpire func(agentID uuid.UUID)
 
 	cancel              context.CancelFunc
 	expireOldAgentsDone chan struct{}
@@ -512,10 +491,9 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 	defer span.End()
 
 	start := time.Now()
-	deletedCount := 0
+	var expired []uuid.UUID
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.logger.Debug(ctx, "pruning inactive agents", slog.F("agent_count", len(m.connectionTimes)))
 	for agentID, lastConnection := range m.connectionTimes {
 		// If no one has connected since the cutoff and there are no active
@@ -536,12 +514,16 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					// re-establishing tunnels to expired agents when we eventually reconnect.
 				}
 			}
-			deletedCount++
+			expired = append(expired, agentID)
 			delete(m.connectionTimes, agentID)
 		}
 	}
+	m.mu.Unlock()
+	for _, agentID := range expired {
+		m.onExpire(agentID)
+	}
 	m.logger.Debug(ctx, "pruned inactive agents",
-		slog.F("deleted", deletedCount),
+		slog.F("deleted", len(expired)),
 		slog.F("took", time.Since(start)),
 	)
 }
@@ -551,7 +533,7 @@ func (m *MultiAgentController) Close() {
 	<-m.expireOldAgentsDone
 }
 
-func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer trace.Tracer, coordinatee tailnet.Coordinatee) *MultiAgentController {
+func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer trace.Tracer, coordinatee tailnet.Coordinatee, onExpire func(agentID uuid.UUID)) *MultiAgentController {
 	m := &MultiAgentController{
 		BasicCoordinationController: &tailnet.BasicCoordinationController{
 			Logger:      logger,
@@ -564,6 +546,7 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 		tracer:              tracer,
 		connectionTimes:     make(map[uuid.UUID]time.Time),
 		tickets:             make(map[uuid.UUID]map[uuid.UUID]struct{}),
+		onExpire:            onExpire,
 		expireOldAgentsDone: make(chan struct{}),
 	}
 	ctx, m.cancel = context.WithCancel(ctx)

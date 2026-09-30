@@ -38,10 +38,24 @@ import (
 // conn is shared and closing it is undesirable, you may return ErrNoClose from
 // opts.CloseFunc. This will ensure the underlying conn is not closed.
 func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
-	return &agentConn{
-		Conn: conn,
-		opts: opts,
+	c := &agentConn{
+		Conn:         conn,
+		opts:         opts,
+		apiTransport: opts.APITransport,
 	}
+	if c.apiTransport == nil {
+		c.apiTransport = NewAgentAPITransport(func(ctx context.Context, port uint16) (net.Conn, error) {
+			if !c.AwaitReachable(ctx) {
+				return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
+			}
+			return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
+		})
+		// No keep-alive: DialAgent callers make few API requests per
+		// connection, so idle connections would hold agent memory without
+		// saving round trips.
+		c.apiTransport.transport.DisableKeepAlives = true
+	}
+	return c
 }
 
 // WrapAgentConn returns an AgentConn that delegates every operation to conn and
@@ -143,6 +157,7 @@ type AgentConn interface {
 type agentConn struct {
 	*tailnet.Conn
 	opts         AgentConnOptions
+	apiTransport *AgentAPITransport
 	headersMu    sync.RWMutex
 	extraHeaders http.Header
 }
@@ -161,8 +176,7 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 type AgentConnOptions struct {
 	AgentID      uuid.UUID
 	CloseFunc    func() error
-	Logger       slog.Logger
-	APITransport http.RoundTripper // Optional. Must only connect to this agent.
+	APITransport *AgentAPITransport // Optional, for sharing idle connections. The caller closes it.
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -621,7 +635,7 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: c.apiClient(ctx),
+		HTTPClient: c.apiClient(),
 
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
@@ -657,7 +671,7 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(ctx),
+		HTTPClient:      c.apiClient(),
 		CompressionMode: websocket.CompressionNoContextTakeover,
 	}
 	c.headersMu.RLock()
@@ -699,7 +713,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(ctx),
+		HTTPClient:      c.apiClient(),
 		CompressionMode: websocket.CompressionDisabled,
 	}
 	c.headersMu.RLock()
@@ -812,7 +826,7 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	}
 	c.headersMu.RUnlock()
 
-	resp, err := c.apiClient(ctx).Do(req)
+	resp, err := c.apiClient().Do(req)
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
@@ -1606,7 +1620,7 @@ func (c *agentConn) apiRequestWithHeader(ctx context.Context, method, path strin
 		req.Header[key] = values
 	}
 
-	return c.apiClient(ctx).Do(req)
+	return c.apiClient().Do(req)
 }
 
 // decodeAgentJSON decodes an agent-direct HTTP response body. Agent
@@ -1620,71 +1634,15 @@ func decodeAgentJSON(res *http.Response, v any) error {
 	return json.NewDecoder(res.Body).Decode(v)
 }
 
-// apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server. Without
-// opts.APITransport, the client is scoped to a single request: its
-// transport cancels in-flight dials once reqCtx ends.
-func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
-	transport := c.opts.APITransport
-	if transport == nil {
-		agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
-		transport = &http.Transport{
-			// Disable keep alives as we're usually only making a single
-			// request, and this triggers goleak in tests
-			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				if network != "tcp" {
-					return nil, xerrors.Errorf("network must be tcp")
-				}
-
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
-				}
-				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
-					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
-				}
-				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
-					c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
-						slog.F("agent_id", c.opts.AgentID),
-						slog.F("request_host", host),
-						slog.F("intended_agent_addr", agentAddr.Addr()),
-					)
-					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
-				}
-
-				// http.Transport detaches ctx from the request context so
-				// a pending dial can outlive its request and serve future
-				// requests. This client is request-scoped with keep-alives
-				// disabled, so a detached dial can never be reused. Without
-				// re-linking cancellation, a canceled request would leave
-				// the dial blocked in AwaitReachable until the agent becomes
-				// reachable, which may be never.
-				ctx, cancel := context.WithCancel(ctx)
-				defer cancel()
-				stop := context.AfterFunc(reqCtx, cancel)
-				defer stop()
-
-				if !c.AwaitReachable(ctx) {
-					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
-				}
-
-				// Always dial the pinned agent address, never the request host.
-				conn, err := c.DialContextTCP(ctx, agentAddr)
-				if err != nil {
-					return nil, xerrors.Errorf("dial http api: %w", err)
-				}
-
-				return conn, nil
-			},
-		}
-	}
+// apiClient returns an HTTP client for the workspace agent's HTTP API
+// server.
+func (c *agentConn) apiClient() *http.Client {
 	return &http.Client{
 		// Redirects are blocked to prevent misuse.
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: transport,
+		Transport: c.apiTransport,
 	}
 }
 

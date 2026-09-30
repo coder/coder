@@ -1,21 +1,60 @@
 package coderd
 
 import (
+	"context"
 	"net"
-	"net/http"
-	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestMultiAgentController_ExpireRunsOnExpire(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	var expired []uuid.UUID
+	m := NewMultiAgentController(ctx, testutil.Logger(t), noop.NewTracerProvider().Tracer(""), nil, func(agentID uuid.UUID) {
+		expired = append(expired, agentID)
+	})
+	defer m.Close()
+
+	idle, inUse := uuid.New(), uuid.New()
+	require.NoError(t, m.ensureAgent(idle))
+	require.NoError(t, m.ensureAgent(inUse))
+	release := m.acquireTicket(inUse)
+	defer release()
+
+	m.doExpireOldAgents(ctx, 0)
+	require.Equal(t, []uuid.UUID{idle}, expired)
+}
+
+func TestAgentTransports_Forget(t *testing.T) {
+	t.Parallel()
+
+	dial := func(context.Context, uint16) (net.Conn, error) { return nil, xerrors.New("unused") }
+	forgotten, kept := uuid.New(), uuid.New()
+	ts := &agentTransports{
+		api: map[uuid.UUID]*workspacesdk.AgentAPITransport{
+			forgotten: workspacesdk.NewAgentAPITransport(dial),
+			kept:      workspacesdk.NewAgentAPITransport(dial),
+		},
+		apps: map[uuid.UUID]*workspacesdk.AgentAppTransport{
+			forgotten: workspacesdk.NewAgentAppTransport(dial),
+		},
+	}
+	ts.forget(forgotten)
+	require.NotContains(t, ts.api, forgotten)
+	require.NotContains(t, ts.apps, forgotten)
+	require.Contains(t, ts.api, kept)
+}
 
 func TestPollingDERPClient_FirstRecvDoesNotWaitForTick(t *testing.T) {
 	t.Parallel()
@@ -37,35 +76,4 @@ func TestPollingDERPClient_FirstRecvDoesNotWaitForTick(t *testing.T) {
 		got <- dm
 	}()
 	require.Equal(t, derpMap, testutil.RequireReceive(ctx, t, got))
-}
-
-func TestAgentRoundTripper_RejectsOtherHosts(t *testing.T) {
-	t.Parallel()
-
-	agentID := uuid.New()
-	apiPort := strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)
-	for name, host := range map[string]string{
-		"OtherAgent": net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New()).String(), apiPort),
-		"OtherPort":  net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(agentID).String(), "80"),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitShort)
-			forwarded := false
-			rt := agentRoundTripper{
-				agentID: agentID,
-				transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
-					forwarded = true
-					return nil, xerrors.New("forwarded")
-				}),
-			}
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+host+"/api/v0/listening-ports", nil)
-			require.NoError(t, err)
-
-			_, err = rt.RoundTrip(req) //nolint:bodyclose // Rejected requests return no response.
-			require.Error(t, err)
-			require.False(t, forwarded, "request must not reach the pooled transport")
-		})
-	}
 }

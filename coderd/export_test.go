@@ -1,7 +1,7 @@
 package coderd
 
 import (
-	"time"
+	"net/http"
 
 	"github.com/google/uuid"
 )
@@ -27,6 +27,6 @@ func (s *ServerTailnet) AgentTicketCount(agentID uuid.UUID) int {
 	return len(s.coordCtrl.tickets[agentID])
 }
 
-func (s *ServerTailnet) SetDialTimeout(d time.Duration) {
-	s.dialTimeout = d
+func (s *ServerTailnet) AgentAPITransport(agentID uuid.UUID) http.RoundTripper {
+	return s.apiTransport(agentID)
 }
