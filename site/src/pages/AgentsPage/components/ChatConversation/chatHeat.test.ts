@@ -155,11 +155,9 @@ describe("getChatHeat", () => {
 			],
 			100,
 		);
-		// The newest turn misses 15K + 0 + 3K and weighs 2/3; the first turn
+		// The newest turn misses 15K + 0 + 3K and weighs 0.8; the first turn
 		// misses nothing.
-		expect(heat?.heat).toBeCloseTo(
-			heatCurve(((18_000 / CONTEXT_LIMIT) * 2) / 3),
-		);
+		expect(heat?.heat).toBeCloseTo(heatCurve((18_000 / CONTEXT_LIMIT) * 0.8));
 		expect(heat?.missRate).toBeCloseTo(18_000 / 23_000);
 		expect(heat?.lastTurnRequestCount).toBe(3);
 		expect(heat?.lastTurnMissedTokens).toBe(18_000);
@@ -190,10 +188,12 @@ describe("getChatHeat", () => {
 	});
 
 	it("weights the newest turn most", () => {
-		// Weights 0.5 and 0.25 normalize to 2/3 and 1/3.
-		expect(partial(turnsMissing(0.4, 0))?.heat).toBeCloseTo(heatCurve(0.4 / 3));
+		// Weights 1 and 0.25 normalize to 0.8 and 0.2.
+		expect(partial(turnsMissing(0.4, 0))?.heat).toBeCloseTo(
+			heatCurve(0.4 * 0.2),
+		);
 		expect(partial(turnsMissing(0, 0.4))?.heat).toBeCloseTo(
-			heatCurve((0.4 * 2) / 3),
+			heatCurve(0.4 * 0.8),
 		);
 	});
 
@@ -215,9 +215,7 @@ describe("getChatHeat", () => {
 		const messages = turnsMissing(0.8);
 		expect(partial(messages)?.heat).toBeCloseTo(heatCurve(0.8));
 		// With the full history, the seed turn is the segment's first.
-		expect(getChatHeat(messages, 100)?.heat).toBeCloseTo(
-			heatCurve((0.8 * 2) / 3),
-		);
+		expect(getChatHeat(messages, 100)?.heat).toBeCloseTo(heatCurve(0.8 * 0.8));
 	});
 
 	it("scores only known misses when a single partial turn is loaded", () => {
@@ -244,7 +242,7 @@ describe("getChatHeat", () => {
 			]);
 			// The request after the boundary starts its segment and misses
 			// nothing.
-			expect(heat?.heat).toBeCloseTo(heatCurve((0.1 * 2) / 3));
+			expect(heat?.heat).toBeCloseTo(heatCurve(0.1 * 0.8));
 			expect(partial([...turnsMissing(0.9), boundary])).toBeNull();
 		}
 	});
@@ -325,6 +323,42 @@ describe("getChatHeat scenarios", () => {
 			messages.push(...turn(next(39_000, 500), ...toolSteps(next, 2)));
 		}
 		expect(heatOf(messages)).toBe("hot");
+	});
+
+	// A first turn at the given context, then five slow turns that each miss
+	// `missed` tokens.
+	const slowTurns = (contextTokens: number, missed: number) => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, contextTokens))];
+		for (let i = 0; i < 5; i++) {
+			messages.push(...turn(next(missed, 500)));
+		}
+		return messages;
+	};
+
+	it("reads hot when slow turns miss 36K", () => {
+		expect(heatOf(slowTurns(46_000, 36_000))).toBe("hot");
+	});
+
+	it("reads warm when slow turns miss 20K", () => {
+		expect(heatOf(slowTurns(20_000, Number.POSITIVE_INFINITY))).toBe("warm");
+	});
+
+	it("reads cool when slow turns miss 10K", () => {
+		expect(heatOf(slowTurns(10_000, Number.POSITIVE_INFINITY))).toBe("cool");
+	});
+
+	it("cools down within two fast turns after a break", () => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, 120_000), ...toolSteps(next, 3))];
+		messages.push(
+			...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
+		);
+		expect(heatOf(messages)).toBe("hot");
+		for (let i = 0; i < 2; i++) {
+			messages.push(...turn(next(0, 500), ...toolSteps(next, 3)));
+		}
+		expect(heatOf(messages)).toBe("cool");
 	});
 
 	it("reads cool for a rapid back-and-forth", () => {

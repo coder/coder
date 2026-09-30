@@ -31,7 +31,7 @@ export type ChatHeat = {
 type ChatHeatLabel = "cool" | "warm" | "hot";
 
 const HEAT_WINDOW_SIZE = 6;
-const HEAT_WINDOW_DECAY = 0.5;
+const HEAT_WINDOW_DECAY = 0.25;
 // Tuning constants: x is the weighted missed share of the reference size.
 export const HEAT_REFERENCE_TOKENS = 70_000;
 export const HEAT_CURVE_MIDPOINT = 0.3;
