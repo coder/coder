@@ -232,14 +232,6 @@ func (m queryMetricsStore) BatchUpdateWorkspaceNextStartAt(ctx context.Context, 
 	return r0
 }
 
-func (m queryMetricsStore) BatchUpsertChatHeartbeats(ctx context.Context, arg database.BatchUpsertChatHeartbeatsParams) error {
-	start := time.Now()
-	r0 := m.s.BatchUpsertChatHeartbeats(ctx, arg)
-	m.queryLatencies.WithLabelValues("BatchUpsertChatHeartbeats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BatchUpsertChatHeartbeats").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
 	start := time.Now()
 	r0 := m.s.BatchUpsertConnectionLogs(ctx, arg)
@@ -5101,6 +5093,14 @@ func (m queryMetricsStore) RemoveUserFromGroups(ctx context.Context, arg databas
 	r0, r1 := m.s.RemoveUserFromGroups(ctx, arg)
 	m.queryLatencies.WithLabelValues("RemoveUserFromGroups").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RemoveUserFromGroups").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) RenewChatHeartbeats(ctx context.Context, arg database.RenewChatHeartbeatsParams) ([]database.RenewChatHeartbeatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.RenewChatHeartbeats(ctx, arg)
+	m.queryLatencies.WithLabelValues("RenewChatHeartbeats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RenewChatHeartbeats").Inc()
 	return r0, r1
 }
 

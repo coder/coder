@@ -8038,25 +8038,6 @@ func (q *sqlQuerier) BatchDeleteChatHeartbeats(ctx context.Context, arg BatchDel
 	return result.RowsAffected()
 }
 
-const batchUpsertChatHeartbeats = `-- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
-FROM unnest($1::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
-JOIN unnest($2::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at
-`
-
-type BatchUpsertChatHeartbeatsParams struct {
-	ChatIds   []uuid.UUID `db:"chat_ids" json:"chat_ids"`
-	RunnerIds []uuid.UUID `db:"runner_ids" json:"runner_ids"`
-}
-
-func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error {
-	_, err := q.db.ExecContext(ctx, batchUpsertChatHeartbeats, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
-	return err
-}
-
 const clearChatDiffStatusPR = `-- name: ClearChatDiffStatusPR :exec
 UPDATE
     chat_diff_statuses
@@ -12082,6 +12063,62 @@ func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batc
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const renewChatHeartbeats = `-- name: RenewChatHeartbeats :many
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
+FROM unnest($2::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
+JOIN unnest($3::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * $1::int)
+RETURNING hb.chat_id, hb.runner_id
+`
+
+type RenewChatHeartbeatsParams struct {
+	StaleSeconds int32       `db:"stale_seconds" json:"stale_seconds"`
+	ChatIds      []uuid.UUID `db:"chat_ids" json:"chat_ids"`
+	RunnerIds    []uuid.UUID `db:"runner_ids" json:"runner_ids"`
+}
+
+type RenewChatHeartbeatsRow struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	RunnerID uuid.UUID `db:"runner_id" json:"runner_id"`
+}
+
+// Renews (chat_id, runner_id) leases that are still fresh and still own
+// their chat, and returns the renewed pairs. A stale lease is never
+// revived because capacity admission may already have given its slot to
+// another chat; its runner must stop instead. Callers hold the capacity
+// admission lock, and statement_timestamp() is read after that lock is
+// granted, so a lease that a committed admission counted as stale cannot
+// be renewed afterwards.
+func (q *sqlQuerier) RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error) {
+	rows, err := q.db.QueryContext(ctx, renewChatHeartbeats, arg.StaleSeconds, pq.Array(arg.ChatIds), pq.Array(arg.RunnerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RenewChatHeartbeatsRow
+	for rows.Next() {
+		var i RenewChatHeartbeatsRow
+		if err := rows.Scan(&i.ChatID, &i.RunnerID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows

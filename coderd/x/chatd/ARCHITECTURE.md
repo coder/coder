@@ -748,6 +748,8 @@ DO UPDATE SET heartbeat_at = EXCLUDED.heartbeat_at;
 
 Updating heartbeat rows does not advance `snapshot_version` and does not emit pubsub notifications.
 
+TODO: the loop now calls `RenewChatHeartbeats` under the capacity admission lock. It renews only fresh rows still owned by their runner and cleans up runners whose lease it did not renew, so a stale lease is never revived. Describe this here.
+
 ### Heartbeat cleanup loop
 
 The heartbeat cleanup loop periodically removes stale heartbeat rows:
@@ -1085,6 +1087,8 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 ## Concurrent agent limiter
 
 By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
+
+TODO: acquisition now requires admission for every runnable status, so an owned chat holds its slot until it releases ownership. An unowned `interrupting` or `requires_action` chat waits for a free slot before its runner starts, which also delays its action deadline. Describe this here.
 
 ## Auto-archive loop
 

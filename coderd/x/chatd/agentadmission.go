@@ -16,6 +16,10 @@ const (
 type AgentCapacityLimiter interface {
 	// Admit runs inside the acquisition transaction so its serialization
 	// extends through the ownership write. Refused chats remain unowned.
+	// Every runnable status needs admission: an owned chat holds its slot
+	// until it releases ownership, so later transitions back to running
+	// (finishing an interruption, resolving requires_action) stay within
+	// capacity.
 	Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error)
 	Limits() (limits AgentCapacityLimits, capped bool)
 }
@@ -51,7 +55,7 @@ func newAgentCapacityLimiter(unlock AgentCapacityUnlock, staleSeconds int32) *ag
 func (a *agentCapacityLimiter) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
 	//nolint:gocritic // Capacity accounting is chatd-internal state.
 	ctx = dbauthz.AsChatd(ctx)
-	if a.unlocked() || chat.Status != database.ChatStatusRunning {
+	if a.unlocked() {
 		return true, nil
 	}
 	// The transaction lock remains held through the caller's ownership write,

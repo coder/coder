@@ -1903,13 +1903,6 @@ func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg datab
 	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
 }
 
-func (q *querier) BatchUpsertChatHeartbeats(ctx context.Context, arg database.BatchUpsertChatHeartbeatsParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.BatchUpsertChatHeartbeats(ctx, arg)
-}
-
 func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceConnectionLog); err != nil {
 		return err
@@ -7258,6 +7251,13 @@ func (q *querier) RemoveUserFromGroups(ctx context.Context, arg database.RemoveU
 		return nil, err
 	}
 	return q.db.RemoveUserFromGroups(ctx, arg)
+}
+
+func (q *querier) RenewChatHeartbeats(ctx context.Context, arg database.RenewChatHeartbeatsParams) ([]database.RenewChatHeartbeatsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.RenewChatHeartbeats(ctx, arg)
 }
 
 func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg database.ReorderChatQueuedMessageToFrontParams) (int64, error) {

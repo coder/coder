@@ -278,20 +278,6 @@ func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceNextStartAt(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceNextStartAt", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceNextStartAt), ctx, arg)
 }
 
-// BatchUpsertChatHeartbeats mocks base method.
-func (m *MockStore) BatchUpsertChatHeartbeats(ctx context.Context, arg database.BatchUpsertChatHeartbeatsParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchUpsertChatHeartbeats", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// BatchUpsertChatHeartbeats indicates an expected call of BatchUpsertChatHeartbeats.
-func (mr *MockStoreMockRecorder) BatchUpsertChatHeartbeats(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpsertChatHeartbeats", reflect.TypeOf((*MockStore)(nil).BatchUpsertChatHeartbeats), ctx, arg)
-}
-
 // BatchUpsertConnectionLogs mocks base method.
 func (m *MockStore) BatchUpsertConnectionLogs(ctx context.Context, arg database.BatchUpsertConnectionLogsParams) error {
 	m.ctrl.T.Helper()
@@ -9695,6 +9681,21 @@ func (m *MockStore) RemoveUserFromGroups(ctx context.Context, arg database.Remov
 func (mr *MockStoreMockRecorder) RemoveUserFromGroups(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUserFromGroups", reflect.TypeOf((*MockStore)(nil).RemoveUserFromGroups), ctx, arg)
+}
+
+// RenewChatHeartbeats mocks base method.
+func (m *MockStore) RenewChatHeartbeats(ctx context.Context, arg database.RenewChatHeartbeatsParams) ([]database.RenewChatHeartbeatsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RenewChatHeartbeats", ctx, arg)
+	ret0, _ := ret[0].([]database.RenewChatHeartbeatsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RenewChatHeartbeats indicates an expected call of RenewChatHeartbeats.
+func (mr *MockStoreMockRecorder) RenewChatHeartbeats(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewChatHeartbeats", reflect.TypeOf((*MockStore)(nil).RenewChatHeartbeats), ctx, arg)
 }
 
 // ReorderChatQueuedMessageToFront mocks base method.

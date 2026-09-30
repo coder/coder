@@ -206,11 +206,10 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		if acquired >= w.opts.AcquisitionBatchSize {
 			return
 		}
-		// Interrupting and requires-action chats bypass capacity so their runners
-		// can finish work or enforce the action deadline.
+		// Every runnable status needs admission, so a refusal applies to
+		// the rest of the pool's candidates in this batch.
 		isSubagent := row.ParentChatID.Valid
-		if row.Status == database.ChatStatusRunning &&
-			((isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused)) {
+		if (isSubagent && subagentPoolRefused) || (!isSubagent && rootPoolRefused) {
 			continue
 		}
 		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)

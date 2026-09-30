@@ -2550,13 +2550,26 @@ FROM chats_expanded
 WHERE id = ANY(@ids::uuid[])
 ORDER BY id ASC;
 
--- name: BatchUpsertChatHeartbeats :exec
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_ids.chat_id, runner_ids.runner_id, NOW()
+-- name: RenewChatHeartbeats :many
+-- Renews (chat_id, runner_id) leases that are still fresh and still own
+-- their chat, and returns the renewed pairs. A stale lease is never
+-- revived because capacity admission may already have given its slot to
+-- another chat; its runner must stop instead. Callers hold the capacity
+-- admission lock, and statement_timestamp() is read after that lock is
+-- granted, so a lease that a committed admission counted as stale cannot
+-- be renewed afterwards.
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
 FROM unnest(@chat_ids::uuid[]) WITH ORDINALITY AS chat_ids(chat_id, ord)
 JOIN unnest(@runner_ids::uuid[]) WITH ORDINALITY AS runner_ids(runner_id, ord) USING (ord)
-ON CONFLICT (chat_id, runner_id) DO UPDATE
-SET heartbeat_at = EXCLUDED.heartbeat_at;
+JOIN chats c
+  ON c.id = chat_ids.chat_id
+ AND c.runner_id = runner_ids.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = chat_ids.chat_id
+  AND hb.runner_id = runner_ids.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - (INTERVAL '1 second' * @stale_seconds::int)
+RETURNING hb.chat_id, hb.runner_id;
 
 -- name: DeleteStaleChatHeartbeats :execrows
 DELETE FROM chat_heartbeats

@@ -81,7 +81,6 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
-	BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUpsertChatHeartbeatsParams) error
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
@@ -1396,6 +1395,14 @@ type sqlcQuerier interface {
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
+	// Renews (chat_id, runner_id) leases that are still fresh and still own
+	// their chat, and returns the renewed pairs. A stale lease is never
+	// revived because capacity admission may already have given its slot to
+	// another chat; its runner must stop instead. Callers hold the capacity
+	// admission lock, and statement_timestamp() is read after that lock is
+	// granted, so a lease that a committed admission counted as stale cannot
+	// be renewed afterwards.
+	RenewChatHeartbeats(ctx context.Context, arg RenewChatHeartbeatsParams) ([]RenewChatHeartbeatsRow, error)
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)

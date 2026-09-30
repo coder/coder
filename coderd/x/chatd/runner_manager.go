@@ -478,10 +478,41 @@ func (m *runnerManager) heartbeatOnce(ctx context.Context) error {
 		chatIDs = append(chatIDs, key.ChatID)
 		runnerIDs = append(runnerIDs, key.RunnerID)
 	}
-	return m.opts.Store.BatchUpsertChatHeartbeats(ctx, database.BatchUpsertChatHeartbeatsParams{
-		ChatIds:   chatIDs,
-		RunnerIds: runnerIDs,
-	})
+	var renewed []database.RenewChatHeartbeatsRow
+	// Renewal serializes with capacity admission so that a lease an
+	// admission counted as stale, and whose slot it gave away, cannot be
+	// renewed afterwards.
+	err := m.opts.Store.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+			return xerrors.Errorf("acquire capacity admission lock: %w", err)
+		}
+		var err error
+		renewed, err = tx.RenewChatHeartbeats(ctx, database.RenewChatHeartbeatsParams{
+			ChatIds:      chatIDs,
+			RunnerIds:    runnerIDs,
+			StaleSeconds: m.opts.HeartbeatStaleSeconds,
+		})
+		return err
+	}, nil)
+	if err != nil {
+		return xerrors.Errorf("renew chat heartbeats: %w", err)
+	}
+	renewedKeys := make(map[runnerKey]struct{}, len(renewed))
+	for _, row := range renewed {
+		renewedKeys[runnerKey{ChatID: row.ChatID, RunnerID: row.RunnerID}] = struct{}{}
+	}
+	for _, key := range keys {
+		if _, ok := renewedKeys[key]; ok {
+			continue
+		}
+		// The lease went stale or lost ownership, so its capacity slot
+		// may belong to another chat. Stop generating; the chat stays
+		// owned by the stale lease until an admitted worker takes it over.
+		m.opts.Logger.Warn(ctx, "chatworker heartbeat lease lost, stopping runner",
+			slog.F("chat_id", key.ChatID), slog.F("runner_id", key.RunnerID))
+		m.requestCleanup(ctx, key)
+	}
+	return nil
 }
 
 func (m *runnerManager) heartbeatCleanupLoop() {
