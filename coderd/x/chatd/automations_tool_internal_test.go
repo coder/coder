@@ -318,6 +318,7 @@ func TestManageAutomationsTool(t *testing.T) {
 		content, isError := f.call(ctx, t, f.chat.ID, "list", uuid.Nil)
 		require.False(t, isError, content)
 		requireNoWebhookSecret(t, content, webhook, secret)
+		require.NotContains(t, content, webhook.Prompt, "list leaves prompts out")
 
 		content, isError = f.call(ctx, t, f.chat.ID, "get", webhook.ID)
 		require.False(t, isError, content)
@@ -514,6 +515,18 @@ func TestManageAutomationsTool(t *testing.T) {
 			"automation_id": targetsChat.ID.String(),
 			"input_id":      inputID.String(),
 		})
+
+		// Only the triggering automation can be deleted.
+		content, isError = f.call(ctx, t, f.chat.ID, "delete", createdChat.ID)
+		require.True(t, isError)
+		require.Contains(t, content, "delete only removes that automation")
+		_, err = f.db.GetChatAutomationByID(ctx, createdChat.ID)
+		require.NoError(t, err)
+		content, isError = f.call(ctx, t, f.chat.ID, "delete", targetsChat.ID)
+		require.False(t, isError, content)
+		_, err = f.db.GetChatAutomationByID(ctx, targetsChat.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.Len(t, f.auditor.AuditLogs(), 2)
 	})
 
 	t.Run("CreateContainment", func(t *testing.T) {
