@@ -139,7 +139,8 @@ func TestChatAutomationRuns(t *testing.T) {
 		skip, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(busy.ID, codersdk.ChatAutomationWhenBusySkip))
 		require.NoError(t, err)
 		_, err = env.member.RunChatAutomation(ctx, env.orgID, skip.Automation.ID)
-		requireSDKError(t, err, http.StatusConflict)
+		sdkErr = requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "The automation skips runs while the chat is busy.", sdkErr.Detail)
 		require.Empty(t, env.queuedMessageIDs(t, busy.ID))
 
 		queue, err := env.member.CreateChatAutomation(ctx, env.orgID, env.existingChatScheduleRequest(busy.ID, codersdk.ChatAutomationWhenBusyQueue))
