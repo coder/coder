@@ -68,7 +68,7 @@ export const DraftChat: React.FC<DraftChatProps> = ({
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
 			labels,
-			...(manageAutomationsEnabled ? { manage_automations_enabled: true } : {}),
+			manage_automations_enabled: manageAutomationsEnabled,
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		});

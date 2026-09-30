@@ -95,10 +95,9 @@ export const updateChatAutomation = (
 
 const automationChatsFamilyKey = ["chat-automation-chats"] as const;
 
-const automationChatsKey = (automationId: string) =>
+export const automationChatsKey = (automationId: string) =>
 	[...automationChatsFamilyKey, automationId] as const;
 
-/** Refetches every automation's chat list, for example after a run. */
 export const invalidateAutomationChats = (queryClient: QueryClient) =>
 	queryClient.invalidateQueries({ queryKey: automationChatsFamilyKey });
 

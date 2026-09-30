@@ -6,7 +6,7 @@ type ToolLabelProps = {
 	name: string;
 	args: unknown;
 	result: unknown;
-	isError?: boolean;
+	isError: boolean;
 	mcpSlug?: string;
 };
 
@@ -78,36 +78,31 @@ const manageAutomationsLabels: Partial<
 	run_now: ["Running automation", "Ran automation", "run automation"],
 };
 
-const getManageAutomationsLabel = ({
+const ManageAutomationsLabel: React.FC<ToolLabelProps> = ({
 	args,
 	result,
 	isError,
-}: ToolLabelProps): string => {
+}) => {
 	const parsed = parseArgs(args);
 	const labels = manageAutomationsLabels[asString(parsed?.action)];
-	if (!labels) {
-		return "Manage automations";
-	}
-	const [running, done, failed] = labels;
 	const parsedResult = asRecord(result);
 	const automationName =
 		asString(asRecord(parsedResult?.automation)?.name) ||
 		asString(parsed?.name);
 	const suffix = automationName ? ` ${automationName}` : "";
-	if (isError || parsedResult?.error) {
-		return `Failed to ${failed}${suffix}`;
+	let label = "Manage automations";
+	if (labels) {
+		const [running, done, failed] = labels;
+		if (isError || parsedResult?.error) {
+			label = `Failed to ${failed}${suffix}`;
+		} else if (result === undefined || result === null) {
+			label = `${running}${suffix}…`;
+		} else {
+			label = `${done}${suffix}`;
+		}
 	}
-	if (result === undefined || result === null) {
-		return `${running}${suffix}…`;
-	}
-	return `${done}${suffix}`;
+	return <span className="truncate text-[13px]">{label}</span>;
 };
-
-const ManageAutomationsLabel: React.FC<ToolLabelProps> = (props) => (
-	<span className="truncate text-[13px]">
-		{getManageAutomationsLabel(props)}
-	</span>
-);
 
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>

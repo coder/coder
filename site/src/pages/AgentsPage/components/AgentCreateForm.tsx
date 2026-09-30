@@ -74,7 +74,7 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
-	manageAutomationsEnabled?: boolean;
+	manageAutomationsEnabled: boolean;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
 	// callback to upload against the new chat ID, then sends the first
@@ -595,7 +595,8 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
-			manageAutomationsEnabled,
+			manageAutomationsEnabled:
+				automationsExperimentEnabled && manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();

@@ -1,7 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import { canManageChat } from "../components/ChatActionsMenuItems";
 
-/** Whether the viewer can toggle the chat's manage_automations tool. */
 export const canToggleManageAutomations = ({
 	chat,
 	viewerId,

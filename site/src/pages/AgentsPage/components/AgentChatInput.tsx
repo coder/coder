@@ -168,7 +168,6 @@ type AgentChatInputProps = {
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	manageAutomationsEnabled?: boolean;
-	// The toggle renders only when this is set.
 	onManageAutomationsToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
 	// Streaming controls (optional, for the detail page).
@@ -506,7 +505,7 @@ type PlusMenuCheckboxItemProps = {
 	description?: string;
 	checked: boolean;
 	onToggle: () => void;
-	disabled?: boolean;
+	disabled: boolean;
 };
 
 const PlusMenuCheckboxItem: React.FC<PlusMenuCheckboxItemProps> = ({
@@ -1625,7 +1624,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 											<PlusMenuCheckboxItem
 												icon={ZapIcon}
 												label="Manage automations"
-												description="Let the agent create and manage automations (heartbeats) for you."
+												description="Let the agent create and manage automations for you."
 												checked={manageAutomationsEnabled}
 												onToggle={handleManageAutomationsToggle}
 												disabled={isDisabled}

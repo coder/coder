@@ -3,7 +3,7 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-	automationChats,
+	automationChatsKey,
 	chatAutomationsKey,
 } from "#/api/queries/chatAutomations";
 import {
@@ -23,7 +23,7 @@ import { useChatToolInvalidations } from "./useChatToolInvalidations";
 const ORGANIZATION_NAME = "coder";
 const USERNAME = "alice";
 const infiniteChatsKey = chatListKey(toChatListParams());
-const automationChatsQueryKey = automationChats("automation-1").queryKey;
+const automationChatsQueryKey = automationChatsKey("automation-1");
 
 type ToolResultOverrides = Partial<StreamState["toolResults"][string]>;
 

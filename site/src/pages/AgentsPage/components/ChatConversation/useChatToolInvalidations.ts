@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "react-query";
 import {
 	invalidateAutomationChats,
@@ -65,6 +65,11 @@ export function useChatToolInvalidations({
 	const toolResults = useChatSelector(store, selectStreamToolResults);
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 	const chatIDRef = useRef(chatID);
+	// Not subscribed: a tool call's args land before its result, so the
+	// snapshot is current whenever a new result triggers the effect.
+	const readToolCalls = useEffectEvent(
+		() => store.getSnapshot().streamState?.toolCalls,
+	);
 
 	useEffect(() => {
 		if (chatIDRef.current !== chatID) {
@@ -81,7 +86,7 @@ export function useChatToolInvalidations({
 		let shouldInvalidateWorkspace = false;
 		let shouldInvalidateAutomations = false;
 		let shouldInvalidateAutomationRuns = false;
-		const toolCalls = store.getSnapshot().streamState?.toolCalls;
+		const toolCalls = readToolCalls();
 
 		for (const toolResult of Object.values(toolResults)) {
 			if (
@@ -148,5 +153,5 @@ export function useChatToolInvalidations({
 			void invalidateAutomationChats(queryClient);
 			void invalidateChatListQueries(queryClient);
 		}
-	}, [chatID, organizationName, queryClient, store, toolResults, username]);
+	}, [chatID, organizationName, queryClient, toolResults, username]);
 }

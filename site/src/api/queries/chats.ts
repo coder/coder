@@ -1433,12 +1433,20 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 	},
 });
 
-export const updateChatPlanMode = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
-		API.experimental.updateChat(chatId, {
-			plan_mode: toChatPlanModePayload(planMode),
-		}),
-	onMutate: async ({ chatId, planMode }: UpdateChatPlanModeVariables) => {
+type OptimisticChatUpdateContext = { previousChat?: TypesGen.Chat };
+
+// Writes one chat field into the list and entity caches before the server
+// responds, and restores it from the entity snapshot when the update fails.
+const optimisticChatFieldUpdate = <
+	K extends "plan_mode" | "manage_automations_enabled",
+>(
+	queryClient: QueryClient,
+	field: K,
+) => ({
+	onMutate: async (
+		chatId: string,
+		value: TypesGen.Chat[K],
+	): Promise<OptimisticChatUpdateContext> => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
@@ -1446,25 +1454,20 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		);
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, plan_mode: planMode } : chat,
+				chat.id === chatId ? { ...chat, [field]: value } : chat,
 			),
 		);
 		if (previousChat) {
 			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
 				...previousChat,
-				plan_mode: planMode,
+				[field]: value,
 			});
 		}
 		return { previousChat };
 	},
 	onError: (
-		_error: unknown,
-		{ chatId }: UpdateChatPlanModeVariables,
-		context:
-			| {
-					previousChat?: TypesGen.Chat;
-			  }
-			| undefined,
+		chatId: string,
+		context: OptimisticChatUpdateContext | undefined,
 	) => {
 		void invalidateChatListQueries(queryClient);
 		const previousChat = context?.previousChat;
@@ -1473,71 +1476,49 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 		}
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId
-					? {
-							...chat,
-							plan_mode: previousChat.plan_mode,
-						}
-					: chat,
+				chat.id === chatId ? { ...chat, [field]: previousChat[field] } : chat,
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
 	},
 });
 
-export const updateChatManageAutomations = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
-		API.experimental.updateChat(chatId, {
-			manage_automations_enabled: enabled,
-		}),
-	onMutate: async ({
-		chatId,
-		enabled,
-	}: UpdateChatManageAutomationsVariables) => {
-		await cancelChatListQueries(queryClient);
-		await cancelChatEntity(queryClient, chatId);
-		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
-			chatEntityKey(chatId),
-		);
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId
-					? { ...chat, manage_automations_enabled: enabled }
-					: chat,
-			),
-		);
-		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
-				...previousChat,
+export const updateChatPlanMode = (queryClient: QueryClient) => {
+	const optimistic = optimisticChatFieldUpdate(queryClient, "plan_mode");
+	return {
+		mutationFn: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+			API.experimental.updateChat(chatId, {
+				plan_mode: toChatPlanModePayload(planMode),
+			}),
+		onMutate: ({ chatId, planMode }: UpdateChatPlanModeVariables) =>
+			optimistic.onMutate(chatId, planMode),
+		onError: (
+			_error: unknown,
+			{ chatId }: UpdateChatPlanModeVariables,
+			context: OptimisticChatUpdateContext | undefined,
+		) => optimistic.onError(chatId, context),
+	};
+};
+
+export const updateChatManageAutomations = (queryClient: QueryClient) => {
+	const optimistic = optimisticChatFieldUpdate(
+		queryClient,
+		"manage_automations_enabled",
+	);
+	return {
+		mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
+			API.experimental.updateChat(chatId, {
 				manage_automations_enabled: enabled,
-			});
-		}
-		return { previousChat };
-	},
-	onError: (
-		_error: unknown,
-		{ chatId }: UpdateChatManageAutomationsVariables,
-		context: { previousChat?: TypesGen.Chat } | undefined,
-	) => {
-		void invalidateChatListQueries(queryClient);
-		const previousChat = context?.previousChat;
-		if (!previousChat) {
-			return;
-		}
-		updateInfiniteChatsCache(queryClient, (chats) =>
-			chats.map((chat) =>
-				chat.id === chatId
-					? {
-							...chat,
-							manage_automations_enabled:
-								previousChat.manage_automations_enabled,
-						}
-					: chat,
-			),
-		);
-		patchChatEntity(queryClient, chatId, () => previousChat);
-	},
-});
+			}),
+		onMutate: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
+			optimistic.onMutate(chatId, enabled),
+		onError: (
+			_error: unknown,
+			{ chatId }: UpdateChatManageAutomationsVariables,
+			context: OptimisticChatUpdateContext | undefined,
+		) => optimistic.onError(chatId, context),
+	};
+};
 
 export const updateChatWorkspace = (queryClient: QueryClient) => ({
 	mutationFn: ({ chatId, workspaceId }: UpdateChatWorkspaceVariables) =>

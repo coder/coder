@@ -528,17 +528,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		});
 	};
 
-	const canToggleChatManageAutomations =
-		chat !== undefined &&
-		canToggleManageAutomations({
-			chat,
-			viewerId: currentUser.id,
-			automationsExperimentEnabled,
-		});
-	const handleManageAutomationsToggle = (enabled: boolean) => {
-		updateChatManageAutomationsMutate({ chatId: agentId, enabled });
-	};
-
 	const handleRequestError = (error: unknown): void => {
 		if (!isApiError(error)) {
 			return;
@@ -798,8 +787,17 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
 					onManageAutomationsToggle={
-						canToggleChatManageAutomations
-							? handleManageAutomationsToggle
+						chat &&
+						canToggleManageAutomations({
+							chat,
+							viewerId: currentUser.id,
+							automationsExperimentEnabled,
+						})
+							? (enabled) =>
+									updateChatManageAutomationsMutate({
+										chatId: agentId,
+										enabled,
+									})
 							: undefined
 					}
 					isInputDisabled={isInputDisabled}
