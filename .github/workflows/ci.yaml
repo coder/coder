@@ -75,7 +75,8 @@ jobs:
               - "examples/lima/**"
             # Docs paths that make gen reads or rewrites. The gen job skips
             # docs-only PRs that touch none of them. lint/docs-gen-filter
-            # keeps this list in sync with make gen.
+            # fails when a file make gen writes is missing here; it does not
+            # check inputs.
             docs-gen:
               - "docs/manifest.json"
               - "docs/reference/api/**"

@@ -77,11 +77,11 @@ func run(workflowPath string, generated []string) error {
 	if err != nil {
 		return xerrors.Errorf("parse %s: %w", workflowPath, err)
 	}
-	out, err := exec.Command("git", "ls-files").Output()
+	out, err := exec.Command("git", "ls-files", "-z").Output()
 	if err != nil {
 		return xerrors.Errorf("git ls-files: %w", err)
 	}
-	tracked := strings.Split(strings.TrimSpace(string(out)), "\n")
+	tracked := strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00")
 
 	problems, err := check(filters, generated, tracked, readIfExists)
 	if err != nil {
