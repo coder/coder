@@ -1,4 +1,5 @@
 import { FlameIcon } from "lucide-react";
+import { useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -9,8 +10,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useTime } from "#/hooks/useTime";
-import { isMobileViewport } from "#/utils/mobile";
+import { coarsePointerMediaQuery, isMobileViewport } from "#/utils/mobile";
 import {
 	type ChatHeat,
 	isCacheLikelyExpired,
@@ -48,6 +50,7 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 	heat,
 	isCacheExpired,
 }) => {
+	const isCoarsePointer = useMediaQuery(coarsePointerMediaQuery);
 	const label = HEAT_LABELS[heat.label];
 	const ariaLabel = `Chat heat: ${label}, ${formatPercent(heat.heat)}.${
 		isCacheExpired ? " Cache likely expired." : ""
@@ -68,7 +71,7 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 			</span>
 			{isCacheExpired && (
 				<span className="text-content-warning">
-					{`Cache likely expired. Your next message will write about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens to the cache again.`}
+					{`Cache likely expired. Your next message will likely resend about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}
 				</span>
 			)}
 		</div>
@@ -88,13 +91,14 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 			{isCacheExpired && (
 				<span
 					aria-hidden="true"
-					className="absolute right-1 top-1 size-1.5 rounded-full bg-content-link"
+					className="absolute right-1 top-1 size-1.5 rounded-full bg-content-warning"
 				/>
 			)}
 		</button>
 	);
 
-	if (isMobileViewport()) {
+	// Tooltips do not open on tap, so touch devices get a popover.
+	if (isMobileViewport() || isCoarsePointer) {
 		return (
 			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
@@ -123,10 +127,7 @@ type LiveChatHeatIndicatorProps = {
 	isStreaming: boolean;
 };
 
-/**
- * Rechecks cache expiry on a timer so only this leaf rerenders while the
- * chat sits idle.
- */
+/** Rechecks cache expiry on a timer while the chat is idle. */
 export const LiveChatHeatIndicator: React.FC<LiveChatHeatIndicatorProps> = ({
 	heat,
 	isStreaming,
@@ -135,11 +136,20 @@ export const LiveChatHeatIndicator: React.FC<LiveChatHeatIndicatorProps> = ({
 		interval: EXPIRY_CHECK_INTERVAL_MS,
 		disabled: isStreaming,
 	});
+	const [wasStreaming, setWasStreaming] = useState(isStreaming);
+	const [lastStreamEndedAtMs, setLastStreamEndedAtMs] = useState<number>();
+	if (wasStreaming !== isStreaming) {
+		setWasStreaming(isStreaming);
+		if (!isStreaming) {
+			setLastStreamEndedAtMs(Date.now());
+		}
+	}
 	return (
 		<ChatHeatIndicator
 			heat={heat}
 			isCacheExpired={isCacheLikelyExpired(
 				heat.lastRequestAt,
+				lastStreamEndedAtMs,
 				nowMs,
 				isStreaming,
 			)}

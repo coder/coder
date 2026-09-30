@@ -205,7 +205,7 @@ type AgentChatInputProps = {
 	// drifted.
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
-	// Recent prompt-cache heat, shown beside the context indicator when set.
+	// Recent prompt-cache heat; omit or pass null to hide it.
 	chatHeat?: ChatHeat | null;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;

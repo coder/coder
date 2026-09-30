@@ -41,7 +41,7 @@ describe("LiveChatHeatIndicator", () => {
 		renderComponent(
 			<LiveChatHeatIndicator heat={getHeat()} isStreaming={false} />,
 		);
-		const button = screen.getByRole("button");
+		const button = screen.getByRole("button", { name: /chat heat/i });
 		expect(button).not.toHaveAccessibleName(/cache likely expired/i);
 
 		act(() => {
@@ -58,10 +58,29 @@ describe("LiveChatHeatIndicator", () => {
 		act(() => {
 			vi.advanceTimersByTime(CACHE_IDLE_TTL_MS);
 		});
-		const button = screen.getByRole("button");
+		const button = screen.getByRole("button", { name: /chat heat/i });
 		expect(button).toHaveAccessibleName(/cache likely expired/i);
 
 		rerender(<LiveChatHeatIndicator heat={heat} isStreaming />);
+		expect(button).not.toHaveAccessibleName(/cache likely expired/i);
+	});
+
+	it("stays clear after a turn that ends without a counted request", () => {
+		const heat = getHeat();
+		const { rerender } = renderComponent(
+			<LiveChatHeatIndicator heat={heat} isStreaming={false} />,
+		);
+		act(() => {
+			vi.advanceTimersByTime(CACHE_IDLE_TTL_MS);
+		});
+		const button = screen.getByRole("button", { name: /chat heat/i });
+		expect(button).toHaveAccessibleName(/cache likely expired/i);
+
+		rerender(<LiveChatHeatIndicator heat={heat} isStreaming />);
+		rerender(<LiveChatHeatIndicator heat={heat} isStreaming={false} />);
+		act(() => {
+			vi.advanceTimersByTime(60_000);
+		});
 		expect(button).not.toHaveAccessibleName(/cache likely expired/i);
 	});
 });

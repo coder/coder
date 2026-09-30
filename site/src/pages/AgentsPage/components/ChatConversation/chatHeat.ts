@@ -24,16 +24,18 @@ type ChatHeatLabel = "cool" | "warm" | "hot";
 
 const HEAT_WINDOW_SIZE = 6;
 const HEAT_WINDOW_DECAY = 0.5;
-// Initial guesses: x is the weighted fresh share of the context window
+// Tuning constants: x is the weighted fresh share of the context window
 // relative to the compaction threshold.
 export const HEAT_CURVE_MIDPOINT = 0.3;
 const HEAT_CURVE_STEEPNESS = 12;
-// Anthropic's default ephemeral cache lifetime; other providers are similar.
+// A single idle threshold for all providers. Anthropic's default ephemeral
+// cache lives 5 minutes; automatic caches elsewhere are similar or longer.
 export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
 
 type HeatRequest = {
 	readonly freshTokens: number;
 	readonly cacheReadTokens: number;
+	readonly usesCache: boolean;
 	readonly contextLimit: number;
 	readonly createdAt: string;
 };
@@ -57,9 +59,8 @@ const toHeatRequest = (
 	) {
 		return null;
 	}
-	const freshTokens =
-		toTokenCount(usage.input_tokens) +
-		toTokenCount(usage.cache_creation_tokens);
+	const cacheCreationTokens = toTokenCount(usage.cache_creation_tokens);
+	const freshTokens = toTokenCount(usage.input_tokens) + cacheCreationTokens;
 	const cacheReadTokens = toTokenCount(usage.cache_read_tokens);
 	if (freshTokens + cacheReadTokens === 0) {
 		return null;
@@ -67,6 +68,7 @@ const toHeatRequest = (
 	return {
 		freshTokens,
 		cacheReadTokens,
+		usesCache: cacheReadTokens > 0 || cacheCreationTokens > 0,
 		contextLimit,
 		createdAt: message.created_at,
 	};
@@ -113,7 +115,9 @@ export const getChatHeat = (
 		}
 	}
 	const latest = requests[0];
-	if (!latest) {
+	// A window with no cache reads or writes means the route does not use
+	// prompt caching, so the meter would read hot with nothing to act on.
+	if (!latest || !requests.some((request) => request.usesCache)) {
 		return null;
 	}
 
@@ -147,8 +151,15 @@ export const getChatHeat = (
 	};
 };
 
+/**
+ * Reports whether the provider cache has likely expired. Idle time runs from
+ * the later of the last counted request (server clock) and the moment the
+ * client last saw the chat stop generating, which covers turns that ended
+ * without a counted request and limits the effect of clock skew.
+ */
 export const isCacheLikelyExpired = (
 	lastRequestAt: string,
+	lastStreamEndedAtMs: number | undefined,
 	nowMs: number,
 	isStreaming: boolean,
 ): boolean => {
@@ -156,7 +167,9 @@ export const isCacheLikelyExpired = (
 		return false;
 	}
 	const lastRequestMs = Date.parse(lastRequestAt);
-	return (
-		Number.isFinite(lastRequestMs) && nowMs - lastRequestMs > CACHE_IDLE_TTL_MS
+	const lastActivityMs = Math.max(
+		Number.isFinite(lastRequestMs) ? lastRequestMs : 0,
+		lastStreamEndedAtMs ?? 0,
 	);
+	return lastActivityMs > 0 && nowMs - lastActivityMs > CACHE_IDLE_TTL_MS;
 };

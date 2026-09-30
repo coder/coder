@@ -35,6 +35,7 @@ import {
 	type AttachedWorkspaceInfo,
 	type UploadState,
 } from "./AgentChatInput";
+import type { ChatHeat } from "./ChatConversation/chatHeat";
 import type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 
 const defaultModelID = "model-config-1";
@@ -1492,6 +1493,31 @@ export const ContextNearLimit: Story = {
 			cacheReadTokens: 4_000,
 			compressionThreshold: 90,
 		},
+	},
+};
+
+const hotChatHeat: ChatHeat = {
+	heat: 0.9,
+	label: "hot",
+	missRate: 0.95,
+	lastFreshTokens: 40_000,
+	lastCacheReadTokens: 2_000,
+	lastPromptTokens: 42_000,
+	// Far in the past, so the live indicator always renders its expired marker.
+	lastRequestAt: "2026-01-01T00:00:00Z",
+};
+
+/** The chat heat button beside the context ring on a crowded phone toolbar. */
+export const WithChatHeatMobile: Story = {
+	args: {
+		contextUsage: baseContextUsage,
+		chatHeat: hotChatHeat,
+		onAttach: fn(),
+		onRemoveAttachment: fn(),
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };
 

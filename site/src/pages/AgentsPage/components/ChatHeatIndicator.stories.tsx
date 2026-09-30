@@ -20,16 +20,19 @@ const meta: Meta<typeof ChatHeatIndicator> = {
 		heat: baseHeat,
 		isCacheExpired: false,
 	},
-	// Opens the tooltip so the screenshot captures the breakdown.
-	play: async ({ canvasElement }) => {
-		await userEvent.hover(within(canvasElement).getByRole("button"));
-	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ChatHeatIndicator>;
 
-export const Cool: Story = {};
+// Opens the tooltip so the screenshot captures the breakdown.
+const hoverTrigger: Story["play"] = async ({ canvasElement }) => {
+	await userEvent.hover(
+		within(canvasElement).getByRole("button", { name: /chat heat/i }),
+	);
+};
+
+export const Cool: Story = { play: hoverTrigger };
 
 export const Warm: Story = {
 	args: {
@@ -43,6 +46,7 @@ export const Warm: Story = {
 			lastPromptTokens: 120_000,
 		},
 	},
+	play: hoverTrigger,
 };
 
 export const Hot: Story = {
@@ -57,12 +61,14 @@ export const Hot: Story = {
 			lastPromptTokens: 121_000,
 		},
 	},
+	play: hoverTrigger,
 };
 
 export const CacheExpired: Story = {
 	args: {
 		isCacheExpired: true,
 	},
+	play: hoverTrigger,
 };
 
 export const IconOnly: Story = {
@@ -70,5 +76,20 @@ export const IconOnly: Story = {
 		heat: { ...baseHeat, heat: 0.7, label: "hot" },
 		isCacheExpired: true,
 	},
-	play: undefined,
+};
+
+export const Mobile: Story = {
+	args: {
+		isCacheExpired: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	// Opens the popover so the screenshot captures the mobile layout.
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /chat heat/i }),
+		);
+	},
 };

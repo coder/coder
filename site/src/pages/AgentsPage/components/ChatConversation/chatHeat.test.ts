@@ -151,6 +151,14 @@ describe("getChatHeat", () => {
 		}
 	});
 
+	it("returns null when no request in the window uses the prompt cache", () => {
+		const uncached = request({ input_tokens: 50_000 });
+		expect(getChatHeat([uncached, uncached], 70)).toBeNull();
+		expect(
+			getChatHeat([requestWithShare(0.1), uncached], 70)?.heat,
+		).toBeGreaterThan(0);
+	});
+
 	it("normalizes by the compaction threshold", () => {
 		const messages = [requestWithShare(0.15)];
 		expect(getChatHeat(messages, 50)?.heat).toBeCloseTo(heatCurve(0.3));
@@ -161,8 +169,8 @@ describe("getChatHeat", () => {
 	it("reports the newest request's timestamp", () => {
 		const heat = getChatHeat(
 			[
-				request({ input_tokens: 1 }, "2026-01-01T00:00:00Z"),
-				request({ input_tokens: 1 }, "2026-01-01T00:10:00Z"),
+				request({ cache_read_tokens: 1 }, "2026-01-01T00:00:00Z"),
+				request({ cache_read_tokens: 1 }, "2026-01-01T00:10:00Z"),
 			],
 			70,
 		);
@@ -175,17 +183,43 @@ describe("isCacheLikelyExpired", () => {
 	const lastMs = Date.parse(last);
 
 	it("expires after the idle lifetime", () => {
-		expect(isCacheLikelyExpired(last, lastMs + CACHE_IDLE_TTL_MS, false)).toBe(
-			false,
-		);
 		expect(
-			isCacheLikelyExpired(last, lastMs + CACHE_IDLE_TTL_MS + 1, false),
+			isCacheLikelyExpired(last, undefined, lastMs + CACHE_IDLE_TTL_MS, false),
+		).toBe(false);
+		expect(
+			isCacheLikelyExpired(
+				last,
+				undefined,
+				lastMs + CACHE_IDLE_TTL_MS + 1,
+				false,
+			),
 		).toBe(true);
 	});
 
-	it("never expires while streaming", () => {
-		expect(isCacheLikelyExpired(last, lastMs + 60 * 60 * 1000, true)).toBe(
+	it("measures idle time from the later of request and stream end", () => {
+		const streamEndedMs = lastMs + 10 * 60 * 1000;
+		expect(
+			isCacheLikelyExpired(last, streamEndedMs, streamEndedMs + 1_000, false),
+		).toBe(false);
+		expect(
+			isCacheLikelyExpired(
+				last,
+				streamEndedMs,
+				streamEndedMs + CACHE_IDLE_TTL_MS + 1,
+				false,
+			),
+		).toBe(true);
+	});
+
+	it("treats a request timestamp ahead of the client clock as recent", () => {
+		expect(isCacheLikelyExpired(last, undefined, lastMs - 60_000, false)).toBe(
 			false,
 		);
+	});
+
+	it("never expires while streaming", () => {
+		expect(
+			isCacheLikelyExpired(last, undefined, lastMs + 60 * 60 * 1000, true),
+		).toBe(false);
 	});
 });
