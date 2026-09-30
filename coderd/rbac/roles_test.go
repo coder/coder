@@ -196,6 +196,9 @@ func TestOwnerExec(t *testing.T) {
 		err := auth.Authorize(context.Background(), owner, policy.ActionSSH,
 			rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
 		require.ErrorAsf(t, err, &rbac.UnauthorizedError{}, "expected unauthorized error")
+		err = auth.Authorize(context.Background(), owner, policy.ActionSSH,
+			rbac.ResourceWorkspaceExecution.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
 	})
 
 	t.Run("Exec", func(t *testing.T) {
@@ -210,6 +213,9 @@ func TestOwnerExec(t *testing.T) {
 		err := auth.Authorize(context.Background(), owner, policy.ActionSSH,
 			rbac.ResourceWorkspace.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
 		require.NoError(t, err, "expected owner can")
+		err = auth.Authorize(context.Background(), owner, policy.ActionSSH,
+			rbac.ResourceWorkspaceExecution.WithID(uuid.New()).InOrg(uuid.New()).WithOwner(uuid.NewString()))
+		require.NoError(t, err)
 	})
 }
 
@@ -1019,6 +1025,24 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, setOrgNotMe, setOtherOrg, memberMe, templateAdmin, userAdmin, orgWorkspaceAccessUser},
 				false: {},
+			},
+		},
+		{
+			Name:     "WorkspaceExecutionOwn",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionSSH},
+			Resource: rbac.ResourceWorkspaceExecution.InOrg(orgID).WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgWorkspaceAccessUser},
+				false: {setOrgNotMe, setOtherOrg, memberMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "WorkspaceExecutionOtherOwner",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionSSH},
+			Resource: rbac.ResourceWorkspaceExecution.InOrg(orgID).WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOrgNotMe, setOtherOrg, memberMe, templateAdmin, userAdmin, orgWorkspaceAccessUser},
 			},
 		},
 		{

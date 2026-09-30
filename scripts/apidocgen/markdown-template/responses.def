@@ -9,6 +9,12 @@
 			return "";
 		}
 
+		if (!content.schema) {
+			return "";
+		}
+		if (!content.schema.items && !content.schema["x-widdershins-oldRef"]) {
+			return content.schema.type || "";
+		}
 		var ref = content.schema["x-widdershins-oldRef"];
 		if (!ref) {
 			ref = content.schema.items["x-widdershins-oldRef"];

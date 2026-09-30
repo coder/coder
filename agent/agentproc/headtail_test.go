@@ -79,12 +79,8 @@ func TestHeadTailBuffer_HeadPlusTailNoOmission(t *testing.T) {
 	require.Equal(t, 20, n)
 
 	out, info := buf.Output()
-	require.NotNil(t, info)
-	require.Equal(t, 0, info.OmittedBytes)
-	require.Equal(t, "head_tail", info.Strategy)
-	// The output should contain both head and tail.
-	require.Contains(t, out, "0123456789")
-	require.Contains(t, out, "abcdefghij")
+	require.Nil(t, info, "contiguous output should not be truncated")
+	require.Equal(t, data, out)
 }
 
 func TestHeadTailBuffer_LargeOutputTruncation(t *testing.T) {
@@ -153,7 +149,12 @@ func TestHeadTailBuffer_LongLineTruncation(t *testing.T) {
 	_, err := buf.Write([]byte(longLine + "\n"))
 	require.NoError(t, err)
 
-	out, _ := buf.Output()
+	out, info := buf.Output()
+	require.NotNil(t, info)
+	require.Equal(t, len(longLine)+1, info.OriginalBytes)
+	require.Equal(t, len(out), info.RetainedBytes)
+	require.Equal(t, 500+len(" ... [truncated]"), info.OmittedBytes)
+	require.Equal(t, "lines", info.Strategy)
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 	require.Len(t, lines, 1)
 	require.LessOrEqual(t, len(lines[0]), agentproc.MaxLineLength)
@@ -163,22 +164,43 @@ func TestHeadTailBuffer_LongLineTruncation(t *testing.T) {
 func TestHeadTailBuffer_LongLineInTail(t *testing.T) {
 	t.Parallel()
 
-	// Use small buffers so we can force data into the tail.
-	buf := agentproc.NewHeadTailBufferSized(20, 5000)
+	// Split the long line across contiguous head and tail buffers.
+	buf := agentproc.NewHeadTailBufferSized(2000, 5000)
 
-	// Fill head with short data.
+	// Start with a complete short line.
 	_, err := buf.Write([]byte("head data goes here\n"))
 	require.NoError(t, err)
 
-	// Now write a very long line into the tail.
+	// The long line crosses the head/tail boundary.
 	longLine := strings.Repeat("T", agentproc.MaxLineLength+100)
 	_, err = buf.Write([]byte(longLine + "\n"))
 	require.NoError(t, err)
 
 	out, info := buf.Output()
 	require.NotNil(t, info)
-	// The long line in the tail should be truncated.
-	require.Contains(t, out, "... [truncated]")
+	require.Equal(t, len("head data goes here\n")+len(longLine)+1, info.OriginalBytes)
+	require.Equal(t, len(out), info.RetainedBytes)
+	require.Equal(t, 100+len(" ... [truncated]"), info.OmittedBytes)
+	require.Equal(t, "lines", info.Strategy)
+	// A line crossing the head/tail boundary is still truncated only once.
+	require.Equal(t, 1, strings.Count(out, "... [truncated]"))
+}
+
+func TestHeadTailBuffer_BufferAndLineTruncation(t *testing.T) {
+	t.Parallel()
+
+	buf := agentproc.NewHeadTailBufferSized(3000, 3000)
+	_, err := buf.Write([]byte(strings.Repeat("x", 9000)))
+	require.NoError(t, err)
+
+	out, info := buf.Output()
+	require.NotNil(t, info)
+	require.Equal(t, 9000, info.OriginalBytes)
+	require.Equal(t, len(out), info.RetainedBytes)
+	require.Equal(t, 3000+2*(3000-agentproc.MaxLineLength+len(" ... [truncated]")), info.OmittedBytes)
+	require.Equal(t, "head_tail", info.Strategy)
+	require.Contains(t, out, "... [omitted 3000 bytes] ...")
+	require.Equal(t, 2, strings.Count(out, "... [truncated]"))
 }
 
 func TestHeadTailBuffer_ConcurrentWrites(t *testing.T) {
@@ -210,6 +232,41 @@ func TestHeadTailBuffer_ConcurrentWrites(t *testing.T) {
 
 	out, _ := buf.Output()
 	require.NotEmpty(t, out)
+}
+
+func TestHeadTailBuffer_ConcurrentOutput(t *testing.T) {
+	t.Parallel()
+
+	buf := agentproc.NewHeadTailBufferSized(10, 32<<10)
+	partial := []byte(strings.Repeat("p", 16<<10))
+	wrap := []byte(strings.Repeat("w", 32<<10))
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 2000 {
+			buf.Reset()
+			_, err := buf.Write(partial)
+			assert.NoError(t, err)
+			_, err = buf.Write(wrap)
+			assert.NoError(t, err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		for range 2000 {
+			out, info := buf.Output()
+			if info != nil {
+				assert.Equal(t, len(out), info.RetainedBytes)
+				assert.LessOrEqual(t, info.OmittedBytes, info.OriginalBytes)
+			}
+		}
+	}()
+	close(start)
+	wg.Wait()
 }
 
 func TestHeadTailBuffer_TruncationInfoFields(t *testing.T) {

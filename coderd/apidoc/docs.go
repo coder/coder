@@ -1698,6 +1698,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Chat"
                         }
                     },
+                    "409": {
+                        "description": "Submission identity conflict or workspace admission closed",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "413": {
                         "description": "Request body exceeds 256 KiB",
                         "schema": {
@@ -2713,6 +2719,12 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    },
+                    "409": {
+                        "description": "Workspace admission is closed",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -2867,6 +2879,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "409": {
+                        "description": "Chat state conflicts or workspace admission is closed",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -3110,6 +3128,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.CreateChatMessageResponse"
                         }
+                    },
+                    "409": {
+                        "description": "Submission identity conflict or workspace admission closed",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -3163,6 +3187,12 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.EditChatMessageResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Chat state conflicts or workspace admission is closed",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -9666,6 +9696,535 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Acquire workspace execution session",
+                "operationId": "acquire-workspace-execution-session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Acquisition request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AcquireWorkspaceExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceExecutionSession"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceExecutionSession"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Get workspace execution session",
+                "operationId": "get-workspace-execution-session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceExecutionSession"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/artifacts": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List durable workspace execution artifacts",
+                "operationId": "list-durable-workspace-execution-artifacts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceExecutionArtifact"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/artifacts/{artifact}": {
+            "get": {
+                "produces": [
+                    "application/octet-stream"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Read durable workspace execution artifact bytes",
+                "operationId": "read-durable-workspace-execution-artifact-bytes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Artifact ID",
+                        "name": "artifact",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Zero-based byte offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum bytes, up to 1048576; omit to download all bytes",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/commands": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Start a durable workspace command",
+                "operationId": "start-a-durable-workspace-command",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Command intent",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.StartWorkspaceCommandRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceCommand"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Read workspace command output and status",
+                "operationId": "read-workspace-command-output-and-status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Command ID",
+                        "name": "execution",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Bounded observation wait, 0 to 30000 milliseconds",
+                        "name": "wait_ms",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceCommand"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution}/cancel": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Cancel a workspace command with acknowledgment",
+                "operationId": "cancel-a-workspace-command-with-acknowledgment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Command ID",
+                        "name": "execution",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Bounded acknowledgment wait, 0 to 30000 milliseconds",
+                        "name": "wait_ms",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceCommand"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/export": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Export declared workspace execution results",
+                "operationId": "export-declared-workspace-execution-results",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Observed open session revision",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExportWorkspaceExecutionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.WorkspaceExecutionArtifact"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/organizations/{organization}/workspace-executions/{session}/{action}": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Renew retain or retry a workspace execution session",
+                "operationId": "renew-retain-or-retry-a-workspace-execution-session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Execution session ID",
+                        "name": "session",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "renew",
+                            "retain",
+                            "retry"
+                        ],
+                        "type": "string",
+                        "description": "Lifecycle action",
+                        "name": "action",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Observed revision and action-specific expiration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceExecutionControlRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceExecutionControlReceipt"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },
@@ -18978,6 +19537,11 @@ const docTemplate = `{
                 "workspace_dormant:stop",
                 "workspace_dormant:update",
                 "workspace_dormant:update_agent",
+                "workspace_execution:*",
+                "workspace_execution:create",
+                "workspace_execution:read",
+                "workspace_execution:ssh",
+                "workspace_execution:update",
                 "workspace_proxy:*",
                 "workspace_proxy:create",
                 "workspace_proxy:delete",
@@ -19225,12 +19789,50 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantStop",
                 "APIKeyScopeWorkspaceDormantUpdate",
                 "APIKeyScopeWorkspaceDormantUpdateAgent",
+                "APIKeyScopeWorkspaceExecutionAll",
+                "APIKeyScopeWorkspaceExecutionCreate",
+                "APIKeyScopeWorkspaceExecutionRead",
+                "APIKeyScopeWorkspaceExecutionSsh",
+                "APIKeyScopeWorkspaceExecutionUpdate",
                 "APIKeyScopeWorkspaceProxyAll",
                 "APIKeyScopeWorkspaceProxyCreate",
                 "APIKeyScopeWorkspaceProxyDelete",
                 "APIKeyScopeWorkspaceProxyRead",
                 "APIKeyScopeWorkspaceProxyUpdate"
             ]
+        },
+        "codersdk.AcquireWorkspaceExecutionRequest": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "$ref": "#/definitions/codersdk.CreateWorkspaceRequest"
+                },
+                "declarations": {
+                    "$ref": "#/definitions/codersdk.WorkspaceExecutionDeclarations"
+                },
+                "disposable": {
+                    "type": "boolean"
+                },
+                "lease_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "retained": {
+                    "type": "boolean"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.AddLicenseRequest": {
             "type": "object",
@@ -19932,6 +20534,9 @@ const docTemplate = `{
                 "diff_status": {
                     "$ref": "#/definitions/codersdk.ChatDiffStatus"
                 },
+                "exact_settings": {
+                    "$ref": "#/definitions/codersdk.ChatExactSettings"
+                },
                 "files": {
                     "type": "array",
                     "items": {
@@ -20017,6 +20622,9 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
+                },
+                "submission": {
+                    "$ref": "#/definitions/codersdk.ChatSubmissionReceipt"
                 },
                 "summary": {
                     "description": "Summary is the persisted whole-chat summary, generated in the background.\nIt is nil until the first summary has been produced.",
@@ -20444,6 +21052,24 @@ const docTemplate = `{
                 "ChatErrorKindHookDispatchFailed",
                 "ChatErrorKindHookDenied"
             ]
+        },
+        "codersdk.ChatExactSettings": {
+            "type": "object",
+            "properties": {
+                "model": {
+                    "type": "string"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatFileDownloadURLResponse": {
             "type": "object",
@@ -20957,6 +21583,13 @@ const docTemplate = `{
                 },
                 "enabled": {
                     "type": "boolean"
+                },
+                "exact_reasoning_efforts": {
+                    "description": "ExactReasoningEfforts excludes values that Coder or its provider adapter\nwould silently clamp, translate, or ignore. It does not probe the provider.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "string",
@@ -21819,6 +22452,44 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ChatSubmissionReceipt": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "message_id": {
+                    "type": "integer"
+                },
+                "queued_message_id": {
+                    "type": "integer"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "settings": {
+                    "$ref": "#/definitions/codersdk.ChatExactSettings"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": [
+                        "reserved",
+                        "accepted",
+                        "uncertain",
+                        "rejected"
+                    ]
+                }
+            }
+        },
         "codersdk.ChatSystemPromptResponse": {
             "type": "object",
             "properties": {
@@ -22193,6 +22864,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "exact_settings": {
+                    "description": "ExactSettings rejects reasoning substitutions. Requires RequestID.",
+                    "type": "boolean"
+                },
                 "inline_mcp_servers": {
                     "description": "InlineMCPServers replaces the inline MCP servers.\nnil: no change, empty: remove all.",
                     "type": "array",
@@ -22221,6 +22896,10 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -22242,6 +22921,9 @@ const docTemplate = `{
                 },
                 "queued_message": {
                     "$ref": "#/definitions/codersdk.ChatQueuedMessage"
+                },
+                "submission": {
+                    "$ref": "#/definitions/codersdk.ChatSubmissionReceipt"
                 },
                 "warnings": {
                     "type": "array",
@@ -22294,6 +22976,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
                 },
+                "exact_settings": {
+                    "description": "ExactSettings rejects reasoning substitutions. Requires RequestID.",
+                    "type": "boolean"
+                },
                 "inline_mcp_servers": {
                     "description": "InlineMCPServers declares MCP servers by value on this chat, next\nto the org-configured servers selected by MCPServerIDs. Experimental.",
                     "type": "array",
@@ -22332,6 +23018,11 @@ const docTemplate = `{
                 },
                 "reasoning_effort": {
                     "type": "string"
+                },
+                "request_id": {
+                    "description": "RequestID makes retries converge on one durable submission. Reusing an\nidentity with different input is rejected, including after queue promotion.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "system_prompt": {
                     "type": "string"
@@ -23780,6 +24471,9 @@ const docTemplate = `{
                 "wildcard_access_url": {
                     "type": "string"
                 },
+                "workspace_execution_cleanup": {
+                    "type": "boolean"
+                },
                 "workspace_hostname_suffix": {
                     "type": "string"
                 },
@@ -24132,6 +24826,14 @@ const docTemplate = `{
                 "ExperimentRuleModeOff",
                 "ExperimentRuleModeCondition"
             ]
+        },
+        "codersdk.ExportWorkspaceExecutionRequest": {
+            "type": "object",
+            "properties": {
+                "expected_revision": {
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.ExternalAPIKeyScopes": {
             "type": "object",
@@ -28143,6 +28845,7 @@ const docTemplate = `{
                 "workspace_agent_resource_monitor",
                 "workspace_build_orchestration",
                 "workspace_dormant",
+                "workspace_execution",
                 "workspace_proxy"
             ],
             "x-enum-varnames": [
@@ -28197,6 +28900,7 @@ const docTemplate = `{
                 "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceBuildOrchestration",
                 "ResourceWorkspaceDormant",
+                "ResourceWorkspaceExecution",
                 "ResourceWorkspaceProxy"
             ]
         },
@@ -28788,6 +29492,31 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "organization_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.StartWorkspaceCommandRequest": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "command": {
+                    "type": "string"
+                },
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workdir": {
                     "type": "string"
                 }
             }
@@ -32965,6 +33694,86 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceCommand": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "agent_instance_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "deadline": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "output": {
+                    "$ref": "#/definitions/codersdk.WorkspaceCommandOutput"
+                },
+                "output_unavailable": {
+                    "type": "boolean"
+                },
+                "process_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.WorkspaceCommandOutput": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "truncated": {
+                    "$ref": "#/definitions/codersdk.WorkspaceCommandTruncation"
+                }
+            }
+        },
+        "codersdk.WorkspaceCommandTruncation": {
+            "type": "object",
+            "properties": {
+                "omitted_bytes": {
+                    "type": "integer"
+                },
+                "original_bytes": {
+                    "type": "integer"
+                },
+                "retained_bytes": {
+                    "type": "integer"
+                },
+                "strategy": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -33004,6 +33813,211 @@ const docTemplate = `{
                 },
                 "tx_bytes": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionArtifact": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "download_url": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "mime_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "preservation_revision": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
+                },
+                "source_path": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionBuild": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "error_code": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "job_status": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.WorkspaceStatus"
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionControlReceipt": {
+            "type": "object",
+            "properties": {
+                "effective_artifact_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "lease_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "retained": {
+                    "type": "boolean"
+                },
+                "revision": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionControlRequest": {
+            "type": "object",
+            "properties": {
+                "artifact_expires_at": {
+                    "description": "ArtifactExpiresAt applies only to retry and explicitly extends finite retention.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expected_revision": {
+                    "type": "integer"
+                },
+                "lease_expires_at": {
+                    "description": "LeaseExpiresAt applies only to renewal.",
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionDeclarations": {
+            "type": "object",
+            "properties": {
+                "artifact_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "execution_deadline": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "result_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "result_agent_name": {
+                    "type": "string"
+                },
+                "result_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.WorkspaceExecutionSession": {
+            "type": "object",
+            "properties": {
+                "acquisition_build": {
+                    "$ref": "#/definitions/codersdk.WorkspaceExecutionBuild"
+                },
+                "acquisition_build_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "actor_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "declarations": {
+                    "$ref": "#/definitions/codersdk.WorkspaceExecutionDeclarations"
+                },
+                "disposable": {
+                    "type": "boolean"
+                },
+                "effective_artifact_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "lease_expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "request_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "retained": {
+                    "type": "boolean"
+                },
+                "revision": {
+                    "type": "integer"
+                },
+                "source_unavailable": {
+                    "type": "boolean"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

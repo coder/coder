@@ -64,6 +64,8 @@ type AgentConnFunc func(
 
 // CreateWorkspaceOptions configures the create_workspace tool.
 type CreateWorkspaceOptions struct {
+	// CheckWorkspaceAdmission serializes binding with workspace cleanup.
+	CheckWorkspaceAdmission        func(context.Context, database.Store, uuid.UUID) error
 	OwnerID                        uuid.UUID
 	CreateFn                       CreateWorkspaceFn
 	AgentConnFn                    AgentConnFunc
@@ -256,7 +258,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			// later fails. The checkExistingWorkspace recovery
 			// path handles failed workspaces by allowing
 			// re-creation.
-			updatedChat, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+			updatedChat, err := bindWorkspace(ctx, db, options.CheckWorkspaceAdmission, database.UpdateChatWorkspaceBindingParams{
 				ID: chatID,
 				WorkspaceID: uuid.NullUUID{
 					UUID:  workspace.ID,
@@ -414,7 +416,7 @@ func (o CreateWorkspaceOptions) checkExistingWorkspace(
 		database.ProvisionerJobStatusRunning:
 		// Build is in progress. Publish the build ID so the
 		// frontend can start streaming logs, then wait.
-		updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		updatedChat, bindErr := bindWorkspace(ctx, db, o.CheckWorkspaceAdmission, database.UpdateChatWorkspaceBindingParams{
 			ID:          chatID,
 			WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
 			BuildID: uuid.NullUUID{

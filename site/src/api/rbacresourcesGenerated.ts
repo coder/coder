@@ -287,6 +287,12 @@ export const RBACResourceActions: Partial<
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 		update_agent: "update an existing workspace agent",
 	},
+	workspace_execution: {
+		create: "create a workspace execution session",
+		read: "read workspace execution session metadata",
+		ssh: "execute commands and read workspace execution output",
+		update: "update a workspace execution session",
+	},
 	workspace_proxy: {
 		create: "create a workspace proxy",
 		delete: "delete a workspace proxy",

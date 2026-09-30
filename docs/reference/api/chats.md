@@ -118,6 +118,12 @@ curl -X GET http://coder-server:8080/api/v2/chats \
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "exact_settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -178,6 +184,21 @@ curl -X GET http://coder-server:8080/api/v2/chats \
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "submission": {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "message_id": 0,
+      "queued_message_id": 0,
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
+      "state": "reserved"
+    },
     "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -243,6 +264,11 @@ Status Code **200**
 | `»» reviewer_count`        | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» stale_at`              | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» url`                   | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `» exact_settings`         | [codersdk.ChatExactSettings](schemas.md#codersdkchatexactsettings)                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» model`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» model_config_id`       | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» provider`              | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» reasoning_effort`      | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» files`                  | array                                                                              | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» created_at`            | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
@@ -288,6 +314,15 @@ Status Code **200**
 | `» root_chat_id`           | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                 | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                 | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
+| `» submission`             | [codersdk.ChatSubmissionReceipt](schemas.md#codersdkchatsubmissionreceipt)         | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» chat_id`               | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» error`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» message_id`            | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» queued_message_id`     | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» request_id`            | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» settings`              | [codersdk.ChatExactSettings](schemas.md#codersdkchatexactsettings)                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» state`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» summary`                | string                                                                             | false    |              | Summary is the persisted whole-chat summary, generated in the background. It is nil until the first summary has been produced.                                                                                                                                             |
 | `» title`                  | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `» updated_at`             | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
@@ -302,6 +337,7 @@ Status Code **200**
 | `kind`        | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 | `status`      | `error`, `excluded`, `interrupting`, `invalid`, `ok`, `oversize`, `requires_action`, `running`, `unreadable`, `waiting`                                                                                                                                           |
 | `plan_mode`   | `plan`                                                                                                                                                                                                                                                            |
+| `state`       | `accepted`, `rejected`, `reserved`, `uncertain`                                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -340,6 +376,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
+  "exact_settings": true,
   "inline_mcp_servers": [
     {
       "allow_in_subagents": true,
@@ -370,6 +407,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "plan_mode": "plan",
   "reasoning_effort": "string",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
   "system_prompt": "string",
   "unsafe_dynamic_tools": [
     {
@@ -450,6 +488,12 @@ curl -X POST http://coder-server:8080/api/v2/chats \
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "exact_settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -510,6 +554,21 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "submission": {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "error": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message_id": 0,
+        "queued_message_id": 0,
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "settings": {
+          "model": "string",
+          "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+          "provider": "string",
+          "reasoning_effort": "string"
+        },
+        "state": "reserved"
+      },
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -563,6 +622,12 @@ curl -X POST http://coder-server:8080/api/v2/chats \
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
+  },
+  "exact_settings": {
+    "model": "string",
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "provider": "string",
+    "reasoning_effort": "string"
   },
   "files": [
     {
@@ -624,6 +689,21 @@ curl -X POST http://coder-server:8080/api/v2/chats \
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -636,10 +716,11 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description                  | Schema                                           |
-|--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description                                                | Schema                                           |
+|--------|-------------------------------------------------------------------------|------------------------------------------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                                                    | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)           | Submission identity conflict or workspace admission closed | [codersdk.Response](schemas.md#codersdkresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB                               | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1432,6 +1513,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
+    "exact_settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
     "files": [
       {
         "created_at": "2019-08-24T14:15:22Z",
@@ -1492,6 +1579,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "submission": {
+      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+      "error": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "message_id": 0,
+      "queued_message_id": 0,
+      "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+      "settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
+      "state": "reserved"
+    },
     "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -1598,6 +1700,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "exact_settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -1658,6 +1766,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "submission": {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "error": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message_id": 0,
+        "queued_message_id": 0,
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "settings": {
+          "model": "string",
+          "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+          "provider": "string",
+          "reasoning_effort": "string"
+        },
+        "state": "reserved"
+      },
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -1711,6 +1834,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
+  },
+  "exact_settings": {
+    "model": "string",
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "provider": "string",
+    "reasoning_effort": "string"
   },
   "files": [
     {
@@ -1772,6 +1901,21 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat} \
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1798,6 +1942,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
   -H 'Content-Type: application/json' \
+  -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1827,11 +1972,16 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat} \
 | `chat` | path | string(uuid)                                                       | true     | Chat ID             |
 | `body` | body | [codersdk.UpdateChatRequest](schemas.md#codersdkupdatechatrequest) | true     | Update chat request |
 
+### Example responses
+
+> 409 Response
+
 ### Responses
 
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+| Status | Meaning                                                         | Description                   | Schema                                           |
+|--------|-----------------------------------------------------------------|-------------------------------|--------------------------------------------------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content                    |                                                  |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)   | Workspace admission is closed | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1914,6 +2064,12 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "exact_settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -1974,6 +2130,21 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "submission": {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "error": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message_id": 0,
+        "queued_message_id": 0,
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "settings": {
+          "model": "string",
+          "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+          "provider": "string",
+          "reasoning_effort": "string"
+        },
+        "state": "reserved"
+      },
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2027,6 +2198,12 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
+  },
+  "exact_settings": {
+    "model": "string",
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "provider": "string",
+    "reasoning_effort": "string"
   },
   "files": [
     {
@@ -2088,6 +2265,21 @@ curl -X PUT http://coder-server:8080/api/v2/chats/{chat}/context \
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2277,6 +2469,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "exact_settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -2337,6 +2535,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "submission": {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "error": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message_id": 0,
+        "queued_message_id": 0,
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "settings": {
+          "model": "string",
+          "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+          "provider": "string",
+          "reasoning_effort": "string"
+        },
+        "state": "reserved"
+      },
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2390,6 +2603,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
+  },
+  "exact_settings": {
+    "model": "string",
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "provider": "string",
+    "reasoning_effort": "string"
   },
   "files": [
     {
@@ -2451,6 +2670,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/interrupt \
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2694,6 +2928,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "workspace_file_workspace_id": "74c05446-1c56-4543-82a9-03f2bf73b2ab"
     }
   ],
+  "exact_settings": true,
   "inline_mcp_servers": [
     {
       "allow_in_subagents": true,
@@ -2717,7 +2952,8 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "plan_mode": "plan",
-  "reasoning_effort": "string"
+  "reasoning_effort": "string",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846"
 }
 ```
 
@@ -2962,6 +3198,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
     "id": 0,
     "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
   },
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "warnings": [
     "string"
   ]
@@ -2970,9 +3221,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                             |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.CreateChatMessageResponse](schemas.md#codersdkcreatechatmessageresponse) |
+| Status | Meaning                                                       | Description                                                | Schema                                                                             |
+|--------|---------------------------------------------------------------|------------------------------------------------------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)       | OK                                                         | [codersdk.CreateChatMessageResponse](schemas.md#codersdkcreatechatmessageresponse) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Submission identity conflict or workspace admission closed | [codersdk.Response](schemas.md#codersdkresponse)                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3203,9 +3455,10 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                         |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+| Status | Meaning                                                       | Description                                           | Schema                                                                         |
+|--------|---------------------------------------------------------------|-------------------------------------------------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)       | OK                                                    | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Chat state conflicts or workspace admission is closed | [codersdk.Response](schemas.md#codersdkresponse)                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -3409,6 +3662,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
         "stale_at": "2019-08-24T14:15:22Z",
         "url": "string"
       },
+      "exact_settings": {
+        "model": "string",
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+        "provider": "string",
+        "reasoning_effort": "string"
+      },
       "files": [
         {
           "created_at": "2019-08-24T14:15:22Z",
@@ -3469,6 +3728,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "submission": {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "error": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "message_id": 0,
+        "queued_message_id": 0,
+        "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+        "settings": {
+          "model": "string",
+          "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+          "provider": "string",
+          "reasoning_effort": "string"
+        },
+        "state": "reserved"
+      },
       "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -3522,6 +3796,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
     "reviewer_count": 0,
     "stale_at": "2019-08-24T14:15:22Z",
     "url": "string"
+  },
+  "exact_settings": {
+    "model": "string",
+    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+    "provider": "string",
+    "reasoning_effort": "string"
   },
   "files": [
     {
@@ -3583,6 +3863,21 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/reconcile-invalid \
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "submission": {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "message_id": 0,
+    "queued_message_id": 0,
+    "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+    "settings": {
+      "model": "string",
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "provider": "string",
+      "reasoning_effort": "string"
+    },
+    "state": "reserved"
+  },
   "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -4219,6 +4514,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
       "enabled": true,
+      "exact_reasoning_efforts": [
+        "string"
+      ],
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "is_default": true,
       "model": "string",
@@ -4618,6 +4916,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "enabled": true,
+  "exact_reasoning_efforts": [
+    "string"
+  ],
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "is_default": true,
   "model": "string",

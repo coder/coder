@@ -115,8 +115,9 @@ func publishBuildBinding(
 	workspaceID uuid.UUID,
 	buildID uuid.UUID,
 	onChatUpdated func(database.Chat),
+	checkAdmission func(context.Context, database.Store, uuid.UUID) error,
 ) {
-	updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+	updatedChat, bindErr := bindWorkspace(ctx, db, checkAdmission, database.UpdateChatWorkspaceBindingParams{
 		ID:          chatID,
 		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 		BuildID: uuid.NullUUID{
@@ -196,4 +197,26 @@ func setNoBuild(result map[string]any, buildID uuid.UUID) {
 	if buildID == uuid.Nil {
 		result["no_build"] = true
 	}
+}
+
+// bindWorkspace preserves chat-before-workspace lock ordering during cleanup.
+func bindWorkspace(ctx context.Context, db database.Store, checkAdmission func(context.Context, database.Store, uuid.UUID) error, params database.UpdateChatWorkspaceBindingParams) (database.Chat, error) {
+	if checkAdmission == nil {
+		return db.UpdateChatWorkspaceBinding(ctx, params)
+	}
+	var chat database.Chat
+	err := db.InTx(func(tx database.Store) error {
+		if _, err := tx.GetChatByIDForUpdate(ctx, params.ID); err != nil {
+			return err
+		}
+		if params.WorkspaceID.Valid {
+			if err := checkAdmission(ctx, tx, params.WorkspaceID.UUID); err != nil {
+				return err
+			}
+		}
+		var err error
+		chat, err = tx.UpdateChatWorkspaceBinding(ctx, params)
+		return err
+	}, nil)
+	return chat, err
 }

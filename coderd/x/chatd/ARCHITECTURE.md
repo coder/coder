@@ -434,6 +434,8 @@ Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2
 
 ### Organization-scoped model discovery
 
+TODO: Document provider-aware exact effort discovery and immutable per-submission model settings.
+
 Clients discover models through `GET /api/v2/organizations/{organization}/chats/models`. The handler requires either full API token scope or chat model configuration read scope, then queries only configs in the requested organization that pass the caller's RBAC filter.
 
 Provider configuration remains deployment-scoped and is read under Chatd's restricted system context. The response projects providers to redacted descriptors rather than exposing credentials, endpoints, or custom headers. It evaluates availability for the caller from deployment credentials and user-provided keys, and returns the readable model configs, provider availability, and unsupported provider types.
@@ -1048,6 +1050,8 @@ Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/com
 The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
 
 # Lifecycle hooks
+
+TODO: Document request-key reservation before admission hooks, replay before mutable admission validation, uncertain receipts, and workspace admission fencing including edits and manual compaction.
 
 When the `agent-lifecycle-hooks` experiment is enabled and a hook URL is configured, chatd sends events to an external consumer at key points in a conversation: session start, prompt submission, tool use, compaction, and turn completion. The event types are `session_start`, `user_prompt_submit`, `pre_tool_use`, `post_tool_use`, `pre_compact`, `post_compact`, and `stop`.
 

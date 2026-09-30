@@ -1,6 +1,10 @@
 package database
 
-import "hash/fnv"
+import (
+	"hash/fnv"
+
+	"github.com/google/uuid"
+)
 
 // Well-known lock IDs for lock functions in the database. These should not
 // change. If locks are deprecated, they should be kept in this list to avoid
@@ -40,4 +44,10 @@ func GenLockID(name string) int64 {
 	_, _ = hash.Write([]byte(name))
 	// #nosec G115 - Safe conversion as FNV hash should be treated as random value and both uint64/int64 have the same range of unique values
 	return int64(hash.Sum64())
+}
+
+// WorkspaceLifecycleLockID serializes admission and lifecycle transitions for a workspace.
+// Preserve the key used by the original lifecycle executor.
+func WorkspaceLifecycleLockID(workspaceID uuid.UUID) int64 {
+	return GenLockID("lifecycle-executor:" + workspaceID.String())
 }

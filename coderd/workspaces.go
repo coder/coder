@@ -585,6 +585,8 @@ type createWorkspaceOptions struct {
 	// postCreateInTX is a function that is called within the transaction, after
 	// the workspace is created but before the workspace build is created.
 	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+	// postBuildInTX atomically binds metadata to the created workspace and build.
+	postBuildInTX func(context.Context, database.Store, database.Workspace, database.WorkspaceBuild) error
 	// remoteAddr is the IP address of the request initiator, used for
 	// audit logging. HTTP handlers should pass r.RemoteAddr;
 	// programmatic callers may leave it empty.
@@ -852,7 +854,13 @@ func createWorkspace(
 			},
 			audit.WorkspaceBuildBaggage{IP: opts.remoteAddr},
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		if opts.postBuildInTX != nil {
+			return opts.postBuildInTX(ctx, db, workspace, *workspaceBuild)
+		}
+		return nil
 	}, nil)
 	if err != nil {
 		return codersdk.Workspace{}, err

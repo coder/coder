@@ -165,6 +165,54 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		})
 	}
 
+	// Explicit execution scopes can be consented to independently of workspace access.
+	t.Run("WorkspaceExecutionNarrowScopes", func(t *testing.T) {
+		t.Parallel()
+		for _, action := range []string{"create", "read", "ssh", "update"} {
+			t.Run(action, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				scope := "workspace_execution:" + action
+				app := seedApp(t, sql.NullString{String: scope + " coder:workspaces.access", Valid: true})
+				resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), scope)
+				defer resp.Body.Close()
+				require.Equal(t, scope, persistedCodeScope(ctx, t, db, resp))
+			})
+		}
+	})
+	t.Run("WorkspaceAccessDoesNotGrantExecution", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		app := seedApp(t, sql.NullString{String: "coder:workspaces.access", Valid: true})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "workspace_execution:ssh")
+		defer resp.Body.Close()
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+	t.Run("ExecutionReadDoesNotGrantSSH", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		app := seedApp(t, sql.NullString{String: "workspace_execution:read", Valid: true})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "workspace_execution:ssh")
+		defer resp.Body.Close()
+		requireInvalidScope(t, resp, reasonScopeNotAllowed)
+	})
+	t.Run("ExecutionReadOmissionDoesNotWiden", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		app := seedApp(t, sql.NullString{String: "workspace_execution:read", Valid: true})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer resp.Body.Close()
+		require.Equal(t, "workspace_execution:read", persistedCodeScope(ctx, t, db, resp))
+	})
+	t.Run("ExecutionWildcardIsNotPublic", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		app := seedApp(t, sql.NullString{})
+		resp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "workspace_execution:*")
+		defer resp.Body.Close()
+		requireInvalidScope(t, resp, reasonUnknownScope)
+	})
+
 	t.Run("OutOfAllowlistRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

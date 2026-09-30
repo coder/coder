@@ -1178,6 +1178,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	searchResult, err := mcpClient.CallTool(ctx, searchReq)
 	require.NoError(t, err)
 	require.NotEmpty(t, searchResult.Content)
+	require.Nil(t, searchResult.StructuredContent)
 
 	// Verify the search result contains our template
 	assert.Len(t, searchResult.Content, 1)
@@ -1209,6 +1210,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	fetchResult, err := mcpClient.CallTool(ctx, fetchReq)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchResult.Content)
+	require.Nil(t, fetchResult.StructuredContent)
 
 	// Verify the fetch result contains template details
 	assert.Len(t, fetchResult.Content, 1)
@@ -1233,7 +1235,7 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: mcpDeploymentValues(t),
 	})
-	defer closer.Close()
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 	admin := coderdtest.CreateFirstUser(t, coderClient)
 
@@ -1261,16 +1263,13 @@ func TestMCPHTTP_E2E_WorkspaceSSHAuthz(t *testing.T) {
 
 	// Connect with the template-admin user.
 	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := testutil.Context(t, testutil.WaitLong)
 
 	mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "test-client-authz", map[string]string{
 		"Authorization": "Bearer " + tmplAdminClient.SessionToken(),
 	})
 	require.NoError(t, err)
-	defer func() {
-		_ = mcpClient.Close()
-	}()
+	t.Cleanup(func() { require.NoError(t, mcpClient.Close()) })
 
 	// Calling a workspace tool that requires an agent connection
 	// should fail because the template-admin user lacks ActionSSH.

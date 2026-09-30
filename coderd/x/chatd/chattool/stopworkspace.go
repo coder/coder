@@ -25,11 +25,13 @@ type StopWorkspaceFn func(
 
 // StopWorkspaceOptions configures the stop_workspace tool.
 type StopWorkspaceOptions struct {
-	OwnerID       uuid.UUID
-	StopFn        StopWorkspaceFn
-	WorkspaceMu   *sync.Mutex
-	OnChatUpdated func(database.Chat)
-	Logger        slog.Logger
+	// CheckWorkspaceAdmission serializes binding with workspace cleanup.
+	CheckWorkspaceAdmission func(context.Context, database.Store, uuid.UUID) error
+	OwnerID                 uuid.UUID
+	StopFn                  StopWorkspaceFn
+	WorkspaceMu             *sync.Mutex
+	OnChatUpdated           func(database.Chat)
+	Logger                  slog.Logger
 }
 
 type stopWorkspaceArgs struct{}
@@ -96,7 +98,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 			case database.ProvisionerJobStatusPending,
 				database.ProvisionerJobStatusRunning,
 				database.ProvisionerJobStatusCanceling:
-				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated)
+				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated, options.CheckWorkspaceAdmission)
 
 				waitErr := waitForBuild(ctx, db, build.ID)
 				// Re-read after waiting because another transition may
@@ -153,7 +155,7 @@ func StopWorkspace(db database.Store, chatID uuid.UUID, options StopWorkspaceOpt
 				), nil
 			}
 
-			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, stopBuild.ID, options.OnChatUpdated)
+			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, stopBuild.ID, options.OnChatUpdated, options.CheckWorkspaceAdmission)
 			if err := waitForBuild(ctx, db, stopBuild.ID); err != nil {
 				return buildToolResponse(newBuildError(
 					xerrors.Errorf("workspace stop build failed: %w", err).Error(),

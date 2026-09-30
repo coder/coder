@@ -97,6 +97,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
+	"github.com/coder/coder/v2/coderd/workspaceexec"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
@@ -330,6 +331,8 @@ type Options struct {
 	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
 	NATSCACache cryptokeys.SigningKeycache
 	Clock       quartz.Clock
+	// WorkspaceExecutionTickerClock controls polling independently of API timestamps.
+	WorkspaceExecutionTickerClock quartz.Clock
 	// Acquirer acquires provisioner jobs. Defaults to provisionerdserver.Acquirer
 	// backed by Database and Pubsub.
 	Acquirer *provisionerdserver.Acquirer
@@ -939,6 +942,7 @@ func New(options *Options) *API {
 			api.chatDaemon, err = chatd.New(options.Pubsub, chatd.Config{
 				Logger:                         options.Logger.Named("chatd"),
 				Database:                       options.Database,
+				CheckWorkspaceAdmission:        workspaceexec.CheckAdmission,
 				ReplicaID:                      api.ID,
 				StreamPartsDialer:              options.ChatStreamPartsDialer,
 				MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
@@ -1098,6 +1102,7 @@ func New(options *Options) *API {
 		Clock:             quartz.NewReal(),
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
+	api.startWorkspaceExecutionController(options.WorkspaceExecutionTickerClock)
 
 	// The OAuth2 provider is opt-in. The flag is read once at startup, here
 	// and in the build info response and the AI bridge config, so a runtime
@@ -1506,6 +1511,10 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
+				api.registerWorkspaceExecutionArtifactRoutes(r)
+				api.registerWorkspaceExecutionRoutes(r)
+				api.registerWorkspaceExecutionControlRoutes(r)
+				api.registerWorkspaceCommandRoutes(r)
 				api.registerOrganizationChatRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
@@ -2307,8 +2316,9 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
-	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
-	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
+	workspaceAgentConnWatcher    *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator   *wsbuildorchestrator.Orchestrator
+	workspaceExecutionController *workspaceexec.Controller
 }
 
 // chatDaemonPublishDiffStatusChangeFunc returns chatDaemon's
@@ -2397,6 +2407,7 @@ func (api *API) Close() error {
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
 	api.workspaceBuildOrchestrator.Close()
+	api.workspaceExecutionController.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

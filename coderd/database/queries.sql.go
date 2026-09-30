@@ -14417,6 +14417,204 @@ func (q *sqlQuerier) UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHear
 	return err
 }
 
+const completeChatSubmission = `-- name: CompleteChatSubmission :one
+UPDATE chat_submissions
+SET state = 'accepted',
+    message_id = $1::bigint,
+    queued_message_id = $2::bigint
+WHERE organization_id = $3 AND actor_id = $4 AND request_id = $5 AND state = 'reserved'
+RETURNING id, organization_id, actor_id, owner_id, request_id, input_digest, kind, chat_id, state, error, settings, message_id, queued_message_id, created_at
+`
+
+type CompleteChatSubmissionParams struct {
+	MessageID       sql.NullInt64 `db:"message_id" json:"message_id"`
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
+	OrganizationID  uuid.UUID     `db:"organization_id" json:"organization_id"`
+	ActorID         uuid.UUID     `db:"actor_id" json:"actor_id"`
+	RequestID       uuid.UUID     `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) CompleteChatSubmission(ctx context.Context, arg CompleteChatSubmissionParams) (ChatSubmission, error) {
+	row := q.db.QueryRowContext(ctx, completeChatSubmission,
+		arg.MessageID,
+		arg.QueuedMessageID,
+		arg.OrganizationID,
+		arg.ActorID,
+		arg.RequestID,
+	)
+	var i ChatSubmission
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ActorID,
+		&i.OwnerID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.Kind,
+		&i.ChatID,
+		&i.State,
+		&i.Error,
+		&i.Settings,
+		&i.MessageID,
+		&i.QueuedMessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const finishChatSubmission = `-- name: FinishChatSubmission :one
+UPDATE chat_submissions SET state = $1::text, error = $2
+WHERE organization_id = $3 AND actor_id = $4
+    AND request_id = $5 AND id = $6 AND state = 'reserved'
+    AND $1::text IN ('rejected', 'uncertain')
+RETURNING id, organization_id, actor_id, owner_id, request_id, input_digest, kind, chat_id, state, error, settings, message_id, queued_message_id, created_at
+`
+
+type FinishChatSubmissionParams struct {
+	State          string    `db:"state" json:"state"`
+	Error          string    `db:"error" json:"error"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ActorID        uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+	ID             uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) FinishChatSubmission(ctx context.Context, arg FinishChatSubmissionParams) (ChatSubmission, error) {
+	row := q.db.QueryRowContext(ctx, finishChatSubmission,
+		arg.State,
+		arg.Error,
+		arg.OrganizationID,
+		arg.ActorID,
+		arg.RequestID,
+		arg.ID,
+	)
+	var i ChatSubmission
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ActorID,
+		&i.OwnerID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.Kind,
+		&i.ChatID,
+		&i.State,
+		&i.Error,
+		&i.Settings,
+		&i.MessageID,
+		&i.QueuedMessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getChatSubmission = `-- name: GetChatSubmission :one
+SELECT id, organization_id, actor_id, owner_id, request_id, input_digest, kind, chat_id, state, error, settings, message_id, queued_message_id, created_at FROM chat_submissions
+WHERE organization_id = $1 AND actor_id = $2 AND request_id = $3
+`
+
+type GetChatSubmissionParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ActorID        uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) GetChatSubmission(ctx context.Context, arg GetChatSubmissionParams) (ChatSubmission, error) {
+	row := q.db.QueryRowContext(ctx, getChatSubmission, arg.OrganizationID, arg.ActorID, arg.RequestID)
+	var i ChatSubmission
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ActorID,
+		&i.OwnerID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.Kind,
+		&i.ChatID,
+		&i.State,
+		&i.Error,
+		&i.Settings,
+		&i.MessageID,
+		&i.QueuedMessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLatestChatSubmissionSettings = `-- name: GetLatestChatSubmissionSettings :one
+SELECT COALESCE(s.settings, 'null'::jsonb)::jsonb AS settings
+FROM chat_messages m
+LEFT JOIN chat_submissions s ON s.chat_id = m.chat_id
+    AND s.state = 'accepted'
+    AND (s.message_id = m.id OR s.queued_message_id = m.queued_message_id)
+WHERE m.chat_id = $1 AND m.role = 'user' AND m.deleted = false
+    AND m.visibility IN ('user', 'both')
+ORDER BY m.id DESC
+LIMIT 1
+`
+
+// Use the actual newest visible user turn, including a promoted queued turn.
+// A later legacy message must not inherit a previous exact-settings snapshot.
+func (q *sqlQuerier) GetLatestChatSubmissionSettings(ctx context.Context, chatID uuid.UUID) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, getLatestChatSubmissionSettings, chatID)
+	var settings json.RawMessage
+	err := row.Scan(&settings)
+	return settings, err
+}
+
+const insertChatSubmission = `-- name: InsertChatSubmission :one
+INSERT INTO chat_submissions
+    (id, organization_id, actor_id, owner_id, request_id, input_digest, kind, chat_id, settings)
+VALUES
+    ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (organization_id, actor_id, request_id) DO NOTHING
+RETURNING id, organization_id, actor_id, owner_id, request_id, input_digest, kind, chat_id, state, error, settings, message_id, queued_message_id, created_at
+`
+
+type InsertChatSubmissionParams struct {
+	ID             uuid.UUID       `db:"id" json:"id"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
+	ActorID        uuid.UUID       `db:"actor_id" json:"actor_id"`
+	OwnerID        uuid.UUID       `db:"owner_id" json:"owner_id"`
+	RequestID      uuid.UUID       `db:"request_id" json:"request_id"`
+	InputDigest    []byte          `db:"input_digest" json:"input_digest"`
+	Kind           string          `db:"kind" json:"kind"`
+	ChatID         uuid.UUID       `db:"chat_id" json:"chat_id"`
+	Settings       json.RawMessage `db:"settings" json:"settings"`
+}
+
+func (q *sqlQuerier) InsertChatSubmission(ctx context.Context, arg InsertChatSubmissionParams) (ChatSubmission, error) {
+	row := q.db.QueryRowContext(ctx, insertChatSubmission,
+		arg.ID,
+		arg.OrganizationID,
+		arg.ActorID,
+		arg.OwnerID,
+		arg.RequestID,
+		arg.InputDigest,
+		arg.Kind,
+		arg.ChatID,
+		arg.Settings,
+	)
+	var i ChatSubmission
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.ActorID,
+		&i.OwnerID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.Kind,
+		&i.ChatID,
+		&i.State,
+		&i.Error,
+		&i.Settings,
+		&i.MessageID,
+		&i.QueuedMessageID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
@@ -38756,6 +38954,902 @@ type UpdateWorkspaceBuildProvisionerStateByIDParams struct {
 func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildProvisionerStateByID, arg.ProvisionerState, arg.UpdatedAt, arg.ID)
 	return err
+}
+
+const getWorkspaceExecutionArtifactsBySessionID = `-- name: GetWorkspaceExecutionArtifactsBySessionID :many
+SELECT id, organization_id, owner_id, session_id, preservation_revision,
+    source_path, name, mimetype, size_bytes, sha256, created_at, expires_at
+FROM workspace_execution_artifacts
+WHERE session_id = $1::uuid
+ORDER BY preservation_revision, source_path
+`
+
+type GetWorkspaceExecutionArtifactsBySessionIDRow struct {
+	ID                   uuid.UUID    `db:"id" json:"id"`
+	OrganizationID       uuid.UUID    `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID    `db:"owner_id" json:"owner_id"`
+	SessionID            uuid.UUID    `db:"session_id" json:"session_id"`
+	PreservationRevision int64        `db:"preservation_revision" json:"preservation_revision"`
+	SourcePath           string       `db:"source_path" json:"source_path"`
+	Name                 string       `db:"name" json:"name"`
+	Mimetype             string       `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64        `db:"size_bytes" json:"size_bytes"`
+	Sha256               []byte       `db:"sha256" json:"sha256"`
+	CreatedAt            time.Time    `db:"created_at" json:"created_at"`
+	ExpiresAt            sql.NullTime `db:"expires_at" json:"expires_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceExecutionArtifactsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]GetWorkspaceExecutionArtifactsBySessionIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceExecutionArtifactsBySessionID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceExecutionArtifactsBySessionIDRow
+	for rows.Next() {
+		var i GetWorkspaceExecutionArtifactsBySessionIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.SessionID,
+			&i.PreservationRevision,
+			&i.SourcePath,
+			&i.Name,
+			&i.Mimetype,
+			&i.SizeBytes,
+			&i.Sha256,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceExecutionArtifact = `-- name: InsertWorkspaceExecutionArtifact :execrows
+INSERT INTO workspace_execution_artifacts (
+    id, organization_id, owner_id, session_id, preservation_revision,
+    source_path, name, mimetype, size_bytes, sha256, data, created_at, expires_at
+)
+SELECT
+    $1::uuid, s.organization_id, s.owner_id, s.id, $2::bigint,
+    $3::text, $4::text, $5::text, $6::bigint,
+    $7::bytea, $8::bytea, $9::timestamptz, $10::timestamptz
+FROM workspace_execution_sessions s
+WHERE s.id = $11::uuid
+    AND s.state = 'preserving'
+    AND s.revision = $2::bigint
+`
+
+type InsertWorkspaceExecutionArtifactParams struct {
+	ID                   uuid.UUID    `db:"id" json:"id"`
+	PreservationRevision int64        `db:"preservation_revision" json:"preservation_revision"`
+	SourcePath           string       `db:"source_path" json:"source_path"`
+	Name                 string       `db:"name" json:"name"`
+	Mimetype             string       `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64        `db:"size_bytes" json:"size_bytes"`
+	Sha256               []byte       `db:"sha256" json:"sha256"`
+	Data                 []byte       `db:"data" json:"data"`
+	CreatedAt            time.Time    `db:"created_at" json:"created_at"`
+	ExpiresAt            sql.NullTime `db:"expires_at" json:"expires_at"`
+	SessionID            uuid.UUID    `db:"session_id" json:"session_id"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceExecutionArtifact(ctx context.Context, arg InsertWorkspaceExecutionArtifactParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, insertWorkspaceExecutionArtifact,
+		arg.ID,
+		arg.PreservationRevision,
+		arg.SourcePath,
+		arg.Name,
+		arg.Mimetype,
+		arg.SizeBytes,
+		arg.Sha256,
+		arg.Data,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.SessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const readWorkspaceExecutionArtifact = `-- name: ReadWorkspaceExecutionArtifact :one
+WITH bounds AS (
+    SELECT $2::int AS byte_offset, $3::int AS byte_limit
+)
+SELECT id, organization_id, owner_id, session_id, preservation_revision,
+    source_path, name, mimetype, size_bytes, sha256, created_at, expires_at,
+    substr(data, bounds.byte_offset + 1, bounds.byte_limit) AS data
+FROM workspace_execution_artifacts CROSS JOIN bounds
+WHERE id = $1::uuid
+`
+
+type ReadWorkspaceExecutionArtifactParams struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ByteOffset int32     `db:"byte_offset" json:"byte_offset"`
+	ByteLimit  int32     `db:"byte_limit" json:"byte_limit"`
+}
+
+type ReadWorkspaceExecutionArtifactRow struct {
+	ID                   uuid.UUID    `db:"id" json:"id"`
+	OrganizationID       uuid.UUID    `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID    `db:"owner_id" json:"owner_id"`
+	SessionID            uuid.UUID    `db:"session_id" json:"session_id"`
+	PreservationRevision int64        `db:"preservation_revision" json:"preservation_revision"`
+	SourcePath           string       `db:"source_path" json:"source_path"`
+	Name                 string       `db:"name" json:"name"`
+	Mimetype             string       `db:"mimetype" json:"mimetype"`
+	SizeBytes            int64        `db:"size_bytes" json:"size_bytes"`
+	Sha256               []byte       `db:"sha256" json:"sha256"`
+	CreatedAt            time.Time    `db:"created_at" json:"created_at"`
+	ExpiresAt            sql.NullTime `db:"expires_at" json:"expires_at"`
+	Data                 []byte       `db:"data" json:"data"`
+}
+
+func (q *sqlQuerier) ReadWorkspaceExecutionArtifact(ctx context.Context, arg ReadWorkspaceExecutionArtifactParams) (ReadWorkspaceExecutionArtifactRow, error) {
+	row := q.db.QueryRowContext(ctx, readWorkspaceExecutionArtifact, arg.ID, arg.ByteOffset, arg.ByteLimit)
+	var i ReadWorkspaceExecutionArtifactRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.SessionID,
+		&i.PreservationRevision,
+		&i.SourcePath,
+		&i.Name,
+		&i.Mimetype,
+		&i.SizeBytes,
+		&i.Sha256,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.Data,
+	)
+	return i, err
+}
+
+const getOtherWorkspaceExecutionSessionsByWorkspaceID = `-- name: GetOtherWorkspaceExecutionSessionsByWorkspaceID :many
+SELECT id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, created_at, updated_at, state, disposable, retained, lease_expires_at, revision, declarations, delete_build_id, next_retry_at, attempt_count, error, acquisition_build_id, recovery_artifact_expires_at FROM workspace_execution_sessions
+WHERE workspace_id = $1 AND id <> $2
+ORDER BY id
+`
+
+type GetOtherWorkspaceExecutionSessionsByWorkspaceIDParams struct {
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	ID          uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) GetOtherWorkspaceExecutionSessionsByWorkspaceID(ctx context.Context, arg GetOtherWorkspaceExecutionSessionsByWorkspaceIDParams) ([]WorkspaceExecutionSession, error) {
+	rows, err := q.db.QueryContext(ctx, getOtherWorkspaceExecutionSessionsByWorkspaceID, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceExecutionSession
+	for rows.Next() {
+		var i WorkspaceExecutionSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.ActorID,
+			&i.RequestID,
+			&i.InputDigest,
+			&i.WorkspaceID,
+			&i.WorkspaceOwnerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.Disposable,
+			&i.Retained,
+			&i.LeaseExpiresAt,
+			&i.Revision,
+			&i.Declarations,
+			&i.DeleteBuildID,
+			&i.NextRetryAt,
+			&i.AttemptCount,
+			&i.Error,
+			&i.AcquisitionBuildID,
+			&i.RecoveryArtifactExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getReconciliableWorkspaceExecutionSessions = `-- name: GetReconciliableWorkspaceExecutionSessions :many
+WITH scheduling AS (
+ SELECT s.id,
+  EXISTS (
+   SELECT 1 FROM workspace_execution_receipts r WHERE r.session_id = s.id
+   AND r.state IN ('dispatching','running','unknown')
+  ) OR EXISTS (
+   SELECT 1 FROM workspaces w WHERE w.id = s.workspace_id AND w.deleted
+  ) AS actionable,
+  EXISTS (
+   SELECT 1 FROM workspace_execution_receipts r WHERE r.session_id = s.id
+   AND r.state IN ('dispatching','running','unknown')
+   AND r.updated_at <= $3::timestamptz
+  ) OR (
+   s.next_retry_at >= s.updated_at + interval '5 minutes'
+   AND s.state NOT IN ('preserving','preservation_failed','deleting','deletion_failed')
+   AND EXISTS (
+    SELECT 1 FROM workspaces w WHERE w.id = s.workspace_id AND w.deleted
+   )
+  ) AS wake,
+  s.retained OR (s.state = 'preserved' AND NOT s.disposable)
+   OR s.lease_expires_at > $1::timestamptz
+   OR (s.next_retry_at >= s.updated_at + interval '5 minutes'
+       AND s.state NOT IN ('preserving','preservation_failed','deleting','deletion_failed')) AS parked
+ FROM workspace_execution_sessions s
+ WHERE s.id > $4::uuid AND s.workspace_id IS NOT NULL
+ AND s.state <> 'completed'
+)
+SELECT s.id, s.organization_id, s.owner_id, s.actor_id, s.request_id, s.input_digest, s.workspace_id, s.workspace_owner_id, s.created_at, s.updated_at, s.state, s.disposable, s.retained, s.lease_expires_at, s.revision, s.declarations, s.delete_build_id, s.next_retry_at, s.attempt_count, s.error, s.acquisition_build_id, s.recovery_artifact_expires_at FROM workspace_execution_sessions s
+JOIN scheduling q ON q.id = s.id
+WHERE (q.wake OR s.next_retry_at IS NULL OR s.next_retry_at <= $1::timestamptz)
+ AND $2::boolean = (q.actionable OR NOT COALESCE(q.parked, false))
+ORDER BY s.id
+LIMIT 100
+`
+
+type GetReconciliableWorkspaceExecutionSessionsParams struct {
+	Now           time.Time `db:"now" json:"now"`
+	Priority      bool      `db:"priority" json:"priority"`
+	ObserveBefore time.Time `db:"observe_before" json:"observe_before"`
+	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
+}
+
+// Independent cursors keep quiet maintenance from delaying actionable work.
+// New work wakes a parked session without requiring a session-row mutation.
+func (q *sqlQuerier) GetReconciliableWorkspaceExecutionSessions(ctx context.Context, arg GetReconciliableWorkspaceExecutionSessionsParams) ([]WorkspaceExecutionSession, error) {
+	rows, err := q.db.QueryContext(ctx, getReconciliableWorkspaceExecutionSessions,
+		arg.Now,
+		arg.Priority,
+		arg.ObserveBefore,
+		arg.AfterID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceExecutionSession
+	for rows.Next() {
+		var i WorkspaceExecutionSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.ActorID,
+			&i.RequestID,
+			&i.InputDigest,
+			&i.WorkspaceID,
+			&i.WorkspaceOwnerID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.Disposable,
+			&i.Retained,
+			&i.LeaseExpiresAt,
+			&i.Revision,
+			&i.Declarations,
+			&i.DeleteBuildID,
+			&i.NextRetryAt,
+			&i.AttemptCount,
+			&i.Error,
+			&i.AcquisitionBuildID,
+			&i.RecoveryArtifactExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const hasBusyWorkspaceExecutionChats = `-- name: HasBusyWorkspaceExecutionChats :one
+SELECT EXISTS (
+ SELECT 1 FROM chats c WHERE c.workspace_id = $1
+ AND (
+  c.status IN ('running','interrupting','requires_action')
+  OR EXISTS (SELECT 1 FROM chat_queued_messages q WHERE q.chat_id = c.id)
+ )
+)
+`
+
+// Do not lock chat rows: chat admission takes its row lock before our lifecycle
+// lock. The shared lifecycle lock serializes admission against this snapshot.
+func (q *sqlQuerier) HasBusyWorkspaceExecutionChats(ctx context.Context, workspaceID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasBusyWorkspaceExecutionChats, workspaceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasPendingWorkspaceExecutionReceiptsByWorkspaceID = `-- name: HasPendingWorkspaceExecutionReceiptsByWorkspaceID :one
+SELECT EXISTS (
+ SELECT 1 FROM workspace_execution_receipts
+ WHERE workspace_id = $1
+ AND state IN ('dispatching', 'running', 'unknown')
+)
+`
+
+func (q *sqlQuerier) HasPendingWorkspaceExecutionReceiptsByWorkspaceID(ctx context.Context, workspaceID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingWorkspaceExecutionReceiptsByWorkspaceID, workspaceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const lockWorkspaceExecutionWorkspace = `-- name: LockWorkspaceExecutionWorkspace :exec
+SELECT id FROM workspaces WHERE id = $1 FOR UPDATE
+`
+
+// The row lock serializes ordinary owner transfers with task admission/delete.
+func (q *sqlQuerier) LockWorkspaceExecutionWorkspace(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockWorkspaceExecutionWorkspace, id)
+	return err
+}
+
+const updateWorkspaceExecutionSession = `-- name: UpdateWorkspaceExecutionSession :one
+UPDATE workspace_execution_sessions SET
+ state = $1, retained = $2, lease_expires_at = $3,
+ revision = $4, delete_build_id = $5,
+ next_retry_at = $6, attempt_count = $7,
+ recovery_artifact_expires_at = $8::timestamptz,
+ error = $9, updated_at = $10
+WHERE id = $11 AND revision = $12 AND state = $13
+ AND $4 >= revision
+RETURNING id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, created_at, updated_at, state, disposable, retained, lease_expires_at, revision, declarations, delete_build_id, next_retry_at, attempt_count, error, acquisition_build_id, recovery_artifact_expires_at
+`
+
+type UpdateWorkspaceExecutionSessionParams struct {
+	State                     string        `db:"state" json:"state"`
+	Retained                  bool          `db:"retained" json:"retained"`
+	LeaseExpiresAt            time.Time     `db:"lease_expires_at" json:"lease_expires_at"`
+	Revision                  int64         `db:"revision" json:"revision"`
+	DeleteBuildID             uuid.NullUUID `db:"delete_build_id" json:"delete_build_id"`
+	NextRetryAt               sql.NullTime  `db:"next_retry_at" json:"next_retry_at"`
+	AttemptCount              int32         `db:"attempt_count" json:"attempt_count"`
+	RecoveryArtifactExpiresAt sql.NullTime  `db:"recovery_artifact_expires_at" json:"recovery_artifact_expires_at"`
+	Error                     string        `db:"error" json:"error"`
+	UpdatedAt                 time.Time     `db:"updated_at" json:"updated_at"`
+	ID                        uuid.UUID     `db:"id" json:"id"`
+	ExpectedRevision          int64         `db:"expected_revision" json:"expected_revision"`
+	ExpectedState             string        `db:"expected_state" json:"expected_state"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceExecutionSession(ctx context.Context, arg UpdateWorkspaceExecutionSessionParams) (WorkspaceExecutionSession, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceExecutionSession,
+		arg.State,
+		arg.Retained,
+		arg.LeaseExpiresAt,
+		arg.Revision,
+		arg.DeleteBuildID,
+		arg.NextRetryAt,
+		arg.AttemptCount,
+		arg.RecoveryArtifactExpiresAt,
+		arg.Error,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ExpectedRevision,
+		arg.ExpectedState,
+	)
+	var i WorkspaceExecutionSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.Disposable,
+		&i.Retained,
+		&i.LeaseExpiresAt,
+		&i.Revision,
+		&i.Declarations,
+		&i.DeleteBuildID,
+		&i.NextRetryAt,
+		&i.AttemptCount,
+		&i.Error,
+		&i.AcquisitionBuildID,
+		&i.RecoveryArtifactExpiresAt,
+	)
+	return i, err
+}
+
+const getPendingWorkspaceExecutionReceipts = `-- name: GetPendingWorkspaceExecutionReceipts :many
+SELECT id, session_id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id, admission_revision, created_at, updated_at, deadline, state, exit_code, error FROM workspace_execution_receipts
+WHERE session_id = $1 AND state IN ('dispatching','running','unknown')
+ORDER BY updated_at, id
+LIMIT 100
+`
+
+func (q *sqlQuerier) GetPendingWorkspaceExecutionReceipts(ctx context.Context, sessionID uuid.UUID) ([]WorkspaceExecutionReceipt, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingWorkspaceExecutionReceipts, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceExecutionReceipt
+	for rows.Next() {
+		var i WorkspaceExecutionReceipt
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.ActorID,
+			&i.RequestID,
+			&i.InputDigest,
+			&i.WorkspaceID,
+			&i.WorkspaceOwnerID,
+			&i.AgentID,
+			&i.AgentInstanceID,
+			&i.ProcessID,
+			&i.AdmissionRevision,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Deadline,
+			&i.State,
+			&i.ExitCode,
+			&i.Error,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceExecutionReceiptByID = `-- name: GetWorkspaceExecutionReceiptByID :one
+SELECT id, session_id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id, admission_revision, created_at, updated_at, deadline, state, exit_code, error FROM workspace_execution_receipts WHERE id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceExecutionReceiptByID(ctx context.Context, id uuid.UUID) (WorkspaceExecutionReceipt, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceExecutionReceiptByID, id)
+	var i WorkspaceExecutionReceipt
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.AgentID,
+		&i.AgentInstanceID,
+		&i.ProcessID,
+		&i.AdmissionRevision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deadline,
+		&i.State,
+		&i.ExitCode,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getWorkspaceExecutionReceiptByRequest = `-- name: GetWorkspaceExecutionReceiptByRequest :one
+SELECT id, session_id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id, admission_revision, created_at, updated_at, deadline, state, exit_code, error FROM workspace_execution_receipts
+WHERE session_id = $1 AND actor_id = $2 AND request_id = $3
+`
+
+type GetWorkspaceExecutionReceiptByRequestParams struct {
+	SessionID uuid.UUID `db:"session_id" json:"session_id"`
+	ActorID   uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) GetWorkspaceExecutionReceiptByRequest(ctx context.Context, arg GetWorkspaceExecutionReceiptByRequestParams) (WorkspaceExecutionReceipt, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceExecutionReceiptByRequest, arg.SessionID, arg.ActorID, arg.RequestID)
+	var i WorkspaceExecutionReceipt
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.AgentID,
+		&i.AgentInstanceID,
+		&i.ProcessID,
+		&i.AdmissionRevision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deadline,
+		&i.State,
+		&i.ExitCode,
+		&i.Error,
+	)
+	return i, err
+}
+
+const hasPendingWorkspaceExecutionReceipts = `-- name: HasPendingWorkspaceExecutionReceipts :one
+SELECT EXISTS (
+ SELECT 1 FROM workspace_execution_receipts
+ WHERE session_id = $1 AND state IN ('dispatching','running','unknown')
+)
+`
+
+func (q *sqlQuerier) HasPendingWorkspaceExecutionReceipts(ctx context.Context, sessionID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingWorkspaceExecutionReceipts, sessionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const insertWorkspaceExecutionReceipt = `-- name: InsertWorkspaceExecutionReceipt :one
+INSERT INTO workspace_execution_receipts (
+ id, session_id, organization_id, owner_id, actor_id, request_id, input_digest,
+ workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id,
+ admission_revision, created_at, updated_at, deadline, state
+)
+SELECT $1, s.id, s.organization_id, s.owner_id, $2, $3, $4,
+ s.workspace_id, s.workspace_owner_id, $5, $6, $7,
+ s.revision, $8, $8, $9, 'dispatching'
+FROM workspace_execution_sessions s
+WHERE s.id = $10 AND s.revision = $11
+ AND s.workspace_id IS NOT NULL
+ AND s.state IN ('active','retained') AND s.lease_expires_at > $8
+RETURNING id, session_id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id, admission_revision, created_at, updated_at, deadline, state, exit_code, error
+`
+
+type InsertWorkspaceExecutionReceiptParams struct {
+	ID                uuid.UUID    `db:"id" json:"id"`
+	ActorID           uuid.UUID    `db:"actor_id" json:"actor_id"`
+	RequestID         uuid.UUID    `db:"request_id" json:"request_id"`
+	InputDigest       []byte       `db:"input_digest" json:"input_digest"`
+	AgentID           uuid.UUID    `db:"agent_id" json:"agent_id"`
+	AgentInstanceID   uuid.UUID    `db:"agent_instance_id" json:"agent_instance_id"`
+	ProcessID         uuid.UUID    `db:"process_id" json:"process_id"`
+	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
+	Deadline          sql.NullTime `db:"deadline" json:"deadline"`
+	SessionID         uuid.UUID    `db:"session_id" json:"session_id"`
+	AdmissionRevision int64        `db:"admission_revision" json:"admission_revision"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceExecutionReceipt(ctx context.Context, arg InsertWorkspaceExecutionReceiptParams) (WorkspaceExecutionReceipt, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceExecutionReceipt,
+		arg.ID,
+		arg.ActorID,
+		arg.RequestID,
+		arg.InputDigest,
+		arg.AgentID,
+		arg.AgentInstanceID,
+		arg.ProcessID,
+		arg.CreatedAt,
+		arg.Deadline,
+		arg.SessionID,
+		arg.AdmissionRevision,
+	)
+	var i WorkspaceExecutionReceipt
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.AgentID,
+		&i.AgentInstanceID,
+		&i.ProcessID,
+		&i.AdmissionRevision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deadline,
+		&i.State,
+		&i.ExitCode,
+		&i.Error,
+	)
+	return i, err
+}
+
+const updateWorkspaceExecutionReceipt = `-- name: UpdateWorkspaceExecutionReceipt :one
+UPDATE workspace_execution_receipts
+SET state = $1, exit_code = $2, error = $3, updated_at = $4
+WHERE id = $5 AND state NOT IN ('completed','not_started')
+RETURNING id, session_id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, agent_id, agent_instance_id, process_id, admission_revision, created_at, updated_at, deadline, state, exit_code, error
+`
+
+type UpdateWorkspaceExecutionReceiptParams struct {
+	State     string        `db:"state" json:"state"`
+	ExitCode  sql.NullInt32 `db:"exit_code" json:"exit_code"`
+	Error     string        `db:"error" json:"error"`
+	UpdatedAt time.Time     `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+// Observations may resolve uncertainty, but never replace an observed terminal result.
+func (q *sqlQuerier) UpdateWorkspaceExecutionReceipt(ctx context.Context, arg UpdateWorkspaceExecutionReceiptParams) (WorkspaceExecutionReceipt, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceExecutionReceipt,
+		arg.State,
+		arg.ExitCode,
+		arg.Error,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i WorkspaceExecutionReceipt
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.AgentID,
+		&i.AgentInstanceID,
+		&i.ProcessID,
+		&i.AdmissionRevision,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Deadline,
+		&i.State,
+		&i.ExitCode,
+		&i.Error,
+	)
+	return i, err
+}
+
+const getWorkspaceExecutionSessionByID = `-- name: GetWorkspaceExecutionSessionByID :one
+SELECT id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, created_at, updated_at, state, disposable, retained, lease_expires_at, revision, declarations, delete_build_id, next_retry_at, attempt_count, error, acquisition_build_id, recovery_artifact_expires_at FROM workspace_execution_sessions WHERE id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceExecutionSessionByID(ctx context.Context, id uuid.UUID) (WorkspaceExecutionSession, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceExecutionSessionByID, id)
+	var i WorkspaceExecutionSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.Disposable,
+		&i.Retained,
+		&i.LeaseExpiresAt,
+		&i.Revision,
+		&i.Declarations,
+		&i.DeleteBuildID,
+		&i.NextRetryAt,
+		&i.AttemptCount,
+		&i.Error,
+		&i.AcquisitionBuildID,
+		&i.RecoveryArtifactExpiresAt,
+	)
+	return i, err
+}
+
+const getWorkspaceExecutionSessionByRequest = `-- name: GetWorkspaceExecutionSessionByRequest :one
+SELECT id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, created_at, updated_at, state, disposable, retained, lease_expires_at, revision, declarations, delete_build_id, next_retry_at, attempt_count, error, acquisition_build_id, recovery_artifact_expires_at FROM workspace_execution_sessions
+WHERE organization_id = $1 AND actor_id = $2 AND request_id = $3
+`
+
+type GetWorkspaceExecutionSessionByRequestParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ActorID        uuid.UUID `db:"actor_id" json:"actor_id"`
+	RequestID      uuid.UUID `db:"request_id" json:"request_id"`
+}
+
+func (q *sqlQuerier) GetWorkspaceExecutionSessionByRequest(ctx context.Context, arg GetWorkspaceExecutionSessionByRequestParams) (WorkspaceExecutionSession, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceExecutionSessionByRequest, arg.OrganizationID, arg.ActorID, arg.RequestID)
+	var i WorkspaceExecutionSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.Disposable,
+		&i.Retained,
+		&i.LeaseExpiresAt,
+		&i.Revision,
+		&i.Declarations,
+		&i.DeleteBuildID,
+		&i.NextRetryAt,
+		&i.AttemptCount,
+		&i.Error,
+		&i.AcquisitionBuildID,
+		&i.RecoveryArtifactExpiresAt,
+	)
+	return i, err
+}
+
+const hasClosedWorkspaceExecutionAdmission = `-- name: HasClosedWorkspaceExecutionAdmission :one
+SELECT EXISTS (
+    SELECT 1 FROM workspace_execution_sessions
+    WHERE workspace_id = $1
+      AND state NOT IN ('active', 'retained')
+      AND (disposable OR state = 'preserving')
+)
+`
+
+func (q *sqlQuerier) HasClosedWorkspaceExecutionAdmission(ctx context.Context, workspaceID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasClosedWorkspaceExecutionAdmission, workspaceID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasProtectedWorkspaceExecutionSession = `-- name: HasProtectedWorkspaceExecutionSession :one
+SELECT EXISTS (
+ SELECT 1 FROM workspace_execution_sessions s
+ WHERE s.workspace_id = $1 AND (
+  s.retained OR s.lease_expires_at > $2::timestamptz
+  OR (s.disposable AND s.state <> 'completed')
+  OR s.state IN ('preserving','preservation_failed','deletion_failed')
+  OR EXISTS (
+   SELECT 1 FROM workspace_execution_receipts r
+   WHERE r.workspace_id = s.workspace_id AND r.state IN ('dispatching','running','unknown')
+  )
+  OR EXISTS (
+   SELECT 1 FROM chats c WHERE c.workspace_id = s.workspace_id
+    AND (c.status IN ('running','interrupting','requires_action')
+         OR EXISTS (SELECT 1 FROM chat_queued_messages q WHERE q.chat_id = c.id))
+  )
+  OR (COALESCE(NULLIF(s.declarations->'result_paths','null'::jsonb),'[]'::jsonb) <> '[]'::jsonb AND (
+   s.state NOT IN ('preserved','completed')
+   OR NOT EXISTS (
+    SELECT 1 FROM workspace_execution_artifacts a
+    WHERE a.session_id = s.id AND a.preservation_revision = s.revision
+   )
+   OR EXISTS (
+    SELECT 1 FROM workspace_execution_artifacts a
+    WHERE a.session_id = s.id AND a.preservation_revision = s.revision
+     AND (a.expires_at <= $2::timestamptz
+          OR octet_length(a.data) <> a.size_bytes OR sha256(a.data) <> a.sha256)
+   )
+  ))
+ )
+)
+`
+
+type HasProtectedWorkspaceExecutionSessionParams struct {
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	Now         time.Time     `db:"now" json:"now"`
+}
+
+// Legacy deletion respects every adopted session as well as the disposal owner.
+// Stop and dormancy remain governed by their existing template policies.
+func (q *sqlQuerier) HasProtectedWorkspaceExecutionSession(ctx context.Context, arg HasProtectedWorkspaceExecutionSessionParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasProtectedWorkspaceExecutionSession, arg.WorkspaceID, arg.Now)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const insertWorkspaceExecutionSession = `-- name: InsertWorkspaceExecutionSession :one
+INSERT INTO workspace_execution_sessions (
+ id, organization_id, owner_id, actor_id, request_id, input_digest,
+ workspace_id, workspace_owner_id, acquisition_build_id, created_at, updated_at, state,
+ disposable, retained, lease_expires_at, declarations
+) VALUES (
+ $1, $2, $3, $4, $5, $6,
+ $7, $8, $9, $10, $10, $11,
+ $12, $13, $14, $15
+) RETURNING id, organization_id, owner_id, actor_id, request_id, input_digest, workspace_id, workspace_owner_id, created_at, updated_at, state, disposable, retained, lease_expires_at, revision, declarations, delete_build_id, next_retry_at, attempt_count, error, acquisition_build_id, recovery_artifact_expires_at
+`
+
+type InsertWorkspaceExecutionSessionParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	ActorID            uuid.UUID       `db:"actor_id" json:"actor_id"`
+	RequestID          uuid.UUID       `db:"request_id" json:"request_id"`
+	InputDigest        []byte          `db:"input_digest" json:"input_digest"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID   uuid.NullUUID   `db:"workspace_owner_id" json:"workspace_owner_id"`
+	AcquisitionBuildID uuid.NullUUID   `db:"acquisition_build_id" json:"acquisition_build_id"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	State              string          `db:"state" json:"state"`
+	Disposable         bool            `db:"disposable" json:"disposable"`
+	Retained           bool            `db:"retained" json:"retained"`
+	LeaseExpiresAt     time.Time       `db:"lease_expires_at" json:"lease_expires_at"`
+	Declarations       json.RawMessage `db:"declarations" json:"declarations"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceExecutionSession(ctx context.Context, arg InsertWorkspaceExecutionSessionParams) (WorkspaceExecutionSession, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceExecutionSession,
+		arg.ID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.ActorID,
+		arg.RequestID,
+		arg.InputDigest,
+		arg.WorkspaceID,
+		arg.WorkspaceOwnerID,
+		arg.AcquisitionBuildID,
+		arg.CreatedAt,
+		arg.State,
+		arg.Disposable,
+		arg.Retained,
+		arg.LeaseExpiresAt,
+		arg.Declarations,
+	)
+	var i WorkspaceExecutionSession
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.ActorID,
+		&i.RequestID,
+		&i.InputDigest,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.Disposable,
+		&i.Retained,
+		&i.LeaseExpiresAt,
+		&i.Revision,
+		&i.Declarations,
+		&i.DeleteBuildID,
+		&i.NextRetryAt,
+		&i.AttemptCount,
+		&i.Error,
+		&i.AcquisitionBuildID,
+		&i.RecoveryArtifactExpiresAt,
+	)
+	return i, err
 }
 
 const getWorkspaceModulesByJobID = `-- name: GetWorkspaceModulesByJobID :many

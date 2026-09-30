@@ -117,6 +117,11 @@ OPTIONS:
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
+      --workspace-execution-cleanup bool, $CODER_WORKSPACE_EXECUTION_CLEANUP (default: false)
+          Automatically preserve declared results and delete disposable
+          execution workspaces after their leases and allowed work finish.
+          Retained workspaces are protected.
+
 AI GATEWAY OPTIONS: 
       --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
           Determines when accumulated AI spend resets to zero, aligned to UTC

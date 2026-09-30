@@ -406,6 +406,631 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Acquire workspace execution session
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/workspace-executions`
+
+> Body parameter
+
+```json
+{
+  "create": {
+    "automatic_updates": "always",
+    "autostart_schedule": "string",
+    "name": "string",
+    "rich_parameter_values": [
+      {
+        "name": "string",
+        "value": "string"
+      }
+    ],
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+    "ttl_ms": 0
+  },
+  "declarations": {
+    "artifact_expires_at": "2019-08-24T14:15:22Z",
+    "execution_deadline": "2019-08-24T14:15:22Z",
+    "result_agent_id": "2f019ef7-170c-4e88-b90b-86330900c35c",
+    "result_agent_name": "string",
+    "result_paths": [
+      "string"
+    ]
+  },
+  "disposable": true,
+  "lease_expires_at": "2019-08-24T14:15:22Z",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "retained": true,
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                             | Required | Description         |
+|----------------|------|--------------------------------------------------------------------------------------------------|----------|---------------------|
+| `organization` | path | string(uuid)                                                                                     | true     | Organization ID     |
+| `body`         | body | [codersdk.AcquireWorkspaceExecutionRequest](schemas.md#codersdkacquireworkspaceexecutionrequest) | true     | Acquisition request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "acquisition_build": {
+    "error": "string",
+    "error_code": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_status": "pending",
+    "status": "pending"
+  },
+  "acquisition_build_id": "89d359a0-c989-4a05-b185-df52a1d371e3",
+  "actor_id": "04f37679-bfbf-4906-b749-01756515cecf",
+  "declarations": {
+    "artifact_expires_at": "2019-08-24T14:15:22Z",
+    "execution_deadline": "2019-08-24T14:15:22Z",
+    "result_agent_id": "2f019ef7-170c-4e88-b90b-86330900c35c",
+    "result_agent_name": "string",
+    "result_paths": [
+      "string"
+    ]
+  },
+  "disposable": true,
+  "effective_artifact_expires_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lease_expires_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "retained": true,
+  "revision": 0,
+  "source_unavailable": true,
+  "state": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                             |
+|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)      | OK          | [codersdk.WorkspaceExecutionSession](schemas.md#codersdkworkspaceexecutionsession) |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.WorkspaceExecutionSession](schemas.md#codersdkworkspaceexecutionsession) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get workspace execution session
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/workspace-executions/{session}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `session`      | path | string(uuid) | true     | Session ID      |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "acquisition_build": {
+    "error": "string",
+    "error_code": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_status": "pending",
+    "status": "pending"
+  },
+  "acquisition_build_id": "89d359a0-c989-4a05-b185-df52a1d371e3",
+  "actor_id": "04f37679-bfbf-4906-b749-01756515cecf",
+  "declarations": {
+    "artifact_expires_at": "2019-08-24T14:15:22Z",
+    "execution_deadline": "2019-08-24T14:15:22Z",
+    "result_agent_id": "2f019ef7-170c-4e88-b90b-86330900c35c",
+    "result_agent_name": "string",
+    "result_paths": [
+      "string"
+    ]
+  },
+  "disposable": true,
+  "effective_artifact_expires_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lease_expires_at": "2019-08-24T14:15:22Z",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "retained": true,
+  "revision": 0,
+  "source_unavailable": true,
+  "state": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceExecutionSession](schemas.md#codersdkworkspaceexecutionsession) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List durable workspace execution artifacts
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/artifacts \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/workspace-executions/{session}/artifacts`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description          |
+|----------------|------|--------------|----------|----------------------|
+| `organization` | path | string(uuid) | true     | Organization ID      |
+| `session`      | path | string(uuid) | true     | Execution session ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "download_url": "string",
+    "expires_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "mime_type": "string",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "preservation_revision": 0,
+    "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+    "sha256": "string",
+    "size_bytes": 0,
+    "source_path": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                        |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceExecutionArtifact](schemas.md#codersdkworkspaceexecutionartifact) |
+
+<h3 id="list-durable-workspace-execution-artifacts-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type              | Required | Restrictions | Description |
+|---------------------------|-------------------|----------|--------------|-------------|
+| `[array item]`            | array             | false    |              |             |
+| `» created_at`            | string(date-time) | false    |              |             |
+| `» download_url`          | string            | false    |              |             |
+| `» expires_at`            | string(date-time) | false    |              |             |
+| `» id`                    | string(uuid)      | false    |              |             |
+| `» mime_type`             | string            | false    |              |             |
+| `» name`                  | string            | false    |              |             |
+| `» organization_id`       | string(uuid)      | false    |              |             |
+| `» preservation_revision` | integer           | false    |              |             |
+| `» session_id`            | string(uuid)      | false    |              |             |
+| `» sha256`                | string            | false    |              |             |
+| `» size_bytes`            | integer           | false    |              |             |
+| `» source_path`           | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Read durable workspace execution artifact bytes
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/artifacts/{artifact} \
+  -H 'Accept: application/octet-stream' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/workspace-executions/{session}/artifacts/{artifact}`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                              |
+|----------------|-------|--------------|----------|----------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                          |
+| `session`      | path  | string(uuid) | true     | Execution session ID                                     |
+| `artifact`     | path  | string(uuid) | true     | Artifact ID                                              |
+| `offset`       | query | integer      | false    | Zero-based byte offset                                   |
+| `limit`        | query | integer      | false    | Maximum bytes, up to 1048576; omit to download all bytes |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                   | Description | Schema                                           |
+|--------|-----------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)   | OK          | string                                           |
+| 410    | [Gone](https://tools.ietf.org/html/rfc7231#section-6.5.9) | Gone        | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Start a durable workspace command
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/commands \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/workspace-executions/{session}/commands`
+
+> Body parameter
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "command": "string",
+  "env": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "workdir": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                     | Required | Description          |
+|----------------|------|------------------------------------------------------------------------------------------|----------|----------------------|
+| `organization` | path | string(uuid)                                                                             | true     | Organization ID      |
+| `session`      | path | string(uuid)                                                                             | true     | Execution session ID |
+| `body`         | body | [codersdk.StartWorkspaceCommandRequest](schemas.md#codersdkstartworkspacecommandrequest) | true     | Command intent       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_instance_id": "e6b55a46-e2a1-4495-b96e-367af02e9908",
+  "deadline": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "exit_code": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "output": {
+    "text": "string",
+    "truncated": {
+      "omitted_bytes": 0,
+      "original_bytes": 0,
+      "retained_bytes": 0,
+      "strategy": "string"
+    }
+  },
+  "output_unavailable": true,
+  "process_id": "c0de2232-b221-4f6a-96f2-8c4ca1fda3aa",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "state": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                        | Description | Schema                                                           |
+|--------|----------------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)        | OK          | [codersdk.WorkspaceCommand](schemas.md#codersdkworkspacecommand) |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3) | Forbidden   | [codersdk.Response](schemas.md#codersdkresponse)                 |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Read workspace command output and status
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution}`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                       |
+|----------------|-------|--------------|----------|---------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                   |
+| `session`      | path  | string(uuid) | true     | Execution session ID                              |
+| `execution`    | path  | string(uuid) | true     | Command ID                                        |
+| `wait_ms`      | query | integer      | false    | Bounded observation wait, 0 to 30000 milliseconds |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_instance_id": "e6b55a46-e2a1-4495-b96e-367af02e9908",
+  "deadline": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "exit_code": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "output": {
+    "text": "string",
+    "truncated": {
+      "omitted_bytes": 0,
+      "original_bytes": 0,
+      "retained_bytes": 0,
+      "strategy": "string"
+    }
+  },
+  "output_unavailable": true,
+  "process_id": "c0de2232-b221-4f6a-96f2-8c4ca1fda3aa",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "state": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceCommand](schemas.md#codersdkworkspacecommand) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Cancel a workspace command with acknowledgment
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution}/cancel \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/workspace-executions/{session}/commands/{execution}/cancel`
+
+### Parameters
+
+| Name           | In    | Type         | Required | Description                                          |
+|----------------|-------|--------------|----------|------------------------------------------------------|
+| `organization` | path  | string(uuid) | true     | Organization ID                                      |
+| `session`      | path  | string(uuid) | true     | Execution session ID                                 |
+| `execution`    | path  | string(uuid) | true     | Command ID                                           |
+| `wait_ms`      | query | integer      | false    | Bounded acknowledgment wait, 0 to 30000 milliseconds |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_instance_id": "e6b55a46-e2a1-4495-b96e-367af02e9908",
+  "deadline": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "exit_code": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "output": {
+    "text": "string",
+    "truncated": {
+      "omitted_bytes": 0,
+      "original_bytes": 0,
+      "retained_bytes": 0,
+      "strategy": "string"
+    }
+  },
+  "output_unavailable": true,
+  "process_id": "c0de2232-b221-4f6a-96f2-8c4ca1fda3aa",
+  "request_id": "266ea41d-adf5-480b-af50-15b940c2b846",
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+  "state": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceCommand](schemas.md#codersdkworkspacecommand) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Export declared workspace execution results
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/export \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/workspace-executions/{session}/export`
+
+> Body parameter
+
+```json
+{
+  "expected_revision": 0
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                           | Required | Description                    |
+|----------------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------|
+| `organization` | path | string(uuid)                                                                                   | true     | Organization ID                |
+| `session`      | path | string(uuid)                                                                                   | true     | Execution session ID           |
+| `body`         | body | [codersdk.ExportWorkspaceExecutionRequest](schemas.md#codersdkexportworkspaceexecutionrequest) | true     | Observed open session revision |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "download_url": "string",
+    "expires_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "mime_type": "string",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "preservation_revision": 0,
+    "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82",
+    "sha256": "string",
+    "size_bytes": 0,
+    "source_path": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                       | Description | Schema                                                                                        |
+|--------|---------------------------------------------------------------|-------------|-----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)       | OK          | array of [codersdk.WorkspaceExecutionArtifact](schemas.md#codersdkworkspaceexecutionartifact) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8) | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)                                              |
+
+<h3 id="export-declared-workspace-execution-results-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                      | Type              | Required | Restrictions | Description |
+|---------------------------|-------------------|----------|--------------|-------------|
+| `[array item]`            | array             | false    |              |             |
+| `» created_at`            | string(date-time) | false    |              |             |
+| `» download_url`          | string            | false    |              |             |
+| `» expires_at`            | string(date-time) | false    |              |             |
+| `» id`                    | string(uuid)      | false    |              |             |
+| `» mime_type`             | string            | false    |              |             |
+| `» name`                  | string            | false    |              |             |
+| `» organization_id`       | string(uuid)      | false    |              |             |
+| `» preservation_revision` | integer           | false    |              |             |
+| `» session_id`            | string(uuid)      | false    |              |             |
+| `» sha256`                | string            | false    |              |             |
+| `» size_bytes`            | integer           | false    |              |             |
+| `» source_path`           | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Renew retain or retry a workspace execution session
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/workspace-executions/{session}/{action} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/workspace-executions/{session}/{action}`
+
+> Body parameter
+
+```json
+{
+  "artifact_expires_at": "2019-08-24T14:15:22Z",
+  "expected_revision": 0,
+  "lease_expires_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                             | Required | Description                                      |
+|----------------|------|--------------------------------------------------------------------------------------------------|----------|--------------------------------------------------|
+| `organization` | path | string(uuid)                                                                                     | true     | Organization ID                                  |
+| `session`      | path | string(uuid)                                                                                     | true     | Execution session ID                             |
+| `action`       | path | string                                                                                           | true     | Lifecycle action                                 |
+| `body`         | body | [codersdk.WorkspaceExecutionControlRequest](schemas.md#codersdkworkspaceexecutioncontrolrequest) | true     | Observed revision and action-specific expiration |
+
+#### Enumerated Values
+
+| Parameter | Value(s)                   |
+|-----------|----------------------------|
+| `action`  | `renew`, `retain`, `retry` |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "effective_artifact_expires_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lease_expires_at": "2019-08-24T14:15:22Z",
+  "retained": true,
+  "revision": 0,
+  "state": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                          | Description | Schema                                                                                           |
+|--------|------------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK          | [codersdk.WorkspaceExecutionControlReceipt](schemas.md#codersdkworkspaceexecutioncontrolreceipt) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)                                                 |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)                                                 |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace metadata by user and workspace name
 
 ### Code samples

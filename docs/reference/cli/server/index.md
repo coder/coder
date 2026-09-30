@@ -1159,6 +1159,17 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 
 The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ecdsa", or "rsa4096".
 
+### --workspace-execution-cleanup
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_WORKSPACE_EXECUTION_CLEANUP</code> |
+| YAML        | <code>workspaceExecutionCleanup</code>          |
+| Default     | <code>false</code>                              |
+
+Automatically preserve declared results and delete disposable execution workspaces after their leases and allowed work finish. Retained workspaces are protected.
+
 ### --browser-only
 
 |             |                                     |

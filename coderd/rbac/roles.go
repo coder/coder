@@ -234,7 +234,8 @@ func DefaultOrgMemberRoles() []string {
 // organization's default_org_member_roles.
 func orgWorkspaceAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
-		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
+		ResourceWorkspace.Type:          ResourceWorkspace.AvailableActions(),
+		ResourceWorkspaceExecution.Type: ResourceWorkspaceExecution.AvailableActions(),
 
 		// Dormant workspaces share the workspace action set minus the
 		// build, ssh, and exec actions.
@@ -383,7 +384,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 	}
 
 	ownerWorkspaceActions := ResourceWorkspace.AvailableActions()
+	ownerExecutionActions := ResourceWorkspaceExecution.AvailableActions()
 	if opts.NoOwnerWorkspaceExec {
+		ownerExecutionActions = slice.Omit(ownerExecutionActions, policy.ActionSSH)
 		// Remove ssh and application connect from the owner role. This
 		// prevents owners from have exec access to all workspaces.
 		ownerWorkspaceActions = slice.Omit(
@@ -404,12 +407,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceWorkspaceExecution, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
-				ResourceWorkspace.Type:        ownerWorkspaceActions,
-				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
-				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
+				ResourceWorkspace.Type:          ownerWorkspaceActions,
+				ResourceWorkspaceExecution.Type: ownerExecutionActions,
+				ResourceWorkspaceDormant.Type:   {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
+				ResourceUserSkill.Type:          {policy.ActionRead, policy.ActionDelete},
 				// Owners manage AI Gateway keys but cannot update them. The
 				// update action records last-used liveness and is reserved
 				// for the system actor authenticating Gateway replicas.
@@ -440,7 +444,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceWorkspaceExecution, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -581,7 +585,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceWorkspaceExecution),
 							Permissions(map[string][]policy.Action{
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
