@@ -3,6 +3,7 @@ package chatd //nolint:testpackage // Runs the unexported schedule scan directly
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -34,15 +35,25 @@ import (
 type automationsExperimentStore struct {
 	t   testing.TB
 	off atomic.Bool
+	// offFor, when set, turns the experiment off for that user only.
+	offFor atomic.Pointer[uuid.UUID]
 }
 
 func (s *automationsExperimentStore) Rules(context.Context) (map[codersdk.Experiment]experiments.StoredRule, error) {
-	if !s.off.Load() {
-		return map[codersdk.Experiment]experiments.StoredRule{}, nil
+	if s.off.Load() {
+		return map[codersdk.Experiment]experiments.StoredRule{
+			codersdk.ExperimentChatAutomations: experimentstest.StoredRule(s.t, experiments.Rule{Mode: experiments.ModeOff}),
+		}, nil
 	}
-	return map[codersdk.Experiment]experiments.StoredRule{
-		codersdk.ExperimentChatAutomations: experimentstest.StoredRule(s.t, experiments.Rule{Mode: experiments.ModeOff}),
-	}, nil
+	if id := s.offFor.Load(); id != nil {
+		return map[codersdk.Experiment]experiments.StoredRule{
+			codersdk.ExperimentChatAutomations: experimentstest.StoredRule(s.t, experiments.Rule{
+				Mode:      experiments.ModeCondition,
+				Condition: fmt.Sprintf("user.id != %q", id.String()),
+			}),
+		}, nil
+	}
+	return map[codersdk.Experiment]experiments.StoredRule{}, nil
 }
 
 func (*automationsExperimentStore) UserAttributes(_ context.Context, userID uuid.UUID) (experiments.User, error) {
@@ -150,12 +161,20 @@ func (f *scheduleFixture) newChat(ctx context.Context, t *testing.T, server *Ser
 
 func (f *scheduleFixture) create(ctx context.Context, t *testing.T, server *Server, req codersdk.CreateChatAutomationRequest, spec, timeZone string) database.ChatAutomation {
 	t.Helper()
+	return f.createFor(ctx, t, server, f.owner.ID, req, spec, timeZone)
+}
+
+// createFor creates a schedule automation owned by ownerID.
+func (f *scheduleFixture) createFor(ctx context.Context, t *testing.T, server *Server, ownerID uuid.UUID, req codersdk.CreateChatAutomationRequest, spec, timeZone string) database.ChatAutomation {
+	t.Helper()
 	req.Name = "Standup"
 	req.Kind = codersdk.ChatAutomationKindSchedule
 	req.Prompt = "Post the standup."
 	req.ScheduleCron = &spec
 	req.ScheduleTimeZone = &timeZone
-	automation, _, err := server.CreateAutomation(f.asOwner(ctx, t), CreateAutomationParams{OrganizationID: f.org.ID, OwnerID: f.owner.ID, Request: req})
+	subject, err := automationOwnerSubject(ctx, f.db, ownerID)
+	require.NoError(t, err)
+	automation, _, err := server.CreateAutomation(dbauthz.As(ctx, subject), CreateAutomationParams{OrganizationID: f.org.ID, OwnerID: ownerID, Request: req})
 	require.NoError(t, err)
 	return automation
 }
@@ -550,12 +569,61 @@ WHERE id = $1`, automation.ID, edited)
 		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
 
 		// An experiment that turns off after the scan decided the owner is
-		// refused by Publish, which skips the occurrence.
+		// refused by Publish. The evaluator also reports a failed read as
+		// off, so the cursor stays for a retry.
 		row, err := f.db.GetChatAutomationByID(ctx, automation.ID)
 		require.NoError(t, err)
 		server.runAutomationOccurrence(ctx, row, f.clock.Now())
 		require.Zero(t, f.inputs(ctx, t))
+		require.Equal(t, due, f.cursor(ctx, t, automation.ID))
+
+		// Within the grace window, the next scan accepts it once.
+		f.experiment.off.Store(false)
+		server.scanAutomationSchedules(ctx)
+		require.Equal(t, 1, f.inputs(ctx, t))
 		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("PagesPastRowsThatStayDue", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		// Another member whose experiment is off owns two due schedules
+		// with older cursors. The scan drops them without a write, so they
+		// stay first in every page.
+		other := dbgen.User(t, f.db, database.User{})
+		dbgen.OrganizationMember(t, f.db, database.OrganizationMember{UserID: other.ID, OrganizationID: f.org.ID})
+		_, err := f.db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+			GrantedRoles: []string{rbac.RoleAgentsAccess()},
+			UserID:       other.ID,
+			OrgID:        f.org.ID,
+		})
+		require.NoError(t, err)
+		f.experiment.offFor.Store(&other.ID)
+		newChat := codersdk.CreateChatAutomationRequest{
+			TargetMode:           codersdk.ChatAutomationTargetModeNewChat,
+			NewChatModelConfigID: &f.model.ID,
+		}
+		var dropped []database.ChatAutomation
+		for range 2 {
+			dropped = append(dropped, f.createFor(ctx, t, server, other.ID, newChat, "* * * * *", "UTC"))
+		}
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		due := automation.ScheduleNextRunAt.Time.UTC()
+		for _, row := range dropped {
+			_, err := f.sqlDB.ExecContext(ctx, "UPDATE chat_automations SET schedule_next_run_at = $1 WHERE id = $2", due.Add(-time.Second), row.ID)
+			require.NoError(t, err)
+		}
+		f.advanceTo(ctx, t, due)
+
+		// One row per page: the scan pages past the dropped rows.
+		server.scanAutomationSchedulePages(ctx, 1)
+		require.Equal(t, 1, f.inputs(ctx, t))
+		require.Equal(t, due.Add(time.Minute), f.cursor(ctx, t, automation.ID))
+		for _, row := range dropped {
+			require.Equal(t, due.Add(-time.Second), f.cursor(ctx, t, row.ID))
+		}
 	})
 }
 

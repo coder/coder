@@ -622,10 +622,11 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	// Returns enabled schedule automations whose cursor is at or before now,
-	// oldest cursor first. Automations of inactive owners and existing_chat
-	// automations whose target chat is gone or archived are left out. It
-	// takes no locks: publishing rechecks each row under the chat and
-	// automation locks.
+	// oldest cursor first, starting after the (after_next_run_at, after_id)
+	// keyset so callers can page through every due row. Automations of
+	// inactive owners and existing_chat automations whose target chat is gone
+	// or archived are left out. It takes no locks: publishing rechecks each
+	// row under the chat and automation locks.
 	GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
 	// Providers can be disabled independently of their model configs.

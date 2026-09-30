@@ -150,10 +150,11 @@ WHERE
 
 -- name: GetDueChatAutomationSchedules :many
 -- Returns enabled schedule automations whose cursor is at or before now,
--- oldest cursor first. Automations of inactive owners and existing_chat
--- automations whose target chat is gone or archived are left out. It
--- takes no locks: publishing rechecks each row under the chat and
--- automation locks.
+-- oldest cursor first, starting after the (after_next_run_at, after_id)
+-- keyset so callers can page through every due row. Automations of
+-- inactive owners and existing_chat automations whose target chat is gone
+-- or archived are left out. It takes no locks: publishing rechecks each
+-- row under the chat and automation locks.
 SELECT
     chat_automations.*
 FROM
@@ -164,6 +165,7 @@ WHERE
     chat_automations.kind = 'schedule'
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= @now::timestamptz
+    AND (chat_automations.schedule_next_run_at, chat_automations.id) > (@after_next_run_at::timestamptz, @after_id::uuid)
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
