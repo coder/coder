@@ -267,12 +267,9 @@ only on the user-facing portion.
 
 ### Premium feature signaling
 
-A page documenting a Premium feature requires **both** of the following.
-Missing either one is a defect:
-
-1. The H1 title takes a `(Premium)` suffix. Example:
-   `# Template Insights (Premium)`.
-2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+Pages documenting staged features must include the applicable `state` in their `docs/manifest.json` entry.
+Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
+The state is displayed in navigation metadata.
 
 ### Evidence versus claim
 

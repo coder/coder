@@ -344,9 +344,12 @@ it.each([
 		await user.click(screen.getByRole("button", { name: button }));
 		await user.click(await screen.findByRole("option", { name: option }));
 		await waitFor(() => expect(searchParam(router, key)).toBeNull());
-		const lastParams = spendSpy.mock.lastCall?.[1];
-		expect(lastParams).toMatchObject({ offset: 0 });
-		expect(lastParams?.[key]).toBeUndefined();
+		// The cleared request is sent after the URL updates, so wait for it.
+		await waitFor(() => {
+			const lastParams = spendSpy.mock.lastCall?.[1];
+			expect(lastParams?.[key]).toBeUndefined();
+			expect(lastParams).toMatchObject({ offset: 0 });
+		});
 	},
 );
 

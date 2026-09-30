@@ -57,6 +57,10 @@ variables or flags.
           Coder. Network telemetry is used to measure network quality and detect
           regressions.
 
+      --flight-recorder-size int, $CODER_FLIGHT_RECORDER_SIZE (default: 10)
+          Number of log entries below the current log level to keep in memory
+          and emit on errors. Set to 0 to disable the flight recorder.
+
       --force-tty bool, $CODER_FORCE_TTY
           Force the use of a TTY.
 
