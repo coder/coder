@@ -18,7 +18,7 @@
 					"path": "./support/index.md",
 					"children": [
 						{
-							"title": "Generate a Support Bundle",
+							"title": "Generate a support bundle",
 							"description": "Generate a support bundle and share workspace and deployment diagnostics with Coder support to troubleshoot issues.",
 							"path": "./support/support-bundle.md"
 						}
