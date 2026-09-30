@@ -106,6 +106,7 @@ const StoryChatPageInput: React.FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
+			hasMoreMessages={false}
 			models={[]}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
@@ -442,6 +443,7 @@ const CompactionChatPageInput: React.FC = () => {
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
+				hasMoreMessages={false}
 				models={mockCompactionModels}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}

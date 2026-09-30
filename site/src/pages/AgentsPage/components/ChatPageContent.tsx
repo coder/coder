@@ -338,8 +338,7 @@ type ChatPageInputProps = {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-	// Whether older messages are still unloaded.
-	hasMoreMessages?: boolean;
+	hasMoreMessages: boolean;
 };
 
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
@@ -388,7 +387,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
-	hasMoreMessages = false,
+	hasMoreMessages,
 }) => {
 	const { user: currentUser } = useAuthenticated();
 	const { experiments } = useDashboard();
@@ -438,12 +437,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		(option) => option.id === selectedModel,
 	)?.contextLimit;
 	const rawUsage = getLatestContextUsage(messages, activeContextLimit);
+	const historyComplete = !hasMoreMessages;
 	const chatHeat = experiments.includes("chat-heat-meter")
 		? getChatHeat(
 				messages,
 				compressionThreshold,
 				activeContextLimit,
-				!hasMoreMessages,
+				historyComplete,
 			)
 		: null;
 	const latestContextUsage =
