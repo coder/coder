@@ -241,51 +241,75 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
-	it("creates a project when there are no chats", async () => {
-		const user = userEvent.setup();
-		let requestBody: unknown;
-		let requestOrganizationID: string | undefined;
-		server.use(
-			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post(
-				"/api/experimental/organizations/:organizationId/chats/projects",
-				async ({ request, params }) => {
-					requestOrganizationID = String(params.organizationId);
-					requestBody = await request.json();
-					return HttpResponse.json(MockChatProject);
-				},
-			),
-		);
+	it.each([false, true])(
+		"creates a project when there are no chats (select another organization: %s)",
+		async (selectAnotherOrganization) => {
+			const user = userEvent.setup();
+			let requestBody: unknown;
+			let requestOrganizationID: string | undefined;
+			server.use(
+				http.get("/api/experimental/chats/projects", () =>
+					HttpResponse.json([]),
+				),
+				http.post(
+					"/api/experimental/organizations/:organizationId/chats/projects",
+					async ({ request, params }) => {
+						requestOrganizationID = String(params.organizationId);
+						requestBody = await request.json();
+						return HttpResponse.json(MockChatProject);
+					},
+				),
+			);
 
-		render(
-			<Wrapper experiments={["chat-projects"]}>
-				<ChatsSidebar {...defaultProps} chats={[]} />
-			</Wrapper>,
-		);
+			render(
+				<Wrapper
+					experiments={["chat-projects"]}
+					organizations={[MockOrganization2, MockDefaultOrganization]}
+				>
+					<ChatsSidebar {...defaultProps} chats={[]} />
+				</Wrapper>,
+			);
 
-		await user.click(
-			await screen.findByRole("button", { name: "New project" }),
-		);
-		const dialog = await screen.findByRole("dialog", { name: "New project" });
-		await user.type(
-			within(dialog).getByRole("textbox", { name: /Name/ }),
-			"New project name",
-		);
-		await user.type(
-			within(dialog).getByRole("textbox", { name: "Description" }),
-			"Project description",
-		);
-		await user.click(screen.getByRole("button", { name: "Save" }));
-
-		await waitFor(() => {
-			expect(requestOrganizationID).toBe(MockDefaultOrganization.id);
-			expect(requestBody).toEqual({
-				name: "New project name",
-				description: "Project description",
-				icon: "",
+			await user.click(
+				await screen.findByRole("button", { name: "New project" }),
+			);
+			const dialog = await screen.findByRole("dialog", {
+				name: "Create a project",
 			});
-		});
-	});
+			await user.type(
+				within(dialog).getByRole("textbox", { name: /Project name/ }),
+				"New project name",
+			);
+			await user.type(
+				within(dialog).getByRole("textbox", { name: "Description" }),
+				"Project description",
+			);
+			if (selectAnotherOrganization) {
+				await user.click(
+					within(dialog).getByRole("button", { name: /Organization/ }),
+				);
+				await user.click(
+					screen.getByRole("option", {
+						name: new RegExp(MockOrganization2.display_name),
+					}),
+				);
+			}
+			await user.click(screen.getByRole("button", { name: "Create project" }));
+
+			await waitFor(() => {
+				expect(requestOrganizationID).toBe(
+					selectAnotherOrganization
+						? MockOrganization2.id
+						: MockDefaultOrganization.id,
+				);
+				expect(requestBody).toEqual({
+					name: "New project name",
+					description: "Project description",
+					icon: "",
+				});
+			});
+		},
+	);
 
 	it("uses the first accessible organization when no default is available", async () => {
 		const user = userEvent.setup();
@@ -318,12 +342,14 @@ describe("ChatsSidebar projects", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "New project" }),
 		);
-		const dialog = await screen.findByRole("dialog", { name: "New project" });
+		const dialog = await screen.findByRole("dialog", {
+			name: "Create a project",
+		});
 		await user.type(
-			within(dialog).getByRole("textbox", { name: /Name/ }),
+			within(dialog).getByRole("textbox", { name: /Project name/ }),
 			"Accessible project",
 		);
-		await user.click(screen.getByRole("button", { name: "Save" }));
+		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		await waitFor(() => {
 			expect(requestOrganizationID).toBe(MockOrganization2.id);

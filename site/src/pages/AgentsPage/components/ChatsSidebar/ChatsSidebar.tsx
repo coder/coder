@@ -115,12 +115,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		currentUserId,
 	} = props;
 	const { organizations, experiments } = useDashboard();
-	const organizationId: string | undefined =
+	const initialOrganizationId =
 		getDefaultOrganizationId(organizations) ?? organizations[0]?.id;
-	// The sidebar lists the user's projects across organizations and creates
-	// new ones in the default organization.
+	// The sidebar lists the user's projects across organizations.
 	const chatProjectsEnabled =
-		experiments.includes("chat-projects") && organizationId !== undefined;
+		experiments.includes("chat-projects") &&
+		initialOrganizationId !== undefined;
 	const queryClient = useQueryClient();
 	const projectsQuery = useQuery({
 		...chatProjects(),
@@ -181,7 +181,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		setIsDeleteProjectDialogOpen(false);
 		restoreProjectDialogFocus();
 	};
-	const handleProjectSubmit = (request: {
+	const handleProjectSubmit = ({
+		organizationId,
+		...request
+	}: {
+		organizationId?: string;
 		name: string;
 		description: string;
 		icon: string;
@@ -309,6 +313,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				recentChats={chats}
 			/>
 			<ChatProjectDialog
+				organizations={organizations}
+				initialOrganizationId={initialOrganizationId}
 				project={
 					projectDialog.mode === "edit" ? projectDialog.project : undefined
 				}
