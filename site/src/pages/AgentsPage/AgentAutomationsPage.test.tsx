@@ -1034,7 +1034,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await confirmRotate(user, dialog, "Rotate secret");
 
 		expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-			"Only the owner of a chat automation can change it.",
+			/^Only the owner of a chat automation can change it\.$/,
 		);
 		expect(rotatePosts).toBe(1);
 	});
