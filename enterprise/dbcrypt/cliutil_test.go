@@ -379,18 +379,18 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 		const wantValue = "super-secret-value"
 		dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
 			WorkspaceID:      ws.Workspace.ID,
-			UpdatedByBuildID: ws.Build.ID,
+			WorkspaceBuildID: ws.Build.ID,
 			Name:             "my-secret",
-			Value:            wantValue,
+			Value:            sql.NullString{String: wantValue, Valid: true},
 		})
 
 		f.rotate(t)
 
-		secrets, err := f.rawDB.ListWorkspaceSecretsWithValues(f.ctx, ws.Workspace.ID)
+		secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 1)
 		require.Equal(t, f.cipherB.HexDigest(), secrets[0].ValueKeyID.String)
-		require.Equal(t, wantValue, decryptRawString(t, f.cipherB, secrets[0].Value))
+		require.Equal(t, wantValue, decryptRawString(t, f.cipherB, secrets[0].Value.String))
 	})
 
 	t.Run("DecryptErr", func(t *testing.T) {
@@ -402,9 +402,9 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 		ws := seedWorkspaceBuild(t, f.rawDB)
 		seeded := dbgen.WorkspaceSecret(t, cryptDBC, database.WorkspaceSecret{
 			WorkspaceID:      ws.Workspace.ID,
-			UpdatedByBuildID: ws.Build.ID,
+			WorkspaceBuildID: ws.Build.ID,
 			Name:             "my-secret",
-			Value:            "super-secret-value",
+			Value:            sql.NullString{String: "super-secret-value", Valid: true},
 		})
 		require.Equal(t, cipherC.HexDigest(), seeded.ValueKeyID.String, "sanity check: seed must be encrypted under cipher C")
 
@@ -413,7 +413,7 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 		var derr *dbcrypt.DecryptFailedError
 		require.ErrorAs(t, err, &derr, "expected a decrypt error")
 
-		secrets, getErr := f.rawDB.ListWorkspaceSecretsWithValues(f.ctx, ws.Workspace.ID)
+		secrets, getErr := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
 		require.NoError(t, getErr)
 		require.Len(t, secrets, 1)
 		require.Equal(t, cipherC.HexDigest(), secrets[0].ValueKeyID.String, "row must remain encrypted under cipher C after a failed rotation")
@@ -1571,18 +1571,18 @@ func TestDecryptWorkspaceSecrets(t *testing.T) {
 	const wantValue = "super-secret-value"
 	dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
 		WorkspaceID:      ws.Workspace.ID,
-		UpdatedByBuildID: ws.Build.ID,
+		WorkspaceBuildID: ws.Build.ID,
 		Name:             "my-secret",
-		Value:            wantValue,
+		Value:            sql.NullString{String: wantValue, Valid: true},
 	})
 
 	f.decrypt(t)
 
-	secrets, err := f.rawDB.ListWorkspaceSecretsWithValues(f.ctx, ws.Workspace.ID)
+	secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 	require.False(t, secrets[0].ValueKeyID.Valid)
-	require.Equal(t, wantValue, secrets[0].Value)
+	require.Equal(t, wantValue, secrets[0].Value.String)
 }
 
 // TestDeleteWorkspaceSecrets covers the workspace_secrets table.
@@ -1593,29 +1593,35 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 	encWS := seedWorkspaceBuild(t, f.rawDB)
 	dbgen.WorkspaceSecret(t, f.cryptDBA, database.WorkspaceSecret{
 		WorkspaceID:      encWS.Workspace.ID,
-		UpdatedByBuildID: encWS.Build.ID,
+		WorkspaceBuildID: encWS.Build.ID,
 		Name:             "my-secret",
-		Value:            "super-secret-value",
+		Value:            sql.NullString{String: "super-secret-value", Valid: true},
 	})
 
 	plainWS := seedWorkspaceBuild(t, f.rawDB)
 	dbgen.WorkspaceSecret(t, f.rawDB, database.WorkspaceSecret{
 		WorkspaceID:      plainWS.Workspace.ID,
-		UpdatedByBuildID: plainWS.Build.ID,
+		WorkspaceBuildID: plainWS.Build.ID,
 		Name:             "my-secret",
-		Value:            "plain-secret-value",
+		Value:            sql.NullString{String: "plain-secret-value", Valid: true},
 	})
 
 	f.delete(t)
 
-	encSecrets, err := f.rawDB.ListWorkspaceSecretsWithValues(f.ctx, encWS.Workspace.ID)
+	encSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, encWS.Workspace.ID)
 	require.NoError(t, err)
-	require.Empty(t, encSecrets, "encrypted workspace_secrets row should have been deleted")
+	// Rows are kept as history; only the value is dropped.
+	require.Empty(t, encSecrets, "encrypted workspace_secrets row should have been cleared")
+	allSecrets, err := f.rawDB.GetWorkspaceSecrets(f.ctx)
+	require.NoError(t, err)
+	for _, s := range allSecrets {
+		require.NotEqual(t, encWS.Workspace.ID, s.WorkspaceID, "cleared row must no longer hold a value")
+	}
 
-	plainSecrets, err := f.rawDB.ListWorkspaceSecretsWithValues(f.ctx, plainWS.Workspace.ID)
+	plainSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, plainWS.Workspace.ID)
 	require.NoError(t, err)
 	require.Len(t, plainSecrets, 1, "never-encrypted workspace_secrets row should survive")
-	require.Equal(t, "plain-secret-value", plainSecrets[0].Value)
+	require.Equal(t, "plain-secret-value", plainSecrets[0].Value.String)
 
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }

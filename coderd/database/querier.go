@@ -94,6 +94,10 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	// Drops the values of every live row that does not belong to the given
+	// build, keeping the rows so the history of which secrets earlier builds
+	// received stays inspectable.
+	ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg ClearWorkspaceSecretsBeforeBuildParams) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -253,7 +257,6 @@ type sqlcQuerier interface {
 	DeleteWorkspaceACLsByOrganization(ctx context.Context, arg DeleteWorkspaceACLsByOrganizationParams) error
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
-	DeleteWorkspaceSecretByWorkspaceIDAndName(ctx context.Context, arg DeleteWorkspaceSecretByWorkspaceIDAndNameParams) error
 	// Soft-deletes a single sub-agent (a child agent such as a devcontainer
 	// agent). Called from the DeleteSubAgent RPC when a sub-agent is torn
 	// down, which can happen mid-build without a full workspace rebuild.
@@ -1102,9 +1105,12 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
-	// Returns every workspace secret across the deployment. Used only by the
-	// dbcrypt key rotation utility.
+	// Returns every workspace secret that still holds a value across the
+	// deployment. Used only by the dbcrypt key rotation utility.
 	GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error)
+	// Returns every workspace secret row for a workspace, including cleared
+	// rows, so the secrets each build received can be inspected.
+	GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error)
 	GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIds []uuid.UUID) ([]GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error)
 	// build_params is used to filter by build parameters if present.
 	// It has to be a CTE because the set returning function 'unnest' cannot
@@ -1266,6 +1272,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	InsertWorkspaceSecret(ctx context.Context, arg InsertWorkspaceSecretParams) (WorkspaceSecret, error)
 	// Returns true when there is no heartbeat row for (chat_id, runner_id)
 	// or the existing row is older than @stale_seconds seconds by database
 	// time. chatstate calls this in a single query so the staleness check
@@ -1325,6 +1332,11 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
+	// Returns the live rows (value not yet cleared) for a workspace, which are
+	// always the rows of its latest build. Includes decrypted values, so this is
+	// used only by the agent manifest and by the build transaction that copies
+	// secrets forward; there is no REST endpoint that reads workspace secrets.
+	ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
@@ -1353,10 +1365,6 @@ type sqlcQuerier interface {
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
 	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
-	// Returns all columns including the secret value. Used only by the agent
-	// manifest for runtime injection; there is no REST endpoint that reads
-	// workspace secrets back.
-	ListWorkspaceSecretsWithValues(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error)
 	// Locks the chat row with FOR UPDATE and atomically increments its
 	// snapshot_version, returning the post-bump chat. This is the single
 	// entry point ChatMachine.Update uses to acquire the row lock and
@@ -1789,9 +1797,6 @@ type sqlcQuerier interface {
 	// was started. This means that a new row was inserted (no previous session) or
 	// the updated_at is older than stale interval.
 	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
-	// Sets a workspace secret by name, replacing the value and injection
-	// targets if a row with the same name already exists.
-	UpsertWorkspaceSecret(ctx context.Context, arg UpsertWorkspaceSecretParams) (WorkspaceSecret, error)
 	UsageEventExistsByID(ctx context.Context, id string) (bool, error)
 	ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error)
 	ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error)

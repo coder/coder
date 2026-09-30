@@ -4588,8 +4588,9 @@ export interface CreateWorkspaceBuildRequest {
 	 */
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	/**
-	 * Secrets sets or removes workspace secrets before the build is queued.
-	 * Secrets not listed here are carried forward from previous builds.
+	 * Secrets sets or removes workspace secrets for this build. Secrets not
+	 * listed here are carried forward from the previous build unless they
+	 * were ephemeral.
 	 */
 	readonly secrets?: readonly WorkspaceSecretInput[];
 	/**
@@ -12425,15 +12426,17 @@ export const WorkspaceSecretInjectionTargetRequiredDetail =
 
 // From codersdk/workspacesecrets.go
 /**
- * WorkspaceSecretInput sets or removes a workspace-scoped secret as part of
- * a workspace or workspace build request.
+ * WorkspaceSecretInput sets or removes a workspace secret as part of a
+ * workspace or workspace build request.
  *
  * Workspace secrets are delivered to the workspace only through the agent
  * manifest (as an environment variable, a file, or both). They are never
  * passed to the provisioner, so they do not appear in workspace build
  * parameters or Terraform state, and they cannot be read back through the
- * API. A secret persists across builds until it is replaced by a later
- * request with the same Name, or removed by a request with an empty Value.
+ * API. Each secret is linked to the build it was set on. Non-ephemeral
+ * secrets are copied forward to every later build until a request replaces
+ * them by Name or removes them with an empty Value; ephemeral secrets are
+ * delivered to that build only.
  */
 export interface WorkspaceSecretInput {
 	readonly name: string;
@@ -12453,6 +12456,11 @@ export interface WorkspaceSecretInput {
 	 * delivery.
 	 */
 	readonly file_path?: string;
+	/**
+	 * Ephemeral secrets are delivered to this build only and are not
+	 * carried forward to the next build.
+	 */
+	readonly ephemeral?: boolean;
 }
 
 // From codersdk/workspacesharing.go

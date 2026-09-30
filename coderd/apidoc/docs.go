@@ -23161,7 +23161,7 @@ const docTemplate = `{
                     }
                 },
                 "secrets": {
-                    "description": "Secrets sets or removes workspace secrets before the build is queued.\nSecrets not listed here are carried forward from previous builds.",
+                    "description": "Secrets sets or removes workspace secrets for this build. Secrets not\nlisted here are carried forward from the previous build unless they\nwere ephemeral.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
@@ -33276,6 +33276,10 @@ const docTemplate = `{
                 "env_name": {
                     "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nnon-empty.",
                     "type": "string"
+                },
+                "ephemeral": {
+                    "description": "Ephemeral secrets are delivered to this build only and are not\ncarried forward to the next build.",
+                    "type": "boolean"
                 },
                 "file_path": {
                     "description": "FilePath is the path to write the secret to inside the workspace.\nEmpty means no file is written. Deployments may disable file path\ndelivery.",

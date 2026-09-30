@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"database/sql"
 	"fmt"
 	"net/url"
 	"testing"
@@ -22,8 +23,9 @@ func Test_dbSecretsToProto(t *testing.T) {
 		{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"},
 	}
 	workspaceSecrets := []database.WorkspaceSecret{
-		{Name: "ws-env", EnvName: "WS_ENV", Value: "ws-val"},
-		{Name: "ws-file", FilePath: "/etc/ws", Value: "ws-file-val"},
+		{Name: "ws-env", EnvName: "WS_ENV", Value: sql.NullString{String: "ws-val", Valid: true}},
+		{Name: "ws-file", FilePath: "/etc/ws", Value: sql.NullString{String: "ws-file-val", Valid: true}},
+		{Name: "ws-cleared", EnvName: "WS_CLEARED"},
 	}
 
 	cases := []struct {

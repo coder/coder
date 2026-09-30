@@ -40,6 +40,7 @@ of the template will be used.
   "secrets": [
     {
       "env_name": "string",
+      "ephemeral": true,
       "file_path": "string",
       "name": "string",
       "value": "string"
@@ -767,6 +768,7 @@ of the template will be used.
   "secrets": [
     {
       "env_name": "string",
+      "ephemeral": true,
       "file_path": "string",
       "name": "string",
       "value": "string"

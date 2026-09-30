@@ -7098,6 +7098,7 @@ This is required on creation to enable a user-flow of validating a template work
   "secrets": [
     {
       "env_name": "string",
+      "ephemeral": true,
       "file_path": "string",
       "name": "string",
       "value": "string"
@@ -7122,7 +7123,7 @@ This is required on creation to enable a user-flow of validating a template work
 | `orphan`                     | boolean                                                                                        | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
 | `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
 | `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets before the build is queued. Secrets not listed here are carried forward from previous builds.                                                                       |
+| `secrets`                    | array of [codersdk.WorkspaceSecretInput](#codersdkworkspacesecretinput)                        | false    |              | Secrets sets or removes workspace secrets for this build. Secrets not listed here are carried forward from the previous build unless they were ephemeral.                                                     |
 | `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
 | `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
 | `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
@@ -7170,6 +7171,7 @@ This is required on creation to enable a user-flow of validating a template work
   "secrets": [
     {
       "env_name": "string",
+      "ephemeral": true,
       "file_path": "string",
       "name": "string",
       "value": "string"
@@ -19968,6 +19970,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "env_name": "string",
+  "ephemeral": true,
   "file_path": "string",
   "name": "string",
   "value": "string"
@@ -19976,12 +19979,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name        | Type   | Required | Restrictions | Description                                                                                                                                         |
-|-------------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
-| `env_name`  | string | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when FilePath is empty and Value is non-empty. |
-| `file_path` | string | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery.      |
-| `name`      | string | false    |              |                                                                                                                                                     |
-| `value`     | string | false    |              | Value is the plaintext secret. An empty Value removes the secret.                                                                                   |
+| Name        | Type    | Required | Restrictions | Description                                                                                                                                         |
+|-------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `env_name`  | string  | false    |              | Env name is the environment variable to inject the secret as. Empty means no env injection. Required when FilePath is empty and Value is non-empty. |
+| `ephemeral` | boolean | false    |              | Ephemeral secrets are delivered to this build only and are not carried forward to the next build.                                                   |
+| `file_path` | string  | false    |              | File path is the path to write the secret to inside the workspace. Empty means no file is written. Deployments may disable file path delivery.      |
+| `name`      | string  | false    |              |                                                                                                                                                     |
+| `value`     | string  | false    |              | Value is the plaintext secret. An empty Value removes the secret.                                                                                   |
 
 ## codersdk.WorkspaceSharingSettings
 

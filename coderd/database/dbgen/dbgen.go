@@ -1998,17 +1998,22 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 }
 
 func WorkspaceSecret(t testing.TB, db database.Store, seed database.WorkspaceSecret) database.WorkspaceSecret {
-	secret, err := db.UpsertWorkspaceSecret(genCtx, database.UpsertWorkspaceSecretParams{
+	value := seed.Value
+	if !value.Valid {
+		value = sql.NullString{String: "secret value", Valid: true}
+	}
+	secret, err := db.InsertWorkspaceSecret(genCtx, database.InsertWorkspaceSecretParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
 		WorkspaceID:      takeFirst(seed.WorkspaceID, uuid.New()),
+		WorkspaceBuildID: takeFirst(seed.WorkspaceBuildID, uuid.New()),
 		Name:             takeFirst(seed.Name, "secret-name"),
-		Value:            takeFirst(seed.Value, "secret value"),
+		Value:            value,
 		ValueKeyID:       seed.ValueKeyID,
 		EnvName:          takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:         seed.FilePath,
-		UpdatedByBuildID: takeFirst(seed.UpdatedByBuildID, uuid.New()),
+		Ephemeral:        seed.Ephemeral,
 	})
-	require.NoError(t, err, "failed to upsert workspace secret")
+	require.NoError(t, err, "failed to insert workspace secret")
 	return secret
 }
 

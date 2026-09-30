@@ -76,19 +76,26 @@ To set them, include a `secrets` array on
   "transition": "start",
   "secrets": [
     { "name": "cursor-api-key", "value": "<value>", "env_name": "CURSOR_API_KEY" },
+    { "name": "work-order", "value": "<value>", "env_name": "WORK_ORDER_TOKEN", "ephemeral": true },
     { "name": "kubeconfig", "value": "<value>", "file_path": "~/.kube/config" }
   ]
 }
 ```
 
 - Each secret needs an `env_name`, a `file_path`, or both.
-- Secrets carry forward: every later build of the workspace receives them until
-  a request replaces a secret by `name` or removes it by sending an empty
-  `value`. Requests that omit `secrets` leave the existing set unchanged.
+- Each secret is linked to the build it was set on. When the next build is
+  created, non-ephemeral secrets are copied to it unless the request replaces
+  them by `name` or removes them by sending an empty `value`. Requests that
+  omit `secrets` still carry the existing set forward.
+- `ephemeral: true` delivers a secret to that build only. It is not copied to
+  the next build, whoever triggers it and whether or not the build succeeds.
+- After a build is created, the previous build's rows keep their name,
+  targets, and timestamps but their values are cleared. This leaves a record
+  of which secrets each build received without retaining the values.
 - A workspace secret that targets the same environment variable or file path as
   a user secret takes precedence in that workspace.
 - The [user secrets limits](../../user-guides/user-secrets.md#limits) apply per
-  workspace, and the same file path delivery policy applies.
+  build, and the same file path delivery policy applies.
 - Values are covered by [Database Encryption](./database-encryption.md) when it
   is enabled.
 

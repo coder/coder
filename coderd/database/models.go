@@ -6869,14 +6869,15 @@ type WorkspaceResourceMetadatum struct {
 type WorkspaceSecret struct {
 	ID               uuid.UUID      `db:"id" json:"id"`
 	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceBuildID uuid.UUID      `db:"workspace_build_id" json:"workspace_build_id"`
 	Name             string         `db:"name" json:"name"`
-	Value            string         `db:"value" json:"value"`
+	Value            sql.NullString `db:"value" json:"value"`
 	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
 	EnvName          string         `db:"env_name" json:"env_name"`
 	FilePath         string         `db:"file_path" json:"file_path"`
-	UpdatedByBuildID uuid.UUID      `db:"updated_by_build_id" json:"updated_by_build_id"`
+	Ephemeral        bool           `db:"ephemeral" json:"ephemeral"`
 	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt        time.Time      `db:"updated_at" json:"updated_at"`
+	ClearedAt        sql.NullTime   `db:"cleared_at" json:"cleared_at"`
 }
 
 type WorkspaceTable struct {

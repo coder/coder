@@ -337,7 +337,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().ListWorkspaceSecretsWithValues(gomock.Any(), workspace.ID).Return(nil, nil)
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), workspace.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -405,7 +405,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().ListWorkspaceSecretsWithValues(gomock.Any(), workspace.ID).Return(nil, nil)
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), workspace.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
@@ -480,8 +480,8 @@ func TestGetManifest(t *testing.T) {
 		}, nil)
 		// Workspace secrets follow user secrets so a workspace secret that
 		// targets the same env var wins when the agent applies them in order.
-		mDB.EXPECT().ListWorkspaceSecretsWithValues(gomock.Any(), workspace.ID).Return([]database.WorkspaceSecret{
-			{EnvName: "GITHUB_TOKEN", Value: "ghp_workspace"},
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), workspace.ID).Return([]database.WorkspaceSecret{
+			{EnvName: "GITHUB_TOKEN", Value: sql.NullString{String: "ghp_workspace", Valid: true}},
 		}, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
@@ -597,7 +597,7 @@ func TestGetManifest(t *testing.T) {
 		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), agent.ID).Return(devcontainers, nil)
 		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
 		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return(nil, nil)
-		mDB.EXPECT().ListWorkspaceSecretsWithValues(gomock.Any(), workspace.ID).Return(nil, nil)
+		mDB.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), workspace.ID).Return(nil, nil)
 
 		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
 		require.NoError(t, err)

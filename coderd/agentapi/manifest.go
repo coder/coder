@@ -99,7 +99,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
 	//nolint:gocritic // System context needed to read secrets for the workspace.
-	workspaceSecrets, err := a.Database.ListWorkspaceSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+	workspaceSecrets, err := a.Database.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(ctx), workspace.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
 	}
@@ -311,7 +311,12 @@ func dbSecretsToProto(userSecrets []database.UserSecret, workspaceSecrets []data
 		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value, policy)
 	}
 	for _, s := range workspaceSecrets {
-		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value, policy)
+		// ListActiveWorkspaceSecrets only returns rows that still hold a
+		// value; the check guards against a cleared row slipping through.
+		if !s.Value.Valid {
+			continue
+		}
+		ret = appendSecretProto(ret, s.EnvName, s.FilePath, s.Value.String, policy)
 	}
 	return ret
 }

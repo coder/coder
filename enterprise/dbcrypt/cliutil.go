@@ -514,7 +514,10 @@ DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
-DELETE FROM workspace_secrets
+-- workspace_secrets rows are kept as history; clear the value instead of
+-- deleting the row.
+UPDATE workspace_secrets
+	SET value = NULL, value_key_id = NULL, cleared_at = CURRENT_TIMESTAMP
 	WHERE value_key_id IS NOT NULL;
 DELETE FROM chat_mcp_servers
 	WHERE headers_key_id IS NOT NULL;

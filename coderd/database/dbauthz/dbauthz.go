@@ -1998,6 +1998,17 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
+func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return err
+	}
+	return q.db.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
+}
+
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -2732,17 +2743,6 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	}
 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
-}
-
-func (q *querier) DeleteWorkspaceSecretByWorkspaceIDAndName(ctx context.Context, arg database.DeleteWorkspaceSecretByWorkspaceIDAndNameParams) error {
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
-		return err
-	}
-	return q.db.DeleteWorkspaceSecretByWorkspaceIDAndName(ctx, arg)
 }
 
 func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error {
@@ -6037,6 +6037,15 @@ func (q *querier) GetWorkspaceSecrets(ctx context.Context) ([]database.Workspace
 	return q.db.GetWorkspaceSecrets(ctx)
 }
 
+func (q *querier) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	// Live rows in the result carry decrypted values, so this is system-only
+	// like the other workspace secret reads.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceSecretsHistory(ctx, workspaceID)
+}
+
 func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context, templateIDs []uuid.UUID) ([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -6924,6 +6933,17 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceSecret(ctx context.Context, arg database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return q.db.InsertWorkspaceSecret(ctx, arg)
+}
+
 func (q *querier) IsChatHeartbeatStale(ctx context.Context, arg database.IsChatHeartbeatStaleParams) (bool, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7021,6 +7041,17 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 		return nil, err
 	}
 	return q.db.ListAIGatewayKeys(ctx)
+}
+
+func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	// This query returns decrypted secret values and must only be called
+	// from system contexts: the agent manifest and the build transaction
+	// that copies secrets forward. Workspace secrets are write-only through
+	// the REST API.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListActiveWorkspaceSecrets(ctx, workspaceID)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
@@ -7121,16 +7152,6 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	}
 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
-}
-
-func (q *querier) ListWorkspaceSecretsWithValues(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
-	// This query returns decrypted secret values and must only be called
-	// from the agent manifest system context. Workspace secrets are
-	// write-only through the REST API.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.ListWorkspaceSecretsWithValues(ctx, workspaceID)
 }
 
 func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -9472,17 +9493,6 @@ func (q *querier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg databa
 		return false, err
 	}
 	return q.db.UpsertWorkspaceAppAuditSession(ctx, arg)
-}
-
-func (q *querier) UpsertWorkspaceSecret(ctx context.Context, arg database.UpsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
-	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
-	if err != nil {
-		return database.WorkspaceSecret{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, workspace); err != nil {
-		return database.WorkspaceSecret{}, err
-	}
-	return q.db.UpsertWorkspaceSecret(ctx, arg)
 }
 
 func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, error) {

@@ -1123,7 +1123,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION enforce_workspace_secrets_per_workspace_limits() RETURNS trigger
+CREATE FUNCTION enforce_workspace_secrets_per_build_limits() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1139,17 +1139,18 @@ DECLARE
     total_bytes_limit constant bigint := 204800;   -- 200 KiB
     env_bytes_limit   constant bigint := 24576;    -- 24 KiB
 BEGIN
-    -- Serialize cap checks per workspace so concurrent inserts cannot all
+    -- Serialize cap checks per build so concurrent inserts cannot all
     -- observe the same pre-insert aggregates and exceed the cap.
-    PERFORM 1 FROM workspaces WHERE id = NEW.workspace_id FOR UPDATE;
+    PERFORM 1 FROM workspace_builds WHERE id = NEW.workspace_build_id FOR UPDATE;
 
     SELECT
-        count(*) FILTER (WHERE id IS DISTINCT FROM NEW.id),
-        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id), 0),
-        coalesce(sum(octet_length(value)) FILTER (WHERE id IS DISTINCT FROM NEW.id AND env_name <> ''), 0)
+        count(*),
+        coalesce(sum(octet_length(value)), 0),
+        coalesce(sum(octet_length(value)) FILTER (WHERE env_name <> ''), 0)
     INTO existing_count, existing_total_bytes, existing_env_bytes
     FROM workspace_secrets
-    WHERE workspace_id = NEW.workspace_id;
+    WHERE workspace_build_id = NEW.workspace_build_id
+      AND cleared_at IS NULL;
 
     new_count       := existing_count + 1;
     new_total_bytes := existing_total_bytes + octet_length(NEW.value);
@@ -1157,24 +1158,24 @@ BEGIN
                        + CASE WHEN NEW.env_name <> '' THEN octet_length(NEW.value) ELSE 0 END;
 
     IF new_count > count_limit THEN
-        RAISE EXCEPTION 'workspace has reached the workspace secrets count limit (% > %)',
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets count limit (% > %)',
             new_count, count_limit
             USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'workspace_secrets_per_workspace_count_limit';
+                  CONSTRAINT = 'workspace_secrets_per_build_count_limit';
     END IF;
 
     IF new_total_bytes > total_bytes_limit THEN
-        RAISE EXCEPTION 'workspace has reached the workspace secrets total value bytes limit (% > %)',
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets total value bytes limit (% > %)',
             new_total_bytes, total_bytes_limit
             USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'workspace_secrets_per_workspace_total_bytes_limit';
+                  CONSTRAINT = 'workspace_secrets_per_build_total_bytes_limit';
     END IF;
 
     IF new_env_bytes > env_bytes_limit THEN
-        RAISE EXCEPTION 'workspace has reached the workspace secrets env value bytes limit (% > %)',
+        RAISE EXCEPTION 'workspace build has reached the workspace secrets env value bytes limit (% > %)',
             new_env_bytes, env_bytes_limit
             USING ERRCODE = 'check_violation',
-                  CONSTRAINT = 'workspace_secrets_per_workspace_env_bytes_limit';
+                  CONSTRAINT = 'workspace_secrets_per_build_env_bytes_limit';
     END IF;
 
     RETURN NEW;
@@ -4264,15 +4265,17 @@ ALTER SEQUENCE workspace_resource_metadata_id_seq OWNED BY workspace_resource_me
 CREATE TABLE workspace_secrets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid NOT NULL,
+    workspace_build_id uuid NOT NULL,
     name text NOT NULL,
-    value text NOT NULL,
+    value text,
     value_key_id text,
     env_name text DEFAULT ''::text NOT NULL,
     file_path text DEFAULT ''::text NOT NULL,
-    updated_by_build_id uuid NOT NULL,
+    ephemeral boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT workspace_secrets_requires_target CHECK (((env_name <> ''::text) OR (file_path <> ''::text)))
+    cleared_at timestamp with time zone,
+    CONSTRAINT workspace_secrets_requires_target CHECK (((env_name <> ''::text) OR (file_path <> ''::text))),
+    CONSTRAINT workspace_secrets_value_cleared CHECK (((value IS NULL) = (cleared_at IS NOT NULL)))
 );
 
 CREATE VIEW workspaces_expanded AS
@@ -5095,11 +5098,13 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
-CREATE UNIQUE INDEX workspace_secrets_workspace_env_name_idx ON workspace_secrets USING btree (workspace_id, env_name) WHERE (env_name <> ''::text);
+CREATE UNIQUE INDEX workspace_secrets_build_env_name_idx ON workspace_secrets USING btree (workspace_build_id, env_name) WHERE (env_name <> ''::text);
 
-CREATE UNIQUE INDEX workspace_secrets_workspace_file_path_idx ON workspace_secrets USING btree (workspace_id, file_path) WHERE (file_path <> ''::text);
+CREATE UNIQUE INDEX workspace_secrets_build_file_path_idx ON workspace_secrets USING btree (workspace_build_id, file_path) WHERE (file_path <> ''::text);
 
-CREATE UNIQUE INDEX workspace_secrets_workspace_name_idx ON workspace_secrets USING btree (workspace_id, name);
+CREATE UNIQUE INDEX workspace_secrets_build_name_idx ON workspace_secrets USING btree (workspace_build_id, name);
+
+CREATE INDEX workspace_secrets_workspace_live_idx ON workspace_secrets USING btree (workspace_id) WHERE (cleared_at IS NULL);
 
 CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
@@ -5215,7 +5220,7 @@ CREATE TRIGGER trigger_user_secrets_per_user_limits BEFORE INSERT OR UPDATE ON u
 
 CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
-CREATE TRIGGER trigger_workspace_secrets_per_workspace_limits BEFORE INSERT OR UPDATE ON workspace_secrets FOR EACH ROW EXECUTE FUNCTION enforce_workspace_secrets_per_workspace_limits();
+CREATE TRIGGER trigger_workspace_secrets_per_build_limits BEFORE INSERT ON workspace_secrets FOR EACH ROW EXECUTE FUNCTION enforce_workspace_secrets_per_build_limits();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -5690,10 +5695,10 @@ ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_secrets
-    ADD CONSTRAINT workspace_secrets_updated_by_build_id_fkey FOREIGN KEY (updated_by_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY workspace_secrets
-    ADD CONSTRAINT workspace_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+    ADD CONSTRAINT workspace_secrets_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_secrets
     ADD CONSTRAINT workspace_secrets_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;

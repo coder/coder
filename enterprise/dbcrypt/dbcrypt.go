@@ -1059,31 +1059,50 @@ func (db *dbCrypt) UpdateUserSecretByUserIDAndName(ctx context.Context, arg data
 	return secret, nil
 }
 
+// decryptWorkspaceSecret decrypts a workspace secret value in place. Cleared
+// rows have no value and are left untouched.
+func (db *dbCrypt) decryptWorkspaceSecret(secret *database.WorkspaceSecret) error {
+	if !secret.Value.Valid {
+		return nil
+	}
+	return db.decryptField(&secret.Value.String, secret.ValueKeyID)
+}
+
 func (db *dbCrypt) decryptWorkspaceSecrets(secrets []database.WorkspaceSecret) error {
 	for i := range secrets {
-		if err := db.decryptField(&secrets[i].Value, secrets[i].ValueKeyID); err != nil {
+		if err := db.decryptWorkspaceSecret(&secrets[i]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (db *dbCrypt) UpsertWorkspaceSecret(ctx context.Context, params database.UpsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
-	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+// encryptWorkspaceSecretValue encrypts a nullable value in place. A NULL
+// value is a cleared row and is stored as-is with a NULL key ID.
+func (db *dbCrypt) encryptWorkspaceSecretValue(value *sql.NullString, keyID *sql.NullString) error {
+	if !value.Valid {
+		*keyID = sql.NullString{}
+		return nil
+	}
+	return db.encryptField(&value.String, keyID)
+}
+
+func (db *dbCrypt) InsertWorkspaceSecret(ctx context.Context, params database.InsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	if err := db.encryptWorkspaceSecretValue(&params.Value, &params.ValueKeyID); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
-	secret, err := db.Store.UpsertWorkspaceSecret(ctx, params)
+	secret, err := db.Store.InsertWorkspaceSecret(ctx, params)
 	if err != nil {
 		return database.WorkspaceSecret{}, err
 	}
-	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+	if err := db.decryptWorkspaceSecret(&secret); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
 	return secret, nil
 }
 
-func (db *dbCrypt) ListWorkspaceSecretsWithValues(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
-	secrets, err := db.Store.ListWorkspaceSecretsWithValues(ctx, workspaceID)
+func (db *dbCrypt) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	secrets, err := db.Store.ListActiveWorkspaceSecrets(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -1104,15 +1123,26 @@ func (db *dbCrypt) GetWorkspaceSecrets(ctx context.Context) ([]database.Workspac
 	return secrets, nil
 }
 
+func (db *dbCrypt) GetWorkspaceSecretsHistory(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	secrets, err := db.Store.GetWorkspaceSecretsHistory(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.decryptWorkspaceSecrets(secrets); err != nil {
+		return nil, err
+	}
+	return secrets, nil
+}
+
 func (db *dbCrypt) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, params database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
-	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+	if err := db.encryptWorkspaceSecretValue(&params.Value, &params.ValueKeyID); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
 	secret, err := db.Store.UpdateEncryptedWorkspaceSecretValue(ctx, params)
 	if err != nil {
 		return database.WorkspaceSecret{}, err
 	}
-	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+	if err := db.decryptWorkspaceSecret(&secret); err != nil {
 		return database.WorkspaceSecret{}, err
 	}
 	return secret, nil
