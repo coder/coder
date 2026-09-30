@@ -24008,7 +24008,8 @@ const docTemplate = `{
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
-                "chat-board"
+                "chat-board",
+                "chat-heat-meter"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24017,6 +24018,7 @@ const docTemplate = `{
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
+                "ExperimentChatHeatMeter": "Shows a prompt-cache heat meter under the Coder Agents chat input.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
                 "ExperimentEnableAIWorkspaceDebug": "Enables debugging failed workspace builds with Coder Agents.",
@@ -24046,7 +24048,8 @@ const docTemplate = `{
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
-                "Offers the Coder Agents chat board as a per-browser opt-in."
+                "Offers the Coder Agents chat board as a per-browser opt-in.",
+                "Shows a prompt-cache heat meter under the Coder Agents chat input."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24065,7 +24068,8 @@ const docTemplate = `{
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
-                "ExperimentChatBoard"
+                "ExperimentChatBoard",
+                "ExperimentChatHeatMeter"
             ]
         },
         "codersdk.ExperimentRule": {

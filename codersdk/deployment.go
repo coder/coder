@@ -5515,6 +5515,7 @@ const (
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
+	ExperimentChatHeatMeter             Experiment = "chat-heat-meter"             // Shows a prompt-cache heat meter under the Coder Agents chat input.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5551,6 +5552,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatBoard:
 		return "Chat Board"
+	case ExperimentChatHeatMeter:
+		return "Chat Heat Meter"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5578,6 +5581,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatBoard,
+	ExperimentChatHeatMeter,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
