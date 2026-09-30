@@ -208,7 +208,11 @@ const ChatBoardPage: React.FC = () => {
 		setStorage((prev) => ({ ...prev, ...patch }));
 	const setWindows = (
 		next: (prev: readonly ChatWindow[]) => readonly ChatWindow[],
-	) => setStorage((prev) => ({ ...prev, windows: next(prev.windows) }));
+	) =>
+		setStorage((prev) => {
+			const windows = next(prev.windows);
+			return windows === prev.windows ? prev : { ...prev, windows };
+		});
 
 	const openChatIds = new Set(
 		windows.flatMap((w) => (w.kind === "chat" ? [w.chatId] : [])),

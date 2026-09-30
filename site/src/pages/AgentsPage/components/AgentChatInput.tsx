@@ -62,6 +62,7 @@ import {
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
+	belowMdViewportMediaQuery,
 	isBelowMdViewport,
 	isMobileViewport,
 	mobileViewportMediaQuery,
@@ -566,6 +567,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 	const [chatFullWidth] = useChatFullWidth();
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -799,7 +801,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		null,
 	);
 	useEffect(() => {
-		if (!composerElement) return;
+		if (!composerElement || !isBelowMd) return;
 		// Radix popover wrappers are fixed-positioned, so their
 		// inset values need to be in layout-viewport coordinates.
 		// The visual viewport can be offset inside the layout
@@ -933,7 +935,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
 			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
-	}, [composerElement]);
+	}, [composerElement, isBelowMd]);
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The

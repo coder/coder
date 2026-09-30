@@ -29,7 +29,12 @@ vi.mock("../../AgentChatPage", async () => {
 			chatPageMounts.mount(chatId);
 			return () => chatPageMounts.unmount(chatId);
 		}, [chatId]);
-		return <p>chat {chatId}</p>;
+		return (
+			<>
+				<p>chat {chatId}</p>
+				<textarea aria-label={`Message ${chatId}`} />
+			</>
+		);
 	};
 	return { default: MockChatPage };
 });
@@ -104,6 +109,44 @@ describe("ChatBoardPage", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
 		localStorage.clear();
+	});
+
+	it("does not persist unchanged window state while typing in the frontmost chat", async () => {
+		const user = userEvent.setup();
+		mockChats(
+			() => Promise.resolve([launch()]),
+			() => Promise.resolve([]),
+		);
+		localStorage.setItem(
+			`agents.board.${MockUserOwner.id}`,
+			JSON.stringify({
+				columnOrder: ["Inbox"],
+				emptyColumns: [],
+				effortFilter: null,
+				windows: [
+					{
+						kind: "chat",
+						chatId: "launch",
+						pinned: true,
+						x: 20,
+						y: 20,
+						width: 520,
+						height: 640,
+					},
+				],
+			}),
+		);
+		const writes = vi.spyOn(Storage.prototype, "setItem");
+		renderWithAuth(<ChatBoardPage />);
+		const input = await screen.findByRole("textbox", {
+			name: "Message launch",
+		});
+		await user.click(input);
+		writes.mockClear();
+		await user.type(input, "Inspect this chat");
+		expect(
+			writes.mock.calls.filter(([key]) => key.startsWith("agents.board.")),
+		).toHaveLength(0);
 	});
 
 	it("saves columns first seen in the labels at the end of the column order", async () => {
