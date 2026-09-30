@@ -29,11 +29,11 @@ const manageAutomationsNextRunCount = 5
 
 const manageAutomationsDescription = "Manage the chat owner's automations in this chat's organization. " +
 	"Automations are webhook or schedule triggers that send a prompt to an existing chat or start a new chat. " +
-	"Actions: list returns the automations; get returns one automation; " +
+	"Actions: list returns the automations without their prompts; get returns one automation with its prompt; " +
 	"disable stops an automation from running until its owner enables it again; " +
 	"delete removes an automation permanently. get, disable, and delete require automation_id. " +
 	"When the current turn was started by an automation, only automations that target this chat " +
-	"or that created this chat are visible."
+	"or that created this chat are visible, and delete only removes the automation that started the turn."
 
 // manageAutomationsLaterActions return a clear error instead of an
 // unknown-action error until a later version supports them.
@@ -165,7 +165,11 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		automations := make([]codersdk.ChatAutomation, 0, len(rows))
 		for _, row := range rows {
 			if manageAutomationsVisible(chat, trigger, row) {
-				automations = append(automations, p.manageAutomationsView(row))
+				// The result stays in the chat, which may be shared, so list
+				// leaves prompts out; get returns one when asked.
+				view := p.manageAutomationsView(row)
+				view.Prompt = ""
+				automations = append(automations, view)
 			}
 		}
 		return map[string]any{"automations": automations}, nil
@@ -198,6 +202,11 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
 	default: // delete
+		// Input from one automation must not remove another one for good;
+		// disabling it stays possible and is undone by enabling it.
+		if trigger.AutomationID.Valid && trigger.AutomationID.UUID != row.ID {
+			return nil, xerrors.New("in a turn an automation started, delete only removes that automation; use disable for others")
+		}
 		if err := p.DeleteAutomation(ownerCtx, row.ID); err != nil {
 			return nil, manageAutomationsError(err)
 		}
