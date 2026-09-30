@@ -3,7 +3,10 @@ package cli
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_parsePortForwards(t *testing.T) {
@@ -112,6 +115,70 @@ func Test_parsePortForwards(t *testing.T) {
 				return
 			}
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestPortForwardUsageRequest(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	idle := codersdk.PostWorkspaceUsageRequest{}
+	active := codersdk.PostWorkspaceUsageRequest{
+		AgentID: agentID,
+		AppName: string(codersdk.UsageAppNamePortForwarding),
+	}
+
+	for _, tc := range []struct {
+		name string
+		// steps runs before each request. Each entry is one reporting tick.
+		steps []func(u *portForwardUsage, done *func())
+		want  []codersdk.PostWorkspaceUsageRequest
+	}{
+		{
+			name:  "Idle",
+			steps: []func(*portForwardUsage, *func()){nil, nil},
+			want:  []codersdk.PostWorkspaceUsageRequest{idle, idle},
+		},
+		{
+			name: "OpenConnection",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, done *func()) { *done = u.track() },
+				nil,
+			},
+			want: []codersdk.PostWorkspaceUsageRequest{active, active},
+		},
+		{
+			name: "GoesIdleAfterClose",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, done *func()) { *done = u.track() },
+				nil,
+				func(_ *portForwardUsage, done *func()) { (*done)() },
+			},
+			want: []codersdk.PostWorkspaceUsageRequest{active, active, idle},
+		},
+		{
+			name: "OpenOnlyBetweenTicks",
+			steps: []func(*portForwardUsage, *func()){
+				func(u *portForwardUsage, _ *func()) { u.track()() },
+				nil,
+			},
+			want: []codersdk.PostWorkspaceUsageRequest{active, idle},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				u    portForwardUsage
+				done func()
+			)
+			for i, step := range tc.steps {
+				if step != nil {
+					step(&u, &done)
+				}
+				require.Equal(t, tc.want[i], u.request(agentID), "tick %d", i)
+			}
 		})
 	}
 }

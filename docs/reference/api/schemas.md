@@ -1615,9 +1615,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                            |
-|---------------------------------------------------------------------|
-| `jetbrains`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
+| Value(s)                                                                               |
+|----------------------------------------------------------------------------------------|
+| `jetbrains`, `port_forwarding`, `reconnecting_pty`, `sftp`, `ssh`, `unknown`, `vscode` |
 
 ## codersdk.AppHostResponse
 

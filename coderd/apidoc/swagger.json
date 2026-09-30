@@ -17665,6 +17665,7 @@
 				"jetbrains",
 				"ssh",
 				"reconnecting_pty",
+				"port_forwarding",
 				"sftp",
 				"unknown"
 			],
@@ -17673,6 +17674,7 @@
 				"AppFamilyJetBrains",
 				"AppFamilySSH",
 				"AppFamilyReconnectingPTY",
+				"AppFamilyPortForwarding",
 				"AppFamilySFTP",
 				"AppFamilyUnknown"
 			]
