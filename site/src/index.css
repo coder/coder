@@ -329,6 +329,7 @@
 			max-height: var(--mobile-menu-max-height) !important;
 			overflow: hidden !important;
 		}
+
 		width: 100% !important;
 		min-width: 0 !important;
 		max-width: none !important;
@@ -336,11 +337,19 @@
 		overflow: hidden !important;
 		display: flex !important;
 		flex-direction: column !important;
+
+		/* Position tracking ends on close, so do not animate at stale coordinates. */
+		&[data-state="closed"] {
+			animation: none !important;
+			visibility: hidden !important;
+		}
+
 		/* Both flex children shrink so the list scrolls above a pinned footer. */
 		& > [cmdk-root] {
 			flex: 1 1 0% !important;
 			min-height: 0 !important;
 		}
+
 		& > [cmdk-root] > [cmdk-list] {
 			flex: 1 1 0% !important;
 			min-height: 0 !important;

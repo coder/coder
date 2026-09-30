@@ -458,6 +458,7 @@ const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 
 const MobileDecorator: Decorator = (Story, context) => {
 	const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+
 	return (
 		<div className="h-screen">
 			<button type="button" className="text-content-secondary text-sm">

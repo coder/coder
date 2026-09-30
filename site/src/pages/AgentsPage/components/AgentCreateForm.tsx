@@ -341,6 +341,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
+
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and

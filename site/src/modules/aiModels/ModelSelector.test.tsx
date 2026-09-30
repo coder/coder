@@ -1,6 +1,6 @@
-import { act, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { act, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderComponent } from "#/testHelpers/renderHelpers";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
@@ -55,12 +55,15 @@ const stubMediaQueries = ({
 }) => {
 	vi.stubGlobal("matchMedia", (query: string) => {
 		const result = originalMatchMedia(query);
+
 		if (query === belowMdViewportMediaQuery) {
 			return { ...result, matches: belowMd };
 		}
+
 		if (query === "(pointer: coarse)") {
 			return { ...result, matches: coarsePointer };
 		}
+
 		return result;
 	});
 };
@@ -77,7 +80,9 @@ const stubVisualViewport = () => {
 		pageLeft: 0,
 		scale: 1,
 	});
+
 	vi.stubGlobal("visualViewport", viewport);
+
 	return viewport;
 };
 
@@ -89,8 +94,8 @@ const listenersOf = (spy: CallSpy, type: string) =>
 		.filter(([eventType]) => eventType === type)
 		.map(([, listener]) => listener);
 
-// Geometry variables are the only `--mobile-menu-*` writes in the app.
-const geometryWriteCount = (spy: CallSpy) =>
+// Scope the spy to the hook's geometry properties, excluding Radix's own styles.
+const geometryCallCount = (spy: CallSpy) =>
 	spy.mock.calls.filter(
 		([name]) => typeof name === "string" && name.startsWith("--mobile-menu-"),
 	).length;
@@ -99,7 +104,6 @@ type ComposerProps = Omit<
 	React.ComponentProps<typeof ModelSelector>,
 	"mobileAnchor" | "value" | "onValueChange"
 > & {
-	initialValue?: string;
 	onValueChange: (value: string) => void;
 	docked?: boolean;
 };
@@ -107,7 +111,6 @@ type ComposerProps = Omit<
 // Stateful like the chat page: selection and effort changes feed back into
 // props, and the picker docks to the composer box that contains it.
 const Composer = ({
-	initialValue = "",
 	onValueChange,
 	onReasoningEffortChange,
 	reasoningEffort,
@@ -115,8 +118,9 @@ const Composer = ({
 	...props
 }: ComposerProps) => {
 	const [composer, setComposer] = useState<HTMLElement | null>(null);
-	const [value, setValue] = useState(initialValue);
+	const [value, setValue] = useState("");
 	const [effort, setEffort] = useState(reasoningEffort);
+
 	return (
 		<section aria-label="Composer" ref={setComposer}>
 			<ModelSelector
@@ -152,6 +156,7 @@ const openPicker = async (
 };
 
 afterEach(() => {
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
@@ -161,6 +166,7 @@ describe("ModelSelector", () => {
 		stubMediaQueries({ belowMd: true });
 		const user = userEvent.setup();
 		const onValueChange = vi.fn();
+
 		renderComponent(
 			<Composer
 				options={options}
@@ -175,13 +181,16 @@ describe("ModelSelector", () => {
 
 		expect(onValueChange).toHaveBeenCalledTimes(1);
 		expect(onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
-		expect(await openPicker(user, "GPT-4o Mini")).toHaveValue("");
+
+		const reopenedSearch = await openPicker(user, "GPT-4o Mini");
+		expect(reopenedSearch).toHaveValue("");
 	});
 
 	it("does not focus the search on coarse pointers so the keyboard stays closed", async () => {
 		stubMediaQueries({ belowMd: true, coarsePointer: true });
 		const user = userEvent.setup();
 		const onValueChange = vi.fn();
+
 		renderComponent(
 			<Composer options={options} onValueChange={onValueChange} />,
 		);
@@ -198,6 +207,7 @@ describe("ModelSelector", () => {
 		const user = userEvent.setup();
 		const onValueChange = vi.fn();
 		const onReasoningEffortChange = vi.fn();
+
 		renderComponent(
 			<Composer
 				options={options}
@@ -216,86 +226,51 @@ describe("ModelSelector", () => {
 		await user.tab();
 		await user.tab();
 		expect(screen.getByRole("slider")).toHaveFocus();
+
 		await user.keyboard("{ArrowRight}");
 		expect(onReasoningEffortChange).toHaveBeenLastCalledWith("high");
+
 		await user.keyboard("{End}");
 		expect(onReasoningEffortChange).toHaveBeenLastCalledWith("max");
+
 		await user.keyboard("{Home}");
 		expect(onReasoningEffortChange).toHaveBeenLastCalledWith("none");
+
 		expect(onValueChange).toHaveBeenCalledTimes(1);
 	});
 
-	it("dismisses without pulling focus into a hidden pane and does not reopen when shown", async () => {
-		stubMediaQueries({ belowMd: true });
-		const user = userEvent.setup();
-		const onValueChange = vi.fn();
-		const view = renderComponent(
-			<Composer options={options} onValueChange={onValueChange} isPresented />,
-		);
-
-		const trigger = screen.getByRole("combobox", { name: "Select model" });
-		await openPicker(user);
-		await user.keyboard("gp");
-		const focus = vi.spyOn(HTMLElement.prototype, "focus");
-
-		view.rerender(
-			<Composer
-				options={options}
-				onValueChange={onValueChange}
-				isPresented={false}
-			/>,
-		);
-		await act(async () => {
-			await new Promise<void>((resolve) => setTimeout(resolve, 0));
-		});
-		expect(focus.mock.contexts).not.toContain(trigger);
-		expect(trigger).not.toHaveFocus();
-
-		view.rerender(
-			<Composer options={options} onValueChange={onValueChange} isPresented />,
-		);
-		// Still closed after restore: this click opens rather than closes,
-		// and the search typed before hiding is gone.
-		const search = await openPicker(user);
-		expect(search).toHaveFocus();
-		expect(search).toHaveValue("");
-		await user.keyboard("mini{Enter}");
-		expect(onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
-	});
-
-	it("hides one picker without disturbing another", async () => {
+	it("keeps selection and search independent between composer instances", async () => {
 		stubMediaQueries({ belowMd: true });
 		const user = userEvent.setup();
 		const onFirstChange = vi.fn();
 		const onSecondChange = vi.fn();
-		const renderPickers = (firstPresented: boolean) => (
+
+		renderComponent(
 			<>
 				<Composer
 					options={options}
 					onValueChange={onFirstChange}
 					placeholder="First model"
-					isPresented={firstPresented}
 				/>
 				<Composer
 					options={options}
 					onValueChange={onSecondChange}
 					placeholder="Second model"
 				/>
-			</>
+			</>,
 		);
-		const view = renderComponent(renderPickers(true));
 
 		await openPicker(user, "First model");
-		await user.keyboard("gp");
-		view.rerender(renderPickers(false));
+		await user.keyboard("gp{Escape}");
 
 		await openPicker(user, "Second model");
 		await user.keyboard("mini{Enter}");
+
 		expect(onSecondChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
 		expect(onFirstChange).not.toHaveBeenCalled();
 
-		view.rerender(renderPickers(true));
-		expect(await openPicker(user, "First model")).toHaveValue("");
+		const reopenedSearch = await openPicker(user, "First model");
+		expect(reopenedSearch).toHaveValue("");
 	});
 
 	it.each([
@@ -305,6 +280,7 @@ describe("ModelSelector", () => {
 		stubMediaQueries({ belowMd });
 		const user = userEvent.setup();
 		const onValueChange = vi.fn();
+
 		renderComponent(
 			<Composer
 				options={options}
@@ -319,17 +295,99 @@ describe("ModelSelector", () => {
 		expect(onValueChange).toHaveBeenCalledWith("openai/gpt-4o-mini");
 	});
 
+	it("accepts an opening click captured before the composer anchor becomes available", async () => {
+		stubMediaQueries({ belowMd: true });
+		const user = userEvent.setup();
+		const onValueChange = vi.fn();
+
+		const view = renderComponent(
+			<Composer
+				options={options}
+				onValueChange={onValueChange}
+				docked={false}
+			/>,
+		);
+		const trigger = screen.getByRole("combobox", { name: "Select model" });
+
+		view.rerender(<Composer options={options} onValueChange={onValueChange} />);
+
+		await user.click(trigger);
+		await findSearch();
+		await user.keyboard("mini{Enter}");
+
+		expect(onValueChange).toHaveBeenCalledExactlyOnceWith("openai/gpt-4o-mini");
+	});
+
+	it("coalesces geometry events without scheduling on typing or menu-list scrolling", async () => {
+		stubMediaQueries({ belowMd: true });
+		const viewport = stubVisualViewport();
+		const user = userEvent.setup();
+
+		renderComponent(<Composer options={options} onValueChange={vi.fn()} />);
+
+		const search = await openPicker(user);
+		vi.useFakeTimers({
+			toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
+		});
+		const requestFrame = vi.spyOn(window, "requestAnimationFrame");
+
+		await user.type(search, "mini");
+
+		act(() => {
+			screen.getByRole("listbox").dispatchEvent(new Event("scroll"));
+		});
+
+		expect(requestFrame).not.toHaveBeenCalled();
+
+		act(() => {
+			viewport.dispatchEvent(new Event("resize"));
+			viewport.dispatchEvent(new Event("scroll"));
+			window.dispatchEvent(new Event("resize"));
+			document.body.dispatchEvent(new Event("scroll"));
+		});
+
+		expect(requestFrame).toHaveBeenCalledTimes(1);
+		expect(vi.getTimerCount()).toBe(1);
+
+		act(() => {
+			vi.advanceTimersToNextFrame();
+		});
+
+		expect(requestFrame).toHaveBeenCalledTimes(1);
+		expect(vi.getTimerCount()).toBe(0);
+
+		act(() => {
+			viewport.dispatchEvent(new Event("resize"));
+		});
+
+		expect(vi.getTimerCount()).toBe(1);
+
+		await user.keyboard("{Escape}");
+		expect(vi.getTimerCount()).toBe(0);
+
+		requestFrame.mockClear();
+
+		act(() => {
+			viewport.dispatchEvent(new Event("resize"));
+			viewport.dispatchEvent(new Event("scroll"));
+		});
+
+		expect(requestFrame).not.toHaveBeenCalled();
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
 	it("measures only while open, never on the document root, and releases its listeners on close", async () => {
 		stubMediaQueries({ belowMd: true });
 		const viewport = stubVisualViewport();
 		const user = userEvent.setup();
+
 		renderComponent(<Composer options={options} onValueChange={vi.fn()} />);
+
 		// Spies start after mount so React's own document listeners are not
 		// counted.
 		const viewportSubscribe = vi.spyOn(viewport, "addEventListener");
 		const viewportUnsubscribe = vi.spyOn(viewport, "removeEventListener");
 		const documentSubscribe = vi.spyOn(document, "addEventListener");
-		const documentUnsubscribe = vi.spyOn(document, "removeEventListener");
 		const rootWrite = vi.spyOn(document.documentElement.style, "setProperty");
 		const styleWrite = vi.spyOn(CSSStyleDeclaration.prototype, "setProperty");
 
@@ -337,27 +395,25 @@ describe("ModelSelector", () => {
 		expect(
 			screen.getByRole("combobox", { name: "Select model" }),
 		).toHaveFocus();
-		expect(geometryWriteCount(styleWrite)).toBe(0);
+		expect(geometryCallCount(styleWrite)).toBe(0);
 		expect(listenersOf(documentSubscribe, "selectionchange")).toHaveLength(0);
 		expect(viewportSubscribe).not.toHaveBeenCalled();
 
 		await user.keyboard("{Enter}");
 		await findSearch();
-		expect(geometryWriteCount(styleWrite)).toBeGreaterThan(0);
+
+		expect(geometryCallCount(styleWrite)).toBeGreaterThan(0);
 		expect(rootWrite).not.toHaveBeenCalled();
-		// Radix also listens to viewport scroll and resize; `selectionchange`
-		// and `scrollend` are subscribed by the position hook alone.
-		const [selectionChange] = listenersOf(documentSubscribe, "selectionchange");
-		const [scrollEnd] = listenersOf(viewportSubscribe, "scrollend");
-		expect(selectionChange).toBeDefined();
-		expect(scrollEnd).toBeDefined();
+		expect(listenersOf(documentSubscribe, "selectionchange")).toHaveLength(0);
+		expect(listenersOf(viewportSubscribe, "resize").length).toBeGreaterThan(0);
+		expect(listenersOf(viewportSubscribe, "scroll").length).toBeGreaterThan(0);
 
 		await user.keyboard("{Escape}");
-		expect(documentUnsubscribe).toHaveBeenCalledWith(
-			"selectionchange",
-			selectionChange,
-		);
-		expect(viewportUnsubscribe).toHaveBeenCalledWith("scrollend", scrollEnd);
+
+		for (const [event, listener] of viewportSubscribe.mock.calls) {
+			expect(viewportUnsubscribe).toHaveBeenCalledWith(event, listener);
+		}
+
 		expect(rootWrite).not.toHaveBeenCalled();
 	});
 });

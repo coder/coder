@@ -61,7 +61,6 @@ type WorkspacePillProps = {
 	// dismisses both layers.
 	inOverflowPopover?: boolean;
 	composer?: HTMLElement | null;
-	isPresented?: boolean;
 };
 
 export const WorkspacePill: React.FC<WorkspacePillProps> = ({
@@ -73,7 +72,6 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	onRemoveWorkspace,
 	inOverflowPopover,
 	composer,
-	isPresented = true,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -108,13 +106,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
-	const portalContainer = useMobileMenuPosition(composer, open && isPresented);
-	if (!isPresented && (open || tooltipOpen)) {
-		setOpen(false);
-		setTooltipOpen(false);
-		setView("main");
-		setFocusPortsOnMain(false);
-	}
+	const portalContainer = useMobileMenuPosition(composer, open);
 
 	const portsData = usePortsData(
 		workspace,
@@ -131,10 +123,10 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 
 	return (
 		<DropdownMenu
-			open={open && isPresented}
+			open={open}
 			modal={!inOverflowPopover}
 			onOpenChange={(next) => {
-				setOpen(next && isPresented);
+				setOpen(next);
 				if (!next) {
 					setView("main");
 					setFocusPortsOnMain(false);
@@ -145,7 +137,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			 * wrapper in AgentChatInput; this span just fills it. */}
 			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
-					open={isPresented && !inOverflowPopover && tooltipOpen}
+					open={!inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
 				>
 					<TooltipTrigger asChild>
@@ -178,13 +170,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
 				portalContainer={portalContainer}
-				onCloseAutoFocus={(event) => {
-					if (!isPresented) event.preventDefault();
-				}}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot

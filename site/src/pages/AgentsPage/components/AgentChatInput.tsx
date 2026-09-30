@@ -20,14 +20,7 @@ import {
 	ZapIcon,
 } from "lucide-react";
 import type React from "react";
-import {
-	useContext,
-	useEffect,
-	useId,
-	useImperativeHandle,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -107,7 +100,6 @@ import {
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
-import { ChatPresentationContext } from "./ChatPresentationContext";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { composerMenuAnchor } from "./composerMenuAnchor";
@@ -348,16 +340,11 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	isDisabled,
 	className,
 }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const [open, setOpen] = useState(false);
-	if (!isPresented && open) setOpen(false);
 	const label = `${servers.length} MCPs`;
 
 	return (
-		<Popover
-			open={open && isPresented}
-			onOpenChange={(next) => setOpen(next && isPresented)}
-		>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -374,14 +361,7 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
-			<BadgePopoverContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
-				onCloseAutoFocus={(event) => {
-					if (!isPresented) event.preventDefault();
-				}}
-			>
+			<BadgePopoverContent>
 				{servers.map((server) => (
 					<ToolBadge
 						key={server.id}
@@ -643,7 +623,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -763,14 +742,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			setValue: (text) => internalRef.current?.setValue(text),
 			insertText: (text) => internalRef.current?.insertText(text),
 			clear: () => internalRef.current?.clear(),
-			focus: () => {
-				if (isPresented) internalRef.current?.focus();
-			},
+			focus: () => internalRef.current?.focus(),
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
-		[isPresented],
+		[],
 	);
 
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
@@ -892,15 +869,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
-	if (
-		!isPresented &&
-		(plusMenuOpen || workspacePickerOpen || overflowPopoverOpen)
-	) {
-		setPlusMenuOpen(false);
-		setPlusMenuView("main");
-		setWorkspacePickerOpen(false);
-		setOverflowPopoverOpen(false);
-	}
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The
@@ -1455,7 +1423,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							modal={false}
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
-								setPlusMenuOpen(open && isPresented);
+								setPlusMenuOpen(open);
 								if (!open) setPlusMenuView("main");
 							}}
 						>
@@ -1476,24 +1444,20 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<PlusIcon />
 								</Button>
 							</PopoverTrigger>
-							{isBelowMd && composerElement && (
+							{isBelowMd && (
 								<PopoverAnchor
-									virtualRef={{ current: composerMenuAnchor(composerElement) }}
+									virtualRef={{
+										current: composerElement
+											? composerMenuAnchor(composerElement)
+											: null,
+									}}
 								/>
 							)}
 							<PopoverContent
-								style={
-									isPresented
-										? undefined
-										: { animation: "none", visibility: "hidden" }
-								}
 								side={isBelowMd ? "top" : "bottom"}
 								sideOffset={isBelowMd ? 0 : 4}
 								avoidCollisions={!isBelowMd}
 								align="start"
-								onCloseAutoFocus={(event) => {
-									if (!isPresented) event.preventDefault();
-								}}
 								className="w-auto min-w-[200px] p-1 max-md:w-(--radix-popper-anchor-width)"
 							>
 								{plusMenuView === "workspace" ? (
@@ -1585,14 +1549,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														</button>
 													</PopoverTrigger>
 													<PopoverContent
-														style={
-															isPresented
-																? undefined
-																: { animation: "none", visibility: "hidden" }
-														}
-														onCloseAutoFocus={(event) => {
-															if (!isPresented) event.preventDefault();
-														}}
 														side="right"
 														align="start"
 														sideOffset={8}
@@ -1721,7 +1677,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								dropdownSide="top"
 								dropdownAlign="start"
 								mobileAnchor={composerElement}
-								isPresented={isPresented}
 								reasoningEffort={reasoningEffort}
 								onReasoningEffortChange={onReasoningEffortChange}
 							/>
@@ -1772,7 +1727,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												folder={folder}
 												onRemoveWorkspace={removeWorkspaceHandler}
 												composer={composerElement}
-												isPresented={isPresented && !isOverflow}
 											/>
 										</span>
 									);
@@ -1807,14 +1761,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</button>
 								</PopoverTrigger>
 								<BadgePopoverContent
-									style={
-										isPresented
-											? undefined
-											: { animation: "none", visibility: "hidden" }
-									}
-									onCloseAutoFocus={(event) => {
-										if (!isPresented) event.preventDefault();
-									}}
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1852,7 +1798,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
 														composer={composerElement}
-														isPresented={isPresented}
 														inOverflowPopover
 													/>
 												</span>
