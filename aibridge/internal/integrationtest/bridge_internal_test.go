@@ -215,6 +215,7 @@ func TestAnthropicMessages(t *testing.T) {
 		cases := []struct {
 			name           string
 			fixture        []byte
+			endBefore      string
 			expectedEvents []string
 			wantErr        bool
 		}{
@@ -229,6 +230,13 @@ func TestAnthropicMessages(t *testing.T) {
 				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "error"},
 				wantErr:        true,
 			},
+			{
+				name:           "upstream closes before message_stop",
+				fixture:        fixtures.AntInjectedToolInvalidInput,
+				endBefore:      "event: message_delta",
+				expectedEvents: []string{"message_start", "content_block_start", "content_block_delta", "content_block_stop", "error"},
+				wantErr:        true,
+			},
 		}
 
 		for _, tc := range cases {
@@ -239,7 +247,13 @@ func TestAnthropicMessages(t *testing.T) {
 				t.Cleanup(cancel)
 
 				fix := fixtures.Parse(t, tc.fixture)
-				upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+				upstreamResp := testutil.NewFixtureResponse(fix)
+				if tc.endBefore != "" {
+					var found bool
+					upstreamResp.Streaming, _, found = bytes.Cut(upstreamResp.Streaming, []byte(tc.endBefore))
+					require.True(t, found)
+				}
+				upstream := testutil.NewMockUpstream(ctx, t, upstreamResp)
 				mockMCP := setupMCPForTest(t, defaultTracer)
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withMCP(mockMCP))
 

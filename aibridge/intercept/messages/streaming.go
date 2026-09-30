@@ -228,6 +228,7 @@ newStream:
 		// accumulateErr is the first accumulation failure in this iteration.
 		// Events are still relayed, but injected tools cannot trust the input.
 		var accumulateErr error
+		var messageStopped bool
 
 		for stream.Next() {
 			iterationStarted = true
@@ -236,9 +237,12 @@ newStream:
 				logger.Warn(ctx, "failed to accumulate streaming event", slog.Error(err), slog.F("event_type", event.Type), slog.F("event_index", event.Index))
 				accumulateErr = err
 			}
-			if accumulateErr != nil && len(pendingToolCalls) > 0 && event.Type == string(constant.ValueOf[constant.MessageStop]()) {
-				lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
-				break
+			if event.Type == string(constant.ValueOf[constant.MessageStop]()) {
+				messageStopped = true
+				if accumulateErr != nil && len(pendingToolCalls) > 0 {
+					lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
+					break
+				}
 			}
 
 			// Tool-related handling.
@@ -539,6 +543,12 @@ newStream:
 				lastErr = xerrors.Errorf("relay event: %w", err)
 				break
 			}
+		}
+
+		// An upstream that closes cleanly before message_stop leaves the client
+		// without a terminal event, so the accumulation failure must be reported.
+		if accumulateErr != nil && !messageStopped && lastErr == nil {
+			lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
 		}
 
 		if promptFound {
