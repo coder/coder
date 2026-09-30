@@ -115,6 +115,47 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
 }
 
+func TestServerTailnet_AgentConn_Abandoned(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// The caller gave up on the dial on purpose, as chatd does when the
+	// workspace has a newer agent, so no unreachable agent is recorded.
+	_, serverTailnet := setupServerTailnetAgent(t, 0)
+	agentID := uuid.New()
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+	ctx = loggermw.WithRequestLogger(ctx, requestLogger)
+
+	dialCtx, dialCancel := context.WithCancelCause(ctx)
+	dialCancel(workspacesdk.ErrDialAbandoned)
+	_, _, err := serverTailnet.AgentConn(dialCtx, agentID)
+	require.Error(t, err)
+	var unreachable *workspaceapps.AgentUnreachableError
+	require.NotErrorAs(t, err, &unreachable)
+
+	requestLogger.WriteLog(ctx, http.StatusBadGateway)
+	var entry struct {
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.NotContains(t, entry.Fields, "agent_id")
+	assert.NotContains(t, entry.Fields, "reason")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	for _, m := range metrics {
+		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+	}
+}
+
 func TestServerTailnet_DERPConnects(t *testing.T) {
 	t.Parallel()
 

@@ -61,7 +61,10 @@ func dialWithLazyValidation(
 		return xerrors.Errorf("dial with lazy validation: %w", err)
 	}
 
-	dialCtx, dialCancel := context.WithCancel(ctx)
+	// A parent that ends first sets its own cause, so this cause only marks
+	// dials this function gave up on.
+	dialCtx, dialCancelCause := context.WithCancelCause(ctx)
+	dialCancel := func() { dialCancelCause(workspacesdk.ErrDialAbandoned) }
 	results := make(chan dialOut, 1)
 	go func() {
 		conn, release, err := dialFn(dialCtx, agentID)

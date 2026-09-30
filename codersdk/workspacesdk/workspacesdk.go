@@ -28,6 +28,11 @@ import (
 
 var ErrSkipClose = xerrors.New("skip tailnet close")
 
+// ErrDialAbandoned is a cancel cause for a dial whose result the caller no
+// longer wants, such as a dial to an agent that a rebuild replaced. A dial
+// canceled with it is not counted as an unreachable agent.
+var ErrDialAbandoned = xerrors.New("dial abandoned")
+
 const (
 	AgentSSHPort             = tailnet.WorkspaceAgentSSHPort
 	AgentStandardSSHPort     = tailnet.WorkspaceAgentStandardSSHPort

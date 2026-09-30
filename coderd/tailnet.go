@@ -477,7 +477,7 @@ var errAgentUnreachable = xerrors.New("agent is unreachable")
 func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 	start := time.Now()
 	conn, release, err := s.acquireAgent(ctx, agentID)
-	if errors.Is(err, errAgentUnreachable) {
+	if errors.Is(err, errAgentUnreachable) && !errors.Is(context.Cause(ctx), workspacesdk.ErrDialAbandoned) {
 		return nil, nil, s.recordAgentUnreachable(ctx, agentID, time.Since(start))
 	}
 	return conn, release, err
