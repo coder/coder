@@ -96,9 +96,6 @@ func NewStageTracer(provider trace.TracerProvider, metrics *Metrics, opts ...Sta
 	if provider == nil {
 		provider = noop.NewTracerProvider()
 	}
-	if metrics == nil {
-		metrics = NopMetrics()
-	}
 	t := &StageTracer{
 		tracer:  provider.Tracer(tracerName),
 		metrics: metrics,
@@ -285,11 +282,15 @@ func (s *StageSpan) SpanContext() trace.SpanContext {
 	return s.span.SpanContext()
 }
 
-// End closes the span and records its duration.
-func (s *StageSpan) End(err error) {
-	if elapsed, ok := s.closeSpan(err); ok {
-		s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+// End closes the span, records its duration, and returns the elapsed
+// window. Calls after the first return zero.
+func (s *StageSpan) End(err error) time.Duration {
+	elapsed, ok := s.closeSpan(err)
+	if !ok {
+		return 0
 	}
+	s.tracer.observe(s.stage, s.scope, s.chatKind, s.model, elapsed)
+	return elapsed
 }
 
 // EndWithoutObservation closes the span without recording a duration.

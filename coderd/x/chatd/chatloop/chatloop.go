@@ -127,6 +127,9 @@ type GenerateAssistantOptions struct {
 	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
+	Stages             *StageTracer
+	// StageModel should match the model identity on provider_attempt stages.
+	StageModel StageModel
 }
 
 // AssistantOutcome is the durable assistant-side result from one model call.
@@ -292,7 +295,7 @@ type reasoningState struct {
 
 // GenerateAssistant performs one assistant model stream and returns the
 // durable assistant-side content. It does not execute tools, retry, or persist.
-func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (AssistantOutcome, error) {
+func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (_ AssistantOutcome, retErr error) {
 	if opts.Model == nil {
 		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
@@ -336,8 +339,10 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.OnModelStreamStart()
 	}
 	stepCtx := chatdebug.ReuseStep(ctx)
+	streamCtx, streamSpan := opts.Stages.Start(stepCtx, StageStream)
+	streamSpan.SetModel(opts.StageModel)
 	attempt, streamErr := guardedStream(
-		stepCtx,
+		streamCtx,
 		provider,
 		modelName,
 		opts.Clock,
@@ -346,16 +351,24 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 			return opts.Model.Stream(attemptCtx, call)
 		},
 		opts.Metrics,
+		opts.Stages,
+		opts.StageModel,
 	)
 	if streamErr != nil {
 		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		streamSpan.End(wrappedErr)
 		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
 		return AssistantOutcome{}, wrappedErr
 	}
-	defer attempt.release()
+	// release closes the time_to_first_token window, so it must run
+	// before the stream stage ends.
+	defer func() {
+		attempt.release()
+		streamSpan.End(retErr)
+	}()
 
 	result, processErr := processStepStream(attempt.stream, opts.Clock, publishMessagePart)
 	if err := attempt.finish(processErr); err != nil {
@@ -841,6 +854,8 @@ func WithStreamWatchdog(ctx context.Context, kick func(silence time.Duration)) c
 	return context.WithValue(ctx, streamWatchdogKey{}, kick)
 }
 
+var errNoFirstToken = xerrors.New("stream ended before the first token")
+
 func guardedStream(
 	parent context.Context,
 	provider, model string,
@@ -848,6 +863,8 @@ func guardedStream(
 	timeout time.Duration,
 	openStream func(context.Context) (fantasy.StreamResponse, error),
 	metrics *Metrics,
+	stages *StageTracer,
+	stageModel StageModel,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
 	kick, _ := parent.Value(streamWatchdogKey{}).(func(time.Duration))
@@ -856,34 +873,60 @@ func guardedStream(
 	}
 	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	kick(timeout)
+	// A nil tracer still times the window for TTFTSeconds.
+	if stages == nil {
+		stages = NewStageTracer(nil, nil, WithClock(clock))
+	}
+	_, ttftSpan := stages.Start(parent, StageTimeToFirstToken)
+	ttftSpan.SetModel(stageModel)
+	var ttftOnce sync.Once
+	// A silence guard cancellation surfaces as a context error, so it is
+	// replaced with the classified timeout.
+	finishTTFT := func(err error) {
+		ttftOnce.Do(func() {
+			if err != nil {
+				if errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
+					err = classifyStreamSilenceTimeout(attemptCtx, provider, nil)
+				}
+				ttftSpan.EndWithoutObservation(err)
+				return
+			}
+			elapsed := ttftSpan.End(nil)
+			metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(elapsed.Seconds())
+		})
+	}
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
 			guard.Disarm()
 			cancelAttempt(nil)
+			finishTTFT(errNoFirstToken)
 		})
 	}
 
-	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
 		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
+		finishTTFT(err)
 		release()
 		return guardedAttempt{}, err
 	}
 
-	recordTTFT := sync.OnceFunc(func() {
-		metrics.TTFTSeconds.WithLabelValues(provider, model).Observe(
-			clock.Since(streamStart).Seconds(),
-		)
-	})
 	return guardedAttempt{
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
 				guard.Reset()
 				kick(timeout)
-				recordTTFT()
+				switch part.Type {
+				case fantasy.StreamPartTypeError:
+					finishTTFT(part.Error)
+				case fantasy.StreamPartTypeWarnings, fantasy.StreamPartTypeFinish:
+					// Neither is model output, so the window stays open.
+				default:
+					// Start markers such as text_start count as output.
+					finishTTFT(nil)
+				}
 				if !yield(part) {
 					return
 				}
