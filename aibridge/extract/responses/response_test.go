@@ -169,9 +169,26 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 			wantType: recorder.ErrorTypeRateLimited, wantMsg: "slow down", wantCode: "rate_limit_exceeded",
 		},
 		{
+			// response.failed carries no HTTP status: its error code maps
+			// to one, as in the WebSocket relay.
 			name:     "response_failed",
 			feed:     event(`{"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"server_error","message":"The model failed."},"output":[]}}`),
-			wantType: recorder.ErrorTypeUnknown, wantMsg: "The model failed.", wantCode: "server_error",
+			wantType: recorder.ErrorTypeServerError, wantMsg: "The model failed.", wantCode: "server_error",
+		},
+		{
+			name:     "response_failed_rate_limit",
+			feed:     event(`{"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"rate_limit_exceeded","message":"slow down"},"output":[]}}`),
+			wantType: recorder.ErrorTypeRateLimited, todayErr: sdkErr(429), wantMsg: "slow down", wantCode: "rate_limit_exceeded",
+		},
+		{
+			name:     "response_failed_other_code",
+			feed:     event(`{"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"code":"invalid_prompt","message":"bad prompt"},"output":[]}}`),
+			wantType: recorder.ErrorTypeBadRequest, wantMsg: "bad prompt", wantCode: "invalid_prompt",
+		},
+		{
+			name:     "response_failed_no_code",
+			feed:     event(`{"type":"response.failed","response":{"id":"resp_1","status":"failed","error":{"message":"The model failed."},"output":[]}}`),
+			wantType: recorder.ErrorTypeUnknown, wantMsg: "The model failed.",
 		},
 	}
 
@@ -198,6 +215,19 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 				require.Equal(t, todayType, gotType, "categorized differently from the interceptor path")
 			}
 		})
+	}
+}
+
+// TestRelevant checks that every event type OnEvent acts on is relevant,
+// and that deltas are not.
+func TestRelevant(t *testing.T) {
+	t.Parallel()
+
+	for _, typ := range []string{"", "response.created", "response.in_progress", "response.queued", "response.completed", "response.incomplete", "response.failed", "error"} {
+		require.True(t, responses.Relevant(typ), typ)
+	}
+	for _, typ := range []string{"response.output_text.delta", "response.output_item.done", "response.reasoning_summary_text.delta"} {
+		require.False(t, responses.Relevant(typ), typ)
 	}
 }
 

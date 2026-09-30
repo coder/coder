@@ -38,14 +38,16 @@ func TestResponsesExtractorRecordingParity(t *testing.T) {
 	// Intentional differences in the categorized terminal error. The
 	// interceptor relays "error" events with top-level fields and
 	// "response.failed" without returning an error, so the interception is
-	// recorded as a success; the extractor reports them as provider errors,
-	// which categorize as unknown without an HTTP status (like the nested
-	// "error" events the interceptor already reports). A blocking body that
+	// recorded as a success; the extractor reports them as provider errors.
+	// "error" events categorize as unknown without an HTTP status (like the
+	// nested "error" events the interceptor already reports);
+	// "response.failed" maps its error code (server_error here) to a status.
+	// A blocking body that
 	// fails to decode is a gateway-side SDK error for the interceptor, but
 	// only a parse note for the fail-open extractor.
 	errorTypeDiffs := map[string]struct{ interceptor, extractor recorder.ErrorType }{
 		"streaming/stream_error":         {interceptor: "", extractor: recorder.ErrorTypeUnknown},
-		"streaming/stream_failure":       {interceptor: "", extractor: recorder.ErrorTypeUnknown},
+		"streaming/stream_failure":       {interceptor: "", extractor: recorder.ErrorTypeServerError},
 		"blocking/wrong_response_format": {interceptor: recorder.ErrorTypeUnknown, extractor: ""},
 	}
 

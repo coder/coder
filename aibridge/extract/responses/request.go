@@ -6,9 +6,11 @@
 // Intentional differences from the interceptors, all following from the
 // extractor being a fail-open observer of a single upstream exchange:
 //   - "error" events with top-level fields and "response.failed" events are
-//     reported as provider errors (status 0, categorized as unknown); the
-//     streaming interceptor relays them and ends the interception as a
-//     success.
+//     reported as provider errors; the streaming interceptor relays them
+//     and ends the interception as a success. "error" events have status 0
+//     and categorize as unknown; "response.failed" maps its error code to a
+//     status (rate_limit_exceeded 429, server_error 500, other codes 400),
+//     as the WebSocket relay does.
 //   - A 2xx body that is not a valid response object is a parse note, not
 //     a terminal error.
 //   - Streamed "response.incomplete" and "response.failed" events record
