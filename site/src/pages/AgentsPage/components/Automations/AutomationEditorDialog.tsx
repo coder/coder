@@ -46,6 +46,13 @@ import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
 
+const TARGET_FIELDS: readonly string[] = [
+	"target_chat_id",
+	"when_busy",
+	"new_chat_model_config_id",
+	"reasoning_effort",
+];
+
 // Field names match the API so getFormHelpers maps 400 validations onto them.
 type AutomationFormValues = {
 	name: string;
@@ -258,10 +265,17 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
+	// Server errors on target fields go stale once the target mode changes.
+	const isStaleTargetField = (field: string) =>
+		submittedValues !== undefined &&
+		submittedValues.target_mode !== form.values.target_mode &&
+		TARGET_FIELDS.includes(field);
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
 		getFormHelpers(
 			form,
-			submittedValues?.[name] === form.values[name] ? error : undefined,
+			submittedValues?.[name] === form.values[name] && !isStaleTargetField(name)
+				? error
+				: undefined,
 		)(name);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isSchedule = form.values.kind === "schedule";
@@ -280,7 +294,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	];
 	const apiError = isApiError(error) ? error.response.data : undefined;
 	const alertValidations = (apiError?.validations ?? []).filter(
-		(validation) => !renderedFields.includes(validation.field),
+		(validation) =>
+			!renderedFields.includes(validation.field) &&
+			!isStaleTargetField(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
@@ -322,7 +338,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									: "The trigger, webhook use, and target type cannot change after creation."}
 						</DialogDescription>
 					</DialogHeader>
-					<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
+					{/* Radix Select triggers open on pointerdown, which browsers still
+					    dispatch to fieldset-disabled buttons. */}
+					<fieldset
+						disabled={isPending}
+						className="m-0 flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto border-0 px-6 py-4 [&_button:disabled]:pointer-events-none"
+					>
 						{automation && automation.owner_id !== currentUserId && (
 							<p className="m-0 text-sm text-content-secondary">
 								Only the owner of this automation can change it.
@@ -502,8 +523,13 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											options={modelOptions}
 											value={form.values.new_chat_model_config_id}
 											onValueChange={(modelId) => {
-												form.setFieldValue("new_chat_model_config_id", modelId);
-												form.setFieldValue("reasoning_effort", "");
+												if (modelId !== form.values.new_chat_model_config_id) {
+													form.setFieldValue(
+														"new_chat_model_config_id",
+														modelId,
+													);
+													form.setFieldValue("reasoning_effort", "");
+												}
 											}}
 											reasoningEffort={
 												selectedModel
@@ -542,7 +568,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								</div>
 							)}
 						</section>
-					</div>
+					</fieldset>
 					<DialogFooter className="border-0 border-t border-solid border-border-default px-6 py-4">
 						<Button
 							type="button"

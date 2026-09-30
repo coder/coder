@@ -626,9 +626,49 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				within(dialog).getByRole("button", { name: "Cancel" }),
 			).toBeDisabled();
 		});
+		expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
 		await user.keyboard("{Escape}");
 		expect(screen.getByRole("dialog")).toBe(dialog);
 		releaseSave();
+	});
+
+	it("keeps the reasoning effort when the same model is picked again", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "low",
+				},
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			await within(dialog).findByRole("combobox", {
+				name: `Model, ${mockModel.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(mockModel.display_name),
+			}),
+		);
+		await user.keyboard("{Escape}");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).toBeNull();
+		});
+		expect(updateBodies).toEqual([]);
 	});
 
 	it.each([
