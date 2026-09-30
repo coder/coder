@@ -549,6 +549,38 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UU
 	return rotated, secret, nil
 }
 
+// RunAutomation publishes the saved prompt of an enabled schedule
+// automation now, through the same admission as a scheduled occurrence
+// but without one: the schedule cursor and revision do not change. Only
+// the owner can run it, even when actorID has broader permissions.
+func (p *Server) RunAutomation(ctx context.Context, actorID, id uuid.UUID) (PublishAutomationResult, error) {
+	//nolint:gocritic // The owner check below decides; callers load the row as themselves first.
+	row, err := p.db.GetChatAutomationByID(dbauthz.AsChatd(ctx), id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return PublishAutomationResult{}, ErrAutomationNotFound
+	}
+	if err != nil {
+		return PublishAutomationResult{}, xerrors.Errorf("get chat automation: %w", err)
+	}
+	if actorID != row.OwnerID {
+		return PublishAutomationResult{}, ErrAutomationOwnerOnly
+	}
+	if row.Kind != database.ChatAutomationKindSchedule {
+		return PublishAutomationResult{}, automationFieldError("kind", "only schedule automations can run now")
+	}
+	if !row.Enabled {
+		return PublishAutomationResult{}, ErrAutomationDisabled
+	}
+	// The kind cannot change, and admission checks enabled again on the
+	// locked row.
+	return p.publishAutomation(ctx, automationPublish{
+		automationID: id,
+		content: func(automation database.ChatAutomation) []codersdk.ChatMessagePart {
+			return []codersdk.ChatMessagePart{codersdk.ChatMessageText(automation.Prompt)}
+		},
+	})
+}
+
 // AutomationNextRuns returns up to n upcoming runs of an enabled schedule
 // automation after now, in UTC. It returns nil for webhooks, disabled
 // automations, and schedules that no longer parse.
