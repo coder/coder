@@ -154,9 +154,7 @@ describe("getChatHeat", () => {
 	it("normalizes by the compaction threshold", () => {
 		const messages = [requestWithShare(0.15)];
 		expect(getChatHeat(messages, 50)?.heat).toBeCloseTo(heatCurve(0.3));
-		expect(getChatHeat(messages, undefined)?.heat).toBeCloseTo(
-			heatCurve(0.15),
-		);
+		expect(getChatHeat(messages, undefined)?.heat).toBeCloseTo(heatCurve(0.15));
 		expect(getChatHeat(messages, 0)?.heat).toBeCloseTo(heatCurve(0.15));
 	});
 

@@ -1,0 +1,74 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
+import type { ChatHeat } from "./ChatConversation/chatHeat";
+import { ChatHeatIndicator } from "./ChatHeatIndicator";
+
+const baseHeat: ChatHeat = {
+	heat: 0.05,
+	label: "cool",
+	missRate: 0.04,
+	lastFreshTokens: 1_200,
+	lastCacheReadTokens: 84_000,
+	lastPromptTokens: 85_200,
+	lastRequestAt: "2026-01-01T00:00:00Z",
+};
+
+const meta: Meta<typeof ChatHeatIndicator> = {
+	title: "pages/AgentsPage/ChatHeatIndicator",
+	component: ChatHeatIndicator,
+	args: {
+		heat: baseHeat,
+		isCacheExpired: false,
+	},
+	// Opens the tooltip so the screenshot captures the breakdown.
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByRole("button"));
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof ChatHeatIndicator>;
+
+export const Cool: Story = {};
+
+export const Warm: Story = {
+	args: {
+		heat: {
+			...baseHeat,
+			heat: 0.49,
+			label: "warm",
+			missRate: 0.35,
+			lastFreshTokens: 42_000,
+			lastCacheReadTokens: 78_000,
+			lastPromptTokens: 120_000,
+		},
+	},
+};
+
+export const Hot: Story = {
+	args: {
+		heat: {
+			...baseHeat,
+			heat: 0.95,
+			label: "hot",
+			missRate: 0.97,
+			lastFreshTokens: 118_000,
+			lastCacheReadTokens: 3_000,
+			lastPromptTokens: 121_000,
+		},
+	},
+};
+
+export const CacheExpired: Story = {
+	args: {
+		isCacheExpired: true,
+	},
+};
+
+export const IconOnly: Story = {
+	args: {
+		heat: { ...baseHeat, heat: 0.7, label: "hot" },
+		isCacheExpired: true,
+	},
+	play: undefined,
+};

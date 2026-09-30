@@ -20,14 +20,14 @@ export type ChatHeat = {
 	readonly lastRequestAt: string;
 };
 
-export type ChatHeatLabel = "cool" | "warm" | "hot";
+type ChatHeatLabel = "cool" | "warm" | "hot";
 
 const HEAT_WINDOW_SIZE = 6;
 const HEAT_WINDOW_DECAY = 0.5;
 // Initial guesses: x is the weighted fresh share of the context window
 // relative to the compaction threshold.
 export const HEAT_CURVE_MIDPOINT = 0.3;
-export const HEAT_CURVE_STEEPNESS = 12;
+const HEAT_CURVE_STEEPNESS = 12;
 // Anthropic's default ephemeral cache lifetime; other providers are similar.
 export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
 

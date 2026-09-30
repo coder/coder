@@ -90,6 +90,8 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { ChatHeat } from "./ChatConversation/chatHeat";
+import { LiveChatHeatIndicator } from "./ChatHeatIndicator";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -203,6 +205,8 @@ type AgentChatInputProps = {
 	// drifted.
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
+	// Recent prompt-cache heat, shown beside the context indicator when set.
+	chatHeat?: ChatHeat | null;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -532,6 +536,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	contextUsage,
 	onRefreshContext,
 	isRefreshingContext,
+	chatHeat,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -1923,6 +1928,12 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									onRefreshContext={onRefreshContext}
 									isRefreshingContext={isRefreshingContext}
 								/>
+								{chatHeat && (
+									<LiveChatHeatIndicator
+										heat={chatHeat}
+										isStreaming={isStreaming}
+									/>
+								)}
 							</div>
 						)}
 						{showSendButton && (

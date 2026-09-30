@@ -90,7 +90,7 @@ const hasFiniteTokenValue = (value: number | undefined): value is number =>
 const formatTokenCount = (value: number | undefined): string =>
 	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
 
-const formatTokenCountCompact = (value: number | undefined): string => {
+export const formatTokenCountCompact = (value: number | undefined): string => {
 	if (!hasFiniteTokenValue(value)) {
 		return "--";
 	}

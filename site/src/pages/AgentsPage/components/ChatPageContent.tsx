@@ -12,6 +12,7 @@ import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -39,6 +40,7 @@ import {
 } from "./AgentChatInput";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
+import { getChatHeat } from "./ChatConversation/chatHeat";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	isActiveChatStatus,
@@ -386,6 +388,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	folder,
 }) => {
 	const { user: currentUser } = useAuthenticated();
+	const { experiments } = useDashboard();
 	const organizationId = chat.organization_id;
 	const chatId = chat.id;
 	const chatContext = chat.context;
@@ -428,10 +431,13 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
-	const rawUsage = getLatestContextUsage(
-		messages,
-		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
-	);
+	const activeContextLimit = modelOptions.find(
+		(option) => option.id === selectedModel,
+	)?.contextLimit;
+	const rawUsage = getLatestContextUsage(messages, activeContextLimit);
+	const chatHeat = experiments.includes("chat-heat-meter")
+		? getChatHeat(messages, compressionThreshold, activeContextLimit)
+		: null;
 	const latestContextUsage =
 		rawUsage || chatContext
 			? {
@@ -822,6 +828,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			contextUsage={latestContextUsage}
 			onRefreshContext={handleRefreshContext}
 			isRefreshingContext={refreshContextMutation.isPending}
+			chatHeat={chatHeat}
 			hasModelOptions={hasModelOptions}
 			selectedModel={selectedModel}
 			onModelChange={onModelChange}
