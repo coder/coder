@@ -398,6 +398,11 @@ type ChatMessagePart struct {
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	// InvalidArgs holds the model's raw tool input when it is not blank
+	// and not valid JSON; Args is then empty. Internal only: kept for
+	// analysis, never sent back to the model, and cleared by
+	// StripInternal.
+	InvalidArgs string `json:"invalid_args,omitempty" typescript:"-"`
 	// ParsedCommands holds parsed programs from an execute tool call's
 	// shell command, one entry per simple command in source order. Each
 	// entry is [program] or [program, arg] where arg is the first non-flag
@@ -513,6 +518,7 @@ type ChatMessagePart struct {
 // the advisor streaming callbacks.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
+	p.InvalidArgs = ""
 	if p.FileID.Valid {
 		p.Data = nil
 	}
