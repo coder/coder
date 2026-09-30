@@ -7177,7 +7177,7 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
 		require.Equal(t,
-			"Conversation compaction could not reduce the history below the organization compaction model's limit. Start a new conversation, or ask an administrator to change the compaction model.",
+			"Conversation compaction could not reduce the history below the organization compaction model's compaction threshold. Start a new conversation, or ask an administrator to raise that model's compaction threshold or choose a compaction model with a larger context window.",
 			chatLastErrorMessage(chat.LastError),
 		)
 		require.Equal(t, int32(2), streamCount.Load(), "over-limit history should fail before another model stream")

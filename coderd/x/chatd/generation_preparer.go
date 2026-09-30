@@ -954,13 +954,15 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
+const compactionDisabledThresholdPercent = 100
+
 type compactionTrigger struct {
 	thresholdPercent int32
 	contextLimit     int64
 }
 
 func (t compactionTrigger) enabled() bool {
-	return t.thresholdPercent >= 0 && t.thresholdPercent < 100 && t.contextLimit > 0
+	return t.thresholdPercent >= 0 && t.thresholdPercent < compactionDisabledThresholdPercent && t.contextLimit > 0
 }
 
 func (t compactionTrigger) point() float64 {
@@ -974,8 +976,10 @@ const (
 	compactionTriggerSourceOrganization compactionTriggerSource = "organization"
 )
 
-// When both triggers are enabled, the lower token point binds so the history
-// also fits the compaction model's window. Both evaluate the same prompt usage.
+// bindingCompactionTriggerSource returns the trigger that fires first on the
+// same prompt usage. A disabled override yields chat, a disabled chat trigger
+// yields organization, and otherwise the lower token point binds, with ties to
+// chat.
 func bindingCompactionTriggerSource(chat, override compactionTrigger) compactionTriggerSource {
 	switch {
 	case !override.enabled():
@@ -990,7 +994,7 @@ func bindingCompactionTriggerSource(chat, override compactionTrigger) compaction
 }
 
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
-	if thresholdPercent >= 100 || contextLimit <= 0 {
+	if !(compactionTrigger{thresholdPercent: thresholdPercent, contextLimit: contextLimit}).enabled() {
 		return false
 	}
 	contextTokens := contextTokensFromUsage(usage)

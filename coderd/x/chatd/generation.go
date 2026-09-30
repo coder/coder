@@ -153,7 +153,7 @@ var errCompactionStillOverLimit = xerrors.New("compaction left the chat above th
 func compactionStillOverLimitError(source compactionTriggerSource, thresholdPercent int32, contextLimit int64) error {
 	message := "Conversation compaction could not reduce the history below the compaction limit. Raise the compaction threshold in settings, or start a new conversation."
 	if source == compactionTriggerSourceOrganization {
-		message = "Conversation compaction could not reduce the history below the organization compaction model's limit. Start a new conversation, or ask an administrator to change the compaction model."
+		message = "Conversation compaction could not reduce the history below the organization compaction model's compaction threshold. Start a new conversation, or ask an administrator to raise that model's compaction threshold or choose a compaction model with a larger context window."
 	}
 	return chaterror.WithClassification(
 		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),
