@@ -32,7 +32,7 @@ func TestMCPHTTP_ArtifactExpiryRecovery(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	clock := quartz.NewMock(t)
 	clock.Set(dbtime.Time(time.Now())).MustWait(ctx)
-	setHandler, cancelServer, serverURL, options := coderdtest.NewOptions(t, &coderdtest.Options{Database: db, Pubsub: ps, Clock: clock, DeploymentValues: mcpDeploymentValues(t)})
+	setHandler, cancelServer, serverURL, options := coderdtest.NewOptions(t, &coderdtest.Options{Database: db, Pubsub: ps, Clock: clock, WorkspaceExecutionTickerClock: clock, DeploymentValues: mcpDeploymentValues(t)})
 	// Explicit fixture policy, never a production default.
 	options.DeploymentValues.WorkspaceExecutionCleanup = true
 	api := coderd.New(options)

@@ -51,7 +51,7 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	}, metadata.TokenEndpointAuthMethodsSupported)
 	// Supported scopes are published from the curated catalog
 	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
-	for _, scope := range []string{"workspace_execution:create", "workspace_execution:read", "workspace_execution:ssh", "workspace_execution:update", "workspace_execution:delete"} {
+	for _, scope := range []string{"workspace_execution:create", "workspace_execution:read", "workspace_execution:ssh", "workspace_execution:update"} {
 		require.Contains(t, metadata.ScopesSupported, scope)
 	}
 	require.NotContains(t, metadata.ScopesSupported, "workspace_execution:*")

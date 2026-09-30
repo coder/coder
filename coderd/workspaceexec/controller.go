@@ -31,8 +31,10 @@ type ControllerAgent interface {
 
 // ControllerOptions supply existing server services and explicit cleanup policy.
 type ControllerOptions struct {
-	Database         database.Store
-	Clock            quartz.Clock
+	Database database.Store
+	Clock    quartz.Clock
+	// TickerClock schedules scans; Clock supplies lifecycle timestamps.
+	TickerClock      quartz.Clock
 	Logger           slog.Logger
 	DialAgent        func(context.Context, uuid.UUID) (ControllerAgent, func(), error)
 	FileCache        *files.Cache
@@ -62,17 +64,20 @@ func NewController(options ControllerOptions) *Controller {
 	if options.Clock == nil {
 		options.Clock = quartz.NewReal()
 	}
+	if options.TickerClock == nil {
+		options.TickerClock = options.Clock
+	}
 	if options.Interval <= 0 {
 		options.Interval = 10 * time.Second
 	}
 	return &Controller{ControllerOptions: options}
 }
 
-// Start begins autonomous reconciliation on the server's clock.
+// Start begins autonomous reconciliation on the polling clock.
 func (c *Controller) Start(ctx context.Context) {
 	c.once.Do(func() {
 		ctx, c.cancel = context.WithCancel(ctx)
-		c.waiter = c.Clock.TickerFunc(ctx, c.Interval, func() error {
+		c.waiter = c.TickerClock.TickerFunc(ctx, c.Interval, func() error {
 			//nolint:gocritic // The autonomous controller reconciles internal durable state.
 			c.scan(dbauthz.AsSystemRestricted(ctx))
 			return nil

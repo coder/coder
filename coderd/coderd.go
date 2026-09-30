@@ -331,6 +331,8 @@ type Options struct {
 	// rotator is the sole creator of nats_ca rows, so this cache is read-only.
 	NATSCACache cryptokeys.SigningKeycache
 	Clock       quartz.Clock
+	// WorkspaceExecutionTickerClock controls polling independently of API timestamps.
+	WorkspaceExecutionTickerClock quartz.Clock
 	// Acquirer acquires provisioner jobs. Defaults to provisionerdserver.Acquirer
 	// backed by Database and Pubsub.
 	Acquirer *provisionerdserver.Acquirer
@@ -1100,7 +1102,7 @@ func New(options *Options) *API {
 		Clock:             quartz.NewReal(),
 	})
 	api.workspaceBuildOrchestrator.Start(api.ctx)
-	api.startWorkspaceExecutionController()
+	api.startWorkspaceExecutionController(options.WorkspaceExecutionTickerClock)
 
 	// The OAuth2 provider is opt-in. The flag is read once at startup, here
 	// and in the build info response and the AI bridge config, so a runtime

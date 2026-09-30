@@ -9,11 +9,15 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceexec"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
-func (api *API) startWorkspaceExecutionController() {
+func (api *API) startWorkspaceExecutionController(tickerClock quartz.Clock) {
+	if tickerClock == nil {
+		tickerClock = quartz.NewReal()
+	}
 	api.workspaceExecutionController = workspaceexec.NewController(workspaceexec.ControllerOptions{
-		Database: api.Database, Clock: api.Clock, Logger: api.Logger.Named("workspace-execution"),
+		Database: api.Database, Clock: api.Clock, TickerClock: tickerClock, Logger: api.Logger.Named("workspace-execution"),
 		DialAgent: func(ctx context.Context, id uuid.UUID) (workspaceexec.ControllerAgent, func(), error) {
 			return api.agentProvider.AgentConn(ctx, id)
 		},

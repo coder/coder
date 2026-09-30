@@ -32,7 +32,7 @@ func TestMCPHTTP_SiblingCleanupProtection(t *testing.T) {
 			db, ps := dbtestutil.NewDB(t)
 			clock := quartz.NewMock(t)
 			clock.Set(dbtime.Time(time.Now())).MustWait(ctx)
-			handler, cancel, url, options := coderdtest.NewOptions(t, &coderdtest.Options{Database: db, Pubsub: ps, Clock: clock, DeploymentValues: mcpDeploymentValues(t)})
+			handler, cancel, url, options := coderdtest.NewOptions(t, &coderdtest.Options{Database: db, Pubsub: ps, Clock: clock, WorkspaceExecutionTickerClock: clock, DeploymentValues: mcpDeploymentValues(t)})
 			options.DeploymentValues.WorkspaceExecutionCleanup = true
 			api := coderd.New(options)
 			t.Cleanup(func() { cancel(); require.NoError(t, api.Close()) })

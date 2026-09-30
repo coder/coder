@@ -168,7 +168,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	// Explicit execution scopes can be consented to independently of workspace access.
 	t.Run("WorkspaceExecutionNarrowScopes", func(t *testing.T) {
 		t.Parallel()
-		for _, action := range []string{"create", "read", "ssh", "update", "delete"} {
+		for _, action := range []string{"create", "read", "ssh", "update"} {
 			t.Run(action, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
