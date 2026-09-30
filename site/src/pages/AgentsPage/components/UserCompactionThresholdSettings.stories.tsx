@@ -105,6 +105,13 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+// The click inside userEvent.type closes the Radix tooltip, and it reopens
+// only on a fresh pointer enter.
+const reopenTooltip = async (element: HTMLElement) => {
+	await userEvent.unhover(element);
+	await userEvent.hover(element);
+};
+
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -236,6 +243,7 @@ export const DisableCompactionWarning: Story = {
 		});
 
 		await userEvent.type(gpt4oInput, "100");
+		await reopenTooltip(gpt4oInput);
 	},
 };
 
@@ -267,12 +275,11 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
-		await userEvent.type(
-			within(row).getByRole("textbox", {
-				name: /GPT-4o compaction threshold/i,
-			}),
-			"100",
-		);
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
 	},
 };
 
@@ -301,12 +308,11 @@ export const DisableCompactionBeyondOrganizationPoint: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
-		await userEvent.type(
-			within(row).getByRole("textbox", {
-				name: /GPT-4o compaction threshold/i,
-			}),
-			"100",
-		);
+		const input = within(row).getByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(input, "100");
+		await reopenTooltip(input);
 	},
 };
 
