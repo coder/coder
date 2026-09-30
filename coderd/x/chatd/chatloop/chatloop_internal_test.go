@@ -33,7 +33,7 @@ func TestProcessStepStreamPreservesReasoningMetadataAcrossNilDelta(t *testing.T)
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.content, 1)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
@@ -69,7 +69,7 @@ func TestProcessStepStreamPersistsRedactedThinkingOnEnd(t *testing.T) {
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.content, 2)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
