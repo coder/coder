@@ -259,6 +259,9 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID"
 // @Param automation path string true "Automation ID" format(uuid)
 // @Success 200 {object} codersdk.RotateChatAutomationSecretResponse
+// @Failure 403 {object} codersdk.Response
+// @Failure 404 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
 // @Router /api/experimental/organizations/{organization}/chat-automations/{automation}/secret/rotate [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postChatAutomationSecretRotate(rw http.ResponseWriter, r *http.Request) {
@@ -400,6 +403,11 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "Chat automation limit reached.",
 			Detail:  fmt.Sprintf("A user can own at most %d chat automations across all organizations.", api.chatLimits.MaxAutomationsPerOwner),
+		})
+	case errors.Is(err, chatd.ErrAutomationWebhookConsumed):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "This single-use webhook was already used.",
+			Detail:  "Its secret can no longer be rotated.",
 		})
 	case errors.Is(err, chatd.ErrAutomationNotFound), errors.Is(err, sql.ErrNoRows):
 		httpapi.ResourceNotFound(rw)

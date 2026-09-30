@@ -1045,29 +1045,43 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("shows the server message when rotating the secret is forbidden", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		let rotatePosts = 0;
-		server.use(
-			http.get(automationsPath(":organizationId"), () =>
-				HttpResponse.json([mockWebhookAutomation]),
-			),
-			http.post(rotatePath, () => {
-				rotatePosts++;
-				return HttpResponse.json(
-					{ message: "Only the owner of a chat automation can change it." },
-					{ status: 403 },
-				);
-			}),
-		);
-		const dialog = await openWebhookEditor(user);
+	it.each([
+		{
+			status: 403,
+			message: "Only the owner of a chat automation can change it.",
+			detail: "",
+		},
+		{
+			status: 409,
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
+		},
+	])(
+		"shows the server message when rotating the secret fails with $status",
+		async ({ status, message, detail }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let rotatePosts = 0;
+			server.use(
+				http.get(automationsPath(":organizationId"), () =>
+					HttpResponse.json([mockWebhookAutomation]),
+				),
+				http.post(rotatePath, () => {
+					rotatePosts++;
+					return HttpResponse.json({ message, detail }, { status });
+				}),
+			);
+			const dialog = await openWebhookEditor(user);
 
-		await confirmRotate(user, dialog, "Rotate secret");
+			await confirmRotate(user, dialog, "Rotate secret");
 
-		expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-			/^Only the owner of a chat automation can change it\.$/,
-		);
-		expect(rotatePosts).toBe(1);
-	});
+			expect((await within(dialog).findByRole("alert")).textContent).toBe(
+				message + detail,
+			);
+			expect(rotatePosts).toBe(1);
+			expect(
+				screen.queryByRole("dialog", { name: "Copy the webhook secret" }),
+			).toBeNull();
+		},
+	);
 });
