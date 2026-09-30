@@ -105,9 +105,9 @@ type generationCompaction struct {
 	// TriggerSource names the trigger whose threshold and limit Options
 	// carry.
 	TriggerSource compactionTriggerSource
-	// OverrideTrigger is the organization override's trigger when it is
-	// enabled, and zero otherwise.
-	OverrideTrigger compactionTrigger
+	// OtherTrigger is the trigger that does not bind while the override
+	// trigger is enabled, and zero otherwise.
+	OtherTrigger    compactionTrigger
 	Required        bool
 	Options         chatloop.GenerateCompactionOptions
 	PendingUserRows []database.ChatMessage
@@ -153,17 +153,15 @@ var errCompactionStillOverLimit = xerrors.New("compaction left the chat above th
 
 // compactionStillOverLimitError wraps errCompactionStillOverLimit with a
 // message naming the settings that can clear the binding trigger.
-// overrideOverLimit reports whether the history also reaches an enabled
-// override trigger's point.
-func compactionStillOverLimitError(source compactionTriggerSource, overrideOverLimit bool, thresholdPercent int32, contextLimit int64) error {
+// otherOverLimit reports whether the history also reaches the other
+// enabled trigger's point, so neither setting clears the error alone.
+func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimit bool, thresholdPercent int32, contextLimit int64) error {
 	message := "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
 	switch {
+	case otherOverLimit:
+		message = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold."
 	case source == compactionTriggerSourceOrganization:
 		message = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window."
-	case overrideOverLimit:
-		// Raising the chat threshold moves the binding to the override
-		// trigger, which the history also exceeds.
-		message += " An administrator may also need to raise the organization override's compaction threshold."
 	}
 	return chaterror.WithClassification(
 		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),
@@ -229,7 +227,7 @@ type generationDecisionInput struct {
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
 	compactionTriggerSource    compactionTriggerSource
-	compactionOverrideTrigger  compactionTrigger
+	compactionOtherTrigger     compactionTrigger
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -299,7 +297,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusStillOverLimit:
 		return generationDecision{}, terminalGeneration(compactionStillOverLimitError(
 			input.compactionTriggerSource,
-			postCompactionOverLimit(input.messages, input.compactionOverrideTrigger),
+			postCompactionOverLimit(input.messages, input.compactionOtherTrigger),
 			input.compactionThresholdPercent,
 			input.compactionContextLimit,
 		))
@@ -327,11 +325,11 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	return compaction.Options.ContextLimit
 }
 
-func generationCompactionOverrideTrigger(compaction *generationCompaction) compactionTrigger {
+func generationCompactionOtherTrigger(compaction *generationCompaction) compactionTrigger {
 	if compaction == nil {
 		return compactionTrigger{}
 	}
-	return compaction.OverrideTrigger
+	return compaction.OtherTrigger
 }
 
 func generationCompactionTriggerSource(compaction *generationCompaction) compactionTriggerSource {
@@ -672,7 +670,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
 				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
-				compactionOverrideTrigger:  generationCompactionOverrideTrigger(prepared.Compaction),
+				compactionOtherTrigger:     generationCompactionOtherTrigger(prepared.Compaction),
 			})
 		})
 	}
