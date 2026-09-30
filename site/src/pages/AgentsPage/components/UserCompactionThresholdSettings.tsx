@@ -283,6 +283,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 		draft ?? (existingOverride !== undefined ? String(existingOverride) : "");
 	const parsedDraftValue = parseThresholdDraft(draftValue);
 	const isInvalid = draftValue.length > 0 && parsedDraftValue === null;
+	// Only warn when user-typed, not when loaded from the server.
 	const isDraftDisablingCompaction =
 		draftValue === "100" && draft !== undefined;
 	const modelName = modelConfig.display_name || modelConfig.model;

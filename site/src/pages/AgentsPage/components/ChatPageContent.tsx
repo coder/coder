@@ -412,15 +412,14 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		modelCatalog?.models,
 		providerInfoByIDFromDescriptors(modelCatalog?.providers),
 	);
-	const compactionThreshold =
-		modelOverridesQuery.data !== undefined
-			? resolveCompactionThreshold(
-					chat.last_model_config_id,
-					thresholdsQuery.data?.thresholds,
-					modelCatalog?.models,
-					organizationCompactionTrigger,
-				)
-			: undefined;
+	const compactionThreshold = modelOverridesQuery.isPending
+		? undefined
+		: resolveCompactionThreshold(
+				chat.last_model_config_id,
+				thresholdsQuery.data?.thresholds,
+				modelCatalog?.models,
+				organizationCompactionTrigger,
+			);
 	const messagesByID = useChatSelector(store, selectMessagesByID);
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);

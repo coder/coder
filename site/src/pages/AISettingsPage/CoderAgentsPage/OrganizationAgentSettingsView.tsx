@@ -4,6 +4,7 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	bindingCompactionTrigger,
 	isCompactionTriggerEnabled,
+	modelCompactionTrigger,
 } from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
@@ -116,22 +117,17 @@ const CompactionWarning: React.FC<CompactionWarningProps> = ({
 			</Alert>
 		);
 	}
-	const overrideTrigger = {
-		thresholdPercent: compactionModel.compression_threshold,
-		contextLimit: compactionModel.context_limit,
-	};
+	const overrideTrigger = modelCompactionTrigger(compactionModel);
 	if (!isCompactionTriggerEnabled(overrideTrigger)) {
 		return null;
 	}
 
 	// Setting 100% disables only the chat model trigger, not the override.
 	const undercutModelNames = enabledModels.flatMap((model) => {
-		const chatTrigger = {
-			thresholdPercent: model.compression_threshold,
-			contextLimit: model.context_limit,
-		};
-		return bindingCompactionTrigger(chatTrigger, overrideTrigger) ===
-			"organization"
+		return bindingCompactionTrigger(
+			modelCompactionTrigger(model),
+			overrideTrigger,
+		) === "organization"
 			? [model.display_name.trim() || model.model]
 			: [];
 	});

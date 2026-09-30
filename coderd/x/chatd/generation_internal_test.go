@@ -79,8 +79,7 @@ func TestGenerationCompactionContextLimit(t *testing.T) {
 	require.EqualValues(t, 0, generationCompactionContextLimit(nil))
 
 	// The decision path must see the prepare-time compaction limit (the
-	// stricter of the chat and override models' limits), not the chat
-	// model's limit.
+	// binding trigger's context limit), not the chat model's limit.
 	compaction := &generationCompaction{
 		Options: chatloop.GenerateCompactionOptions{ContextLimit: 50_000},
 	}
