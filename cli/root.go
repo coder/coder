@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"runtime/trace"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -32,6 +33,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
@@ -75,6 +77,7 @@ const (
 	varAllowRedirects          = "allow-redirects"
 	varForceTty                = "force-tty"
 	varVerbose                 = "verbose"
+	varFlightRecorderSize      = "flight-recorder-size"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
 	varUseKeyring              = "use-keyring"
@@ -405,9 +408,9 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	// the invocation context for every downstream middleware and handler.
 	cmd.Walk(func(cmd *serpent.Command) {
 		if cmd.Middleware == nil {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), PrintDeprecatedOptions())
 		} else {
-			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
+			cmd.Middleware = serpent.Chain(clientSessionIDMiddleware(), r.flightRecorderMiddleware(), cmd.Middleware, PrintDeprecatedOptions())
 		}
 	})
 
@@ -500,6 +503,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:         globalGroup,
 		},
 		{
+			Flag:    varFlightRecorderSize,
+			Env:     "CODER_FLIGHT_RECORDER_SIZE",
+			Default: strconv.Itoa(defaultCLIFlightRecorderSize),
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable the flight recorder.",
+			Value: serpent.Int64Of(&r.flightRecorderSize),
+			Group: globalGroup,
+		},
+		{
 			Flag:        varDisableDirect,
 			Env:         "CODER_DISABLE_DIRECT_CONNECTIONS",
 			Description: "Disable direct (P2P) connections to workspaces.",
@@ -584,12 +596,13 @@ type RootCmd struct {
 	header        []string
 	headerCommand string
 
-	forceTTY      bool
-	noOpen        bool
-	verbose       bool
-	versionFlag   bool
-	disableDirect bool
-	debugHTTP     bool
+	forceTTY           bool
+	noOpen             bool
+	verbose            bool
+	flightRecorderSize int64
+	versionFlag        bool
+	disableDirect      bool
+	debugHTTP          bool
 
 	disableNetworkTelemetry    bool
 	noVersionCheck             bool
@@ -1815,6 +1828,42 @@ const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
 // long-running daemon commands (server, agent, provisionerd, and so on) never
 // carry a meaningless session ID in their logs, request baggage, or telemetry.
 const annotationClientSessionID = "client_session_id"
+
+// annotationFlightRecorder marks commands whose diagnostic logs should be kept
+// in memory by a flight recorder and emitted to stderr only when the command
+// returns an error. flightRecorderMiddleware installs the recorder for these
+// commands. Commands that manage their own logger destination (for example ssh,
+// which writes to a file to avoid corrupting its stdio stream) should not opt in.
+const annotationFlightRecorder = "flight_recorder"
+
+// flightRecorderMiddleware installs a stderr logger backed by a flight recorder
+// for commands that opt in with annotationFlightRecorder. Entries below the
+// display level (Info, or Debug under --verbose) are kept in a bounded in-memory
+// ring and emitted only when the command returns an error, so successful runs
+// stay quiet while the detail leading up to a failure is still available. The
+// recorder is shared with any logger derived from the invocation logger (such as
+// the codersdk client logger), so flushing here also emits their recorded
+// entries.
+func (r *RootCmd) flightRecorderMiddleware() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationFlightRecorder) {
+				return next(inv)
+			}
+			logger := r.flightRecorder(inv.Logger, sloghuman.Sink(inv.Stderr), r.flightRecorderSize)
+			inv.Logger = logger
+			err := next(inv)
+			if err != nil {
+				// Replay the recorded diagnostic history to stderr. Flush does not
+				// add a duplicate error line; the returned error is rendered by the
+				// top-level formatter.
+				logger.Flush(inv.Context())
+			}
+			return err
+		}
+	}
+}
 
 type clientSessionIDContextKey struct{}
 

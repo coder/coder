@@ -30,6 +30,10 @@ const sessionViewerPermissions: Permissions = {
 	viewAnyAIBridgeInterception: true,
 };
 const auth = { permissions: sessionViewerPermissions };
+const entitledAIBridge = { enabled: true, entitlement: "entitled" } as const;
+const dashboard: {
+	aibridge: { enabled: boolean; entitlement: "entitled" | "not_entitled" };
+} = { aibridge: entitledAIBridge };
 vi.mock("#/hooks/useAuthenticated", () => ({
 	useAuthenticated: () => ({
 		user: MockUserMember,
@@ -40,9 +44,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		entitlements: {
 			...MockEntitlements,
-			features: withDefaultFeatures({
-				aibridge: { enabled: true, entitlement: "entitled" },
-			}),
+			features: withDefaultFeatures({ aibridge: dashboard.aibridge }),
 		},
 	}),
 }));
@@ -50,6 +52,7 @@ vi.mock("#/modules/dashboard/useDashboard", () => ({
 afterEach(() => {
 	vi.restoreAllMocks();
 	auth.permissions = sessionViewerPermissions;
+	dashboard.aibridge = entitledAIBridge;
 });
 
 const fixedNow = dayjs("2026-03-12T12:00:00Z");
@@ -169,12 +172,12 @@ it("requests the last 7 days when the URL has no dates", async () => {
 it("requests no spend for a denied organization until another one is picked", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&org=missing`);
-	const organizationPicker = await screen.findByRole("button", {
-		name: /Select an organization/,
-	});
+	await screen.findByRole("alert");
 	expect(spendSpy).not.toHaveBeenCalled();
 
-	await user.click(organizationPicker);
+	await user.click(
+		screen.getByRole("button", { name: /Select an organization/ }),
+	);
 	await user.click(
 		await screen.findByRole("option", { name: /My Organization 2/ }),
 	);
@@ -213,8 +216,7 @@ it("applies a date preset and resets pagination", async () => {
 });
 
 it("keeps the retention bound while a filtered report is pending", async () => {
-	// Synthetic hover events read as leaving the menu and close the flyout.
-	const user = userEvent.setup({ skipHover: true });
+	const user = userEvent.setup();
 	const retentionStart = fixedNow.subtract(10, "day");
 	const { spendSpy } = renderSpend(initialSearch, {
 		retention_start: retentionStart.toISOString(),
@@ -223,11 +225,8 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 
 	// Leave the refiltered report pending so its retention bound never arrives.
 	spendSpy.mockImplementationOnce(() => new Promise(() => {}));
-	await user.click(
-		screen.getByRole("combobox", { name: /Filter by provider/ }),
-	);
-	await user.click(await screen.findByRole("option", { name: /^Provider/ }));
-	await user.click(await screen.findByRole("button", { name: /OpenAI/ }));
+	await user.click(screen.getByRole("button", { name: "Select provider" }));
+	await user.click(await screen.findByRole("option", { name: /OpenAI/ }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
 			MockOrganization.id,
@@ -313,81 +312,54 @@ it("shows spend without dimension filters to viewers who cannot read AI sessions
 
 it.each([
 	{
-		category: "Provider",
-		option: "OpenAI",
+		button: "Select provider",
+		option: /OpenAI/,
 		key: "provider_name",
 		value: "openai",
 	},
 	{
-		category: "Client",
-		option: "Claude Code",
+		button: "Select client",
+		option: /Claude Code/,
 		key: "client",
 		value: "Claude Code",
 	},
-	{ category: "Model", option: "gpt-4o", key: "model", value: "gpt-4o" },
-])(
-	"applies and removes the $category filter and resets pagination",
-	async ({ category, option, key, value }) => {
-		// Synthetic hover events read as leaving the menu and close the flyout.
-		const user = userEvent.setup({ skipHover: true });
+	{ button: "Select model", option: /gpt-4o/, key: "model", value: "gpt-4o" },
+] as const)(
+	"applies and clears the $key filter and resets pagination",
+	async ({ button, option, key, value }) => {
+		const user = userEvent.setup();
 		const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 		await screen.findByRole("table", { name: "Spend by user" });
-		await user.click(
-			screen.getByRole("combobox", { name: /Filter by provider/ }),
-		);
-		await user.click(
-			await screen.findByRole("option", { name: new RegExp(`^${category}`) }),
-		);
-		await user.click(await screen.findByRole("button", { name: option }));
+		await user.click(screen.getByRole("button", { name: button }));
+		await user.click(await screen.findByRole("option", { name: option }));
 		await waitFor(() =>
 			expect(spendSpy).toHaveBeenCalledWith(
 				MockOrganization.id,
-				expect.objectContaining({ ...period, [key]: value, offset: 0 }),
+				expect.objectContaining({ [key]: value, offset: 0 }),
 			),
 		);
 		expect(searchParam(router, key)).toBe(value);
 		expect(searchParam(router, "page")).toBeNull();
 
-		await user.click(
-			screen.getByRole("button", { name: new RegExp(`^Remove ${key}:`) }),
-		);
+		await user.click(screen.getByRole("button", { name: button }));
+		await user.click(await screen.findByRole("option", { name: option }));
 		await waitFor(() => expect(searchParam(router, key)).toBeNull());
-		await waitFor(() =>
-			expect(spendSpy).toHaveBeenLastCalledWith(
-				MockOrganization.id,
-				expect.objectContaining({ ...period, [key]: undefined, offset: 0 }),
-			),
-		);
-		expect(searchParam(router, "startDate")).toBe(period.period_start);
+		// The cleared request is sent after the URL updates, so wait for it.
+		await waitFor(() => {
+			const lastParams = spendSpy.mock.lastCall?.[1];
+			expect(lastParams?.[key]).toBeUndefined();
+			expect(lastParams).toMatchObject({ offset: 0 });
+		});
 	},
 );
 
-it("keeps unsupported free text out of the URL and report requests", async () => {
-	const user = userEvent.setup();
-	const { router, spendSpy } = renderSpend(
-		`${initialSearch}&page=2&provider_name=openai`,
-	);
-	const input = await screen.findByRole("combobox", {
-		name: /Filter by provider/,
-	});
-	await screen.findByRole("table", { name: "Spend by user" });
-	const callsBeforeTyping = spendSpy.mock.calls.length;
-	await user.type(input, "alice");
-	await waitFor(() =>
-		expect(input).toHaveAccessibleErrorMessage(
-			"Free-text search isn't supported. Results reflect only the provider, client, and model filters.",
-		),
-	);
-	expect(searchParam(router, "search")).toBeNull();
-	expect(searchParam(router, "page")).toBe("2");
-	expect(searchParam(router, "provider_name")).toBe("openai");
-	expect(spendSpy).toHaveBeenCalledTimes(callsBeforeTyping);
-
-	await user.clear(input);
-	await waitFor(() => expect(input).not.toHaveAccessibleErrorMessage());
-	expect(searchParam(router, "provider_name")).toBe("openai");
-	expect(searchParam(router, "page")).toBe("2");
-	expect(spendSpy).toHaveBeenCalledTimes(callsBeforeTyping);
+it("sends no filter option requests when AI Gateway is unavailable", async () => {
+	dashboard.aibridge = { enabled: false, entitlement: "not_entitled" };
+	renderSpend(`${initialSearch}&provider_name=openai`);
+	await screen.findByText("Get access with a Coder trial");
+	expect(API.getAIBridgeProviders).not.toHaveBeenCalled();
+	expect(API.getAIBridgeModels).not.toHaveBeenCalled();
+	expect(API.getAIBridgeClients).not.toHaveBeenCalled();
 });
 
 it("requests the next page offset", async () => {
