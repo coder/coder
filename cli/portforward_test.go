@@ -19,11 +19,13 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
@@ -499,4 +501,52 @@ func assertWritePayload(t *testing.T, w io.Writer, prefix []byte) {
 	n, err := w.Write(payload)
 	assert.NoError(t, err, "write payload")
 	assert.Equal(t, len(payload), n, "payload length does not match")
+}
+
+// TestPortForward_UpdateUsage verifies that port-forward reports usage under the
+// "port_forward" app name, so its sessions count toward app usage stats and
+// not only toward the workspace's last-used time.
+func TestPortForward_UpdateUsage(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
+	batcher := &workspacestatstest.StatsBatcher{
+		LastStats: &agentproto.Stats{},
+	}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+		StatsBatcher:     batcher,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	workspace := runAgent(t, client, memberUser.ID, db)
+
+	prefix := generateRandomPrefix(t)
+	remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err, "create TCP listener")
+	p1 := setupTestListener(t, remoteLis, prefix)
+
+	flag := fmt.Sprintf("--tcp=5555:%v", p1)
+	inv, root := clitest.New(t, "port-forward", workspace.Name, flag)
+	clitest.SetupConfig(t, member, root)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+
+	iNet := testutil.NewInProcNet()
+	inv.Net = iNet
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	errC := make(chan error)
+	go func() {
+		errC <- inv.WithContext(ctx).Run()
+	}()
+	stdout.ExpectMatch(ctx, "Ready!")
+
+	cancel()
+	err = <-errC
+	require.ErrorIs(t, err, context.Canceled)
+
+	batcher.Mu.Lock()
+	defer batcher.Mu.Unlock()
+	require.Equal(t, map[string]int64{"port_forward": 1}, batcher.LastStats.GetSessionCounts())
 }
