@@ -25,7 +25,6 @@ import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { AutomationRow } from "./components/Automations/AutomationRow";
 import { SectionHeader } from "./components/SectionHeader";
 
-/** A failed Run now attempt, shown above the table until the next run. */
 export type AutomationRunError = {
 	automation: ChatAutomation;
 	error: unknown;
@@ -56,9 +55,13 @@ type AgentAutomationsPageViewProps = {
 	chatsDialog?: AutomationChatsDialogState;
 };
 
-const AutomationChatsDialog: React.FC<{
+type AutomationChatsDialogProps = {
 	state: AutomationChatsDialogState;
-}> = ({ state }) => {
+};
+
+const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
+	state,
+}) => {
 	let body: React.ReactNode;
 	if (state.isLoading) {
 		body = <Loader />;

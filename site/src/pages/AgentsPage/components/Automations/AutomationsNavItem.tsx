@@ -10,7 +10,6 @@ type AutomationsNavItemProps = {
 	readonly locationSearch: string;
 };
 
-/** The sidebar's "Automations" entry, shown when the experiment is on. */
 export const AutomationsNavItem: React.FC<AutomationsNavItemProps> = ({
 	locationSearch,
 }) => {

@@ -13,7 +13,7 @@ import { server } from "#/testHelpers/server";
 import AgentAutomationsPage from "./AgentAutomationsPage";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 
-const automation: ChatAutomation = {
+const mockAutomation: ChatAutomation = {
 	...MockChatAutomation,
 	organization_id: MockDefaultOrganization.id,
 	target_chat_id: MockChat.id,
@@ -22,7 +22,6 @@ const automation: ChatAutomation = {
 const automationsPath = (organizationId: string) =>
 	`/api/experimental/organizations/${organizationId}/chat-automations`;
 
-/** Serves the page's dependencies and records the requests it sends. */
 const setup = ({ experiments = ["chat-automations"] } = {}) => {
 	const requests: Request[] = [];
 	server.use(
@@ -43,7 +42,7 @@ const setup = ({ experiments = ["chat-automations"] } = {}) => {
 			},
 		),
 		http.get(automationsPath(":organizationId"), () =>
-			HttpResponse.json([automation]),
+			HttpResponse.json([mockAutomation]),
 		),
 	);
 	renderWithAuth(<AgentAutomationsPage />);
@@ -78,8 +77,6 @@ describe("AgentAutomationsPage", () => {
 			`GET ${automationsPath(MockDefaultOrganization.id)}`,
 		);
 
-		// Switching the picker refetches and shares the choice with the
-		// create form.
 		await user.click(
 			await screen.findByRole("button", {
 				name: `Organization: ${MockOrganization2.display_name}`,
@@ -113,16 +110,18 @@ describe("AgentAutomationsPage", () => {
 		setup();
 		server.use(
 			http.patch(
-				`${automationsPath(MockDefaultOrganization.id)}/${automation.id}`,
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}`,
 				async ({ request }) => {
 					body = await request.json();
-					return HttpResponse.json({ ...automation, enabled: false });
+					return HttpResponse.json({ ...mockAutomation, enabled: false });
 				},
 			),
 		);
 
 		await user.click(
-			await screen.findByRole("switch", { name: `Enable ${automation.name}` }),
+			await screen.findByRole("switch", {
+				name: `Enable ${mockAutomation.name}`,
+			}),
 		);
 
 		await waitFor(() => {
@@ -138,7 +137,7 @@ describe("AgentAutomationsPage", () => {
 		setup();
 		server.use(
 			http.post(
-				`${automationsPath(MockDefaultOrganization.id)}/${automation.id}/runs`,
+				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
 				() => HttpResponse.json({ message }, { status }),
 			),
 		);
@@ -147,7 +146,7 @@ describe("AgentAutomationsPage", () => {
 
 		const alert = await screen.findByRole("alert");
 		expect(alert.textContent).toContain(message);
-		expect(alert.textContent).toContain(automation.name);
+		expect(alert.textContent).toContain(mockAutomation.name);
 	});
 
 	it("lists an automation's chats with the automation filter", async () => {
@@ -156,10 +155,9 @@ describe("AgentAutomationsPage", () => {
 
 		await user.click(await screen.findByRole("button", { name: "View chats" }));
 
-		await screen.findByRole("dialog");
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${automation.id}&limit=25`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25`,
 			);
 		});
 	});

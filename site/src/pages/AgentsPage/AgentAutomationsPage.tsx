@@ -32,13 +32,18 @@ const AgentAutomationsPage: React.FC = () => {
 	);
 };
 
-const AutomationsList: React.FC<{
+type AutomationsListProps = {
 	organizations: readonly Organization[];
 	showOrganizations: boolean;
-}> = ({ organizations, showOrganizations }) => {
+};
+
+const AutomationsList: React.FC<AutomationsListProps> = ({
+	organizations,
+	showOrganizations,
+}) => {
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
-	// Shares the Agents organization picker selection with the create form.
+	// The create form stores the Agents picker selection under this key.
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
 		localStorage.getItem(selectedOrganizationIdStorageKey),
 	);

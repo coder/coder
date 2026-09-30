@@ -3,10 +3,10 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getErrorStatus } from "#/api/errors";
 import { chat } from "#/api/queries/chats";
-import type { ChatAutomation } from "#/api/typesGenerated";
+import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
+import { Link, type LinkProps } from "#/components/Link/Link";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -15,7 +15,6 @@ import { formatDate } from "#/utils/time";
 
 type AutomationRowProps = {
 	automation: ChatAutomation;
-	/** Only the owner can run an automation. */
 	isOwner: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
@@ -46,39 +45,59 @@ const formatNextRun = (automation: ChatAutomation): string => {
 	});
 };
 
-const MissingTarget: React.FC = () => (
-	<Badge variant="warning" size="sm">
-		Missing target
-	</Badge>
-);
-
-/** Links to a chat by title. A missing or archived chat renders `missing`. */
-const ChatTitleLink: React.FC<{
+type ChatTitleLinkProps = {
+	chat: Chat | undefined;
 	chatId: string;
-	missing?: React.ReactNode;
-	size?: "sm" | "lg";
-}> = ({ chatId, missing, size = "lg" }) => {
-	const chatQuery = useQuery(chat(chatId));
-	if (chatQuery.isLoading) {
+	isLoading: boolean;
+	size?: LinkProps["size"];
+};
+
+const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
+	chat,
+	chatId,
+	isLoading,
+	size = "lg",
+}) => {
+	if (isLoading) {
 		return <Skeleton className="h-4 w-32" />;
-	}
-	const isGone =
-		getErrorStatus(chatQuery.error) === 404 || chatQuery.data?.archived;
-	if (isGone && missing) {
-		return missing;
 	}
 	return (
 		<Link asChild showExternalIcon={false} size={size}>
 			<RouterLink to={`/agents/${chatId}`}>
-				{chatQuery.data?.title || "Untitled"}
+				{chat?.title || "Untitled"}
 			</RouterLink>
 		</Link>
 	);
 };
 
-const TriggerCell: React.FC<{ automation: ChatAutomation }> = ({
-	automation,
-}) => {
+type CreatingChatProps = {
+	chatId: string;
+};
+
+const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
+	const chatQuery = useQuery(chat(chatId));
+	return (
+		<span className="flex items-center gap-1 text-xs text-content-secondary">
+			Created by agent in
+			{getErrorStatus(chatQuery.error) === 404 ? (
+				" a deleted chat"
+			) : (
+				<ChatTitleLink
+					chat={chatQuery.data}
+					chatId={chatId}
+					isLoading={chatQuery.isLoading}
+					size="sm"
+				/>
+			)}
+		</span>
+	);
+};
+
+type TriggerCellProps = {
+	automation: ChatAutomation;
+};
+
+const TriggerCell: React.FC<TriggerCellProps> = ({ automation }) => {
 	if (automation.kind === "schedule") {
 		return (
 			<div className="flex flex-col gap-0.5">
@@ -91,10 +110,12 @@ const TriggerCell: React.FC<{ automation: ChatAutomation }> = ({
 			</div>
 		);
 	}
-	const use = automation.webhook_use === "single" ? "single use" : "multi use";
 	return (
 		<div className="flex flex-col gap-0.5">
-			<span>Webhook, {use}</span>
+			<span>
+				Webhook,{" "}
+				{automation.webhook_use === "single" ? "single use" : "multi use"}
+			</span>
 			{automation.webhook_consumed_at && (
 				<span className="text-xs text-content-secondary">Used</span>
 			)}
@@ -102,25 +123,8 @@ const TriggerCell: React.FC<{ automation: ChatAutomation }> = ({
 	);
 };
 
-const TargetCell: React.FC<{ automation: ChatAutomation }> = ({
-	automation,
-}) => {
-	if (automation.target_mode === "new_chat") {
-		return <span className="text-content-secondary">New chat each run</span>;
-	}
-	if (!automation.target_chat_id) {
-		return <MissingTarget />;
-	}
-	return (
-		<ChatTitleLink
-			chatId={automation.target_chat_id}
-			missing={<MissingTarget />}
-		/>
-	);
-};
-
-// memo() keeps unrelated rows from re-rendering while one row's mutation
-// is pending.
+// memo() is allowed for list items under the React Compiler; it keeps
+// other rows from re-rendering while one row's mutation is pending.
 export const AutomationRow = memo<AutomationRowProps>(
 	({
 		automation,
@@ -131,8 +135,21 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onRunNow,
 		onViewChats,
 	}) => {
+		const targetChatId =
+			automation.target_mode === "existing_chat"
+				? automation.target_chat_id
+				: undefined;
+		const targetQuery = useQuery({
+			...chat(targetChatId ?? ""),
+			enabled: Boolean(targetChatId),
+		});
+		// A deleted target clears target_chat_id; an archived one refuses runs.
 		const isTargetMissing =
-			automation.target_mode === "existing_chat" && !automation.target_chat_id;
+			automation.target_mode === "existing_chat" &&
+			(!targetChatId ||
+				getErrorStatus(targetQuery.error) === 404 ||
+				Boolean(targetQuery.data?.archived));
+
 		return (
 			<TableRow>
 				<TableCell>
@@ -141,13 +158,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 							{automation.name}
 						</span>
 						{automation.created_by_chat_id && (
-							<span className="flex items-center gap-1 text-xs text-content-secondary">
-								Created by agent in
-								<ChatTitleLink
-									chatId={automation.created_by_chat_id}
-									size="sm"
-								/>
-							</span>
+							<CreatingChat chatId={automation.created_by_chat_id} />
 						)}
 					</div>
 				</TableCell>
@@ -155,7 +166,19 @@ export const AutomationRow = memo<AutomationRowProps>(
 					<TriggerCell automation={automation} />
 				</TableCell>
 				<TableCell>
-					<TargetCell automation={automation} />
+					{automation.target_mode === "new_chat" ? (
+						<span className="text-content-secondary">New chat each run</span>
+					) : isTargetMissing || !targetChatId ? (
+						<Badge variant="warning" size="sm">
+							Missing target
+						</Badge>
+					) : (
+						<ChatTitleLink
+							chat={targetQuery.data}
+							chatId={targetChatId}
+							isLoading={targetQuery.isLoading}
+						/>
+					)}
 				</TableCell>
 				<TableCell className="whitespace-nowrap">
 					{formatNextRun(automation)}

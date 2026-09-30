@@ -1,7 +1,6 @@
-import type { QueryClient } from "react-query";
+import { type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import type {
-	Chat,
 	ChatAutomation,
 	ChatAutomationRunResponse,
 	UpdateChatAutomationRequest,
@@ -40,20 +39,18 @@ export const updateChatAutomation = (
 		}),
 });
 
-const automationChatsFamilyKey = ["chat-automation-chats"] as const;
-
 const automationChatsKey = (automationId: string) =>
-	[...automationChatsFamilyKey, automationId] as const;
+	["chat-automation-chats", automationId] as const;
 
-/** Lists the chats an automation created or sent messages to. */
-export const automationChats = (automationId: string) => ({
-	queryKey: automationChatsKey(automationId),
-	queryFn: ({ signal }: { signal?: AbortSignal }): Promise<Chat[]> =>
-		API.experimental.getChats(
-			{ automation_id: automationId, limit: 25 },
-			signal,
-		),
-});
+export const automationChats = (automationId: string) =>
+	queryOptions({
+		queryKey: automationChatsKey(automationId),
+		queryFn: ({ signal }) =>
+			API.experimental.getChats(
+				{ automation_id: automationId, limit: 25 },
+				signal,
+			),
+	});
 
 export const runChatAutomation = (
 	queryClient: QueryClient,
