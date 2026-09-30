@@ -142,13 +142,13 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node, no_handshake, handshake_stale (older than 180s), handshake_ok, diagnostics_timeout, or client_canceled (the client left within 5s).",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node (the coordinator never sent the agent node), no_handshake (the node arrived but WireGuard never completed a handshake), handshake_stale (the last handshake is older than 180s), handshake_ok (the last handshake is under 180s old, so the failure is above WireGuard), diagnostics_timeout (the peer state could not be read within 1s), or client_canceled (the client left within 5s).",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "await_reachable_seconds",
-			Help:      "Time until a workspace agent answered the first ping when a new connection was opened.",
+			Help:      "Time until a workspace agent answered the first ping when a new connection was opened. A shift toward the upper buckets before agents become unreachable is the early sign of a slow loss of reachability, and the 5s client_canceled cutoff assumes most values are well under it.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}),
 	}
