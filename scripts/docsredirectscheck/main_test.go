@@ -497,8 +497,10 @@ func TestCheckRedirectsDuplicatesChainsAndLoops(t *testing.T) {
 				{"source": "/docs/r3", "destination": "/docs/final"}
 			]`,
 			[]wantProblem{
-				{0, "redirect chain"}, {0, "is not a page"},
-				{1, "redirect chain"}, {1, "is not a page"},
+				{0, "redirect chain"},
+				{0, "is not a page"},
+				{1, "redirect chain"},
+				{1, "is not a page"},
 			},
 		},
 		{
@@ -508,7 +510,8 @@ func TestCheckRedirectsDuplicatesChainsAndLoops(t *testing.T) {
 				{"source": "/docs/y", "destination": "/docs/x"}
 			]`,
 			[]wantProblem{
-				{0, "redirect loop"}, {0, "is not a page"},
+				{0, "redirect loop"},
+				{0, "is not a page"},
 				{1, "is not a page"},
 			},
 		},
@@ -520,8 +523,10 @@ func TestCheckRedirectsDuplicatesChainsAndLoops(t *testing.T) {
 				{"source": "/docs/z", "destination": "/docs/x"}
 			]`,
 			[]wantProblem{
-				{0, "redirect loop"}, {0, "is not a page"},
-				{1, "is not a page"}, {2, "is not a page"},
+				{0, "redirect loop"},
+				{0, "is not a page"},
+				{1, "is not a page"},
+				{2, "is not a page"},
 			},
 		},
 		{
