@@ -1,6 +1,12 @@
-import { type QueryClient, queryOptions } from "react-query";
+import {
+	infiniteQueryOptions,
+	type QueryClient,
+	queryOptions,
+} from "react-query";
 import { API } from "#/api/api";
+import { invalidateChatListQueries } from "#/api/queries/chats";
 import type {
+	Chat,
 	ChatAutomation,
 	ChatAutomationRunResponse,
 	ChatAutomationSchedulePreviewRequest,
@@ -88,12 +94,23 @@ export const updateChatAutomation = (
 const automationChatsKey = (automationId: string) =>
 	["chat-automation-chats", automationId] as const;
 
+const automationChatsPageSize = 25;
+
 export const automationChats = (automationId: string) =>
-	queryOptions({
+	infiniteQueryOptions({
 		queryKey: automationChatsKey(automationId),
-		queryFn: ({ signal }) =>
+		initialPageParam: 0,
+		getNextPageParam: (lastPage: Chat[], pages: Chat[][]) =>
+			lastPage.length < automationChatsPageSize
+				? undefined
+				: pages.length * automationChatsPageSize,
+		queryFn: ({ pageParam, signal }) =>
 			API.experimental.getChats(
-				{ automation_id: automationId, limit: 25 },
+				{
+					automation_id: automationId,
+					limit: automationChatsPageSize,
+					offset: pageParam,
+				},
 				signal,
 			),
 	});
@@ -112,6 +129,7 @@ export const runChatAutomation = (
 			queryClient.invalidateQueries({
 				queryKey: automationChatsKey(automationId),
 			}),
+			invalidateChatListQueries(queryClient),
 		]);
 	},
 });

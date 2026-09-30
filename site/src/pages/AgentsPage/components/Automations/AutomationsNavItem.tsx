@@ -1,9 +1,14 @@
 import { ZapIcon } from "lucide-react";
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
+import { Button } from "#/components/Button/Button";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { SettingsNavItem } from "../ChatsSidebar/settings/SettingsNavItem";
 
 export const AUTOMATIONS_PATH = "/agents/automations";
+
+/** Whether the chat-automations experiment is on for the viewer. */
+export const useAutomationsEnabled = (): boolean =>
+	useDashboard().experiments.includes("chat-automations");
 
 type AutomationsNavItemProps = {
 	/** Normalized query string the sidebar appends to its own links. */
@@ -13,17 +18,30 @@ type AutomationsNavItemProps = {
 export const AutomationsNavItem: React.FC<AutomationsNavItemProps> = ({
 	locationSearch,
 }) => {
-	const { experiments } = useDashboard();
 	const location = useLocation();
-	if (!experiments.includes("chat-automations")) {
-		return null;
-	}
-	return (
+	return useAutomationsEnabled() ? (
 		<SettingsNavItem
 			icon={ZapIcon}
 			label="Automations"
 			active={location.pathname.startsWith(AUTOMATIONS_PATH)}
 			to={{ pathname: AUTOMATIONS_PATH, search: locationSearch }}
 		/>
-	);
+	) : null;
+};
+
+/** The mobile header's link to the page; the sidebar nav is hidden there. */
+export const AutomationsMobileLink: React.FC = () => {
+	return useAutomationsEnabled() ? (
+		<Button
+			asChild
+			variant="subtle"
+			size="icon"
+			aria-label="Automations"
+			className="size-7 sm:hidden"
+		>
+			<Link to={AUTOMATIONS_PATH}>
+				<ZapIcon />
+			</Link>
+		</Button>
+	) : null;
 };

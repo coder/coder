@@ -3087,9 +3087,11 @@ func TestListChats(t *testing.T) {
 		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
 		require.Empty(t, chatIDs(&codersdk.ListChatsOptions{AutomationID: uuid.New()}))
 
-		status, body := rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
-		require.Equal(t, http.StatusBadRequest, status, body)
-		require.Contains(t, body, "automation_id")
+		for _, value := range []string{"not-a-uuid", uuid.Nil.String()} {
+			status, body := rawGet(t, env.member, "/api/v2/chats?automation_id="+value)
+			require.Equal(t, http.StatusBadRequest, status, body)
+			require.Contains(t, body, "automation_id")
+		}
 
 		// With the experiment off for the member, the filter is ignored.
 		member, err := env.member.User(ctx, codersdk.Me)
@@ -3100,7 +3102,7 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID, deletedMessageChat.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
-		status, body = rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
+		status, body := rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
 		require.Equal(t, http.StatusOK, status, body)
 	})
 }

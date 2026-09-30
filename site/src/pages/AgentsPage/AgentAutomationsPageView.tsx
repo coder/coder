@@ -14,6 +14,7 @@ import {
 import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -36,10 +37,14 @@ type AutomationChatsDialogState = {
 	chats: readonly Chat[] | undefined;
 	isLoading: boolean;
 	error: unknown;
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onLoadMore: () => void;
 	onClose: () => void;
 };
 
 type AgentAutomationsPageViewProps = {
+	header?: React.ReactNode;
 	currentUserId: string;
 	organizationName: string | undefined;
 	organizationSelector?: React.ReactNode;
@@ -69,7 +74,7 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 	let body: React.ReactNode;
 	if (state.isLoading) {
 		body = <Loader />;
-	} else if (state.error) {
+	} else if (state.error && !state.chats) {
 		body = <ErrorAlert error={state.error} />;
 	} else if (!state.chats || state.chats.length === 0) {
 		body = (
@@ -90,6 +95,24 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 						</Link>
 					</li>
 				))}
+				{Boolean(state.error) && (
+					<li>
+						<ErrorAlert error={state.error} />
+					</li>
+				)}
+				{state.hasNextPage && (
+					<li>
+						<Button
+							size="sm"
+							variant="outline"
+							disabled={state.isFetchingNextPage}
+							onClick={state.onLoadMore}
+						>
+							<Spinner loading={state.isFetchingNextPage} />
+							Load more
+						</Button>
+					</li>
+				)}
 			</ul>
 		);
 	}
@@ -118,6 +141,7 @@ const AutomationChatsDialog: React.FC<AutomationChatsDialogProps> = ({
 export const AgentAutomationsPageView: React.FC<
 	AgentAutomationsPageViewProps
 > = ({
+	header,
 	currentUserId,
 	organizationName,
 	organizationSelector,
@@ -154,6 +178,7 @@ export const AgentAutomationsPageView: React.FC<
 				isOwner={automation.owner_id === currentUserId}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
+				isRunPending={runningAutomationId !== undefined}
 				onToggleEnabled={onToggleEnabled}
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
@@ -164,6 +189,7 @@ export const AgentAutomationsPageView: React.FC<
 
 	return (
 		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+			{header}
 			<div className="p-4 pt-8">
 				<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 					<SectionHeader
@@ -200,9 +226,8 @@ export const AgentAutomationsPageView: React.FC<
 							</AlertDescription>
 						</Alert>
 					)}
-					{error ? (
-						<ErrorAlert error={error} />
-					) : (
+					{Boolean(error) && <ErrorAlert error={error} />}
+					{(!error || automations) && (
 						<Table aria-label="Automations">
 							<TableHeader>
 								<TableRow>

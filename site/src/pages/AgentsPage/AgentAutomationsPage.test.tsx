@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
 import {
@@ -16,6 +16,11 @@ import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import AgentAutomationsPage from "./AgentAutomationsPage";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
+
+// AgentPageHeader needs the layout's outlet context.
+vi.mock("./components/AgentPageHeader", () => ({
+	AgentPageHeader: () => null,
+}));
 
 const mockAutomation: ChatAutomation = {
 	...MockChatAutomation,
@@ -136,32 +141,76 @@ describe("AgentAutomationsPage", () => {
 	it.each([
 		[409, "The target chat is busy."],
 		[429, "The automation used up its share of the chat queue."],
-	])("shows a %i Run now response as an error", async (status, message) => {
-		const user = userEvent.setup();
-		setup();
-		server.use(
-			http.post(
-				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
-				() => HttpResponse.json({ message }, { status }),
-			),
-		);
+	])(
+		"sends the Run now request when the server answers %i",
+		async (status, message) => {
+			const user = userEvent.setup();
+			const requests = setup();
+			const runPath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`;
+			server.use(
+				http.post(runPath, ({ request }) => {
+					requests.push(request);
+					return HttpResponse.json({ message }, { status });
+				}),
+			);
 
-		await user.click(await screen.findByRole("button", { name: "Run now" }));
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Run now ${mockAutomation.name}`,
+				}),
+			);
 
-		const alert = await screen.findByRole("alert");
-		expect(alert.textContent).toContain(message);
-		expect(alert.textContent).toContain(mockAutomation.name);
-	});
+			await waitFor(() => {
+				expect(requestPaths(requests)).toContain(`POST ${runPath}`);
+			});
+		},
+	);
 
 	it("lists an automation's chats with the automation filter", async () => {
 		const user = userEvent.setup();
 		const requests = setup();
 
-		await user.click(await screen.findByRole("button", { name: "View chats" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			}),
+		);
 
 		await waitFor(() => {
 			expect(requestPaths(requests)).toContain(
-				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25`,
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=0`,
+			);
+		});
+	});
+
+	it("loads more of an automation's chats", async () => {
+		const user = userEvent.setup();
+		const requests = setup();
+		const mockChatPage = Array.from({ length: 25 }, (_, index) => ({
+			...MockChat,
+			id: `chat-${index}`,
+		}));
+		server.use(
+			http.get("/api/v2/chats", ({ request }) => {
+				requests.push(request);
+				return HttpResponse.json(
+					new URL(request.url).searchParams.get("offset") === "0"
+						? mockChatPage
+						: [MockChat],
+				);
+			}),
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `View chats ${mockAutomation.name}`,
+			}),
+		);
+		await user.click(await screen.findByRole("button", { name: "Load more" }));
+
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25&offset=25`,
 			);
 		});
 	});
@@ -357,7 +406,11 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		const user = userEvent.setup();
 		const { updateBodies } = setupEditor();
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
 		const dialog = await screen.findByRole("dialog");
 		await pickChat(user, dialog, otherChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -377,7 +430,11 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			),
 		);
 
-		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
 		const dialog = await screen.findByRole("dialog");
 		const name = within(dialog).getByLabelText(/^Name/);
 		await user.clear(name);

@@ -136,6 +136,24 @@ export const ChatsDialog: Story = {
 			chats: [mockTargetChat, mockCreatingChat],
 			isLoading: false,
 			error: undefined,
+			hasNextPage: true,
+			isFetchingNextPage: false,
+			onLoadMore: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const ChatsDialogLoadMoreError: Story = {
+	args: {
+		chatsDialog: {
+			automation: mockScheduleAutomation,
+			chats: [mockTargetChat, mockCreatingChat],
+			isLoading: false,
+			error: mockApiError({ message: "Failed to load more chats." }),
+			hasNextPage: true,
+			isFetchingNextPage: false,
+			onLoadMore: fn(),
 			onClose: fn(),
 		},
 	},
@@ -143,6 +161,12 @@ export const ChatsDialog: Story = {
 
 export const Loading: Story = {
 	args: { automations: undefined, isLoading: true },
+};
+
+export const RefetchError: Story = {
+	args: {
+		error: mockApiError({ message: "Failed to refresh chat automations." }),
+	},
 };
 
 export const ListError: Story = {

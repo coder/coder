@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { getErrorStatus } from "#/api/errors";
+import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { chat } from "#/api/queries/chats";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -18,6 +18,8 @@ type AutomationRowProps = {
 	isOwner: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
+	/** One run request at a time, so a pending run disables every row. */
+	isRunPending: boolean;
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
@@ -50,6 +52,7 @@ type ChatTitleLinkProps = {
 	chat: Chat | undefined;
 	chatId: string;
 	isLoading: boolean;
+	error: unknown;
 	size?: LinkProps["size"];
 };
 
@@ -57,10 +60,18 @@ const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
 	chat,
 	chatId,
 	isLoading,
+	error,
 	size = "lg",
 }) => {
 	if (isLoading) {
 		return <Skeleton className="h-4 w-32" />;
+	}
+	if (error) {
+		return (
+			<span className="text-content-secondary">
+				{getErrorMessage(error, "Chat unavailable")}
+			</span>
+		);
 	}
 	return (
 		<Link asChild showExternalIcon={false} size={size}>
@@ -87,6 +98,7 @@ const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 					chat={chatQuery.data}
 					chatId={chatId}
 					isLoading={chatQuery.isLoading}
+					error={chatQuery.error}
 					size="sm"
 				/>
 			)}
@@ -114,8 +126,9 @@ const TriggerCell: React.FC<TriggerCellProps> = ({ automation }) => {
 	return (
 		<div className="flex flex-col gap-0.5">
 			<span>
-				Webhook,{" "}
-				{automation.webhook_use === "single" ? "single use" : "multi use"}
+				{automation.webhook_use === "single"
+					? "Webhook, single-use"
+					: "Webhook, multi-use"}
 			</span>
 			{automation.webhook_consumed_at && (
 				<span className="text-xs text-content-secondary">Used</span>
@@ -132,6 +145,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		isOwner,
 		isUpdating,
 		isRunning,
+		isRunPending,
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
@@ -141,9 +155,12 @@ export const AutomationRow = memo<AutomationRowProps>(
 			automation.target_mode === "existing_chat"
 				? automation.target_chat_id
 				: undefined;
+		// Chat titles are looked up only for the viewer's own automations:
+		// the per-owner cap bounds the requests, and other owners' chats are
+		// usually unreadable, which would look like a missing target.
 		const targetQuery = useQuery({
 			...chat(targetChatId ?? ""),
-			enabled: Boolean(targetChatId),
+			enabled: isOwner && Boolean(targetChatId),
 		});
 		// A deleted target clears target_chat_id; an archived one refuses runs.
 		const isTargetMissing =
@@ -159,9 +176,14 @@ export const AutomationRow = memo<AutomationRowProps>(
 						<span className="font-medium text-content-primary">
 							{automation.name}
 						</span>
-						{automation.created_by_chat_id && (
-							<CreatingChat chatId={automation.created_by_chat_id} />
-						)}
+						{automation.created_by_chat_id &&
+							(isOwner ? (
+								<CreatingChat chatId={automation.created_by_chat_id} />
+							) : (
+								<span className="text-xs text-content-secondary">
+									Created by agent
+								</span>
+							))}
 					</div>
 				</TableCell>
 				<TableCell>
@@ -174,11 +196,14 @@ export const AutomationRow = memo<AutomationRowProps>(
 						<Badge variant="warning" size="sm">
 							Missing target
 						</Badge>
+					) : !isOwner ? (
+						<span className="text-content-secondary">Existing chat</span>
 					) : (
 						<ChatTitleLink
 							chat={targetQuery.data}
 							chatId={targetChatId}
 							isLoading={targetQuery.isLoading}
+							error={targetQuery.error}
 						/>
 					)}
 				</TableCell>
@@ -188,7 +213,8 @@ export const AutomationRow = memo<AutomationRowProps>(
 				<TableCell>
 					<Switch
 						checked={automation.enabled}
-						disabled={isUpdating}
+						// Only the owner can re-enable an automation.
+						disabled={isUpdating || (!isOwner && !automation.enabled)}
 						aria-label={`Enable ${automation.name}`}
 						onCheckedChange={(enabled) => onToggleEnabled(automation, enabled)}
 					/>
@@ -199,23 +225,30 @@ export const AutomationRow = memo<AutomationRowProps>(
 							<Button
 								size="sm"
 								variant="outline"
-								disabled={!automation.enabled || isTargetMissing || isRunning}
+								disabled={
+									!automation.enabled || isTargetMissing || isRunPending
+								}
+								aria-label={`Run now ${automation.name}`}
 								onClick={() => onRunNow(automation)}
 							>
 								<Spinner loading={isRunning} />
 								Run now
 							</Button>
 						)}
+						{isOwner && (
+							<Button
+								size="sm"
+								variant="outline"
+								aria-label={`View chats ${automation.name}`}
+								onClick={() => onViewChats(automation)}
+							>
+								View chats
+							</Button>
+						)}
 						<Button
 							size="sm"
 							variant="outline"
-							onClick={() => onViewChats(automation)}
-						>
-							View chats
-						</Button>
-						<Button
-							size="sm"
-							variant="outline"
+							aria-label={`Edit ${automation.name}`}
 							onClick={() => onEdit(automation)}
 						>
 							Edit
