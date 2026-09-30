@@ -68,7 +68,7 @@ func TestMCPTransportAuthentication(t *testing.T) {
 			if tc.wrongKeyID {
 				delegatedID = "other-key"
 			}
-			transport, closeTransport := newMCPTransport(handler, origin, delegatedID)
+			transport, closeTransport := newMCPDelegatedTransport(testutil.Logger(t), handler, origin, delegatedID)
 			t.Cleanup(closeTransport)
 			client := codersdk.New(origin, codersdk.WithSessionToken(token), codersdk.WithHTTPClient(&http.Client{Transport: transport}))
 
@@ -109,7 +109,7 @@ func TestMCPTransportIsolation(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	transport, closeTransport := newMCPTransport(handler, origin, "test-key")
+	transport, closeTransport := newMCPDelegatedTransport(testutil.Logger(t), handler, origin, "test-key")
 	t.Cleanup(closeTransport)
 	client := &http.Client{Transport: transport}
 
@@ -169,7 +169,7 @@ func TestMCPTransportStreaming(t *testing.T) {
 		w.(http.Flusher).Flush()
 		<-r.Context().Done()
 	})
-	transport, closeTransport := newMCPTransport(handler, origin, "test-key")
+	transport, closeTransport := newMCPDelegatedTransport(testutil.Logger(t), handler, origin, "test-key")
 	t.Cleanup(closeTransport)
 	client := &http.Client{Transport: transport}
 	requestCtx, cancel := context.WithCancel(ctx)
@@ -210,7 +210,7 @@ func TestMCPTransportWebSocket(t *testing.T) {
 		_, _, err = conn.Read(ctx)
 		assert.Error(t, err, "transport cleanup must close hijacked connections")
 	})
-	transport, closeTransport := newMCPTransport(handler, origin, "test-key")
+	transport, closeTransport := newMCPDelegatedTransport(testutil.Logger(t), handler, origin, "test-key")
 	t.Cleanup(closeTransport)
 	conn, resp, err := websocket.Dial(ctx, "wss://coder.example.com/api/v2/chats/watch", &websocket.DialOptions{HTTPClient: &http.Client{Transport: transport}})
 	if resp != nil && resp.Body != nil {
