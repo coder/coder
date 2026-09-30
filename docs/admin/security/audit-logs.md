@@ -1,4 +1,6 @@
-# Audit Logs (Premium)
+---
+title: Audit logs
+---
 
 **Audit Logs** allows Auditors to monitor user operations in their deployment.
 

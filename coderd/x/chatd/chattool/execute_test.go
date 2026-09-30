@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
@@ -388,7 +389,8 @@ func TestExecuteTool(t *testing.T) {
 			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
 
 		// First call (blocking wait) returns context error
-		// because the 50ms timeout expires.
+		// because the 50ms timeout expires. An old agent ignores
+		// timeout_ms.
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
@@ -419,6 +421,46 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, -1, result.ExitCode)
 		assert.Contains(t, result.Error, "timed out")
 		assert.Equal(t, "partial output", result.Output)
+	})
+
+	t.Run("StopsAtAgentExecuteTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// On a retry, the agent's execute timeout, counted from the first
+		// start, passes before chatd's own.
+		var executeTimeout time.Duration
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				executeTimeout = time.Duration(req.TimeoutMs) * time.Millisecond
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				if executeTimeout == 10*time.Minute && opts != nil && opts.TimeoutFromStartProcess {
+					return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
+				}
+				<-ctx.Done()
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"make test","timeout":"10m"}`,
+		})
+		require.NoError(t, err)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.Equal(t, "command timed out after 10m0s", result.Error)
+		assert.Equal(t, "partial output", result.Output)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
 	})
 
 	t.Run("StartProcessError", func(t *testing.T) {

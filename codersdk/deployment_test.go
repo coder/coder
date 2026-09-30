@@ -2152,3 +2152,11 @@ func BenchmarkHTTPCookieConfigMiddleware(b *testing.B) {
 		})
 	}
 }
+
+func TestExperimentsSafeAreKnown(t *testing.T) {
+	t.Parallel()
+
+	for _, ex := range codersdk.ExperimentsSafe {
+		require.Contains(t, codersdk.ExperimentsKnown, ex)
+	}
+}

@@ -331,7 +331,10 @@ func TestSmallFastModelCapturedAtConstruction(t *testing.T) {
 			t.Run(c.name+" "+tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				i := c.newInterception(mustMessagesPayload(t, tt.payload))
+				payload := mustMessagesPayload(t, tt.payload)
+				require.Equal(t, tt.expectConfigured, payload.InvocationModel(runtime))
+				require.Equal(t, tt.payload, string(payload))
+				i := c.newInterception(payload)
 				require.Equal(t, tt.expectModel, i.Model())
 				require.Equal(t, tt.expectConfigured, i.upstreamModel())
 			})
@@ -946,6 +949,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectEffort:        "medium",
 			expectKeptFields:    []string{"output_config", "output_config.effort"},
 			expectRemovedFields: []string{"output_config.format"},
+		},
+		{
+			name:               "global_sonnet_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "global.anthropic.claude-sonnet-5-5",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
 		},
 		{
 			name:               "opus_5_5_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
