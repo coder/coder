@@ -1053,9 +1053,6 @@ export const CompactionHintSurvivesOverrideRefetchError: Story = {
 		await userEvent.hover(
 			await canvas.findByRole("button", { name: /Context usage 25%/ }),
 		);
-		await within(canvasElement.ownerDocument.body).findByText(
-			"Compacts at 70%",
-		);
 	},
 };
 

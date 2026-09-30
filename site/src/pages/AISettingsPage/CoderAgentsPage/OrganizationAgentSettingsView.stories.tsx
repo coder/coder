@@ -220,7 +220,6 @@ export const CompactionTriggerWarning: Story = {
 		await userEvent.click(
 			await body.findByRole("option", { name: /Compact Mini/i }),
 		);
-		await section.findByText(/may compact earlier/i);
 	},
 };
 

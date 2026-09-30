@@ -73,6 +73,26 @@ export const ChatModelCompactionDisabled: Story = {
 	},
 };
 
+export const ChatModelCompactionDisabledOrganizationOverrideNotLoaded: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			contextLimitTokens: 128_000,
+			compactionThreshold: {
+				percent: 100,
+				source: "user",
+				organizationOverrideNotLoaded: true,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+	},
+};
+
 export const ChatModelCompactionBinding: Story = {
 	args: {
 		usage: {
