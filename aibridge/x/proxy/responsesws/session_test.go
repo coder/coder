@@ -40,6 +40,8 @@ type fakeConn struct {
 	written   chan []byte
 	closed    chan struct{}
 	closeOnce sync.Once
+	// onWrite, when set, replaces Write.
+	onWrite atomic.Pointer[func(ctx context.Context) error]
 }
 
 func (c *fakeConn) Read(ctx context.Context) ([]byte, error) {
@@ -59,6 +61,9 @@ func (c *fakeConn) Read(ctx context.Context) ([]byte, error) {
 }
 
 func (c *fakeConn) Write(ctx context.Context, msg []byte) error {
+	if f := c.onWrite.Load(); f != nil {
+		return (*f)(ctx)
+	}
 	select {
 	case c.written <- append([]byte(nil), msg...):
 		return nil
@@ -683,3 +688,180 @@ func TestLaneStateReleased(t *testing.T) {
 	require.Len(t, h.rec.RecordedInterceptions(), 21)
 	require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 }
+
+// TestAdmitCallerCanceledIsNotRefusal requires that a caller canceling while
+// admission runs is reported as the cancellation, never as a refusal event.
+func TestAdmitCallerCanceledIsNotRefusal(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	var cancelCaller atomic.Pointer[context.CancelFunc]
+	h := newHarness(ctx, t, func(ctx context.Context, _ string) error {
+		(*cancelCaller.Load())()
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	for range 200 {
+		sendCtx, cancel := context.WithCancel(ctx)
+		cancelCaller.Store(&cancel)
+		err := h.sess.Send(sendCtx, []byte(create("", "gpt-6", "hi")))
+		cancel()
+		require.ErrorIs(t, err, context.Canceled)
+		require.Zero(t, responsesws.QueuedEvents(h.sess))
+	}
+	require.Empty(t, h.rec.RecordedInterceptions())
+	require.Empty(t, h.conn.written)
+}
+
+// TestSendFailureClassification covers how Send reports a step that fails or
+// is cut short: a session end wins over a caller cancellation, which wins
+// over the step's own error. Only a step's own error synthesizes an event,
+// and an interception Send started is always ended.
+func TestSendFailureClassification(t *testing.T) {
+	t.Parallel()
+	errBroken := xerrors.New("broken pipe")
+	type control struct {
+		h            *harness
+		cancelCaller context.CancelFunc
+	}
+	endUpstream := func(c control) { close(c.h.conn.toClient) }
+	for _, tc := range []struct {
+		name  string
+		frame string
+		// admit and write, when set, run in place of admission and the
+		// upstream write. Each receives the Send operation's ctx.
+		admit func(ctx context.Context, c control) error
+		write func(ctx context.Context, c control) error
+		// expire gives the caller's ctx a short deadline.
+		expire  bool
+		sendErr error
+		// event is the code of the error event Send queues, if any.
+		event string
+		// ended is the recorded end of the one started interception, or
+		// nil when Send must start none.
+		ended *recorder.ErrorType
+	}{
+		{
+			name: "AdmitRefused", frame: create("", "gpt-6", "hi"),
+			admit: func(context.Context, control) error { return xerrors.New("no budget") },
+			event: "request_refused",
+		},
+		{
+			name: "CallerCanceledDuringAdmit", frame: create("", "gpt-6", "hi"),
+			admit: func(ctx context.Context, c control) error {
+				c.cancelCaller()
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: context.Canceled,
+		},
+		{
+			name: "CallerCanceledAdmitLateSuccess", frame: create("", "gpt-6", "hi"),
+			admit: func(ctx context.Context, c control) error {
+				c.cancelCaller()
+				<-ctx.Done()
+				return nil
+			},
+			sendErr: context.Canceled,
+		},
+		{
+			name: "CallerCanceledDuringWrite", frame: create("", "gpt-6", "hi"),
+			write: func(ctx context.Context, c control) error {
+				c.cancelCaller()
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: context.Canceled, ended: ptr(recorder.ErrorTypeUnknown),
+		},
+		{
+			name: "CallerDeadlineDuringWrite", frame: create("", "gpt-6", "hi"), expire: true,
+			write: func(ctx context.Context, _ control) error {
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: context.DeadlineExceeded, ended: ptr(recorder.ErrorTypeTimeout),
+		},
+		{
+			name: "UpstreamEndedDuringCreateWrite", frame: create("", "gpt-6", "hi"),
+			write: func(ctx context.Context, c control) error {
+				endUpstream(c)
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: responsesws.ErrClosed, ended: ptr(recorder.ErrorTypeUnknown),
+		},
+		{
+			name: "UpstreamEndedDuringWrite", frame: `{"type":"response.inject","input":"more"}`,
+			write: func(ctx context.Context, c control) error {
+				endUpstream(c)
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: responsesws.ErrClosed,
+		},
+		{
+			name: "CallerCanceledDuringPlainWrite", frame: `{"type":"response.inject","input":"more"}`,
+			write: func(ctx context.Context, c control) error {
+				c.cancelCaller()
+				<-ctx.Done()
+				return ctx.Err()
+			},
+			sendErr: context.Canceled,
+		},
+		{
+			name: "CreateWriteFailed", frame: create("", "gpt-6", "hi"),
+			write:   func(context.Context, control) error { return errBroken },
+			sendErr: errBroken, ended: ptr(recorder.ErrorTypeUnknown),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := codertestutil.Context(t, codertestutil.WaitShort)
+			var c control
+			var admit responsesws.AdmitFunc
+			if tc.admit != nil {
+				admit = func(ctx context.Context, _ string) error { return tc.admit(ctx, c) }
+			}
+			c.h = newHarness(ctx, t, admit)
+			if tc.write != nil {
+				write := func(ctx context.Context) error { return tc.write(ctx, c) }
+				c.h.conn.onWrite.Store(&write)
+			}
+			// The caller's ctx outlives the test's wait, so a step that only
+			// honors it cannot end in time.
+			sendCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+			if tc.expire {
+				sendCtx, cancel = context.WithDeadline(context.WithoutCancel(ctx), time.Now().Add(codertestutil.IntervalFast))
+			}
+			defer cancel()
+			c.cancelCaller = cancel
+			sent := make(chan error, 1)
+			go func() { sent <- c.h.sess.Send(sendCtx, []byte(tc.frame)) }()
+
+			err := codertestutil.TryReceive(ctx, t, sent)
+			if tc.sendErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, tc.sendErr)
+			}
+			if tc.event == "" {
+				require.Zero(t, responsesws.QueuedEvents(c.h.sess))
+			} else {
+				require.Equal(t, 1, responsesws.QueuedEvents(c.h.sess))
+				ev, err := c.h.sess.Recv(ctx)
+				require.NoError(t, err)
+				require.Equal(t, tc.event, gjson.GetBytes(ev, "error.code").String())
+			}
+			ics := c.h.rec.RecordedInterceptions()
+			if tc.ended == nil {
+				require.Empty(t, ics)
+				return
+			}
+			require.Len(t, ics, 1)
+			end := c.h.rec.RecordedInterceptionEnd(ics[0].ID)
+			require.NotNil(t, end, "started interception left open")
+			require.Equal(t, *tc.ended, end.ErrorType)
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }

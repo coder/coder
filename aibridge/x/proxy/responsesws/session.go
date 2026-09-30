@@ -177,13 +177,35 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 // Send forwards one client frame upstream unchanged. A refused or
 // unrecordable response.create is not forwarded; the client receives an
 // error event from Recv instead and the session stays open.
+//
+// Every blocking step of Send (admission, recording the interception start,
+// queueing a synthesized error event, and the upstream write) runs under one
+// operation context that ends when ctx or the session ends. When a step
+// fails or is cut short, and after admission returns, Send classifies the
+// outcome in this order:
+//
+//  1. The session ended: Send returns ErrClosed and records or synthesizes
+//     nothing more. An interception it started ends with the session's
+//     cause.
+//  2. ctx ended: Send returns ctx's error and synthesizes nothing. An
+//     interception it started ends with ctx's error.
+//  3. Otherwise the step failed on its own. A refused create or a failed
+//     interception start queues an error event and Send returns nil. A
+//     failed write ends the interception Send started and Send returns the
+//     write error.
+//
+// After a failed step, Send returns nil exactly when it queued an event.
 func (s *Session) Send(ctx context.Context, frame []byte) error {
 	if s.isClosed() {
 		return ErrClosed
 	}
+	opCtx, cancelOp := context.WithCancel(ctx)
+	defer cancelOp()
+	stop := context.AfterFunc(s.ctx, cancelOp)
+	defer stop()
 	eventType := gjson.GetBytes(frame, "type").String()
 	if eventType == eventCreate {
-		return s.sendCreate(ctx, frame)
+		return s.sendCreate(ctx, opCtx, frame)
 	}
 	var steered *interception
 	if eventType == eventSteer {
@@ -191,7 +213,10 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 		steered = s.responses[gjson.GetBytes(frame, "previous_response_id").String()]
 		s.mu.Unlock()
 	}
-	if err := s.upstream.Write(ctx, frame); err != nil {
+	if err := s.upstream.Write(opCtx, frame); err != nil {
+		if aborted := s.sendAborted(ctx); aborted != nil {
+			return aborted
+		}
 		return xerrors.Errorf("write upstream: %w", err)
 	}
 	if steered != nil {
@@ -200,6 +225,17 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 		s.opts.Observer.ClientEvent(recordCtx, steered.id, frame)
 	}
 	return nil
+}
+
+// sendAborted reports why a Send step was cut short by its operation
+// context: ErrClosed when the session ended, else ctx's error when the
+// caller's context ended, else nil. The session is checked first so a close
+// racing a caller cancellation reports the close.
+func (s *Session) sendAborted(ctx context.Context) error {
+	if s.isClosed() {
+		return ErrClosed
+	}
+	return ctx.Err()
 }
 
 // isClosed reports whether Close was called or the reader ended the session.
@@ -273,52 +309,51 @@ func (s *Session) readLoop() {
 	}
 }
 
-func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
+// sendCreate implements Send for response.create. ctx is the caller's
+// context and opCtx the Send operation context.
+func (s *Session) sendCreate(ctx, opCtx context.Context, frame []byte) error {
 	lane := gjson.GetBytes(frame, "stream_id").String()
 	model := gjson.GetBytes(frame, "model").String()
 	log := s.opts.Logger.With(slog.F("model", model), slog.F("stream_id", lane))
-	// Admission and the interception start are canceled by the caller or a
-	// session close, so a close never leaves Send blocked in either.
-	opCtx, cancelOp := context.WithCancel(ctx)
-	defer cancelOp()
-	stop := context.AfterFunc(s.ctx, cancelOp)
-	defer stop()
 	if s.opts.Admit != nil {
 		err := s.opts.Admit(opCtx, model)
-		// A create admitted or refused after the session closed is never
-		// forwarded, so nothing is recorded or relayed for it.
-		if s.isClosed() {
-			return ErrClosed
+		// A create admitted or refused after the session or the caller
+		// ended is never forwarded, so nothing is recorded or relayed for
+		// it. Any other error is a refusal, including a context error from
+		// admission's own deadline.
+		if aborted := s.sendAborted(ctx); aborted != nil {
+			return aborted
 		}
 		if err != nil {
 			log.Info(ctx, "response.create refused by admission", slog.Error(err))
 			if respErr, ok := errors.AsType[*intercept.ResponseError](err); ok && respErr.ErrorObject != nil {
-				return s.enqueueError(ctx, lane, respErr.StatusCode, respErr.ErrorObject.Type, respErr.ErrorObject.Code, respErr.ErrorObject.Message)
+				return s.enqueueError(ctx, opCtx, lane, respErr.StatusCode, respErr.ErrorObject.Type, respErr.ErrorObject.Code, respErr.ErrorObject.Message)
 			}
 			// Refusals are policy decisions, not gateway faults: use a
 			// non-retryable 4xx so SDKs do not retry them.
-			return s.enqueueError(ctx, lane, http.StatusForbidden, "invalid_request_error", "request_refused", "request refused by AI Gateway")
+			return s.enqueueError(ctx, opCtx, lane, http.StatusForbidden, "invalid_request_error", "request_refused", "request refused by AI Gateway")
 		}
 	}
-	// Starting uses opCtx so a canceled caller or closed session fails fast
-	// instead of recording an interception for a frame that is never
-	// forwarded.
 	ic, err := s.startInterception(opCtx, lane, model, func(ic *interception) {
 		s.pending[lane] = append(s.pending[lane], ic)
 	})
 	if err != nil {
-		log.Warn(ctx, "failed to record interception", slog.Error(err))
-		if errors.Is(err, ErrClosed) {
-			return ErrClosed
+		if aborted := s.sendAborted(ctx); aborted != nil {
+			return aborted
 		}
-		return s.enqueueError(ctx, lane, http.StatusInternalServerError, intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, "failed to record interception")
+		log.Warn(ctx, "failed to record interception", slog.Error(err))
+		return s.enqueueError(ctx, opCtx, lane, http.StatusInternalServerError, intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, "failed to record interception")
+	}
+	// Check before forwarding: a write on an ended context may still
+	// succeed, which would forward a create the caller abandoned.
+	if aborted := s.sendAborted(ctx); aborted != nil {
+		return s.endStarted(ctx, ic, aborted)
 	}
 	recordCtx, cancel := recordContext(ctx)
 	defer cancel()
 	s.opts.Observer.ClientEvent(recordCtx, ic.id, frame)
-	if err := s.upstream.Write(ctx, frame); err != nil {
-		s.endInterception(ic, err)
-		return xerrors.Errorf("write response.create upstream: %w", err)
+	if err := s.upstream.Write(opCtx, frame); err != nil {
+		return s.endStarted(ctx, ic, xerrors.Errorf("write response.create upstream: %w", err))
 	}
 	// A client create continuing a response consumes any steer queued on it
 	// (the steering guide's tool-output flow), so no automatic continuation
@@ -327,6 +362,22 @@ func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
 		s.cancelContinuation(previous)
 	}
 	return nil
+}
+
+// endStarted ends ic, which a Send step started before failing with err, and
+// returns what Send reports, classified as documented on Send.
+func (s *Session) endStarted(ctx context.Context, ic *interception, err error) error {
+	switch {
+	case s.isClosed():
+		s.endInterception(ic, context.Cause(s.ctx))
+		return ErrClosed
+	case ctx.Err() != nil:
+		s.endInterception(ic, ctx.Err())
+		return ctx.Err()
+	default:
+		s.endInterception(ic, err)
+		return err
+	}
 }
 
 // startInterception records a new interception and runs register under the
@@ -583,8 +634,9 @@ func (s *Session) recordEnded(ic *interception, err error) {
 // carries both the Responses streaming error shape (top-level code and
 // message) and the WebSocket mode shape (status and a nested error object),
 // plus stream_id, so clients parsing either shape understand it. Synthesized
-// errors never have a param, so it is omitted.
-func (s *Session) enqueueError(ctx context.Context, lane string, status int, errType, code, message string) error {
+// errors never have a param, so it is omitted. ctx is the caller's context
+// and opCtx the Send operation context, which bounds waiting for room.
+func (s *Session) enqueueError(ctx, opCtx context.Context, lane string, status int, errType, code, message string) error {
 	ev, err := json.Marshal(responses.ResponseErrorEvent{Code: code, Message: message})
 	if err == nil {
 		ev, err = sjson.DeleteBytes(ev, "param")
@@ -601,13 +653,23 @@ func (s *Session) enqueueError(ctx context.Context, lane string, status int, err
 	if err != nil {
 		return xerrors.Errorf("encode error event: %w", err)
 	}
+	// Queue without waiting when there is room, so the outcome never
+	// depends on select choosing between a free queue and an ended
+	// operation. The event is queued exactly when nil is returned.
 	select {
 	case s.errors <- ev:
 		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-s.ctx.Done():
-		return ErrClosed
+	default:
+	}
+	select {
+	case s.errors <- ev:
+		return nil
+	case <-opCtx.Done():
+		// opCtx ends only with ctx or the session, so this is non-nil.
+		if aborted := s.sendAborted(ctx); aborted != nil {
+			return aborted
+		}
+		return opCtx.Err()
 	}
 }
 

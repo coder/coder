@@ -20,3 +20,8 @@ func StateSizes(s *Session) map[string]int {
 	}
 	return sizes
 }
+
+// QueuedEvents returns the number of synthesized events waiting for Recv.
+func QueuedEvents(s *Session) int {
+	return len(s.errors)
+}
