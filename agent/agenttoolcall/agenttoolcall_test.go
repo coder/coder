@@ -29,10 +29,10 @@ import (
 // behavior of each acting route is tested through the real agent in
 // agent.TestAgent_ToolCall. These tests cover what that cannot reach.
 
-type killed struct {
+type canceledCall struct {
 	chatID uuid.UUID
 	id     uuid.UUID
-	// runsFinished is how many runs had finished at the kill.
+	// runsFinished is how many runs had finished at the cancel hook call.
 	runsFinished int64
 }
 
@@ -43,7 +43,7 @@ type testServer struct {
 	handler  http.Handler
 	runs     atomic.Int64
 	finished atomic.Int64
-	killed   chan killed
+	canceled chan canceledCall
 	// entered receives when a run starts.
 	entered chan struct{}
 	// cancelEntered receives when a cancel request reaches the cancel
@@ -56,12 +56,12 @@ type testServer struct {
 func newTestServer(t *testing.T) *testServer {
 	s := &testServer{
 		clock:         quartz.NewMock(t),
-		killed:        make(chan killed, 10),
+		canceled:      make(chan canceledCall, 10),
 		entered:       make(chan struct{}, 10),
 		cancelEntered: make(chan struct{}, 10),
 	}
 	table := agenttoolcall.New(s.clock, func(_ context.Context, chatID, id uuid.UUID) {
-		s.killed <- killed{chatID: chatID, id: id, runsFinished: s.finished.Load()}
+		s.canceled <- canceledCall{chatID: chatID, id: id, runsFinished: s.finished.Load()}
 	})
 	r := chi.NewRouter()
 	r.Use(httpmw.Recover(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})), agentchat.Middleware, table.Middleware)
@@ -246,10 +246,10 @@ func TestCancel(t *testing.T) {
 
 		require.False(t, s.cancel(ctx, t, chatID, id).Received)
 		// A process started with the ID outlives the record, so the
-		// cancel still kills it.
-		k := testutil.RequireReceive(ctx, t, s.killed)
-		require.Equal(t, chatID, k.chatID)
-		require.Equal(t, id, k.id)
+		// cancel still calls the cancel hook.
+		c := testutil.RequireReceive(ctx, t, s.canceled)
+		require.Equal(t, chatID, c.chatID)
+		require.Equal(t, id, c.id)
 		require.Equal(t, http.StatusConflict, s.do(ctx, "/run", chatID, id).Code)
 		require.Zero(t, s.runs.Load())
 	})
@@ -282,7 +282,7 @@ func TestCancel(t *testing.T) {
 		require.True(t, resp.Received)
 		require.Equal(t, run.Code, resp.Status)
 		require.Equal(t, run.Body.Bytes(), resp.Body)
-		k := testutil.RequireReceive(ctx, t, s.killed)
-		require.EqualValues(t, 1, k.runsFinished, "the cancel kills after the run, so a process still starting is killed")
+		c := testutil.RequireReceive(ctx, t, s.canceled)
+		require.EqualValues(t, 1, c.runsFinished, "the cancel hook runs after the run, so a process still starting is killed")
 	})
 }

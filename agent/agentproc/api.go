@@ -221,9 +221,9 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// KillToolCall kills the running process of chat chatID with tool call
+// CancelToolCall kills the running process of chat chatID with tool call
 // id, and marks it canceled.
-func (api *API) KillToolCall(ctx context.Context, chatID, id uuid.UUID) {
+func (api *API) CancelToolCall(ctx context.Context, chatID, id uuid.UUID) {
 	proc, ok := api.manager.get(chatID, id.String())
 	if !ok {
 		return

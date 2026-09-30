@@ -46,15 +46,17 @@ type entry struct {
 // Table remembers tool calls by chat ID and tool call ID.
 type Table struct {
 	clock   quartz.Clock
-	kill    func(ctx context.Context, chatID, id uuid.UUID)
+	cancel  func(ctx context.Context, chatID, id uuid.UUID)
 	mu      sync.Mutex
 	entries map[key]*entry
 }
 
-// New returns a Table. kill kills the running process of canceled tool
-// call id if chat chatID owns one.
-func New(clock quartz.Clock, kill func(ctx context.Context, chatID, id uuid.UUID)) *Table {
-	return &Table{clock: clock, kill: kill, entries: make(map[key]*entry)}
+// New returns a Table. cancel stops work that canceled tool call id of
+// chat chatID left running after its request finished; today that is an
+// execute process. The Table calls cancel after the run finishes, or
+// immediately when there was no request.
+func New(clock quartz.Clock, cancel func(ctx context.Context, chatID, id uuid.UUID)) *Table {
+	return &Table{clock: clock, cancel: cancel, entries: make(map[key]*entry)}
 }
 
 // add stores e under k and drops expired entries. t.mu must be held.
@@ -151,9 +153,9 @@ func (t *Table) Routes() http.Handler {
 }
 
 // handleCancel cancels tool call {id}. A tool call the agent has no
-// record of is refused from now on, and a process with its ID is killed:
-// the process outlives the record. Otherwise the cancel waits for the run
-// to finish, kills its process, and responds with the saved response.
+// record of is refused from now on, and t.cancel is called for it: work
+// it started outlives the record. Otherwise the cancel waits for the run
+// to finish, calls t.cancel, and responds with the saved response.
 func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -179,16 +181,16 @@ func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	t.mu.Unlock()
 
 	if e.done == nil {
-		t.kill(ctx, chat.ID, id)
+		t.cancel(ctx, chat.ID, id)
 		httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.CancelToolCallResponse{})
 		return
 	}
-	// Kill after the run so a process that is still starting is killed.
+	// Call t.cancel after the run so it stops work that was still starting.
 	select {
 	case <-e.done:
 	case <-ctx.Done():
 		return
 	}
-	t.kill(ctx, chat.ID, id)
+	t.cancel(ctx, chat.ID, id)
 	httpapi.Write(ctx, rw, http.StatusOK, e.resp)
 }
