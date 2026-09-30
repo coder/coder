@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -101,15 +102,18 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
 	require.NoError(t, err)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	server, err := New(f.ps, Config{
-		Logger:                     logger,
-		Database:                   f.db,
+		Logger: logger,
+		// The server authorizes like coderd does, so the scan's reads and
+		// cursor writes run under the chatd subject's real permissions.
+		Database:                   dbauthz.New(f.db, authorizer, logger, nil),
 		ReplicaID:                  uuid.New(),
 		Clock:                      f.clock,
 		PendingChatAcquireInterval: testutil.WaitLong,
 		Experiments:                codersdk.ExperimentsKnown,
 		ExperimentEvaluator:        evaluator,
-		Authorizer:                 rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		Authorizer:                 authorizer,
 		Limits:                     limits,
 	})
 	require.NoError(t, err)
@@ -144,9 +148,17 @@ func (f *scheduleFixture) create(ctx context.Context, t *testing.T, server *Serv
 	req.Prompt = "Post the standup."
 	req.ScheduleCron = &spec
 	req.ScheduleTimeZone = &timeZone
-	automation, _, err := server.CreateAutomation(ctx, CreateAutomationParams{OrganizationID: f.org.ID, OwnerID: f.owner.ID, Request: req})
+	automation, _, err := server.CreateAutomation(f.asOwner(ctx, t), CreateAutomationParams{OrganizationID: f.org.ID, OwnerID: f.owner.ID, Request: req})
 	require.NoError(t, err)
 	return automation
+}
+
+// asOwner returns ctx authorized as the fixture's owner.
+func (f *scheduleFixture) asOwner(ctx context.Context, t *testing.T) context.Context {
+	t.Helper()
+	owner, err := automationOwnerSubject(ctx, f.db, f.owner.ID)
+	require.NoError(t, err)
+	return dbauthz.As(ctx, owner)
 }
 
 // cursor returns the automation's schedule cursor in UTC.
@@ -331,7 +343,7 @@ func TestAutomationScheduleScan(t *testing.T) {
 				whenBusy: codersdk.ChatAutomationWhenBusyQueue,
 				limits:   Limits{MaxQueuedMessagesPerChat: 1},
 				fill: func(ctx context.Context, t *testing.T, f *scheduleFixture, server *Server, _ database.ChatAutomation) int {
-					sent, err := server.SendMessage(ctx, SendMessageOptions{
+					sent, err := server.SendMessage(f.asOwner(ctx, t), SendMessageOptions{
 						ChatID:    f.chat.ID,
 						CreatedBy: f.owner.ID,
 						Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("from a person")},
@@ -458,6 +470,25 @@ WHERE id = $1`, automation.ID, edited)
 
 		require.Zero(t, f.inputs(ctx, t))
 		require.Equal(t, nextRun(t, "* * * * *", "UTC", f.clock.Now()), f.cursor(ctx, t, automation.ID))
+	})
+
+	t.Run("CursorOnlyMovesForward", func(t *testing.T) {
+		t.Parallel()
+		f := newScheduleFixture(t, database.ChatStatusWaiting, scheduleStart)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		server := f.newServer(t, Limits{})
+		automation := f.existingChat(ctx, t, server, "* * * * *", "UTC", codersdk.ChatAutomationWhenBusyQueue)
+		cursor := automation.ScheduleNextRunAt.Time
+		occurrence := automationOccurrence{revision: automation.ScheduleRevision, cursor: cursor}
+
+		// A clock that stepped back would compute a next run at or before
+		// the cursor, which could replay an occurrence.
+		for _, next := range []time.Time{cursor, cursor.Add(-time.Minute)} {
+			moved, err := advanceAutomationSchedule(ctx, server.db, automation.ID, occurrence, next, f.clock.Now())
+			require.Error(t, err)
+			require.False(t, moved)
+			require.Equal(t, cursor.UTC(), f.cursor(ctx, t, automation.ID))
+		}
 	})
 
 	t.Run("DaylightSavingTime", func(t *testing.T) {

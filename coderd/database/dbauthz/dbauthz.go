@@ -812,9 +812,12 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type:       {policy.ActionRead},
-					rbac.ResourceChat.Type:             {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceChatAutomation.Type:   {policy.ActionRead},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead},
+					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					// Update lets the schedule loop move automation cursors
+					// (AdvanceChatAutomationScheduleCursor). Owner-only
+					// changes are enforced by the chatd automation service.
+					rbac.ResourceChatAutomation.Type:   {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceChatModelConfig.Type:  {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceDeploymentConfig.Type: {policy.ActionRead},
@@ -1818,10 +1821,11 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 }
 
 func (q *querier) AdvanceChatAutomationScheduleCursor(ctx context.Context, arg database.AdvanceChatAutomationScheduleCursorParams) (int64, error) {
-	// The scheduler moves the cursors of every owner's automations, so
-	// the write requires chatd's site-wide chat permission, like
-	// GetChatQueuedMessagesByAutomationBelowGeneration.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+	automation, err := q.db.GetChatAutomationByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, automation); err != nil {
 		return 0, err
 	}
 	return q.db.AdvanceChatAutomationScheduleCursor(ctx, arg)

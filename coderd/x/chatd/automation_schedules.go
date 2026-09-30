@@ -50,6 +50,19 @@ type automationOccurrence struct {
 // checkAutomationOccurrence requires the locked automation to still have
 // the observed schedule revision and cursor, and the occurrence to be due
 // and within the grace window at now.
+//
+// now comes from the local clock of the instance that holds the locks,
+// not from the database, so instances with skewed clocks judge time
+// differently. Skew cannot cause a double acceptance or a replay: an
+// acceptance commits only together with the cursor write, which is
+// conditional on the observed revision and cursor under the automation
+// lock, and every cursor write moves the cursor strictly forward (see
+// advanceAutomationSchedule). So each occurrence is accepted at most
+// once, and an occurrence behind the cursor can never be accepted again.
+// A clock that is off by d only shifts the window in which an occurrence
+// can be accepted to [cursor-d, cursor+grace+d] in true time, and a
+// clock that runs ahead can skip the occurrences within d of true time.
+
 func checkAutomationOccurrence(automation database.ChatAutomation, occurrence automationOccurrence, now time.Time) error {
 	if automation.Kind != database.ChatAutomationKindSchedule ||
 		automation.ScheduleRevision != occurrence.revision ||
@@ -67,9 +80,14 @@ func checkAutomationOccurrence(automation database.ChatAutomation, occurrence au
 // advanceAutomationSchedule moves the automation's cursor from the
 // observed occurrence to next, or clears it when next is zero. It reports
 // false when the schedule revision or cursor changed since they were
-// observed.
+// observed. The cursor only moves forward: a next at or before the
+// observed cursor, for example after the local clock stepped back, is
+// refused.
 func advanceAutomationSchedule(ctx context.Context, store database.Store, automationID uuid.UUID, occurrence automationOccurrence, next, now time.Time) (bool, error) {
-	//nolint:gocritic // The scheduler moves the cursors of every owner's automations.
+	if !next.IsZero() && !next.After(occurrence.cursor) {
+		return false, xerrors.Errorf("advance chat automation schedule: next run %s is not after the cursor %s", next, occurrence.cursor)
+	}
+	//nolint:gocritic // The scheduler moves the cursors of every owner's automations; chatd may update them.
 	count, err := store.AdvanceChatAutomationScheduleCursor(dbauthz.AsChatd(ctx), database.AdvanceChatAutomationScheduleCursorParams{
 		ID:                automationID,
 		ScheduleRevision:  occurrence.revision,
