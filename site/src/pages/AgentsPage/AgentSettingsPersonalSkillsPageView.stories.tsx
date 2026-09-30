@@ -1,34 +1,53 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type { UserSkillMetadata } from "#/api/typesGenerated";
+import { MockSkill } from "#/testHelpers/skills";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type AgentSettingsPersonalSkillsPageViewProps,
 } from "./AgentSettingsPersonalSkillsPageView";
 
-const buildSkill = (
-	overrides: Partial<UserSkillMetadata> & Pick<UserSkillMetadata, "name">,
-): UserSkillMetadata => ({
-	id: overrides.id ?? `skill-${overrides.name}`,
-	name: overrides.name,
-	description: overrides.description ?? "Reusable guidance for agents.",
-	created_at: overrides.created_at ?? "2026-05-01T12:00:00.000Z",
-	updated_at: overrides.updated_at ?? "2026-05-03T15:30:00.000Z",
-});
+const reviewSQLSkill = {
+	...MockSkill,
+	id: "skill-review-sql",
+	name: "review-sql",
+	description: "Review SQL changes for query and index risks.",
+	created_at: "2026-05-01T12:00:00.000Z",
+	updated_at: "2026-05-03T15:30:00.000Z",
+};
 
-const skills = [
-	buildSkill({
-		name: "review-sql",
-		description: "Review SQL changes for query and index risks.",
-	}),
-	buildSkill({
-		name: "write-release-notes",
-		description: "Draft concise release notes from a change list.",
-		updated_at: "2026-05-04T09:15:00.000Z",
-	}),
-];
+const releaseNotesSkill = {
+	...MockSkill,
+	id: "skill-write-release-notes",
+	name: "write-release-notes",
+	description: "Draft concise release notes from a change list.",
+	created_at: "2026-05-01T12:00:00.000Z",
+	updated_at: "2026-05-04T09:15:00.000Z",
+};
 
-const firstSkill = skills[0] ?? buildSkill({ name: "review-sql" });
+const testAuditSkill = {
+	...MockSkill,
+	id: "skill-test-audit",
+	name: "test-audit",
+	description:
+		"Invoke whenever writing, changing, reviewing, or sweeping tests in coder/coder. Authoring gate for new tests plus audit workflow for low-value, implementation-coupled, duplicative, or test-only-production-seam-driven tests.",
+};
+
+const frontendReviewSkill = {
+	...MockSkill,
+	id: "skill-frontend-accessibility-and-regression-review",
+	name: "frontend-accessibility-and-regression-review",
+	description:
+		"Review frontend changes for accessibility, loading and error states, reusable components, and regression coverage before opening a pull request.",
+};
+
+const debugHTTPSkill = {
+	...MockSkill,
+	id: "skill-debug-http",
+	name: "debug-http",
+	description: "",
+};
+
+const skills = [reviewSQLSkill, releaseNotesSkill];
 
 const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 	skills,
@@ -56,29 +75,7 @@ export const Populated: Story = {};
 
 export const LongDescription: Story = {
 	args: {
-		skills: [
-			{
-				...firstSkill,
-				id: "skill-test-audit",
-				name: "test-audit",
-				description:
-					"Invoke whenever writing, changing, reviewing, or sweeping tests in coder/coder. Authoring gate for new tests plus audit workflow for low-value, implementation-coupled, duplicative, or test-only-production-seam-driven tests.",
-			},
-			...skills,
-			{
-				...firstSkill,
-				id: "skill-frontend-review",
-				name: "frontend-review",
-				description:
-					"Review frontend changes for accessibility, loading and error states, reusable components, and regression coverage before opening a pull request.",
-			},
-			{
-				...firstSkill,
-				id: "skill-debug-http",
-				name: "debug-http",
-				description: "",
-			},
-		],
+		skills: [testAuditSkill, ...skills, frontendReviewSkill, debugHTTPSkill],
 	},
 };
 
@@ -356,7 +353,7 @@ export const ImportSkillMarkdownKeepsEditName: Story = {
 export const DeleteConfirmationOpen: Story = {
 	args: {
 		deleteState: {
-			skill: firstSkill,
+			skill: reviewSQLSkill,
 			isDeleting: false,
 			onConfirm: fn(),
 			onClose: fn(),
@@ -421,7 +418,7 @@ export const EditDialogSubmitError: Story = {
 export const DeleteConfirmationError: Story = {
 	args: {
 		deleteState: {
-			skill: firstSkill,
+			skill: reviewSQLSkill,
 			error: {
 				message: "Failed to delete personal skill.",
 				detail: "That personal skill was not found.",

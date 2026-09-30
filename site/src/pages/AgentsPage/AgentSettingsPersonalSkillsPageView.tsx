@@ -327,7 +327,7 @@ export const AgentSettingsPersonalSkillsPageView: React.FC<
 					) : (
 						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell className="whitespace-nowrap">
+								<TableCell className="max-w-48 truncate" title={skill.name}>
 									{skill.name}
 								</TableCell>
 								<TableCell
