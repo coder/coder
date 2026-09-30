@@ -98,10 +98,24 @@ export const AutomationMessages: Story = {
 			},
 			buildMessage(4, textContent("Run the test suite")),
 		],
-		automationNames: new Map([
-			[MockChatAutomation.id, MockChatAutomation.name],
-			[mockLongNameAutomation.id, mockLongNameAutomation.name],
-		]),
+		automationNames: {
+			names: new Map([
+				[MockChatAutomation.id, MockChatAutomation.name],
+				[mockLongNameAutomation.id, mockLongNameAutomation.name],
+			]),
+			status: "settled",
+		},
+	},
+};
+
+export const AutomationMessagesLoading: Story = {
+	...AutomationMessages,
+	args: {
+		...AutomationMessages.args,
+		automationNames: {
+			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
+			status: "loading",
+		},
 	},
 };
 

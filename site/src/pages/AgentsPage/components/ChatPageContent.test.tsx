@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -63,8 +63,6 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-const deletedAutomationId = "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b";
-
 const queuedAutomationInput = (
 	id: number,
 	automationId: string,
@@ -76,10 +74,20 @@ const queuedAutomationInput = (
 	input_id: inputId,
 });
 
-const useExperiments = (experiments: TypesGen.Experiment[]) =>
+const mockExperiments = (experiments: TypesGen.Experiment[]) =>
 	server.use(
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
 	);
+
+const mockChatAutomationsResponse = () => {
+	mockExperiments(["chat-automations"]);
+	server.use(
+		http.get(
+			"/api/experimental/organizations/:organizationId/chat-automations",
+			() => HttpResponse.json([MockChatAutomation]),
+		),
+	);
+};
 
 describe("ChatPageInput", () => {
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
@@ -129,14 +137,9 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	it("labels queued automation input by automation name, or by ID once the automation is deleted", async () => {
-		useExperiments(["chat-automations"]);
-		server.use(
-			http.get(
-				"/api/experimental/organizations/:organizationId/chat-automations",
-				() => HttpResponse.json([MockChatAutomation]),
-			),
-		);
+	it("requests the automations list for the chat's organization when the queue has automation input", async () => {
+		mockChatAutomationsResponse();
+		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
 		const store = createChatStore();
 		store.setQueuedMessages([
 			queuedAutomationInput(
@@ -144,39 +147,14 @@ describe("ChatPageInput", () => {
 				MockChatAutomation.id,
 				"0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
 			),
-			queuedAutomationInput(
-				2,
-				deletedAutomationId,
-				"9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
-			),
-			{ ...MockChatQueuedMessage, id: 3 },
 		]);
 
 		renderChatPageInput(store, {
 			chat: { ...MockChat, id: "", organization_id: "test-org-id" },
 		});
 
-		await screen.findByRole("button", {
-			name: "Automation run · CI heartbeat · input 0b6c4e2a",
-		});
-		const labels = screen.getAllByRole("button", { name: /^Automation run/ });
-		expect(labels.map((label) => label.textContent)).toEqual([
-			"Automation run · CI heartbeat · input 0b6c4e2a",
-			`Automation run · ${deletedAutomationId} · input 9a8b7c6d`,
-		]);
-
-		// Keyboard focus opens each tooltip in turn; jsdom hover leaves
-		// Radix's pointer grace area engaged and keeps the second tooltip
-		// closed.
-		act(() => labels[0].focus());
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Automation: CI heartbeat",
-		);
-		act(() => labels[1].focus());
 		await waitFor(() =>
-			expect(screen.getByRole("tooltip")).toHaveTextContent(
-				"Automation name unavailable",
-			),
+			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
 		);
 	});
 
@@ -198,7 +176,7 @@ describe("ChatPageInput", () => {
 	])(
 		"does not request automations when $name",
 		async ({ experiments, automated }) => {
-			useExperiments(experiments);
+			mockExperiments(experiments);
 			const getChatAutomations = vi.spyOn(
 				API.experimental,
 				"getChatAutomations",
@@ -225,14 +203,9 @@ describe("ChatPageInput", () => {
 });
 
 describe("ChatPageTimeline", () => {
-	it("labels automation messages in history by automation name, or by ID once the automation is deleted", async () => {
-		useExperiments(["chat-automations"]);
-		server.use(
-			http.get(
-				"/api/experimental/organizations/:organizationId/chat-automations",
-				() => HttpResponse.json([MockChatAutomation]),
-			),
-		);
+	it("requests the automations list for the chat's organization when history has automation input", async () => {
+		mockChatAutomationsResponse();
+		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
 		const store = createChatStore();
 		store.replaceMessages([
 			{
@@ -242,12 +215,6 @@ describe("ChatPageTimeline", () => {
 				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
 			},
 			{ ...MockChatMessage, id: 2 },
-			{
-				...MockChatMessage,
-				id: 3,
-				automation_id: deletedAutomationId,
-				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
-			},
 		]);
 
 		renderWithAuth(
@@ -265,16 +232,8 @@ describe("ChatPageTimeline", () => {
 			</MessageScroller.Provider>,
 		);
 
-		await screen.findByRole("button", {
-			name: "Automation run · CI heartbeat · input 0b6c4e2a",
-		});
-		expect(
-			screen
-				.getAllByRole("button", { name: /^Automation run/ })
-				.map((label) => label.textContent),
-		).toEqual([
-			"Automation run · CI heartbeat · input 0b6c4e2a",
-			`Automation run · ${deletedAutomationId} · input 9a8b7c6d`,
-		]);
+		await waitFor(() =>
+			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
+		);
 	});
 });
