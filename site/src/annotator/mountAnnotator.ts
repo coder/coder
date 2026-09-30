@@ -1,5 +1,5 @@
 import { type CommentPopup, createCommentPopup } from "./commentPopup";
-import { describeElement } from "./describeElement";
+import { describeElementWithSource } from "./describeElement";
 import { el, flagCutEdges, placeOver } from "./dom";
 import { outlineInset, viewportBox } from "./geometry";
 import { createHeldComments } from "./heldComments";
@@ -158,16 +158,16 @@ export function mountAnnotator(
 		viewport: { width: win.innerWidth, height: win.innerHeight },
 	});
 
-	const createAnnotation = (
+	const createAnnotation = async (
 		target: Element,
 		comment: string,
 		selectedText: string | undefined,
-	): Annotation => {
+	): Promise<Annotation> => {
 		const annotation: Annotation = {
 			id: randomId(),
 			comment,
 			selectedText,
-			element: describeElement(target),
+			element: await describeElementWithSource(target),
 		};
 		// Stamped after describing so the marker never leaks into the
 		// captured selector or opening tag.
@@ -177,24 +177,27 @@ export function mountAnnotator(
 
 	// Shift+Send: keep the comment and stay in picking mode so several
 	// elements can be described before anything goes to the agent.
-	const holdComment = (
+	const holdComment = async (
 		target: Element,
 		comment: string,
 		selectedText: string | undefined,
 	) => {
-		held.hold(createAnnotation(target, comment, selectedText), target);
+		held.hold(await createAnnotation(target, comment, selectedText), target);
 		hint.dismiss();
 	};
 
 	// Plain Send: this comment plus anything held goes as one submission.
-	const submitComment = (
+	const submitComment = async (
 		target: Element,
 		comment: string,
 		selectedText: string | undefined,
 	) => {
 		const sent = [
 			...held.take(),
-			{ annotation: createAnnotation(target, comment, selectedText), target },
+			{
+				annotation: await createAnnotation(target, comment, selectedText),
+				target,
+			},
 		];
 		const page = pageInfo();
 		options.onSubmit({
@@ -263,9 +266,9 @@ export function mountAnnotator(
 			onCancel: closePopup,
 			onSubmit: (comment, hold) => {
 				if (hold) {
-					holdComment(target, comment, selectedText);
+					void holdComment(target, comment, selectedText);
 				} else {
-					submitComment(target, comment, selectedText);
+					void submitComment(target, comment, selectedText);
 				}
 				closePopup();
 			},

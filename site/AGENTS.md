@@ -50,7 +50,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 
 Vanilla TypeScript that Coder injects into third-party web apps shown in agent chat port previews. See `src/annotator/README.md`.
 
-- No React, Tailwind, shared components, or dependencies: it runs inside pages we do not control and renders only inside its own shadow root. Every import is relative; the overlay build (`vite.annotator.config.mts`, run by `pnpm build`) fails on anything else.
+- No React, Tailwind, or shared components, and no dependencies other than `bippy` (React fiber inspection, bundled into the script with its `react` import aliased to an empty shim): it runs inside pages we do not control and renders only inside its own shadow root. Every other import is relative; the overlay build (`vite.annotator.config.mts`, run by `pnpm build`) fails on anything else.
 - Nothing in `src/annotator/` imports from the rest of the site. The dashboard imports `#/annotator/protocol` and `#/annotator/formatAnnotations`; nothing flows the other way.
 - Treat everything read from the host page as untrusted: bound string lengths, never capture form state or raw markup, keep page-sourced text out of the user's voice in the output.
 

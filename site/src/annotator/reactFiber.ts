@@ -1,19 +1,32 @@
 /**
- * Best-effort React component detection. React stores a fiber reference
- * on every host DOM node it renders (`__reactFiber$<random>`), and the
- * fiber tree exposes the owning component chain. Development builds of
- * React 18 and older also attach `_debugSource` with the JSX call site.
+ * React component detection built on bippy. bippy reads the fiber React
+ * attaches to every host DOM node and, in development builds, resolves
+ * the JSX call sites React records on fibers back through source maps.
+ * See reactShim.ts for how the bundle avoids pulling React in.
  */
+import {
+	type Fiber,
+	getDisplayName,
+	getFiberFromHostInstance,
+	getLatestFiber,
+	isCompositeFiber,
+	traverseFiber,
+} from "bippy";
+import { getOwnerStack, getParentStack, getSource } from "bippy/source";
 
-type FiberLike = {
-	type: unknown;
-	return: FiberLike | null;
-	_debugSource?: {
-		fileName?: string;
-		lineNumber?: number;
-		columnNumber?: number;
-	};
-};
+// Importing bippy installs its React DevTools hook, and as part of that
+// it replaces `window.hasOwnProperty` with a wrapper that ignores `this`
+// until something probes for the hook. Code in the previewed app that
+// calls the bare global (`hasOwnProperty.call(obj, key)`, as css-tree
+// and many older libraries do) then silently misbehaves. Undo it here;
+// the wrapper is an own, configurable property over the prototype one.
+if (
+	typeof window !== "undefined" &&
+	Object.hasOwn(window, "hasOwnProperty") &&
+	window.hasOwnProperty !== Object.prototype.hasOwnProperty
+) {
+	Reflect.deleteProperty(window, "hasOwnProperty");
+}
 
 const skippedComponentNames = new Set([
 	"Fragment",
@@ -22,112 +35,166 @@ const skippedComponentNames = new Set([
 	"Profiler",
 ]);
 
-function isFiber(value: unknown): value is FiberLike {
-	return typeof value === "object" && value !== null && "return" in value;
-}
-
-// The page owns these objects and can make them cyclic or throwing, so
-// every walk is depth-bounded and property reads are guarded.
-const maxFiberDepth = 200;
-const maxWrapperDepth = 5;
-const maxNameLength = 100;
-
-function fiberFor(element: Element): FiberLike | undefined {
-	try {
-		for (const key of Object.keys(element)) {
-			if (
-				key.startsWith("__reactFiber$") ||
-				key.startsWith("__reactInternalInstance$")
-			) {
-				const candidate: unknown = Reflect.get(element, key);
-				if (isFiber(candidate)) {
-					return candidate;
-				}
-			}
-		}
-	} catch {
-		// A throwing getter means no usable fiber.
-	}
-	return undefined;
-}
-
-function componentName(type: unknown, depth = 0): string | undefined {
-	if (depth > maxWrapperDepth) {
-		return undefined;
-	}
-	if (typeof type === "function") {
-		const named: { displayName?: unknown; name?: unknown } = type;
-		const display = named.displayName ?? named.name;
-		return typeof display === "string" && display !== ""
-			? display.slice(0, maxNameLength)
-			: undefined;
-	}
-	// forwardRef and memo wrap the render function in an object.
-	if (typeof type === "object" && type !== null) {
-		const wrapped: { displayName?: unknown; render?: unknown; type?: unknown } =
-			type;
-		if (typeof wrapped.displayName === "string") {
-			return wrapped.displayName.slice(0, maxNameLength);
-		}
-		return componentName(wrapped.render ?? wrapped.type, depth + 1);
-	}
-	return undefined;
-}
+// Props whose values are functions or React nodes are still worth
+// naming; only the names are reported, never the values.
+const skippedPropNames = new Set(["children", "key", "ref"]);
+const maxProps = 20;
+const maxOwnerFrames = 6;
 
 type ReactInfo = {
 	components: string[];
-	sourceLocation?: string;
+	// Prop names of the nearest component, in declaration order.
+	props?: string[];
 };
 
+type ReactSource = {
+	// Where the nearest component is rendered from, `file:line:col`.
+	sourceLocation?: string;
+	// Components that created this element's JSX, outermost last, each
+	// with its own call site when one could be resolved.
+	reactOwnerStack?: string[];
+};
+
+function componentNameOf(fiber: Fiber): string | undefined {
+	if (!isCompositeFiber(fiber)) {
+		return undefined;
+	}
+	const name = getDisplayName(fiber.type);
+	if (
+		!name ||
+		skippedComponentNames.has(name) ||
+		name.endsWith("Provider") ||
+		name.endsWith("Consumer")
+	) {
+		return undefined;
+	}
+	return name;
+}
+
+function nearestComposite(element: Element): Fiber | null {
+	const host = getFiberFromHostInstance(element);
+	if (!host) {
+		return null;
+	}
+	return traverseFiber(
+		getLatestFiber(host),
+		(fiber) => componentNameOf(fiber) !== undefined,
+		true,
+	);
+}
+
+function propNames(fiber: Fiber): string[] | undefined {
+	const props: unknown = fiber.memoizedProps;
+	if (typeof props !== "object" || props === null) {
+		return undefined;
+	}
+	const names = Object.keys(props)
+		.filter((name) => !skippedPropNames.has(name))
+		.slice(0, maxProps);
+	return names.length > 0 ? names : undefined;
+}
+
 /**
- * Walks up from the element's fiber and returns the closest user-defined
- * component names (innermost first, at most `limit`) plus the nearest
- * JSX source location when the React build exposes it.
+ * Synchronous part: the closest user-defined component names (innermost
+ * first, at most `limit`) and the nearest component's prop names.
  */
 export function describeReactOwner(
 	element: Element,
 	limit = 3,
 ): ReactInfo | undefined {
-	let fiber: FiberLike | null | undefined = fiberFor(element);
-	if (!fiber) {
+	const nearest = nearestComposite(element);
+	if (!nearest) {
 		return undefined;
 	}
 	const components: string[] = [];
-	let sourceLocation: string | undefined;
-	const seen = new Set<FiberLike>();
-	try {
-		while (
-			fiber &&
-			components.length < limit &&
-			seen.size < maxFiberDepth &&
-			!seen.has(fiber)
-		) {
-			seen.add(fiber);
-			const source = fiber._debugSource;
-			if (!sourceLocation && typeof source?.fileName === "string") {
-				const file = source.fileName.slice(0, maxNameLength * 3);
-				sourceLocation =
-					typeof source.lineNumber === "number"
-						? `${file}:${source.lineNumber}`
-						: file;
-			}
-			const name = componentName(fiber.type);
-			if (
-				name &&
-				!skippedComponentNames.has(name) &&
-				!name.endsWith("Provider") &&
-				!name.endsWith("Consumer") &&
-				components[components.length - 1] !== name
-			) {
+	traverseFiber(
+		nearest,
+		(fiber) => {
+			const name = componentNameOf(fiber);
+			if (name && components[components.length - 1] !== name) {
 				components.push(name);
 			}
-			fiber = fiber.return;
-		}
-	} catch {
-		// Partial results are still useful; the page threw mid-walk.
-	}
-	if (components.length === 0 && !sourceLocation) {
+			return components.length >= limit;
+		},
+		true,
+	);
+	return { components, props: propNames(nearest) };
+}
+
+function formatLocation(frame: {
+	fileName?: string;
+	lineNumber?: number;
+	columnNumber?: number;
+}): string | undefined {
+	if (!frame.fileName) {
 		return undefined;
 	}
-	return { components, sourceLocation };
+	const file = frame.fileName.replace(/^webpack:\/\/\/?|^\/@fs\//, "");
+	if (frame.lineNumber === undefined) {
+		return file;
+	}
+	return frame.columnNumber === undefined
+		? `${file}:${frame.lineNumber}`
+		: `${file}:${frame.lineNumber}:${frame.columnNumber}`;
+}
+
+/**
+ * Asynchronous part: resolves the nearest component's render site and its
+ * owner chain through source maps. Only development React builds carry
+ * the debug data this needs; production builds yield nothing. Network
+ * fetches for source maps are bounded by `timeoutMs`.
+ */
+export async function resolveReactSource(
+	element: Element,
+	timeoutMs = 1500,
+): Promise<ReactSource | undefined> {
+	const host = getFiberFromHostInstance(element);
+	if (!host) {
+		return undefined;
+	}
+	// The host fiber's own creation site is the JSX for this very element
+	// (React 19); fall back to where the nearest component is rendered.
+	const target = getLatestFiber(host);
+	const timeout = new Promise<undefined>((resolve) =>
+		setTimeout(() => resolve(undefined), timeoutMs),
+	);
+	const resolved = await Promise.race([
+		Promise.all([
+			getSource(target)
+				.then((source) => {
+					if (source) {
+						return source;
+					}
+					const nearest = nearestComposite(element);
+					return nearest ? getSource(nearest) : null;
+				})
+				.catch(() => null),
+			getOwnerStack(target)
+				.then((owners) => (owners.length > 0 ? owners : getParentStack(target)))
+				.catch(() => []),
+		]),
+		timeout,
+	]);
+	if (!resolved) {
+		return undefined;
+	}
+	const [source, owners] = resolved;
+	// Frames from bundler-ignore-listed code (frameworks, node_modules)
+	// and frames without a file are noise for locating app code.
+	const ownerStack = owners
+		.filter((frame) => !frame.isIgnoreListed && frame.fileName)
+		.slice(0, maxOwnerFrames)
+		.map((frame) => {
+			const location = formatLocation(frame);
+			const name = frame.functionName ?? "(anonymous)";
+			return location ? `${name} (${location})` : name;
+		});
+	const sourceLocation = source ? formatLocation(source) : undefined;
+	if (!sourceLocation && ownerStack.length === 0) {
+		return undefined;
+	}
+	return {
+		sourceLocation,
+		reactOwnerStack: ownerStack.length > 0 ? ownerStack : undefined,
+	};
 }

@@ -24,7 +24,12 @@ const submission: AnnotationSubmission = {
 				openingTag: '<button class="btn secondary">',
 				rect: { x: 860, y: 300, width: 120, height: 40 },
 				reactComponents: ["SaveButton", "SettingsForm"],
-				sourceLocation: "src/SettingsForm.tsx:42",
+				reactProps: ["variant", "onClick"],
+				reactOwnerStack: [
+					"SaveButton (src/SettingsForm.tsx:42:7)",
+					"SettingsForm (src/App.tsx:10:3)",
+				],
+				sourceLocation: "src/SettingsForm.tsx:42:7",
 			},
 		},
 		{
@@ -63,7 +68,11 @@ describe("formatAnnotations", () => {
 			- Text: "Save"
 			- Selected text: "Save"
 			- React: SaveButton < SettingsForm
-			- Source: \`src/SettingsForm.tsx:42\`
+			- Props: \`variant, onClick\`
+			- Source: \`src/SettingsForm.tsx:42:7\`
+			- Rendered by:
+			  - SaveButton (src/SettingsForm.tsx:42:7)
+			  - SettingsForm (src/App.tsx:10:3)
 			- Classes: \`btn secondary\`
 			- Position: 120x40 at (860, 300)
 			- Tag: \`<button class="btn secondary">\`
