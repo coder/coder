@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	experimentrules "github.com/coder/coder/v2/coderd/experiments"
+	"github.com/coder/coder/v2/coderd/experiments/experimentstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -34,12 +36,17 @@ import (
 // (providers, outcomes) the embedded reloader would observe.
 func buildFromDB(ctx context.Context, t *testing.T, db database.Store, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	t.Helper()
+	evaluator, err := experimentrules.New(logger, experimentstest.Store{}, nil)
+	if err != nil {
+		return nil, nil, err
+	}
 	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
-		Store:         db,
-		AISeatTracker: agplaiseats.Noop{},
-		AccessURL:     "/",
-		Logger:        logger,
-		Clock:         quartz.NewReal(),
+		ExperimentEvaluator: evaluator,
+		Store:               db,
+		AISeatTracker:       agplaiseats.Noop{},
+		AccessURL:           "/",
+		Logger:              logger,
+		Clock:               quartz.NewReal(),
 	})
 	if err != nil {
 		return nil, nil, err

@@ -3,6 +3,7 @@ package aibridged_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -608,6 +609,42 @@ func TestServeHTTP_DelegatedAPIKey_Integration(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.NotNil(t, mockH.headersReceived, "downstream handler must observe the delegated request")
+}
+
+// TestServeHTTP_ResponsesWebSocketEnabled verifies that the downstream handler
+// sees coderd's per-user Responses WebSocket decision in the request context.
+func TestServeHTTP_ResponsesWebSocketEnabled(t *testing.T) {
+	t.Parallel()
+
+	for _, enabled := range []bool{true, false} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			t.Parallel()
+
+			srv, client, pool := newTestServer(t)
+			client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
+				OwnerId:                   uuid.NewString(),
+				ResponsesWebsocketEnabled: enabled,
+			}, nil)
+			client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).Return(&proto.IsBudgetExceededResponse{}, nil)
+			var got *bool
+			pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(
+				http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+					v := agplaibridge.ResponsesWebSocketEnabled(r.Context())
+					got = &v
+					rw.WriteHeader(http.StatusOK)
+				}), nil)
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/openai/v1/responses", nil)
+			req.Header.Set("Authorization", "Bearer coder-token")
+			rw := httptest.NewRecorder()
+			srv.ServeHTTP(rw, req)
+
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.NotNil(t, got, "downstream handler must be invoked")
+			require.Equal(t, enabled, *got)
+		})
+	}
 }
 
 func TestServeHTTP_StripCoderToken(t *testing.T) {

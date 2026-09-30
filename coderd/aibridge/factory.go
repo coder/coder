@@ -54,6 +54,24 @@ func SourceFromContext(ctx context.Context) Source {
 	return src
 }
 
+type responsesWebSocketEnabledCtxKey struct{}
+
+// WithResponsesWebSocketEnabled returns a copy of ctx carrying the request
+// owner's ai-gateway-responses-websocket experiment decision. Only the
+// gateway sets it, from coderd's authorization response; it MUST NEVER come
+// from client-provided HTTP headers.
+func WithResponsesWebSocketEnabled(ctx context.Context, enabled bool) context.Context {
+	return context.WithValue(ctx, responsesWebSocketEnabledCtxKey{}, enabled)
+}
+
+// ResponsesWebSocketEnabled reports whether OpenAI Responses WebSocket mode
+// is enabled for the request owner. It is false when
+// [WithResponsesWebSocketEnabled] was not called.
+func ResponsesWebSocketEnabled(ctx context.Context) bool {
+	enabled, _ := ctx.Value(responsesWebSocketEnabledCtxKey{}).(bool)
+	return enabled
+}
+
 type (
 	deletedAPIKeyIDCtxKey      struct{}
 	delegatedAttributionCtxKey struct{}
