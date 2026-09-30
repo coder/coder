@@ -7,7 +7,6 @@ import {
 } from "react-query";
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
-import type { UrlTransform } from "streamdown";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
 import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
@@ -35,7 +34,6 @@ import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import {
@@ -43,7 +41,6 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
-import { rewriteLocalhostURL } from "#/utils/portForward";
 import { MessageScroller, useMessageScroller } from "#/vendor/message-scroller";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
@@ -233,8 +230,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	});
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
-	const { proxy } = useProxy();
-
 	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
 	const isViewerNotOwner =
@@ -610,19 +605,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		agentId,
 	]);
 
-	// Primitives extracted from proxy/workspace so the compiler
-	// tracks stable strings, not object identity.
-	const proxyHost = proxy.preferredWildcardHostname;
-	const agentName = workspaceAgent?.name;
-	const wsName = workspace?.name;
-	const wsOwner = workspace?.owner_name;
-	const urlTransform: UrlTransform = (url) => {
-		if (!proxyHost || !agentName || !wsName || !wsOwner) {
-			return url;
-		}
-		return rewriteLocalhostURL(url, proxyHost, agentName, wsName, wsOwner);
-	};
-
 	const chatTurnDeps = {
 		isSubmissionPending,
 		hasModelOptions,
@@ -783,7 +765,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-					urlTransform={urlTransform}
 					hasMoreMessages={Boolean(chatMessagesQuery.hasNextPage)}
 					isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
 					isHydratingMessages={isHydratingMessages}

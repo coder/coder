@@ -17,6 +17,7 @@ import {
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { rewriteLocalhostURL } from "#/utils/portForward";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
@@ -170,8 +171,6 @@ type AgentChatPageViewProps = {
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 
-	urlTransform?: UrlTransform;
-
 	// MCP server state.
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
@@ -313,7 +312,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
-	urlTransform,
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
@@ -417,6 +415,24 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		const repoRoots = Array.from(gitWatcher?.repositories.keys() ?? []).sort();
 		return repoRoots[0] || workspaceAgent?.expanded_directory;
 	})();
+
+	// Primitives extracted from workspace objects so the compiler
+	// tracks stable strings, not object identity.
+	const agentName = workspaceAgent?.name;
+	const workspaceName = workspace?.name;
+	const workspaceOwner = workspace?.owner_name;
+	const urlTransform: UrlTransform = (url) => {
+		if (!wildcardHostname || !agentName || !workspaceName || !workspaceOwner) {
+			return url;
+		}
+		return rewriteLocalhostURL(
+			url,
+			wildcardHostname,
+			agentName,
+			workspaceName,
+			workspaceOwner,
+		);
+	};
 
 	const workspaceRoute = workspace
 		? `/@${workspace.owner_name}/${workspace.name}`
