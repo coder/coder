@@ -55,7 +55,6 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
-		showAdvisor: true,
 		saveByContext,
 		savingContexts: new Set(),
 		errorContexts: new Set(),
@@ -160,14 +159,6 @@ export const SetAndUnset: Story = {
 				expect.anything(),
 			);
 		});
-	},
-};
-export const AdvisorDisabled: Story = {
-	args: { showAdvisor: false },
-	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).queryByText("Advisor"),
-		).not.toBeInTheDocument();
 	},
 };
 export const ReadOnly: Story = {

@@ -685,7 +685,6 @@ func TestConfigCache_AdvisorConfig_CacheHit(t *testing.T) {
 	second, err := cache.AdvisorConfig(ctx)
 	require.NoError(t, err)
 
-	require.True(t, first.Enabled)
 	require.Equal(t, 3, first.MaxUsesPerRun)
 	require.Equal(t, int64(16384), first.MaxOutputTokens)
 	require.Equal(t, first, second)
@@ -780,8 +779,8 @@ func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
 }
 
 // Guards the pubsub-driven invalidation path. Without this, an admin
-// writing PUT /api/experimental/chats/config/advisor could keep every
-// replica serving stale enabled/model/limits for up to
+// writing PUT /api/v2/chats/config/advisor could keep every
+// replica serving stale limits for up to
 // chatConfigAdvisorConfigTTL, which defeats the subscriber in chatd.go.
 func TestConfigCache_InvalidateAdvisorConfig(t *testing.T) {
 	t.Parallel()

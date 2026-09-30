@@ -29,23 +29,21 @@ const contexts: readonly ChatModelOverrideContext[] = [
 type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
-	showAdvisor: boolean;
 };
 
 export const OrganizationAgentSettings: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => (
+> = ({ organization, canEdit }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
 		canEdit={canEdit}
-		showAdvisor={showAdvisor}
 	/>
 );
 
 const OrganizationAgentSettingsContent: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, showAdvisor }) => {
+> = ({ organization, canEdit }) => {
 	const queryClient = useQueryClient();
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
@@ -139,7 +137,6 @@ const OrganizationAgentSettingsContent: React.FC<
 			overridesRefetchError={refetchError}
 			modelsError={modelsQuery.error}
 			canEdit={canEdit}
-			showAdvisor={showAdvisor}
 			saveByContext={saveByContext}
 			savingContexts={
 				new Set(contexts.filter((_, index) => mutations[index]?.isPending))

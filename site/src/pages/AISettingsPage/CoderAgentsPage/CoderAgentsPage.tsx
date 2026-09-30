@@ -44,7 +44,6 @@ const CoderAgentsPage: React.FC = () => {
 	const activeOrganizationPermissions = activeOrganization
 		? organizationPermissionsQuery.data?.[activeOrganization.id]
 		: undefined;
-	const showAdvisorSettings = experiments.includes("chat-advisor");
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
@@ -54,7 +53,7 @@ const CoderAgentsPage: React.FC = () => {
 	});
 	const advisorConfigQuery = useQuery({
 		...chatAdvisorConfig(),
-		enabled: canEditDeploymentConfig && showAdvisorSettings,
+		enabled: canEditDeploymentConfig,
 	});
 	const computerUseProviderQuery = useQuery({
 		...chatComputerUseProvider(),
@@ -89,7 +88,6 @@ const CoderAgentsPage: React.FC = () => {
 					!organizationSelection.requestedOrganizationDenied &&
 					(activeOrganizationPermissions?.editChatModelConfigs ?? false)
 				}
-				showAdvisor={showAdvisorSettings}
 			/>
 		) : undefined;
 
@@ -122,7 +120,6 @@ const CoderAgentsPage: React.FC = () => {
 				onSaveAdminOverrides={savePersonalOverridesMutation.mutate}
 				isSavingAdminOverrides={savePersonalOverridesMutation.isPending}
 				isSaveAdminOverridesError={savePersonalOverridesMutation.isError}
-				showAdvisorSettings={showAdvisorSettings}
 				advisorConfigData={advisorConfigQuery.data}
 				isAdvisorConfigLoading={advisorConfigQuery.isLoading}
 				isAdvisorConfigFetching={advisorConfigQuery.isFetching}

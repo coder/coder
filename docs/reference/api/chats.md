@@ -681,6 +681,77 @@ curl -X GET http://coder-server:8080/api/v2/chats/by-workspace \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/config/advisor`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                     |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AdvisorConfig](schemas.md#codersdkadvisorconfig) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update chat advisor config
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/chats/config/advisor \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/chats/config/advisor`
+
+> Body parameter
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.UpdateAdvisorConfigRequest](schemas.md#codersdkupdateadvisorconfigrequest) | true     | Request body |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get chat auto archive days
 
 ### Code samples

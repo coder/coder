@@ -37,7 +37,6 @@ export type CoderAgentsPageViewProps = {
 	onSaveAdminOverrides: SavePersonalModelOverridesAdminSetting;
 	isSavingAdminOverrides: boolean;
 	isSaveAdminOverridesError: boolean;
-	showAdvisorSettings: boolean;
 	advisorConfigData: TypesGen.AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
 	isAdvisorConfigFetching: boolean;
@@ -79,7 +78,6 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 	onSaveAdminOverrides,
 	isSavingAdminOverrides,
 	isSaveAdminOverridesError,
-	showAdvisorSettings,
 	advisorConfigData,
 	isAdvisorConfigLoading,
 	isAdvisorConfigFetching,
@@ -197,18 +195,16 @@ export const CoderAgentsPageView: React.FC<CoderAgentsPageViewProps> = ({
 								computerUseProviderSaveError={computerUseProviderSaveError}
 							/>
 						)}
-						{showAdvisorSettings && (
-							<AdvisorSettings
-								advisorConfigData={advisorConfigData}
-								isAdvisorConfigLoading={isAdvisorConfigLoading}
-								isAdvisorConfigFetching={isAdvisorConfigFetching}
-								isAdvisorConfigLoadError={isAdvisorConfigLoadError}
-								onSaveAdvisorConfig={onSaveAdvisorConfig}
-								isSavingAdvisorConfig={isSavingAdvisorConfig}
-								isSaveAdvisorConfigError={isSaveAdvisorConfigError}
-								saveAdvisorConfigError={saveAdvisorConfigError}
-							/>
-						)}
+						<AdvisorSettings
+							advisorConfigData={advisorConfigData}
+							isAdvisorConfigLoading={isAdvisorConfigLoading}
+							isAdvisorConfigFetching={isAdvisorConfigFetching}
+							isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+							onSaveAdvisorConfig={onSaveAdvisorConfig}
+							isSavingAdvisorConfig={isSavingAdvisorConfig}
+							isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+							saveAdvisorConfigError={saveAdvisorConfigError}
+						/>
 					</div>
 				</section>
 			)}

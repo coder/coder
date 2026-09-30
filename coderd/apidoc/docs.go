@@ -1745,6 +1745,62 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/chats/config/advisor": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat advisor config",
+                "operationId": "get-chat-advisor-config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AdvisorConfig"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat advisor config",
+                "operationId": "update-chat-advisor-config",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAdvisorConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/chats/config/auto-archive-days": {
             "get": {
                 "produces": [
@@ -19243,6 +19299,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AdvisorConfig": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled is always true: the advisor is available to root chats.\nThe field is read-only and ignores any stored value.",
+                    "type": "boolean"
+                },
+                "max_output_tokens": {
+                    "description": "MaxOutputTokens caps the advisor model response tokens. 0 means\nuse the runtime default.",
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "description": "MaxUsesPerRun caps how many times the advisor can be invoked per\nchat run. 0 means unlimited.",
+                    "type": "integer"
+                }
+            }
+        },
         "codersdk.AgentChatSendShortcut": {
             "type": "string",
             "enum": [
@@ -24003,7 +24076,6 @@ const docTemplate = `{
                 "workspace-capable-licensing",
                 "ai-gateway-seat-exclusion",
                 "ai-gateway-reverse-proxy",
-                "chat-advisor",
                 "chat-virtual-desktop",
                 "agent-lifecycle-hooks",
                 "chat-inline-mcp-servers",
@@ -24015,7 +24087,6 @@ const docTemplate = `{
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
                 "ExperimentChatBoard": "Offers the Coder Agents chat board as a per-browser opt-in.",
                 "ExperimentChatInlineMCPServers": "Enables inline MCP servers declared on POST /chats.",
                 "ExperimentChatVirtualDesktop": "Enables virtual desktop and computer use provider for agents.",
@@ -24041,7 +24112,6 @@ const docTemplate = `{
                 "Counts only users holding the workspace-create permission toward the license seat limit.",
                 "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
                 "Uses stateless reverse proxy routing when MCP injection is not configured.",
-                "Enables the advisor tool for root agent chats.",
                 "Enables virtual desktop and computer use provider for agents.",
                 "Enables chat lifecycle hook webhooks for agent chats.",
                 "Enables inline MCP servers declared on POST /chats.",
@@ -24060,7 +24130,6 @@ const docTemplate = `{
                 "ExperimentWorkspaceCapableLicensing",
                 "ExperimentAIGatewaySeatExclusion",
                 "ExperimentAIGatewayReverseProxy",
-                "ExperimentChatAdvisor",
                 "ExperimentChatVirtualDesktop",
                 "ExperimentAgentLifecycleHooks",
                 "ExperimentChatInlineMCPServers",
@@ -30171,6 +30240,26 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpdateAdvisorConfigRequest": {
+            "type": "object",
+            "properties": {
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "max_uses_per_run": {
+                    "type": "integer"
+                },
+                "model_config_id": {
+                    "description": "Deprecated: moved to the organization model override endpoint.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_effort": {
+                    "description": "Deprecated: moved to the organization model override endpoint.",
+                    "type": "string"
                 }
             }
         },

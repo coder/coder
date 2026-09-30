@@ -73,7 +73,6 @@ func newChatTestOptions(
 	// Enable experiment-gated chat endpoints in tests.
 	if len(values.Experiments) == 0 {
 		values.Experiments = serpent.StringArray{
-			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
 			string(codersdk.ExperimentAgentLifecycleHooks),
 			string(codersdk.ExperimentChatInlineMCPServers),
@@ -16187,18 +16186,6 @@ func TestChatAdvisorConfig_OverwriteClearsPreviousValues(t *testing.T) {
 	resp, err := adminClient.GetChatAdvisorConfig(ctx)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.AdvisorConfig{Enabled: true}, resp)
-}
-
-func TestChatAdvisorConfig_EnabledReflectsExperiment(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = serpent.StringArray{string(codersdk.ExperimentAgentLifecycleHooks)}
-	adminClient := newChatClientWithDeploymentValues(t, values)
-	coderdtest.CreateFirstUser(t, adminClient.Client)
-	resp, err := adminClient.GetChatAdvisorConfig(ctx)
-	require.NoError(t, err)
-	require.False(t, resp.Enabled)
 }
 
 func TestChatAdvisorConfig_ClampsNegativeStoredValues(t *testing.T) {

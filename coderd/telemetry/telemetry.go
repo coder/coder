@@ -2238,7 +2238,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Enabled:   true,
 		Overrides: []AgentsAdvisorOverrideTelemetry{},
 	}
 	var cfg codersdk.AdvisorConfig

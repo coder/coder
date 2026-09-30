@@ -356,14 +356,14 @@ The **Deployment settings** section is visible only to deployment admins.
 
 The configurable contexts:
 
-| Context              | Layer        | Applies to                                                                             |
-|----------------------|--------------|----------------------------------------------------------------------------------------|
-| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
-| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
-| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                                   |
-| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
-| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
-| **Root**             | User only    | The user's own root chats.                                                             |
+| Context              | Layer        | Applies to                                                                     |
+|----------------------|--------------|--------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
+| **Title generation** | Admin only   | Chat titles, turn status labels, and chat summaries.                           |
+| **Compaction**       | Admin only   | Conversation summarization near the context limit.                             |
+| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md).                                 |
+| **Root**             | User only    | The user's own root chats.                                                     |
 
 Resolution order, evaluated per chat or subagent from the chat's
 organization:

@@ -47,7 +47,6 @@ const renderSettings = () =>
 		<OrganizationAgentSettings
 			organization={MockDefaultOrganization}
 			canEdit
-			showAdvisor
 		/>,
 	);
 

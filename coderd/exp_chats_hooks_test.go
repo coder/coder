@@ -121,7 +121,6 @@ func TestChatLifecycleHooksExperimentDisabled(t *testing.T) {
 	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
 		opts.ChatWorkerDisabled = true
 		opts.DeploymentValues.Experiments = serpent.StringArray{
-			string(codersdk.ExperimentChatAdvisor),
 			string(codersdk.ExperimentChatVirtualDesktop),
 		}
 		require.NoError(t, opts.DeploymentValues.AI.Chat.HookURL.Set(consumer.URL))

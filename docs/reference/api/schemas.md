@@ -1432,6 +1432,24 @@ None
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
 
+## codersdk.AdvisorConfig
+
+```json
+{
+  "enabled": true,
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                                                                          |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| `enabled`           | boolean | false    |              | Enabled is always true: the advisor is available to root chats. The field is read-only and ignores any stored value. |
+| `max_output_tokens` | integer | false    |              | Max output tokens caps the advisor model response tokens. 0 means use the runtime default.                           |
+| `max_uses_per_run`  | integer | false    |              | Max uses per run caps how many times the advisor can be invoked per chat run. 0 means unlimited.                     |
+
 ## codersdk.AgentChatSendShortcut
 
 ```json
@@ -9252,9 +9270,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-board`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-board`, `chat-inline-mcp-servers`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -15869,6 +15887,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name | Type   | Required | Restrictions | Description |
 |------|--------|----------|--------------|-------------|
 | `id` | string | true     |              |             |
+
+## codersdk.UpdateAdvisorConfigRequest
+
+```json
+{
+  "max_output_tokens": 0,
+  "max_uses_per_run": 0,
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description                                                    |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------|
+| `max_output_tokens` | integer | false    |              |                                                                |
+| `max_uses_per_run`  | integer | false    |              |                                                                |
+| `model_config_id`   | string  | false    |              | Deprecated: moved to the organization model override endpoint. |
+| `reasoning_effort`  | string  | false    |              | Deprecated: moved to the organization model override endpoint. |
 
 ## codersdk.UpdateAppearanceConfig
 

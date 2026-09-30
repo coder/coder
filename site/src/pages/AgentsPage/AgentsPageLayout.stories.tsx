@@ -117,7 +117,6 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
 		isAdvisorConfigFetching={false}

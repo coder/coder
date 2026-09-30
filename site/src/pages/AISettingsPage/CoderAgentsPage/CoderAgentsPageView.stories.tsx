@@ -22,7 +22,6 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
 	isSaveAdminOverridesError: false,
-	showAdvisorSettings: true,
 	advisorConfigData: {
 		enabled: true,
 		max_uses_per_run: 5,
@@ -80,14 +79,6 @@ export const Default: Story = {
 				expect.anything(),
 			);
 		});
-	},
-};
-
-export const WithoutAdvisor: Story = {
-	args: { showAdvisorSettings: false },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
 	},
 };
 

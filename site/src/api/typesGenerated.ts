@@ -1234,15 +1234,12 @@ export const Addons: Addon[] = ["ai_governance"];
 // From codersdk/chats.go
 /**
  * AdvisorConfig is the deployment-wide runtime configuration for the
- * experimental chat advisor.
- *
- * EXPERIMENTAL: this type is experimental and is subject to change.
+ * chat advisor.
  */
 export interface AdvisorConfig {
 	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
+	 * Enabled is always true: the advisor is available to root chats.
+	 * The field is read-only and ignores any stored value.
 	 */
 	readonly enabled: boolean;
 	/**
@@ -5294,7 +5291,6 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
-	| "chat-advisor"
 	| "chat-board"
 	| "chat-inline-mcp-servers"
 	| "chat-virtual-desktop"
@@ -5374,7 +5370,6 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
-	"chat-advisor",
 	"chat-board",
 	"chat-inline-mcp-servers",
 	"chat-virtual-desktop",

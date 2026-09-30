@@ -235,7 +235,7 @@ END
 WHERE site_configs.key = 'agents_desktop_enabled';
 
 -- GetChatAdvisorConfig returns the deployment-wide runtime configuration
--- for the experimental chat advisor as a JSON blob. Callers unmarshal the
+-- for the chat advisor as a JSON blob. Callers unmarshal the
 -- result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 -- values apply by default.
 -- name: GetChatAdvisorConfig :one
@@ -243,7 +243,7 @@ SELECT
     COALESCE((SELECT value FROM site_configs WHERE key = 'agents_advisor_config'), '{}') :: text AS advisor_config;
 
 -- UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
--- for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+-- for the chat advisor. Callers marshal codersdk.AdvisorConfig
 -- to JSON before invoking this query.
 -- name: UpsertChatAdvisorConfig :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_advisor_config', $1)

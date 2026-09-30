@@ -33,7 +33,6 @@ type cachedProviders struct {
 }
 
 type advisorRuntimeConfig struct {
-	Enabled         bool  `json:"enabled"`
 	MaxUsesPerRun   int   `json:"max_uses_per_run"`
 	MaxOutputTokens int64 `json:"max_output_tokens"`
 }
@@ -250,8 +249,8 @@ func (c *chatConfigCache) InvalidateUserPrompt(userID uuid.UUID) {
 // InvalidateAdvisorConfig drops the cached advisor configuration so the
 // next AdvisorConfig call re-fetches from the database. Called from the
 // ChatConfigEvent subscriber after an admin writes
-// PUT /api/experimental/chats/config/advisor; without this the cache
-// could serve stale enabled/model/limits for up to
+// PUT /api/v2/chats/config/advisor; without this the cache
+// could serve stale limits for up to
 // chatConfigAdvisorConfigTTL. Bumping the generation counter also
 // discards any in-flight fill started before the invalidation, so a
 // stale DB read cannot re-cache the pre-update value.

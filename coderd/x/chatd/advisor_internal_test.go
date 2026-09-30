@@ -435,7 +435,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 				t.Parallel()
 
 				rt := newChatModelRuntime(t, advisorRuntimeConfig{
-					Enabled:         true,
 					MaxUsesPerRun:   0,
 					MaxOutputTokens: 16384,
 				}, nil, withInternalTestServerLimits(tt.limits))
@@ -458,7 +457,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			}, nil
 		})}
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
-			Enabled:         true,
 			MaxUsesPerRun:   1,
 			MaxOutputTokens: 16384,
 		}, nil,
@@ -486,7 +484,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			ctx,
 			database.Chat{},
 			advisorRuntimeConfig{
-				Enabled:         true,
 				MaxUsesPerRun:   -1,
 				MaxOutputTokens: 16384,
 			},
@@ -501,7 +498,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		t.Parallel()
 
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
-			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 0,
 		}, nil)
@@ -526,7 +522,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 			ctx,
 			database.Chat{LastModelConfigID: uuid.New()},
 			advisorRuntimeConfig{
-				Enabled:         true,
 				MaxUsesPerRun:   3,
 				MaxOutputTokens: 16384,
 			},
@@ -554,7 +549,6 @@ func TestNewAdvisorRuntime(t *testing.T) {
 		require.NoError(t, err)
 
 		rt := newChatModelRuntime(t, advisorRuntimeConfig{
-			Enabled:         true,
 			MaxUsesPerRun:   3,
 			MaxOutputTokens: 16384,
 		}, options)

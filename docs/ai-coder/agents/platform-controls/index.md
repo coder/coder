@@ -198,7 +198,6 @@ runtime configuration for those features is available under **Admin settings** >
 
 See the following pages for experiment-gated features:
 
-- [Advisor](./advisor.md) (`--experiments=chat-advisor`)
 - [Virtual desktop](./virtual-desktop.md) (`--experiments=chat-virtual-desktop`)
 - [Inline MCP servers](./mcp-servers.md#inline-mcp-servers-experimental) (`--experiments=chat-inline-mcp-servers`)
 

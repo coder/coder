@@ -437,7 +437,7 @@ type sqlcQuerier interface {
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)
 	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
-	// for the experimental chat advisor as a JSON blob. Callers unmarshal the
+	// for the chat advisor as a JSON blob. Callers unmarshal the
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 	// values apply by default.
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
@@ -1700,7 +1700,7 @@ type sqlcQuerier interface {
 	// are always deltas, accumulated in DB. Returns true if insert, false if update.
 	UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBoundaryUsageStatsParams) (bool, error)
 	// UpsertChatAdvisorConfig stores the deployment-wide runtime configuration
-	// for the experimental chat advisor. Callers marshal codersdk.AdvisorConfig
+	// for the chat advisor. Callers marshal codersdk.AdvisorConfig
 	// to JSON before invoking this query.
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
