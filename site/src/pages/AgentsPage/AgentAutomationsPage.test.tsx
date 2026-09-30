@@ -488,31 +488,51 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("keeps the editor open with the server message when saving is forbidden", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		const message = "Only the owner of a chat automation can change it.";
-		server.use(
-			http.patch(`${automationsPath(":organizationId")}/:automationId`, () =>
-				HttpResponse.json({ message }, { status: 403 }),
-			),
-		);
+	it.each([
+		{
+			failure: "forbidden",
+			response: () =>
+				HttpResponse.json(
+					{ message: "Only the owner of a chat automation can change it." },
+					{ status: 403 },
+				),
+			alertText: "Only the owner of a chat automation can change it.",
+		},
+		{
+			// A validation on a field the form does not render has no field to
+			// show on, so the alert lists it.
+			failure: "rejected on a field the form does not show",
+			response: () => validationError("kind", "Kind cannot change."),
+			alertText: "Invalid chat automation.kind: Kind cannot change.",
+		},
+	])(
+		"keeps the editor open with the server message when saving is $failure",
+		async ({ response, alertText }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			server.use(
+				http.patch(
+					`${automationsPath(":organizationId")}/:automationId`,
+					response,
+				),
+			);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Edit ${MockChatAutomation.name}`,
-			}),
-		);
-		const dialog = await screen.findByRole("dialog");
-		const name = within(dialog).getByLabelText(/^Name/);
-		await user.clear(name);
-		await user.type(name, "Renamed");
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Edit ${MockChatAutomation.name}`,
+				}),
+			);
+			const dialog = await screen.findByRole("dialog");
+			const name = within(dialog).getByLabelText(/^Name/);
+			await user.clear(name);
+			await user.type(name, "Renamed");
+			await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-		const alert = await within(dialog).findByRole("alert");
-		expect(alert.textContent).toBe(message);
-		expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
-	});
+			const alert = await within(dialog).findByRole("alert");
+			expect(alert.textContent).toBe(alertText);
+			expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
+		},
+	);
 
 	it("returns focus to the button that opened the editor", async () => {
 		const user = userEvent.setup();
