@@ -12,19 +12,36 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
-// newMCPTransport serves tool requests over private in-memory connections. Using
-// net/http on both ends preserves streaming and WebSocket support. No listener
-// is exposed to the network, and no caller-supplied context values cross the
-// connection, so authentication cannot reuse the outer request's precheck.
-func newMCPTransport(handler http.Handler, accessURL *url.URL, apiKeyID string) (http.RoundTripper, func()) {
+// mcpDelegatedReadHeaderTimeout bounds header reads on the in-process delegation
+// server to satisfy gosec G112. The only client is the local net.Pipe transport,
+// so this is not tuned for a slow network client.
+const mcpDelegatedReadHeaderTimeout = 10 * time.Second
+
+// newMCPDelegatedTransport returns an http.RoundTripper that delegates MCP tool
+// requests to the REST handler over private in-memory connections, plus a
+// cleanup func the caller must invoke to release the server, goroutine, and
+// hijacked connections. It is not the MCP Streamable HTTP protocol endpoint;
+// it is the internal REST delegation path used by tools.
+//
+// Using net/http on both ends preserves streaming and WebSocket support. No
+// listener is exposed to the network, and no caller-supplied context values
+// cross the connection, so only apiKeyID authenticates the delegated request:
+// httpmw revalidates it and checks the audience against the MCP endpoint. The
+// RoundTripper fails closed on any request that does not target accessURL, uses
+// a non-canonical path, or is not an internal REST endpoint (see RoundTrip).
+func newMCPDelegatedTransport(logger slog.Logger, handler http.Handler, accessURL *url.URL, apiKeyID string) (http.RoundTripper, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	listener := &mcpListener{ctx: ctx, cancel: cancel, connections: make(chan net.Conn)}
 	server := &http.Server{
 		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: mcpDelegatedReadHeaderTimeout,
+		// Pipe connections carry no TLS, so net/http errors here are handler
+		// faults; route them to the Coder logger instead of stderr.
+		ErrorLog: slog.Stdlib(ctx, logger.Named("mcp_delegated_transport"), slog.LevelError),
 		BaseContext: func(net.Listener) context.Context {
 			return httpmw.WithMCPDelegation(ctx, apiKeyID)
 		},
@@ -35,7 +52,7 @@ func newMCPTransport(handler http.Handler, accessURL *url.URL, apiKeyID string) 
 		_ = server.Serve(listener)
 	}()
 	transport := &http.Transport{DialContext: listener.dialContext}
-	return &mcpTransport{origin: *accessURL, transport: transport}, sync.OnceFunc(func() {
+	return &mcpDelegatedTransport{origin: *accessURL, transport: transport}, sync.OnceFunc(func() {
 		cancel()
 		transport.CloseIdleConnections()
 		_ = server.Close()
@@ -43,20 +60,20 @@ func newMCPTransport(handler http.Handler, accessURL *url.URL, apiKeyID string) 
 	})
 }
 
-type mcpTransport struct {
+type mcpDelegatedTransport struct {
 	origin    url.URL
 	transport *http.Transport
 }
 
-func (t *mcpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *mcpDelegatedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	reject := func(message string) (*http.Response, error) {
 		if req.Body != nil {
 			_ = req.Body.Close()
 		}
 		return nil, xerrors.New(message)
 	}
-	// Fail closed on redirects or future tools targeting another origin. There
-	// is deliberately no network fallback that could leak the bearer token.
+	// Reject other origins, including redirect targets, so the bearer token
+	// never leaves the process.
 	if req.URL.Scheme != t.origin.Scheme || req.URL.Host != t.origin.Host || req.Host != t.origin.Host || req.URL.User != nil {
 		return reject("MCP tool request must target the Coder deployment")
 	}

@@ -186,6 +186,11 @@ This enables a seamless connect-and-authenticate experience where users sign in 
 
 > [!NOTE]
 > OAuth2 requires `CODER_OAUTH2_PROVIDER_ENABLE=true` on your Coder deployment.
+>
+> Clients that self-register (such as VS Code from the MCP Registry) also need
+> Dynamic Client Registration (RFC 7591), which is disabled by default. Enable it
+> with `coder oauth2-provider dcr enable`; otherwise `/oauth2/register` returns
+> `403`. Clients configured against an admin-created OAuth2 app do not need DCR.
 
 ### Session Token (For Programmatic Access)
 
