@@ -397,6 +397,8 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 Retry state is scoped to the current generation attempt. Whenever `generation_attempt` changes, `retry_state` is cleared automatically. If that clear changes the value of `retry_state`, `retry_state_version` is set to the current `snapshot_version`.
 
+TODO: `UpdateChatExecutionState` now also clears `retry_state` whenever it writes a status other than `running` (for example `FinishError`, `Interrupt`, `FinishInterruption`), so a pending retry does not outlive the running turn. The trigger then bumps `retry_state_version` as usual. Describe this here.
+
 A single `BEFORE UPDATE` trigger handles both clearing `retry_state` on generation-attempt changes and bumping `retry_state_version` on retry-state changes. The trigger mutates `NEW` directly and does not run an `UPDATE chats ...` statement, so it does not recursively trigger itself:
 
 ```sql
@@ -1193,6 +1195,8 @@ The loop has two operations:
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 
+TODO: once `Sync` observes a non-null `retry_state`, the current generation attempt is retired: `Part` drops its remaining parts without an error until `history_version` or `generation_attempt` changes, even if the retry is later cancelled. Describe this here.
+
 ## Sync operation
 
 `Sync` input fields include:
@@ -1325,6 +1329,8 @@ Flow:
 1. `Sync` observes `db.retry_state_version > local.retry_state_version`.
 2. If `db.retry_state` is null, emit nothing.
 3. If `db.retry_state` is non-null, emit one `retry` event with `db.retry_state` as the payload.
+
+TODO: the `retry` event is now emitted only when `db.status` is `running`; a stale `retry_state` on a stopped chat is not announced. Describe this here.
 
 Required invariant:
 
