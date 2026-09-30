@@ -63,18 +63,19 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 				{`Recent cache miss rate: ${formatPercent(heat.missRate)}`}
 			</span>
 			<span className="text-content-secondary">
-				{`Last turn: ${heat.lastTurnRequestCount} ${heat.lastTurnRequestCount === 1 ? "request" : "requests"}, ${formatTokenCountCompact(heat.lastTurnCacheReadTokens)} cached, ${formatTokenCountCompact(heat.lastTurnFreshTokens)} fresh tokens`}
+				{`Last turn: ${heat.lastTurnRequestCount} ${heat.lastTurnRequestCount === 1 ? "request" : "requests"}, re-sent ${formatTokenCountCompact(heat.lastTurnMissedTokens)} of ${formatTokenCountCompact(heat.lastTurnReusableTokens)} cacheable tokens`}
 			</span>
-			{heat.lastTurnIsFirst && (
+			{heat.lastTurnHasSegmentStart ? (
 				<span className="text-content-secondary">
-					Nothing could be cached before the first request of this chat or since
-					its last compaction, so that request does not add heat.
+					The first request after the chat starts or is compacted has no cache
+					to reuse, so it does not add heat.
+				</span>
+			) : (
+				<span className="text-content-secondary">
+					Heat rises when recent turns re-send much of the context window
+					instead of reading it from the prompt cache.
 				</span>
 			)}
-			<span className="text-content-secondary">
-				Heat rises when recent turns re-send much of the context window instead
-				of reading it from the prompt cache.
-			</span>
 			{isCacheExpired && (
 				<span className="text-content-warning">
 					{`Cache likely expired. Your next message will likely resend about ${formatTokenCountCompact(heat.lastPromptTokens)} tokens without the cache.`}

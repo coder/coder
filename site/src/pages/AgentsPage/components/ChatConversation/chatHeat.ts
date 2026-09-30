@@ -2,24 +2,26 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { findContextBoundaryPart } from "./chatHelpers";
 
 /**
- * Chat heat measures how much of the context window recent user turns paid
- * for again instead of reading from the prompt cache. A turn is every model
- * request between two user messages. Its sample is the fresh prompt tokens
- * (uncached input plus cache writes) summed over its requests, divided by
- * the context limit. The first request after the chat starts or after a
- * compaction or clear boundary has no earlier prefix to reuse, so its fresh
- * tokens are not counted. Samples are weighted toward the newest turn,
- * normalized by the compaction threshold, and shaped by a logistic curve
- * into a displayed heat in [0, 1]. No prices are involved.
+ * Chat heat measures how much of the context window recent user turns sent
+ * again instead of reading it from the prompt cache. Each request can reuse
+ * the previous request's prompt; the part of that prompt it did not read
+ * from the cache is its missed prefix. New tokens (tool output, the user's
+ * message) are not misses. The first request after the chat starts or after
+ * a compaction or clear boundary has no previous prompt, so it misses
+ * nothing. A turn is every model request between two user messages, and its
+ * sample is its summed missed prefix divided by the context limit. Samples
+ * are weighted toward the newest turn, normalized by the compaction
+ * threshold, and shaped by a logistic curve into a displayed heat in
+ * [0, 1]. No prices are involved.
  */
 export type ChatHeat = {
 	readonly heat: number;
 	readonly label: ChatHeatLabel;
 	readonly missRate: number;
 	readonly lastTurnRequestCount: number;
-	readonly lastTurnFreshTokens: number;
-	readonly lastTurnCacheReadTokens: number;
-	readonly lastTurnIsFirst: boolean;
+	readonly lastTurnMissedTokens: number;
+	readonly lastTurnReusableTokens: number;
+	readonly lastTurnHasSegmentStart: boolean;
 	readonly lastPromptTokens: number;
 	readonly lastRequestAt: string;
 };
@@ -28,7 +30,7 @@ type ChatHeatLabel = "cool" | "warm" | "hot";
 
 const HEAT_WINDOW_SIZE = 6;
 const HEAT_WINDOW_DECAY = 0.5;
-// Tuning constants: x is the weighted fresh share of the context window
+// Tuning constants: x is the weighted missed share of the context window
 // relative to the compaction threshold.
 export const HEAT_CURVE_MIDPOINT = 0.3;
 const HEAT_CURVE_STEEPNESS = 12;
@@ -37,7 +39,7 @@ const HEAT_CURVE_STEEPNESS = 12;
 export const CACHE_IDLE_TTL_MS = 5 * 60 * 1000;
 
 type HeatRequest = {
-	readonly freshTokens: number;
+	readonly promptTokens: number;
 	readonly cacheReadTokens: number;
 	readonly usesCache: boolean;
 	readonly contextLimit: number;
@@ -64,13 +66,14 @@ const toHeatRequest = (
 		return null;
 	}
 	const cacheCreationTokens = toTokenCount(usage.cache_creation_tokens);
-	const freshTokens = toTokenCount(usage.input_tokens) + cacheCreationTokens;
 	const cacheReadTokens = toTokenCount(usage.cache_read_tokens);
-	if (freshTokens + cacheReadTokens === 0) {
+	const promptTokens =
+		toTokenCount(usage.input_tokens) + cacheCreationTokens + cacheReadTokens;
+	if (promptTokens === 0) {
 		return null;
 	}
 	return {
-		freshTokens,
+		promptTokens,
 		cacheReadTokens,
 		usesCache: cacheReadTokens > 0 || cacheCreationTokens > 0,
 		contextLimit,
@@ -81,7 +84,7 @@ const toHeatRequest = (
 const logistic = (x: number): number =>
 	1 / (1 + Math.exp(-HEAT_CURVE_STEEPNESS * (x - HEAT_CURVE_MIDPOINT)));
 
-/** Maps a normalized fresh share onto a displayed heat with heatCurve(0) = 0. */
+/** Maps a normalized missed share onto a displayed heat with heatCurve(0) = 0. */
 export const heatCurve = (x: number): number => {
 	if (!Number.isFinite(x) || x <= 0) {
 		return 0;
@@ -100,47 +103,61 @@ export const getChatHeatLabel = (heat: number): ChatHeatLabel => {
 	return "hot";
 };
 
-type HeatTurn = {
-	// Newest first.
-	readonly requests: HeatRequest[];
-	isFirst: boolean;
+type ScoredRequest = HeatRequest & {
+	readonly reusableTokens: number;
+	readonly missedTokens: number;
+	readonly isSegmentStart: boolean;
 };
 
-const splitTurns = (
+// Returns turns newest first; requests within a turn are oldest first.
+const scoreTurns = (
 	messages: readonly TypesGen.ChatMessage[],
 	activeContextLimit: number | undefined,
 	historyComplete: boolean,
-): HeatTurn[] => {
-	const turns: HeatTurn[] = [];
-	let current: HeatRequest[] = [];
-	const closeTurn = () => {
-		if (current.length > 0) {
-			turns.push({ requests: current, isFirst: false });
-			current = [];
-		}
-	};
-	let reachedSegmentStart = historyComplete;
-	for (const message of messages.toReversed()) {
-		if (findContextBoundaryPart(message)) {
-			reachedSegmentStart = true;
-			break;
-		}
+): ScoredRequest[][] => {
+	const boundaryIndex = messages.findLastIndex((message) =>
+		findContextBoundaryPart(message),
+	);
+	const reachedSegmentStart = historyComplete || boundaryIndex >= 0;
+	const turns: ScoredRequest[][] = [];
+	let current: ScoredRequest[] = [];
+	let previousPromptTokens: number | undefined;
+	for (const message of messages.slice(boundaryIndex + 1)) {
 		if (message.role === "user") {
-			closeTurn();
+			if (current.length > 0) {
+				turns.push(current);
+				current = [];
+			}
 			continue;
 		}
 		const request = toHeatRequest(message, activeContextLimit);
-		if (request) {
-			current.push(request);
+		if (!request) {
+			continue;
 		}
+		const reusableTokens = previousPromptTokens ?? 0;
+		current.push({
+			...request,
+			reusableTokens,
+			missedTokens: Math.max(0, reusableTokens - request.cacheReadTokens),
+			isSegmentStart: reachedSegmentStart && previousPromptTokens === undefined,
+		});
+		previousPromptTokens = request.promptTokens;
 	}
-	closeTurn();
-	const oldest = turns.at(-1);
-	if (oldest && reachedSegmentStart) {
-		oldest.isFirst = true;
+	if (current.length > 0) {
+		turns.push(current);
 	}
-	return turns;
+	// Without the segment start, the oldest loaded turn may be the tail of a
+	// longer turn whose earlier requests are not loaded.
+	if (!reachedSegmentStart && turns.length > 1) {
+		turns.shift();
+	}
+	return turns.reverse();
 };
+
+const sumTokens = (
+	requests: readonly ScoredRequest[],
+	key: "missedTokens" | "reusableTokens",
+): number => requests.reduce((total, request) => total + request[key], 0);
 
 export const getChatHeat = (
 	messages: readonly TypesGen.ChatMessage[],
@@ -150,41 +167,37 @@ export const getChatHeat = (
 	// may not be the first of its segment.
 	historyComplete = true,
 ): ChatHeat | null => {
-	const turns = splitTurns(messages, activeContextLimit, historyComplete).slice(
+	const turns = scoreTurns(messages, activeContextLimit, historyComplete).slice(
 		0,
 		HEAT_WINDOW_SIZE,
 	);
 	const latestTurn = turns[0];
-	const latest = latestTurn?.requests[0];
+	const latest = latestTurn?.at(-1);
 	// A window with no cache reads or writes means the route does not use
 	// prompt caching, so the meter would read hot with nothing to act on.
 	if (
 		!latestTurn ||
 		!latest ||
-		!turns.some((turn) => turn.requests.some((request) => request.usesCache))
+		!turns.some((turn) => turn.some((request) => request.usesCache))
 	) {
 		return null;
 	}
 
 	let weightTotal = 0;
 	let weightedSample = 0;
+	let missRateWeightTotal = 0;
 	let weightedMissRate = 0;
 	for (const [index, turn] of turns.entries()) {
-		let freshTokens = 0;
-		let promptTokens = 0;
-		for (const [requestIndex, request] of turn.requests.entries()) {
-			const isSegmentStart =
-				turn.isFirst && requestIndex === turn.requests.length - 1;
-			if (!isSegmentStart) {
-				freshTokens += request.freshTokens;
-			}
-			promptTokens += request.freshTokens + request.cacheReadTokens;
-		}
-		const contextLimit = turn.requests[0]?.contextLimit ?? 1;
+		const missedTokens = sumTokens(turn, "missedTokens");
+		const reusableTokens = sumTokens(turn, "reusableTokens");
+		const contextLimit = turn.at(-1)?.contextLimit ?? 1;
 		const weight = HEAT_WINDOW_DECAY ** index;
 		weightTotal += weight;
-		weightedSample += weight * (freshTokens / contextLimit);
-		weightedMissRate += weight * (freshTokens / promptTokens);
+		weightedSample += weight * (missedTokens / contextLimit);
+		if (reusableTokens > 0) {
+			missRateWeightTotal += weight;
+			weightedMissRate += weight * (missedTokens / reusableTokens);
+		}
 	}
 
 	const threshold =
@@ -198,18 +211,15 @@ export const getChatHeat = (
 	return {
 		heat,
 		label: getChatHeatLabel(heat),
-		missRate: weightedMissRate / weightTotal,
-		lastTurnRequestCount: latestTurn.requests.length,
-		lastTurnFreshTokens: latestTurn.requests.reduce(
-			(total, request) => total + request.freshTokens,
-			0,
+		missRate:
+			missRateWeightTotal > 0 ? weightedMissRate / missRateWeightTotal : 0,
+		lastTurnRequestCount: latestTurn.length,
+		lastTurnMissedTokens: sumTokens(latestTurn, "missedTokens"),
+		lastTurnReusableTokens: sumTokens(latestTurn, "reusableTokens"),
+		lastTurnHasSegmentStart: latestTurn.some(
+			(request) => request.isSegmentStart,
 		),
-		lastTurnCacheReadTokens: latestTurn.requests.reduce(
-			(total, request) => total + request.cacheReadTokens,
-			0,
-		),
-		lastTurnIsFirst: latestTurn.isFirst,
-		lastPromptTokens: latest.freshTokens + latest.cacheReadTokens,
+		lastPromptTokens: latest.promptTokens,
 		lastRequestAt: latest.createdAt,
 	};
 };

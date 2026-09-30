@@ -1501,10 +1501,10 @@ const hotChatHeat: ChatHeat = {
 	label: "hot",
 	missRate: 0.95,
 	lastTurnRequestCount: 3,
-	lastTurnFreshTokens: 40_000,
-	lastTurnCacheReadTokens: 2_000,
-	lastTurnIsFirst: false,
-	lastPromptTokens: 42_000,
+	lastTurnMissedTokens: 40_000,
+	lastTurnReusableTokens: 42_000,
+	lastTurnHasSegmentStart: false,
+	lastPromptTokens: 44_000,
 	// Far in the past, so the live indicator always renders its expired marker.
 	lastRequestAt: "2026-01-01T00:00:00Z",
 };
