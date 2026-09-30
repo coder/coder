@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -134,5 +135,36 @@ func TestRecordAgentUnreachable_DiagnosticsBusy(t *testing.T) {
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "diagnostics_timeout"))
+}
+
+func TestRecordAgentUnreachable_ClientCanceled(t *testing.T) {
+	t.Parallel()
+
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "agent_unreachable_total"}, []string{"reason"})
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(counter))
+	// The gate is held so a diagnostics read, if attempted, reports
+	// diagnostics_timeout instead of touching the nil conn.
+	s := &ServerTailnet{agentUnreachable: counter}
+	s.peerDiagnosticsBusy.Store(true)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// A short wait ended by the client is not an unreachable agent.
+	err := s.recordAgentUnreachable(ctx, uuid.New(), 100*time.Millisecond)
+	var unreachable *workspaceapps.AgentUnreachableError
+	require.ErrorAs(t, err, &unreachable)
+	require.Equal(t, "client_canceled", fieldMap(unreachable.Fields)["reason"])
+
+	// A long wait counts however the context ended.
+	err = s.recordAgentUnreachable(ctx, uuid.New(), clientCanceledWait)
+	require.ErrorAs(t, err, &unreachable)
+	require.Equal(t, "diagnostics_timeout", fieldMap(unreachable.Fields)["reason"])
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "client_canceled"))
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "diagnostics_timeout"))
 }

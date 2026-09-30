@@ -140,7 +140,7 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node, no_handshake, handshake_stale (older than 180s), handshake_ok, or diagnostics_timeout.",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node, no_handshake, handshake_stale (older than 180s), handshake_ok, diagnostics_timeout, or client_canceled (the client left within 5s).",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
@@ -490,6 +490,11 @@ func (s *ServerTailnet) acquireAgent(ctx context.Context, agentID uuid.UUID) (wo
 // incident.
 const peerDiagnosticsTimeout = time.Second
 
+// clientCanceledWait is the longest wait that still counts as the client
+// leaving when the context was canceled. A connected agent answers its first
+// ping well within this time.
+const clientCanceledWait = 5 * time.Second
+
 // recordAgentUnreachable counts a connection attempt that the agent did not
 // answer, adds the peer state to the request log line, and returns an error
 // carrying the same fields.
@@ -500,14 +505,22 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 	}, extra...)
 	reason := "diagnostics_timeout"
 
-	d, ok, skipped := s.peerDiagnostics(agentID)
-	switch {
-	case ok:
-		fields = append(fields, unreachableFields(d)...)
-		reason = unreachableReason(d, time.Now())
-	case skipped:
-		fields = append(fields, slog.F("peer_diagnostics_skipped", true))
+	// A quick cancellation is the client leaving, not the agent failing.
+	// A long wait counts as unreachable however the context ended, since a
+	// load balancer giving up on a hung request also cancels it.
+	if errors.Is(ctx.Err(), context.Canceled) && after < clientCanceledWait {
+		reason = "client_canceled"
+	} else {
+		d, ok, skipped := s.peerDiagnostics(agentID)
+		switch {
+		case ok:
+			fields = append(fields, unreachableFields(d)...)
+			reason = unreachableReason(d, time.Now())
+		case skipped:
+			fields = append(fields, slog.F("peer_diagnostics_skipped", true))
+		}
 	}
+	fields = append(fields, slog.F("reason", reason))
 	s.agentUnreachable.WithLabelValues(reason).Inc()
 
 	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
