@@ -964,6 +964,10 @@ type PeerDiagnostics struct {
 	SentNode bool
 	// ReceivedNode is the last Node we received for the peer, or nil if we haven't received the node.
 	ReceivedNode *tailcfg.Node
+	// Lost is true when the coordinator reported the peer lost or our own
+	// coordination stream ended. The node and WireGuard config stay for
+	// lostTimeout, so the other fields may still describe a working tunnel.
+	Lost bool
 	// LastWireguardHandshake is the last time we completed a wireguard handshake
 	LastWireguardHandshake time.Time
 	// TxBytes and RxBytes are the WireGuard byte counters for the peer,

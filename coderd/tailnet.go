@@ -125,6 +125,7 @@ func NewServerTailnet(
 		coordCtrl:           coordCtrl,
 		transport:           tailnetTransport.Clone(),
 		readPeerDiagnostics: conn.GetPeerDiagnostics,
+		peerDiagnosticsSlot: make(chan struct{}, 1),
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -142,7 +143,7 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node (the coordinator never sent the agent node), no_handshake (the node arrived but WireGuard never completed a handshake), handshake_stale (the last handshake is older than 180s), handshake_ok (the last handshake is under 180s old, so the failure is above WireGuard), diagnostics_timeout (the peer state could not be read within 1s), or client_canceled (the client left within 5s).",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node (the coordinator never sent the agent node), peer_lost (the coordinator reported the agent lost or the coordination stream ended), no_handshake (the node arrived but WireGuard never completed a handshake), handshake_stale (the last handshake is older than 180s), handshake_ok (the last handshake is under 180s old, so the failure is above WireGuard), diagnostics_timeout (the peer state could not be read within 1s), or client_canceled (the client left within 5s).",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
@@ -221,8 +222,9 @@ type ServerTailnet struct {
 	agentUnreachable *prometheus.CounterVec
 	awaitReachable   prometheus.Histogram
 
-	// peerDiagnosticsBusy is set while a peer diagnostics read is in flight.
-	peerDiagnosticsBusy atomic.Bool
+	// peerDiagnosticsSlot holds one token while a peer diagnostics read is
+	// in flight.
+	peerDiagnosticsSlot chan struct{}
 	readPeerDiagnostics func(agentID uuid.UUID) tailnet.PeerDiagnostics
 }
 
@@ -539,7 +541,8 @@ const clientCanceledWait = 5 * time.Second
 
 // recordAgentUnreachable counts a connection attempt that the agent did not
 // answer, adds the peer state to the request log line, and returns an error
-// carrying the same fields.
+// carrying the same fields. A client that left quickly gets a plain error so
+// callers do not log it as an unreachable agent.
 func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid.UUID, after time.Duration, extra ...slog.Field) error {
 	fields := append([]slog.Field{
 		slog.F("agent_id", agentID),
@@ -550,17 +553,12 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 	// A quick cancellation is the client leaving, not the agent failing.
 	// A long wait counts as unreachable however the context ended, since a
 	// load balancer giving up on a hung request also cancels it.
-	if errors.Is(ctx.Err(), context.Canceled) && after < clientCanceledWait {
+	clientCanceled := errors.Is(ctx.Err(), context.Canceled) && after < clientCanceledWait
+	if clientCanceled {
 		reason = "client_canceled"
-	} else {
-		d, ok, skipped := s.peerDiagnostics(agentID)
-		switch {
-		case ok:
-			fields = append(fields, unreachableFields(d)...)
-			reason = unreachableReason(d, time.Now())
-		case skipped:
-			fields = append(fields, slog.F("peer_diagnostics_skipped", true))
-		}
+	} else if d, ok := s.peerDiagnostics(agentID); ok {
+		fields = append(fields, unreachableFields(d)...)
+		reason = unreachableReason(d, time.Now())
 	}
 	fields = append(fields, slog.F("reason", reason))
 	s.agentUnreachable.WithLabelValues(reason).Inc()
@@ -568,26 +566,34 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
 		rl.WithFields(fields...)
 	}
+	if clientCanceled {
+		return xerrors.New("agent is unreachable: client canceled")
+	}
 	return &workspaceapps.AgentUnreachableError{Fields: fields}
 }
 
-// peerDiagnostics reads the peer state with a timeout. Only one read runs at
-// a time, so a held engine lock parks one goroutine and later calls return
-// at once with skipped set.
-func (s *ServerTailnet) peerDiagnostics(agentID uuid.UUID) (d tailnet.PeerDiagnostics, ok bool, skipped bool) {
-	if !s.peerDiagnosticsBusy.CompareAndSwap(false, true) {
-		return tailnet.PeerDiagnostics{}, false, true
+// peerDiagnostics reads the peer state within peerDiagnosticsTimeout. The
+// read takes WireGuard engine locks that may be held during an incident, so
+// one read runs at a time and other callers wait for the slot within the
+// same timeout instead of each parking a goroutine on the lock.
+func (s *ServerTailnet) peerDiagnostics(agentID uuid.UUID) (tailnet.PeerDiagnostics, bool) {
+	timeout := time.NewTimer(peerDiagnosticsTimeout)
+	defer timeout.Stop()
+	select {
+	case s.peerDiagnosticsSlot <- struct{}{}:
+	case <-timeout.C:
+		return tailnet.PeerDiagnostics{}, false
 	}
 	diagCh := make(chan tailnet.PeerDiagnostics, 1)
 	go func() {
-		defer s.peerDiagnosticsBusy.Store(false)
+		defer func() { <-s.peerDiagnosticsSlot }()
 		diagCh <- s.readPeerDiagnostics(agentID)
 	}()
 	select {
 	case d := <-diagCh:
-		return d, true, false
-	case <-time.After(peerDiagnosticsTimeout):
-		return tailnet.PeerDiagnostics{}, false, false
+		return d, true
+	case <-timeout.C:
+		return tailnet.PeerDiagnostics{}, false
 	}
 }
 
@@ -609,6 +615,7 @@ func unreachableFields(d tailnet.PeerDiagnostics) []slog.Field {
 			region = after
 		}
 		fields = append(fields,
+			slog.F("peer_lost", d.Lost),
 			slog.F("peer_preferred_derp", region),
 			slog.F("peer_tx_bytes", d.TxBytes),
 			slog.F("peer_rx_bytes", d.RxBytes),
@@ -617,13 +624,16 @@ func unreachableFields(d tailnet.PeerDiagnostics) []slog.Field {
 	return fields
 }
 
-// unreachableReason is the reason label for agent_unreachable_total. A
-// handshake older than WireGuard's session limit means our handshakes went
-// unanswered while we waited.
+// unreachableReason is the reason label for agent_unreachable_total. A lost
+// peer comes before the handshake checks because the tunnel can look healthy
+// while the control plane is down. A handshake older than WireGuard's session
+// limit means our handshakes went unanswered while we waited.
 func unreachableReason(d tailnet.PeerDiagnostics, now time.Time) string {
 	switch {
 	case d.ReceivedNode == nil:
 		return "no_node"
+	case d.Lost:
+		return "peer_lost"
 	case d.LastWireguardHandshake.IsZero():
 		return "no_handshake"
 	case now.Sub(d.LastWireguardHandshake) > device.RejectAfterTime:

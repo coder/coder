@@ -108,7 +108,6 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.Contains(t, entry.Fields, "server_preferred_derp")
 	assert.NotContains(t, entry.Fields, "peer_tx_bytes")
 	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
-	assert.NotContains(t, entry.Fields, "peer_diagnostics_skipped")
 
 	// A second failure reads diagnostics again, so the first read released
 	// the gate.

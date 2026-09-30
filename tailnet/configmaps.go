@@ -650,6 +650,7 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	}
 
 	d.ReceivedNode = lc.node
+	d.Lost = lc.lost
 	ps, ok := status.Peer[lc.node.Key]
 	if !ok {
 		return

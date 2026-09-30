@@ -1058,6 +1058,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 		peerID:        p1ID,
 		node:          p1tcn,
 		lastHandshake: hst,
+		lost:          true,
 	}
 	uut.L.Unlock()
 
@@ -1071,6 +1072,7 @@ func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	// Then:
 	require.Equal(t, map[int]string{1: "AUH", 1001: "DXB"}, d.DERPRegionNames)
 	require.Equal(t, p1tcn, d.ReceivedNode)
+	require.True(t, d.Lost)
 	require.Equal(t, hst, d.LastWireguardHandshake)
 	require.EqualValues(t, 1234, d.TxBytes)
 	require.EqualValues(t, 5678, d.RxBytes)
@@ -1116,6 +1118,7 @@ func TestConfigMaps_fillPeerDiagnostics_NoHandshake(t *testing.T) {
 	testutil.TryReceive(ctx, t, s0)
 
 	require.Equal(t, p1tcn, d.ReceivedNode)
+	require.False(t, d.Lost)
 	require.True(t, d.LastWireguardHandshake.IsZero())
 	require.EqualValues(t, 1234, d.TxBytes)
 
