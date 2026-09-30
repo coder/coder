@@ -79,7 +79,6 @@ export const runChatAutomation = (
 			queryClient.invalidateQueries({
 				queryKey: automationChatsKey(automationId),
 			}),
-			// A run can create a chat or reorder the chat list.
 			invalidateChatListQueries(queryClient),
 		]);
 	},
