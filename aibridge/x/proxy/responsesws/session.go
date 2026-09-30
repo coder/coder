@@ -264,6 +264,10 @@ func (s *Session) readLoop() {
 			err = context.Cause(s.ctx)
 		}
 		s.readErr = err
+		// Cancel the session so work bound to it, such as a Send waiting on
+		// admission, stops when upstream ends. After Close this is a no-op
+		// that keeps Close's cause.
+		s.cancel(err)
 		s.endAll(err)
 		return
 	}

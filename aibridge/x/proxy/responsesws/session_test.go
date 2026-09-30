@@ -34,7 +34,9 @@ func TestMain(m *testing.M) {
 // fakeConn is an in-memory upstream. Tests push server frames to toClient
 // and read forwarded client frames from written.
 type fakeConn struct {
-	toClient  chan []byte
+	toClient chan []byte
+	// readErrs makes the next Read return the error.
+	readErrs  chan error
 	written   chan []byte
 	closed    chan struct{}
 	closeOnce sync.Once
@@ -47,6 +49,8 @@ func (c *fakeConn) Read(ctx context.Context) ([]byte, error) {
 			return nil, io.EOF
 		}
 		return f, nil
+	case err := <-c.readErrs:
+		return nil, err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-c.closed:
@@ -92,7 +96,7 @@ type harness struct {
 
 func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) *harness {
 	t.Helper()
-	conn := &fakeConn{toClient: make(chan []byte, 16), written: make(chan []byte, 16), closed: make(chan struct{})}
+	conn := &fakeConn{toClient: make(chan []byte, 16), readErrs: make(chan error, 1), written: make(chan []byte, 16), closed: make(chan struct{})}
 	rec := &testRecorder{}
 	sessionID := "client-session"
 	// Production recorders refuse records with unset timestamps. The
@@ -586,52 +590,74 @@ func TestSessionEndEndsOpenInterceptions(t *testing.T) {
 	})
 }
 
-// TestCloseDuringAdmission covers a session closed while admission is still
-// deciding a create: Send must return promptly and nothing may be recorded
-// for the frame, which is never forwarded.
+// TestCloseDuringAdmission covers a session that ends while admission is
+// still deciding a create, whether by Close or by the upstream reader
+// ending: Send must return promptly and nothing may be recorded for the
+// frame, which is never forwarded. Recv reports why the session ended.
 func TestCloseDuringAdmission(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
+	errReset := xerrors.New("connection reset by peer")
+	admits := []struct {
 		name  string
 		admit func(ctx context.Context) error
 	}{
-		// Admission honors its ctx, which the session close must cancel.
-		{"CanceledByClose", func(ctx context.Context) error {
+		// Admission honors its ctx, which ending the session must cancel.
+		{"Canceled", func(ctx context.Context) error {
 			<-ctx.Done()
 			return ctx.Err()
 		}},
-		// Admission returns success only after the session closed.
+		// Admission returns success only after the session ended.
 		{"LateSuccess", func(ctx context.Context) error {
 			<-ctx.Done()
 			return nil
 		}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := codertestutil.Context(t, codertestutil.WaitShort)
-			entered := make(chan struct{})
-			h := newHarness(ctx, t, func(ctx context.Context, _ string) error {
-				close(entered)
-				return tc.admit(ctx)
-			})
-			// The caller's ctx outlives the test's wait, so only the session
-			// close can unblock admission in time.
-			sendCtx, cancelSend := context.WithCancel(context.WithoutCancel(ctx))
-			defer cancelSend()
-			sent := make(chan error, 1)
-			go func() { sent <- h.sess.Send(sendCtx, []byte(create("", "gpt-6", "hi"))) }()
-			_ = codertestutil.TryReceive(ctx, t, entered)
-			require.NoError(t, h.sess.Close(nil))
+	}
+	ends := []struct {
+		name string
+		end  func(t *testing.T, h *harness)
+		// recvErr is what Recv reports once the session ended.
+		recvErr error
+	}{
+		{"Close", func(t *testing.T, h *harness) { require.NoError(t, h.sess.Close(nil)) }, responsesws.ErrClosed},
+		{"UpstreamEOF", func(_ *testing.T, h *harness) { close(h.conn.toClient) }, io.EOF},
+		{"UpstreamError", func(t *testing.T, h *harness) {
+			codertestutil.RequireSend(h.ctx, t, h.conn.readErrs, errReset)
+		}, errReset},
+	}
+	for _, end := range ends {
+		for _, tc := range admits {
+			t.Run(end.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := codertestutil.Context(t, codertestutil.WaitShort)
+				entered := make(chan struct{})
+				h := newHarness(ctx, t, func(ctx context.Context, _ string) error {
+					close(entered)
+					return tc.admit(ctx)
+				})
+				// The caller's ctx outlives the test's wait, so only the
+				// session ending can unblock admission in time.
+				sendCtx, cancelSend := context.WithCancel(context.WithoutCancel(ctx))
+				defer cancelSend()
+				sent := make(chan error, 1)
+				go func() { sent <- h.sess.Send(sendCtx, []byte(create("", "gpt-6", "hi"))) }()
+				_ = codertestutil.TryReceive(ctx, t, entered)
+				end.end(t, h)
 
-			err := codertestutil.TryReceive(ctx, t, sent)
-			require.ErrorIs(t, err, responsesws.ErrClosed)
-			require.Empty(t, h.rec.RecordedInterceptions())
-			select {
-			case frame := <-h.conn.written:
-				t.Fatalf("create forwarded after close: %s", frame)
-			default:
-			}
-		})
+				err := codertestutil.TryReceive(ctx, t, sent)
+				require.ErrorIs(t, err, responsesws.ErrClosed)
+				require.Empty(t, h.rec.RecordedInterceptions())
+				select {
+				case frame := <-h.conn.written:
+					t.Fatalf("create forwarded after the session ended: %s", frame)
+				default:
+				}
+				_, err = h.sess.Recv(ctx)
+				require.ErrorIs(t, err, end.recvErr)
+				require.NoError(t, h.sess.Close(nil))
+				_, err = h.sess.Recv(ctx)
+				require.ErrorIs(t, err, end.recvErr)
+			})
+		}
 	}
 }
 
