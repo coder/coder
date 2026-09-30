@@ -411,9 +411,10 @@ func (p *Server) pinnedWorkspaceMCPTools(
 
 type turnWorkspaceContext struct {
 	server           *Server
-	chatStateMu      *sync.Mutex
-	currentChat      *database.Chat
 	loadChatSnapshot func(context.Context, uuid.UUID) (database.Chat, error)
+
+	chatStateMu sync.Mutex
+	currentChat database.Chat
 
 	mu                sync.Mutex
 	agent             database.WorkspaceAgent
@@ -421,6 +422,33 @@ type turnWorkspaceContext struct {
 	conn              workspacesdk.AgentConn
 	releaseConn       func()
 	cachedWorkspaceID uuid.NullUUID
+	home              string
+}
+
+func (p *Server) newTurnWorkspaceContext() *turnWorkspaceContext {
+	return &turnWorkspaceContext{
+		server: p,
+		loadChatSnapshot: func(ctx context.Context, chatID uuid.UUID) (database.Chat, error) {
+			return p.db.GetChatByID(ctx, chatID)
+		},
+	}
+}
+
+// setAgentLocked clears derived state, such as home, when agent differs from
+// the cached agent.
+func (c *turnWorkspaceContext) setAgentLocked(agent database.WorkspaceAgent, workspaceID uuid.NullUUID) {
+	if c.agent.ID != agent.ID {
+		c.home = ""
+	}
+	c.agent = agent
+	c.agentLoaded = true
+	c.cachedWorkspaceID = workspaceID
+}
+
+func (c *turnWorkspaceContext) clearAgentLocked() {
+	c.agent = database.WorkspaceAgent{}
+	c.agentLoaded = false
+	c.home = ""
 }
 
 func (c *turnWorkspaceContext) close() {
@@ -430,8 +458,7 @@ func (c *turnWorkspaceContext) close() {
 func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 	c.mu.Lock()
 	releaseConn := c.releaseConn
-	c.agent = database.WorkspaceAgent{}
-	c.agentLoaded = false
+	c.clearAgentLocked()
 	c.conn = nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
@@ -444,13 +471,13 @@ func (c *turnWorkspaceContext) clearCachedWorkspaceState() {
 
 func (c *turnWorkspaceContext) setCurrentChat(chat database.Chat) {
 	c.chatStateMu.Lock()
-	*c.currentChat = chat
+	c.currentChat = chat
 	c.chatStateMu.Unlock()
 }
 
 func (c *turnWorkspaceContext) currentChatSnapshot() database.Chat {
 	c.chatStateMu.Lock()
-	chatSnapshot := *c.currentChat
+	chatSnapshot := c.currentChat
 	c.chatStateMu.Unlock()
 	return chatSnapshot
 }
@@ -553,8 +580,7 @@ func (c *turnWorkspaceContext) ensureWorkspaceAgent(
 		if nullUUIDEqual(c.cachedWorkspaceID, chatSnapshot.WorkspaceID) {
 			return chatSnapshot, c.agent, nil
 		}
-		c.agent = database.WorkspaceAgent{}
-		c.agentLoaded = false
+		c.clearAgentLocked()
 	}
 
 	return c.loadWorkspaceAgentLocked(ctx)
@@ -612,9 +638,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 					chatSnapshot = latestChat
 					continue
 				}
-				c.agent = agent
-				c.agentLoaded = true
-				c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+				c.setAgentLocked(agent, chatSnapshot.WorkspaceID)
 				return chatSnapshot, c.agent, nil
 			}
 			if !xerrors.Is(err, sql.ErrNoRows) {
@@ -667,9 +691,7 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			chatSnapshot = latestChat
 			continue
 		}
-		c.agent = selected
-		c.agentLoaded = true
-		c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+		c.setAgentLocked(selected, chatSnapshot.WorkspaceID)
 		return chatSnapshot, c.agent, nil
 	}
 
@@ -759,8 +781,7 @@ func (c *turnWorkspaceContext) getWorkspaceConnLocked() (workspacesdk.AgentConn,
 	}
 
 	agentRelease := c.releaseConn
-	c.agent = database.WorkspaceAgent{}
-	c.agentLoaded = false
+	c.clearAgentLocked()
 	c.conn = nil
 	c.releaseConn = nil
 	c.cachedWorkspaceID = uuid.NullUUID{}
@@ -997,9 +1018,7 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 			chatSnapshot = updatedChat
 
 			c.mu.Lock()
-			c.agent = switchedAgent
-			c.agentLoaded = true
-			c.cachedWorkspaceID = chatSnapshot.WorkspaceID
+			c.setAgentLocked(switchedAgent, chatSnapshot.WorkspaceID)
 			c.mu.Unlock()
 		}
 
@@ -1051,6 +1070,36 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	}
 
 	return nil, xerrors.New("chat workspace changed while connecting")
+}
+
+// workspaceHome fetches the home directory once per cached agent.
+func (c *turnWorkspaceContext) workspaceHome(ctx context.Context) (string, error) {
+	_, agent, err := c.ensureWorkspaceAgent(ctx)
+	if err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	home := c.home
+	c.mu.Unlock()
+	if home != "" {
+		return home, nil
+	}
+
+	conn, err := c.getWorkspaceConn(ctx)
+	if err != nil {
+		return "", err
+	}
+	home, err = chattool.ResolveWorkspaceHome(ctx, conn)
+	if err != nil {
+		return "", err
+	}
+	c.mu.Lock()
+	// The dial may have switched agents.
+	if c.agent.ID == agent.ID {
+		c.home = home
+	}
+	c.mu.Unlock()
+	return home, nil
 }
 
 // AgentConnFunc provides access to workspace agent connections.
