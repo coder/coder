@@ -74,9 +74,8 @@ jobs:
               - "examples/monitoring/**"
               - "examples/lima/**"
             # Docs paths that make gen reads or rewrites. The gen job skips
-            # docs-only PRs that touch none of them. make lint
-            # (lint/docs-gen-filter) fails when a generated file matches docs
-            # but not docs-gen.
+            # docs-only PRs that touch none of them. lint/docs-gen-filter
+            # keeps this list in sync with make gen.
             docs-gen:
               - "docs/manifest.json"
               - "docs/reference/api/**"
@@ -441,8 +440,6 @@ jobs:
     needs: changes
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    # On pull requests, skip when every changed file is a docs file that
-    # make gen neither reads nor writes (see the docs-gen filter).
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner

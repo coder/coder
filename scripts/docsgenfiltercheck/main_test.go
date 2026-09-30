@@ -96,7 +96,6 @@ func TestGlobRegexp(t *testing.T) {
 		})
 	}
 
-	// Forms globRegexp does not support must be rejected.
 	for _, glob := range []string{"", "**", "/**", "!docs/**", "docs/*/**", "docs/**/index.md", "docs/reference/**.md", `docs/\*.md`, "docs/?.md", "docs/{a,b}.md", "docs/[ab].md"} {
 		_, err := globRegexp(glob)
 		require.Error(t, err, "%q should be rejected", glob)

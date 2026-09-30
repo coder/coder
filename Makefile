@@ -912,10 +912,8 @@ lint/mise-versions:
 	./scripts/check_mise_versions.sh
 .PHONY: lint/mise-versions
 
-# Fails when the docs-gen filter in .github/workflows/ci.yaml misses a file
-# make gen writes under a path the docs filter matches: one in GEN_FILES, or a
-# tracked page whose body opens with the generated-content banner, such as a
-# nested CLI page.
+# Fails when the docs-gen filter in .github/workflows/ci.yaml misses a docs
+# file make gen writes.
 lint/docs-gen-filter:
 	go run ./scripts/docsgenfiltercheck $(GEN_FILES)
 .PHONY: lint/docs-gen-filter
@@ -1125,7 +1123,7 @@ GEN_FILES := \
 # all gen targets should be added here and to gen/mark-fresh. Generated files
 # and inputs under any path in the docs filter in .github/workflows/ci.yaml
 # must also match its docs-gen filter, or CI skips gen for docs-only PRs that
-# edit them. lint/docs-gen-filter checks the generated files.
+# edit them. lint/docs-gen-filter checks generated files but not inputs.
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
 # start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=
