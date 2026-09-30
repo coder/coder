@@ -40,11 +40,15 @@ func TestSubagentSpawnUnderArchivedRoot(t *testing.T) {
 		}))
 	require.NoError(t, server.ArchiveChat(ctx, root))
 
-	// The in-flight spawn_agent call continues.
-	parent, err := server.loadSubagentSpawnParentChat(ctx, func() database.Chat { return inFlightSnapshot })
-	require.NoError(t, err)
-	require.True(t, parent.Archived, "the reloaded parent is archived")
-	_, err = server.createChildSubagentChatWithOptions(ctx, parent, "late child", "", childSubagentChatOptions{})
+	// The in-flight spawn_agent call continues. Reloading the parent
+	// already refuses the spawn before any prompt hook runs.
+	_, err := server.loadSubagentSpawnParentChat(ctx, func() database.Chat { return inFlightSnapshot })
+	require.ErrorIs(t, err, chatstate.ErrChatFamilyArchived)
+	require.ErrorContains(t, err, "cannot create a child agent because the parent chat is archived")
+
+	// A spawn that reloaded the parent before the archive committed
+	// reaches child creation, where the locked root check refuses it.
+	_, err = server.createChildSubagentChatWithOptions(ctx, inFlightSnapshot, "late child", "", childSubagentChatOptions{})
 	require.ErrorIs(t, err, chatstate.ErrChatFamilyArchived)
 	// spawn_agent returns this text to the model as the tool error.
 	require.ErrorContains(t, err, "cannot create a child agent because the parent chat is archived")
