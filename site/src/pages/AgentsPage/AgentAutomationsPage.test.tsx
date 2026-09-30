@@ -343,7 +343,7 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(
 				requests.map((request) => new URL(request.url).searchParams.get("q")),
-			).toContain('title:"Rele" archived:false');
+			).toContain('title:"Rele" archived:false source:created_by_me');
 		});
 		await user.click(
 			await screen.findByRole("option", { name: mockOtherChat.title }),

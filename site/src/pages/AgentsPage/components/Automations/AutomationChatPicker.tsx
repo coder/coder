@@ -20,14 +20,12 @@ type AutomationChatPickerProps = Pick<
 	"id" | "aria-invalid" | "aria-describedby"
 > & {
 	value: string;
-	currentUserId: string;
 	onChange: (chatId: string) => void;
 };
 
 /** Picks one of the current user's root chats as an automation target. */
 export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 	value,
-	currentUserId,
 	onChange,
 	...buttonProps
 }) => {
@@ -42,16 +40,12 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 	// `search:` term matches whole words and message content instead.
 	const searchQuery = useQuery({
 		...chatSearch({
-			q: debouncedSearch
-				? `title:"${debouncedSearch}" archived:false`
-				: "archived:false",
+			q: `${debouncedSearch ? `title:"${debouncedSearch}" ` : ""}archived:false source:created_by_me`,
 		}),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	const chats = (searchQuery.data ?? []).filter(
-		(c) => c.owner_id === currentUserId,
-	);
+	const chats = searchQuery.data ?? [];
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),

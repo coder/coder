@@ -384,7 +384,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											<AutomationChatPicker
 												{...props}
 												value={form.values.target_chat_id}
-												currentUserId={currentUserId}
 												onChange={(chatId) =>
 													form.setFieldValue("target_chat_id", chatId)
 												}
