@@ -405,7 +405,7 @@ const (
 	UsageAppNameJetbrains       UsageAppName = "jetbrains"
 	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
 	UsageAppNameSSH             UsageAppName = "ssh"
-	UsageAppNamePortForward     UsageAppName = "port_forward"
+	UsageAppNamePortForwarding  UsageAppName = "port_forwarding"
 )
 
 // PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.

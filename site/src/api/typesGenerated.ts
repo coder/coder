@@ -11141,14 +11141,14 @@ export interface UpsertWorkspaceAgentPortShareRequest {
 // From codersdk/workspaces.go
 export type UsageAppName =
 	| "jetbrains"
-	| "port_forward"
+	| "port_forwarding"
 	| "reconnecting-pty"
 	| "ssh"
 	| "vscode";
 
 export const UsageAppNames: UsageAppName[] = [
 	"jetbrains",
-	"port_forward",
+	"port_forwarding",
 	"reconnecting-pty",
 	"ssh",
 	"vscode",
