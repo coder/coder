@@ -3287,6 +3287,7 @@ class ExperimentalApiMethods {
 			limit?: number;
 			offset?: number;
 			q?: string;
+			automation_id?: string;
 		},
 		signal?: AbortSignal,
 	): Promise<TypesGen.Chat[]> => {
@@ -3889,6 +3890,28 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.ChatAutomation[]> => {
 		const response = await this.axios.get<TypesGen.ChatAutomation[]>(
 			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations`,
+		);
+		return response.data;
+	};
+
+	updateChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+		req: TypesGen.UpdateChatAutomationRequest,
+	): Promise<TypesGen.ChatAutomation> => {
+		const response = await this.axios.patch<TypesGen.ChatAutomation>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	runChatAutomation = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<TypesGen.ChatAutomationRunResponse> => {
+		const response = await this.axios.post<TypesGen.ChatAutomationRunResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/runs`,
 		);
 		return response.data;
 	};

@@ -418,6 +418,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query string false "After ID" format(uuid)
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
+// @Param automation_id query string false "Filter to chats the automation created or sent messages to. Ignored unless the chat-automations experiment is enabled for the caller." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -466,6 +467,21 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	parser := httpapi.NewQueryParamParser()
+	automationID := parser.UUID(r.URL.Query(), uuid.Nil, "automation_id")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	// The chat list is not experiment-gated, so the automation filter
+	// is ignored rather than rejected when the experiment is off.
+	if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, apiKey.UserID) {
+		automationID = uuid.Nil
+	}
+
 	var sharedWithGroupIDs []string
 	if searchParams.SharedOnly {
 		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{HasMemberID: apiKey.UserID})
@@ -500,6 +516,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		RepoQuery:           searchParams.RepoQuery,
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
+		AutomationID:        automationID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

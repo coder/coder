@@ -50,6 +50,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
+import { AutomationsNavItem } from "../../Automations/AutomationsNavItem";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -464,6 +465,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					/>
 				)}
 				<ChatBoardNavItem locationSearch={locationSearch} />
+				<AutomationsNavItem locationSearch={locationSearch} />
 			</nav>
 			<div className="relative min-h-0 flex-1 flex flex-col">
 				<div className="mx-2 pt-6 mb-1.5">

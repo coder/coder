@@ -2128,6 +2128,10 @@ type ListChatsOptions struct {
 	// Source adds a source: term to Query.
 	Source ChatListSource
 	Labels map[string]string
+	// AutomationID filters to chats the automation created or sent
+	// messages to. The server ignores it unless the chat-automations
+	// experiment is enabled for the caller.
+	AutomationID uuid.UUID
 	Pagination
 }
 
@@ -2156,6 +2160,13 @@ func (c *Client) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat,
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
 				}
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.AutomationID != uuid.Nil {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				q.Set("automation_id", opts.AutomationID.String())
 				r.URL.RawQuery = q.Encode()
 			})
 		}

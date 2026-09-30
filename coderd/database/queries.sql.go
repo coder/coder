@@ -10926,6 +10926,20 @@ WHERE
         )
         ELSE true
     END
+    -- Filter to chats an automation created or sent messages to. Served
+    -- by chats_automation_idx and chat_messages_automation_idx.
+    AND CASE
+        WHEN $18::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+            chats_expanded.automation_id = $18::uuid
+            OR EXISTS (
+                SELECT 1
+                FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.automation_id = $18::uuid
+            )
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -10942,11 +10956,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $18
+OFFSET $19
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($19 :: int, 0), 50)
+    COALESCE(NULLIF($20 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -10967,6 +10981,7 @@ type GetChatsParams struct {
 	RepoQuery           string                `db:"repo_query" json:"repo_query"`
 	PrTitleQuery        string                `db:"pr_title_query" json:"pr_title_query"`
 	Search              string                `db:"search" json:"search"`
+	AutomationID        uuid.UUID             `db:"automation_id" json:"automation_id"`
 	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
@@ -10995,6 +11010,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.RepoQuery,
 		arg.PrTitleQuery,
 		arg.Search,
+		arg.AutomationID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

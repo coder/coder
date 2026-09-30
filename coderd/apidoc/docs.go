@@ -2151,6 +2151,13 @@ const docTemplate = `{
                         "description": "Page offset",
                         "name": "offset",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter to chats the automation created or sent messages to. Ignored unless the chat-automations experiment is enabled for the caller.",
+                        "name": "automation_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {

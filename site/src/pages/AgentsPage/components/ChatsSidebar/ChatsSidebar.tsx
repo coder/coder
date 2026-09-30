@@ -4,6 +4,7 @@ import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModel } from "#/api/typesGenerated";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import { AUTOMATIONS_PATH } from "../Automations/AutomationsNavItem";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog } from "./dialogs/ChatSearchDialog";
 import { RenameChatDialog } from "./dialogs/RenameChatDialog";
@@ -161,7 +162,11 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onCollapse={onCollapse}
 				activeChatId={activeChatId}
 				isSettingsPanel={isSettingsPanel}
-				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
+				isChatsActive={
+					!activeChatId &&
+					sidebarView.panel === "chats" &&
+					!location.pathname.startsWith(AUTOMATIONS_PATH)
+				}
 				location={location}
 				currentUserId={currentUserId}
 			/>

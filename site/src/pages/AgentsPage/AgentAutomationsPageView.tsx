@@ -1,0 +1,205 @@
+import { Link as RouterLink } from "react-router";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import type { Chat, ChatAutomation } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
+import { Link } from "#/components/Link/Link";
+import { Loader } from "#/components/Loader/Loader";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import {
+	Table,
+	TableBody,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { AutomationRow } from "./components/Automations/AutomationRow";
+import { SectionHeader } from "./components/SectionHeader";
+
+/** A failed Run now attempt, shown above the table until the next run. */
+export type AutomationRunError = {
+	automation: ChatAutomation;
+	error: unknown;
+};
+
+type AutomationChatsDialogState = {
+	automation: ChatAutomation;
+	chats: readonly Chat[] | undefined;
+	isLoading: boolean;
+	error: unknown;
+	onClose: () => void;
+};
+
+type AgentAutomationsPageViewProps = {
+	organizationName: string | undefined;
+	organizationSelector?: React.ReactNode;
+	automations: readonly ChatAutomation[] | undefined;
+	isLoading: boolean;
+	error: unknown;
+	updatingAutomationId?: string;
+	runningAutomationId?: string;
+	runError?: AutomationRunError;
+	onDismissRunError: () => void;
+	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
+	onRunNow: (automation: ChatAutomation) => void;
+	onViewChats: (automation: ChatAutomation) => void;
+	chatsDialog?: AutomationChatsDialogState;
+};
+
+const AutomationChatsDialog: React.FC<{
+	state: AutomationChatsDialogState;
+}> = ({ state }) => {
+	let body: React.ReactNode;
+	if (state.isLoading) {
+		body = <Loader />;
+	} else if (state.error) {
+		body = <ErrorAlert error={state.error} />;
+	} else if (!state.chats || state.chats.length === 0) {
+		body = (
+			<p className="m-0 text-sm text-content-secondary">
+				This automation has not created or written to any chats yet.
+			</p>
+		);
+	} else {
+		body = (
+			<ul className="m-0 flex list-none flex-col gap-2 p-0">
+				{state.chats.map((chat) => (
+					<li key={chat.id}>
+						<Link asChild showExternalIcon={false}>
+							<RouterLink to={`/agents/${chat.id}`}>
+								{chat.title || "Untitled"}
+							</RouterLink>
+						</Link>
+					</li>
+				))}
+			</ul>
+		);
+	}
+	return (
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				if (!open) {
+					state.onClose();
+				}
+			}}
+		>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Chats for {state.automation.name}</DialogTitle>
+					<DialogDescription>
+						Chats this automation created or sent messages to.
+					</DialogDescription>
+				</DialogHeader>
+				{body}
+			</DialogContent>
+		</Dialog>
+	);
+};
+
+export const AgentAutomationsPageView: React.FC<
+	AgentAutomationsPageViewProps
+> = ({
+	organizationName,
+	organizationSelector,
+	automations,
+	isLoading,
+	error,
+	updatingAutomationId,
+	runningAutomationId,
+	runError,
+	onDismissRunError,
+	onToggleEnabled,
+	onRunNow,
+	onViewChats,
+	chatsDialog,
+}) => {
+	let rows: React.ReactNode;
+	if (isLoading) {
+		rows = <TableLoader />;
+	} else if (!automations || automations.length === 0) {
+		rows = (
+			<TableEmpty
+				message="No automations yet"
+				description="Automations are created through the API, or by agents with the manage_automations tool."
+			/>
+		);
+	} else {
+		rows = automations.map((automation) => (
+			<AutomationRow
+				key={automation.id}
+				automation={automation}
+				isUpdating={updatingAutomationId === automation.id}
+				isRunning={runningAutomationId === automation.id}
+				onToggleEnabled={onToggleEnabled}
+				onRunNow={onRunNow}
+				onViewChats={onViewChats}
+			/>
+		));
+	}
+
+	return (
+		<ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+			<div className="p-4 pt-8">
+				<div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+					<SectionHeader
+						label="Automations"
+						description={
+							organizationName
+								? `Schedules and webhooks that send prompts to agents in ${organizationName}.`
+								: "Schedules and webhooks that send prompts to agents."
+						}
+						action={organizationSelector}
+					/>
+					{runError && (
+						<Alert
+							severity="error"
+							prominent
+							dismissible
+							onDismiss={onDismissRunError}
+						>
+							<AlertTitle>Could not run {runError.automation.name}</AlertTitle>
+							<AlertDescription>
+								{getErrorMessage(runError.error, "The run did not start.")}
+								{getErrorDetail(runError.error) && (
+									<span className="block">
+										{getErrorDetail(runError.error)}
+									</span>
+								)}
+							</AlertDescription>
+						</Alert>
+					)}
+					{error ? (
+						<ErrorAlert error={error} />
+					) : (
+						<Table aria-label="Automations">
+							<TableHeader>
+								<TableRow>
+									<TableHead>Name</TableHead>
+									<TableHead>Trigger</TableHead>
+									<TableHead>Target</TableHead>
+									<TableHead>Next run</TableHead>
+									<TableHead>Enabled</TableHead>
+									<TableHead>
+										<span className="sr-only">Actions</span>
+									</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>{rows}</TableBody>
+						</Table>
+					)}
+				</div>
+			</div>
+			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
+		</ScrollArea>
+	);
+};
