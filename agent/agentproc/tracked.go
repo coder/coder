@@ -32,7 +32,7 @@ const maxTrackedProcessIdentities = 16384
 
 type processReceipt struct {
 	digest   string
-	chatID   string
+	chatID   uuid.UUID
 	deadline time.Time
 	fenced   bool
 	startErr error
@@ -40,7 +40,7 @@ type processReceipt struct {
 }
 
 // checkTrackedStart must be called with m.mu held.
-func (m *manager) checkTrackedStart(req workspacesdk.StartProcessRequest, chatID string) (*process, bool, error) {
+func (m *manager) checkTrackedStart(req workspacesdk.StartProcessRequest, chatID uuid.UUID) (*process, bool, error) {
 	if req.ProcessID == uuid.Nil && req.AgentInstanceID == uuid.Nil && req.InputDigest == "" && req.Deadline.IsZero() {
 		return nil, false, nil
 	}
@@ -61,12 +61,12 @@ func (m *manager) checkTrackedStart(req workspacesdk.StartProcessRequest, chatID
 		if receipt.startErr != nil {
 			return nil, true, receipt.startErr
 		}
-		if proc, ok := m.procs[id]; ok {
+		if proc, ok := m.procs[procKey{chatID: chatID, id: id}]; ok {
 			return proc, true, nil
 		}
 		return nil, false, errTrackedExpired
 	}
-	if _, exists := m.procs[id]; exists {
+	if _, exists := m.procs[procKey{chatID: chatID, id: id}]; exists {
 		return nil, false, errTrackedConflict
 	}
 	if !req.Deadline.IsZero() && !m.clock.Now().Before(req.Deadline) {
@@ -83,16 +83,14 @@ func (api *API) handleTrackedOutput(rw http.ResponseWriter, r *http.Request) {
 		writeTrackedError(rw, r, errTrackedConflict)
 		return
 	}
-	var chatID string
-	if chatContext, ok := agentchat.FromContext(r.Context()); ok {
-		chatID = chatContext.ID.String()
-	}
+	chat, _ := agentchat.FromContext(r.Context())
+	chatID := chat.ID
 	id := chi.URLParam(r, "id")
 	api.manager.mu.Lock()
-	proc := api.manager.procs[id]
+	proc := api.manager.procs[procKey{chatID: chatID, id: id}]
 	receipt, known := api.manager.receipts[id]
 	api.manager.mu.Unlock()
-	if (known && receipt.chatID != chatID) || (proc != nil && proc.chatID != chatID) {
+	if !known || receipt.chatID != chatID {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -143,7 +141,7 @@ func processWaitDuration(value string) (time.Duration, error) {
 }
 
 // fenceOrCancel resolves absence under the same lock used for spawn.
-func (m *manager) fenceOrCancel(req workspacesdk.CancelProcessRequest, chatID string) (*process, bool, *workspacesdk.ProcessInfo, error) {
+func (m *manager) fenceOrCancel(req workspacesdk.CancelProcessRequest, chatID uuid.UUID) (*process, bool, *workspacesdk.ProcessInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	digest, err := hex.DecodeString(req.InputDigest)
@@ -160,7 +158,7 @@ func (m *manager) fenceOrCancel(req workspacesdk.CancelProcessRequest, chatID st
 			return nil, false, nil, errTrackedConflict
 		}
 	} else {
-		if _, exists := m.procs[id]; exists {
+		if _, exists := m.procs[procKey{chatID: chatID, id: id}]; exists {
 			return nil, false, nil, errTrackedConflict
 		}
 		if len(m.receipts) >= maxTrackedProcessIdentities {
@@ -169,7 +167,7 @@ func (m *manager) fenceOrCancel(req workspacesdk.CancelProcessRequest, chatID st
 		receipt = processReceipt{digest: req.InputDigest, chatID: chatID, deadline: req.Deadline, fenced: true}
 		m.receipts[id] = receipt
 	}
-	proc := m.procs[id]
+	proc := m.procs[procKey{chatID: chatID, id: id}]
 	if proc != nil {
 		proc.cancel()
 	}
@@ -189,10 +187,8 @@ func (api *API) handleCancelProcess(rw http.ResponseWriter, r *http.Request) {
 		writeTrackedError(rw, r, err)
 		return
 	}
-	var chatID string
-	if chatContext, ok := agentchat.FromContext(r.Context()); ok {
-		chatID = chatContext.ID.String()
-	}
+	chat, _ := agentchat.FromContext(r.Context())
+	chatID := chat.ID
 	proc, fenced, terminal, err := api.manager.fenceOrCancel(req, chatID)
 	if err != nil {
 		writeTrackedError(rw, r, err)

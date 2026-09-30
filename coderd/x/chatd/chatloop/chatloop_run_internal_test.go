@@ -1009,6 +1009,7 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
+		nil,
 	)
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
@@ -1080,6 +1081,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		defaultToolResultBytes,
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
+		nil,
 		nil,
 	)
 
@@ -1159,6 +1161,7 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
+		nil,
 	)
 
 	require.True(t, notified)
@@ -1226,6 +1229,7 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		defaultToolResultBytes,
 		nil,
 		time.Time{},
+		nil,
 		nil,
 	)
 
@@ -1316,6 +1320,7 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
+			nil,
 		)
 	}()
 

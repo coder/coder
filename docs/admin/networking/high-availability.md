@@ -1,5 +1,5 @@
 ---
-title: High Availability
+title: High availability
 ---
 
 High Availability (HA) mode solves for horizontal scalability and automatic

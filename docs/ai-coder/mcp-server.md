@@ -1,5 +1,5 @@
 ---
-title: MCP Server
+title: MCP server
 ---
 
 Coder includes a built-in [Model Context Protocol](https://modelcontextprotocol.io/)

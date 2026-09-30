@@ -28,7 +28,7 @@ func TestTrackedProcessReapedTerminal(t *testing.T) {
 			req.Env = map[string]string{"RESULT": marker}
 			req.InputDigest = workspacesdk.StartProcessDigest(req)
 			require.Equal(t, http.StatusOK, processRequest(t, server, "/start-tracked", req, nil, chat))
-			proc, ok := api.manager.get(req.ProcessID.String())
+			proc, ok := api.manager.get(uuid.MustParse(chat), req.ProcessID.String())
 			require.True(t, ok)
 			waitProcessDone(t, proc.done)
 			actual := proc.info()
@@ -37,8 +37,8 @@ func TestTrackedProcessReapedTerminal(t *testing.T) {
 			require.Equal(t, http.StatusOK, processRequest(t, server, url, nil, &output, chat))
 			require.Equal(t, "actual-output", output.Output)
 			clock.Advance(exitedProcessReapAge + time.Second).MustWait(testutil.Context(t, testutil.WaitLong))
-			require.Empty(t, api.manager.list(""))
-			_, ok = api.manager.get(req.ProcessID.String())
+			require.Empty(t, api.manager.list(uuid.Nil))
+			_, ok = api.manager.get(uuid.MustParse(chat), req.ProcessID.String())
 			require.False(t, ok, "buffer-bearing process must actually be removed")
 
 			request, err := http.NewRequestWithContext(testutil.Context(t, testutil.WaitLong), http.MethodGet, server.URL+url, nil)

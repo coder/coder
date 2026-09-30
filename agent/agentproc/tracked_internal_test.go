@@ -99,7 +99,7 @@ func TestTrackedProcessFenceDelayedHTTPStart(t *testing.T) {
 	require.Nil(t, response.Process)
 	releaseStart()
 	require.Equal(t, http.StatusConflict, testutil.RequireReceive(testutil.Context(t, testutil.WaitLong), t, result))
-	require.Empty(t, api.manager.list(""))
+	require.Empty(t, api.manager.list(uuid.Nil))
 	require.Equal(t, http.StatusConflict, processRequest(t, server, "/start-tracked", req, nil, ""))
 	changed := cancelRequest(req)
 	changed.Deadline = time.Now()
@@ -132,7 +132,7 @@ func TestTrackedProcessWaitDeadlineAndCancellation(t *testing.T) {
 	closeTrap()
 
 	clock.Advance(time.Hour - time.Second).MustWait(ctx)
-	proc, ok := api.manager.get(req.ProcessID.String())
+	proc, ok := api.manager.get(uuid.Nil, req.ProcessID.String())
 	require.True(t, ok)
 	waitProcessDone(t, proc.done)
 	require.False(t, proc.info().Running)
@@ -159,7 +159,7 @@ func TestTrackedProcessCancellationPending(t *testing.T) {
 	api, server, clock := trackedAPI(t, nil)
 	req := trackedRequest(api, "exec sleep 600")
 	require.Equal(t, http.StatusOK, processRequest(t, server, "/start-tracked", req, nil, ""))
-	proc, ok := api.manager.get(req.ProcessID.String())
+	proc, ok := api.manager.get(uuid.Nil, req.ProcessID.String())
 	require.True(t, ok)
 	// Simulate cancellation that has not reached the OS. The response must
 	// report the live process instead of inventing a successful exit.

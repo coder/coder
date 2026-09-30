@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -127,6 +126,21 @@ func (m *MockAgentConn) CancelProcess(ctx context.Context, req workspacesdk.Canc
 func (mr *MockAgentConnMockRecorder) CancelProcess(ctx, req any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelProcess", reflect.TypeOf((*MockAgentConn)(nil).CancelProcess), ctx, req)
+}
+
+// CancelToolCall mocks base method.
+func (m *MockAgentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelToolCall", ctx, id)
+	ret0, _ := ret[0].(workspacesdk.CancelToolCallResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelToolCall indicates an expected call of CancelToolCall.
+func (mr *MockAgentConnMockRecorder) CancelToolCall(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelToolCall", reflect.TypeOf((*MockAgentConn)(nil).CancelToolCall), ctx, id)
 }
 
 // Close mocks base method.
