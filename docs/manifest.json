@@ -2568,7 +2568,7 @@
 								},
 								{
 									"title": "`suspend`",
-									"description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform",
+									"description": "Update a user's status to 'suspended'. A suspended user cannot log into the platform. Suspending a user stops their running workspaces; activating the user again does not restart them.",
 									"path": "reference/cli/users/suspend.md"
 								}
 							]
