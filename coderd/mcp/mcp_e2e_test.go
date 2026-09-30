@@ -860,6 +860,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 				mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 				app, secret := oauth2providertest.CreateTestOAuth2App(t, coderClient)
 				verifier, challenge := oauth2providertest.GeneratePKCE(t)
