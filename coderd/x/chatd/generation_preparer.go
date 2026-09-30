@@ -596,6 +596,15 @@ func (server *Server) prepareGeneration(
 			isPlanModeTurn:  isPlanModeTurn,
 		})
 	}
+	// The offer decides the chat-automations experiment once per turn;
+	// every call of the tool checks all rules again.
+	if isRootChat && manageAutomationsAllowed(chat, func() bool {
+		return input.TurnExperiments.chatAutomationsEnabled(stopNudgeKey(input.Messages), func() bool {
+			return AutomationsEnabled(ctx, server.experimentEvaluator, chat.OwnerID)
+		})
+	}) {
+		tools = append(tools, server.manageAutomationsTool(chat.ID))
+	}
 
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,

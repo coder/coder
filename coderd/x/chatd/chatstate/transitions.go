@@ -39,6 +39,8 @@ type CreateChatInput struct {
 	DynamicTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
+	// ManageAutomationsEnabled sets the interim manage_automations switch.
+	ManageAutomationsEnabled bool
 	// FileIDs are linked atomically with the initial messages.
 	FileIDs []uuid.UUID
 	// InitialStatus selects the chat's starting execution state:
@@ -166,6 +168,8 @@ func insertChat(
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
 			ClientType:        input.ClientType,
+
+			ManageAutomationsEnabled: input.ManageAutomationsEnabled,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

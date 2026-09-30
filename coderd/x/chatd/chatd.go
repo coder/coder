@@ -1102,6 +1102,9 @@ type CreateOptions struct {
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
 	SystemPrompt            string
+	// ManageAutomationsEnabled offers the manage_automations tool. Callers
+	// check the chat-automations experiment before setting it.
+	ManageAutomationsEnabled bool
 	// InitialUserContent is the first user message. When empty, the
 	// chat is created idle (`waiting`) with system messages only and
 	// no worker processes it until the first SendMessage.
@@ -1435,6 +1438,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		InitialStatus:   initialStatus,
 		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
 		AdmitInTx:       opts.AdmitInTx,
+
+		ManageAutomationsEnabled: opts.ManageAutomationsEnabled,
 	})
 	if err != nil {
 		return database.Chat{}, err

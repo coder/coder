@@ -2359,6 +2359,7 @@ CREATE TABLE chats (
     summary text,
     summary_generated_at timestamp with time zone,
     automation_id uuid,
+    manage_automations_enabled boolean DEFAULT false NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2385,6 +2386,8 @@ COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
 
 COMMENT ON COLUMN chats.automation_id IS 'Automation that created this chat. No foreign key by design.';
+
+COMMENT ON COLUMN chats.manage_automations_enabled IS 'Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2485,7 +2488,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_resources,
     c.context_error,
     c.compaction_requested_at,
-    c.automation_id
+    c.automation_id,
+    c.manage_automations_enabled
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

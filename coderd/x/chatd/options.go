@@ -149,23 +149,41 @@ func (t *stopNudgeTracker) reset() {
 // are keyed by the turn's prompt row like stopNudgeTracker. A runner
 // restart evaluates again.
 type turnExperimentDecisions struct {
-	mu            sync.Mutex
-	turnKey       int64
-	decided       bool
-	mcpToolSearch bool
+	mu              sync.Mutex
+	mcpToolSearch   turnExperimentDecision
+	chatAutomations turnExperimentDecision
+}
+
+// turnExperimentDecision is one experiment's decision and the turn it
+// belongs to. Experiments decide independently because each is evaluated
+// only when the turn needs it.
+type turnExperimentDecision struct {
+	turnKey int64
+	decided bool
+	enabled bool
 }
 
 // mcpToolSearchEnabled returns the turn's mcp-tool-search decision, calling
 // evaluate only when the turn has not decided yet.
 func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.mcpToolSearch, turnKey, evaluate)
+}
+
+// chatAutomationsEnabled returns the turn's chat-automations decision,
+// calling evaluate only when the turn has not decided yet.
+func (t *turnExperimentDecisions) chatAutomationsEnabled(turnKey int64, evaluate func() bool) bool {
+	return t.decide(&t.chatAutomations, turnKey, evaluate)
+}
+
+func (t *turnExperimentDecisions) decide(d *turnExperimentDecision, turnKey int64, evaluate func() bool) bool {
 	if turnKey == 0 {
 		// Without a prompt row there is no turn identity to key on, and
 		// caching under 0 would pin one decision across such turns.
 		return evaluate()
 	}
 	t.mu.Lock()
-	if t.decided && t.turnKey == turnKey {
-		enabled := t.mcpToolSearch
+	if d.decided && d.turnKey == turnKey {
+		enabled := d.enabled
 		t.mu.Unlock()
 		return enabled
 	}
@@ -176,17 +194,17 @@ func (t *turnExperimentDecisions) mcpToolSearchEnabled(turnKey int64, evaluate f
 	enabled := evaluate()
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.decided && t.turnKey == turnKey {
-		return t.mcpToolSearch
+	if d.decided && d.turnKey == turnKey {
+		return d.enabled
 	}
-	if t.decided && t.turnKey > turnKey {
+	if d.decided && d.turnKey > turnKey {
 		// A canceled task of an older turn finished late. Prompt row IDs
 		// increase, so keep the newer turn's decision.
 		return enabled
 	}
-	t.turnKey = turnKey
-	t.decided = true
-	t.mcpToolSearch = enabled
+	d.turnKey = turnKey
+	d.decided = true
+	d.enabled = enabled
 	return enabled
 }
 

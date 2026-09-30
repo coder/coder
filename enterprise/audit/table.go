@@ -491,6 +491,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 		"automation_id":               ActionTrack,
+		"manage_automations_enabled":  ActionTrack,
 	},
 	&database.ChatAutomation{}: {
 		"id":                       ActionTrack,

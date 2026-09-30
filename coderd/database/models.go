@@ -5326,6 +5326,7 @@ type Chat struct {
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 	AutomationID             uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	ManageAutomationsEnabled bool                    `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 // Owner-authored webhook or schedule triggers that deliver a prompt to an existing chat or a new chat.
@@ -5631,6 +5632,8 @@ type ChatTable struct {
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 	// Automation that created this chat. No foreign key by design.
 	AutomationID uuid.NullUUID `db:"automation_id" json:"automation_id"`
+	// Interim per-chat switch that offers the manage_automations tool. Only the chat owner may change it after creation.
+	ManageAutomationsEnabled bool `db:"manage_automations_enabled" json:"manage_automations_enabled"`
 }
 
 type ChatUsageLimitConfig struct {
