@@ -25,6 +25,8 @@ export type ResolvedCompactionThreshold =
 			readonly pointTokens: number;
 	  };
 
+export const compactionDisabledThresholdPercent = 100;
+
 export const modelCompactionTrigger = (
 	model: TypesGen.ChatModel,
 ): CompactionTrigger => ({
@@ -34,12 +36,14 @@ export const modelCompactionTrigger = (
 
 export const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 	trigger.thresholdPercent >= 0 &&
-	trigger.thresholdPercent < 100 &&
+	trigger.thresholdPercent < compactionDisabledThresholdPercent &&
 	trigger.contextLimit > 0;
 
 export const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
 
+// A disabled organization trigger yields "chat" and a disabled chat trigger
+// yields "organization"; otherwise the lower token point binds, ties to chat.
 export const bindingCompactionTriggerSource = (
 	chat: CompactionTrigger,
 	organization: CompactionTrigger,
@@ -73,6 +77,9 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
+// "viewer" also drops an override whose provider the current user cannot use,
+// as chatd does per user; admin views of the organization setting pass
+// "organization".
 export const resolveOrganizationCompactionTrigger = (
 	modelConfigID: string | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,

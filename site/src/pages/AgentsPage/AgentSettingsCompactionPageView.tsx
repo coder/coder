@@ -1,7 +1,10 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OrganizationCompactionTrigger } from "./compactionTriggers";
 import { SectionHeader } from "./components/SectionHeader";
-import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
+import {
+	type CompactionTriggerLoadError,
+	UserCompactionThresholdSettings,
+} from "./components/UserCompactionThresholdSettings";
 
 export type AgentSettingsCompactionPageViewProps = {
 	models: readonly TypesGen.ChatModel[];
@@ -12,7 +15,7 @@ export type AgentSettingsCompactionPageViewProps = {
 		OrganizationCompactionTrigger
 	>;
 	modelsError: unknown;
-	compactionTriggersError?: unknown;
+	compactionTriggerLoadErrors?: readonly CompactionTriggerLoadError[];
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -32,7 +35,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
-	compactionTriggersError,
+	compactionTriggerLoadErrors,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -52,7 +55,7 @@ export const AgentSettingsCompactionPageView: React.FC<
 				organizations={organizations}
 				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 				modelsError={modelsError}
-				compactionTriggersError={compactionTriggersError}
+				compactionTriggerLoadErrors={compactionTriggerLoadErrors}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}
 				isThresholdsLoading={isThresholdsLoading}

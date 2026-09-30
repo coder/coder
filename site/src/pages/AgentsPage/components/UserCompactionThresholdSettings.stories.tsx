@@ -300,7 +300,13 @@ export const OrganizationTriggerBeyondModelWindow: Story = {
 
 export const CompactionTriggersLoadError: Story = {
 	args: {
-		compactionTriggersError: new Error("Network Error"),
+		organizations: [modelsOrganization, MockOrganization2],
+		compactionTriggerLoadErrors: [
+			{
+				organizationID: MockOrganization2.id,
+				error: new Error("Network Error"),
+			},
+		],
 	},
 };
 
