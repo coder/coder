@@ -7,8 +7,10 @@ const baseHeat: ChatHeat = {
 	heat: 0.05,
 	label: "cool",
 	missRate: 0.04,
-	lastFreshTokens: 1_200,
-	lastCacheReadTokens: 84_000,
+	lastTurnRequestCount: 3,
+	lastTurnFreshTokens: 1_200,
+	lastTurnCacheReadTokens: 84_000,
+	lastTurnIsFirst: false,
 	lastPromptTokens: 85_200,
 	lastRequestAt: "2026-01-01T00:00:00Z",
 };
@@ -41,8 +43,9 @@ export const Warm: Story = {
 			heat: 0.49,
 			label: "warm",
 			missRate: 0.35,
-			lastFreshTokens: 42_000,
-			lastCacheReadTokens: 78_000,
+			lastTurnRequestCount: 3,
+			lastTurnFreshTokens: 42_000,
+			lastTurnCacheReadTokens: 78_000,
 			lastPromptTokens: 120_000,
 		},
 	},
@@ -56,8 +59,9 @@ export const Hot: Story = {
 			heat: 0.95,
 			label: "hot",
 			missRate: 0.97,
-			lastFreshTokens: 118_000,
-			lastCacheReadTokens: 3_000,
+			lastTurnRequestCount: 3,
+			lastTurnFreshTokens: 118_000,
+			lastTurnCacheReadTokens: 3_000,
 			lastPromptTokens: 121_000,
 		},
 	},
@@ -67,6 +71,19 @@ export const Hot: Story = {
 export const CacheExpired: Story = {
 	args: {
 		isCacheExpired: true,
+	},
+	play: hoverTrigger,
+};
+
+export const FirstTurn: Story = {
+	args: {
+		heat: {
+			...baseHeat,
+			lastTurnRequestCount: 1,
+			lastTurnFreshTokens: 90_000,
+			lastTurnCacheReadTokens: 0,
+			lastTurnIsFirst: true,
+		},
 	},
 	play: hoverTrigger,
 };

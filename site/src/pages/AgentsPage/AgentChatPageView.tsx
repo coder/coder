@@ -945,6 +945,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
+										hasMoreMessages={hasMoreMessages}
 										models={models}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
