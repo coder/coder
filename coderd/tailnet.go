@@ -404,9 +404,9 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	ctx, cancel := context.WithTimeout(ctx, proxyDialTimeout)
 	defer cancel()
 
-	// A dial that fails after the request ended is reported by the reverse
-	// proxy's error handler from the request goroutine, not here, so this
-	// path uses acquireAgent instead of AgentConn.
+	// The reverse proxy's error handler records unreachable agents on the
+	// request goroutine when the request ends, which can be before this dial
+	// returns, so this path uses acquireAgent, which neither logs nor counts.
 	ds := dialStateFromContext(ctx)
 	ds.set(dialPhaseAwaitReachable)
 	conn, release, err := s.acquireAgent(ctx, agentID)
