@@ -966,8 +966,9 @@ type PeerDiagnostics struct {
 	ReceivedNode *tailcfg.Node
 	// LastWireguardHandshake is the last time we completed a wireguard handshake
 	LastWireguardHandshake time.Time
-	// TxBytes and RxBytes are the WireGuard byte counters for the peer. Both
-	// are zero when the engine has no status for the peer.
+	// TxBytes and RxBytes are the WireGuard byte counters for the peer,
+	// cumulative since the peer was added to the device. Both are zero when
+	// the engine has no status for the peer.
 	TxBytes int64
 	RxBytes int64
 	// TODO: surface Discovery (disco) protocol problems
