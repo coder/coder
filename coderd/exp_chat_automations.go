@@ -411,9 +411,8 @@ func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWr
 }
 
 // writeChatAutomationRunError maps RunAutomation errors to responses.
-// Refusals after the owner check share the webhook responses, except
-// that a disabled automation conflicts with the request instead of
-// forbidding an anonymous caller, and a missing one is not found.
+// Refusals reuse the webhook responses, except that a disabled
+// automation gets 409 instead of 403 and a missing one 404 instead of 401.
 func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.ResponseWriter, err error) {
 	if writeChatHookErr(ctx, rw, err, "Chat automation run denied by lifecycle hook.") {
 		return
