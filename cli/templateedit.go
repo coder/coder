@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -12,6 +13,55 @@ import (
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
+
+// templateEditWorkspaceImpactingChanges describes requested changes that act on
+// existing workspaces without a new build (dormancy, failure TTL, active
+// version, and autostop requirement), so they need confirmation. Settings that
+// only affect future builds or new workspaces are excluded.
+func templateEditWorkspaceImpactingChanges(template codersdk.Template, req codersdk.UpdateTemplateMeta) []string {
+	var (
+		changes                       []string
+		failureTTL                    = time.Duration(*req.FailureTTLMillis) * time.Millisecond
+		dormancyThreshold             = time.Duration(*req.TimeTilDormantMillis) * time.Millisecond
+		dormancyAutoDeletion          = time.Duration(*req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		requireActiveVersion          = *req.RequireActiveVersion
+		autostopRequirementDaysOfWeek = req.AutostopRequirement.DaysOfWeek
+		autostopRequirementWeeks      = req.AutostopRequirement.Weeks
+	)
+
+	currentFailureTTL := time.Duration(template.FailureTTLMillis) * time.Millisecond
+	if failureTTL != currentFailureTTL {
+		changes = append(changes, fmt.Sprintf("Failure TTL: %s -> %s", currentFailureTTL, failureTTL))
+	}
+
+	currentDormancyThreshold := time.Duration(template.TimeTilDormantMillis) * time.Millisecond
+	if dormancyThreshold != currentDormancyThreshold {
+		changes = append(changes, fmt.Sprintf("Dormancy threshold: %s -> %s", currentDormancyThreshold, dormancyThreshold))
+	}
+
+	currentDormancyAutoDeletion := time.Duration(template.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+	if dormancyAutoDeletion != currentDormancyAutoDeletion {
+		changes = append(changes, fmt.Sprintf("Dormancy auto-deletion: %s -> %s", currentDormancyAutoDeletion, dormancyAutoDeletion))
+	}
+
+	if requireActiveVersion != template.RequireActiveVersion {
+		changes = append(changes, fmt.Sprintf("Require active version: %t -> %t", template.RequireActiveVersion, requireActiveVersion))
+	}
+
+	currentAutostopDaysOfWeek := slices.Clone(template.AutostopRequirement.DaysOfWeek)
+	slices.Sort(currentAutostopDaysOfWeek)
+	newAutostopDaysOfWeek := slices.Clone(autostopRequirementDaysOfWeek)
+	slices.Sort(newAutostopDaysOfWeek)
+	if !slices.Equal(currentAutostopDaysOfWeek, newAutostopDaysOfWeek) {
+		changes = append(changes, fmt.Sprintf("Autostop requirement days: %v -> %v", template.AutostopRequirement.DaysOfWeek, autostopRequirementDaysOfWeek))
+	}
+
+	if autostopRequirementWeeks != template.AutostopRequirement.Weeks {
+		changes = append(changes, fmt.Sprintf("Autostop requirement weeks: %d -> %d", template.AutostopRequirement.Weeks, autostopRequirementWeeks))
+	}
+
+	return changes
+}
 
 func (r *RootCmd) templateEdit() *serpent.Command {
 	const deprecatedFlagName = "deprecated"
@@ -211,6 +261,21 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				// rewrite this CLI to only set pointers for flags the user
 				// explicitly provided via userSetOption. The current
 				// fetch-then-resend-everything dance is no longer required.
+			}
+
+			changes := templateEditWorkspaceImpactingChanges(template, req)
+			if len(changes) > 0 {
+				_, _ = fmt.Fprintln(inv.Stdout, "The following changes will apply to existing workspaces created from this template:")
+				for _, change := range changes {
+					_, _ = fmt.Fprintf(inv.Stdout, "  %s\n", change)
+				}
+				_, err = cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Apply these changes?",
+					IsConfirm: true,
+				})
+				if err != nil {
+					return err
+				}
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
