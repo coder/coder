@@ -2,6 +2,9 @@ package coderd
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httptrace"
 	"testing"
 	"time"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/tailscale/wireguard-go/device"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
@@ -167,4 +171,36 @@ func TestRecordAgentUnreachable_ClientCanceled(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "client_canceled"))
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "diagnostics_timeout"))
+}
+
+func TestReportProxyDialFailure_PooledConn(t *testing.T) {
+	t.Parallel()
+
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "agent_unreachable_total"}, []string{"reason"})
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(counter))
+	s := &ServerTailnet{agentUnreachable: counter}
+	s.peerDiagnosticsBusy.Store(true)
+
+	// The director installs the trace, and the transport calls GotConn once
+	// the request is on a connection, pooled or not.
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1", nil)
+	s.director(uuid.New(), func(*http.Request) {})(req)
+	ctx := req.Context()
+	ds := dialStateFromContext(ctx)
+	require.NotNil(t, ds)
+	require.False(t, ds.hadConn())
+	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
+	require.True(t, ds.hadConn())
+
+	// The dial started for this request is still waiting on the agent, but
+	// the error is from the pooled connection.
+	ds.set(dialPhaseAwaitReachable)
+	connErr := xerrors.New("connection reset by peer")
+	err := s.reportProxyDialFailure(ctx, uuid.New(), connErr)
+	require.Same(t, connErr, err)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.Empty(t, metrics)
 }

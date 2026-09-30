@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
@@ -295,8 +296,14 @@ type agentIDKey struct{}
 // and the dial and the error handler share the dialState.
 func (*ServerTailnet) director(agentID uuid.UUID, prev func(req *http.Request)) func(req *http.Request) {
 	return func(req *http.Request) {
+		ds := &dialState{}
 		ctx := context.WithValue(req.Context(), agentIDKey{}, agentID)
-		ctx = context.WithValue(ctx, dialStateKey{}, &dialState{})
+		ctx = context.WithValue(ctx, dialStateKey{}, ds)
+		// A pooled connection skips dialContext, so the dial phases cannot show
+		// that the request has a connection. GotConn fires either way.
+		ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(httptrace.GotConnInfo) { ds.markGotConn() },
+		})
 		*req = *req.WithContext(ctx)
 		prev(req)
 	}
@@ -335,9 +342,10 @@ func (p dialPhase) String() string {
 // goroutine through the request context. The error handler reads it to tell
 // a dial that never finished from a failure on an established connection.
 type dialState struct {
-	mu    sync.Mutex
-	phase dialPhase
-	since time.Time
+	mu      sync.Mutex
+	phase   dialPhase
+	since   time.Time
+	gotConn bool
 }
 
 type dialStateKey struct{}
@@ -365,6 +373,25 @@ func (d *dialState) get() (dialPhase, time.Duration) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.phase, time.Since(d.since)
+}
+
+func (d *dialState) markGotConn() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.gotConn = true
+}
+
+// hadConn reports whether the transport gave the request a connection.
+func (d *dialState) hadConn() bool {
+	if d == nil {
+		return false
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.gotConn
 }
 
 func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -411,7 +438,14 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 // the dial goroutine learns of the failure later, or not at all. Errors on an
 // established connection are returned unchanged.
 func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid.UUID, err error) error {
-	phase, elapsed := dialStateFromContext(ctx).get()
+	ds := dialStateFromContext(ctx)
+	// The transport may give the request a pooled connection while the dial it
+	// started is still waiting on the agent. An error after that is from the
+	// connection the request used, so the dial phase does not describe it.
+	if ds.hadConn() {
+		return err
+	}
+	phase, elapsed := ds.get()
 	switch phase {
 	case dialPhaseAwaitReachable:
 		unreachable := s.recordAgentUnreachable(ctx, agentID, elapsed, slog.F("dial_phase", phase.String()))
