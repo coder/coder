@@ -101,13 +101,10 @@ func TestInlineMCPServers(t *testing.T) {
 		sdkErr = requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Inline MCP servers are not enabled on this deployment.", sdkErr.Message)
 
-		// A stored row is still reported, because it can still load (an
-		// internal server) or be detached.
 		dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: chat.ID, Slug: "stored"})
 		got, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
-		require.Len(t, got.InlineMCPServers, 1)
-		require.Equal(t, "stored", got.InlineMCPServers[0].Slug)
+		require.Empty(t, got.InlineMCPServers)
 	})
 
 	t.Run("CallerSuppliedToolsDisabled", func(t *testing.T) {

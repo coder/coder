@@ -59,7 +59,7 @@ func ConnectInlineForTest(
 	return connectAllWithHooks(
 		ctx, logger, servers, nil, uuid.Nil, nil, coderHeaders,
 		connectOptions{
-			httpClient: inlineHTTPClient(httpClient, InternalServers{}),
+			httpClient: inlineHTTPClient(httpClient),
 			timeout:    timeout,
 			kind:       connectionKindInline,
 		},

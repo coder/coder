@@ -75,16 +75,15 @@ const maxInlineHTTPResponseBytes = 1 << 20
 var errInlineResponseTooLarge = xerrors.New("inline MCP response body exceeds maximum size")
 
 // inlineHTTPClient wraps base so every response body is capped at
-// maxInlineHTTPResponseBytes and coder-internal requests reach the
-// handlers in internal. A nil or transport-less base falls back to
-// the default guarded client, matching httpClientWithHeaders.
-func inlineHTTPClient(base *http.Client, internal InternalServers) *http.Client {
+// maxInlineHTTPResponseBytes. A nil or transport-less base falls
+// back to the default guarded client, matching httpClientWithHeaders.
+func inlineHTTPClient(base *http.Client) *http.Client {
 	if base == nil || base.Transport == nil {
 		base = NewHTTPClient(base)
 	}
 	client := *base
 	client.Transport = &maxResponseBodyRoundTripper{
-		base:     &internalRouter{servers: internal, next: base.Transport},
+		base:     base.Transport,
 		maxBytes: maxInlineHTTPResponseBytes,
 	}
 	return &client
