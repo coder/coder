@@ -50,7 +50,6 @@ func postStart(t *testing.T, handler http.Handler, req workspacesdk.StartProcess
 	return w
 }
 
-// addHeaders adds every value of headers to r.
 func addHeaders(r *http.Request, headers []http.Header) {
 	for _, h := range headers {
 		for k, vals := range h {
@@ -316,8 +315,8 @@ func TestStartProcess(t *testing.T) {
 		require.Contains(t, resp.Message, "cannot have an execute timeout")
 	})
 
-	// Through the real agent the tool call table responds to a repeated
-	// start, so only this test reaches the process manager with one.
+	// Through the agent, the tool call middleware responds to a repeated
+	// start, so call the process API directly to test attaching.
 	t.Run("RepeatedToolCallAttaches", func(t *testing.T) {
 		t.Parallel()
 
@@ -1063,9 +1062,6 @@ func TestSignalProcess(t *testing.T) {
 	})
 }
 
-// TestChatIsolation checks that a request sees only its own chat's
-// processes: list, output, and signal. A request without a chat ID
-// sees only processes started without one.
 func TestChatIsolation(t *testing.T) {
 	t.Parallel()
 
@@ -1077,9 +1073,7 @@ func TestChatIsolation(t *testing.T) {
 		owner     http.Header
 		requester http.Header
 		listed    bool
-		// wantOutput and wantSignal are the status codes of the output and
-		// signal responses. The process has exited, so a visible one
-		// responds to the signal with 409.
+		// The process has exited, so signaling a visible one returns 409.
 		wantOutput int
 		wantSignal int
 	}{

@@ -913,11 +913,8 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
-	// TimeoutMs is the execute timeout, counted from the first start of a
-	// tool call; a repeat start does not move it. A blocking output wait
-	// with ProcessOutputOptions.TimeoutFromExecute returns when it passes.
-	// The process keeps running after it. 0 means none. The agent rejects
-	// it for background processes, which only regular output waits read.
+	// TimeoutMs is the execute timeout in milliseconds, counted from the
+	// tool call's first start. Not allowed with Background.
 	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
@@ -952,10 +949,11 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
-	// TimedOut is true while the process runs past the execute timeout
-	// set by StartProcessRequest.TimeoutMs. The process keeps running.
+	// TimedOut is true while the process runs past
+	// StartProcessRequest.TimeoutMs.
 	TimedOut bool `json:"timed_out,omitempty"`
-	// Canceled is true when a tool call cancel killed the process.
+	// Canceled is true if the process's tool call was canceled while the
+	// process ran.
 	Canceled bool `json:"canceled,omitempty"`
 }
 
@@ -965,9 +963,8 @@ type ProcessOutputOptions struct {
 	// Wait enables blocking mode. When true, the request
 	// blocks until the process exits or the context expires.
 	Wait bool
-	// TimeoutFromExecute also ends a blocking wait when the execute
-	// timeout, StartProcessRequest.TimeoutMs, passes. The execute tool's
-	// own wait sets it; other waits, such as process_output's, do not.
+	// TimeoutFromExecute also ends a blocking wait at
+	// StartProcessRequest.TimeoutMs.
 	TimeoutFromExecute bool
 }
 
@@ -1406,9 +1403,9 @@ func readStartProcessResponse(res *http.Response) (StartProcessResponse, error) 
 	return resp, decodeAgentJSON(res, &resp)
 }
 
-// CancelToolCall cancels tool call id of the chat in the connection's
-// CoderChatIDHeader. It returns after the tool call's request finished,
-// with the killed process marked canceled.
+// CancelToolCall cancels tool call id of the connection's chat. The agent
+// refuses later requests for it, waits for a running request, stops its
+// process, and returns the saved response.
 func (c *agentConn) CancelToolCall(ctx context.Context, id uuid.UUID) (CancelToolCallResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
@@ -1556,9 +1553,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 	return c.apiRequestWithHeader(ctx, method, path, body, nil)
 }
 
-// toolCallRequest is apiRequest that also sends CoderToolCallIDHeader
-// from ctx. Only requests that act use it: the agent runs a request with
-// a tool call ID once and responds to repeats with the saved response.
+// toolCallRequest is apiRequest with CoderToolCallIDHeader from ctx. Use
+// it only for requests that perform the tool call: the agent responds to
+// any other request carrying the ID with the saved response.
 func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	header := http.Header{}
 	if id, ok := ToolCallIDFromContext(ctx); ok {

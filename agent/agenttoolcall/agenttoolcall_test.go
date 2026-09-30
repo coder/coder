@@ -25,32 +25,29 @@ import (
 	"github.com/coder/quartz"
 )
 
-// The run-once, repeat, cancel-after-run, and refuse-after-cancel
-// behavior of each acting route is tested through the real agent in
-// agent.TestAgent_ToolCall. These tests cover what that cannot reach.
+// Per-route behavior is tested through the real agent in
+// agent.TestAgent_ToolCall.
 
 type canceledCall struct {
 	chatID uuid.UUID
 	id     uuid.UUID
-	// runsFinished is how many runs had finished at the cancel hook call.
+	// runsFinished is how many runs had finished when cancel was called.
 	runsFinished int64
 }
 
-// testServer serves POST /run, which responds with 201 and the number of
-// the run as its message, and POST /panic behind the table.
+// testServer serves /run and /panic behind a Table and reports the Table's
+// cancel calls on canceled.
 type testServer struct {
 	clock    *quartz.Mock
 	handler  http.Handler
 	runs     atomic.Int64
 	finished atomic.Int64
 	canceled chan canceledCall
-	// entered receives when a run starts.
-	entered chan struct{}
-	// cancelEntered receives when a cancel request reaches the cancel
-	// route, before the table handles it.
+	entered  chan struct{} // receives when a run starts
+	// cancelEntered receives when a cancel request arrives, before the
+	// Table handles it.
 	cancelEntered chan struct{}
-	// block, when set, holds each run until it is closed.
-	block chan struct{}
+	block         chan struct{} // if set, runs wait until it is closed
 }
 
 func newTestServer(t *testing.T) *testServer {
@@ -87,8 +84,6 @@ func newTestServer(t *testing.T) *testServer {
 	return s
 }
 
-// do sends POST path for chatID, with tool call ID id unless it is
-// uuid.Nil.
 func (s *testServer) do(ctx context.Context, path string, chatID, id uuid.UUID) *httptest.ResponseRecorder {
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, nil)
 	req.Header.Set(workspacesdk.CoderChatIDHeader, chatID.String())
@@ -120,7 +115,6 @@ func TestMiddleware(t *testing.T) {
 	t.Parallel()
 
 	chatA, chatB := uuid.New(), uuid.New()
-	// Each case sends one request for chatA after before.
 	tests := []struct {
 		name        string
 		before      func(ctx context.Context, t *testing.T, s *testServer, id uuid.UUID)
@@ -143,7 +137,7 @@ func TestMiddleware(t *testing.T) {
 			before: func(ctx context.Context, _ *testing.T, s *testServer, id uuid.UUID) {
 				s.do(ctx, "/run", chatA, id)
 				s.clock.Advance(time.Hour + time.Second)
-				// Entries are dropped when a new one is added.
+				// Expired entries are deleted only when an entry is added.
 				s.do(ctx, "/run", chatA, uuid.New())
 			},
 			path:     "/run",
@@ -186,8 +180,6 @@ func TestMiddleware(t *testing.T) {
 			wantCode: http.StatusConflict, wantMessage: "canceled", wantRuns: 1,
 		},
 		{
-			// A repeat gets the saved 500 instead of waiting for a
-			// response the panicked run never saved.
 			name: "RepeatAfterPanicGetsUnknownOutcome",
 			before: func(ctx context.Context, _ *testing.T, s *testServer, id uuid.UUID) {
 				s.do(ctx, "/panic", chatA, id)
@@ -218,8 +210,6 @@ func TestConcurrentRequestsRunOnce(t *testing.T) {
 	s.block = make(chan struct{})
 	chatID, id := uuid.New(), uuid.New()
 
-	// However the requests interleave with the run, all get the response
-	// of one run.
 	const requests = 10
 	results := make(chan *httptest.ResponseRecorder, requests)
 	for range requests {
@@ -245,8 +235,6 @@ func TestCancel(t *testing.T) {
 		chatID, id := uuid.New(), uuid.New()
 
 		require.False(t, s.cancel(ctx, t, chatID, id).Received)
-		// A process started with the ID outlives the record, so the
-		// cancel still calls the cancel hook.
 		c := testutil.RequireReceive(ctx, t, s.canceled)
 		require.Equal(t, chatID, c.chatID)
 		require.Equal(t, id, c.id)
@@ -271,9 +259,8 @@ func TestCancel(t *testing.T) {
 			_ = json.NewDecoder(rw.Body).Decode(&resp)
 			cancelDone <- resp
 		}()
-		// Release the run once the cancel request reaches the cancel
-		// route. The table may mark the call canceled before or after
-		// the run finishes; the assertions hold in either order.
+		// The cancel may mark the call before or after the run finishes;
+		// the assertions hold either way.
 		testutil.RequireReceive(ctx, t, s.cancelEntered)
 		close(s.block)
 
@@ -283,6 +270,6 @@ func TestCancel(t *testing.T) {
 		require.Equal(t, run.Code, resp.Status)
 		require.Equal(t, run.Body.Bytes(), resp.Body)
 		c := testutil.RequireReceive(ctx, t, s.canceled)
-		require.EqualValues(t, 1, c.runsFinished, "the cancel hook runs after the run, so a process still starting is killed")
+		require.EqualValues(t, 1, c.runsFinished, "the cancel hook runs after the run, so a process still starting is stopped")
 	})
 }

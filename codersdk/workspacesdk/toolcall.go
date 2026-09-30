@@ -9,16 +9,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// CoderToolCallIDHeader carries the chat tool call ID. The agent runs a
-// request with this header at most once per chat and tool call ID, and
-// a process started with it uses the tool call ID as its process ID.
+// CoderToolCallIDHeader carries the chat tool call ID. The agent
+// deduplicates requests by chat and tool call ID, and uses the ID as the
+// process ID of a process it starts.
 const CoderToolCallIDHeader = "Coder-Tool-Call-Id"
 
 type toolCallIDContextKey struct{}
 
 // WithToolCallID returns a context whose StartProcess, EditFiles, and
-// WriteFile requests carry id in CoderToolCallIDHeader. It is per
-// request because parallel tool calls share one AgentConn.
+// WriteFile requests send id in CoderToolCallIDHeader. The ID goes on the
+// context because parallel tool calls share one AgentConn.
 func WithToolCallID(ctx context.Context, id uuid.UUID) context.Context {
 	return context.WithValue(ctx, toolCallIDContextKey{}, id)
 }
@@ -31,13 +31,11 @@ func ToolCallIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 
 // CancelToolCallResponse is the response to a tool call cancel.
 type CancelToolCallResponse struct {
-	// Received is false when the agent has no record of a request for
-	// the tool call: it never received one, or forgot it (records last an
-	// hour and do not survive an agent restart). The agent refuses the
-	// tool call from now on and kills a process started with its ID.
+	// Received is false if the agent has no record of the tool call: it
+	// never received it, restarted, or expired the record.
 	Received bool `json:"received"`
-	// Status, ContentType, and Body are the saved response of the tool
-	// call's request when Received is true.
+	// Status, ContentType, and Body are the saved response, set if
+	// Received.
 	Status      int    `json:"status,omitempty"`
 	ContentType string `json:"content_type,omitempty"`
 	Body        []byte `json:"body,omitempty"`

@@ -63,8 +63,7 @@ func (api *API) Routes() http.Handler {
 	return r
 }
 
-// handleStartProcess starts a new process. A request with a tool call
-// ID uses it as the process ID.
+// handleStartProcess starts a new process.
 func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -188,8 +187,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Cap the wait at maxWaitDuration regardless of
-		// client-supplied timeout. The execute tool's own wait
-		// also returns at waitUntil; other waits do not.
+		// client-supplied timeout.
 		wait := maxWaitDuration
 		if r.URL.Query().Get("timeout_from_execute") == "true" && !proc.waitUntil.IsZero() {
 			wait = min(wait, api.manager.clock.Until(proc.waitUntil))
@@ -221,8 +219,8 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// CancelToolCall kills the running process of chat chatID with tool call
-// id, and marks it canceled.
+// CancelToolCall cancels chat chatID's running process for tool call id:
+// it marks the process canceled and sends it SIGKILL.
 func (api *API) CancelToolCall(ctx context.Context, chatID, id uuid.UUID) {
 	proc, ok := api.manager.get(chatID, id.String())
 	if !ok {

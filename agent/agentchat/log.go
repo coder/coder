@@ -16,9 +16,8 @@ type chatContextKey struct{}
 type Context struct {
 	ID          uuid.UUID
 	AncestorIDs []uuid.UUID
-	// ToolCallID is the chat tool call the request acts for, from
-	// Coder-Tool-Call-Id. uuid.Nil when absent or malformed, or when
-	// the request has no valid Coder-Chat-Id.
+	// ToolCallID is from the Coder-Tool-Call-Id header, or uuid.Nil if
+	// the header is absent or malformed.
 	ToolCallID uuid.UUID
 }
 

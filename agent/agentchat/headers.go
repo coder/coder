@@ -10,8 +10,7 @@ import (
 )
 
 // extractContext reads chat identity headers from the request.
-// ok is false if the chat ID header is absent or malformed (non-chat
-// request).
+// Returns zero values if headers are absent (non-chat request).
 func extractContext(r *http.Request) (chatCtx Context, ok bool) {
 	raw := r.Header.Get(workspacesdk.CoderChatIDHeader)
 	if raw == "" {
@@ -21,8 +20,6 @@ func extractContext(r *http.Request) (chatCtx Context, ok bool) {
 	if err != nil {
 		return Context{}, false
 	}
-	// A malformed tool call ID leaves uuid.Nil: the request runs as one
-	// without a tool call.
 	toolCallID, err := uuid.Parse(r.Header.Get(workspacesdk.CoderToolCallIDHeader))
 	if err != nil {
 		toolCallID = uuid.Nil

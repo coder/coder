@@ -1,5 +1,5 @@
-// Package agenttoolcall runs each chat tool call request at most once and
-// cancels tool calls.
+// Package agenttoolcall deduplicates chat tool call requests and cancels
+// tool calls.
 package agenttoolcall
 
 import (
@@ -19,12 +19,9 @@ import (
 	"github.com/coder/quartz"
 )
 
-// forgetAfter is how long a tool call record is kept after the last
-// request or cancel for it. Adding a record deletes records not requested
-// or canceled for longer than this, to bound the table's memory. chatd
-// resends unresolved tool calls on every retry, so a record is kept while
-// chatd still asks for it. After deletion, a retry of the tool call runs
-// it again and a cancel responds with received: false.
+// forgetAfter is how long an entry is kept after its last request or
+// cancel. chatd resends unresolved tool calls on every retry, which keeps
+// their entries.
 const forgetAfter = time.Hour
 
 type key struct {
@@ -33,12 +30,10 @@ type key struct {
 }
 
 type entry struct {
-	// expiresAt is when the record may be deleted: forgetAfter after the
-	// last request or cancel for it.
 	expiresAt time.Time
 	canceled  bool
-	// done is closed when the run finishes and resp is saved. It is nil
-	// when a cancel arrived before any request.
+	// done is closed once resp is set. It is nil if a cancel created the
+	// entry.
 	done chan struct{}
 	resp workspacesdk.CancelToolCallResponse
 }
@@ -51,15 +46,13 @@ type Table struct {
 	entries map[key]*entry
 }
 
-// New returns a Table. cancel stops work that canceled tool call id of
-// chat chatID left running after its request finished; today that is an
-// execute process. The Table calls cancel after the run finishes, or
-// immediately when there was no request.
+// New returns a Table that calls cancel to stop work a canceled tool call
+// left running, such as a process.
 func New(clock quartz.Clock, cancel func(ctx context.Context, chatID, id uuid.UUID)) *Table {
 	return &Table{clock: clock, cancel: cancel, entries: make(map[key]*entry)}
 }
 
-// add stores e under k and drops expired entries. t.mu must be held.
+// add stores e under k and deletes expired entries. t.mu must be held.
 func (t *Table) add(k key, e *entry) {
 	now := t.clock.Now()
 	e.expiresAt = now.Add(forgetAfter)
@@ -71,10 +64,8 @@ func (t *Table) add(k key, e *entry) {
 	t.entries[k] = e
 }
 
-// Middleware runs a request whose chat context has a tool call ID once
-// per chat and tool call ID, and responds to repeats with the saved
-// response. It refuses a canceled tool call with 409. Other requests
-// pass through.
+// Middleware runs each tool call request once and responds to repeats
+// with the saved response, or with 409 if the tool call was canceled.
 func (t *Table) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -116,10 +107,8 @@ func (t *Table) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// run runs next for new entry e and saves its response. If next panics,
-// run saves a 500 saying the outcome is unknown, so repeats and cancels
-// do not wait for a response that never comes, and the panic continues
-// to httpmw.Recover.
+// run runs next and saves its response in e. If next panics, run saves a
+// 500 so that waiters are released.
 func run(e *entry, next http.Handler, r *http.Request) {
 	rec := httptest.NewRecorder()
 	defer func() {
@@ -145,17 +134,16 @@ func savedResponse(rec *httptest.ResponseRecorder) workspacesdk.CancelToolCallRe
 	}
 }
 
-// Routes returns the HTTP handler for tool call routes.
+// Routes returns the handler for POST /{id}/cancel.
 func (t *Table) Routes() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/{id}/cancel", t.handleCancel)
 	return r
 }
 
-// handleCancel cancels tool call {id}. A tool call the agent has no
-// record of is refused from now on, and t.cancel is called for it: work
-// it started outlives the record. Otherwise the cancel waits for the run
-// to finish, calls t.cancel, and responds with the saved response.
+// handleCancel marks the tool call canceled, waits for its request, stops
+// its work, and responds with the saved response. It calls t.cancel even
+// without an entry, because a process can outlive its entry.
 func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -185,7 +173,8 @@ func (t *Table) handleCancel(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.CancelToolCallResponse{})
 		return
 	}
-	// Call t.cancel after the run so it stops work that was still starting.
+	// Wait so that t.cancel also stops a process the request is still
+	// starting.
 	select {
 	case <-e.done:
 	case <-ctx.Done():

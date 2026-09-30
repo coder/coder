@@ -26,11 +26,9 @@ var (
 	errProcessNotRunning = xerrors.New("process is not running")
 
 	// exitedProcessReapAge is how long an exited process is
-	// kept before being automatically removed from the map. A tool
-	// call record is added before its process starts, and the process
-	// is kept at least this long after it exits, so for the first hour
-	// after a tool call is recorded, a retry can still read its process
-	// output.
+	// kept before being automatically removed from the map, so
+	// that a chatd retry of its execute tool call can still read
+	// the output.
 	exitedProcessReapAge = time.Hour
 )
 
@@ -46,10 +44,8 @@ type process struct {
 	buf        *HeadTailBuffer
 	logger     slog.Logger
 	running    bool
-	canceled   atomic.Bool // killed by a tool call cancel
-	// waitUntil is when the execute timeout passes: output waits with
-	// timeout_from_execute return then. The process keeps running after
-	// it. Zero for none.
+	canceled   atomic.Bool // set if its tool call is canceled while it runs
+	// waitUntil is when the execute timeout passes, or zero if none.
 	waitUntil time.Time
 	exitCode  *int
 	startedAt int64
@@ -80,8 +76,8 @@ func (p *process) output() (string, *workspacesdk.ProcessTruncation) {
 	return p.buf.Output()
 }
 
-// procKey identifies a process by the chat that started it and its
-// process ID. Requests without a chat ID use uuid.Nil as the chat ID.
+// procKey identifies a process by chat ID and process ID. chatID is
+// uuid.Nil for processes started without a chat.
 type procKey struct {
 	chatID uuid.UUID
 	id     string
@@ -121,16 +117,15 @@ func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInf
 	}
 }
 
-// start spawns a new process with the given chat ID and process ID, or
-// returns the process that already has them: a repeated tool call start
-// attaches to its process and keeps its waitUntil. The lookup and the
-// insert are separate critical sections, so two concurrent starts of one
-// key would both run. None happen: the tool call middleware lets one
-// request per chat ID and tool call ID through at a time, and a start
-// without a tool call ID gets a random process ID. Both foreground and
-// background processes use a long-lived context so the process survives
+// start spawns a new process. Both foreground and background
+// processes use a long-lived context so the process survives
 // the HTTP request lifecycle. The background flag only affects
 // client-side polling behavior.
+//
+// A repeated start with the same chatID and id returns the existing
+// process. The lookup and insert are not atomic; the tool call
+// middleware serializes requests per tool call, and other starts get
+// random IDs.
 func (m *manager) start(req workspacesdk.StartProcessRequest, chatID uuid.UUID, id string) (*process, error) {
 	k := procKey{chatID: chatID, id: id}
 	m.mu.Lock()
@@ -268,7 +263,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID uuid.UUID, 
 	return proc, nil
 }
 
-// get returns the process of chat chatID with process ID id.
+// get returns chat chatID's process with ID id.
 func (m *manager) get(chatID uuid.UUID, id string) (*process, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -276,9 +271,8 @@ func (m *manager) get(chatID uuid.UUID, id string) (*process, bool) {
 	return proc, ok
 }
 
-// list returns info about the processes of chat chatID. Exited
-// processes of every chat older than exitedProcessReapAge are
-// removed.
+// list returns info about chat chatID's processes. It also reaps
+// processes of all chats that exited more than exitedProcessReapAge ago.
 func (m *manager) list(chatID uuid.UUID) []workspacesdk.ProcessInfo {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -287,8 +281,8 @@ func (m *manager) list(chatID uuid.UUID) []workspacesdk.ProcessInfo {
 	infos := make([]workspacesdk.ProcessInfo, 0, len(m.procs))
 	for k, proc := range m.procs {
 		info := proc.info()
-		// Reap processes that exited more than
-		// exitedProcessReapAge ago to prevent unbounded map growth.
+		// Reap processes that exited more than exitedProcessReapAge ago
+		// to prevent unbounded map growth.
 		if !info.Running && info.ExitedAt != nil {
 			exitedAt := time.Unix(*info.ExitedAt, 0)
 			if now.Sub(exitedAt) > exitedProcessReapAge {
