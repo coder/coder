@@ -159,6 +159,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -274,6 +275,7 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 				Chat:            created.Chat,
 				Messages:        created.InitialMessages,
 				TurnExperiments: &turnExperimentDecisions{},
+				Workspace:       server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
@@ -379,6 +381,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -465,6 +468,7 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
