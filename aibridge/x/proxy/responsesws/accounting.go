@@ -28,7 +28,8 @@ var errAccountingOverloaded = xerrors.New("accounting queue overloaded: records 
 type jobKind int
 
 const (
-	// jobStart records the start of an interception the server opened.
+	// jobStart records the start of an interception the server opened. A
+	// failed start is retried before each later job of the interception.
 	jobStart jobKind = iota
 	// jobEvent feeds a server event to the interception's extraction.
 	jobEvent
@@ -41,7 +42,6 @@ const (
 type job struct {
 	kind  jobKind
 	ic    *interception
-	model string // jobStart
 	frame []byte // jobEvent
 	// terminal marks an event that ends its response: the interception ends
 	// after the extraction observed it.
@@ -157,17 +157,7 @@ func (s *Session) runJob(j job) {
 	case jobBarrier:
 		close(j.done)
 	case jobStart:
-		ctx, cancel := s.recordContext()
-		defer cancel()
-		if err := s.opts.Recorder.RecordInterception(ctx, s.interceptionRecord(j.ic, j.model, nil)); err != nil {
-			s.opts.Logger.Warn(ctx, "failed to record unexplained response", slog.Error(err), slog.F("interception_id", j.ic.id))
-			// Nothing can be recorded without the interception, so its
-			// later jobs are skipped.
-			s.mu.Lock()
-			j.ic.ended = true
-			s.forgetLocked(j.ic)
-			s.mu.Unlock()
-		}
+		s.ensureStarted(j.ic)
 	case jobEvent:
 		s.mu.Lock()
 		ended := j.ic.ended
@@ -176,6 +166,17 @@ func (s *Session) runJob(j job) {
 			return
 		}
 		ic := j.ic
+		if !s.ensureStarted(ic) {
+			// Nothing can be recorded without the interception. A later
+			// job retries the start; the terminal event gives up, so the
+			// response's mapping never outlives it.
+			if j.terminal {
+				s.opts.Logger.Warn(s.cleanupCtx, "dropped response: its interception could not be recorded",
+					slog.F("interception_id", ic.id), slog.F("response_id", ic.responseID))
+				s.forget(ic)
+			}
+			return
+		}
 		if ic.ext == nil {
 			ic.ext = s.newExtraction(ic)
 		}
@@ -189,6 +190,33 @@ func (s *Session) runJob(j job) {
 		}
 		s.end(ic, outcome.Err)
 	}
+}
+
+// ensureStarted records the start of ic if it is not recorded yet, and
+// reports whether it is. Only the accountant calls it for interceptions the
+// server opened; creates are started by Send.
+func (s *Session) ensureStarted(ic *interception) bool {
+	if ic.started {
+		return true
+	}
+	ctx, cancel := s.recordContext()
+	defer cancel()
+	if err := s.opts.Recorder.RecordInterception(ctx, s.interceptionRecord(ic, nil)); err != nil {
+		s.opts.Logger.Warn(ctx, "failed to record unexplained response", slog.Error(err),
+			slog.F("interception_id", ic.id), slog.F("response_id", ic.responseID))
+		return false
+	}
+	ic.started = true
+	return true
+}
+
+// forget drops ic without an end record, for an interception whose start
+// was never recorded.
+func (s *Session) forget(ic *interception) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ic.ended = true
+	s.forgetLocked(ic)
 }
 
 // sweep ends every open interception with the session's cause, or with
@@ -221,6 +249,11 @@ func (s *Session) sweep() {
 	clear(s.responses)
 	s.mu.Unlock()
 	for _, e := range ended {
+		if !e.ic.started {
+			s.opts.Logger.Warn(s.cleanupCtx, "dropped response: its interception could not be recorded",
+				slog.F("interception_id", e.ic.id), slog.F("response_id", e.ic.responseID))
+			continue
+		}
 		s.recordEnded(e.ic, e.err)
 	}
 }

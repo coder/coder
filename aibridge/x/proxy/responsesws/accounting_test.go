@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -192,4 +193,93 @@ func TestEndRecordGetsFreshContext(t *testing.T) {
 	require.False(t, returned.IsZero())
 	require.False(t, deadline.Before(returned.Add(recorder.DefaultAsyncTimeout)),
 		"end deadline %s is not a full bound after usage returned at %s", deadline, returned)
+}
+
+// TestLossyInterceptionEndsWithOverload requires that an interception that
+// lost a non-terminal accounting job ends with the overload error, even
+// when its terminal event is recorded.
+func TestLossyInterceptionEndsWithOverload(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	require.NotNil(t, h.send(create("a", "model-a", "hi")))
+	h.relay(created("a", "resp_a", "model-a"))
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+	// The accountant is blocked on resp_0's usage with an empty queue.
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+	responsesws.SetQueueBounds(h.sess, 1, extract.MaxEventBytes)
+	inProgress := `{"type":"response.in_progress","stream_id":"a","response":{"id":"resp_a"}}`
+	h.forward(inProgress, inProgress)
+	require.Equal(t, 1, h.logs.count("accounting queue full: dropped event"))
+
+	close(gate)
+	require.NoError(t, responsesws.Drain(ctx, h.sess))
+	h.relay(completed("a", "resp_a"))
+	id := h.interceptionFor("model-a").ID
+	require.Equal(t, []string{id}, usagesByResponse(h)["resp_a"])
+	end := h.rec.RecordedInterceptionEnd(id)
+	require.NotNil(t, end)
+	require.Equal(t, recorder.ErrorTypeUnknown, end.ErrorType)
+	require.Contains(t, end.ErrorMessage, "accounting queue overloaded")
+	require.Equal(t, 1, h.rec.endCount(id))
+}
+
+// TestServerOpenedStartedAtIsArrival requires that an interception the
+// server opened starts when its frame arrived, not when the accountant got
+// to record it.
+func TestServerOpenedStartedAtIsArrival(t *testing.T) {
+	t.Parallel()
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, nil)
+	gate := make(chan struct{})
+	h.rec.usageGate.Store(&gate)
+	h.forward(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+	_ = codertestutil.TryReceive(ctx, t, h.rec.usageEntered)
+
+	// resp_1's start is queued behind the blocked usage record.
+	h.forward(created("y", "resp_1", "model-1"))
+	arrived := time.Now()
+	close(gate)
+	require.NoError(t, responsesws.Drain(ctx, h.sess))
+	require.False(t, h.interceptionFor("model-1").StartedAt.After(arrived))
+}
+
+// TestFailedStartIsRetried requires that a failed start of an interception
+// the server opened does not end it: the start is retried before its later
+// events, so its terminal usage lands on that same interception whatever
+// the timing. If the start never succeeds, the response is dropped with a
+// log and no state is left behind.
+func TestFailedStartIsRetried(t *testing.T) {
+	t.Parallel()
+	t.Run("Recovers", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		h.rec.failStart.Store(true)
+		h.relay(created("z", "resp_0", "model-0"))
+		require.Empty(t, h.rec.RecordedInterceptions())
+
+		h.rec.failStart.Store(false)
+		// The terminal event carries no model, so a new interception
+		// would be recorded without one.
+		h.relay(completed("z", "resp_0"))
+		ics := h.rec.RecordedInterceptions()
+		require.Len(t, ics, 1)
+		require.Equal(t, "model-0", ics[0].Model)
+		require.Equal(t, map[string][]string{"resp_0": {ics[0].ID}}, usagesByResponse(h))
+		require.Equal(t, 1, h.rec.endCount(ics[0].ID))
+	})
+	t.Run("NeverStarts", func(t *testing.T) {
+		t.Parallel()
+		ctx := codertestutil.Context(t, codertestutil.WaitShort)
+		h := newHarness(ctx, t, nil)
+		h.rec.failStart.Store(true)
+		h.relay(created("z", "resp_0", "model-0"), completed("z", "resp_0"))
+		require.Empty(t, h.rec.RecordedInterceptions())
+		require.Empty(t, h.rec.RecordedTokenUsages())
+		require.Equal(t, 1, h.logs.count("dropped response: its interception could not be recorded"))
+		require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
+	})
 }

@@ -168,6 +168,15 @@ type interception struct {
 	// prompt is the create's last user prompt, recorded once its response ID
 	// is known. Empty for interceptions the server opened.
 	prompt string
+	// model and startedAt are recorded in the interception start record.
+	// startedAt is when the create was sent or the server frame arrived,
+	// not when the accountant records the start.
+	model     string
+	startedAt time.Time
+	// started marks an interception whose start is recorded. Creates start
+	// before they are forwarded; interceptions the server opened are
+	// started by the accountant, which alone reads and writes it for them.
+	started bool
 	// written marks a create whose upstream write succeeded. Only a written
 	// create binds a response. Guarded by Session.mu.
 	written bool
@@ -500,8 +509,8 @@ func (s *Session) endStarted(ctx context.Context, ic *interception, err error) e
 // startInterception records a new interception and runs register under the
 // session lock so a concurrent shutdown cannot miss it.
 func (s *Session) startInterception(ctx context.Context, lane, model string, toolCallID *string, register func(*interception)) (*interception, error) {
-	ic := &interception{id: uuid.NewString(), lane: lane}
-	if err := s.opts.Recorder.RecordInterception(ctx, s.interceptionRecord(ic, model, toolCallID)); err != nil {
+	ic := &interception{id: uuid.NewString(), lane: lane, model: model, startedAt: time.Now(), started: true}
+	if err := s.opts.Recorder.RecordInterception(ctx, s.interceptionRecord(ic, toolCallID)); err != nil {
 		return nil, xerrors.Errorf("record interception: %w", err)
 	}
 	s.mu.Lock()
@@ -517,16 +526,16 @@ func (s *Session) startInterception(ctx context.Context, lane, model string, too
 	return ic, nil
 }
 
-func (s *Session) interceptionRecord(ic *interception, model string, toolCallID *string) *recorder.InterceptionRecord {
+func (s *Session) interceptionRecord(ic *interception, toolCallID *string) *recorder.InterceptionRecord {
 	return &recorder.InterceptionRecord{
 		ID:                    ic.id,
 		CorrelatingToolCallID: toolCallID,
 		InitiatorID:           s.actor.ID,
 		Metadata:              s.actor.Metadata,
-		Model:                 model,
+		Model:                 ic.model,
 		Provider:              s.opts.Provider.Type(),
 		ProviderName:          s.opts.Provider.Name(),
-		StartedAt:             time.Now(),
+		StartedAt:             ic.startedAt,
 		ClientSessionID:       s.opts.ClientSessionID,
 		Client:                s.opts.Client,
 		UserAgent:             s.opts.UserAgent,
@@ -557,7 +566,7 @@ func (s *Session) route(frame []byte) {
 		ic = s.responses[response.Get("id").String()]
 		if ic == nil {
 			// A response no interception owns still has its usage recorded.
-			s.openLocked(lane, response.Get("model").String(), eventType, job{kind: jobEvent, frame: frame, terminal: true})
+			s.openLocked(lane, response.Get("model").String(), response.Get("id").String(), eventType, job{kind: jobEvent, frame: frame, terminal: true})
 			return
 		}
 		if s.active[ic.lane] == ic {
@@ -601,6 +610,7 @@ func (s *Session) bindCreatedLocked(lane string, frame []byte) {
 	if len(q) > 0 && q[0].written {
 		ic := q[0]
 		setQueue(s.pending, lane, q[1:])
+		ic.responseID = responseID
 		s.bindLocked(ic, responseID)
 		ev.ic = ic
 		s.pushLocked(ic, eventCreated, ev)
@@ -611,26 +621,28 @@ func (s *Session) bindCreatedLocked(lane string, frame []byte) {
 		// whose write is in flight. See publish.
 		q[0].raced = true
 	}
-	if ic := s.openLocked(lane, gjson.GetBytes(frame, "response.model").String(), eventCreated, ev); ic != nil {
+	if ic := s.openLocked(lane, gjson.GetBytes(frame, "response.model").String(), responseID, eventCreated, ev); ic != nil {
 		s.bindLocked(ic, responseID)
 	}
 }
 
+// bindLocked routes the lane's events and responseID's terminal event to ic.
+// ic.responseID is set before ic's jobs are queued, since the accountant
+// reads it.
 func (s *Session) bindLocked(ic *interception, responseID string) {
 	s.active[ic.lane] = ic
 	if responseID != "" {
 		s.responses[responseID] = ic
-		ic.responseID = responseID
 	}
 }
 
 // openLocked registers an interception the server opened and queues its
 // start record before ev. If the queue cannot take both, nothing is
 // registered and the loss is logged.
-func (s *Session) openLocked(lane, model, eventType string, ev job) *interception {
-	ic := &interception{id: uuid.NewString(), lane: lane}
+func (s *Session) openLocked(lane, model, responseID, eventType string, ev job) *interception {
+	ic := &interception{id: uuid.NewString(), lane: lane, model: model, responseID: responseID, startedAt: time.Now()}
 	ev.ic = ic
-	if !s.pushLocked(ic, eventType, job{kind: jobStart, ic: ic, model: model}, ev) {
+	if !s.pushLocked(ic, eventType, job{kind: jobStart, ic: ic}, ev) {
 		return nil
 	}
 	s.open[ic.id] = ic
@@ -638,6 +650,8 @@ func (s *Session) openLocked(lane, model, eventType string, ev job) *interceptio
 }
 
 // end ends ic with err exactly once: only the first caller records the end.
+// An interception that lost an accounting job ends with
+// errAccountingOverloaded instead, whichever path ends it.
 func (s *Session) end(ic *interception, err error) {
 	s.mu.Lock()
 	if ic.ended {
@@ -645,6 +659,9 @@ func (s *Session) end(ic *interception, err error) {
 		return
 	}
 	ic.ended = true
+	if ic.lossy {
+		err = errAccountingOverloaded
+	}
 	s.forgetLocked(ic)
 	s.mu.Unlock()
 	s.recordEnded(ic, err)
