@@ -826,7 +826,7 @@ func (server *Server) prepareGeneration(
 	binding := chatTrigger
 	bindingSource := compactionTriggerSourceChat
 	var compactionOverride *resolvedModelOverride
-	var enabledOverrideTrigger compactionTrigger
+	var otherTrigger compactionTrigger
 	if resolvedCompactionOverride.Set {
 		overrideTrigger := compactionTrigger{
 			thresholdPercent: resolvedCompactionOverride.Config.CompressionThreshold,
@@ -836,10 +836,11 @@ func (server *Server) prepareGeneration(
 		// override's window, so the chat model summarizes instead.
 		if overrideTrigger.enabled() {
 			compactionOverride = &resolvedCompactionOverride
-			enabledOverrideTrigger = overrideTrigger
+			otherTrigger = overrideTrigger
 			bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
 			if bindingSource == compactionTriggerSourceOrganization {
 				binding = overrideTrigger
+				otherTrigger = chatTrigger
 			}
 		}
 	}
@@ -900,7 +901,7 @@ func (server *Server) prepareGeneration(
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			TriggerSource:   bindingSource,
-			OverrideTrigger: enabledOverrideTrigger,
+			OtherTrigger:    otherTrigger,
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,

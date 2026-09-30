@@ -502,7 +502,7 @@ func compactionStatusFromHistory(
 	messages []database.ChatMessage,
 	requirement compactionRequirement,
 	thresholdPercent int32,
-	contextLimit int64,
+	triggerContextLimit int64,
 ) compactionStatus {
 	boundaryIndex := latestContextBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
@@ -515,8 +515,8 @@ func compactionStatusFromHistory(
 		// does not carry context usage, and is always preceded by an assistant
 		// message.
 		if assistant, ok := firstUncompressedAssistantAfter(messages, boundaryIndex); ok &&
-			postCompactionAssistantOverLimit(assistant, thresholdPercent, contextLimit) &&
-			!summaryRecordedUnderOtherTrigger(messages[boundaryIndex], thresholdPercent, contextLimit) {
+			postCompactionAssistantOverLimit(assistant, thresholdPercent, triggerContextLimit) &&
+			!summaryRecordedUnderOtherTrigger(messages[boundaryIndex], thresholdPercent, triggerContextLimit) {
 			return compactionStatusStillOverLimit
 		}
 		if hasUncompressedMessageAfter(messages, boundaryIndex) {
@@ -640,13 +640,13 @@ func postCompactionOverLimit(messages []database.ChatMessage, trigger compaction
 	return ok && postCompactionAssistantOverLimit(assistant, trigger.thresholdPercent, trigger.contextLimit)
 }
 
-func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
+func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, triggerContextLimit int64) bool {
 	// Zero means "always compact." Excluding it from this check prevents a
 	// terminal over-limit error after every compaction.
 	if thresholdPercent <= 0 {
 		return false
 	}
-	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
+	return shouldCompactPromptUsage(usageFromMessage(msg), triggerContextLimit, thresholdPercent)
 }
 
 func usageFromMessage(msg database.ChatMessage) fantasy.Usage {

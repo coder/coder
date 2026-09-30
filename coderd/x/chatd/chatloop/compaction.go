@@ -159,11 +159,12 @@ type CompactionResult struct {
 type CompactionToolResult struct {
 	Summary string           `json:"summary"`
 	Source  CompactionSource `json:"source"`
-	// ThresholdPercent and UsagePercent are relative to
-	// TriggerContextLimitTokens.
-	ThresholdPercent int32   `json:"threshold_percent"`
-	UsagePercent     float64 `json:"usage_percent"`
-	ContextTokens    int64   `json:"context_tokens"`
+	// ThresholdPercent is relative to TriggerContextLimitTokens.
+	ThresholdPercent int32 `json:"threshold_percent"`
+	// UsagePercent is relative to the resolved limit, which equals
+	// TriggerContextLimitTokens when it is positive.
+	UsagePercent  float64 `json:"usage_percent"`
+	ContextTokens int64   `json:"context_tokens"`
 	// ContextLimitTokens is the chat model's window.
 	ContextLimitTokens        int64 `json:"context_limit_tokens"`
 	EstimatedContextTokens    int64 `json:"estimated_context_tokens"`

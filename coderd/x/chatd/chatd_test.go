@@ -7093,6 +7093,12 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		require.LessOrEqual(t, promptTokens+maxTokens, int64(overrideContextLimit))
 	})
 
+	const (
+		chatOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
+		overrideOverLimitMessage = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window."
+		bothOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold."
+	)
+	// Usage stays at 80 tokens and both thresholds are 70%.
 	for _, tc := range []struct {
 		name                 string
 		chatContextLimit     int64
@@ -7100,28 +7106,32 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 		wantMessage          string
 	}{
 		{
-			// Usage 80 stays below the chat trigger (70% of 1,000) but above
-			// the binding override trigger (70% of 100).
-			name:                 "override trigger binds",
+			// Override point 70 binds; chat point 700.
+			name:                 "override trigger binds, usage below chat point",
 			chatContextLimit:     1_000,
 			overrideContextLimit: 100,
-			wantMessage:          "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window.",
+			wantMessage:          overrideOverLimitMessage,
 		},
 		{
-			// The chat trigger (70% of 100) binds and usage 80 stays below the
-			// enabled override trigger (70% of 1,000).
-			name:                 "chat trigger binds below an enabled override",
+			// Override point 70 binds; chat point 77.
+			name:                 "override trigger binds, usage reaches chat point",
+			chatContextLimit:     110,
+			overrideContextLimit: 100,
+			wantMessage:          bothOverLimitMessage,
+		},
+		{
+			// Chat point 70 binds; override point 700.
+			name:                 "chat trigger binds, usage below override point",
 			chatContextLimit:     100,
 			overrideContextLimit: 1_000,
-			wantMessage:          "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation.",
+			wantMessage:          chatOverLimitMessage,
 		},
 		{
-			// The chat trigger (70% of 100) binds and usage 80 also reaches
-			// the enabled override trigger (70% of 110).
-			name:                 "chat trigger binds above an enabled override",
+			// Chat point 70 binds; override point 77.
+			name:                 "chat trigger binds, usage reaches override point",
 			chatContextLimit:     100,
 			overrideContextLimit: 110,
-			wantMessage:          "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation. An administrator may also need to raise the organization override's compaction threshold.",
+			wantMessage:          bothOverLimitMessage,
 		},
 	} {
 		t.Run("next message fails when compaction stays over limit/"+tc.name, func(t *testing.T) {
