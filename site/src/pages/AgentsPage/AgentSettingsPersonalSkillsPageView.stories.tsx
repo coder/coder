@@ -174,6 +174,40 @@ export const CreateDialogOpen: Story = {
 	},
 };
 
+export const UploadSkillMarkdown: Story = {
+	args: CreateDialogOpen.args,
+	play: async ({ canvasElement }) => {
+		const dialog = within(
+			await within(canvasElement.ownerDocument.body).findByRole("dialog"),
+		);
+		await userEvent.upload(
+			dialog.getByLabelText("Upload SKILL.md"),
+			new File(
+				[
+					"---\nname: imported-skill\ndescription: Imported guidance.\n---\n\nUse imported instructions.",
+				],
+				"SKILL.md",
+				{ type: "text/markdown" },
+			),
+		);
+		await dialog.findByText("Imported SKILL.md");
+	},
+};
+
+export const UploadEmptyFile: Story = {
+	args: CreateDialogOpen.args,
+	play: async ({ canvasElement }) => {
+		const dialog = within(
+			await within(canvasElement.ownerDocument.body).findByRole("dialog"),
+		);
+		await userEvent.upload(
+			dialog.getByLabelText("Upload SKILL.md"),
+			new File([], "SKILL.md", { type: "text/markdown" }),
+		);
+		await dialog.findByText("File is empty");
+	},
+};
+
 export const EditDialogOpen: Story = {
 	args: {
 		editorState: {
