@@ -965,7 +965,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	}
 }
 
-func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
+func TestStartGeneration_CancelsDeletedToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 
 	call := func(toolName string) codersdk.ChatMessagePart {
@@ -976,21 +976,21 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 	}
 	tests := []struct {
 		name      string
-		build     func(t *testing.T, h *erasedToolCallsHistory)
+		build     func(t *testing.T, h *deletedToolCallsHistory)
 		cancelErr error
 		want      []string // Tools whose calls are canceled.
 	}{
 		{
-			name: "EditErasesUnresolvedCalls",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			name: "DeletedUnresolvedCalls",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"), call("edit_files"), call("write_file"), call("read_file"))
 				h.editPrompt(t)
 			},
 			want: []string{"execute", "edit_files", "write_file"},
 		},
 		{
-			name: "EditErasesResolvedCalls",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			name: "DeletedResolvedCalls",
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"), call("write_file"))
 				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, result("execute"))
 				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, result("write_file"))
@@ -999,7 +999,7 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 		},
 		{
 			name: "SecondEditBeforeFirstStep",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"))
 				h.editPrompt(t)
 				h.editPrompt(t)
@@ -1007,16 +1007,16 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 			want: []string{"execute"},
 		},
 		{
-			// The unresolved call is in the active history, not erased.
+			// The unresolved call is in the active history, not deleted.
 			name: "TurnWithoutEdit",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"))
 				h.commit(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("next"))
 			},
 		},
 		{
 			name: "SecondStep",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"))
 				h.editPrompt(t)
 				h.assistant(t, codersdk.ChatMessageText("done"))
@@ -1024,7 +1024,7 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 		},
 		{
 			name: "CancelError",
-			build: func(t *testing.T, h *erasedToolCallsHistory) {
+			build: func(t *testing.T, h *deletedToolCallsHistory) {
 				h.assistant(t, call("execute"), call("edit_files"))
 				h.editPrompt(t)
 			},
@@ -1050,7 +1050,7 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 			workerID := uuid.New()
 			runnerID := uuid.New()
 			f.acquireChat(t, chat.ID, workerID, runnerID)
-			h := &erasedToolCallsHistory{f: f, machine: chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatID: chat.ID}
+			h := &deletedToolCallsHistory{f: f, machine: chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatID: chat.ID}
 			tc.build(t, h)
 
 			conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
@@ -1113,16 +1113,16 @@ func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
 	}
 }
 
-// erasedToolCallsHistory builds a running chat's history for
-// TestStartGeneration_CancelsErasedToolCallsOnAgent.
-type erasedToolCallsHistory struct {
+// deletedToolCallsHistory builds a running chat's history for
+// TestStartGeneration_CancelsDeletedToolCallsOnAgent.
+type deletedToolCallsHistory struct {
 	f                 *taskTestFixture
 	machine           *chatstate.ChatMachine
 	chatID            uuid.UUID
 	toolCallMessageID int64 // ID of the last committed assistant message with tool calls.
 }
 
-func (h *erasedToolCallsHistory) commit(t *testing.T, role database.ChatMessageRole, visibility database.ChatMessageVisibility, parts ...codersdk.ChatMessagePart) database.ChatMessage {
+func (h *deletedToolCallsHistory) commit(t *testing.T, role database.ChatMessageRole, visibility database.ChatMessageVisibility, parts ...codersdk.ChatMessagePart) database.ChatMessage {
 	t.Helper()
 	raw, err := chatprompt.MarshalParts(parts)
 	require.NoError(t, err)
@@ -1142,7 +1142,7 @@ func (h *erasedToolCallsHistory) commit(t *testing.T, role database.ChatMessageR
 	return inserted[0]
 }
 
-func (h *erasedToolCallsHistory) assistant(t *testing.T, parts ...codersdk.ChatMessagePart) {
+func (h *deletedToolCallsHistory) assistant(t *testing.T, parts ...codersdk.ChatMessagePart) {
 	t.Helper()
 	msg := h.commit(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, parts...)
 	if slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool { return p.Type == codersdk.ChatMessagePartTypeToolCall }) {
@@ -1151,7 +1151,7 @@ func (h *erasedToolCallsHistory) assistant(t *testing.T, parts ...codersdk.ChatM
 }
 
 // editPrompt edits the latest user prompt, as the edit endpoint does.
-func (h *erasedToolCallsHistory) editPrompt(t *testing.T) {
+func (h *deletedToolCallsHistory) editPrompt(t *testing.T) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	messages, err := h.f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: h.chatID})
