@@ -2069,14 +2069,6 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 }
 
-func (q *querier) CountChatQueuedAutomationMessagesByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	_, err := q.GetChatByID(ctx, chatID)
-	if err != nil {
-		return 0, err
-	}
-	return q.db.CountChatQueuedAutomationMessagesByChatID(ctx, chatID)
-}
-
 func (q *querier) CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error) {
 	_, err := q.GetChatByID(ctx, chatID)
 	if err != nil {

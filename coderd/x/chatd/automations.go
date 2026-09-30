@@ -137,7 +137,10 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		ScheduleNextRunAt:    sql.NullTime{},
 	}
 
-	var secret string
+	var (
+		secret string
+		sched  *cron.Schedule
+	)
 	switch kind {
 	case database.ChatAutomationKindSchedule:
 		if req.WebhookUse != nil {
@@ -149,13 +152,12 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		if req.ScheduleTimeZone == nil {
 			return database.ChatAutomation{}, "", automationFieldError("schedule_time_zone", "is required for schedule automations")
 		}
-		sched, err := validateAutomationSchedule(*req.ScheduleCron, *req.ScheduleTimeZone, now)
+		sched, err = validateAutomationSchedule(*req.ScheduleCron, *req.ScheduleTimeZone, now)
 		if err != nil {
 			return database.ChatAutomation{}, "", err
 		}
 		arg.ScheduleCron = sql.NullString{String: sched.Cron(), Valid: true}
 		arg.ScheduleTimeZone = sql.NullString{String: *req.ScheduleTimeZone, Valid: true}
-		arg.ScheduleNextRunAt = sql.NullTime{Time: sched.Next(now), Valid: true}
 	case database.ChatAutomationKindWebhook:
 		if req.ScheduleCron != nil {
 			return database.ChatAutomation{}, "", automationFieldError("schedule_cron", "must be omitted for webhook automations")
@@ -248,6 +250,13 @@ func (p *Server) CreateAutomation(ctx context.Context, params CreateAutomationPa
 		}
 		if count >= int64(limit) {
 			return xerrors.Errorf("%w: a user can own at most %d chat automations", ErrAutomationLimitReached, limit)
+		}
+		// Read the time after the lock wait, so the first cursor is never
+		// already in the past when the automation is created.
+		lockedNow := dbtime.Time(p.clock.Now())
+		arg.CreatedAt, arg.UpdatedAt = lockedNow, lockedNow
+		if sched != nil {
+			arg.ScheduleNextRunAt = sql.NullTime{Time: sched.Next(lockedNow), Valid: true}
 		}
 		automation, err = tx.InsertChatAutomation(ctx, arg)
 		if err != nil {
@@ -499,7 +508,6 @@ func (p *Server) deleteStaleAutomationQueuedMessages(ctx context.Context, automa
 // The previous secret stops matching when the rotation commits. Only the
 // owner can rotate the secret, even when actorID has broader permissions.
 func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UUID) (database.ChatAutomation, string, error) {
-	now := dbtime.Time(p.clock.Now())
 	var (
 		rotated database.ChatAutomation
 		secret  string
@@ -527,7 +535,8 @@ func (p *Server) RotateAutomationSecret(ctx context.Context, actorID, id uuid.UU
 		rotated, err = tx.UpdateChatAutomationWebhookSecretByID(ctx, database.UpdateChatAutomationWebhookSecretByIDParams{
 			ID:                row.ID,
 			WebhookSecretHash: hash,
-			UpdatedAt:         now,
+			// Read after the lock wait so updated_at never moves backward.
+			UpdatedAt: dbtime.Time(p.clock.Now()),
 		})
 		if err != nil {
 			return xerrors.Errorf("rotate webhook secret: %w", err)

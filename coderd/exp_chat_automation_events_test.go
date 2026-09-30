@@ -103,6 +103,21 @@ func TestChatAutomationEvents(t *testing.T) {
 		require.Empty(t, env.queuedMessageIDs(t, env.memberChat.ID))
 	})
 
+	t.Run("RateLimitedAcrossAutomations", func(t *testing.T) {
+		t.Parallel()
+		const limit = 2
+		client := codersdk.NewExperimentalClient(coderdtest.New(t, &coderdtest.Options{APIRateLimit: limit}))
+
+		// Each request uses a fresh automation id, so only a limiter that
+		// ignores the id can refuse the last one.
+		for range limit {
+			status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+			require.Equal(t, http.StatusUnauthorized, status, string(body))
+		}
+		status, body := postChatAutomationEvent(t, client, uuid.New(), "", event)
+		require.Equal(t, http.StatusTooManyRequests, status, string(body))
+	})
+
 	t.Run("ExperimentOffForOwner", func(t *testing.T) {
 		t.Parallel()
 		env := newChatAutomationTestEnv(t, nil, nil)
@@ -180,6 +195,12 @@ func TestChatAutomationEvents(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		created, err := env.member.CreateChatAutomation(ctx, env.orgID, env.webhookRequest())
 		require.NoError(t, err)
+		newChatReq := env.webhookRequest()
+		newChatReq.TargetMode = codersdk.ChatAutomationTargetModeNewChat
+		newChatReq.TargetChatID = nil
+		newChatReq.NewChatModelConfigID = &env.modelConfig.ID
+		newChat, err := env.member.CreateChatAutomation(ctx, env.orgID, newChatReq)
+		require.NoError(t, err)
 		_, err = env.owner.UpdateChatModel(ctx, env.orgID, env.modelConfig.ID, codersdk.UpdateChatModelRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
 
@@ -187,6 +208,9 @@ func TestChatAutomationEvents(t *testing.T) {
 		status, body := postChatAutomationEvent(t, env.member, created.Automation.ID, created.WebhookSecret, event)
 		require.Equal(t, http.StatusBadRequest, status, string(body))
 		require.Contains(t, string(body), "No chat model is available in this organization.")
+		status, body = postChatAutomationEvent(t, env.member, newChat.Automation.ID, newChat.WebhookSecret, event)
+		require.Equal(t, http.StatusConflict, status, string(body))
+		require.Contains(t, string(body), "The model of the chat automation is unavailable.")
 	})
 
 	t.Run("NewChatTarget", func(t *testing.T) {

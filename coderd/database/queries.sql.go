@@ -8752,21 +8752,6 @@ func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSec
 	return i, err
 }
 
-const countChatQueuedAutomationMessagesByChatID = `-- name: CountChatQueuedAutomationMessagesByChatID :one
-SELECT COUNT(*)::bigint AS count
-FROM chat_queued_messages
-WHERE chat_id = $1::uuid
-    AND automation_id IS NOT NULL
-`
-
-// Counts the queued messages of a chat that an automation delivered.
-func (q *sqlQuerier) CountChatQueuedAutomationMessagesByChatID(ctx context.Context, chatID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countChatQueuedAutomationMessagesByChatID, chatID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countChatQueuedMessages = `-- name: CountChatQueuedMessages :one
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages

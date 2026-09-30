@@ -185,13 +185,11 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Event data",
+                        "description": "Event data: any JSON value up to 256 KiB",
                         "name": "request",
                         "in": "body",
                         "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
+                        "schema": {}
                     }
                 ],
                 "responses": {
