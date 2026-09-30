@@ -43,16 +43,12 @@ import {
 	bindingCompactionTriggerPoint,
 	bindingCompactionTriggerSource,
 	type CompactionTrigger,
+	type CompactionTriggerLoadError,
 	compactionDisabledThresholdPercent,
 	compactionPointAsPercent,
 	isCompactionPointBeyondWindow,
 	type OrganizationCompactionTrigger,
 } from "../compactionTriggers";
-
-export type CompactionTriggerLoadError = {
-	readonly organizationID: string;
-	readonly error: unknown;
-};
 
 type UserCompactionThresholdSettingsProps = {
 	models: readonly TypesGen.ChatModel[];
@@ -293,6 +289,9 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	const isDraftDisablingCompaction =
 		draftValue === String(compactionDisabledThresholdPercent) &&
 		draft !== undefined;
+	const disablingCompactionWarning = organizationTrigger
+		? "Setting 100% turns off automatic compaction for this model. An organization override may still compact its chats."
+		: "Setting 100% turns off automatic compaction for this model.";
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const providerLabel = formatProviderLabel(provider);
 	const effectiveThresholdPercent =
@@ -375,9 +374,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 							<TooltipContent>
 								{isInvalid
 									? "Enter a whole number between 0 and 100."
-									: organizationTrigger
-										? "Setting 100% turns off automatic compaction for this model. An organization override may still compact its chats."
-										: "Setting 100% turns off automatic compaction for this model."}
+									: disablingCompactionWarning}
 							</TooltipContent>
 						)}
 					</Tooltip>
@@ -413,9 +410,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				)}
 				{isDraftDisablingCompaction && (
 					<span className="sr-only" aria-live="polite">
-						Setting 100% turns off automatic compaction for this model.
-						{organizationTrigger &&
-							" An organization override may still compact its chats."}
+						{disablingCompactionWarning}
 					</span>
 				)}
 			</TableCell>

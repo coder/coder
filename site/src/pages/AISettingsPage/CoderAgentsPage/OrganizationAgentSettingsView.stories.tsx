@@ -224,6 +224,14 @@ export const CompactionTriggerWarning: Story = {
 	},
 };
 
+export const CompactionTriggerWarningWithoutCompactionOff: Story = {
+	args: {
+		overrides: mockWarningOverrides,
+		enabledModels: [mockSmallCompactionModel, model, alternateModel],
+	},
+	play: CompactionTriggerWarning.play,
+};
+
 export const CompactionOverrideDisabledNotice: Story = {
 	args: {
 		overrides: [

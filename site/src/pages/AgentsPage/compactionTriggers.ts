@@ -77,6 +77,13 @@ export const bindingCompactionTriggerPoint = (
 		: undefined;
 };
 
+export const organizationCompactionTrigger = (
+	model: TypesGen.ChatModel,
+): OrganizationCompactionTrigger => {
+	const trigger = modelCompactionTrigger(model);
+	return { model, trigger, pointTokens: compactionTriggerPoint(trigger) };
+};
+
 // "viewer" also drops an override whose provider the current user cannot use,
 // as chatd does per user; admin views of the organization setting pass
 // "organization".
@@ -102,12 +109,56 @@ export const resolveOrganizationCompactionTrigger = (
 		return undefined;
 	}
 
-	const trigger = modelCompactionTrigger(model);
-	if (!isCompactionTriggerEnabled(trigger)) {
+	if (!isCompactionTriggerEnabled(modelCompactionTrigger(model))) {
 		return undefined;
 	}
 
-	return { model, trigger, pointTokens: compactionTriggerPoint(trigger) };
+	return organizationCompactionTrigger(model);
+};
+
+export type CompactionTriggerLoadError = {
+	readonly organizationID: string;
+	readonly error: unknown;
+};
+
+type OrganizationOverridesState = {
+	readonly organizationID: string;
+	readonly data: TypesGen.ChatModelOverridesResponse | undefined;
+	readonly error: unknown;
+};
+
+export const resolveOrganizationCompactionTriggers = (
+	organizationOverrides: readonly OrganizationOverridesState[],
+	models: readonly TypesGen.ChatModel[],
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+) => {
+	const triggersByOrganizationID = new Map<
+		string,
+		OrganizationCompactionTrigger
+	>();
+	const loadErrors: CompactionTriggerLoadError[] = [];
+	for (const { organizationID, data, error } of organizationOverrides) {
+		const organizationModels = models.filter(
+			(model) => model.organization_id === organizationID,
+		);
+		if (
+			error != null &&
+			data === undefined &&
+			organizationModels.some((model) => model.enabled)
+		) {
+			loadErrors.push({ organizationID, error });
+		}
+		const trigger = resolveOrganizationCompactionTrigger(
+			data?.overrides.find((override) => override.context === "compaction")
+				?.model_config_id,
+			organizationModels,
+			providerInfoByID,
+		);
+		if (trigger) {
+			triggersByOrganizationID.set(organizationID, trigger);
+		}
+	}
+	return { triggersByOrganizationID, loadErrors };
 };
 
 export const compactionPointAsPercent = (
