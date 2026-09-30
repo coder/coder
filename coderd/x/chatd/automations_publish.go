@@ -247,13 +247,19 @@ func (p *Server) publishAutomationNewChat(ctx context.Context, owner rbac.Subjec
 	}
 	// The input id is fixed per call, so a retried transaction reuses it.
 	inputID := uuid.New()
+	// A scheduled chat is titled with its occurrence, which does not
+	// depend on how long hooks and locks take before acceptance.
+	titleTime := p.clock.Now()
+	if in.occurrence != nil {
+		titleTime = in.occurrence.cursor
+	}
 	chat, err := p.CreateChat(ctx, CreateOptions{
 		OrganizationID: automation.OrganizationID,
 		OwnerID:        automation.OwnerID,
 		CreatedBy:      automation.OwnerID,
 		// The title is explicit and no title is generated, so the event
 		// data never becomes the chat title.
-		Title:              automationNewChatTitle(automation, p.clock.Now()),
+		Title:              automationNewChatTitle(automation, titleTime),
 		ModelConfigID:      modelConfigID,
 		ReasoningEffort:    reasoningEffort,
 		ClientType:         database.ChatClientTypeApi,
@@ -639,8 +645,9 @@ func (p *Server) checkAutomationNewChat(ctx context.Context, store database.Stor
 }
 
 // automationNewChatTitle returns the title of a chat a new_chat
-// automation creates at acceptedAt. Schedule automations show the time in
-// the schedule's time zone, webhooks in UTC.
+// automation creates for an input at acceptedAt, the scheduled time of an
+// occurrence or the send time otherwise. Schedule automations show the
+// time in the schedule's time zone, webhooks in UTC.
 func automationNewChatTitle(automation database.ChatAutomation, acceptedAt time.Time) string {
 	if automation.Kind == database.ChatAutomationKindSchedule && automation.ScheduleTimeZone.Valid {
 		if loc, err := time.LoadLocation(automation.ScheduleTimeZone.String); err == nil {

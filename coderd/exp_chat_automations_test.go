@@ -743,6 +743,8 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 		_, err = env.member.RotateChatAutomationSecret(ctx, env.orgID, existing.ID)
 		requireSDKError(t, err, http.StatusNotFound)
+		_, err = env.member.RunChatAutomation(ctx, env.orgID, existing.ID)
+		requireSDKError(t, err, http.StatusNotFound)
 		_, err = env.member.ChatAutomationSchedulePreview(ctx, env.orgID, codersdk.ChatAutomationSchedulePreviewRequest{ScheduleCron: "0 9 * * *", ScheduleTimeZone: "UTC"})
 		requireSDKError(t, err, http.StatusNotFound)
 

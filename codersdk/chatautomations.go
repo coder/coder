@@ -149,6 +149,14 @@ type ChatAutomationEventResponse struct {
 	ChatID  uuid.UUID `json:"chat_id" format:"uuid"`
 }
 
+// ChatAutomationRunResponse is returned when a schedule automation runs
+// now. InputID identifies the accepted input on the message it created in
+// ChatID.
+type ChatAutomationRunResponse struct {
+	InputID uuid.UUID `json:"input_id" format:"uuid"`
+	ChatID  uuid.UUID `json:"chat_id" format:"uuid"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chat-automations", organizationID)
 }
@@ -236,6 +244,22 @@ func (c *ExperimentalClient) RotateChatAutomationSecret(ctx context.Context, org
 		return RotateChatAutomationSecretResponse{}, ReadBodyAsError(res)
 	}
 	var resp RotateChatAutomationSecretResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// RunChatAutomation sends the saved prompt of an enabled schedule
+// automation to its target now. The schedule's next run does not change.
+// Only its owner can run it.
+func (c *ExperimentalClient) RunChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID) (ChatAutomationRunResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("%s/%s/runs", chatAutomationsPath(organizationID), automationID), nil)
+	if err != nil {
+		return ChatAutomationRunResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return ChatAutomationRunResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatAutomationRunResponse
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 

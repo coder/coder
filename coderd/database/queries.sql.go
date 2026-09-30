@@ -5734,6 +5734,7 @@ WHERE
     chat_automations.kind = 'schedule'
     AND chat_automations.enabled
     AND chat_automations.schedule_next_run_at <= $1::timestamptz
+    AND (chat_automations.schedule_next_run_at, chat_automations.id) > ($2::timestamptz, $3::uuid)
     AND users.status = 'active'
     AND NOT users.deleted
     AND (
@@ -5744,21 +5745,29 @@ ORDER BY
     chat_automations.schedule_next_run_at,
     chat_automations.id
 LIMIT
-    $2::int
+    $4::int
 `
 
 type GetDueChatAutomationSchedulesParams struct {
-	Now        time.Time `db:"now" json:"now"`
-	LimitCount int32     `db:"limit_count" json:"limit_count"`
+	Now            time.Time `db:"now" json:"now"`
+	AfterNextRunAt time.Time `db:"after_next_run_at" json:"after_next_run_at"`
+	AfterID        uuid.UUID `db:"after_id" json:"after_id"`
+	LimitCount     int32     `db:"limit_count" json:"limit_count"`
 }
 
 // Returns enabled schedule automations whose cursor is at or before now,
-// oldest cursor first. Automations of inactive owners and existing_chat
-// automations whose target chat is gone or archived are left out. It
-// takes no locks: publishing rechecks each row under the chat and
-// automation locks.
+// oldest cursor first, starting after the (after_next_run_at, after_id)
+// keyset so callers can page through every due row. Automations of
+// inactive owners and existing_chat automations whose target chat is gone
+// or archived are left out. It takes no locks: publishing rechecks each
+// row under the chat and automation locks.
 func (q *sqlQuerier) GetDueChatAutomationSchedules(ctx context.Context, arg GetDueChatAutomationSchedulesParams) ([]ChatAutomation, error) {
-	rows, err := q.db.QueryContext(ctx, getDueChatAutomationSchedules, arg.Now, arg.LimitCount)
+	rows, err := q.db.QueryContext(ctx, getDueChatAutomationSchedules,
+		arg.Now,
+		arg.AfterNextRunAt,
+		arg.AfterID,
+		arg.LimitCount,
+	)
 	if err != nil {
 		return nil, err
 	}

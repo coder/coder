@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -29,9 +30,13 @@ const (
 	// automationScheduleGrace is how late an occurrence may still be
 	// accepted. Older occurrences are missed and never replayed.
 	automationScheduleGrace = 60 * time.Second
-	// automationScheduleBatchSize bounds the due automations one scan
-	// reads.
+	// automationScheduleBatchSize is how many due automations a scan
+	// reads per page.
 	automationScheduleBatchSize = 500
+	// automationScheduleConcurrency bounds the occurrences one scan
+	// publishes at once, so an occurrence that waits for a lock or a slow
+	// hook does not hold back the others past the grace window.
+	automationScheduleConcurrency = 8
 )
 
 var (
@@ -128,34 +133,55 @@ func (w *chatWorker) automationScheduleLoop(ctx context.Context) {
 // under the chat and automation locks, so concurrent scans on several
 // instances accept each occurrence at most once.
 func (p *Server) scanAutomationSchedules(ctx context.Context) {
+	p.scanAutomationSchedulePages(ctx, automationScheduleBatchSize)
+}
+
+// scanAutomationSchedulePages reads the due rows in pages of batchSize
+// until a page comes back short. Rows that stay due, such as those of
+// owners with the experiment off, therefore never hide the rows behind
+// them. Occurrences are published concurrently, at most
+// automationScheduleConcurrency at a time, and the scan returns once all
+// of them are done.
+func (p *Server) scanAutomationSchedulePages(ctx context.Context, batchSize int32) {
+	var publishes errgroup.Group
+	publishes.SetLimit(automationScheduleConcurrency)
+	defer func() { _ = publishes.Wait() }()
 	now := dbtime.Time(p.clock.Now())
-	//nolint:gocritic // The scheduler reads every owner's due schedules; each publish runs as the owner.
-	rows, err := p.db.GetDueChatAutomationSchedules(dbauthz.AsChatd(ctx), database.GetDueChatAutomationSchedulesParams{
-		Now:        now,
-		LimitCount: automationScheduleBatchSize,
-	})
-	if err != nil {
-		if ctx.Err() == nil {
-			p.logger.Warn(ctx, "read due chat automation schedules", slog.Error(err))
-		}
-		return
-	}
 	// The experiment is decided once per owner per scan. Owners with it
 	// off keep their cursors; a cursor that falls behind is missed once
 	// the experiment is on again.
 	enabled := make(map[uuid.UUID]bool)
-	for _, row := range rows {
-		if ctx.Err() != nil {
+	after := database.GetDueChatAutomationSchedulesParams{Now: now, LimitCount: batchSize, AfterID: uuid.Nil}
+	for {
+		//nolint:gocritic // The scheduler reads every owner's due schedules; each publish runs as the owner.
+		rows, err := p.db.GetDueChatAutomationSchedules(dbauthz.AsChatd(ctx), after)
+		if err != nil {
+			if ctx.Err() == nil {
+				p.logger.Warn(ctx, "read due chat automation schedules", slog.Error(err))
+			}
 			return
 		}
-		on, ok := enabled[row.OwnerID]
-		if !ok {
-			on = AutomationsEnabled(ctx, p.experimentEvaluator, row.OwnerID)
-			enabled[row.OwnerID] = on
+		for _, row := range rows {
+			if ctx.Err() != nil {
+				return
+			}
+			on, ok := enabled[row.OwnerID]
+			if !ok {
+				on = AutomationsEnabled(ctx, p.experimentEvaluator, row.OwnerID)
+				enabled[row.OwnerID] = on
+			}
+			if on {
+				publishes.Go(func() error {
+					p.runAutomationOccurrence(ctx, row, now)
+					return nil
+				})
+			}
 		}
-		if on {
-			p.runAutomationOccurrence(ctx, row, now)
+		if len(rows) < int(batchSize) {
+			return
 		}
+		last := rows[len(rows)-1]
+		after.AfterNextRunAt, after.AfterID = last.ScheduleNextRunAt.Time, last.ID
 	}
 }
 
@@ -213,7 +239,6 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		errors.Is(err, chatstate.ErrMessageQueueFull),
 		errors.As(err, &denied),
 		errors.Is(err, ErrAutomationForbidden),
-		errors.Is(err, ErrAutomationsExperimentDisabled),
 		errors.Is(err, ErrAutomationOccurrenceExpired):
 		skip("chat automation schedule occurrence skipped", slog.F("reason", err.Error()))
 	case errors.Is(err, ErrAutomationScheduleStale),
@@ -223,7 +248,10 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 		// again.
 	default:
 		// The cursor stays, so the next scan retries while the occurrence
-		// is within the grace window.
+		// is within the grace window. This includes
+		// ErrAutomationsExperimentDisabled: the evaluator also reports a
+		// failed read as off, and the next scan drops an owner whose
+		// experiment really is off.
 		if ctx.Err() == nil {
 			logger.Warn(ctx, "publish chat automation schedule occurrence", slog.Error(err))
 		}
