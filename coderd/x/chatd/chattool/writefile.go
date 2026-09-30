@@ -20,9 +20,12 @@ type WriteFileArgs struct {
 	Content string `json:"content" description:"Complete file contents. Replaces any existing contents."`
 }
 
+// WriteFileToolName is the registered name of the write_file tool.
+const WriteFileToolName = "write_file"
+
 func WriteFile(options WriteFileOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"write_file",
+		WriteFileToolName,
 		"Create a file in the workspace or overwrite an existing one with the given content. "+
 			"Use edit_files for targeted changes to an existing file. "+
 			"During plan turns, only the chat-specific plan file path is writable.",

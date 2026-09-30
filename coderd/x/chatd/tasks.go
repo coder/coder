@@ -737,7 +737,7 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
 	calls = slices.DeleteFunc(calls, func(call fantasy.ToolCallContent) bool {
 		_, ok := ids[call.ToolCallID]
-		return !ok || (call.ToolName != chattool.ExecuteToolName && call.ToolName != "edit_files" && call.ToolName != "write_file")
+		return !ok || !chattool.CanCancelToolCall(call.ToolName)
 	})
 	return calls, ids, nil
 }

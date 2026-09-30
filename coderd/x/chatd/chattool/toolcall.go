@@ -51,39 +51,60 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 // means the agent gave no usable response, including the 404 of an agent
 // without the cancel route.
 func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
+	if !CanCancelToolCall(toolName) {
+		return fantasy.ToolResponse{}, xerrors.Errorf("tool %q cannot be canceled on the agent", toolName)
+	}
 	canceled, err := conn.CancelToolCall(ctx, id)
 	if err != nil {
 		return fantasy.ToolResponse{}, xerrors.Errorf("cancel tool call: %w", err)
 	}
-	switch {
-	case toolName == "edit_files" && canceled.Received:
-		return editFilesResponse(canceled.EditFilesResult()), nil
-	case toolName == "write_file" && canceled.Received:
-		return writeFileResponse(canceled.WriteFileResult()), nil
-	case toolName != ExecuteToolName:
-		return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
-	}
-	if canceled.Received {
-		if _, err := canceled.StartProcessResult(); err != nil {
-			return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), nil
+	switch toolName {
+	case EditFilesToolName:
+		if !canceled.Received {
+			return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
 		}
+		return editFilesResponse(canceled.EditFilesResult()), nil
+	case WriteFileToolName:
+		if !canceled.Received {
+			return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
+		}
+		return writeFileResponse(canceled.WriteFileResult()), nil
+	case ExecuteToolName:
+		if canceled.Received {
+			if _, err := canceled.StartProcessResult(); err != nil {
+				return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), nil
+			}
+		}
+		// Read the output even when the agent has no record of the call: a
+		// process started with the tool call ID outlives the record, and the
+		// cancel killed it. The agent responds to the cancel request after it
+		// sends the kill, which can be before the process exits, so wait for
+		// the exit to read all of its output. ctx bounds the wait.
+		output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
+		var sdkErr *codersdk.Error
+		if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			return fantasy.NewTextErrorResponse("not run: canceled before the agent received it"), nil
+		}
+		if err != nil {
+			return fantasy.ToolResponse{}, xerrors.Errorf("read process output: %w", err)
+		}
+		exited := exitedResult(output)
+		if output.Canceled {
+			exited.Success, exited.ExitCode, exited.Error, exited.Canceled = false, -1, "canceled by the user", true
+		}
+		return marshalToolResponse(exited), nil
+	default:
+		return fantasy.ToolResponse{}, xerrors.Errorf("tool %q cannot be canceled on the agent", toolName)
 	}
-	// Read the output even when the agent has no record of the call: a
-	// process started with the tool call ID outlives the record, and the
-	// cancel killed it. The agent responds to the cancel request after it
-	// sends the kill, which can be before the process exits, so wait for
-	// the exit to read all of its output. ctx bounds the wait.
-	output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
-	var sdkErr *codersdk.Error
-	if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-		return fantasy.NewTextErrorResponse("not run: canceled before the agent received it"), nil
+}
+
+// CanCancelToolCall reports whether CancelToolCall can cancel a call of
+// the tool named toolName.
+func CanCancelToolCall(toolName string) bool {
+	switch toolName {
+	case EditFilesToolName, WriteFileToolName, ExecuteToolName:
+		return true
+	default:
+		return false
 	}
-	if err != nil {
-		return fantasy.ToolResponse{}, xerrors.Errorf("read process output: %w", err)
-	}
-	exited := exitedResult(output)
-	if output.Canceled {
-		exited.Success, exited.ExitCode, exited.Error, exited.Canceled = false, -1, "canceled by the user", true
-	}
-	return marshalToolResponse(exited), nil
 }
