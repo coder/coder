@@ -103,7 +103,7 @@ export const AutomationMessages: Story = {
 				[MockChatAutomation.id, MockChatAutomation.name],
 				[mockLongNameAutomation.id, mockLongNameAutomation.name],
 			]),
-			isLoading: false,
+			status: "settled",
 		},
 	},
 };
@@ -114,7 +114,7 @@ export const AutomationMessagesLoading: Story = {
 		...AutomationMessages.args,
 		automationNames: {
 			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
-			isLoading: true,
+			status: "loading",
 		},
 	},
 };

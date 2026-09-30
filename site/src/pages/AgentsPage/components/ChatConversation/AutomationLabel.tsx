@@ -4,24 +4,25 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ChatAutomationNames } from "../../hooks/useChatAutomationNames";
 
 type AutomationLabelProps = {
 	automationId: string;
 	inputId?: string;
 	automationName?: string;
-	isNameLoading?: boolean;
+	nameStatus?: ChatAutomationNames["status"];
 };
 
 export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	automationId,
 	inputId,
 	automationName,
-	isNameLoading = false,
+	nameStatus = "settled",
 }) => {
 	const inputPart = inputId ? ` · input ${inputId.slice(0, 8)}` : "";
 	// Hide the ID while the name may still resolve so the label does not
 	// flash the UUID.
-	const showNameLoading = !automationName && isNameLoading;
+	const showNameLoading = !automationName && nameStatus === "loading";
 	const nameOrId = showNameLoading ? "" : (automationName ?? automationId);
 	return (
 		<Tooltip>
@@ -57,6 +58,8 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 					<div>Automation: {automationName}</div>
 				) : showNameLoading ? (
 					<div>Loading automation name.</div>
+				) : nameStatus === "error" ? (
+					<div>Could not load the automation name.</div>
 				) : (
 					<div>Automation name unavailable.</div>
 				)}

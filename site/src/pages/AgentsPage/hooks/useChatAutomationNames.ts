@@ -4,9 +4,9 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 
 export type ChatAutomationNames = {
 	names: ReadonlyMap<string, string>;
-	// True while the automations list is fetching, so a missing name may
-	// still resolve.
-	isLoading: boolean;
+	// State of the automations list: while "loading" (including refetches)
+	// a missing name may still resolve, and "error" means the list failed.
+	status: "loading" | "error" | "settled";
 };
 
 /**
@@ -32,6 +32,10 @@ export const useChatAutomationNames = (
 				automation.name,
 			]),
 		),
-		isLoading: automationsQuery.isFetching,
+		status: automationsQuery.isFetching
+			? "loading"
+			: automationsQuery.isError
+				? "error"
+				: "settled",
 	};
 };

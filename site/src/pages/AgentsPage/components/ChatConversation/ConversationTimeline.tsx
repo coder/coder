@@ -99,7 +99,7 @@ const ChatMessageItem = memo<{
 	// Durable messages and live assistant output share one rendering path.
 	message?: TypesGen.ChatMessage;
 	automationName?: string;
-	isAutomationNameLoading?: boolean;
+	automationNameStatus?: ChatAutomationNames["status"];
 	parsed?: ParsedMessageContent;
 	liveStatus?: LiveStatusModel;
 	// Live blocks and tools are normalized at the live row callsite, so this
@@ -143,7 +143,7 @@ const ChatMessageItem = memo<{
 		renderKey,
 		message,
 		automationName,
-		isAutomationNameLoading,
+		automationNameStatus,
 		parsed,
 		liveStatus,
 		liveBlocks = [],
@@ -243,7 +243,7 @@ const ChatMessageItem = memo<{
 							automationId={message.automation_id}
 							inputId={message.input_id}
 							automationName={automationName}
-							isNameLoading={isAutomationNameLoading}
+							nameStatus={automationNameStatus}
 						/>
 					</div>
 				)}
@@ -626,10 +626,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 										? automationNames?.names.get(message.automation_id)
 										: undefined
 								}
-								// Only automation rows read the loading state, so other
-								// memoized rows skip re-rendering when fetching toggles.
-								isAutomationNameLoading={
-									message.automation_id ? automationNames?.isLoading : undefined
+								// Only automation rows read the list status, so other
+								// memoized rows skip re-rendering when it changes.
+								automationNameStatus={
+									message.automation_id ? automationNames?.status : undefined
 								}
 								parsed={parsed}
 								onEditUserMessage={isUser ? onEditUserMessage : undefined}

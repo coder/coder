@@ -801,7 +801,7 @@ export const AutomationUserMessages: Story = {
 		),
 		automationNames: {
 			names: new Map([[MockChatAutomation.id, MockChatAutomation.name]]),
-			isLoading: false,
+			status: "settled",
 		},
 	},
 };

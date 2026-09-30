@@ -189,7 +189,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 									automationId={item.automationId}
 									inputId={item.inputId}
 									automationName={automationNames?.names.get(item.automationId)}
-									isNameLoading={automationNames?.isLoading}
+									nameStatus={automationNames?.status}
 								/>
 							</div>
 						)}

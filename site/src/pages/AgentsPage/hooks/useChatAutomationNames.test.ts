@@ -32,17 +32,17 @@ describe("useChatAutomationNames", () => {
 			{},
 		);
 
-		await waitFor(() => expect(result.current.isLoading).toBe(true));
+		await waitFor(() => expect(result.current.status).toBe("loading"));
 		expect(result.current.names.size).toBe(0);
 
 		response.resolve(undefined);
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		await waitFor(() => expect(result.current.status).toBe("settled"));
 		expect(result.current.names.get(MockChatAutomation.id)).toBe(
 			MockChatAutomation.name,
 		);
 	});
 
-	it("does not report loading when the chat-automations experiment is off", async () => {
+	it("reports a settled empty list when the chat-automations experiment is off", async () => {
 		mockExperiments([]);
 
 		const { result } = await renderHookWithAuth(
@@ -50,6 +50,24 @@ describe("useChatAutomationNames", () => {
 			{},
 		);
 
-		expect(result.current).toEqual({ names: new Map(), isLoading: false });
+		expect(result.current).toEqual({ names: new Map(), status: "settled" });
+	});
+
+	it("reports an error when the automations list fails", async () => {
+		mockExperiments(["chat-automations"]);
+		server.use(
+			http.get(
+				"/api/experimental/organizations/:organizationId/chat-automations",
+				() => HttpResponse.json({ message: "boom" }, { status: 500 }),
+			),
+		);
+
+		const { result } = await renderHookWithAuth(
+			() => useChatAutomationNames("test-org-id", true),
+			{},
+		);
+
+		await waitFor(() => expect(result.current.status).toBe("error"));
+		expect(result.current.names.size).toBe(0);
 	});
 });
