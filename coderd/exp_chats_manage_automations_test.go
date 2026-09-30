@@ -52,20 +52,15 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		return chat.ManageAutomationsEnabled
 	}
 
-	t.Run("CreateDefaultsOff", func(t *testing.T) {
+	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		chat, err := memberClient.CreateChat(ctx, createRequest(nil, false))
 		require.NoError(t, err)
-		require.False(t, switchState(ctx, t, chat.ID))
-	})
+		require.False(t, switchState(ctx, t, chat.ID), "the switch defaults to off")
 
-	t.Run("CreateOn", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		chat, err := memberClient.CreateChat(ctx, createRequest(nil, true))
+		chat, err = memberClient.CreateChat(ctx, createRequest(nil, true))
 		require.NoError(t, err)
 		require.True(t, chat.ManageAutomationsEnabled)
 		require.True(t, switchState(ctx, t, chat.ID))

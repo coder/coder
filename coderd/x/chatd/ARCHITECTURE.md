@@ -485,7 +485,7 @@ This endpoint never sets an admission callback. Automations create chats with th
 
 No other input states are supported.
 
-The request can turn on `manage_automations_enabled`, the interim per-chat switch that offers the [`manage_automations` tool](#the-manage_automations-tool). The switch defaults to off. Turning it on requires the `chat-automations` experiment for the chat owner, which is the resolved `owner_id` rather than the caller, and the endpoint returns 400 otherwise. A creator acting through `owner_id` may set the switch at creation.
+The request can turn on `manage_automations_enabled`, the interim per-chat switch that offers the [`manage_automations` tool](#the-manage_automations-tool). The switch defaults to off. Turning it on returns 400 unless the `chat-automations` experiment is on for the chat owner, which is the resolved `owner_id` rather than the caller, so a creator acting through `owner_id` may set it for an owner who has the experiment.
 
 ### `PATCH /api/v2/chats/{chat}`
 
@@ -504,7 +504,7 @@ If the request does not change `archived`, this endpoint doesn't emit any state 
 
 Other execution-state classes are not supported for archive/unarchive.
 
-`manage_automations_enabled` updates write the switch directly and emit no state transition. Only the chat owner may change the switch: an administrator who may update the chat gets 403 for this field, checked before any other field of the request is written. Turning the switch on returns 400 for a sub-agent chat and 400 when the `chat-automations` experiment is off for the chat owner. Turning it off is always accepted, so the switch can be cleared with the experiment off. The audit entry of the update tracks the switch.
+`manage_automations_enabled` updates write the switch directly and emit no state transition. Only the chat owner may change the switch: any other caller who may update the chat, such as an administrator, gets 403. The endpoint checks this, and the rules for turning the switch on, before it writes any field of the request. Turning the switch on returns 400 for a sub-agent chat or when the `chat-automations` experiment is off for the chat owner. Turning it off is always accepted, even with the experiment off. The audit entry of the update tracks the switch.
 
 ### `POST /api/v2/chats/{chat}/messages`
 
@@ -1116,17 +1116,17 @@ A chat that a `new_chat` automation creates this way is titled with the automati
 
 ## The `manage_automations` tool
 
-The `manage_automations` tool lets the agent of a chat manage the chat owner's automations. It supports `list`, `get`, `disable`, and `delete`. The tool rejects `create`, `update`, `enable`, and `run_now` with an error saying they are not available in this version, and does not list them in its schema.
+The `manage_automations` tool lets the agent of a chat manage the chat owner's automations. It supports `list`, `get`, `disable`, and `delete`. Its schema does not list `create`, `update`, `enable`, or `run_now`, and it rejects them with an error saying they are not available in this version.
 
 Generation preparation offers the tool only when every rule holds: the chat is a root chat, it is not in plan mode, it is not an explore sub-agent, it is not archived, `manage_automations_enabled` is on, and the `chat-automations` experiment is on for the chat owner. The experiment is decided once per turn, keyed by the turn's prompt row like the `mcp-tool-search` decision. The plan-mode and explore allowlists do not include the tool, and sub-agent chats are created with the switch off, so they never inherit it.
 
-Every call reloads the chat as chatd and checks all of these rules again, deciding the experiment fresh instead of reusing the turn's decision. If any rule fails, the call returns a tool error and changes nothing, so turning the switch or the experiment off takes effect at the next call of a running turn.
+Every call reloads the chat as chatd and checks all of these rules again, evaluating the experiment fresh. If any rule fails, the call returns a tool error and changes nothing, so turning the switch or the experiment off takes effect at the next call of a running turn.
 
-The owner and organization always come from the chat row; the tool arguments carry only the action and an automation id. Reads and writes run as the chat owner. `list` reads the owner's automations in the chat's organization. `get`, `disable`, and `delete` load the automation by id and report it as not found unless its owner and organization match the chat's, even when the owner could read or delete it as an organization administrator, so the tool never reveals whether another member's automation exists. `disable` uses the same update path as the management API, and `delete` uses the same delete path. Results use the API shape of an automation, which carries no webhook secret or secret hash.
+The owner and organization always come from the chat row; the tool arguments carry only the action and an automation id. Reads and writes run as the chat owner. `list` reads the owner's automations in the chat's organization. `get`, `disable`, and `delete` load the automation by id and report it as not found unless its owner and organization match the chat's, even when the owner could act on it as an organization administrator, so the tool never reveals whether another member's automation exists. `disable` uses the same update path as the management API, and `delete` uses the same delete path. Results use the API shape of an automation, which carries no webhook secret or secret hash.
 
-A turn that an automation reached sees fewer automations. The tool loads the full chat history, because compaction replays unanswered user rows without their `automation_id`, and looks at the latest user prompt, the contiguous user rows before it back to the previous assistant or tool row, and any user rows after it. The turn is reached when any of these rows carries an `automation_id`, and the latest such row is the trigger. A human message sent right after an automation message, with no response in between, therefore also counts as reached; this errs on the restrictive side. In a reached turn, only automations that target this chat (`existing_chat` with this chat as the target) and the automation that created this chat (`chats.automation_id`) are visible. `list` leaves the others out, and `get`, `disable`, and `delete` report them as not found.
+A turn that an automation reached sees fewer automations. The tool loads the full chat history, because compaction replays unanswered user rows without their `automation_id`. The turn is the latest user prompt, the contiguous user rows before it back to the previous assistant or tool row, and any user rows after it. The latest of these rows that carries an `automation_id` is the trigger, so a human message sent right after an automation message, with no response in between, also counts as reached; this errs on the restrictive side. In a reached turn, only automations that target this chat (`existing_chat` with this chat as the target) and the automation that created this chat (`chats.automation_id`) are visible. `list` leaves the others out, and `get`, `disable`, and `delete` report them as not found.
 
-`disable` and `delete` record an audit entry for the automation with the old and new rows. The entry is attributed to the chat owner, whose permissions the change ran with, and its additional fields carry `chat_id`, the calling chat. In a reached turn they also carry `automation_id` and `input_id` of the trigger.
+`disable` and `delete` record an audit entry for the automation with the old and new rows. The entry is attributed to the chat owner, whose permissions the change ran with. Its additional fields carry `chat_id` of the calling chat and, in a reached turn, `automation_id` and `input_id` of the trigger.
 
 ## Manual compaction
 

@@ -310,11 +310,10 @@ func TestManageAutomationsTool(t *testing.T) {
 					ManageAutomationsEnabled: true,
 				}).ID
 			}},
-			{name: "ExploreSubagentChat", revoke: func(_ context.Context, t *testing.T, f manageAutomationsFixture) uuid.UUID {
+			{name: "ExploreModeChat", revoke: func(_ context.Context, t *testing.T, f manageAutomationsFixture) uuid.UUID {
+				// A root chat, so only the explore rule can reject the call.
 				return dbgen.Chat(t, f.db, database.Chat{
 					OrganizationID: f.org.ID, OwnerID: f.owner.ID, LastModelConfigID: f.model.ID,
-					ParentChatID:             uuid.NullUUID{UUID: f.chat.ID, Valid: true},
-					RootChatID:               uuid.NullUUID{UUID: f.chat.ID, Valid: true},
 					Mode:                     database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true},
 					ManageAutomationsEnabled: true,
 				}).ID

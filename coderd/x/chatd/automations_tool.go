@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
 	"charm.land/fantasy"
@@ -34,8 +35,8 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"When the current turn was started by an automation, only automations that target this chat " +
 	"or that created this chat are visible."
 
-// manageAutomationsLaterActions are actions the tool describes in a later
-// version. They return a clear error instead of an unknown-action error.
+// manageAutomationsLaterActions return a clear error instead of an
+// unknown-action error until a later version supports them.
 var manageAutomationsLaterActions = []string{"create", "update", "enable", "run_now"}
 
 var errManageAutomationsNotFound = xerrors.New("automation not found")
@@ -46,41 +47,29 @@ type manageAutomationsArgs struct {
 }
 
 // automationTurnTrigger identifies the automation input that reached the
-// current turn. The zero value means a human reached it.
+// current turn. An invalid AutomationID means a human reached it.
 type automationTurnTrigger struct {
 	AutomationID uuid.NullUUID
 	InputID      uuid.NullUUID
 }
 
-func (t automationTurnTrigger) reached() bool {
-	return t.AutomationID.Valid
-}
-
-// automationTurnTriggerFromHistory reports whether an automation reached
-// the current turn. messages is the chat's full, ordered history; the
-// prompt window is not enough because compaction replays pending user
-// rows without their automation_id. The turn consists of the latest
-// user prompt, the contiguous user rows before it back to the previous
-// assistant or tool row, and any user rows after it. The turn is reached
-// when any of them carries an automation_id, and the latest such row is
-// the trigger.
-//
-// A human message sent right after an automation message, with no
-// response in between, therefore also counts as reached. That errs on
-// the restrictive side: the turn may contain automation input.
+// automationTurnTriggerFromHistory returns the automation input that
+// reached the current turn. messages is the chat's full, ordered history:
+// the prompt window is not enough because compaction replays pending user
+// rows without their automation_id. The turn is the latest user prompt,
+// the contiguous user rows before it back to the previous assistant or
+// tool row, and any user rows after it. The latest of these rows that
+// carries an automation_id is the trigger, so a human message sent right
+// after an automation message, with no response in between, also counts
+// as reached. That errs on the restrictive side.
 func automationTurnTriggerFromHistory(messages []database.ChatMessage) automationTurnTrigger {
-	promptIndex := lastUserPromptIndex(messages)
-	if promptIndex == -1 {
+	start := lastUserPromptIndex(messages)
+	if start == -1 {
 		return automationTurnTrigger{}
 	}
-	start := promptIndex
 	for start > 0 {
 		row := messages[start-1]
-		if row.Deleted || row.Compressed {
-			start--
-			continue
-		}
-		if row.Role != database.ChatMessageRoleUser {
+		if !row.Deleted && !row.Compressed && row.Role != database.ChatMessageRoleUser {
 			break
 		}
 		start--
@@ -101,13 +90,10 @@ func automationTurnTriggerFromHistory(messages []database.ChatMessage) automatio
 // chat-automations experiment. experimentEnabled is called last, only
 // when every other rule holds, because it may read the database.
 func manageAutomationsAllowed(chat database.Chat, experimentEnabled func() bool) bool {
-	if chat.ParentChatID.Valid || chat.Archived || !chat.ManageAutomationsEnabled {
+	if chat.ParentChatID.Valid || chat.Archived || !chat.ManageAutomationsEnabled || isExploreSubagentMode(chat.Mode) {
 		return false
 	}
 	if chat.PlanMode.Valid && chat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
-		return false
-	}
-	if isExploreSubagentMode(chat.Mode) {
 		return false
 	}
 	return experimentEnabled()
@@ -136,10 +122,8 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 	switch action {
 	case "list", "get", "disable", "delete":
 	default:
-		for _, later := range manageAutomationsLaterActions {
-			if action == later {
-				return nil, xerrors.Errorf("action %q is not available in this version", action)
-			}
+		if slices.Contains(manageAutomationsLaterActions, action) {
+			return nil, xerrors.Errorf("action %q is not available in this version", action)
 		}
 		return nil, xerrors.Errorf("unknown action %q: use list, get, disable, or delete", action)
 	}
@@ -230,7 +214,7 @@ func manageAutomationsVisible(chat database.Chat, trigger automationTurnTrigger,
 	if row.OwnerID != chat.OwnerID || row.OrganizationID != chat.OrganizationID {
 		return false
 	}
-	if !trigger.reached() {
+	if !trigger.AutomationID.Valid {
 		return true
 	}
 	targetsChat := row.TargetMode == database.ChatAutomationTargetModeExistingChat &&
@@ -278,10 +262,8 @@ func (p *Server) auditManageAutomations(ctx context.Context, chat database.Chat,
 	if trigger.InputID.Valid {
 		fields["input_id"] = trigger.InputID.UUID.String()
 	}
-	raw, err := json.Marshal(fields)
-	if err != nil {
-		raw = nil
-	}
+	// Marshaling a map of strings cannot fail.
+	raw, _ := json.Marshal(fields)
 	status := http.StatusOK
 	if action == database.AuditActionDelete {
 		status = http.StatusNoContent
