@@ -824,8 +824,9 @@ func committedPendingLocalToolCancellationMessages(
 		if !ok {
 			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)
 		}
-		// Cap the result as chatloop caps tool results. The model's context
-		// window is not known here, so use the default budget.
+		// Cap the result as chatloop caps tool results. An interrupted result is
+		// at most an execute result (the agent keeps 32 KB of output) or a short
+		// edit or write result, so the 64 KB default budget does not cut it.
 		text, _ := chatloop.TruncateToolResultText(resp.Content, chatloop.ToolResultByteBudget(0))
 		var output fantasy.ToolResultOutputContent = fantasy.ToolResultOutputContentText{Text: text}
 		if resp.IsError {
