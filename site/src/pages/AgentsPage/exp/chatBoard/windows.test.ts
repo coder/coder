@@ -129,7 +129,7 @@ describe("window list", () => {
 		expect(dismissTop([win("a"), win("b")])).toEqual([win("a")]);
 	});
 
-	it("minimizes to the end of the list, so tabs keep their order", () => {
+	it("minimizes to the end of the list, keeping minimize order", () => {
 		const list = [win("a"), win("b"), win("c")];
 
 		const minimized = minimizeWindow(list, "a");

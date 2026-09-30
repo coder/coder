@@ -37,6 +37,10 @@
 			"reasoningEffort": "high"
 		},
 		{
+			"modelIdentifier": "claude-sonnet-5-5",
+			"reasoningEffort": "high"
+		},
+		{
 			"modelIdentifier": "claude-sonnet-5",
 			"reasoningEffort": "high"
 		},
@@ -74,6 +78,9 @@
 			"modelIdentifier": "claude-opus-5"
 		},
 		{
+			"modelIdentifier": "claude-sonnet-5-5"
+		},
+		{
 			"modelIdentifier": "claude-sonnet-5"
 		},
 		{
@@ -90,6 +97,9 @@
 		},
 		{
 			"modelIdentifier": "gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "gpt-6.1-sol"
 		},
 		{
 			"modelIdentifier": "gpt-6-sol"
@@ -126,6 +136,9 @@
 		{
 			"modelIdentifier": "anthropic.claude-haiku-4-5-20251001-v1:0",
 			"aliases": ["global.anthropic.claude-haiku-4-5-20251001-v1:0"]
+		},
+		{
+			"modelIdentifier": "global.anthropic.claude-sonnet-5-5"
 		},
 		{
 			"modelIdentifier": "anthropic.claude-sonnet-5",
@@ -189,6 +202,10 @@
 			"reasoningEffort": "medium"
 		},
 		{
+			"modelIdentifier": "gpt-6.1-sol",
+			"reasoningEffort": "medium"
+		},
+		{
 			"modelIdentifier": "gpt-6-sol",
 			"reasoningEffort": "medium"
 		},
@@ -235,6 +252,9 @@
 	"openrouter": [
 		{
 			"modelIdentifier": "openai/gpt-6-astra"
+		},
+		{
+			"modelIdentifier": "openai/gpt-6.1-sol"
 		},
 		{
 			"modelIdentifier": "openai/gpt-6-sol"
@@ -286,6 +306,9 @@
 		},
 		{
 			"modelIdentifier": "anthropic/claude-opus-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-5.5"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-sonnet-5"
@@ -345,6 +368,9 @@
 			"modelIdentifier": "openai/gpt-6-astra"
 		},
 		{
+			"modelIdentifier": "openai/gpt-6.1-sol"
+		},
+		{
 			"modelIdentifier": "openai/gpt-6-sol"
 		},
 		{
@@ -394,6 +420,9 @@
 		},
 		{
 			"modelIdentifier": "anthropic/claude-opus-5"
+		},
+		{
+			"modelIdentifier": "anthropic/claude-sonnet-5.5"
 		},
 		{
 			"modelIdentifier": "anthropic/claude-sonnet-5"
