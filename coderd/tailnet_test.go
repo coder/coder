@@ -110,7 +110,7 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
 
 	// A second failure reads diagnostics again, so the first read released
-	// the gate.
+	// the slot.
 	dialCtx, dialCancel = context.WithTimeout(ctx, testutil.IntervalSlow)
 	defer dialCancel()
 	_, _, err = serverTailnet.AgentConn(dialCtx, uuid.New())

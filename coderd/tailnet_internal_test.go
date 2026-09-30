@@ -1,7 +1,9 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
@@ -17,6 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/slogjson"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
@@ -129,6 +132,7 @@ func newTestServerTailnet(t *testing.T, read func(uuid.UUID) tailnet.PeerDiagnos
 	registry := prometheus.NewRegistry()
 	require.NoError(t, registry.Register(counter))
 	return &ServerTailnet{
+		clock:               quartz.NewReal(),
 		agentUnreachable:    counter,
 		readPeerDiagnostics: read,
 		peerDiagnosticsSlot: make(chan struct{}, 1),
@@ -143,29 +147,69 @@ func TestRecordAgentUnreachable_DiagnosticsWait(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	readStarted := make(chan struct{}, 2)
+	release := make(chan struct{})
 	s, registry := newTestServerTailnet(t, func(uuid.UUID) tailnet.PeerDiagnostics {
+		readStarted <- struct{}{}
+		<-release
 		return tailnet.PeerDiagnostics{ReceivedNode: &tailcfg.Node{}}
 	})
+	// The mock clock never fires the timeout, so the second failure can only
+	// finish by getting the slot.
+	clock := quartz.NewMock(t)
+	s.clock = clock
+	trap := clock.Trap().NewTimer("peerDiagnostics")
+	defer trap.Close()
 
-	// Another read holds the slot when this failure arrives, and releases it
-	// before the timeout, so the caller still reads the peer state.
-	s.peerDiagnosticsSlot <- struct{}{}
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
 	go func() {
 		errCh <- s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
 	}()
-	<-s.peerDiagnosticsSlot
+	trap.MustWait(ctx).MustRelease(ctx)
+	testutil.RequireReceive(ctx, t, readStarted)
 
-	err := testutil.RequireReceive(ctx, t, errCh)
-	var unreachable *workspaceapps.AgentUnreachableError
-	require.ErrorAs(t, err, &unreachable)
-	got := fieldMap(unreachable.Fields)
-	require.Equal(t, "no_handshake", got["reason"])
-	require.Equal(t, true, got["peer_node_received"])
+	go func() {
+		errCh <- s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	}()
+	trap.MustWait(ctx).MustRelease(ctx)
+	close(release)
+
+	for range 2 {
+		err := testutil.RequireReceive(ctx, t, errCh)
+		var unreachable *workspaceapps.AgentUnreachableError
+		require.ErrorAs(t, err, &unreachable)
+		require.Equal(t, "no_handshake", fieldMap(unreachable.Fields)["reason"])
+	}
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "no_handshake"))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 2, "agent_unreachable_total", "no_handshake"))
+}
+
+func TestRecordAgentUnreachable_NoRequestLogger(t *testing.T) {
+	t.Parallel()
+
+	s, _ := newTestServerTailnet(t, noPeerDiagnostics)
+	var logs bytes.Buffer
+	s.logger = slog.Make(slogjson.Sink(&logs))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = s.recordAgentUnreachable(ctx, uuid.New(), 100*time.Millisecond)
+	require.Empty(t, logs.String())
+
+	agentID := uuid.New()
+	_ = s.recordAgentUnreachable(testutil.Context(t, testutil.WaitShort), agentID, time.Second)
+	var entry struct {
+		Level  string         `json:"level"`
+		Msg    string         `json:"msg"`
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	require.Equal(t, "WARN", entry.Level)
+	require.Equal(t, "agent is unreachable", entry.Msg)
+	require.Equal(t, agentID.String(), entry.Fields["agent_id"])
+	require.Equal(t, "no_node", entry.Fields["reason"])
 }
 
 func TestRecordAgentUnreachable_ClientCanceled(t *testing.T) {
@@ -199,27 +243,50 @@ func TestReportProxyDialFailure_PooledConn(t *testing.T) {
 
 	s, registry := newTestServerTailnet(t, noPeerDiagnostics)
 
-	// The director installs the trace, and the transport calls GotConn once
-	// the request is on a connection, pooled or not.
 	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1", nil)
 	s.director(uuid.New(), func(*http.Request) {})(req)
-	ctx := req.Context()
+	ctx, cancel := context.WithCancel(req.Context())
 	ds := dialStateFromContext(ctx)
 	require.NotNil(t, ds)
-	require.False(t, ds.hadConn())
-	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
-	require.True(t, ds.hadConn())
 
 	// The dial started for this request is still waiting on the agent, but
-	// the error is from the pooled connection.
-	ds.set(dialPhaseAwaitReachable)
-	connErr := xerrors.New("connection reset by peer")
-	err := s.reportProxyDialFailure(ctx, uuid.New(), connErr)
-	require.Same(t, connErr, err)
+	// the transport gave the request a pooled connection and the error is
+	// from that connection.
+	ds.startDial()
+	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
+	require.True(t, ds.hadConn())
+	cancel()
+	err := s.reportProxyDialFailure(ctx, uuid.New(), context.Canceled)
+	require.Same(t, context.Canceled, err)
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
 	require.Empty(t, metrics)
+}
+
+func TestReportProxyDialFailure_RetryDial(t *testing.T) {
+	t.Parallel()
+
+	s, registry := newTestServerTailnet(t, noPeerDiagnostics)
+
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1", nil)
+	s.director(uuid.New(), func(*http.Request) {})(req)
+	ctx, cancel := context.WithCancel(req.Context())
+	ds := dialStateFromContext(ctx)
+	require.NotNil(t, ds)
+
+	// The pooled connection failed and the transport retried on a new dial,
+	// which is still waiting on the agent when the request ends.
+	httptrace.ContextClientTrace(ctx).GotConn(httptrace.GotConnInfo{Reused: true})
+	ds.startDial()
+	require.False(t, ds.hadConn())
+	cancel()
+	err := s.reportProxyDialFailure(ctx, uuid.New(), context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "client_canceled"))
 }
 
 func TestReportProxyDialFailure_DialTimedOut(t *testing.T) {
@@ -260,7 +327,7 @@ func TestReportProxyDialFailure_CoordinatorError(t *testing.T) {
 	require.Empty(t, metrics)
 }
 
-func TestRecordAgentUnreachable_DiagnosticsGate(t *testing.T) {
+func TestRecordAgentUnreachable_DiagnosticsSlot(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)

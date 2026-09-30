@@ -83,8 +83,9 @@ type AgentProvider interface {
 }
 
 // AgentUnreachableError is returned by AgentProvider.AgentConn when the agent
-// did not answer before the context ended. Fields holds the peer diagnostics
-// collected at that time. Callers that log the failure should include them.
+// did not answer before the context ended, unless the client canceled within
+// 5s. Fields holds the peer diagnostics collected at that time. Callers that
+// log the failure should include them.
 type AgentUnreachableError struct {
 	Fields []slog.Field
 }

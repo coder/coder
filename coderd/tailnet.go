@@ -79,7 +79,7 @@ func NewServerTailnet(
 		Namespace: "coder",
 		Subsystem: "servertailnet",
 		Name:      "derp_connects_total",
-		Help:      "Number of times the server tailnet connected to the embedded DERP relay. It reads 1 after startup, rises when that connection is rebuilt, and stays 0 when the embedded relay is disabled.",
+		Help:      "Number of times the server tailnet connected to the embedded DERP relay.",
 	})
 
 	// This is set to allow local DERP traffic to be proxied through memory
@@ -124,6 +124,7 @@ func NewServerTailnet(
 		controller:          controller,
 		coordCtrl:           coordCtrl,
 		transport:           tailnetTransport.Clone(),
+		clock:               quartz.NewReal(),
 		readPeerDiagnostics: conn.GetPeerDiagnostics,
 		peerDiagnosticsSlot: make(chan struct{}, 1),
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -143,13 +144,13 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node (the coordinator never sent the agent node), peer_lost (the coordinator reported the agent lost or the coordination stream ended), no_handshake (the node arrived but WireGuard never completed a handshake), handshake_stale (the last handshake is older than 180s), handshake_ok (the last handshake is under 180s old, so the failure is above WireGuard), diagnostics_timeout (the peer state could not be read within 1s), or client_canceled (the client left within 5s).",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time, by reason: no_node, peer_lost, no_handshake, handshake_stale, handshake_ok, diagnostics_timeout, or client_canceled.",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "await_reachable_seconds",
-			Help:      "Time until a workspace agent answered the first ping when a new connection was opened. A shift toward the upper buckets before agents become unreachable is the early sign of a slow loss of reachability, and the 5s client_canceled cutoff assumes most values are well under it.",
+			Help:      "Time until a workspace agent answered the first ping when a new connection was opened.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}),
 	}
@@ -215,6 +216,7 @@ type ServerTailnet struct {
 	coordCtrl  *MultiAgentController
 
 	transport *http.Transport
+	clock     quartz.Clock
 
 	connsPerAgent    *prometheus.GaugeVec
 	totalConns       *prometheus.CounterVec
@@ -379,6 +381,20 @@ func (d *dialState) get() (dialPhase, time.Duration) {
 	return d.phase, time.Since(d.since)
 }
 
+// startDial marks the start of a dial. A dial that starts after GotConn is the
+// transport retrying on a new connection, so the earlier connection no longer
+// explains a failure.
+func (d *dialState) startDial() {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.phase = dialPhaseAwaitReachable
+	d.since = time.Now()
+	d.gotConn = false
+}
+
 func (d *dialState) markGotConn() {
 	if d == nil {
 		return
@@ -412,7 +428,7 @@ func (s *ServerTailnet) dialContext(ctx context.Context, network, addr string) (
 	// request goroutine when the request ends, which can be before this dial
 	// returns, so this path uses acquireAgent, which neither logs nor counts.
 	ds := dialStateFromContext(ctx)
-	ds.set(dialPhaseAwaitReachable)
+	ds.startDial()
 	conn, release, err := s.acquireAgent(ctx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("acquire agent conn: %w", err)
@@ -568,6 +584,10 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 
 	if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
 		rl.WithFields(fields...)
+	} else if !clientCanceled {
+		// Callers such as chatd have no request log line, so without this the
+		// counter rises with no record of which agent failed.
+		s.logger.Warn(ctx, "agent is unreachable", fields...)
 	}
 	if clientCanceled {
 		return xerrors.New("agent is unreachable: client canceled")
@@ -580,7 +600,7 @@ func (s *ServerTailnet) recordAgentUnreachable(ctx context.Context, agentID uuid
 // one read runs at a time and other callers wait for the slot within the
 // same timeout instead of each parking a goroutine on the lock.
 func (s *ServerTailnet) peerDiagnostics(agentID uuid.UUID) (tailnet.PeerDiagnostics, bool) {
-	timeout := time.NewTimer(peerDiagnosticsTimeout)
+	timeout := s.clock.NewTimer(peerDiagnosticsTimeout, "peerDiagnostics")
 	defer timeout.Stop()
 	select {
 	case s.peerDiagnosticsSlot <- struct{}{}:
@@ -633,8 +653,12 @@ func unreachableFields(d tailnet.PeerDiagnostics) []slog.Field {
 // limit means our handshakes went unanswered while we waited.
 func unreachableReason(d tailnet.PeerDiagnostics, now time.Time) string {
 	switch {
+	// The node was never received, or was removed after a disconnect or a
+	// lost timeout.
 	case d.ReceivedNode == nil:
 		return "no_node"
+	// The agent's coordinator connection dropped, or this server's connection
+	// to the coordinator ended.
 	case d.Lost:
 		return "peer_lost"
 	case d.LastWireguardHandshake.IsZero():
