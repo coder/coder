@@ -7,12 +7,14 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChat,
 	MockChatAutomation,
+	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
+import { MessageScroller } from "#/vendor/message-scroller";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput } from "./ChatPageContent";
+import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
@@ -221,4 +223,59 @@ describe("ChatPageInput", () => {
 			expect(getChatAutomations).not.toHaveBeenCalled();
 		},
 	);
+});
+
+describe("ChatPageTimeline", () => {
+	it("labels automation messages in history by automation name, or by ID once the automation is deleted", async () => {
+		useExperiments(["chat-automations"]);
+		server.use(
+			http.get(
+				"/api/experimental/organizations/:organizationId/chat-automations",
+				() => HttpResponse.json([MockChatAutomation]),
+			),
+		);
+		const store = createChatStore();
+		store.replaceMessages([
+			{
+				...MockChatMessage,
+				id: 1,
+				automation_id: MockChatAutomation.id,
+				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+			},
+			{ ...MockChatMessage, id: 2 },
+			{
+				...MockChatMessage,
+				id: 3,
+				automation_id: deletedAutomationId,
+				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
+			},
+		]);
+
+		renderWithAuth(
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="test-org-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={async () => {}}
+				/>
+			</MessageScroller.Provider>,
+		);
+
+		await screen.findByRole("button", {
+			name: "Automation run · CI heartbeat · input 0b6c4e2a",
+		});
+		expect(
+			screen
+				.getAllByRole("button", { name: /^Automation run/ })
+				.map((label) => label.textContent),
+		).toEqual([
+			"Automation run · CI heartbeat · input 0b6c4e2a",
+			`Automation run · ${deletedAutomationId} · input 9a8b7c6d`,
+		]);
+	});
 });

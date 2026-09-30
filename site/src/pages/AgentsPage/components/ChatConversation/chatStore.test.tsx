@@ -1847,9 +1847,17 @@ describe("useChatStore", () => {
 		expect(cachedData?.pages[0]?.queued_messages).toEqual([]);
 	});
 
+	const queuedAutomationInput: TypesGen.ChatQueuedMessage = {
+		...buildQueuedMessage("chat-1", 10, "nightly"),
+		automation_id: "automation-1",
+		input_id: "input-1",
+	};
+
 	it.each<{
 		name: string;
+		initialQueued?: TypesGen.ChatQueuedMessage[];
 		event: TypesGen.ChatStreamEvent;
+		rows: number;
 		refreshesNames: boolean;
 	}>([
 		{
@@ -1863,6 +1871,7 @@ describe("useChatStore", () => {
 					input_id: "input-1",
 				},
 			},
+			rows: 2,
 			refreshesNames: true,
 		},
 		{
@@ -1870,15 +1879,26 @@ describe("useChatStore", () => {
 			event: {
 				type: "queue_update",
 				chat_id: "chat-1",
+				queued_messages: [queuedAutomationInput],
+			},
+			rows: 2,
+			refreshesNames: true,
+		},
+		{
+			// Queue updates that only repeat known automation input, for
+			// example when an ordinary message is queued, do not refetch.
+			name: "a queue update with already queued automation input",
+			initialQueued: [queuedAutomationInput],
+			event: {
+				type: "queue_update",
+				chat_id: "chat-1",
 				queued_messages: [
-					{
-						...buildQueuedMessage("chat-1", 10, "nightly"),
-						automation_id: "automation-1",
-						input_id: "input-1",
-					},
+					queuedAutomationInput,
+					buildQueuedMessage("chat-1", 11, "hi"),
 				],
 			},
-			refreshesNames: true,
+			rows: 3,
+			refreshesNames: false,
 		},
 		{
 			name: "an ordinary live message",
@@ -1887,11 +1907,12 @@ describe("useChatStore", () => {
 				chat_id: "chat-1",
 				message: buildMessage("chat-1", 2, "user", "hi"),
 			},
+			rows: 2,
 			refreshesNames: false,
 		},
 	])(
 		"refreshes automation names on $name: $refreshesNames",
-		async ({ event, refreshesNames }) => {
+		async ({ initialQueued = [], event, rows, refreshesNames }) => {
 			immediateAnimationFrame();
 			const chatID = "chat-1";
 			const existingMessage = buildMessage(chatID, 1, "user", "hello");
@@ -1911,10 +1932,10 @@ describe("useChatStore", () => {
 						chatRecord: buildChat(chatID),
 						chatMessagesData: {
 							messages: [existingMessage],
-							queued_messages: [],
+							queued_messages: initialQueued,
 							has_more: false,
 						},
-						chatQueuedMessages: [],
+						chatQueuedMessages: initialQueued,
 						setChatErrorReason: vi.fn(),
 						clearChatErrorReason: vi.fn(),
 					});
@@ -1936,7 +1957,7 @@ describe("useChatStore", () => {
 
 			await waitFor(() => {
 				expect(result.current.messageCount + result.current.queuedCount).toBe(
-					2,
+					rows,
 				);
 			});
 			expect(
