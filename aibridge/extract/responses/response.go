@@ -72,7 +72,11 @@ type ResponseExtraction struct {
 	outcome extract.Outcome
 	// recorded is set once a terminal response object was recorded.
 	recorded bool
-	notes    extract.ParseNotes
+	// settled is set once any terminal event, response object or error,
+	// was observed. Later errors are parse notes and do not change the
+	// outcome.
+	settled bool
+	notes   extract.ParseNotes
 }
 
 var _ extract.ResponseExtraction = (*ResponseExtraction)(nil)
@@ -207,6 +211,7 @@ func (e *ResponseExtraction) finish(status extract.TerminalStatus, r gjson.Resul
 		return
 	}
 	e.recorded = true
+	e.settled = true
 	e.observeResponseID(r)
 
 	e.outcome.Terminal = extract.Terminal{Status: status}
@@ -251,6 +256,11 @@ func (e *ResponseExtraction) finish(status extract.TerminalStatus, r gjson.Resul
 // streamError handles an "error" event. The fields may be top level or
 // nested under "error", optionally with an HTTP "status" (WebSocket mode).
 func (e *ResponseExtraction) streamError(ev gjson.Result) {
+	if e.settled {
+		e.notes.Addf(e.ctx, "skipped error event: response already ended")
+		return
+	}
+	e.settled = true
 	obj := ev
 	if nested := ev.Get("error"); nested.IsObject() {
 		obj = nested
@@ -266,6 +276,11 @@ func (e *ResponseExtraction) streamError(ev gjson.Result) {
 
 // httpError handles a 4xx or 5xx body, normally {"error": {...}}.
 func (e *ResponseExtraction) httpError(status int, raw []byte) {
+	if e.settled {
+		e.notes.Addf(e.ctx, "skipped error body (status %d): response already ended", status)
+		return
+	}
+	e.settled = true
 	var errObj gjson.Result
 	switch {
 	case len(raw) == 0:

@@ -41,6 +41,16 @@ func TestSSEStream(t *testing.T) {
 			want: []string{"next=ok"},
 		},
 		{
+			// The event name counts toward the bound: a large name plus
+			// data that fits alone still exceeds it.
+			name: "oversized_event_name_skipped",
+			writes: []string{
+				"event: " + oversized[:len(oversized)/2] + "\ndata: " + oversized[:len(oversized)/2+8] + "\n\n",
+				"event: next\ndata: ok\n\n",
+			},
+			want: []string{"next=ok"},
+		},
+		{
 			// An event without its terminating blank line is not
 			// dispatched when the stream ends.
 			name:   "unterminated_event_dropped",

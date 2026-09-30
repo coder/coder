@@ -12,7 +12,8 @@
 // transport adapters for SSE streams and complete bodies.
 //
 // Bodies are passed as []byte: callers fill one reusable buffer once and
-// share it between forwarding and extraction.
+// share it between forwarding and extraction. Accepting a streaming
+// io.Reader for large bodies is a possible future direction.
 package extract
 
 const (

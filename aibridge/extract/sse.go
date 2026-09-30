@@ -81,7 +81,9 @@ func (s *SSEStream) Close() error {
 }
 
 func (s *SSEStream) appendPartial(p []byte) {
-	if !s.skipping && len(s.line)+len(s.data)+len(p) > MaxEventBytes {
+	// The event name counts toward the bound: it is dispatched with the
+	// event.
+	if !s.skipping && len(s.eventType)+len(s.line)+len(s.data)+len(p) > MaxEventBytes {
 		s.startSkipping()
 	}
 	if s.skipping {

@@ -262,6 +262,18 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 			wantUsage: true, wantID: "resp_ws",
 		},
 		{
+			// Errors after the terminal event are parse notes: the
+			// completed outcome stays settled.
+			name: "error_after_terminal",
+			run: func(h harness) {
+				h.ext.OnEvent("", completed)
+				h.ext.OnEvent("", []byte(`{"type":"error","code":"server_error","message":"late"}`))
+				h.ext.ProcessBlocking(http.StatusInternalServerError, []byte(`{"error":{"message":"late"}}`))
+				require.Equal(t, extract.TerminalCompleted, h.ext.Outcome().Terminal.Status)
+			},
+			wantUsage: true, wantID: "resp_ws",
+		},
+		{
 			// A stream cut mid-event keeps the response ID and records the
 			// prompt, but nothing from the missing terminal event.
 			name: "truncated_stream",
