@@ -1041,7 +1041,7 @@ Since the runner doesn't wait for goroutines to finish when it cancels them, and
 
 Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Exception: the workspace agent runs `execute`, `edit_files`, and `write_file` calls once, unless it restarts. Future work may include adding a mechanism to ensure at most once semantics.
 
-On a turn's first step, before any hook or LLM API call, the goroutine cancels on the workspace agent the unresolved `execute`, `edit_files`, and `write_file` calls whose messages were deleted as a result of a message edit. It takes them from the last deleted assistant message between the turn's user message and the visible message before it. Cancel failures are logged and do not fail the step.
+Before the first LLM API call of a turn, and before any hook, the goroutine asks the workspace agent to cancel the unresolved `execute`, `edit_files`, and `write_file` calls of the last assistant message that `EditMessage` marked as deleted between the turn's user message and the message before it. A failed cancel is logged and does not fail the turn.
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 

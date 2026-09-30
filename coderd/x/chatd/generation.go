@@ -471,8 +471,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	}
 }
 
-// cancelDeletedToolCalls cancels on the chat's agent the unresolved tool
-// calls in messages that were deleted as a result of editing a message
+// cancelDeletedToolCalls asks the chat's agent to cancel the unresolved tool
+// calls of the last assistant message that EditMessage marked as deleted
 // before the current turn's user message. Their results can no longer be
 // committed. Failures are logged and do not affect the turn.
 func (s *taskStarter) cancelDeletedToolCalls(
@@ -489,9 +489,9 @@ func (s *taskStarter) cancelDeletedToolCalls(
 	if userMessageIndex == -1 {
 		return
 	}
-	// When a message is edited, it and every message after it are deleted,
-	// so the deleted messages lie between the user message and the visible
-	// message before it.
+	// EditMessage marks the edited message and every later message as
+	// deleted, so they lie between the user message and the message before
+	// it.
 	params := database.GetDeletedChatMessagesFromLastAssistantParams{
 		ChatID:        chat.ID,
 		UserMessageID: messages[userMessageIndex].ID,
