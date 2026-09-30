@@ -378,7 +378,7 @@ func TestCreateChatMessageWorkspaceFileWorkspaceValidation(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, chat := newBoundChat(ctx, t)
 
-		for _, name := range []string{" data.csv", "da\u202eta.csv", "da|ta.csv"} {
+		for _, name := range []string{" data.csv", "da\u202eta.csv", "da|ta.csv", "a$(b);c'd.txt"} {
 			part := validPart(chat.ID)
 			part.WorkspaceFileWorkspaceID = *chat.WorkspaceID
 			part.WorkspaceFileName = name
@@ -388,6 +388,29 @@ func TestCreateChatMessageWorkspaceFileWorkspaceValidation(t *testing.T) {
 			})
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 			require.Equal(t, "content[0].workspace_file_name must be a name returned by the workspace file upload endpoint.", sdkErr.Detail, "name %q", name)
+		}
+	})
+
+	t.Run("InvalidMediaType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, chat := newBoundChat(ctx, t)
+
+		for _, mediaType := range []string{
+			"garbage",
+			"text/plain\x00",
+			"text/plain; charset=\"\x01\"",
+			"text/plain; x=" + strings.Repeat("a", 255),
+		} {
+			part := validPart(chat.ID)
+			part.WorkspaceFileWorkspaceID = *chat.WorkspaceID
+			part.WorkspaceFileMediaType = mediaType
+			_, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: []codersdk.ChatInputPart{part},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "content[0].workspace_file_media_type must be a valid media type of at most 255 bytes without control characters.", sdkErr.Detail, "media type %q", mediaType)
 		}
 	})
 
@@ -697,6 +720,28 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.Equal(t, uploaded.Name, filepath.Base(uploaded.Path))
 	})
 
+	t.Run("InvalidContentType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).WithAgent().Do()
+		_ = startChatUploadAgent(t, client, workspaceBuild)
+		chat := createBoundChat(ctx, t, client, firstUser.OrganizationID, workspaceBuild.Workspace.ID)
+
+		// The client sends the returned media type back as
+		// workspace_file_media_type, so it must pass message validation.
+		resp, err := client.UploadChatWorkspaceFile(ctx, chat.ID, "text/plain; bogus", "notes.txt", bytes.NewReader([]byte("hi")))
+		require.NoError(t, err)
+		require.Equal(t, "application/octet-stream", resp.MediaType)
+	})
+
 	t.Run("MissingFilename", func(t *testing.T) {
 		t.Parallel()
 
@@ -756,9 +801,19 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		otherChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "rate limited too"},
+			},
+		})
+		require.NoError(t, err)
+
+		// The budget is per user, so a different chat ID does not get a
+		// fresh bucket.
 		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusConflict)
-		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
+		_, err = client.UploadChatWorkspaceFile(ctx, otherChat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		requireSDKError(t, err, http.StatusTooManyRequests)
 	})
 

@@ -87,7 +87,7 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 			r.Post("/title/propose", api.proposeChatTitle)
 			r.Get("/diff", api.getChatDiffContents)
 			r.With(
-				httpmw.RateLimit(api.FilesRateLimit, time.Minute),
+				httpmw.RateLimitPerCaller(api.FilesRateLimit, time.Minute),
 				api.chatWorkspaceUploadMiddleware,
 			).Post("/workspace-files", api.postChatWorkspaceFile)
 			r.Put("/context", api.refreshChatContext)
