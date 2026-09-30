@@ -431,6 +431,26 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
+			mcpServers := make([]mcpclient.Server, 0, len(mcpConnectConfigs))
+			var invalidConfigs []mcpclient.ConnectSummary
+			for _, cfg := range mcpConnectConfigs {
+				if !cfg.Enabled {
+					continue
+				}
+				srv, err := mcpclient.ServerFromConfig(cfg)
+				if err != nil {
+					logger.Warn(ctx, "skipping MCP server with invalid config",
+						slog.F("server_slug", cfg.Slug), slog.Error(err))
+					invalidConfigs = append(invalidConfigs, mcpclient.ConnectSummary{
+						ConfigID: cfg.ID,
+						Slug:     cfg.Slug,
+						Outcome:  mcpclient.ConnectOutcomeError,
+						Error:    "invalid server config",
+					})
+					continue
+				}
+				mcpServers = append(mcpServers, srv)
+			}
 			connectCtx, connectSpan := server.stages.Start(ctx, chatloop.StageMCPConnect)
 			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				connectCtx,
@@ -442,12 +462,25 @@ func (server *Server) prepareGeneration(
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
 			)
+			mcpSummaries = append(mcpSummaries, invalidConfigs...)
 			connected, failed, connectErr := mcpConnectOutcome(mcpSummaries)
 			connectSpan.SetAttributes(
 				attribute.Int(chatloop.AttrMCPServersConnected, connected),
 				attribute.Int(chatloop.AttrMCPServersFailed, failed),
 			)
 			connectSpan.End(connectErr)
+			return nil
+		})
+	}
+	if len(inlineMCPConnectServers) > 0 {
+		g2.Go(func() error {
+			inlineMCPTools, inlineMCPSummaries, inlineMCPCleanup = mcpclient.ConnectInline(
+				ctx,
+				logger,
+				inlineMCPConnectServers,
+				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
+			)
 			return nil
 		})
 	}

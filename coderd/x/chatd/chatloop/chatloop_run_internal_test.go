@@ -1010,6 +1010,7 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		time.Time{},
 		nil,
 		nil,
+		nil,
 		StageModel{},
 	)
 
@@ -1082,6 +1083,7 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		defaultToolResultBytes,
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
+		nil,
 		nil,
 		nil,
 		StageModel{},
@@ -1164,6 +1166,7 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		time.Time{},
 		nil,
 		nil,
+		nil,
 		StageModel{},
 	)
 
@@ -1232,6 +1235,7 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		defaultToolResultBytes,
 		nil,
 		time.Time{},
+		nil,
 		nil,
 		nil,
 		StageModel{},
@@ -1324,6 +1328,7 @@ func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
 			nil,
 			batchStart,
 			liveToolBillingRecorder{started: started, completed: completed},
+			nil,
 			nil,
 			StageModel{},
 		)

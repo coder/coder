@@ -635,6 +635,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		opts.ToolCallContext,
 		opts.Stages,
 		opts.StageModel,
 	)
@@ -1185,6 +1186,7 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	toolCallContext func(context.Context, fantasy.ToolCallContent) context.Context,
 	stages *StageTracer,
 	stageModel StageModel,
 ) []toolExecutionResult {
@@ -1270,8 +1272,12 @@ func executeTools(
 			}
 			toolSpan.End(execErr)
 		}()
+		callCtx := ctx
+		if toolCallContext != nil {
+			callCtx = toolCallContext(ctx, tc)
+		}
 		executions[i].content, execErr = executeSingleTool(
-			ctx,
+			callCtx,
 			toolMap,
 			tc,
 			metrics,

@@ -15513,6 +15513,17 @@ func setupWorkspaceContextAgentConn(
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 }
 
+// countingRulesStore counts experiment rule reads.
+type countingRulesStore struct {
+	experimentstest.Store
+	rules atomic.Int64
+}
+
+func (s *countingRulesStore) Rules(ctx context.Context) (map[codersdk.Experiment]experimentrules.StoredRule, error) {
+	s.rules.Add(1)
+	return s.Store.Rules(ctx)
+}
+
 func newRecordingTracerProvider(t *testing.T) (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()

@@ -1003,6 +1003,7 @@ func (s *taskStarter) executeLocalTools(
 				recordComplete: attempt.recordToolCompletion,
 			}
 		}
+		toolCallIDs := chattool.ToolCallIDs(input.ChatID, decision.toolCallMessageID, decision.localToolCalls)
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -1018,6 +1019,12 @@ func (s *taskStarter) executeLocalTools(
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
+			ToolCallContext: func(ctx context.Context, tc fantasy.ToolCallContent) context.Context {
+				if id, ok := toolCallIDs[tc.ToolCallID]; ok {
+					return workspacesdk.WithToolCallID(ctx, id)
+				}
+				return ctx
+			},
 			Stages:             s.server.stages,
 			StageModel:         prepared.StageModel,
 			PublishMessagePart: attempt.publish,

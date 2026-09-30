@@ -323,6 +323,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("convert buffered parts: %w", err)
 	}
 
+	canceled := s.cancelUnresolvedToolCalls(ctx, chat, cancelable, toolCallIDs)
+
 	var (
 		committed        database.Chat
 		promotedQueuedAt time.Time

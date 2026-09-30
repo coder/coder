@@ -1650,6 +1650,9 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	}
 	p.recordQueueWait(ctx, result.Chat, promotedQueuedAt)
 	return result, nil
 }
