@@ -1,5 +1,6 @@
 import type {
 	Chat,
+	ChatAutomation,
 	ChatContext,
 	ChatContextResource,
 	ChatFileMetadata,
@@ -160,4 +161,23 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatAutomation: ChatAutomation = {
+	id: "7f1c2b9e-4d3a-4c1f-9b2e-5a6d7e8f9a0b",
+	organization_id: "test-org-id",
+	owner_id: MockUserOwner.id,
+	name: "CI heartbeat",
+	kind: "schedule",
+	enabled: true,
+	target_mode: "existing_chat",
+	target_chat_id: "chat-1",
+	when_busy: "queue",
+	webhook_secret_version: 0,
+	prompt: "Check the nightly build.",
+	schedule_cron: "0 9 * * *",
+	schedule_time_zone: "UTC",
+	next_run_times: [],
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
 };

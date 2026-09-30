@@ -15,9 +15,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { AutomationLabel } from "./ChatConversation/AutomationLabel";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
+	automationNames?: ReadonlyMap<string, string>;
 	onDelete: (id: number) => Promise<void> | void;
 	onPromote: (id: number) => Promise<void> | void;
 	className?: string;
@@ -55,6 +57,7 @@ export const getQueuedMessageInfo = (
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
+	automationNames,
 	onDelete,
 	onPromote,
 	className,
@@ -62,7 +65,14 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	const items = messages.map((message) => {
 		const { displayText, attachmentCount, hookNotices } =
 			getQueuedMessageInfo(message);
-		return { id: message.id, displayText, attachmentCount, hookNotices };
+		return {
+			id: message.id,
+			displayText,
+			attachmentCount,
+			hookNotices,
+			automationId: message.automation_id,
+			inputId: message.input_id,
+		};
 	});
 
 	const [hoveredID, setHoveredID] = useState<number | null>(null);
@@ -172,6 +182,15 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 							setHoveredID((current) => (current === item.id ? null : current))
 						}
 					>
+						{item.automationId && (
+							<div className="mb-1 flex">
+								<AutomationLabel
+									automationId={item.automationId}
+									inputId={item.inputId}
+									automationName={automationNames?.get(item.automationId)}
+								/>
+							</div>
+						)}
 						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
 								{item.displayText.split("\n")[0]}

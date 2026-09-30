@@ -184,6 +184,7 @@ type AgentChatInputProps = {
 	isWorkspaceLoading?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
+	automationNames?: ReadonlyMap<string, string>;
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
@@ -523,6 +524,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	chatOrganizationId,
 	isWorkspaceLoading,
 	queuedMessages = [],
+	automationNames,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	warning,
@@ -1327,6 +1329,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
+					automationNames={automationNames}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					className="mb-2"

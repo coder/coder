@@ -13,6 +13,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
+import { useChatAutomationNames } from "../hooks/useChatAutomationNames";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
@@ -206,6 +207,10 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const automationNames = useChatAutomationNames(
+		organizationId,
+		messages.some((message) => message.automation_id !== undefined),
+	);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
@@ -226,6 +231,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 				<ConversationTimeline
 					organizationId={organizationId}
 					parsedMessages={parsedMessages}
+					automationNames={automationNames}
 					chatFiles={chatFiles}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={liveStreamState}
@@ -409,6 +415,10 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const automationNames = useChatAutomationNames(
+		organizationId,
+		queuedMessages.some((message) => message.automation_id !== undefined),
+	);
 
 	const messages = orderedMessageIDs
 		.map((messageID) => {
@@ -808,6 +818,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			remountKey={remountKey}
 			onContentChange={onContentChange}
 			queuedMessages={queuedMessages}
+			automationNames={automationNames}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			isEditingHistoryMessage={isEditing}

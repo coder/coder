@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatAutomation,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -59,6 +62,28 @@ export const SeveralMessages: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+// Automation input shows its label; a deleted automation is shown by ID.
+export const AutomationMessages: Story = {
+	args: {
+		messages: [
+			{
+				...buildMessage(1, textContent("Check the nightly build.")),
+				automation_id: MockChatAutomation.id,
+				input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+			},
+			{
+				...buildMessage(2, textContent("Summarize open issues.")),
+				automation_id: "3e9d8c7b-6a5f-4e3d-8c2b-1a0f9e8d7c6b",
+				input_id: "9a8b7c6d-5e4f-4a3b-9c2d-1e0f2a3b4c5d",
+			},
+			buildMessage(3, textContent("Run the test suite")),
+		],
+		automationNames: new Map([
+			[MockChatAutomation.id, MockChatAutomation.name],
+		]),
 	},
 };
 
