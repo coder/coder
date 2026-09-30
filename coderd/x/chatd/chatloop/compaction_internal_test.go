@@ -990,9 +990,54 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 			var metadata map[string]any
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
 			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
-			require.Equal(t, float64(1000), metadata["context_limit_tokens"])
+			require.Equal(t, float64(1000), metadata["trigger_context_limit_tokens"])
 		})
 	}
+}
+
+// TestGenerateCompaction_RecordsRequestedTrigger verifies the result echoes
+// the requested trigger, not the normalized one, while UsagePercent uses the
+// resolved limit.
+func TestGenerateCompaction_RecordsRequestedTrigger(t *testing.T) {
+	t.Parallel()
+
+	var parts []codersdk.ChatMessagePart
+	result, err := GenerateCompaction(t.Context(), GenerateCompactionOptions{
+		Model: &chattest.FakeModel{
+			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+				return compactionStream(
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, ID: "text", Delta: "summary"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeTextEnd, ID: "text"},
+					fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				), nil
+			},
+		},
+		Messages:             []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")},
+		Force:                true,
+		ThresholdPercent:     101,
+		ContextLimit:         0,
+		ContextLimitFallback: 1000,
+		StepUsage:            fantasy.Usage{InputTokens: 800},
+		ToolCallID:           "summary",
+		ToolName:             "chat_summarized",
+		PublishMessagePart: func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			parts = append(parts, part)
+		},
+		Clock: quartz.NewMock(t),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(101), result.ThresholdPercent)
+	require.Zero(t, result.TriggerContextLimit)
+	require.Equal(t, int64(1000), result.ContextLimit)
+	require.InDelta(t, 80, result.UsagePercent, 0.001)
+
+	require.Len(t, parts, 2)
+	var streamed CompactionToolResult
+	require.NoError(t, json.Unmarshal(parts[1].Result, &streamed))
+	require.Equal(t, int32(101), streamed.ThresholdPercent)
+	require.Zero(t, streamed.TriggerContextLimitTokens)
+	require.Equal(t, int64(1000), streamed.ContextLimitTokens)
 }
 
 // TestGenerateCompaction_RequiresClock verifies a nil clock is

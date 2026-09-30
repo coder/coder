@@ -337,13 +337,14 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool call: %w", err)
 	}
 	summaryResult, err := json.Marshal(chatloop.CompactionToolResult{
-		Summary:                input.compaction.SummaryReport,
-		Source:                 source,
-		ThresholdPercent:       input.compaction.ThresholdPercent,
-		UsagePercent:           input.compaction.UsagePercent,
-		ContextTokens:          input.compaction.ContextTokens,
-		ContextLimitTokens:     input.compaction.ContextLimit,
-		EstimatedContextTokens: input.compaction.EstimatedContextTokens,
+		Summary:                   input.compaction.SummaryReport,
+		Source:                    source,
+		ThresholdPercent:          input.compaction.ThresholdPercent,
+		UsagePercent:              input.compaction.UsagePercent,
+		ContextTokens:             input.compaction.ContextTokens,
+		ContextLimitTokens:        input.compaction.ContextLimit,
+		EstimatedContextTokens:    input.compaction.EstimatedContextTokens,
+		TriggerContextLimitTokens: input.compaction.TriggerContextLimit,
 	})
 	if err != nil {
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction result: %w", err)
@@ -541,13 +542,12 @@ func summaryRecordedUnderOtherTrigger(boundary database.ChatMessage, thresholdPe
 		if part.ToolName != "chat_summarized" || part.Type != codersdk.ChatMessagePartTypeToolResult {
 			continue
 		}
-		// Missing fields keep the current values, so older summaries count
-		// as made under the current trigger.
-		recorded := chatloop.CompactionToolResult{ThresholdPercent: thresholdPercent, ContextLimitTokens: contextLimit}
+		// A result without these keys compares equal to the current trigger.
+		recorded := chatloop.CompactionToolResult{ThresholdPercent: thresholdPercent, TriggerContextLimitTokens: contextLimit}
 		if err := json.Unmarshal(part.Result, &recorded); err != nil {
 			return false
 		}
-		return recorded.ThresholdPercent != thresholdPercent || recorded.ContextLimitTokens != contextLimit
+		return recorded.ThresholdPercent != thresholdPercent || recorded.TriggerContextLimitTokens != contextLimit
 	}
 	return false
 }
