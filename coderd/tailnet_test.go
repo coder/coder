@@ -246,6 +246,63 @@ func TestServerTailnet_ReverseProxy_Unreachable(t *testing.T) {
 	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_agent_unreachable_total", "no_node"))
 }
 
+func TestServerTailnet_ReverseProxy_TCPDialFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	// The agent answers pings, so the tunnel is up, but nothing listens on
+	// the target port. The failure is above WireGuard and must not count as
+	// an unreachable agent.
+	agents, serverTailnet := setupServerTailnetAgent(t, 1)
+	a := agents[0]
+
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(serverTailnet))
+
+	var logs bytes.Buffer
+	logger := slog.Make(slogjson.Sink(&logs)).Leveled(slog.LevelDebug)
+	requestLogger := loggermw.NewRequestLogger(logger, http.MethodGet, time.Now())
+
+	u, err := url.Parse("http://127.0.0.1:65000")
+	require.NoError(t, err)
+
+	rp := serverTailnet.ReverseProxy(u, u, a.id, appurl.ApplicationURL{}, "")
+
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		u.String(),
+		nil,
+	).WithContext(loggermw.WithRequestLogger(ctx, requestLogger))
+
+	rp.ServeHTTP(rw, req)
+	res := rw.Result()
+	defer res.Body.Close()
+
+	require.Equal(t, http.StatusBadGateway, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "agent is unreachable")
+
+	requestLogger.WriteLog(ctx, res.StatusCode)
+	var entry struct {
+		Fields map[string]any `json:"fields"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	assert.Equal(t, a.id.String(), entry.Fields["agent_id"])
+	assert.Equal(t, "tcp_dial", entry.Fields["dial_phase"])
+	assert.Contains(t, entry.Fields, "tcp_dial_after")
+	assert.NotContains(t, entry.Fields, "unreachable_after")
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	for _, m := range metrics {
+		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", m.GetName())
+	}
+}
+
 func TestServerTailnet_ReverseProxy(t *testing.T) {
 	t.Parallel()
 

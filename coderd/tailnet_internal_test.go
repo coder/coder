@@ -204,3 +204,26 @@ func TestReportProxyDialFailure_PooledConn(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, metrics)
 }
+
+func TestReportProxyDialFailure_DialTimedOut(t *testing.T) {
+	t.Parallel()
+
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "agent_unreachable_total"}, []string{"reason"})
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(counter))
+	s := &ServerTailnet{agentUnreachable: counter}
+	s.peerDiagnosticsBusy.Store(true)
+
+	// The dial hit proxyDialTimeout before the request ended, so the error
+	// already names the unreachable agent and must not be prefixed again.
+	ds := &dialState{}
+	ds.set(dialPhaseAwaitReachable)
+	ctx := context.WithValue(testutil.Context(t, testutil.WaitShort), dialStateKey{}, ds)
+	dialErr := xerrors.Errorf("acquire agent conn: %w", errAgentUnreachable)
+	err := s.reportProxyDialFailure(ctx, uuid.New(), dialErr)
+	require.Same(t, dialErr, err)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "diagnostics_timeout"))
+}
