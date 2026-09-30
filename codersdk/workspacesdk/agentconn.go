@@ -913,8 +913,9 @@ type StartProcessRequest struct {
 	WorkDir    string            `json:"workdir,omitempty"`
 	Env        map[string]string `json:"env,omitempty"`
 	Background bool              `json:"background,omitempty"`
-	// TimeoutMs is the execute timeout in milliseconds, counted from the
-	// tool call's first start. Not allowed with Background.
+	// TimeoutMs is the wait timeout in milliseconds after the process
+	// starts; see ProcessOutputOptions.TimeoutFromStartProcess. Not allowed
+	// with Background.
 	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
@@ -963,9 +964,9 @@ type ProcessOutputOptions struct {
 	// Wait enables blocking mode. When true, the request
 	// blocks until the process exits or the context expires.
 	Wait bool
-	// TimeoutFromExecute also ends a blocking wait at
+	// TimeoutFromStartProcess also ends a blocking wait at
 	// StartProcessRequest.TimeoutMs.
-	TimeoutFromExecute bool
+	TimeoutFromStartProcess bool
 }
 
 // ProcessTruncation describes how process output was truncated.
@@ -1478,8 +1479,8 @@ func (c *agentConn) ProcessOutput(ctx context.Context, id string, opts *ProcessO
 	query := neturl.Values{}
 	if opts != nil && opts.Wait {
 		query.Set("wait", "true")
-		if opts.TimeoutFromExecute {
-			query.Set("timeout_from_execute", "true")
+		if opts.TimeoutFromStartProcess {
+			query.Set("timeout_from_start_process", "true")
 		}
 	}
 	res, err := c.apiRequest(ctx, http.MethodGet, agentAPIPath("/api/v0/processes/"+id+"/output", query), nil)

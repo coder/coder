@@ -84,7 +84,7 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 	if req.Background && req.TimeoutMs != 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Background processes cannot have an execute timeout.",
+			Message: "Background processes cannot have timeout_ms.",
 		})
 		return
 	}
@@ -189,7 +189,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// Cap the wait at maxWaitDuration regardless of
 		// client-supplied timeout.
 		wait := maxWaitDuration
-		if r.URL.Query().Get("timeout_from_execute") == "true" && !proc.waitUntil.IsZero() {
+		if r.URL.Query().Get("timeout_from_start_process") == "true" && !proc.waitUntil.IsZero() {
 			wait = min(wait, api.manager.clock.Until(proc.waitUntil))
 		}
 		waitCtx, waitCancel := context.WithCancel(ctx)

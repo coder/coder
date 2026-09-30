@@ -4708,7 +4708,7 @@ func TestAgent_ToolCallOtherChat(t *testing.T) {
 	require.False(t, outA.Canceled)
 }
 
-func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
+func TestAgent_ProcessOutputTimeoutFromStartProcess(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
@@ -4724,9 +4724,9 @@ func TestAgent_ProcessOutputExecuteTimeout(t *testing.T) {
 		want      workspacesdk.ProcessOutputResponse
 	}{
 		{
-			name:      "ExecuteWait",
+			name:      "TimeoutFromStartProcess",
 			timeoutMs: 1,
-			opts:      workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromExecute: true},
+			opts:      workspacesdk.ProcessOutputOptions{Wait: true, TimeoutFromStartProcess: true},
 			want:      workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true},
 		},
 		{

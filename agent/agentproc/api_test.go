@@ -312,7 +312,7 @@ func TestStartProcess(t *testing.T) {
 
 		var resp codersdk.Response
 		require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
-		require.Contains(t, resp.Message, "cannot have an execute timeout")
+		require.Contains(t, resp.Message, "cannot have timeout_ms")
 	})
 
 	// Through the agent, the tool call middleware responds to a repeated
