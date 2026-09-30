@@ -194,6 +194,57 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 	require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
 }
 
+// TestSyntheticCancellation_SendMessageE1 verifies that a send from E1
+// inserts synthetic tool-result rows before the rows it moves into
+// history.
+func TestSyntheticCancellation_SendMessageE1(t *testing.T) {
+	t.Parallel()
+
+	for _, behavior := range []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer} {
+		t.Run(string(behavior), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			created := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+			callID := "call_" + uuid.NewString()
+			commitAssistantToolCall(t, f, m,
+				nonDynamicAssistantToolCallMessage(t, f.Model.ID, callID))
+
+			// R0 -> R1 -> E1.
+			sendQueuedMessage(t, f, m, "queued")
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				_, err := tx.FinishError(chatstate.FinishErrorInput{
+					LastError: pqtype.NullRawMessage{
+						RawMessage: json.RawMessage(`{"message":"boom"}`),
+						Valid:      true,
+					},
+				})
+				return err
+			}))
+			require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
+
+			var send chatstate.SendMessageResult
+			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+				var err error
+				send, err = tx.SendMessage(chatstate.SendMessageInput{
+					Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
+					BusyBehavior: behavior,
+					MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+				})
+				return err
+			}))
+
+			require.Len(t, send.InsertedMessages, 2, "synthetic cancel + user")
+			assertToolResultForCall(t, send.InsertedMessages[0], callID)
+			require.Equal(t, database.ChatMessageRoleUser, send.InsertedMessages[1].Role)
+			require.Less(t, send.InsertedMessages[0].ID, send.InsertedMessages[1].ID,
+				"synthetic cancel is inserted before the user message")
+		})
+	}
+}
+
 func TestSyntheticCancellation_EditMessage(t *testing.T) {
 	t.Parallel()
 
@@ -412,8 +463,8 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 		finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
 	}))
-	require.NotNil(t, finish.PromotedMessage)
-	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
+	require.Len(t, finish.PromotedMessages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessages[0].Role)
 
 	afterIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 	require.Equal(t, len(beforeIDs)+2, len(afterIDs),
@@ -424,10 +475,10 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 	cancel, err := f.DB.GetChatMessageByID(ctx, newIDs[0])
 	require.NoError(t, err)
 	assertToolResultForCall(t, cancel, callID)
-	require.Equal(t, finish.PromotedMessage.ID, newIDs[1])
+	require.Equal(t, finish.PromotedMessages[0].ID, newIDs[1])
 	require.False(t, cancel.QueuedMessageID.Valid,
 		"synthetic cancellations are not promoted from the queue")
-	requireQueuedMessageLink(t, *finish.PromotedMessage, queued.QueuedMessage.ID)
+	requireQueuedMessageLink(t, finish.PromotedMessages[0], queued.QueuedMessage.ID)
 }
 
 func TestSyntheticCancellation_FinishInterruption(t *testing.T) {
@@ -471,8 +522,8 @@ func testFinishInterruptionI1PromotesQueueHead(t *testing.T) {
 		finish, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
 		return err
 	}))
-	require.NotNil(t, finish.PromotedMessage)
-	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
+	require.Len(t, finish.PromotedMessages, 1)
+	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessages[0].Role)
 
 	afterIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 	require.Equal(t, len(beforeIDs)+1, len(afterIDs))

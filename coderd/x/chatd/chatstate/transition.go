@@ -21,6 +21,7 @@ const (
 	TransitionAbandon                 Transition = "Abandon"
 	TransitionRecordGenerationAttempt Transition = "RecordGenerationAttempt"
 	TransitionRecordRetryState        Transition = "RecordRetryState"
+	TransitionDeliverSteerMessages    Transition = "DeliverSteerMessages"
 	TransitionCommitStep              Transition = "CommitStep"
 	TransitionEnterRequiresAction     Transition = "EnterRequiresAction"
 	TransitionFinishInterruption      Transition = "FinishInterruption"
@@ -65,7 +66,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 	},
 	StateE1: {
 		TransitionSetArchived:          {StateXE1},
-		TransitionSendMessage:          {StateR1},
+		TransitionSendMessage:          {StateR0, StateR1},
 		TransitionEditMessage:          {StateR0},
 		TransitionDeleteQueuedMessage:  {StateE0, StateE1},
 		TransitionPromoteQueuedMessage: {StateR0, StateR1},
@@ -77,6 +78,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionInterrupt:               {StateI0},
 		TransitionRecordGenerationAttempt: {StateR0},
 		TransitionRecordRetryState:        {StateR0},
+		TransitionDeliverSteerMessages:    {StateR0},
 		TransitionCommitStep:              {StateR0},
 		TransitionEnterRequiresAction:     {StateA0},
 		TransitionFinishTurn:              {StateW},
@@ -90,6 +92,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionInterrupt:               {StateI1},
 		TransitionRecordGenerationAttempt: {StateR1},
 		TransitionRecordRetryState:        {StateR1},
+		TransitionDeliverSteerMessages:    {StateR0, StateR1},
 		TransitionCommitStep:              {StateR1},
 		TransitionEnterRequiresAction:     {StateA1},
 		TransitionFinishTurn:              {StateR0, StateR1},

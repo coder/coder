@@ -32,18 +32,7 @@ func (r *recordingPubsub) ownershipPublishCount() int {
 // SendMessage (typically R0, R1, or I*).
 func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		var err error
-		send, err = tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
-			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-		})
-		return err
-	}))
-	return send
+	return sendMessageWithBehavior(t, f, m, body, chatstate.BusyBehaviorQueue)
 }
 
 // sendInterruptMessage seeds one queued user message via SendMessage
@@ -51,13 +40,20 @@ func sendQueuedMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, b
 // `interrupting` and appends the new user message to the queue tail.
 func sendInterruptMessage(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string) chatstate.SendMessageResult {
 	t.Helper()
+	return sendMessageWithBehavior(t, f, m, body, chatstate.BusyBehaviorInterrupt)
+}
+
+// sendMessageWithBehavior sends one user message via SendMessage with
+// the given busy behavior.
+func sendMessageWithBehavior(t *testing.T, f *testFixture, m *chatstate.ChatMachine, body string, behavior chatstate.BusyBehavior) chatstate.SendMessageResult {
+	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var send chatstate.SendMessageResult
 	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(body, f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			BusyBehavior: behavior,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err

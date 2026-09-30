@@ -2272,6 +2272,142 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	require.Equal(t, []uuid.UUID{modelConfigA.ID, modelConfigB.ID, modelConfigC.ID}, userModelConfigIDs)
 }
 
+// openAIRequestRecorder records the messages of every streaming
+// request in request order.
+type openAIRequestRecorder struct {
+	mu       sync.Mutex
+	requests [][]chattest.OpenAIMessage
+}
+
+// record stores the messages of req and returns the request number,
+// starting at 1.
+func (r *openAIRequestRecorder) record(req *chattest.OpenAIRequest) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, append([]chattest.OpenAIMessage(nil), req.Messages...))
+	return len(r.requests)
+}
+
+func (r *openAIRequestRecorder) messages() [][]chattest.OpenAIMessage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([][]chattest.OpenAIMessage(nil), r.requests...)
+}
+
+// userTexts returns the user message texts of every request.
+func (r *openAIRequestRecorder) userTexts() [][]string {
+	var out [][]string
+	for _, messages := range r.messages() {
+		texts := []string{}
+		for _, message := range messages {
+			if message.Role == "user" {
+				texts = append(texts, message.Content)
+			}
+		}
+		out = append(out, texts)
+	}
+	return out
+}
+
+func chatUserTexts(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) []string {
+	t.Helper()
+	var texts []string
+	for _, message := range chatMessages(ctx, t, db, chatID) {
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(message)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				texts = append(texts, part.Text)
+			}
+		}
+	}
+	return texts
+}
+
+func TestSteerDuringMultiStepTurnDeliveredBeforeNextModelCall(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	firstRunStarted := make(chan struct{})
+	allowFirstRunFinish := make(chan struct{})
+	var recorder openAIRequestRecorder
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if recorder.record(req) > 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		}
+		// list_templates runs without a workspace, so the turn takes a
+		// second step after the tool result.
+		chunks := make(chan chattest.OpenAIChunk, 1)
+		go func() {
+			defer close(chunks)
+			chunks <- chattest.OpenAIToolCallChunk("list_templates", `{}`)
+			close(firstRunStarted)
+			<-allowFirstRunFinish
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "steer-multi-step",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	testutil.TryReceive(ctx, t, firstRunStarted)
+	// An empty busy behavior steers.
+	for _, s := range []struct {
+		text     string
+		behavior chatd.SendMessageBusyBehavior
+	}{
+		{text: "queued", behavior: chatd.SendMessageBusyBehaviorQueue},
+		{text: "steer"},
+	} {
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			CreatedBy:    user.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(s.text)},
+			BusyBehavior: s.behavior,
+		})
+		require.NoError(t, err)
+		require.True(t, result.Queued)
+	}
+	close(allowFirstRunFinish)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	chatd.WaitUntilIdleForTest(server)
+
+	requests := recorder.messages()
+	require.Len(t, requests, 3)
+	second := requests[1]
+	require.GreaterOrEqual(t, len(second), 2)
+	require.Equal(t, "tool", second[len(second)-2].Role)
+	require.Equal(t, chattest.OpenAIMessage{Role: "user", Content: "steer"}, second[len(second)-1])
+	require.Equal(t, [][]string{
+		{"hello"},
+		{"hello", "steer"},
+		{"hello", "steer", "queued"},
+	}, recorder.userTexts())
+	require.Equal(t, []string{"hello", "steer", "queued"}, chatUserTexts(ctx, t, db, chat.ID))
+	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Empty(t, queued)
+}
+
 func TestEditMessageRejectsMissingMessage(t *testing.T) {
 	t.Parallel()
 
