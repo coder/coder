@@ -93,8 +93,14 @@ export const updateChatAutomation = (
 		}),
 });
 
+const automationChatsFamilyKey = ["chat-automation-chats"] as const;
+
 const automationChatsKey = (automationId: string) =>
-	["chat-automation-chats", automationId] as const;
+	[...automationChatsFamilyKey, automationId] as const;
+
+/** Refetches every automation's chat list, for example after a run. */
+export const invalidateAutomationChats = (queryClient: QueryClient) =>
+	queryClient.invalidateQueries({ queryKey: automationChatsFamilyKey });
 
 const automationChatsPageSize = 25;
 

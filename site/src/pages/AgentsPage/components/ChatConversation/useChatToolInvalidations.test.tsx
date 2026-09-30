@@ -3,10 +3,16 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+	automationChats,
+	chatAutomationsKey,
+} from "#/api/queries/chatAutomations";
+import {
 	chatEntityKey,
+	chatListKey,
 	chatMessagesKey,
 	chatPromptsKey,
 	chatsByWorkspace,
+	toChatListParams,
 } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesQueryKeyPrefix } from "#/api/queries/workspaces";
@@ -16,6 +22,8 @@ import { useChatToolInvalidations } from "./useChatToolInvalidations";
 
 const ORGANIZATION_NAME = "coder";
 const USERNAME = "alice";
+const infiniteChatsKey = chatListKey(toChatListParams());
+const automationChatsQueryKey = automationChats("automation-1").queryKey;
 
 type ToolResultOverrides = Partial<StreamState["toolResults"][string]>;
 
@@ -23,13 +31,14 @@ const createStreamState = (
 	name: string,
 	id = "tool-1",
 	resultOverrides: ToolResultOverrides = {},
+	args: unknown = {},
 ): StreamState => ({
 	blocks: [],
 	toolCalls: {
 		[id]: {
 			id,
 			name,
-			args: {},
+			args,
 		},
 	},
 	toolResults: {
@@ -324,6 +333,82 @@ describe("useChatToolInvalidations", () => {
 			expect(invalidateSpy).toHaveBeenCalledTimes(4);
 		});
 	});
+
+	it.each(["create", "update", "enable", "disable", "delete"])(
+		"invalidates automations after a successful manage_automations %s",
+		async (action) => {
+			queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+			const { setStreamState } = renderInvalidations();
+
+			await act(async () => {
+				setStreamState(
+					createStreamState("manage_automations", "tool-1", {}, { action }),
+				);
+			});
+
+			await waitFor(() => {
+				expect(
+					queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
+				).toBe(true);
+			});
+		},
+	);
+
+	it("also invalidates chat lists after a manage_automations run_now", async () => {
+		queryClient.setQueryData(chatAutomationsKey("org-1"), []);
+		queryClient.setQueryData(infiniteChatsKey, { pages: [], pageParams: [] });
+		queryClient.setQueryData(automationChatsQueryKey, {
+			pages: [],
+			pageParams: [],
+		});
+		const { setStreamState } = renderInvalidations();
+
+		await act(async () => {
+			setStreamState(
+				createStreamState(
+					"manage_automations",
+					"tool-1",
+					{},
+					{ action: "run_now" },
+				),
+			);
+		});
+
+		await waitFor(() => {
+			expect(
+				queryClient.getQueryState(chatAutomationsKey("org-1"))?.isInvalidated,
+			).toBe(true);
+			expect(queryClient.getQueryState(infiniteChatsKey)?.isInvalidated).toBe(
+				true,
+			);
+			expect(
+				queryClient.getQueryState(automationChatsQueryKey)?.isInvalidated,
+			).toBe(true);
+		});
+	});
+
+	it.each([
+		{ name: "list", args: { action: "list" }, overrides: {} },
+		{ name: "get", args: { action: "get" }, overrides: {} },
+		{
+			name: "errored create",
+			args: { action: "create" },
+			overrides: { isError: true },
+		},
+	])(
+		"does not invalidate queries after a manage_automations $name",
+		async ({ args, overrides }) => {
+			const { invalidateSpy, setStreamState } = renderInvalidations();
+
+			await act(async () => {
+				setStreamState(
+					createStreamState("manage_automations", "tool-1", overrides, args),
+				);
+			});
+
+			expect(invalidateSpy).not.toHaveBeenCalled();
+		},
+	);
 
 	it("does nothing when streamState is null", () => {
 		const { store } = createTestStore(null);

@@ -41,6 +41,7 @@ import {
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
+import { useAutomationsEnabled } from "./Automations/AutomationsNavItem";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
 	isChatHookDeniedResponse,
@@ -73,6 +74,7 @@ export type CreateChatOptions = {
 	mcpServerIds?: string[];
 	organizationId: string;
 	planMode?: TypesGen.ChatPlanMode;
+	manageAutomationsEnabled?: boolean;
 	// When present, the submit carries files destined for the chat's
 	// workspace. The page creates the chat without content, runs this
 	// callback to upload against the new chat ID, then sends the first
@@ -431,6 +433,9 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 			)
 		: undefined;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
+	const automationsExperimentEnabled = useAutomationsEnabled();
+	const [manageAutomationsEnabled, setManageAutomationsEnabled] =
+		useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	// Treat the unsettled-organization window as pending so the model selector
@@ -590,6 +595,7 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 					? [...effectiveMCPServerIds]
 					: undefined,
 			planMode: planModeEnabled ? "plan" : undefined,
+			manageAutomationsEnabled,
 			uploadWorkspaceFiles,
 		}).catch((err) => {
 			resetDraft();
@@ -845,6 +851,12 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
+						manageAutomationsEnabled={manageAutomationsEnabled}
+						onManageAutomationsToggle={
+							automationsExperimentEnabled
+								? setManageAutomationsEnabled
+								: undefined
+						}
 						attachments={attachments}
 						// Files attached before org adoption cannot upload and would be discarded
 						// when restoration completes.

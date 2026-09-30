@@ -1,16 +1,23 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "react-query";
 import {
+	invalidateAutomationChats,
+	invalidateChatAutomations,
+} from "#/api/queries/chatAutomations";
+import {
 	invalidateChatEntity,
+	invalidateChatListQueries,
 	invalidateChatsByWorkspace,
 } from "#/api/queries/chats";
 import { invalidateWorkspaceMutationQueries } from "#/api/queries/workspaces";
+import { asString } from "../ChatElements/runtimeTypeUtils";
+import { parseArgs } from "../ChatElements/tools/utils";
 import { type ChatStore, useChatSelector } from "./chatStore";
 import type { StreamState } from "./types";
 
 type ChatToolResult = Pick<
 	StreamState["toolResults"][string],
-	"id" | "name" | "isStreaming"
+	"id" | "name" | "isStreaming" | "isError"
 >;
 
 // Only extract the toolResults record from the stream state.
@@ -34,6 +41,14 @@ const WORKSPACE_MUTATION_TOOL_NAMES = new Set([
 	"create_workspace",
 	"start_workspace",
 	"stop_workspace",
+]);
+const MANAGE_AUTOMATIONS_WRITE_ACTIONS = new Set([
+	"create",
+	"update",
+	"enable",
+	"disable",
+	"delete",
+	"run_now",
 ]);
 
 /**
@@ -64,12 +79,33 @@ export function useChatToolInvalidations({
 
 		let shouldInvalidateChat = false;
 		let shouldInvalidateWorkspace = false;
+		let shouldInvalidateAutomations = false;
+		let shouldInvalidateAutomationRuns = false;
+		const toolCalls = store.getSnapshot().streamState?.toolCalls;
 
 		for (const toolResult of Object.values(toolResults)) {
 			if (
 				toolResult.isStreaming ||
 				processedToolCallIdsRef.current.has(toolResult.id)
 			) {
+				continue;
+			}
+
+			if (toolResult.name === "manage_automations") {
+				const action = asString(
+					parseArgs(toolCalls?.[toolResult.id]?.args)?.action,
+				);
+				if (
+					toolResult.isError ||
+					!MANAGE_AUTOMATIONS_WRITE_ACTIONS.has(action)
+				) {
+					continue;
+				}
+				processedToolCallIdsRef.current.add(toolResult.id);
+				shouldInvalidateAutomations = true;
+				if (action === "run_now") {
+					shouldInvalidateAutomationRuns = true;
+				}
 				continue;
 			}
 
@@ -100,5 +136,17 @@ export function useChatToolInvalidations({
 				username,
 			});
 		}
-	}, [chatID, organizationName, queryClient, toolResults, username]);
+
+		// Tool results carry no organization ID, so every organization's
+		// automations refetch.
+		if (shouldInvalidateAutomations) {
+			void invalidateChatAutomations(queryClient);
+		}
+
+		// A run can start a new chat, which the chat lists must show.
+		if (shouldInvalidateAutomationRuns) {
+			void invalidateAutomationChats(queryClient);
+			void invalidateChatListQueries(queryClient);
+		}
+	}, [chatID, organizationName, queryClient, store, toolResults, username]);
 }

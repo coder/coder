@@ -218,6 +218,7 @@ const AgentCreatePage: React.FC = () => {
 		mcpServerIds,
 		organizationId,
 		planMode,
+		manageAutomationsEnabled,
 		uploadWorkspaceFiles,
 	}: CreateChatOptions) => {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -240,6 +241,9 @@ const AgentCreatePage: React.FC = () => {
 				mcpServerIds && mcpServerIds.length > 0 ? mcpServerIds : undefined,
 			plan_mode: planMode === "plan" ? "plan" : undefined,
 			client_type: "ui",
+			// Omitted when off: the server rejects true while the
+			// chat-automations experiment is off, and absent means false.
+			...(manageAutomationsEnabled ? { manage_automations_enabled: true } : {}),
 			...(model ? { model_config_id: model } : {}),
 			...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
 		};

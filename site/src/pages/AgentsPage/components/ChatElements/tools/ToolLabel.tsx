@@ -6,6 +6,7 @@ type ToolLabelProps = {
 	name: string;
 	args: unknown;
 	result: unknown;
+	isError?: boolean;
 	mcpSlug?: string;
 };
 
@@ -60,6 +61,54 @@ const AttachFileLabel: React.FC<ToolLabelProps> = ({ args, result }) => {
 	);
 };
 
+const manageAutomationsLabels: Partial<
+	Record<string, readonly [running: string, done: string, failed: string]>
+> = {
+	list: ["Listing automations", "Listed automations", "list automations"],
+	get: ["Reading automation", "Read automation", "read automation"],
+	create: ["Creating automation", "Created automation", "create automation"],
+	update: ["Updating automation", "Updated automation", "update automation"],
+	enable: ["Enabling automation", "Enabled automation", "enable automation"],
+	disable: [
+		"Disabling automation",
+		"Disabled automation",
+		"disable automation",
+	],
+	delete: ["Deleting automation", "Deleted automation", "delete automation"],
+	run_now: ["Running automation", "Ran automation", "run automation"],
+};
+
+const getManageAutomationsLabel = ({
+	args,
+	result,
+	isError,
+}: ToolLabelProps): string => {
+	const parsed = parseArgs(args);
+	const labels = manageAutomationsLabels[asString(parsed?.action)];
+	if (!labels) {
+		return "Manage automations";
+	}
+	const [running, done, failed] = labels;
+	const parsedResult = asRecord(result);
+	const automationName =
+		asString(asRecord(parsedResult?.automation)?.name) ||
+		asString(parsed?.name);
+	const suffix = automationName ? ` ${automationName}` : "";
+	if (isError || parsedResult?.error) {
+		return `Failed to ${failed}${suffix}`;
+	}
+	if (result === undefined || result === null) {
+		return `${running}${suffix}…`;
+	}
+	return `${done}${suffix}`;
+};
+
+const ManageAutomationsLabel: React.FC<ToolLabelProps> = (props) => (
+	<span className="truncate text-[13px]">
+		{getManageAutomationsLabel(props)}
+	</span>
+);
+
 export const genericToolLabels: Partial<
 	Record<string, React.FC<ToolLabelProps>>
 > = {
@@ -68,6 +117,7 @@ export const genericToolLabels: Partial<
 		<span className="truncate text-[13px]">Listing processes</span>
 	),
 	attach_file: AttachFileLabel,
+	manage_automations: ManageAutomationsLabel,
 	advisor: () => (
 		<span className="truncate text-[13px] leading-4 text-content-secondary">
 			Advisor

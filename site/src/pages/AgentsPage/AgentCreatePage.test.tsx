@@ -348,6 +348,19 @@ describe("AgentCreatePage workspace uploads", () => {
 		expect(router.state.location.pathname).toBe(chatPath);
 	});
 
+	it("sends manage_automations_enabled only when the toggle is on", async () => {
+		await renderUploadPage();
+
+		await submit({ manageAutomationsEnabled: false });
+		await submit({ manageAutomationsEnabled: true });
+
+		const [offRequest, onRequest] = vi
+			.mocked(API.experimental.createChat)
+			.mock.calls.map(([request]) => request);
+		expect(offRequest).not.toHaveProperty("manage_automations_enabled");
+		expect(onRequest).toMatchObject({ manage_automations_enabled: true });
+	});
+
 	it("archives the chat when the upload fails", async () => {
 		const router = await renderUploadPage();
 		const uploadWorkspaceFiles = vi

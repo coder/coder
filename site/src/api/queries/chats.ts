@@ -1130,6 +1130,11 @@ type UpdateChatPlanModeVariables = {
 	planMode?: TypesGen.ChatPlanMode;
 };
 
+type UpdateChatManageAutomationsVariables = {
+	chatId: string;
+	enabled: boolean;
+};
+
 const CLEAR_PLAN_MODE_WIRE_VALUE = "" satisfies ChatPlanModeOrClear;
 
 const toChatPlanModePayload = (
@@ -1472,6 +1477,60 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 					? {
 							...chat,
 							plan_mode: previousChat.plan_mode,
+						}
+					: chat,
+			),
+		);
+		patchChatEntity(queryClient, chatId, () => previousChat);
+	},
+});
+
+export const updateChatManageAutomations = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, enabled }: UpdateChatManageAutomationsVariables) =>
+		API.experimental.updateChat(chatId, {
+			manage_automations_enabled: enabled,
+		}),
+	onMutate: async ({
+		chatId,
+		enabled,
+	}: UpdateChatManageAutomationsVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatEntityKey(chatId),
+		);
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? { ...chat, manage_automations_enabled: enabled }
+					: chat,
+			),
+		);
+		if (previousChat) {
+			queryClient.setQueryData<TypesGen.Chat>(chatEntityKey(chatId), {
+				...previousChat,
+				manage_automations_enabled: enabled,
+			});
+		}
+		return { previousChat };
+	},
+	onError: (
+		_error: unknown,
+		{ chatId }: UpdateChatManageAutomationsVariables,
+		context: { previousChat?: TypesGen.Chat } | undefined,
+	) => {
+		void invalidateChatListQueries(queryClient);
+		const previousChat = context?.previousChat;
+		if (!previousChat) {
+			return;
+		}
+		updateInfiniteChatsCache(queryClient, (chats) =>
+			chats.map((chat) =>
+				chat.id === chatId
+					? {
+							...chat,
+							manage_automations_enabled:
+								previousChat.manage_automations_enabled,
 						}
 					: chat,
 			),
