@@ -2,9 +2,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
-	bindingCompactionTrigger,
-	isCompactionTriggerEnabled,
+	bindingCompactionTriggerSource,
+	isCompactionPointBeyondWindow,
 	modelCompactionTrigger,
+	resolveOrganizationCompactionTrigger,
 } from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { DefaultModelSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/DefaultModelSettings";
@@ -88,49 +89,58 @@ const formatModelList = (modelNames: readonly string[]) => {
 		: visibleNames.join(", ");
 };
 
-type CompactionWarningProps = {
+type CompactionOverrideAlertProps = {
 	selectedModelID: string;
 	enabledModels: readonly TypesGen.ChatModel[];
+	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 };
 
-const CompactionWarning: React.FC<CompactionWarningProps> = ({
+const CompactionOverrideAlert: React.FC<CompactionOverrideAlertProps> = ({
 	selectedModelID,
 	enabledModels,
+	providerInfoByID,
 }) => {
-	const compactionModel = enabledModels.find(
-		(model) => model.id === selectedModelID,
+	const organizationTrigger = resolveOrganizationCompactionTrigger(
+		selectedModelID,
+		enabledModels,
+		providerInfoByID,
+		"organization",
 	);
-	if (!compactionModel) {
-		return null;
-	}
-
-	const compactionModelName =
-		compactionModel.display_name.trim() || compactionModel.model;
-	// chatd ignores an override whose own trigger is off because it could
-	// not keep the history within the override model's window.
-	if (compactionModel.compression_threshold >= 100) {
+	if (!organizationTrigger) {
+		const selectedModel = enabledModels.find(
+			(model) => model.id === selectedModelID,
+		);
+		// chatd ignores an override whose own trigger is off because it could
+		// not keep the history within the override model's window.
+		if (!selectedModel || selectedModel.compression_threshold < 100) {
+			return null;
+		}
 		return (
 			<Alert severity="info">
 				<AlertDescription>
-					{`${compactionModelName} has compaction disabled (100%), so chats summarize with their own model instead.`}
+					{`${selectedModel.display_name.trim() || selectedModel.model} has compaction disabled (100%), so chats summarize with their own model instead.`}
 				</AlertDescription>
 			</Alert>
 		);
 	}
-	const overrideTrigger = modelCompactionTrigger(compactionModel);
-	if (!isCompactionTriggerEnabled(overrideTrigger)) {
-		return null;
-	}
 
+	const compactionModel = organizationTrigger.model;
+	const compactionModelName =
+		compactionModel.display_name.trim() || compactionModel.model;
 	// Setting 100% disables only the chat model trigger, not the override.
-	const undercutModelNames = enabledModels.flatMap((model) => {
-		return bindingCompactionTrigger(
-			modelCompactionTrigger(model),
-			overrideTrigger,
-		) === "organization"
-			? [model.display_name.trim() || model.model]
-			: [];
-	});
+	const undercutModelNames = enabledModels
+		.filter(
+			(model) =>
+				bindingCompactionTriggerSource(
+					modelCompactionTrigger(model),
+					organizationTrigger.trigger,
+				) === "organization" &&
+				!isCompactionPointBeyondWindow(
+					organizationTrigger.pointTokens,
+					model.context_limit,
+				),
+		)
+		.map((model) => model.display_name.trim() || model.model);
 	if (undercutModelNames.length === 0) {
 		return null;
 	}
@@ -138,7 +148,7 @@ const CompactionWarning: React.FC<CompactionWarningProps> = ({
 	return (
 		<Alert severity="warning">
 			<AlertDescription>
-				{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' default thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
+				{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' thresholds, including models whose compaction is off, because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds that trigger compaction sooner still apply first.`}
 			</AlertDescription>
 		</Alert>
 	);
@@ -224,9 +234,10 @@ const OrganizationAgentSettingsView: React.FC<
 							renderSelectedModelAlert={
 								setting.context === "compaction"
 									? (selectedModelID) => (
-											<CompactionWarning
+											<CompactionOverrideAlert
 												selectedModelID={selectedModelID}
 												enabledModels={enabledModels}
+												providerInfoByID={providerInfoByID}
 											/>
 										)
 									: undefined

@@ -12,18 +12,18 @@ export type CompactionTrigger = {
 export type OrganizationCompactionTrigger = {
 	readonly model: TypesGen.ChatModel;
 	readonly trigger: CompactionTrigger;
-	readonly point: number;
+	readonly pointTokens: number;
 };
 
-type CompactionThresholdSource = "user" | "model" | "organization";
-
-export type ResolvedCompactionThreshold = {
-	readonly percent: number;
-	readonly source: CompactionThresholdSource;
-	// Token count that triggers organization compaction. The gauge converts
-	// this using its runtime context limit; percent uses the configured limit.
-	readonly pointTokens?: number;
-};
+export type ResolvedCompactionThreshold =
+	| { readonly percent: number; readonly source: "user" | "model" }
+	| {
+			readonly percent: number;
+			readonly source: "organization";
+			// Token count that triggers organization compaction. The gauge converts
+			// this using its runtime context limit; percent uses the configured limit.
+			readonly pointTokens: number;
+	  };
 
 export const modelCompactionTrigger = (
 	model: TypesGen.ChatModel,
@@ -40,17 +40,17 @@ export const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 export const compactionTriggerPoint = (trigger: CompactionTrigger) =>
 	(trigger.contextLimit * trigger.thresholdPercent) / 100;
 
-export const bindingCompactionTrigger = (
+export const bindingCompactionTriggerSource = (
 	chat: CompactionTrigger,
-	override: CompactionTrigger,
+	organization: CompactionTrigger,
 ): "chat" | "organization" => {
-	if (!isCompactionTriggerEnabled(override)) {
+	if (!isCompactionTriggerEnabled(organization)) {
 		return "chat";
 	}
 	if (!isCompactionTriggerEnabled(chat)) {
 		return "organization";
 	}
-	return compactionTriggerPoint(override) < compactionTriggerPoint(chat)
+	return compactionTriggerPoint(organization) < compactionTriggerPoint(chat)
 		? "organization"
 		: "chat";
 };
@@ -63,10 +63,10 @@ export const bindingCompactionTriggerPoint = (
 ): number | undefined => {
 	if (
 		organizationTrigger &&
-		bindingCompactionTrigger(chat, organizationTrigger.trigger) ===
+		bindingCompactionTriggerSource(chat, organizationTrigger.trigger) ===
 			"organization"
 	) {
-		return organizationTrigger.point;
+		return organizationTrigger.pointTokens;
 	}
 	return isCompactionTriggerEnabled(chat)
 		? compactionTriggerPoint(chat)
@@ -74,20 +74,24 @@ export const bindingCompactionTriggerPoint = (
 };
 
 export const resolveOrganizationCompactionTrigger = (
-	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined,
+	modelConfigID: string | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
+	scope: "viewer" | "organization" = "viewer",
 ): OrganizationCompactionTrigger | undefined => {
-	const override = overrides?.find(
-		(candidate) => candidate.context === "compaction",
-	);
 	const model = filterModelsWithEnabledProvider(
 		models ?? [],
 		providerInfoByID,
-	).find((candidate) => candidate.id === override?.model_config_id);
+	).find((candidate) => candidate.id === modelConfigID);
 	// Override models that are disabled or whose provider is disabled fall
 	// back to the chat model on the backend.
 	if (!model?.enabled) {
+		return undefined;
+	}
+	if (
+		scope === "viewer" &&
+		providerInfoByID.get(model.ai_provider_id)?.available === false
+	) {
 		return undefined;
 	}
 
@@ -96,7 +100,7 @@ export const resolveOrganizationCompactionTrigger = (
 		return undefined;
 	}
 
-	return { model, trigger, point: compactionTriggerPoint(trigger) };
+	return { model, trigger, pointTokens: compactionTriggerPoint(trigger) };
 };
 
 export const compactionPointAsPercent = (
@@ -137,14 +141,14 @@ export const resolveCompactionThreshold = (
 	const source = userOverride ? "user" : "model";
 	if (organizationTrigger) {
 		const organizationPercent = compactionPointAsPercent(
-			organizationTrigger.point,
+			organizationTrigger.pointTokens,
 			config.context_limit,
 		);
-		// Bind before converting to a chat-window percentage because an
-		// organization point may convert to 100% or more.
+		// Bind on token points, not organizationPercent: the organization point
+		// can convert to 100% or more of this window, which reads as disabled.
 		if (
 			organizationPercent !== undefined &&
-			bindingCompactionTrigger(
+			bindingCompactionTriggerSource(
 				{
 					thresholdPercent,
 					contextLimit: config.context_limit,
@@ -155,7 +159,7 @@ export const resolveCompactionThreshold = (
 			return {
 				percent: organizationPercent,
 				source: "organization",
-				pointTokens: organizationTrigger.point,
+				pointTokens: organizationTrigger.pointTokens,
 			};
 		}
 	}

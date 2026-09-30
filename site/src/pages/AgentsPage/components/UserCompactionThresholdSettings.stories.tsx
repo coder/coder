@@ -36,7 +36,7 @@ const mockCompactionModel: TypesGen.ChatModel = {
 const mockCompactionTrigger: OrganizationCompactionTrigger = {
 	model: mockCompactionModel,
 	trigger: { thresholdPercent: 50, contextLimit: 32_000 },
-	point: 16_000,
+	pointTokens: 16_000,
 };
 const mockCompactionTriggersByOrganizationID = new Map([
 	[MockChatModel.organization_id, mockCompactionTrigger],
@@ -264,7 +264,7 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 				{
 					model: { ...mockCompactionModel, context_limit: 256_000 },
 					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
-					point: 128_000,
+					pointTokens: 128_000,
 				},
 			],
 		]),
@@ -298,7 +298,6 @@ export const OrganizationTriggerBeyondModelWindow: Story = {
 	},
 };
 
-export const NoOrganizationCompactionOverride: Story = {};
 export const CompactionTriggersLoadError: Story = {
 	args: {
 		compactionTriggersError: new Error("Network Error"),

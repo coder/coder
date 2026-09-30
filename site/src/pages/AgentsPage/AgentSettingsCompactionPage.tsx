@@ -14,7 +14,7 @@ import {
 } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
-	providerInfoByIDFromUserConfigs,
+	providerInfoByIDFromDescriptors,
 	providerTypeByIDFromUserConfigs,
 } from "./utils/modelOptions";
 
@@ -24,7 +24,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
-	const compactionOverrideQueries = useQueries({
+	const modelOverrideQueries = useQueries({
 		queries: organizations.map((organization) =>
 			organizationChatModelOverrides(organization.id),
 		),
@@ -50,13 +50,13 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
-	const providerInfoByID = providerInfoByIDFromUserConfigs(
-		providerConfigsQuery.data,
+	const providerInfoByID = providerInfoByIDFromDescriptors(
+		organizationModels.providers,
 	);
-	const isCompactionOverridesLoading = compactionOverrideQueries.some(
+	const isCompactionOverridesLoading = modelOverrideQueries.some(
 		(query) => query.isLoading,
 	);
-	const compactionOverridesError = compactionOverrideQueries.find(
+	const compactionOverridesError = modelOverrideQueries.find(
 		(query) => query.error,
 	)?.error;
 	const compactionTriggersByOrganizationID = new Map<
@@ -65,7 +65,9 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	>();
 	for (const [index, organization] of organizations.entries()) {
 		const trigger = resolveOrganizationCompactionTrigger(
-			compactionOverrideQueries[index]?.data?.overrides,
+			modelOverrideQueries[index]?.data?.overrides.find(
+				(override) => override.context === "compaction",
+			)?.model_config_id,
 			organizationModels.models.filter(
 				(model) => model.organization_id === organization.id,
 			),
@@ -84,13 +86,9 @@ const AgentSettingsCompactionPage: React.FC = () => {
 			compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
-				organizationModels.isLoading ||
-				providerConfigsQuery.isLoading ||
-				isCompactionOverridesLoading
+				organizationModels.isLoading || isCompactionOverridesLoading
 			}
-			compactionTriggersError={
-				compactionOverridesError ?? providerConfigsQuery.error
-			}
+			compactionTriggersError={compactionOverridesError}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}

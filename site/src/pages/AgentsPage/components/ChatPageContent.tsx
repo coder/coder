@@ -440,7 +440,9 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		organizationChatModelOverrides(organizationId),
 	);
 	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
-		modelOverridesQuery.data?.overrides,
+		modelOverridesQuery.data?.overrides.find(
+			(override) => override.context === "compaction",
+		)?.model_config_id,
 		modelCatalog?.models,
 		providerInfoByIDFromDescriptors(modelCatalog?.providers),
 	);

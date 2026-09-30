@@ -30,7 +30,11 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
-import type { ResolvedCompactionThreshold } from "../compactionTriggers";
+import {
+	compactionPointAsPercent,
+	isCompactionPointBeyondWindow,
+	type ResolvedCompactionThreshold,
+} from "../compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -280,23 +284,28 @@ export const ContextUsageIndicator: React.FC<{
 	// against the same limit the gauge displays, which may be a
 	// runtime-reported window that differs from the configured one.
 	const compaction = usage?.compactionThreshold;
+	const displayedLimitTokens = contextLimitTokens ?? 0;
 	const compactionPercent =
-		compaction === undefined
-			? undefined
-			: compaction.pointTokens !== undefined &&
-					contextLimitTokens !== undefined &&
-					contextLimitTokens > 0
-				? (compaction.pointTokens / contextLimitTokens) * 100
-				: compaction.percent;
+		compaction?.source === "organization"
+			? (compactionPointAsPercent(
+					compaction.pointTokens,
+					displayedLimitTokens,
+				) ?? compaction.percent)
+			: compaction?.percent;
 	// A chat threshold of 100 is the disabled sentinel, while an organization
 	// point at exactly 100% of the displayed window still fires; past it
 	// nothing can compact within this window.
+	const isCompactionReachable =
+		compaction?.source === "organization"
+			? !isCompactionPointBeyondWindow(
+					compaction.pointTokens,
+					displayedLimitTokens,
+				)
+			: compactionPercent !== undefined && compactionPercent < 100;
 	const compactionLabel =
 		compaction !== undefined &&
 		compactionPercent !== undefined &&
-		(compaction.source === "organization"
-			? compactionPercent <= 100
-			: compactionPercent < 100)
+		isCompactionReachable
 			? `Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${compaction.source === "organization" ? " (organization override)" : ""}`
 			: undefined;
 	const clampedPercent = hasPercent
