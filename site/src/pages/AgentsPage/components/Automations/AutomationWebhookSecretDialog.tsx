@@ -10,25 +10,15 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-/** Builds the URL that webhook senders post events to. */
-export const webhookEventsUrl = (origin: string, automationId: string) =>
-	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
-
 type AutomationWebhookSecretDialogProps = {
 	endpoint: string;
 	secret: string;
-	/**
-	 * Receives focus on close. The control that led here is often gone, like
-	 * the editor's Save button after a create.
-	 */
-	returnFocusTo?: HTMLElement | null;
+	/** Receives focus on close, since the opener may no longer exist. */
+	returnFocusTo: HTMLElement | null;
 	onClose: () => void;
 };
 
-/**
- * Shows a new webhook secret once. Callers keep the secret only in component
- * state and drop it on close, so it cannot be shown again.
- */
+/** Shows a new webhook secret once. */
 export const AutomationWebhookSecretDialog: React.FC<
 	AutomationWebhookSecretDialogProps
 > = ({ endpoint, secret, returnFocusTo, onClose }) => {
@@ -61,33 +51,32 @@ export const AutomationWebhookSecretDialog: React.FC<
 			>
 				<DialogHeader>
 					<DialogTitle>Copy the webhook secret</DialogTitle>
-					<DialogDescription asChild>
-						<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
-							<p>You will not see this secret again.</p>
-							<p className="mt-4">Publish endpoint</p>
-							<CodeExample
-								secret={false}
-								code={endpoint}
-								copyLabel="Copy endpoint"
-								className="mt-1"
-							/>
-							<p className="mt-4">Secret</p>
-							<CodeExample
-								secret={false}
-								code={secret}
-								copyLabel="Copy secret"
-								className="mt-1 select-all"
-							/>
-							<p className="mt-4">Example request</p>
-							<CodeExample
-								secret={false}
-								code={curl}
-								copyLabel="Copy example request"
-								className="mt-1"
-							/>
-						</div>
+					<DialogDescription>
+						You will not see this secret again.
 					</DialogDescription>
 				</DialogHeader>
+				<div className="flex flex-col gap-4">
+					{[
+						{
+							label: "Publish endpoint",
+							code: endpoint,
+							copy: "Copy endpoint",
+						},
+						{ label: "Secret", code: secret, copy: "Copy secret" },
+						{
+							label: "Example request",
+							code: curl,
+							copy: "Copy example request",
+						},
+					].map(({ label, code, copy }) => (
+						<div key={label} className="flex flex-col gap-1">
+							<span className="text-sm font-medium text-content-primary">
+								{label}
+							</span>
+							<CodeExample secret={false} code={code} copyLabel={copy} />
+						</div>
+					))}
+				</div>
 				<DialogFooter>
 					<Button ref={doneButtonRef} onClick={onClose}>
 						Done

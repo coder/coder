@@ -14,6 +14,7 @@ import {
 	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
+	webhookPublishEndpoint,
 } from "#/api/queries/chatAutomations";
 import type {
 	ChatAutomation,
@@ -32,10 +33,7 @@ import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AutomationEditorDialog } from "./components/Automations/AutomationEditorDialog";
 import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
-import {
-	AutomationWebhookSecretDialog,
-	webhookEventsUrl,
-} from "./components/Automations/AutomationWebhookSecretDialog";
+import { AutomationWebhookSecretDialog } from "./components/Automations/AutomationWebhookSecretDialog";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
@@ -84,6 +82,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		returnFocusTo: HTMLElement | null;
 	}>();
 	const editorOpenerRef = useRef<HTMLElement | null>(null);
+	const rotateButtonRef = useRef<HTMLButtonElement | null>(null);
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -107,14 +106,26 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
-	const rotateMutation = useMutation(
-		rotateChatAutomationSecret(queryClient, organizationId),
-	);
+	// A mutation-level callback still runs after a reset detaches per-call ones.
+	const rotateMutation = useMutation({
+		...rotateChatAutomationSecret(queryClient, organizationId),
+		onSuccess: ({ webhook_secret }, automationId) => {
+			setWebhookSecret({
+				automationId,
+				secret: webhook_secret,
+				returnFocusTo: rotateButtonRef.current,
+			});
+			// Drops the secret-bearing response from the mutation cache.
+			rotateMutation.reset();
+		},
+	});
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
 		editMutation.reset();
-		rotateMutation.reset();
+		if (!rotateMutation.isPending) {
+			rotateMutation.reset();
+		}
 		editorOpenerRef.current =
 			document.activeElement instanceof HTMLElement
 				? document.activeElement
@@ -122,8 +133,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		setEditor(next);
 	};
 
-	// Secret-bearing mutations are reset after success so their responses do
-	// not linger in the mutation cache.
 	const handleCreate = (req: CreateChatAutomationRequest) => {
 		createMutation.mutate(req, {
 			onSuccess: ({ automation, webhook_secret }) => {
@@ -146,28 +155,16 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		automation: ChatAutomation,
 		rotateButton: HTMLButtonElement | null,
 	) => {
-		if (editMutation.isError) {
-			editMutation.reset();
-		}
-		rotateMutation.mutate(automation.id, {
-			onSuccess: ({ webhook_secret }) => {
-				setWebhookSecret({
-					automationId: automation.id,
-					secret: webhook_secret,
-					returnFocusTo: rotateButton,
-				});
-				rotateMutation.reset();
-			},
-		});
+		editMutation.reset();
+		rotateButtonRef.current = rotateButton;
+		rotateMutation.mutate(automation.id);
 	};
 
 	const handleUpdate = (
 		automation: ChatAutomation,
 		req: UpdateChatAutomationRequest,
 	) => {
-		if (rotateMutation.isError) {
-			rotateMutation.reset();
-		}
+		rotateMutation.reset();
 		editMutation.mutate(
 			{ automationId: automation.id, req },
 			{
@@ -287,7 +284,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 			webhookSecretDialog={
 				webhookSecret && (
 					<AutomationWebhookSecretDialog
-						endpoint={webhookEventsUrl(
+						endpoint={webhookPublishEndpoint(
 							window.location.origin,
 							webhookSecret.automationId,
 						)}

@@ -1,0 +1,151 @@
+import { useId, useRef, useState } from "react";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { webhookPublishEndpoint } from "#/api/queries/chatAutomations";
+import type {
+	ChatAutomation,
+	ChatAutomationWebhookUse,
+} from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { formatDate } from "#/utils/time";
+import { RadioOption } from "./RadioOption";
+
+type AutomationWebhookFieldsProps = {
+	/** Shows this saved webhook; shows the Use choice when unset. */
+	automation?: ChatAutomation;
+	origin: string;
+	use: ChatAutomationWebhookUse;
+	onUseChange: (use: ChatAutomationWebhookUse) => void;
+	rotateSecretError: unknown;
+	isRotatingSecret: boolean;
+	isSubmitting: boolean;
+	onRotateSecret: (rotateButton: HTMLButtonElement | null) => void;
+};
+
+export const AutomationWebhookFields: React.FC<
+	AutomationWebhookFieldsProps
+> = ({
+	automation,
+	origin,
+	use,
+	onUseChange,
+	rotateSecretError,
+	isRotatingSecret,
+	isSubmitting,
+	onRotateSecret,
+}) => {
+	const useLabelId = useId();
+	const useHelpId = useId();
+	const rotateButtonRef = useRef<HTMLButtonElement>(null);
+	const [confirmingRotate, setConfirmingRotate] = useState(false);
+
+	if (!automation) {
+		return (
+			<div className="flex flex-col gap-2">
+				<span
+					id={useLabelId}
+					className="text-sm font-medium text-content-primary"
+				>
+					Use
+				</span>
+				<RadioGroup
+					aria-labelledby={useLabelId}
+					aria-describedby={useHelpId}
+					value={use}
+					onValueChange={(value) => {
+						if (value === "single" || value === "multi") {
+							onUseChange(value);
+						}
+					}}
+				>
+					<RadioOption value="single" label="Single-use" />
+					<RadioOption value="multi" label="Multi-use" />
+				</RadioGroup>
+				<span id={useHelpId} className="text-xs text-content-secondary">
+					A single-use webhook accepts one event.
+				</span>
+			</div>
+		);
+	}
+
+	const isSingleUse = automation.webhook_use === "single";
+	// A used single-use webhook rejects every event, so a new secret is useless.
+	const isUsedUp = isSingleUse && Boolean(automation.webhook_consumed_at);
+	const rotateErrorDetail = getErrorDetail(rotateSecretError);
+	return (
+		<>
+			<h3 className="m-0 text-sm font-medium text-content-primary">
+				Use:{" "}
+				<span className="font-normal text-content-secondary">
+					{isSingleUse ? "Single-use" : "Multi-use"}
+				</span>
+			</h3>
+			{automation.webhook_consumed_at && (
+				<p className="m-0 text-sm text-content-secondary">
+					{`Used on ${formatDate(new Date(automation.webhook_consumed_at), {
+						locale: "en-US",
+						timeZoneName: "short",
+					})}`}
+				</p>
+			)}
+			<div className="flex flex-col gap-2">
+				<span className="text-sm font-medium text-content-primary">
+					Publish endpoint
+				</span>
+				<CodeExample
+					secret={false}
+					code={webhookPublishEndpoint(origin, automation.id)}
+					copyLabel="Copy endpoint"
+				/>
+			</div>
+			{/* Next to the button so it stays in view in a scrolled form. */}
+			{Boolean(rotateSecretError) && (
+				<Alert severity="error" prominent>
+					<AlertTitle>
+						{getErrorMessage(
+							rotateSecretError,
+							"Could not rotate the webhook secret.",
+						)}
+					</AlertTitle>
+					{rotateErrorDetail && (
+						<AlertDescription>{rotateErrorDetail}</AlertDescription>
+					)}
+				</Alert>
+			)}
+			{!isUsedUp && (
+				<Button
+					ref={rotateButtonRef}
+					type="button"
+					variant="outline"
+					size="sm"
+					className="w-fit"
+					disabled={isRotatingSecret || isSubmitting}
+					onClick={() => setConfirmingRotate(true)}
+				>
+					<Spinner loading={isRotatingSecret} />
+					Rotate secret
+				</Button>
+			)}
+			<ConfirmDialog
+				open={confirmingRotate}
+				type="delete"
+				title="Rotate the webhook secret?"
+				description="The current secret stops working immediately."
+				confirmText="Rotate secret"
+				onClose={() => setConfirmingRotate(false)}
+				onConfirm={() => {
+					setConfirmingRotate(false);
+					onRotateSecret(rotateButtonRef.current);
+				}}
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					rotateButtonRef.current?.focus();
+				}}
+			/>
+		</>
+	);
+};
