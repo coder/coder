@@ -46,7 +46,7 @@ The agent uses three tools to provision a workspace:
 | `read_template`    | Read a template's parameters and presets                  |
 | `create_workspace` | Create the workspace from a chosen template               |
 
-Administrators can restrict which templates these tools can use with the switches on the [Templates page](../platform-controls/template-optimization.md#restrict-available-templates).
+Administrators can restrict which templates these tools can use with the switches on the [Templates page](./platform-controls/template-optimization.md#restrict-available-templates).
 
 ### list_templates
 

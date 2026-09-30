@@ -43,7 +43,7 @@ For HTTPS Git operations, Coder selects from your template's declared providers 
 If two of your template's declared providers match the same host, Coder refuses the request instead of guessing between them.
 Coder also refuses when none of your declared providers match the host and one of them is missing from the deployment's configuration, rather than fall back to a provider your template never declared.
 A missing declaration doesn't affect hosts that your other declared providers still serve.
-For the full rules, refer to [OAuth (external auth)](../../external-auth/index.md#oauth-external-auth).
+For the full rules, refer to [OAuth (external auth)](../../external-auth.md#oauth-external-auth).
 
 To check the auth token being used **from inside a running workspace**, run:
 
