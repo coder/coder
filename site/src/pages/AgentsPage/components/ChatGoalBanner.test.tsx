@@ -45,6 +45,24 @@ describe("ChatGoalBanner", () => {
 		expect(onAction).toHaveBeenNthCalledWith(2, "clear");
 	});
 
+	it("sends resume and clear for a blocked goal", async () => {
+		const user = userEvent.setup();
+		const onAction = vi.fn();
+		render(
+			<ChatGoalBanner
+				goal={goal({ status: "blocked", blocked_reason: "Need a decision." })}
+				canMutateGoal
+				onAction={onAction}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /Resume/i }));
+		await user.click(screen.getByRole("button", { name: /Clear/i }));
+
+		expect(onAction).toHaveBeenNthCalledWith(1, "resume");
+		expect(onAction).toHaveBeenNthCalledWith(2, "clear");
+	});
+
 	it("sends clear for a complete goal", async () => {
 		const user = userEvent.setup();
 		const onAction = vi.fn();
