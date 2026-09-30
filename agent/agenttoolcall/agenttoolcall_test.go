@@ -29,24 +29,21 @@ import (
 // agent.TestAgent_ToolCall.
 
 type canceledCall struct {
-	chatID uuid.UUID
-	id     uuid.UUID
-	// runsFinished is how many runs had finished when cancel was called.
-	runsFinished int64
+	chatID       uuid.UUID
+	id           uuid.UUID
+	runsFinished int64 // runs finished when cancel was called
 }
 
 // testServer serves /run and /panic behind a Table and reports the Table's
 // cancel calls on canceled.
 type testServer struct {
-	clock    *quartz.Mock
-	handler  http.Handler
-	runs     atomic.Int64
-	finished atomic.Int64
-	canceled chan canceledCall
-	entered  chan struct{} // receives when a run starts
-	// cancelEntered receives when a cancel request arrives, before the
-	// Table handles it.
-	cancelEntered chan struct{}
+	clock         *quartz.Mock
+	handler       http.Handler
+	runs          atomic.Int64
+	finished      atomic.Int64
+	canceled      chan canceledCall
+	entered       chan struct{} // receives when a run starts
+	cancelEntered chan struct{} // receives when a cancel arrives, before the Table handles it
 	block         chan struct{} // if set, runs wait until it is closed
 }
 

@@ -32,10 +32,8 @@ type key struct {
 type entry struct {
 	expiresAt time.Time
 	canceled  bool
-	// done is closed once resp is set. It is nil if a cancel created the
-	// entry.
-	done chan struct{}
-	resp workspacesdk.CancelToolCallResponse
+	done      chan struct{} // closed once resp is set; nil if a cancel created the entry
+	resp      workspacesdk.CancelToolCallResponse
 }
 
 // Table remembers tool calls by chat ID and tool call ID.

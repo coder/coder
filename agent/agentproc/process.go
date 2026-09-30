@@ -45,12 +45,11 @@ type process struct {
 	logger     slog.Logger
 	running    bool
 	canceled   atomic.Bool // set if its tool call is canceled while it runs
-	// waitUntil is when TimeoutMs passes, or zero if none.
-	waitUntil time.Time
-	exitCode  *int
-	startedAt int64
-	exitedAt  *int64
-	done      chan struct{} // closed when process exits
+	waitUntil  time.Time   // when TimeoutMs passes; zero if none
+	exitCode   *int
+	startedAt  int64
+	exitedAt   *int64
+	done       chan struct{} // closed when process exits
 }
 
 // info returns a snapshot of the process state.

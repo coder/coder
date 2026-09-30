@@ -950,12 +950,8 @@ type ProcessOutputResponse struct {
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
 	Command   string             `json:"command,omitempty"`
-	// TimedOut is true while the process runs past
-	// StartProcessRequest.TimeoutMs.
-	TimedOut bool `json:"timed_out,omitempty"`
-	// Canceled is true if the process's tool call was canceled while the
-	// process ran.
-	Canceled bool `json:"canceled,omitempty"`
+	TimedOut  bool               `json:"timed_out,omitempty"` // running past StartProcessRequest.TimeoutMs
+	Canceled  bool               `json:"canceled,omitempty"`  // its tool call was canceled while it ran
 }
 
 // ProcessOutputOptions configures blocking behavior for

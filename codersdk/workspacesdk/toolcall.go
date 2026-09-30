@@ -29,16 +29,14 @@ func ToolCallIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	return id, ok
 }
 
-// CancelToolCallResponse is the response to a tool call cancel.
+// CancelToolCallResponse is the response to a tool call cancel. The agent
+// has no record of a tool call it never received, or after it restarted
+// or expired the record.
 type CancelToolCallResponse struct {
-	// Received is false if the agent has no record of the tool call: it
-	// never received it, restarted, or expired the record.
-	Received bool `json:"received"`
-	// Status, ContentType, and Body are the saved response, set if
-	// Received.
-	Status      int    `json:"status,omitempty"`
-	ContentType string `json:"content_type,omitempty"`
-	Body        []byte `json:"body,omitempty"`
+	Received    bool   `json:"received"`               // false if the agent has no record of the tool call
+	Status      int    `json:"status,omitempty"`       // saved response status, if Received
+	ContentType string `json:"content_type,omitempty"` // saved response Content-Type, if Received
+	Body        []byte `json:"body,omitempty"`         // saved response body, if Received
 }
 
 // StartProcessResult decodes a saved start response as StartProcess
