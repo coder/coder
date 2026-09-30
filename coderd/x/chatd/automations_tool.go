@@ -32,7 +32,7 @@ const manageAutomationsNextRunCount = 5
 
 const manageAutomationsDescription = "Manage the chat owner's automations in this chat's organization. " +
 	"Automations are webhook or schedule triggers that send a prompt to an existing chat or start a new chat. " +
-	"Actions: list returns the automations; get returns one automation; create adds an enabled automation; " +
+	"Actions: list returns the automations without their prompts; get returns one automation with its prompt; create adds an enabled automation; " +
 	"update changes only the fields you pass; enable turns an automation on again; " +
 	"disable stops an automation from running until it is enabled again; delete removes an automation permanently; " +
 	"run_now sends the prompt of an enabled schedule automation now. " +
@@ -44,8 +44,8 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"update, enable, and run_now work only on automations that follow these rules. " +
 	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
 	"A single-use webhook secret is returned once, by create, only for a webhook that targets this chat. " +
-	"When the current turn was started by an automation, create, update, enable, and run_now are refused, " +
-	"and only automations that target this chat or that created this chat are visible."
+	"When the current turn was started by an automation, create, update, enable, and run_now are refused; " +
+	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that started the turn."
 
 var manageAutomationsActions = []string{"list", "get", "create", "update", "enable", "disable", "delete", "run_now"}
 
@@ -254,7 +254,11 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		automations := make([]codersdk.ChatAutomation, 0, len(rows))
 		for _, row := range rows {
 			if manageAutomationsVisible(chat, trigger, row) {
-				automations = append(automations, p.manageAutomationsView(row))
+				// The result stays in the chat, which may be shared, so list
+				// leaves prompts out; get returns one when asked.
+				view := p.manageAutomationsView(row)
+				view.Prompt = ""
+				automations = append(automations, view)
 			}
 		}
 		return map[string]any{"automations": automations}, nil
@@ -300,6 +304,11 @@ func (p *Server) runManageAutomations(ctx context.Context, chatID uuid.UUID, arg
 		p.auditManageAutomations(ctx, chat, trigger, database.AuditActionWrite, row, updated)
 		return map[string]any{"automation": p.manageAutomationsView(updated)}, nil
 	default: // delete
+		// Input from one automation must not remove another one for good;
+		// disabling it stays possible and is undone by enabling it.
+		if trigger.AutomationID.Valid && trigger.AutomationID.UUID != row.ID {
+			return nil, xerrors.New("in a turn an automation started, delete only removes that automation; use disable for others")
+		}
 		if err := p.DeleteAutomation(ownerCtx, row.ID); err != nil {
 			return nil, p.manageAutomationsError(ctx, action, err)
 		}

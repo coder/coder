@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -11,12 +11,13 @@ import {
 	automationChats,
 	chatAutomations,
 	createChatAutomation,
+	rotateChatAutomationSecret,
 	runChatAutomation,
 	updateChatAutomation,
+	webhookPublishEndpoint,
 } from "#/api/queries/chatAutomations";
 import type {
 	ChatAutomation,
-	CreateChatAutomationRequest,
 	Organization,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
@@ -31,6 +32,7 @@ import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AutomationEditorDialog } from "./components/Automations/AutomationEditorDialog";
 import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
+import { AutomationWebhookSecretDialog } from "./components/Automations/AutomationWebhookSecretDialog";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
@@ -72,6 +74,13 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const [runError, setRunError] = useState<AutomationRunError>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
 	const [editor, setEditor] = useState<EditorState>();
+	// The only copy of a new webhook secret. Never cache or persist it.
+	const [webhookSecret, setWebhookSecret] = useState<{
+		automationId: string;
+		secret: string;
+	}>();
+	// The editor's opener, or the Rotate secret button during a rotation.
+	const secretReturnFocusRef = useRef<HTMLElement | null>(null);
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -89,32 +98,58 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const runMutation = useMutation(
 		runChatAutomation(queryClient, organizationId),
 	);
-	const createMutation = useMutation(
-		createChatAutomation(queryClient, organizationId),
-	);
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
+	);
+	const createMutation = useMutation({
+		...createChatAutomation(
+			queryClient,
+			organizationId,
+			// Closes the editor in the same render that opens the secret dialog.
+			(automationId, secret) => {
+				setEditor(undefined);
+				setWebhookSecret({ automationId, secret });
+			},
+		),
+		onSuccess: ({ automation }) => {
+			toast.success(`Created ${automation.name}.`);
+			setEditor(undefined);
+		},
+	});
+	const rotateMutation = useMutation(
+		rotateChatAutomationSecret(
+			queryClient,
+			organizationId,
+			(automationId, secret) => setWebhookSecret({ automationId, secret }),
+		),
 	);
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
 		editMutation.reset();
+		rotateMutation.reset();
+		secretReturnFocusRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
 		setEditor(next);
 	};
 
-	const handleCreate = (req: CreateChatAutomationRequest) => {
-		createMutation.mutate(req, {
-			onSuccess: ({ automation }) => {
-				toast.success(`Created ${automation.name}.`);
-				setEditor(undefined);
-			},
-		});
+	// Each save or rotate replaces the other's error so alerts do not stack.
+	const handleRotateSecret = (
+		automation: ChatAutomation,
+		rotateButton: HTMLButtonElement | null,
+	) => {
+		editMutation.reset();
+		secretReturnFocusRef.current = rotateButton;
+		rotateMutation.mutate(automation.id);
 	};
 
 	const handleUpdate = (
 		automation: ChatAutomation,
 		req: UpdateChatAutomationRequest,
 	) => {
+		rotateMutation.reset();
 		editMutation.mutate(
 			{ automationId: automation.id, req },
 			{
@@ -205,6 +240,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 						organizationId={organizationId}
 						automation={editor.mode === "edit" ? editor.automation : undefined}
 						currentUserId={user.id}
+						origin={window.location.origin}
 						error={
 							editor.mode === "edit" ? editMutation.error : createMutation.error
 						}
@@ -213,13 +249,33 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 								? editMutation.isPending
 								: createMutation.isPending
 						}
-						onCreate={handleCreate}
+						onCreate={createMutation.mutate}
 						onUpdate={(req) => {
 							if (editor.mode === "edit") {
 								handleUpdate(editor.automation, req);
 							}
 						}}
+						rotateSecretError={rotateMutation.error}
+						isRotatingSecret={rotateMutation.isPending}
+						onRotateSecret={(rotateButton) => {
+							if (editor.mode === "edit") {
+								handleRotateSecret(editor.automation, rotateButton);
+							}
+						}}
 						onClose={() => setEditor(undefined)}
+					/>
+				)
+			}
+			webhookSecretDialog={
+				webhookSecret && (
+					<AutomationWebhookSecretDialog
+						endpoint={webhookPublishEndpoint(
+							window.location.origin,
+							webhookSecret.automationId,
+						)}
+						secret={webhookSecret.secret}
+						returnFocusRef={secretReturnFocusRef}
+						onClose={() => setWebhookSecret(undefined)}
 					/>
 				)
 			}

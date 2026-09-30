@@ -3942,6 +3942,17 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	rotateChatAutomationSecret = async (
+		organizationId: string,
+		automationId: string,
+	): Promise<TypesGen.RotateChatAutomationSecretResponse> => {
+		const response =
+			await this.axios.post<TypesGen.RotateChatAutomationSecretResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chat-automations/${encodeURIComponent(automationId)}/secret/rotate`,
+			);
+		return response.data;
+	};
+
 	createChatModel = async (
 		organizationId: string,
 		req: TypesGen.CreateChatModelRequest,
