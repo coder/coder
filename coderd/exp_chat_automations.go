@@ -427,6 +427,11 @@ func (api *API) writeChatAutomationRunError(ctx context.Context, rw http.Respons
 		api.writeChatAutomationError(ctx, rw, err)
 	case errors.Is(err, chatd.ErrAutomationDisabled):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat automation is disabled."})
+	case errors.Is(err, chatd.ErrAutomationChatBusy):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "The target chat is busy.",
+			Detail:  "The automation skips runs while the chat is busy.",
+		})
 	default:
 		writeChatAutomationEventError(ctx, rw, err)
 	}
