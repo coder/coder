@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -338,13 +339,22 @@ func (s *ServerTailnet) acquireAgentConn(agentID uuid.UUID) (workspacesdk.AgentC
 }
 
 // agentRoundTripper sets the agent ID that dialContext reads, like
-// ReverseProxy's director.
+// ReverseProxy's director. The transport reuses idle connections by URL
+// host, not agent ID, so a request to another host could reuse another
+// agent's connection.
 type agentRoundTripper struct {
 	agentID   uuid.UUID
 	transport http.RoundTripper
 }
 
 func (rt agentRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	apiHost := net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(rt.agentID).String(), strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
+	if req.URL.Host != apiHost {
+		if req.Body != nil {
+			_ = req.Body.Close() // Required by the http.RoundTripper contract.
+		}
+		return nil, xerrors.Errorf("request host %q does not match agent API address %q", req.URL.Host, apiHost)
+	}
 	ctx := req.Context()
 	ctx = context.WithValue(ctx, agentIDKey{}, rt.agentID)
 	return rt.transport.RoundTrip(req.WithContext(ctx))
