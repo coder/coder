@@ -272,12 +272,18 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 		},
 	});
 	// Server errors on kind or target fields go stale once that choice changes.
-	const isStaleField = (field: string) =>
-		submittedValues !== undefined &&
-		((submittedValues.kind !== form.values.kind &&
-			KIND_FIELDS.includes(field)) ||
-			(submittedValues.target_mode !== form.values.target_mode &&
-				TARGET_FIELDS.includes(field)));
+	const isStaleField = (field: string) => {
+		if (!submittedValues) {
+			return false;
+		}
+		const kindChanged = submittedValues.kind !== form.values.kind;
+		const targetChanged =
+			submittedValues.target_mode !== form.values.target_mode;
+		return (
+			(kindChanged && KIND_FIELDS.includes(field)) ||
+			(targetChanged && TARGET_FIELDS.includes(field))
+		);
+	};
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
 		getFormHelpers(
 			form,

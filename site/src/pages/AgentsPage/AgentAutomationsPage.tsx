@@ -105,7 +105,11 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		...createChatAutomation(
 			queryClient,
 			organizationId,
-			(automationId, secret) => setWebhookSecret({ automationId, secret }),
+			// Closes the editor in the same render that opens the secret dialog.
+			(automationId, secret) => {
+				setEditor(undefined);
+				setWebhookSecret({ automationId, secret });
+			},
 		),
 		onSuccess: ({ automation }) => {
 			toast.success(`Created ${automation.name}.`);

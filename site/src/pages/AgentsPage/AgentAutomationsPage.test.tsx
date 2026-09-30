@@ -989,11 +989,16 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(rotateRequests).toHaveLength(1);
 		});
-		// The name includes the spinner's label while rotating.
+		// The name includes the spinner's title while rotating.
+		const rotatingButton = within(dialog).getByRole("button", {
+			name: /Rotate secret/,
+		});
+		expect(rotatingButton).toHaveFocus();
+		await user.click(rotatingButton);
 		expect(
-			within(dialog).getByRole("button", { name: /Rotate secret/ }),
-		).toHaveFocus();
-		// Closing the editor mid-rotation would lose the new secret.
+			screen.queryByRole("dialog", { name: "Rotate the webhook secret?" }),
+		).toBeNull();
+		// The editor stays open mid-rotation so focus can return to the button.
 		await user.keyboard("{Escape}");
 		releaseRotate();
 

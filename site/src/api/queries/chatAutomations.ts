@@ -33,9 +33,9 @@ export const invalidateChatAutomations = (queryClient: QueryClient) =>
 export const webhookPublishEndpoint = (origin: string, automationId: string) =>
 	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
 
+/** Receives a new webhook secret, which never reaches the mutation cache. */
 type OnWebhookSecret = (automationId: string, secret: string) => void;
 
-/** Hands a new webhook secret to the caller; it never reaches the mutation cache. */
 export const createChatAutomation = (
 	queryClient: QueryClient,
 	organizationId: string,
@@ -55,7 +55,6 @@ export const createChatAutomation = (
 		}),
 });
 
-/** Hands the new secret to the caller; it never reaches the mutation cache. */
 export const rotateChatAutomationSecret = (
 	queryClient: QueryClient,
 	organizationId: string,

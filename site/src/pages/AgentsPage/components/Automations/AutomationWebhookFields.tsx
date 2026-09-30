@@ -122,11 +122,15 @@ export const AutomationWebhookFields: React.FC<
 					type="button"
 					variant="outline"
 					size="sm"
-					className="w-fit"
+					className="w-fit aria-disabled:cursor-not-allowed aria-disabled:text-content-disabled"
 					// Stays focusable while rotating so focus can return here.
 					disabled={isSubmitting}
 					aria-disabled={isRotatingSecret}
-					onClick={() => setConfirmingRotate(!isRotatingSecret)}
+					onClick={() => {
+						if (!isRotatingSecret) {
+							setConfirmingRotate(true);
+						}
+					}}
 				>
 					<Spinner loading={isRotatingSecret} />
 					Rotate secret
