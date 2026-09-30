@@ -6,7 +6,9 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
  * Maps automation IDs to names so automation input can be labeled.
  * The list is fetched only for chats that hold automation input. An
  * automation that was deleted or that the viewer cannot read is absent
- * from the map, and its label falls back to the automation ID.
+ * from the map, and its label falls back to the automation ID. The chat
+ * store invalidates the list when new automation input arrives, so live
+ * labels pick up automations created or renamed after the page loaded.
  */
 export const useChatAutomationNames = (
 	organizationId: string | undefined,

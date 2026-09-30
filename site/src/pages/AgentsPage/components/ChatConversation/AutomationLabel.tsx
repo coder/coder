@@ -19,20 +19,43 @@ export const AutomationLabel: React.FC<AutomationLabelProps> = ({
 	automationName,
 }) => {
 	const inputPart = inputId ? ` · input ${inputId.slice(0, 8)}` : "";
+	const nameOrId = automationName ?? automationId;
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Badge asChild size="sm" variant="outline" className="max-w-full">
-					<button type="button" className="cursor-default">
-						<span className="truncate">
-							{`Automation run · ${automationName ?? automationId}${inputPart}`}
-						</span>
+				<Badge
+					asChild
+					size="sm"
+					variant="outline"
+					className="min-w-0 max-w-full gap-0"
+				>
+					{/* The name is the only part that truncates, so the input ID
+					    stays visible. The split spans would otherwise lose the
+					    separator spaces from the accessible name. */}
+					<button
+						type="button"
+						className="cursor-default"
+						aria-label={`Automation run · ${nameOrId}${inputPart}`}
+					>
+						<span className="shrink-0 whitespace-pre">Automation run · </span>
+						<span className="min-w-0 truncate">{nameOrId}</span>
+						{inputPart && (
+							<span className="shrink-0 whitespace-pre">{inputPart}</span>
+						)}
 					</button>
 				</Badge>
 			</TooltipTrigger>
-			<TooltipContent side="top" className="font-mono">
-				<div>Automation ID: {automationId}</div>
-				{inputId && <div>Input ID: {inputId}</div>}
+			<TooltipContent side="top" className="max-w-xs break-words">
+				{automationName ? (
+					<div>Automation: {automationName}</div>
+				) : (
+					<div>
+						Automation name unavailable. It may have been deleted, or you may
+						not have access to it.
+					</div>
+				)}
+				<div className="font-mono">Automation ID: {automationId}</div>
+				{inputId && <div className="font-mono">Input ID: {inputId}</div>}
 			</TooltipContent>
 		</Tooltip>
 	);

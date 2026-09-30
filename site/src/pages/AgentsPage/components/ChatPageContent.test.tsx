@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -162,6 +162,21 @@ describe("ChatPageInput", () => {
 			"Automation run · CI heartbeat · input 0b6c4e2a",
 			`Automation run · ${deletedAutomationId} · input 9a8b7c6d`,
 		]);
+
+		// A truncated name stays readable in the tooltip, and the ID
+		// fallback explains why the name is missing. Keyboard focus opens
+		// each tooltip in turn; jsdom hover leaves Radix's pointer grace
+		// area engaged and keeps the second tooltip closed.
+		act(() => labels[0].focus());
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Automation: CI heartbeat",
+		);
+		act(() => labels[1].focus());
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Automation name unavailable",
+			),
+		);
 	});
 
 	it.each<{
