@@ -2328,6 +2328,28 @@
 							]
 						},
 						{
+							"title": "`sharing`",
+							"description": "Commands for managing shared workspaces",
+							"path": "reference/cli/sharing/index.md",
+							"children": [
+								{
+									"title": "`add`",
+									"description": "Share a workspace with a user or group.",
+									"path": "reference/cli/sharing/add.md"
+								},
+								{
+									"title": "`remove`",
+									"description": "Remove shared access for users or groups from a workspace.",
+									"path": "reference/cli/sharing/remove.md"
+								},
+								{
+									"title": "`status`",
+									"description": "List all users and groups the given Workspace is shared with.",
+									"path": "reference/cli/sharing/status.md"
+								}
+							]
+						},
+						{
 							"title": "`show`",
 							"description": "Display details of a workspace's resources and agents",
 							"path": "reference/cli/show.md"
