@@ -31,10 +31,20 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+const mcpHTTPPath = "/api/experimental/mcp/http"
+
 type (
 	apiKeyContextKey           struct{}
 	apiKeyPrecheckedContextKey struct{}
+	mcpDelegationContextKey    struct{}
 )
+
+// WithMCPDelegation marks a server-owned, in-process request as work delegated
+// by an authenticated MCP request. Never derive this value from HTTP headers.
+// The original token must still pass validation, including scopes and expiry.
+func WithMCPDelegation(ctx context.Context, apiKeyID string) context.Context {
+	return context.WithValue(ctx, mcpDelegationContextKey{}, apiKeyID)
+}
 
 // ValidateAPIKeyConfig holds the settings needed for API key
 // validation at the top of the request lifecycle. Unlike
@@ -263,6 +273,13 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
+	}
+
+	if delegatedID, ok := ctx.Value(mcpDelegationContextKey{}).(string); ok && delegatedID != key.ID {
+		return nil, &ValidateAPIKeyError{
+			Code:     http.StatusUnauthorized,
+			Response: codersdk.Response{Message: SignedOutErrorMessage},
+		}
 	}
 
 	// Log the API key ID for all requests that have a valid key
@@ -757,6 +774,13 @@ func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Sto
 
 	// Extract the expected audience from the access URL
 	expectedAudience := extractExpectedAudience(accessURL, r)
+	if delegatedID, ok := ctx.Value(mcpDelegationContextKey{}).(string); ok && delegatedID == key.ID {
+		// Only the private MCP transport sets this context. Validate against
+		// the originating resource, not the internal REST implementation.
+		resourceRequest := r.Clone(ctx)
+		resourceRequest.URL.Path = mcpHTTPPath
+		expectedAudience = extractExpectedAudience(accessURL, resourceRequest)
+	}
 
 	// Normalize both audience values for RFC 3986 compliant comparison
 	normalizedTokenAudience := normalizeAudienceURI(token.Audience.String)
@@ -893,7 +917,11 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 		}
 	}
 
-	resourceMetadata := accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+	metadataPath := "/.well-known/oauth-protected-resource"
+	if r.URL.Path == mcpHTTPPath || r.URL.Path == mcpHTTPPath+"/" {
+		metadataPath += r.URL.Path
+	}
+	resourceMetadata := accessURL.JoinPath(metadataPath).String()
 
 	switch code {
 	case http.StatusUnauthorized:
@@ -920,12 +948,18 @@ func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, r
 // extractExpectedAudience determines the expected audience for the current request.
 // This should match the resource parameter used during authorization.
 func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
-	// For MCP compliance, the audience should be the canonical URI of the resource server
-	// This typically matches the access URL of the Coder deployment
+	// MCP uses a path-qualified resource; other API routes use the deployment.
+	resourcePath := ""
+	if r.URL.Path == mcpHTTPPath || r.URL.Path == mcpHTTPPath+"/" {
+		resourcePath = mcpHTTPPath
+	}
 	var audience string
 
 	if accessURL != nil {
 		audience = accessURL.String()
+		if resourcePath != "" {
+			audience = accessURL.JoinPath(resourcePath).String()
+		}
 	} else {
 		scheme := "https"
 		if r.TLS == nil {
@@ -933,7 +967,7 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 		}
 
 		// Use the Host header to construct the canonical audience URI
-		audience = fmt.Sprintf("%s://%s", scheme, r.Host)
+		audience = fmt.Sprintf("%s://%s%s", scheme, r.Host, resourcePath)
 	}
 
 	// Normalize the URI according to RFC 3986 for consistent comparison

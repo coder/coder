@@ -1370,14 +1370,26 @@ func New(options *Options) *API {
 		api.registerExperimentalChatRoutes(r, apiKeyMiddleware)
 
 		r.Route("/mcp", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
 			// Providers pin the redirect URI when a session is established,
 			// so the callback URL cannot change for existing sessions without
 			// breaking token refresh and forcing a re-auth.
-			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.With(apiKeyMiddleware).Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+						// Routing normalizes slashes, but OAuth resource identity
+						// must not admit aliases or arbitrary descendant paths.
+						switch r.URL.EscapedPath() {
+						case "/api/experimental/mcp/http", "/api/experimental/mcp/http/":
+							next.ServeHTTP(rw, r)
+						default:
+							httpapi.RouteNotFound(rw)
+						}
+					})
+				})
 				r.Use(
+					apiKeyMiddleware,
 					httpmw.RequireOAuth2Provider(oauth2ProviderEnabled),
 					httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentMCPServerHTTP),
 				)

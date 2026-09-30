@@ -674,6 +674,10 @@ func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, 
 
 // CreateUserWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	// Validate before URL resolution can interpret user input as a path or query.
+	if err := validateWorkspacePathSegment(user); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid user: %w", err)
+	}
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err
