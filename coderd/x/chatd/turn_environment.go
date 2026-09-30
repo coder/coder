@@ -181,16 +181,28 @@ func (p *Server) buildTurnEnvironment(
 		mcpConfigs, err = p.effectiveMCPServerConfigs(ctx, chat)
 		return err
 	})
-	if p.callerSuppliedMCPServersEnabled() || !p.internalMCPServers.Empty() {
+	if p.inlineMCPServersEnabled() {
 		g.Go(func() error {
 			var err error
 			inlineMCPServers, mcpLoadFailures, err = p.loadInlineMCPServers(ctx, chat)
 			return err
 		})
 	}
+	var (
+		internalMCPServers  []mcpclient.Server
+		internalMCPFailures []mcpclient.ConnectSummary
+	)
+	if len(p.internalMCPServers) > 0 {
+		g.Go(func() error {
+			internalMCPServers, internalMCPFailures = p.internalMCPServersForChat(ctx, chat)
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return turnEnvironment{}, err
 	}
+	inlineMCPServers = slices.Concat(internalMCPServers, inlineMCPServers)
+	mcpLoadFailures = append(mcpLoadFailures, internalMCPFailures...)
 
 	apiKeyID, err := p.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
@@ -265,8 +277,8 @@ func (p *Server) buildTurnEnvironment(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn, so all of them
-	// are allowed in plan mode.
+	// The caller picks the inline servers for each turn and coderd code
+	// picks the internal ones, so all of them are allowed in plan mode.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
@@ -612,7 +624,6 @@ func (p *Server) buildTurnEnvironment(
 				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				p.mcpHTTPClient,
-				p.internalMCPServers,
 			)
 			return nil
 		})
