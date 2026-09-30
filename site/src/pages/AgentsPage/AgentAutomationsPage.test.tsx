@@ -236,9 +236,12 @@ const setupEditor = () => {
 	const previewBodies: unknown[] = [];
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
-	setup();
+	const requests = setup();
 	server.use(
-		http.get("/api/v2/chats", () => HttpResponse.json([MockChat, otherChat])),
+		http.get("/api/v2/chats", ({ request }) => {
+			requests.push(request);
+			return HttpResponse.json([MockChat, otherChat]);
+		}),
 		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
 			HttpResponse.json({
 				models: [mockModel],
@@ -268,7 +271,7 @@ const setupEditor = () => {
 			},
 		),
 	);
-	return { previewBodies, createBodies, updateBodies };
+	return { requests, previewBodies, createBodies, updateBodies };
 };
 
 const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -292,11 +295,28 @@ const pickChat = async (
 	await user.click(await screen.findByRole("option", { name: title }));
 };
 
+const pickNewChatModel = async (
+	user: ReturnType<typeof userEvent.setup>,
+	dialog: HTMLElement,
+) => {
+	await user.click(
+		within(dialog).getByRole("radio", { name: "New chat each run" }),
+	);
+	await user.click(
+		await within(dialog).findByRole("combobox", { name: /^Model/ }),
+	);
+	await user.click(
+		await screen.findByRole("option", {
+			name: new RegExp(mockModel.display_name),
+		}),
+	);
+};
+
 // Each editor test drives several Radix popovers, which is slow in jsdom.
 describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 	it("creates an existing chat schedule from the Repeat and Time shortcuts", async () => {
 		const user = userEvent.setup();
-		const { previewBodies, createBodies } = setupEditor();
+		const { requests, previewBodies, createBodies } = setupEditor();
 		const dialog = await openCreateDialog(user);
 
 		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
@@ -314,7 +334,19 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 			});
 		});
 
-		await pickChat(user, dialog, otherChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+		await user.type(
+			await screen.findByPlaceholderText("Search chats"),
+			"Release",
+		);
+		await waitFor(() => {
+			expect(
+				requests.map((request) => new URL(request.url).searchParams.get("q")),
+			).toContain('search:"Release" archived:false');
+		});
+		await user.click(
+			await screen.findByRole("option", { name: otherChat.title }),
+		);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
@@ -333,25 +365,25 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("creates a new chat schedule with a model and reasoning effort", async () => {
+	it.each([
+		{ source: "the model default", keys: undefined, effort: {} },
+		{
+			source: "a picked effort",
+			keys: "{ArrowLeft}",
+			effort: { reasoning_effort: "low" },
+		},
+	])("creates a new chat schedule with $source", async ({ keys, effort }) => {
 		const user = userEvent.setup();
 		const { createBodies } = setupEditor();
 		const dialog = await openCreateDialog(user);
 
-		await user.click(
-			within(dialog).getByRole("radio", { name: "New chat each run" }),
-		);
-		await user.click(
-			await within(dialog).findByRole("combobox", { name: /^Model/ }),
-		);
-		await user.click(
-			await screen.findByRole("option", {
-				name: new RegExp(mockModel.display_name),
-			}),
-		);
-		const effort = await screen.findByRole("slider");
-		effort.focus();
-		await user.keyboard("{ArrowRight}");
+		await pickNewChatModel(user, dialog);
+		// The slider starts at the effective default ("high"), so moving it
+		// left picks "low".
+		if (keys) {
+			(await screen.findByRole("slider")).focus();
+			await user.keyboard(keys);
+		}
 		await user.keyboard("{Escape}");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
@@ -365,10 +397,34 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 					schedule_cron: "0 9 * * *",
 					schedule_time_zone: browserTimeZone,
 					new_chat_model_config_id: mockModel.id,
-					reasoning_effort: "high",
+					...effort,
 				},
 			]);
 		});
+	});
+
+	it("shows every required field error on the first Save", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		await user.click(
+			await screen.findByRole("button", { name: "New automation" }),
+		);
+		const dialog = await screen.findByRole("dialog");
+
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByLabelText(/^Name/),
+			).toHaveAccessibleDescription("Name is required.");
+		});
+		expect(
+			within(dialog).getByLabelText(/^Prompt/),
+		).toHaveAccessibleDescription("Prompt is required.");
+		expect(
+			within(dialog).getByRole("button", { name: "Chat" }),
+		).toHaveAccessibleDescription("Choose a chat.");
+		expect(createBodies).toEqual([]);
 	});
 
 	it("shows the server's cron validation errors on the cron input", async () => {
@@ -392,6 +448,14 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				expect.stringContaining("Expected exactly five fields."),
 			);
 		});
+		const previewErrors = within(dialog).getAllByText(
+			"Expected exactly five fields.",
+		);
+		expect(previewErrors).toHaveLength(1);
+		expect(previewErrors[0].closest("[aria-live]")).toHaveAttribute(
+			"aria-live",
+			"polite",
+		);
 
 		await pickChat(user, dialog, MockChat.title);
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -400,6 +464,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				expect.stringContaining("Must be a valid cron expression."),
 			);
 		});
+		expect(within(dialog).queryByRole("alert")).toBeNull();
+
+		// The save error no longer applies once the user edits the cron.
+		await user.type(cron, "x");
+		expect(cron).toHaveAccessibleDescription(
+			expect.not.stringContaining("Must be a valid cron expression."),
+		);
 	});
 
 	it("sends only the changed fields when editing", async () => {
@@ -442,7 +513,23 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
 		const alert = await within(dialog).findByRole("alert");
-		expect(alert.textContent).toContain(message);
+		expect(alert.textContent).toBe(message);
 		expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
+	});
+
+	it("returns focus to the button that opened the editor", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const newButton = await screen.findByRole("button", {
+			name: "New automation",
+		});
+
+		await user.click(newButton);
+		await screen.findByRole("dialog");
+		await user.keyboard("{Escape}");
+
+		await waitFor(() => {
+			expect(newButton).toHaveFocus();
+		});
 	});
 });

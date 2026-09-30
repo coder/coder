@@ -14,6 +14,7 @@ import {
 } from "#/components/Combobox/Combobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
+import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
 
 type AutomationChatPickerProps = {
 	id: string;
@@ -37,13 +38,15 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 	const [search, setSearch] = useState("");
 	const debouncedSearch = useDebouncedValue(search.trim(), 300);
 	const searchQuery = useQuery({
-		...chatSearch({ q: debouncedSearch }),
+		...chatSearch({
+			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
+		}),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
 	// The chats API returns root chats only; automations target your own.
 	const chats = (searchQuery.data ?? []).filter(
-		(c) => c.owner_id === currentUserId && !c.archived,
+		(c) => c.owner_id === currentUserId,
 	);
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({

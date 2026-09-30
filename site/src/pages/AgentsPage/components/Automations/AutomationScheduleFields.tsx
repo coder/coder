@@ -1,12 +1,7 @@
 import { useId, useState } from "react";
 import { useQuery } from "react-query";
-import {
-	getErrorDetail,
-	getErrorMessage,
-	getValidationErrorMessage,
-} from "#/api/errors";
+import { getErrorMessage, getValidationErrorMessage } from "#/api/errors";
 import { chatAutomationSchedulePreview } from "#/api/queries/chatAutomations";
-import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import {
@@ -74,7 +69,6 @@ const parseTime = (value: string): Time | undefined => {
 
 const previewErrorText = (error: unknown): string =>
 	getValidationErrorMessage(error) ||
-	getErrorDetail(error) ||
 	getErrorMessage(error, "Could not preview the schedule.");
 
 const formatRunTime = (value: string, timeZone: string): string =>
@@ -117,9 +111,11 @@ export const AutomationScheduleFields: React.FC<
 }) => {
 	const repeatId = useId();
 	const timeId = useId();
+	const cronId = useId();
+	const cronDescriptionId = useId();
+	const cronErrorId = useId();
 	const timeZoneId = useId();
 	const timeZoneErrorId = useId();
-	const previewErrorId = useId();
 	const [repeat, setRepeat] = useState<string>(isCreate ? "daily" : "");
 	const [time, setTime] = useState("09:00");
 
@@ -137,6 +133,9 @@ export const AutomationScheduleFields: React.FC<
 	const previewError = previewQuery.isError
 		? previewErrorText(previewQuery.error)
 		: undefined;
+	// A save error on the cron field wins over the preview error, so the
+	// field shows one message.
+	const cronError = cronField.error ? cronField.helperText : previewError;
 
 	const applyShortcut = (nextRepeat: string, nextTime: string) => {
 		const option = repeatOptions.find((o) => o.value === nextRepeat);
@@ -157,11 +156,7 @@ export const AutomationScheduleFields: React.FC<
 			</span>
 		);
 	} else if (previewError) {
-		preview = (
-			<span id={previewErrorId} className="text-content-destructive">
-				{previewError}
-			</span>
-		);
+		preview = "Upcoming runs appear when the schedule is valid.";
 	} else if (!previewQuery.data?.next_run_times.length) {
 		preview = "No upcoming runs.";
 	} else {
@@ -212,13 +207,17 @@ export const AutomationScheduleFields: React.FC<
 					/>
 				</div>
 			</div>
-			<FormField
-				field={cronField}
-				label="Cron expression"
-				description="Five fields: minute, hour, day of month, month, day of week."
-				control={(props) => (
+			<div className="flex flex-col gap-2">
+				<Label htmlFor={cronId}>
+					Cron expression{" "}
+					<span className="text-xs font-bold text-content-destructive">*</span>
+				</Label>
+				<div id={cronDescriptionId} className="text-xs text-content-secondary">
+					Five fields: minute, hour, day of month, month, day of week.
+				</div>
+				<div>
 					<Input
-						{...props}
+						id={cronId}
 						name={cronField.name}
 						value={cronField.value}
 						onBlur={cronField.onBlur}
@@ -226,17 +225,28 @@ export const AutomationScheduleFields: React.FC<
 							cronField.onChange(event);
 							setRepeat("");
 						}}
-						aria-invalid={props["aria-invalid"] || Boolean(previewError)}
+						required
+						aria-invalid={Boolean(cronError)}
 						aria-describedby={
-							[props["aria-describedby"], previewError && previewErrorId]
-								.filter(Boolean)
-								.join(" ") || undefined
+							cronError
+								? `${cronDescriptionId} ${cronErrorId}`
+								: cronDescriptionId
 						}
 						className="font-mono"
 					/>
-				)}
-				required
-			/>
+					{/* Always rendered so screen readers announce preview errors while typing. */}
+					<div aria-live="polite">
+						{cronError && (
+							<p
+								id={cronErrorId}
+								className="m-0 mt-2 text-xs text-content-destructive"
+							>
+								{cronError}
+							</p>
+						)}
+					</div>
+				</div>
+			</div>
 			<div className="flex flex-col gap-2">
 				<Label htmlFor={timeZoneId}>Time zone</Label>
 				<Select value={timeZone} onValueChange={onTimeZoneChange}>

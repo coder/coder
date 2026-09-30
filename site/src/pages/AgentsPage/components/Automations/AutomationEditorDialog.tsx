@@ -1,7 +1,8 @@
 import { useFormik } from "formik";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "react-query";
 import * as Yup from "yup";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatModels } from "#/api/queries/chats";
 import type {
 	ChatAutomation,
@@ -10,7 +11,7 @@ import type {
 	CreateChatAutomationRequest,
 	UpdateChatAutomationRequest,
 } from "#/api/typesGenerated";
-import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -36,6 +37,7 @@ import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
 import { resolveModelSelector } from "../../utils/modelOptions";
+import { pickReasoningEffort } from "../../utils/reasoningEffort";
 import { AutomationChatPicker } from "./AutomationChatPicker";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
 
@@ -164,6 +166,15 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const chatPickerId = useId();
 	const chatErrorId = useId();
 	const whenBusyId = useId();
+	// Radix returns focus to a DialogTrigger on close; this dialog has none.
+	const [opener] = useState(() =>
+		document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null,
+	);
+	// Server field errors apply only while a field keeps its submitted value.
+	const [submittedValues, setSubmittedValues] =
+		useState<AutomationFormValues>();
 	const modelsQuery = useQuery(chatModels(organizationId));
 	const { options: modelOptions } = resolveModelSelector(
 		organizationId,
@@ -195,6 +206,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			}),
 		}),
 		onSubmit: (rawValues) => {
+			setSubmittedValues(rawValues);
 			const values = normalize(rawValues);
 			if (!automation) {
 				onCreate(buildCreateRequest(values));
@@ -208,10 +220,36 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	const getFieldHelpers = getFormHelpers(form, error);
+	const getFieldHelpers = (
+		name: keyof AutomationFormValues,
+		options?: { maxLength?: number },
+	) =>
+		getFormHelpers(
+			form,
+			submittedValues?.[name] === form.values[name] ? error : undefined,
+		)(name, options);
 	const chatField = getFieldHelpers("target_chat_id");
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isExistingChat = form.values.target_mode === "existing_chat";
+	const selectedModel = modelOptions.find(
+		(option) => option.id === form.values.new_chat_model_config_id,
+	);
+
+	// Validations on rendered fields show on the field; everything else shows
+	// in the alert.
+	const renderedFields: readonly string[] = [
+		"name",
+		"prompt",
+		...(isSchedule ? ["schedule_cron", "schedule_time_zone"] : []),
+		isExistingChat ? "target_chat_id" : "new_chat_model_config_id",
+	];
+	const apiError = isApiError(error) ? error.response.data : undefined;
+	const alertValidations = (apiError?.validations ?? []).filter(
+		(validation) => !renderedFields.includes(validation.field),
+	);
+	const showAlert =
+		Boolean(error) &&
+		(!apiError?.validations?.length || alertValidations.length > 0);
 
 	return (
 		<Dialog
@@ -222,10 +260,19 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 				}
 			}}
 		>
-			<DialogContent className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+			<DialogContent
+				className="flex max-h-[90vh] max-w-2xl flex-col gap-0 overflow-hidden p-0"
+				onCloseAutoFocus={(event) => {
+					if (opener?.isConnected) {
+						event.preventDefault();
+						opener.focus();
+					}
+				}}
+			>
 				<form
 					className="flex min-h-0 flex-1 flex-col"
 					onSubmit={form.handleSubmit}
+					noValidate
 				>
 					<DialogHeader className="px-6 pt-6">
 						<DialogTitle>
@@ -238,8 +285,27 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 						</DialogDescription>
 					</DialogHeader>
 					<div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-4">
-						{Boolean(error) && (
-							<ErrorAlert error={error} showDebugDetail={false} />
+						{automation && automation.owner_id !== currentUserId && (
+							<p className="m-0 text-sm text-content-secondary">
+								Only the owner of this automation can save changes.
+							</p>
+						)}
+						{showAlert && (
+							<Alert severity="error" prominent>
+								<AlertTitle>
+									{getErrorMessage(error, "Could not save the automation.")}
+								</AlertTitle>
+								{(apiError?.detail || alertValidations.length > 0) && (
+									<AlertDescription>
+										{apiError?.detail}
+										{alertValidations.map((validation) => (
+											<span key={validation.field} className="block">
+												{validation.field}: {validation.detail}
+											</span>
+										))}
+									</AlertDescription>
+								)}
+							</Alert>
 						)}
 						<FormField
 							field={getFieldHelpers("name", { maxLength: NAME_MAX_LENGTH })}
@@ -284,9 +350,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 							<h3 className="m-0 text-sm font-medium text-content-primary">
 								Target
 							</h3>
-							<p className="m-0 text-xs text-content-secondary">
-								Changes apply to the next run.
-							</p>
+							{!isCreate && (
+								<p className="m-0 text-xs text-content-secondary">
+									Changes apply to the next run.
+								</p>
+							)}
 							{isCreate ? (
 								<RadioGroup
 									aria-label="Target"
@@ -368,7 +436,15 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											form.setFieldValue("new_chat_model_config_id", modelId);
 											form.setFieldValue("reasoning_effort", "");
 										}}
-										reasoningEffort={form.values.reasoning_effort}
+										reasoningEffort={
+											selectedModel
+												? pickReasoningEffort(
+														form.values.reasoning_effort,
+														selectedModel.reasoningEfforts ?? [],
+														selectedModel.reasoningEffortDefault,
+													)
+												: form.values.reasoning_effort
+										}
 										onReasoningEffortChange={(effort) =>
 											form.setFieldValue("reasoning_effort", effort)
 										}

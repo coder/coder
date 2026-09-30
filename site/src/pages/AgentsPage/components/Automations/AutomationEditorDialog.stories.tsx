@@ -152,6 +152,7 @@ export const PreviewError: Story = {
 export const SaveForbidden: Story = {
 	args: {
 		automation: mockAutomation,
+		currentUserId: "another-user",
 		error: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
 		}),
