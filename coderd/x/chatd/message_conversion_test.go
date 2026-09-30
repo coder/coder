@@ -854,6 +854,21 @@ func TestCompactionStatusFromHistory(t *testing.T) {
 		require.Equal(t, compactionStatusNeeded, got)
 	})
 
+	t.Run("summary under a different trigger compacts again", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70}`))),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{"threshold_percent":70,"context_limit_tokens":100}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 100),
+		}
+
+		require.Equal(t, compactionStatusStillOverLimit, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 100))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 40, 100))
+		require.Equal(t, compactionStatusNeeded, compactionStatusFromHistory(messages, compactionRequirementNeeded, 70, 90))
+	})
+
 	t.Run("still over limit includes exact threshold boundary", func(t *testing.T) {
 		t.Parallel()
 
