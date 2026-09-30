@@ -306,6 +306,9 @@ func (e *ResponseExtraction) httpError(status int, raw []byte) {
 	var errObj gjson.Result
 	switch {
 	case len(raw) == 0:
+	case len(raw) > extract.MaxBodyBytes:
+		// The status still classifies the error; the body is not read.
+		e.notes.Addf(e.ctx, "skipped error body: exceeds %d bytes", extract.MaxBodyBytes)
 	case !gjson.ValidBytes(raw):
 		e.notes.Addf(e.ctx, "error body is not valid JSON (%d bytes)", len(raw))
 	default:

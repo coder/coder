@@ -152,6 +152,13 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 			wantType: recorder.ErrorTypeServerError, todayErr: sdkErr(500), wantMsg: "Internal Server Error", wantNotes: true,
 		},
 		{
+			// An oversized error body is not parsed, but its status still
+			// classifies the error.
+			name:     "http_500_oversized",
+			feed:     blocking(500, `{"error":{"message":"`+strings.Repeat("x", extract.MaxBodyBytes)+`"}}`),
+			wantType: recorder.ErrorTypeServerError, todayErr: sdkErr(500), wantMsg: "Internal Server Error", wantNotes: true,
+		},
+		{
 			// Statusless mid-stream errors categorize as unknown, like the
 			// SDK stream errors the interceptor returns today.
 			name:     "sse_error_event",
