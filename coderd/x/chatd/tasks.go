@@ -736,19 +736,27 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 	if err != nil {
 		return nil, nil, xerrors.Errorf("load messages to cancel tool calls on agent: %w", err)
 	}
+	calls, ids := s.cancelableToolCallsFromHistory(ctx, chat, messages)
+	return calls, ids, nil
+}
+
+// cancelableToolCallsFromHistory returns the unresolved tool calls of the
+// last assistant message in messages that can be canceled on the chat's
+// agent, and their tool call IDs. Unparsable history yields no calls.
+func (s *taskStarter) cancelableToolCallsFromHistory(ctx context.Context, chat database.Chat, messages []database.ChatMessage) ([]fantasy.ToolCallContent, map[string]uuid.UUID) {
 	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		s.opts.Logger.Warn(ctx, "find tool calls to cancel on agent", slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil, nil, nil
+		return nil, nil
 	}
-	// Keep only cancelable calls with an ID, so an interrupt without them
-	// does not dial the agent.
+	// Keep only cancelable calls with an ID, so the agent is not dialed
+	// without them.
 	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
 	calls = slices.DeleteFunc(calls, func(call fantasy.ToolCallContent) bool {
 		_, ok := ids[call.ToolCallID]
 		return !ok || !chattool.CanCancelToolCall(call.ToolName)
 	})
-	return calls, ids, nil
+	return calls, ids
 }
 
 // cancelUnresolvedToolCalls cancels calls on the chat's agent and returns

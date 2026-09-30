@@ -446,10 +446,17 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		input.TurnID = uuid.New()
 	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	erasedToolCallsChecked := false
 	for {
 		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
+		}
+		if !erasedToolCallsChecked {
+			erasedToolCallsChecked = true
+			if currentTurnStepCount(messages) == 0 {
+				s.cancelErasedToolCalls(ctx, machine, input, chat, messages)
+			}
 		}
 		var turnCtx context.Context
 		turnCtx, input.TurnToken = input.TurnSpan.Ensure(ctx, input.TaskID, chat, turnTriggerTime(chat, messages))
@@ -462,6 +469,54 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		input.TurnSpan.Settle(input.TurnToken)
 		return err
 	}
+}
+
+// cancelErasedToolCalls cancels on the chat's agent the unresolved tool
+// calls in the rows that edits erased at the current turn's prompt. Their
+// results can no longer be committed, so the work would otherwise continue
+// unseen by the model. Failures are logged and do not affect the turn.
+func (s *taskStarter) cancelErasedToolCalls(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) {
+	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
+		return
+	}
+	promptIndex := lastUserPromptIndex(messages)
+	if promptIndex == -1 {
+		return
+	}
+	// An edit erases its target and everything after it, so the erased rows
+	// lie between the prompt and the message loaded before it.
+	params := database.GetDeletedChatMessagesByChatIDParams{
+		ChatID:   chat.ID,
+		BeforeID: messages[promptIndex].ID,
+	}
+	if promptIndex > 0 {
+		params.AfterID = messages[promptIndex-1].ID
+	}
+	var erased []database.ChatMessage
+	err := machine.ReadLock(ctx, func(store database.Store) error {
+		if _, err := loadChatForTask(ctx, store, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+			return xerrors.Errorf("load chat for task: %w", err)
+		}
+		var err error
+		erased, err = store.GetDeletedChatMessagesByChatID(ctx, params)
+		return err
+	})
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "load erased messages to cancel tool calls on agent", slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	// The shared filter skips deleted rows, and every erased row is deleted.
+	for i := range erased {
+		erased[i].Deleted = false
+	}
+	calls, ids := s.cancelableToolCallsFromHistory(ctx, chat, erased)
+	s.cancelUnresolvedToolCalls(ctx, chat, calls, ids)
 }
 
 // runGenerationStep runs one step of a turn. again means reload state

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -962,6 +963,206 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, string(got), tc.want, tc.name)
 	}
+}
+
+func TestStartGeneration_CancelsErasedToolCallsOnAgent(t *testing.T) {
+	t.Parallel()
+
+	call := func(toolName string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: "call_" + toolName, ToolName: toolName, Args: json.RawMessage(`{}`)}
+	}
+	result := func(toolName string) codersdk.ChatMessagePart {
+		return codersdk.ChatMessagePart{Type: codersdk.ChatMessagePartTypeToolResult, ToolCallID: "call_" + toolName, ToolName: toolName, Result: json.RawMessage(`{}`)}
+	}
+	tests := []struct {
+		name      string
+		build     func(t *testing.T, h *erasedToolCallsHistory)
+		cancelErr error
+		want      []string // Tools whose calls are canceled.
+	}{
+		{
+			name: "EditErasesUnresolvedCalls",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("edit_files"), call("write_file"), call("read_file"))
+				h.editPrompt(t)
+			},
+			want: []string{"execute", "edit_files", "write_file"},
+		},
+		{
+			name: "EditErasesResolvedCalls",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("write_file"))
+				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, result("execute"))
+				h.commit(t, database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, result("write_file"))
+				h.editPrompt(t)
+			},
+		},
+		{
+			name: "SecondEditBeforeFirstStep",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+				h.editPrompt(t)
+			},
+			want: []string{"execute"},
+		},
+		{
+			// The unresolved call is in the active history, not erased.
+			name: "TurnWithoutEdit",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.commit(t, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, codersdk.ChatMessageText("next"))
+			},
+		},
+		{
+			name: "SecondStep",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"))
+				h.editPrompt(t)
+				h.assistant(t, codersdk.ChatMessageText("done"))
+			},
+		},
+		{
+			name: "CancelError",
+			build: func(t *testing.T, h *erasedToolCallsHistory) {
+				h.assistant(t, call("execute"), call("edit_files"))
+				h.editPrompt(t)
+			},
+			cancelErr: xerrors.New("unexpected status code 404"),
+			want:      []string{"execute", "edit_files"},
+		},
+	}
+
+	f := newTaskTestFixture(t)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chat := f.createRunningChat(t)
+			workspace := dbfake.WorkspaceBuild(t, f.db, database.WorkspaceTable{OrganizationID: f.org.ID, OwnerID: f.user.ID}).WithAgent().Do()
+			_, err := f.db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+				ID:          chat.ID,
+				WorkspaceID: uuid.NullUUID{UUID: workspace.Workspace.ID, Valid: true},
+				BuildID:     uuid.NullUUID{UUID: workspace.Build.ID, Valid: true},
+				AgentID:     uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
+			})
+			require.NoError(t, err)
+			workerID := uuid.New()
+			runnerID := uuid.New()
+			f.acquireChat(t, chat.ID, workerID, runnerID)
+			h := &erasedToolCallsHistory{f: f, machine: chatstate.NewChatMachine(f.db, f.pubsub, chat.ID), chatID: chat.ID}
+			tc.build(t, h)
+
+			conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			if len(tc.want) > 0 {
+				conn.EXPECT().SetExtraHeaders(gomock.Any())
+			}
+			for _, toolName := range tc.want {
+				id := chattool.ToolCallID(chat.ID, h.toolCallMessageID, "call_"+toolName)
+				conn.EXPECT().CancelToolCall(gomock.Any(), id).DoAndReturn(func(ctx context.Context, _ uuid.UUID) (workspacesdk.CancelToolCallResponse, error) {
+					// The model step fails in this fixture and sets the chat's
+					// error, so a running chat without one has not reached it.
+					current, err := f.db.GetChatByID(ctx, chat.ID)
+					if assert.NoError(t, err) {
+						assert.Equal(t, database.ChatStatusRunning, current.Status)
+						assert.False(t, current.LastError.Valid)
+					}
+					return workspacesdk.CancelToolCallResponse{}, tc.cancelErr
+				})
+				if toolName == "execute" && tc.cancelErr == nil {
+					conn.EXPECT().ProcessOutput(gomock.Any(), id.String(), gomock.Any()).Return(workspacesdk.ProcessOutputResponse{}, codersdk.NewError(http.StatusNotFound, codersdk.Response{}))
+				}
+			}
+			var dials atomic.Int64
+			sink := testutil.NewFakeSink(t)
+			starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+			starter.opts.Logger = sink.Logger(slog.LevelWarn)
+			starter.server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				dials.Add(1)
+				return conn, func() {}, nil
+			}
+			debugTurn := newRunnerDebugTurn(ctx, starter.opts.Logger)
+			defer debugTurn.Finalize(ctx)
+			current, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			err = starter.StartGeneration(ctx, chatWorkerTaskStartInput{
+				ChatID:            chat.ID,
+				WorkerID:          workerID,
+				RunnerID:          runnerID,
+				HistoryVersion:    current.HistoryVersion,
+				GenerationAttempt: current.GenerationAttempt,
+				Status:            database.ChatStatusRunning,
+				DebugTurn:         debugTurn,
+			})
+			require.NoError(t, err)
+
+			if len(tc.want) == 0 {
+				require.Zero(t, dials.Load(), "the agent must not be dialed without calls to cancel")
+			}
+			cancelWarnings := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == "cancel tool call on agent" })
+			if tc.cancelErr != nil {
+				require.Len(t, cancelWarnings, len(tc.want))
+			} else {
+				require.Empty(t, cancelWarnings)
+			}
+			// The generation went on to the model step.
+			final, err := f.db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Contains(t, string(final.LastError.RawMessage), "create model")
+		})
+	}
+}
+
+// erasedToolCallsHistory builds a running chat's history for
+// TestStartGeneration_CancelsErasedToolCallsOnAgent.
+type erasedToolCallsHistory struct {
+	f                 *taskTestFixture
+	machine           *chatstate.ChatMachine
+	chatID            uuid.UUID
+	toolCallMessageID int64 // ID of the last committed assistant message with tool calls.
+}
+
+func (h *erasedToolCallsHistory) commit(t *testing.T, role database.ChatMessageRole, visibility database.ChatMessageVisibility, parts ...codersdk.ChatMessagePart) database.ChatMessage {
+	t.Helper()
+	raw, err := chatprompt.MarshalParts(parts)
+	require.NoError(t, err)
+	var inserted []database.ChatMessage
+	require.NoError(t, h.machine.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+		res, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           role,
+			Content:        raw,
+			Visibility:     visibility,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: h.f.model.ID, Valid: true},
+		}}})
+		inserted = res.InsertedMessages
+		return err
+	}))
+	require.Len(t, inserted, 1)
+	return inserted[0]
+}
+
+func (h *erasedToolCallsHistory) assistant(t *testing.T, parts ...codersdk.ChatMessagePart) {
+	t.Helper()
+	msg := h.commit(t, database.ChatMessageRoleAssistant, database.ChatMessageVisibilityBoth, parts...)
+	if slices.ContainsFunc(parts, func(p codersdk.ChatMessagePart) bool { return p.Type == codersdk.ChatMessagePartTypeToolCall }) {
+		h.toolCallMessageID = msg.ID
+	}
+}
+
+// editPrompt edits the latest user prompt, as the edit endpoint does.
+func (h *erasedToolCallsHistory) editPrompt(t *testing.T) {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	messages, err := h.f.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: h.chatID})
+	require.NoError(t, err)
+	prompt := messages[lastUserPromptIndex(messages)]
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")})
+	require.NoError(t, err)
+	require.NoError(t, h.machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.EditMessage(chatstate.EditMessageInput{MessageID: prompt.ID, CreatedBy: h.f.user.ID, Content: content})
+		return err
+	}))
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
