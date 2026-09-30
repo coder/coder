@@ -2,9 +2,11 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -163,4 +165,104 @@ func TestWorker_AutoArchiveRearchivesUnarchivedChatWithoutMessages(t *testing.T)
 
 	worker.archiveOnce(ctx, now)
 	require.True(t, f.archived(t, chat.ID), "unarchive without a message must not count as activity")
+}
+
+// TestAutoArchiveCandidateQueriesAgree guards the "keep the filters in
+// sync" contract between GetAutoArchiveInactiveChatCandidates and
+// GetAutoArchiveInactiveChatCandidateByID: for every fixture chat,
+// appearing in the batch result must equal the by-ID recheck returning
+// a row. Each fixture also pins its expected eligibility so that both
+// queries drifting the same way still fails.
+func TestAutoArchiveCandidateQueriesAgree(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
+	cutoff := dbtime.StartOfDay(now).Add(-90 * 24 * time.Hour)
+	old := now.Add(-120 * 24 * time.Hour)
+
+	type fixture struct {
+		name     string
+		chatID   uuid.UUID
+		eligible bool
+	}
+	var fixtures []fixture
+	add := func(name string, chat database.Chat, eligible bool) {
+		fixtures = append(fixtures, fixture{name: name, chatID: chat.ID, eligible: eligible})
+	}
+
+	add("eligible without messages", f.createArchiveCandidate(t, old), true)
+
+	oldMessage := f.createArchiveCandidate(t, old)
+	insertArchiveMessage(t, f, oldMessage.ID, now.Add(-100*24*time.Hour))
+	add("eligible with old message", oldMessage, true)
+
+	errored := f.createArchiveCandidate(t, old)
+	forceExecutionState(t, f, errored.ID, database.ChatStatusError, false)
+	add("eligible in error status", errored, true)
+
+	archived := f.createArchiveCandidate(t, old)
+	forceExecutionState(t, f, archived.ID, database.ChatStatusWaiting, true)
+	add("archived", archived, false)
+
+	pinned := f.createArchiveCandidate(t, old)
+	f.setPinOrder(t, pinned.ID, 1)
+	add("pinned", pinned, false)
+
+	parent := f.createArchiveCandidate(t, old)
+	child := f.createArchiveCandidate(t, old)
+	f.linkChild(t, parent.ID, child.ID)
+	add("root of idle child", parent, true)
+	add("non-root child", child, false)
+
+	add("created after cutoff", f.createArchiveCandidate(t, now.Add(-10*24*time.Hour)), false)
+
+	for _, status := range []database.ChatStatus{
+		database.ChatStatusRunning,
+		database.ChatStatusInterrupting,
+		database.ChatStatusRequiresAction,
+	} {
+		chat := f.createArchiveCandidate(t, old)
+		forceExecutionState(t, f, chat.ID, status, false)
+		add("status "+string(status), chat, false)
+	}
+
+	recent := f.createArchiveCandidate(t, old)
+	insertArchiveMessage(t, f, recent.ID, now.Add(-5*24*time.Hour))
+	add("recent message", recent, false)
+
+	activeFamily := f.createArchiveCandidate(t, old)
+	activeChild := f.createArchiveCandidate(t, old)
+	f.linkChild(t, activeFamily.ID, activeChild.ID)
+	insertArchiveMessage(t, f, activeChild.ID, now.Add(-5*24*time.Hour))
+	add("recent child message", activeFamily, false)
+
+	softDeleted := f.createArchiveCandidate(t, old)
+	insertArchiveMessage(t, f, softDeleted.ID, now.Add(-5*24*time.Hour))
+	f.softDeleteMessages(t, softDeleted.ID)
+	add("soft-deleted recent message", softDeleted, true)
+
+	rows, err := f.db.GetAutoArchiveInactiveChatCandidates(ctx, database.GetAutoArchiveInactiveChatCandidatesParams{
+		ArchiveCutoff: cutoff,
+		LimitCount:    1000,
+	})
+	require.NoError(t, err)
+	require.Less(t, len(rows), 1000, "batch limit must not truncate the fixtures")
+	inBatch := make(map[uuid.UUID]bool, len(rows))
+	for _, row := range rows {
+		inBatch[row.ID] = true
+	}
+
+	for _, fx := range fixtures {
+		_, err := f.db.GetAutoArchiveInactiveChatCandidateByID(ctx, database.GetAutoArchiveInactiveChatCandidateByIDParams{
+			ID:            fx.chatID,
+			ArchiveCutoff: cutoff,
+		})
+		byID := err == nil
+		if !byID {
+			require.ErrorIs(t, err, sql.ErrNoRows, fx.name)
+		}
+		require.Equal(t, inBatch[fx.chatID], byID, "%s: batch and by-ID queries disagree", fx.name)
+		require.Equal(t, fx.eligible, byID, "%s: unexpected eligibility", fx.name)
+	}
 }
