@@ -291,17 +291,12 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 							onClose={() => setWebhookSecret(undefined)}
 						/>
 					)}
-					<ConfirmDialog
-						open={leavePrompt.isOpen}
-						onClose={leavePrompt.onCancel}
-						onConfirm={leavePrompt.onConfirm}
-						type="info"
-						hideCancel={false}
-						cancelText="Stay"
-						title="Leave before the secret arrives?"
-						description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
-						confirmText="Leave"
-					/>
+					{leavePrompt.isOpen && (
+						<LeaveBeforeSecretPrompt
+							onStay={leavePrompt.onCancel}
+							onLeave={leavePrompt.onConfirm}
+						/>
+					)}
 				</>
 			}
 			chatsDialog={
@@ -316,6 +311,40 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 					onClose: () => setChatsAutomation(undefined),
 				}
 			}
+		/>
+	);
+};
+
+type LeaveBeforeSecretPromptProps = {
+	onStay: () => void;
+	onLeave: () => void;
+};
+
+const LeaveBeforeSecretPrompt: React.FC<LeaveBeforeSecretPromptProps> = ({
+	onStay,
+	onLeave,
+}) => {
+	// The prompt opens without a trigger, so Radix has nowhere to return focus.
+	const [opener] = useState(() =>
+		document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null,
+	);
+	return (
+		<ConfirmDialog
+			open
+			type="info"
+			hideCancel={false}
+			cancelText="Stay"
+			title="Leave before the secret arrives?"
+			description="The webhook secret is shown only once. If you leave now, you must rotate it to get a new one."
+			confirmText="Leave"
+			onClose={onStay}
+			onConfirm={onLeave}
+			onCloseAutoFocus={(event) => {
+				event.preventDefault();
+				opener?.focus();
+			}}
 		/>
 	);
 };

@@ -71,8 +71,8 @@ const setup = ({
 			HttpResponse.json(automations),
 		),
 	);
-	const { queryClient } = renderWithAuth(<AgentAutomationsPage />);
-	return { requests, queryClient };
+	const { queryClient, router } = renderWithAuth(<AgentAutomationsPage />);
+	return { requests, queryClient, router };
 };
 
 const requestPaths = (requests: readonly Request[]) =>
@@ -269,7 +269,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	const previewBodies: unknown[] = [];
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
-	const { requests, queryClient } = setup(options);
+	const { requests, queryClient, router } = setup(options);
 	// Every published mutation state, as a cache subscriber like devtools sees it.
 	const mutationStates: string[] = [];
 	queryClient.getMutationCache().subscribe(({ mutation }) => {
@@ -316,6 +316,7 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	return {
 		requests,
 		queryClient,
+		router,
 		mutationStates,
 		previewBodies,
 		createBodies,
@@ -982,7 +983,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 	it("rotates the secret only after confirmation and shows it once", async () => {
 		const user = userEvent.setup();
-		const { queryClient, mutationStates } = setupEditor();
+		const { queryClient, router, mutationStates } = setupEditor();
 		const rotateRequests: Request[] = [];
 		let releaseRotate = () => {};
 		server.use(
@@ -1022,6 +1023,14 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		const unload = new Event("beforeunload", { cancelable: true });
 		window.dispatchEvent(unload);
 		expect(unload.defaultPrevented).toBe(true);
+		void router.navigate("/agents");
+		const leaveDialog = await screen.findByRole("dialog", {
+			name: "Leave before the secret arrives?",
+		});
+		await user.click(within(leaveDialog).getByRole("button", { name: "Stay" }));
+		await waitFor(() => {
+			expect(rotatingButton).toHaveFocus();
+		});
 		releaseRotate();
 
 		const secretDialog = await screen.findByRole("dialog", {
