@@ -598,6 +598,7 @@ func TestTemplateEdit(t *testing.T) {
 				template.Name,
 				"--autostop-requirement-weekdays", "monday,tuesday",
 				"--autostop-requirement-weeks", "3",
+				"-y",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
@@ -946,5 +947,29 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, template.DisplayName, updated.DisplayName)
 		assert.Equal(t, template.Description, updated.Description)
 		assert.Equal(t, template.DeprecationMessage, updated.DeprecationMessage)
+	})
+
+	t.Run("NoPromptForCosmeticChange", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		// No -y flag: if this cosmetic change prompted for confirmation, the
+		// command would block on stdin and this test would time out.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inv, root := clitest.New(t, "templates", "edit", template.Name, "--display-name", "New Display Name")
+		clitest.SetupConfig(t, templateAdmin, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "New Display Name", updated.DisplayName)
 	})
 }
