@@ -154,10 +154,8 @@ type generationDecision struct {
 	finishReason   generationFinishReason
 	// forced marks a compact action triggered by a manual
 	// compaction request rather than the usage threshold.
-	forced bool
-	// toolCallMessageID is the ID of the assistant message containing
-	// localToolCalls.
-	toolCallMessageID int64
+	forced            bool
+	toolCallMessageID int64 // ID of the assistant message holding localToolCalls
 }
 
 type generationRetryDecision struct {
