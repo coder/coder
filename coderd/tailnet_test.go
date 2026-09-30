@@ -108,10 +108,18 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.Contains(t, entry.Fields, "server_preferred_derp")
 	assert.NotContains(t, entry.Fields, "peer_tx_bytes")
 	assert.NotContains(t, entry.Fields, "peer_rx_bytes")
+	assert.NotContains(t, entry.Fields, "peer_diagnostics_skipped")
+
+	// A second failure reads diagnostics again, so the first read released
+	// the gate.
+	dialCtx, dialCancel = context.WithTimeout(ctx, testutil.IntervalSlow)
+	defer dialCancel()
+	_, _, err = serverTailnet.AgentConn(dialCtx, uuid.New())
+	require.ErrorAs(t, err, &unreachable)
 
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_agent_unreachable_total", "no_node"))
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 2, "coder_servertailnet_agent_unreachable_total", "no_node"))
 	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
 }
 

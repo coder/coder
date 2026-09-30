@@ -227,3 +227,75 @@ func TestReportProxyDialFailure_DialTimedOut(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "diagnostics_timeout"))
 }
+
+func TestReportProxyDialFailure_CoordinatorError(t *testing.T) {
+	t.Parallel()
+
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "agent_unreachable_total"}, []string{"reason"})
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(counter))
+	s := &ServerTailnet{agentUnreachable: counter}
+	s.peerDiagnosticsBusy.Store(true)
+
+	// The request is still waiting and the dial failed before the first
+	// ping, so the agent was never asked.
+	ds := &dialState{}
+	ds.set(dialPhaseAwaitReachable)
+	ctx := context.WithValue(testutil.Context(t, testutil.WaitShort), dialStateKey{}, ds)
+	dialErr := xerrors.New("acquire agent conn: ensure agent: send failed")
+	err := s.reportProxyDialFailure(ctx, uuid.New(), dialErr)
+	require.Same(t, dialErr, err)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.Empty(t, metrics)
+}
+
+func TestRecordAgentUnreachable_DiagnosticsGate(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	counter := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "agent_unreachable_total"}, []string{"reason"})
+	registry := prometheus.NewRegistry()
+	require.NoError(t, registry.Register(counter))
+
+	release := make(chan struct{})
+	s := &ServerTailnet{
+		agentUnreachable: counter,
+		readPeerDiagnostics: func(uuid.UUID) tailnet.PeerDiagnostics {
+			<-release
+			return tailnet.PeerDiagnostics{ReceivedNode: &tailcfg.Node{}}
+		},
+	}
+	var unreachable *workspaceapps.AgentUnreachableError
+
+	// The first read waits out the timeout while the read stays in flight.
+	err := s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	require.ErrorAs(t, err, &unreachable)
+	got := fieldMap(unreachable.Fields)
+	require.Equal(t, "diagnostics_timeout", got["reason"])
+	require.NotContains(t, got, "peer_diagnostics_skipped")
+
+	// A second failure during that read does not start another one.
+	start := time.Now()
+	err = s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	require.Less(t, time.Since(start), peerDiagnosticsTimeout)
+	require.ErrorAs(t, err, &unreachable)
+	require.Equal(t, true, fieldMap(unreachable.Fields)["peer_diagnostics_skipped"])
+
+	// Once the read returns, the gate opens and later failures read again.
+	close(release)
+	require.Eventually(t, func() bool {
+		return !s.peerDiagnosticsBusy.Load()
+	}, testutil.WaitShort, testutil.IntervalFast)
+	err = s.recordAgentUnreachable(ctx, uuid.New(), time.Second)
+	require.ErrorAs(t, err, &unreachable)
+	got = fieldMap(unreachable.Fields)
+	require.Equal(t, "no_handshake", got["reason"])
+	require.Equal(t, true, got["peer_node_received"])
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 2, "agent_unreachable_total", "diagnostics_timeout"))
+	require.True(t, testutil.PromCounterHasValue(t, metrics, 1, "agent_unreachable_total", "no_handshake"))
+}

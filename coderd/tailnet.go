@@ -115,15 +115,16 @@ func NewServerTailnet(
 	// TODO: support controller.TelemetryCtrl
 
 	tn := &ServerTailnet{
-		ctx:         serverCtx,
-		cancel:      cancel,
-		logger:      logger,
-		tracer:      tracer,
-		conn:        conn,
-		coordinatee: conn,
-		controller:  controller,
-		coordCtrl:   coordCtrl,
-		transport:   tailnetTransport.Clone(),
+		ctx:                 serverCtx,
+		cancel:              cancel,
+		logger:              logger,
+		tracer:              tracer,
+		conn:                conn,
+		coordinatee:         conn,
+		controller:          controller,
+		coordCtrl:           coordCtrl,
+		transport:           tailnetTransport.Clone(),
+		readPeerDiagnostics: conn.GetPeerDiagnostics,
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -222,6 +223,7 @@ type ServerTailnet struct {
 
 	// peerDiagnosticsBusy is set while a peer diagnostics read is in flight.
 	peerDiagnosticsBusy atomic.Bool
+	readPeerDiagnostics func(agentID uuid.UUID) tailnet.PeerDiagnostics
 }
 
 func (s *ServerTailnet) ReverseProxy(targetURL, dashboardURL *url.URL, agentID uuid.UUID, app appurl.ApplicationURL, wildcardHostname string) *httputil.ReverseProxy {
@@ -448,6 +450,12 @@ func (s *ServerTailnet) reportProxyDialFailure(ctx context.Context, agentID uuid
 	phase, elapsed := ds.get()
 	switch phase {
 	case dialPhaseAwaitReachable:
+		// A request that is still waiting can also see an error from before
+		// the first ping, such as a failed coordinator send. AgentConn does
+		// not count those, so neither does this path.
+		if !errors.Is(err, errAgentUnreachable) && ctx.Err() == nil {
+			return err
+		}
 		unreachable := s.recordAgentUnreachable(ctx, agentID, elapsed, slog.F("dial_phase", phase.String()))
 		if errors.Is(err, errAgentUnreachable) {
 			return err
@@ -573,7 +581,7 @@ func (s *ServerTailnet) peerDiagnostics(agentID uuid.UUID) (d tailnet.PeerDiagno
 	diagCh := make(chan tailnet.PeerDiagnostics, 1)
 	go func() {
 		defer s.peerDiagnosticsBusy.Store(false)
-		diagCh <- s.conn.GetPeerDiagnostics(agentID)
+		diagCh <- s.readPeerDiagnostics(agentID)
 	}()
 	select {
 	case d := <-diagCh:
