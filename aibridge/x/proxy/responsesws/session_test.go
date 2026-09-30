@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -94,9 +95,13 @@ func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) 
 	conn := &fakeConn{toClient: make(chan []byte, 16), written: make(chan []byte, 16), closed: make(chan struct{})}
 	rec := &testRecorder{}
 	sessionID := "client-session"
+	// Production recorders refuse records with unset timestamps. The
+	// validating middleware logs each refusal at error level, which fails
+	// the test.
+	validating := recorder.NewValidatingRecorder(slogtest.Make(t, nil), rec)
 	sess, err := responsesws.NewSession(aibcontext.AsActor(ctx, "user-1", "", recorder.Metadata{"k": "v"}), conn, responsesws.Options{
 		Provider:        provider.NewOpenAI(config.OpenAI{}),
-		Recorder:        rec,
+		Recorder:        validating,
 		Admit:           admit,
 		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 		Client:          "codex",
@@ -209,18 +214,24 @@ func TestCreateRecordsInterceptionAndUsage(t *testing.T) {
 
 	h.relay(created("", "resp_1", "gpt-6"), delta(""))
 	require.Nil(t, h.rec.RecordedInterceptionEnd(ic.ID))
-	h.relay(completed("", "resp_1"))
+	h.relay(terminal("", "response.completed", "resp_1", `,"status":"completed","model":"gpt-6-2026-01-01"`))
 
 	usages := h.rec.RecordedTokenUsages()
 	require.Len(t, usages, 1)
+	usage := *usages[0]
+	require.False(t, usage.CreatedAt.IsZero())
+	usage.CreatedAt = time.Time{}
 	require.Equal(t, recorder.TokenUsageRecord{
-		InterceptionID: ic.ID, MsgID: "resp_1", Input: 50, Output: 7,
+		InterceptionID: ic.ID, MsgID: "resp_1", ProviderModel: "gpt-6-2026-01-01", Input: 50, Output: 7,
 		CacheReadInputTokens: 30, CacheWriteInputTokens: 20,
 		ExtraTokenTypes: map[string]int64{"output_reasoning": 3, "total_tokens": 107},
-	}, *usages[0])
+	}, usage)
 	prompts := h.rec.RecordedPromptUsages()
 	require.Len(t, prompts, 1)
-	require.Equal(t, recorder.PromptUsageRecord{InterceptionID: ic.ID, MsgID: "resp_1", Prompt: "hello"}, *prompts[0])
+	prompt := *prompts[0]
+	require.False(t, prompt.CreatedAt.IsZero())
+	prompt.CreatedAt = time.Time{}
+	require.Equal(t, recorder.PromptUsageRecord{InterceptionID: ic.ID, MsgID: "resp_1", Prompt: "hello"}, prompt)
 	end := h.rec.RecordedInterceptionEnd(ic.ID)
 	require.NotNil(t, end)
 	require.Empty(t, end.ErrorType)
@@ -573,4 +584,76 @@ func TestSessionEndEndsOpenInterceptions(t *testing.T) {
 		require.ErrorIs(t, err, context.Canceled)
 		requireEnded(t, h, context.Canceled.Error())
 	})
+}
+
+// TestCloseDuringAdmission covers a session closed while admission is still
+// deciding a create: Send must return promptly and nothing may be recorded
+// for the frame, which is never forwarded.
+func TestCloseDuringAdmission(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		admit func(ctx context.Context) error
+	}{
+		// Admission honors its ctx, which the session close must cancel.
+		{"CanceledByClose", func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		}},
+		// Admission returns success only after the session closed.
+		{"LateSuccess", func(ctx context.Context) error {
+			<-ctx.Done()
+			return nil
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := codertestutil.Context(t, codertestutil.WaitShort)
+			entered := make(chan struct{})
+			h := newHarness(ctx, t, func(ctx context.Context, _ string) error {
+				close(entered)
+				return tc.admit(ctx)
+			})
+			// The caller's ctx outlives the test's wait, so only the session
+			// close can unblock admission in time.
+			sendCtx, cancelSend := context.WithCancel(context.WithoutCancel(ctx))
+			defer cancelSend()
+			sent := make(chan error, 1)
+			go func() { sent <- h.sess.Send(sendCtx, []byte(create("", "gpt-6", "hi"))) }()
+			_ = codertestutil.TryReceive(ctx, t, entered)
+			require.NoError(t, h.sess.Close(nil))
+
+			err := codertestutil.TryReceive(ctx, t, sent)
+			require.ErrorIs(t, err, responsesws.ErrClosed)
+			require.Empty(t, h.rec.RecordedInterceptions())
+			select {
+			case frame := <-h.conn.written:
+				t.Fatalf("create forwarded after close: %s", frame)
+			default:
+			}
+		})
+	}
+}
+
+// TestLaneStateReleased requires that completed requests on distinct
+// stream_ids leave no per-lane state behind, so a client using a fresh
+// stream_id per request does not grow the session without bound.
+func TestLaneStateReleased(t *testing.T) {
+	t.Parallel()
+	h := newHarness(codertestutil.Context(t, codertestutil.WaitShort), t, nil)
+
+	for i := range 20 {
+		streamID := fmt.Sprintf("lane-%d", i)
+		id := fmt.Sprintf("resp_%d", i)
+		require.NotNil(t, h.send(create(streamID, "gpt-6", "hi")))
+		h.relay(created(streamID, id, "gpt-6"), delta(streamID), completed(streamID, id))
+	}
+	// A steered response on its own lane continues and then completes.
+	require.NotNil(t, h.send(create("steer", "gpt-6", "hi")))
+	h.relay(created("steer", "resp_s1", "gpt-6"),
+		terminal("steer", "response.incomplete", "resp_s1", `,"status":"incomplete","incomplete_details":{"reason":"steered"}`),
+		created("steer", "resp_s2", "gpt-6"), completed("steer", "resp_s2"))
+
+	require.Len(t, h.rec.RecordedInterceptions(), 21)
+	require.Equal(t, map[string]int{}, responsesws.StateSizes(h.sess))
 }

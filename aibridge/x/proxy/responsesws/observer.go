@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/tidwall/gjson"
@@ -96,6 +97,7 @@ func (o *recordingObserver) InterceptionEnded(_ context.Context, interceptionID 
 
 func (o *recordingObserver) recordPrompt(ctx context.Context, interceptionID, msgID, prompt string) {
 	if err := o.rec.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+		CreatedAt:      time.Now().UTC(),
 		InterceptionID: interceptionID,
 		MsgID:          msgID,
 		Prompt:         prompt,
@@ -117,8 +119,10 @@ func (o *recordingObserver) recordTokenUsage(ctx context.Context, interceptionID
 		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
 	}
 	if err := o.rec.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        interceptionID,
 		MsgID:                 response.ID,
+		ProviderModel:         response.Model,
 		Input:                 inputNonCacheTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,

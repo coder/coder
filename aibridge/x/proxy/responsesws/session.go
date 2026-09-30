@@ -178,10 +178,7 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 // unrecordable response.create is not forwarded; the client receives an
 // error event from Recv instead and the session stays open.
 func (s *Session) Send(ctx context.Context, frame []byte) error {
-	s.mu.Lock()
-	closed := s.closed
-	s.mu.Unlock()
-	if closed || s.ctx.Err() != nil {
+	if s.isClosed() {
 		return ErrClosed
 	}
 	eventType := gjson.GetBytes(frame, "type").String()
@@ -203,6 +200,13 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 		s.opts.Observer.ClientEvent(recordCtx, steered.id, frame)
 	}
 	return nil
+}
+
+// isClosed reports whether Close was called or the reader ended the session.
+func (s *Session) isClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed || s.ctx.Err() != nil
 }
 
 // Recv returns the next frame for the client: upstream frames unchanged, or
@@ -269,8 +273,20 @@ func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
 	lane := gjson.GetBytes(frame, "stream_id").String()
 	model := gjson.GetBytes(frame, "model").String()
 	log := s.opts.Logger.With(slog.F("model", model), slog.F("stream_id", lane))
+	// Admission and the interception start are canceled by the caller or a
+	// session close, so a close never leaves Send blocked in either.
+	opCtx, cancelOp := context.WithCancel(ctx)
+	defer cancelOp()
+	stop := context.AfterFunc(s.ctx, cancelOp)
+	defer stop()
 	if s.opts.Admit != nil {
-		if err := s.opts.Admit(ctx, model); err != nil {
+		err := s.opts.Admit(opCtx, model)
+		// A create admitted or refused after the session closed is never
+		// forwarded, so nothing is recorded or relayed for it.
+		if s.isClosed() {
+			return ErrClosed
+		}
+		if err != nil {
 			log.Info(ctx, "response.create refused by admission", slog.Error(err))
 			if respErr, ok := errors.AsType[*intercept.ResponseError](err); ok && respErr.ErrorObject != nil {
 				return s.enqueueError(ctx, lane, respErr.StatusCode, respErr.ErrorObject.Type, respErr.ErrorObject.Code, respErr.ErrorObject.Message)
@@ -280,9 +296,10 @@ func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
 			return s.enqueueError(ctx, lane, http.StatusForbidden, "invalid_request_error", "request_refused", "request refused by AI Gateway")
 		}
 	}
-	// Starting uses the caller's ctx so a canceled caller fails fast instead
-	// of recording an interception for a frame that is never forwarded.
-	ic, err := s.startInterception(ctx, lane, model, func(ic *interception) {
+	// Starting uses opCtx so a canceled caller or closed session fails fast
+	// instead of recording an interception for a frame that is never
+	// forwarded.
+	ic, err := s.startInterception(opCtx, lane, model, func(ic *interception) {
 		s.pending[lane] = append(s.pending[lane], ic)
 	})
 	if err != nil {
@@ -413,9 +430,11 @@ func (s *Session) bindCreated(ctx context.Context, lane string, frame []byte) *i
 	s.mu.Lock()
 	var ic *interception
 	if q := s.pending[lane]; len(q) > 0 {
-		ic, s.pending[lane] = q[0], q[1:]
+		ic = q[0]
+		setQueue(s.pending, lane, q[1:])
 	} else if q := s.continuations[lane]; len(q) > 0 {
-		ic, s.continuations[lane] = q[0], q[1:]
+		ic = q[0]
+		setQueue(s.continuations, lane, q[1:])
 	}
 	if ic != nil {
 		bind(ic)
@@ -526,8 +545,18 @@ func (s *Session) forgetLocked(ic *interception) {
 		delete(s.active, ic.lane)
 	}
 	isIC := func(other *interception) bool { return other == ic }
-	s.pending[ic.lane] = slices.DeleteFunc(s.pending[ic.lane], isIC)
-	s.continuations[ic.lane] = slices.DeleteFunc(s.continuations[ic.lane], isIC)
+	setQueue(s.pending, ic.lane, slices.DeleteFunc(s.pending[ic.lane], isIC))
+	setQueue(s.continuations, ic.lane, slices.DeleteFunc(s.continuations[ic.lane], isIC))
+}
+
+// setQueue stores the queue for lane, deleting the entry when it is empty so
+// a client using a fresh stream_id per request does not grow the map.
+func setQueue(m map[string][]*interception, lane string, q []*interception) {
+	if len(q) == 0 {
+		delete(m, lane)
+		return
+	}
+	m[lane] = q
 }
 
 func (s *Session) recordEnded(ic *interception, err error) {
