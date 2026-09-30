@@ -23160,6 +23160,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
+                "secrets": {
+                    "description": "Secrets sets or removes workspace secrets before the build is queued.\nSecrets not listed here are carried forward from previous builds.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
+                    }
+                },
                 "state": {
                     "type": "array",
                     "items": {
@@ -23227,6 +23234,13 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "secrets": {
+                    "description": "Secrets sets workspace secrets that are delivered to the workspace\nthrough the agent manifest instead of the provisioner.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceSecretInput"
                     }
                 },
                 "template_id": {
@@ -33255,6 +33269,26 @@ const docTemplate = `{
                 "WorkspaceRoleUse",
                 "WorkspaceRoleDeleted"
             ]
+        },
+        "codersdk.WorkspaceSecretInput": {
+            "type": "object",
+            "properties": {
+                "env_name": {
+                    "description": "EnvName is the environment variable to inject the secret as. Empty\nmeans no env injection. Required when FilePath is empty and Value is\nnon-empty.",
+                    "type": "string"
+                },
+                "file_path": {
+                    "description": "FilePath is the path to write the secret to inside the workspace.\nEmpty means no file is written. Deployments may disable file path\ndelivery.",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value is the plaintext secret. An empty Value removes the secret.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.WorkspaceSharingSettings": {
             "type": "object",

@@ -33254,6 +33254,214 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
+const deleteWorkspaceSecretByWorkspaceIDAndName = `-- name: DeleteWorkspaceSecretByWorkspaceIDAndName :exec
+DELETE FROM workspace_secrets
+WHERE workspace_id = $1 AND name = $2
+`
+
+type DeleteWorkspaceSecretByWorkspaceIDAndNameParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Name        string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteWorkspaceSecretByWorkspaceIDAndName(ctx context.Context, arg DeleteWorkspaceSecretByWorkspaceIDAndNameParams) error {
+	_, err := q.db.ExecContext(ctx, deleteWorkspaceSecretByWorkspaceIDAndName, arg.WorkspaceID, arg.Name)
+	return err
+}
+
+const getWorkspaceSecrets = `-- name: GetWorkspaceSecrets :many
+SELECT id, workspace_id, name, value, value_key_id, env_name, file_path, updated_by_build_id, created_at, updated_at
+FROM workspace_secrets
+ORDER BY workspace_id, name
+`
+
+// Returns every workspace secret across the deployment. Used only by the
+// dbcrypt key rotation utility.
+func (q *sqlQuerier) GetWorkspaceSecrets(ctx context.Context) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceSecrets)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.UpdatedByBuildID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceSecretsWithValues = `-- name: ListWorkspaceSecretsWithValues :many
+SELECT id, workspace_id, name, value, value_key_id, env_name, file_path, updated_by_build_id, created_at, updated_at
+FROM workspace_secrets
+WHERE workspace_id = $1
+ORDER BY name ASC
+`
+
+// Returns all columns including the secret value. Used only by the agent
+// manifest for runtime injection; there is no REST endpoint that reads
+// workspace secrets back.
+func (q *sqlQuerier) ListWorkspaceSecretsWithValues(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceSecretsWithValues, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceSecret
+	for rows.Next() {
+		var i WorkspaceSecret
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Value,
+			&i.ValueKeyID,
+			&i.EnvName,
+			&i.FilePath,
+			&i.UpdatedByBuildID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEncryptedWorkspaceSecretValue = `-- name: UpdateEncryptedWorkspaceSecretValue :one
+UPDATE workspace_secrets
+SET
+    value        = $1,
+    value_key_id = $2,
+    updated_at   = CURRENT_TIMESTAMP
+WHERE id = $3
+RETURNING id, workspace_id, name, value, value_key_id, env_name, file_path, updated_by_build_id, created_at, updated_at
+`
+
+type UpdateEncryptedWorkspaceSecretValueParams struct {
+	Value      string         `db:"value" json:"value"`
+	ValueKeyID sql.NullString `db:"value_key_id" json:"value_key_id"`
+	ID         uuid.UUID      `db:"id" json:"id"`
+}
+
+// Updates only the encrypted columns on a row. Used by the dbcrypt key
+// rotation utility to re-encrypt or decrypt rows in place.
+func (q *sqlQuerier) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, arg UpdateEncryptedWorkspaceSecretValueParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedWorkspaceSecretValue, arg.Value, arg.ValueKeyID, arg.ID)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.UpdatedByBuildID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertWorkspaceSecret = `-- name: UpsertWorkspaceSecret :one
+INSERT INTO workspace_secrets (
+    id,
+    workspace_id,
+    name,
+    value,
+    value_key_id,
+    env_name,
+    file_path,
+    updated_by_build_id
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8
+)
+ON CONFLICT (workspace_id, name) DO UPDATE
+SET
+    value               = EXCLUDED.value,
+    value_key_id        = EXCLUDED.value_key_id,
+    env_name            = EXCLUDED.env_name,
+    file_path           = EXCLUDED.file_path,
+    updated_by_build_id = EXCLUDED.updated_by_build_id,
+    updated_at          = CURRENT_TIMESTAMP
+RETURNING id, workspace_id, name, value, value_key_id, env_name, file_path, updated_by_build_id, created_at, updated_at
+`
+
+type UpsertWorkspaceSecretParams struct {
+	ID               uuid.UUID      `db:"id" json:"id"`
+	WorkspaceID      uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	Name             string         `db:"name" json:"name"`
+	Value            string         `db:"value" json:"value"`
+	ValueKeyID       sql.NullString `db:"value_key_id" json:"value_key_id"`
+	EnvName          string         `db:"env_name" json:"env_name"`
+	FilePath         string         `db:"file_path" json:"file_path"`
+	UpdatedByBuildID uuid.UUID      `db:"updated_by_build_id" json:"updated_by_build_id"`
+}
+
+// Sets a workspace secret by name, replacing the value and injection
+// targets if a row with the same name already exists.
+func (q *sqlQuerier) UpsertWorkspaceSecret(ctx context.Context, arg UpsertWorkspaceSecretParams) (WorkspaceSecret, error) {
+	row := q.db.QueryRowContext(ctx, upsertWorkspaceSecret,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Name,
+		arg.Value,
+		arg.ValueKeyID,
+		arg.EnvName,
+		arg.FilePath,
+		arg.UpdatedByBuildID,
+	)
+	var i WorkspaceSecret
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Value,
+		&i.ValueKeyID,
+		&i.EnvName,
+		&i.FilePath,
+		&i.UpdatedByBuildID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteStaleWorkspaceAgentContextResources = `-- name: DeleteStaleWorkspaceAgentContextResources :exec
 DELETE FROM workspace_agent_context_resources
 WHERE workspace_agent_id = $1

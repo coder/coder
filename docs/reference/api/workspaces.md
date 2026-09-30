@@ -37,6 +37,14 @@ of the template will be used.
       "value": "string"
     }
   ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "file_path": "string",
+      "name": "string",
+      "value": "string"
+    }
+  ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -752,6 +760,14 @@ of the template will be used.
   "name": "string",
   "rich_parameter_values": [
     {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "secrets": [
+    {
+      "env_name": "string",
+      "file_path": "string",
       "name": "string",
       "value": "string"
     }

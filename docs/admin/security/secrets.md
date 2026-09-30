@@ -56,6 +56,46 @@ until it is re-enabled. User secret values are covered by
 [Database Encryption](./database-encryption.md) when it is enabled. See the
 [User secrets guide](../../user-guides/user-secrets.md).
 
+## Workspace secrets
+
+Workspace secrets are per-workspace values supplied on the workspace create or
+workspace build API request instead of as template parameters. They are meant
+for automation that provisions workspaces on a user's behalf and needs to hand
+the workspace a credential without exposing it as a parameter.
+
+Unlike parameters, workspace secrets are never sent to the provisioner, so they
+do not appear in build parameters, Terraform state, template insights, or
+metrics. Coder delivers them only through the workspace agent, the same way as
+user secrets, and they cannot be read back through the API.
+
+To set them, include a `secrets` array on
+`POST /users/{user}/workspaces` or `POST /workspaces/{workspace}/builds`:
+
+```json
+{
+  "transition": "start",
+  "secrets": [
+    { "name": "cursor-api-key", "value": "<value>", "env_name": "CURSOR_API_KEY" },
+    { "name": "kubeconfig", "value": "<value>", "file_path": "~/.kube/config" }
+  ]
+}
+```
+
+- Each secret needs an `env_name`, a `file_path`, or both.
+- Secrets carry forward: every later build of the workspace receives them until
+  a request replaces a secret by `name` or removes it by sending an empty
+  `value`. Requests that omit `secrets` leave the existing set unchanged.
+- A workspace secret that targets the same environment variable or file path as
+  a user secret takes precedence in that workspace.
+- The [user secrets limits](../../user-guides/user-secrets.md#limits) apply per
+  workspace, and the same file path delivery policy applies.
+- Values are covered by [Database Encryption](./database-encryption.md) when it
+  is enabled.
+
+Because the template does not declare workspace secrets, have a startup script
+verify that the environment variables it depends on are present and fail
+early with a clear message when they are not.
+
 ## Dynamic Secrets
 
 Dynamic secrets are attached to the workspace lifecycle and automatically

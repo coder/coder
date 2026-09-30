@@ -1059,6 +1059,65 @@ func (db *dbCrypt) UpdateUserSecretByUserIDAndName(ctx context.Context, arg data
 	return secret, nil
 }
 
+func (db *dbCrypt) decryptWorkspaceSecrets(secrets []database.WorkspaceSecret) error {
+	for i := range secrets {
+		if err := db.decryptField(&secrets[i].Value, secrets[i].ValueKeyID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *dbCrypt) UpsertWorkspaceSecret(ctx context.Context, params database.UpsertWorkspaceSecretParams) (database.WorkspaceSecret, error) {
+	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	secret, err := db.Store.UpsertWorkspaceSecret(ctx, params)
+	if err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return secret, nil
+}
+
+func (db *dbCrypt) ListWorkspaceSecretsWithValues(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	secrets, err := db.Store.ListWorkspaceSecretsWithValues(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.decryptWorkspaceSecrets(secrets); err != nil {
+		return nil, err
+	}
+	return secrets, nil
+}
+
+func (db *dbCrypt) GetWorkspaceSecrets(ctx context.Context) ([]database.WorkspaceSecret, error) {
+	secrets, err := db.Store.GetWorkspaceSecrets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.decryptWorkspaceSecrets(secrets); err != nil {
+		return nil, err
+	}
+	return secrets, nil
+}
+
+func (db *dbCrypt) UpdateEncryptedWorkspaceSecretValue(ctx context.Context, params database.UpdateEncryptedWorkspaceSecretValueParams) (database.WorkspaceSecret, error) {
+	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	secret, err := db.Store.UpdateEncryptedWorkspaceSecretValue(ctx, params)
+	if err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.WorkspaceSecret{}, err
+	}
+	return secret, nil
+}
+
 func (db *dbCrypt) InsertGitSSHKey(ctx context.Context, params database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
 	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
 		return database.GitSSHKey{}, err

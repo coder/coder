@@ -232,6 +232,26 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	workspaceSecrets, err := cryptDB.GetWorkspaceSecrets(ctx)
+	if err != nil {
+		return xerrors.Errorf("get workspace secrets: %w", err)
+	}
+	log.Info(ctx, "encrypting workspace secrets", slog.F("secret_count", len(workspaceSecrets)))
+	for idx, secret := range workspaceSecrets {
+		if secret.ValueKeyID.Valid && secret.ValueKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping workspace secret", slog.F("workspace_id", secret.WorkspaceID), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedWorkspaceSecretValue(ctx, database.UpdateEncryptedWorkspaceSecretValueParams{
+			ID:         secret.ID,
+			Value:      secret.Value,
+			ValueKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+		}); err != nil {
+			return xerrors.Errorf("rotate workspace secret workspace_id=%s name=%s: %w", secret.WorkspaceID, secret.Name, err)
+		}
+		log.Debug(ctx, "rotated workspace secret", slog.F("workspace_id", secret.WorkspaceID), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -450,6 +470,26 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
 	}
 
+	workspaceSecrets, err := cryptDB.GetWorkspaceSecrets(ctx)
+	if err != nil {
+		return xerrors.Errorf("get workspace secrets: %w", err)
+	}
+	log.Info(ctx, "decrypting workspace secrets", slog.F("secret_count", len(workspaceSecrets)))
+	for idx, secret := range workspaceSecrets {
+		if !secret.ValueKeyID.Valid {
+			log.Debug(ctx, "skipping workspace secret", slog.F("workspace_id", secret.WorkspaceID), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedWorkspaceSecretValue(ctx, database.UpdateEncryptedWorkspaceSecretValueParams{
+			ID:         secret.ID,
+			Value:      secret.Value,
+			ValueKeyID: sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt workspace secret workspace_id=%s name=%s: %w", secret.WorkspaceID, secret.Name, err)
+		}
+		log.Debug(ctx, "decrypted workspace secret", slog.F("workspace_id", secret.WorkspaceID), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -473,6 +513,8 @@ DELETE FROM external_auth_links
 DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
+	WHERE value_key_id IS NOT NULL;
+DELETE FROM workspace_secrets
 	WHERE value_key_id IS NOT NULL;
 DELETE FROM chat_mcp_servers
 	WHERE headers_key_id IS NOT NULL;

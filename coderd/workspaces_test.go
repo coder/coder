@@ -6634,3 +6634,135 @@ func TestWorkspaceByOwnerAndNameIncludeRelated(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, code)
 	})
 }
+
+func TestWorkspaceSecrets(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+	listSecrets := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID) map[string]database.WorkspaceSecret {
+		t.Helper()
+		//nolint:gocritic // Reading decrypted secret values requires the system context.
+		rows, err := db.ListWorkspaceSecretsWithValues(dbauthz.AsSystemRestricted(ctx), workspaceID)
+		require.NoError(t, err)
+		byName := make(map[string]database.WorkspaceSecret, len(rows))
+		for _, row := range rows {
+			byName[row.Name] = row
+		}
+		return byName
+	}
+
+	t.Run("CreateAndCarryForward", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.Secrets = []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: "first-value", EnvName: "API_KEY"},
+				{Name: "cert", Value: "cert-value", FilePath: "/home/coder/.cert"},
+			}
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		secrets := listSecrets(ctx, t, workspace.ID)
+		require.Len(t, secrets, 2)
+		require.Equal(t, "first-value", secrets["api-key"].Value)
+		require.Equal(t, "API_KEY", secrets["api-key"].EnvName)
+		require.Equal(t, workspace.LatestBuild.ID, secrets["api-key"].UpdatedByBuildID)
+		require.Equal(t, "/home/coder/.cert", secrets["cert"].FilePath)
+
+		// Secrets never become build parameters.
+		params, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		require.Empty(t, params)
+
+		// A build that does not mention secrets keeps the existing set.
+		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		secrets = listSecrets(ctx, t, workspace.ID)
+		require.Len(t, secrets, 2)
+		require.Equal(t, workspace.LatestBuild.ID, secrets["api-key"].UpdatedByBuildID, "untouched secret keeps its original build")
+
+		// Replacing by name and removing with an empty value.
+		build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+			Secrets: []codersdk.WorkspaceSecretInput{
+				{Name: "api-key", Value: "second-value", EnvName: "API_KEY"},
+				{Name: "cert", Value: ""},
+			},
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		secrets = listSecrets(ctx, t, workspace.ID)
+		require.Len(t, secrets, 1)
+		require.Equal(t, "second-value", secrets["api-key"].Value)
+		require.Equal(t, build.ID, secrets["api-key"].UpdatedByBuildID)
+	})
+
+	t.Run("Validation", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		cases := []struct {
+			name    string
+			secrets []codersdk.WorkspaceSecretInput
+			field   string
+		}{
+			{
+				name:    "MissingTarget",
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "no-target", Value: "v"}},
+				field:   "secrets[0].env_name",
+			},
+			{
+				name:    "InvalidEnvName",
+				secrets: []codersdk.WorkspaceSecretInput{{Name: "bad-env", Value: "v", EnvName: "1BAD"}},
+				field:   "secrets[0].env_name",
+			},
+			{
+				name: "Duplicate",
+				secrets: []codersdk.WorkspaceSecretInput{
+					{Name: "dup", Value: "v", EnvName: "DUP_A"},
+					{Name: "dup", Value: "v", EnvName: "DUP_B"},
+				},
+				field: "secrets[1].name",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+					Transition: codersdk.WorkspaceTransitionStart,
+					Secrets:    tc.secrets,
+				})
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+				require.Len(t, apiErr.Validations, 1)
+				require.Equal(t, tc.field, apiErr.Validations[0].Field)
+			})
+		}
+
+		t.Run("EnvNameConflict", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStart,
+				Secrets: []codersdk.WorkspaceSecretInput{
+					{Name: "a", Value: "v", EnvName: "SHARED"},
+					{Name: "b", Value: "v", EnvName: "SHARED"},
+				},
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Empty(t, listSecrets(ctx, t, workspace.ID), "failed build must not persist any secret")
+		})
+	})
+}
