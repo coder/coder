@@ -1,6 +1,10 @@
 import { useId, useState } from "react";
 import { useQuery } from "react-query";
-import { getErrorMessage, getValidationErrorMessage } from "#/api/errors";
+import {
+	getErrorMessage,
+	getValidationErrorMessage,
+	isApiValidationError,
+} from "#/api/errors";
 import { chatAutomationSchedulePreview } from "#/api/queries/chatAutomations";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -120,11 +124,20 @@ export const AutomationScheduleFields: React.FC<
 		}),
 		enabled: Boolean(organizationId && debouncedCron && debouncedTimeZone),
 	});
-	const previewError = previewQuery.isError
-		? getValidationErrorMessage(previewQuery.error) ||
-			getErrorMessage(previewQuery.error, "Could not preview the schedule.")
+	const timeZonePreviewError = isApiValidationError(previewQuery.error)
+		? previewQuery.error.response.data.validations?.find(
+				(validation) => validation.field === "schedule_time_zone",
+			)?.detail
 		: undefined;
-	const cronError = cronField.error ? cronField.helperText : previewError;
+	const cronPreviewError =
+		previewQuery.isError && !timeZonePreviewError
+			? getValidationErrorMessage(previewQuery.error) ||
+				getErrorMessage(previewQuery.error, "Could not preview the schedule.")
+			: undefined;
+	const cronError = cronField.error ? cronField.helperText : cronPreviewError;
+	const timeZoneError = timeZoneField.error
+		? timeZoneField.helperText
+		: timeZonePreviewError;
 
 	const applyShortcut = (nextRepeat: string, nextTime: string) => {
 		const option = repeatOptions.find((o) => o.value === nextRepeat);
@@ -144,7 +157,7 @@ export const AutomationScheduleFields: React.FC<
 				Loading upcoming runs
 			</span>
 		);
-	} else if (previewError) {
+	} else if (previewQuery.isError) {
 		preview = "Upcoming runs appear when the schedule is valid.";
 	} else if (!previewQuery.data?.next_run_times.length) {
 		preview = "No upcoming runs.";
@@ -239,7 +252,11 @@ export const AutomationScheduleFields: React.FC<
 				</div>
 			</div>
 			<SelectField
-				field={timeZoneField}
+				field={{
+					...timeZoneField,
+					error: Boolean(timeZoneError),
+					helperText: timeZoneError,
+				}}
 				label="Time zone"
 				placeholder="Select a time zone"
 				onValueChange={onTimeZoneChange}

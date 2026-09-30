@@ -31,8 +31,13 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import { ModelSelector } from "#/modules/aiModels/ModelSelector";
 import { getFormHelpers } from "#/utils/formUtils";
 import { getPreferredTimezone } from "#/utils/timeZones";
-import { resolveModelSelector } from "../../utils/modelOptions";
+import {
+	getModelSelectorPlaceholder,
+	hasUserFixableProviders,
+	resolveModelSelector,
+} from "../../utils/modelOptions";
 import { pickReasoningEffort } from "../../utils/reasoningEffort";
+import { getModelSelectorHelp } from "../ModelSelectorHelp";
 import { AutomationChatPicker } from "./AutomationChatPicker";
 import { AutomationScheduleFields } from "./AutomationScheduleFields";
 
@@ -169,10 +174,18 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const [submittedValues, setSubmittedValues] =
 		useState<AutomationFormValues>();
 	const modelsQuery = useQuery(chatModels(organizationId));
-	const { options: modelOptions } = resolveModelSelector(
-		organizationId,
-		modelsQuery,
-	);
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(organizationId, modelsQuery);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading,
+		hasModelOptions: modelOptions.length > 0,
+		hasConfiguredModels,
+		hasUserFixableModelProviders: hasUserFixableProviders(modelCatalog),
+	});
 
 	const initialValues = initialFormValues(automation);
 	const form = useFormik<AutomationFormValues>({
@@ -181,9 +194,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			name: Yup.string()
 				.trim()
 				.required("Name is required.")
-				.max(
-					NAME_MAX_LENGTH,
+				// The server counts code points, so an emoji is one character.
+				.test(
+					"max-code-points",
 					`Name must be at most ${NAME_MAX_LENGTH} characters.`,
+					(value = "") => [...value].length <= NAME_MAX_LENGTH,
 				),
 			prompt: Yup.string().trim().required("Prompt is required."),
 			schedule_cron: isSchedule
@@ -213,14 +228,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	const getFieldHelpers = (
-		name: keyof AutomationFormValues,
-		options?: { maxLength?: number },
-	) =>
+	const getFieldHelpers = (name: keyof AutomationFormValues) =>
 		getFormHelpers(
 			form,
 			submittedValues?.[name] === form.values[name] ? error : undefined,
-		)(name, options);
+		)(name);
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isExistingChat = form.values.target_mode === "existing_chat";
 	const selectedModel = modelOptions.find(
@@ -299,11 +311,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 								)}
 							</Alert>
 						)}
-						<FormField
-							field={getFieldHelpers("name", { maxLength: NAME_MAX_LENGTH })}
-							label="Name"
-							required
-						/>
+						<FormField field={getFieldHelpers("name")} label="Name" required />
 						<FormField
 							field={getFieldHelpers("prompt")}
 							label="Prompt"
@@ -383,6 +391,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										control={(props) => (
 											<AutomationChatPicker
 												{...props}
+												organizationId={organizationId}
 												value={form.values.target_chat_id}
 												onChange={(chatId) =>
 													form.setFieldValue("target_chat_id", chatId)
@@ -411,6 +420,12 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 									<ModelSelector
 										className="w-fit"
 										triggerAriaLabel="Model"
+										placeholder={getModelSelectorPlaceholder(
+											modelOptions,
+											isModelCatalogLoading,
+											hasConfiguredModels,
+											modelCatalog,
+										)}
 										options={modelOptions}
 										value={form.values.new_chat_model_config_id}
 										onValueChange={(modelId) => {
@@ -430,6 +445,11 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											form.setFieldValue("reasoning_effort", effort)
 										}
 									/>
+									{modelSelectorHelp && (
+										<span className="text-xs text-content-secondary">
+											{modelSelectorHelp}
+										</span>
+									)}
 									{modelsQuery.isError && (
 										<span className="text-xs text-content-destructive">
 											Could not load models.
