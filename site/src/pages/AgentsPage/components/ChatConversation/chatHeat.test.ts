@@ -8,6 +8,7 @@ import {
 	getChatHeat,
 	getChatHeatLabel,
 	HEAT_CURVE_MIDPOINT,
+	HEAT_REFERENCE_TOKENS,
 	heatCurve,
 	isCacheLikelyExpired,
 } from "./chatHeat";
@@ -28,7 +29,10 @@ const request = (
 
 // Builds consecutive requests. Each one reads the previous prompt from the
 // cache except for `missed` tokens, and adds `added` new tokens.
-const requestChain = (initialPromptTokens = 0) => {
+const requestChain = (
+	initialPromptTokens = 0,
+	contextLimit = CONTEXT_LIMIT,
+) => {
 	let promptTokens = initialPromptTokens;
 	return (missed = 0, added = 100): TypesGen.ChatMessage => {
 		const cacheRead = Math.max(0, promptTokens - missed);
@@ -37,6 +41,7 @@ const requestChain = (initialPromptTokens = 0) => {
 		return request({
 			cache_read_tokens: cacheRead,
 			cache_creation_tokens: cacheCreation,
+			context_limit: contextLimit,
 		});
 	};
 };
@@ -261,6 +266,14 @@ describe("getChatHeat", () => {
 		expect(partial(messages, 0)?.heat).toBeCloseTo(heatCurve(0.15));
 	});
 
+	it("caps the reference size for large context windows", () => {
+		const next = requestChain(40_000, 1_000_000);
+		const messages = [...turn(next()), ...turn(next(21_000))];
+		expect(partial(messages, 30)?.heat).toBeCloseTo(
+			heatCurve(21_000 / HEAT_REFERENCE_TOKENS),
+		);
+	});
+
 	it("reports the newest request's timestamp", () => {
 		const heat = partial(
 			turn(
@@ -269,6 +282,56 @@ describe("getChatHeat", () => {
 			),
 		);
 		expect(heat?.lastRequestAt).toBe("2026-01-01T00:10:00Z");
+	});
+});
+
+// Chats observed during user testing, on a 200K window with the default
+// compaction threshold of 70%.
+describe("getChatHeat scenarios", () => {
+	const heatOf = (messages: TypesGen.ChatMessage[]) =>
+		getChatHeat(messages, 70)?.label;
+	const toolSteps = (next: ReturnType<typeof requestChain>, count: number) =>
+		Array.from({ length: count }, () => next(0, 1_000));
+
+	it("reads hot when each slow turn re-writes an 83K context", () => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, 80_000), ...toolSteps(next, 3))];
+		for (let i = 0; i < 5; i++) {
+			messages.push(
+				...turn(next(Number.POSITIVE_INFINITY, 500), ...toolSteps(next, 3)),
+			);
+		}
+		expect(heatOf(messages)).toBe("hot");
+	});
+
+	it("reads cool for a warm 30-step tool loop", () => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, 20_000))];
+		messages.push(...turn(...Array.from({ length: 30 }, () => next(0, 3_000))));
+		expect(heatOf(messages)).toBe("cool");
+	});
+
+	it("reads cool on the first turn of a chat", () => {
+		const next = requestChain(0, 200_000);
+		expect(heatOf(turn(next(0, 83_000), ...toolSteps(next, 3)))).toBe("cool");
+	});
+
+	it("reads hot when slow turns miss most of a 46K context", () => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, 46_000), ...toolSteps(next, 2))];
+		for (let i = 0; i < 5; i++) {
+			messages.push(...turn(next(39_000, 500), ...toolSteps(next, 2)));
+		}
+		expect(heatOf(messages)).toBe("hot");
+	});
+
+	it("reads cool for a rapid back-and-forth", () => {
+		const next = requestChain(0, 200_000);
+		const messages = [...turn(next(0, 20_000))];
+		for (let i = 0; i < 10; i++) {
+			messages.push(...turn(next(0, 2_000)));
+		}
+		expect(heatOf(messages)).toBe("cool");
 	});
 });
 

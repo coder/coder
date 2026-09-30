@@ -9,10 +9,12 @@ import { findContextBoundaryPart } from "./chatHelpers";
  * message) are not misses. The first request after the chat starts or after
  * a compaction or clear boundary has no previous prompt, so it misses
  * nothing. A turn is every model request between two user messages, and its
- * sample is its summed missed prefix divided by the context limit. Samples
- * are weighted toward the newest turn, normalized by the compaction
- * threshold, and shaped by a logistic curve into a displayed heat in
- * [0, 1]. No prices are involved.
+ * sample is its summed missed prefix divided by a reference size: the usable
+ * context (context limit times the compaction threshold), capped at
+ * HEAT_REFERENCE_TOKENS so that re-sending a mid-size context in a large
+ * window still reads hot. Samples are weighted toward the newest turn and
+ * shaped by a logistic curve into a displayed heat in [0, 1]. No prices are
+ * involved.
  */
 export type ChatHeat = {
 	readonly heat: number;
@@ -30,8 +32,8 @@ type ChatHeatLabel = "cool" | "warm" | "hot";
 
 const HEAT_WINDOW_SIZE = 6;
 const HEAT_WINDOW_DECAY = 0.5;
-// Tuning constants: x is the weighted missed share of the context window
-// relative to the compaction threshold.
+// Tuning constants: x is the weighted missed share of the reference size.
+export const HEAT_REFERENCE_TOKENS = 70_000;
 export const HEAT_CURVE_MIDPOINT = 0.3;
 const HEAT_CURVE_STEEPNESS = 12;
 // A single idle threshold for all providers. Anthropic's default ephemeral
@@ -183,6 +185,13 @@ export const getChatHeat = (
 		return null;
 	}
 
+	const thresholdPercent =
+		compressionThreshold !== undefined &&
+		Number.isFinite(compressionThreshold) &&
+		compressionThreshold > 0
+			? Math.min(compressionThreshold, 100)
+			: 100;
+
 	let weightTotal = 0;
 	let weightedSample = 0;
 	let missRateWeightTotal = 0;
@@ -190,23 +199,20 @@ export const getChatHeat = (
 	for (const [index, turn] of turns.entries()) {
 		const missedTokens = sumTokens(turn, "missedTokens");
 		const reusableTokens = sumTokens(turn, "reusableTokens");
-		const contextLimit = turn.at(-1)?.contextLimit ?? 1;
+		const referenceTokens = Math.min(
+			(turn.at(-1)?.contextLimit ?? 1) * (thresholdPercent / 100),
+			HEAT_REFERENCE_TOKENS,
+		);
 		const weight = HEAT_WINDOW_DECAY ** index;
 		weightTotal += weight;
-		weightedSample += weight * (missedTokens / contextLimit);
+		weightedSample += weight * (missedTokens / referenceTokens);
 		if (reusableTokens > 0) {
 			missRateWeightTotal += weight;
 			weightedMissRate += weight * (missedTokens / reusableTokens);
 		}
 	}
 
-	const threshold =
-		compressionThreshold !== undefined &&
-		Number.isFinite(compressionThreshold) &&
-		compressionThreshold > 0
-			? Math.min(compressionThreshold, 100)
-			: 100;
-	const heat = heatCurve(weightedSample / weightTotal / (threshold / 100));
+	const heat = heatCurve(weightedSample / weightTotal);
 
 	return {
 		heat,
