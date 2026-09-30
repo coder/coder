@@ -171,13 +171,12 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 
 	const props = {
 		chat: buildChat(chat),
-		persistedError: undefined as ChatDetailError | undefined,
+		chatErrorReason: undefined as ChatDetailError | undefined,
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
 		models: [],
 		modelSelectorPlaceholder: "Select a model",
-		hasModelOptions: true,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -440,7 +439,8 @@ export const WithParentChat: Story = {
 export const WithError: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			persistedError={{
+			chat={{ status: "error" }}
+			chatErrorReason={{
 				kind: "overloaded",
 				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
@@ -595,13 +595,7 @@ export const SidebarCollapsed: Story = {
 
 /** No model options available — shows a disabled status message. */
 export const NoModelOptions: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			hasModelOptions={false}
-			modelOptions={[]}
-			isInputDisabled
-		/>
-	),
+	render: () => <StoryAgentChatPageView modelOptions={[]} isInputDisabled />,
 };
 
 export const MissingProviderAndModelSetup: Story = {
@@ -611,7 +605,6 @@ export const MissingProviderAndModelSetup: Story = {
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={0}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -625,7 +618,6 @@ export const MissingModelSetup: Story = {
 			chat={{ organization_id: MockDefaultOrganization.id }}
 			providerCount={1}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -648,7 +640,6 @@ export const MemberNoModelsAvailable: Story = {
 			canConfigureAgentSetup={false}
 			providerCount={0}
 			modelCount={0}
-			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -757,7 +748,6 @@ export const Loading: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			showRightPanel={false}
 		/>
 	),
@@ -777,7 +767,6 @@ export const LoadingWithModelOptions: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			showRightPanel={false}
 		/>
 	),
@@ -796,7 +785,6 @@ export const LoadingWithRightPanel: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			showRightPanel
 		/>
 	),
@@ -817,7 +805,6 @@ export const LoadingSidebarCollapsed: Story = {
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
-			hasModelOptions
 			showRightPanel={false}
 		/>
 	),

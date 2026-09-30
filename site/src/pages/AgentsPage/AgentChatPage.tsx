@@ -52,14 +52,12 @@ import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import {
 	type ChatDetailError,
-	getPersistedDetailError,
 	isChatHookDeniedResponse,
 	isChatHookDispatchFailedResponse,
 } from "./components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import { runPromoteQueuedMessage } from "./components/ChatConversation/chatQueueReconciliation";
 import {
-	selectChatStatus,
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
@@ -381,14 +379,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		clearChatErrorReason,
 		aiGatewayDisabled,
 	});
-	const liveChatStatus =
-		useChatSelector(store, selectChatStatus) ?? chat?.status ?? null;
-	const persistedError = getPersistedDetailError({
-		chatStatus: liveChatStatus,
-		chatRecord: chat,
-		cachedError: chatErrorReasons[agentId],
-	});
-
 	// Git watcher: runs regardless of sidebar visibility, but only
 	// connects when the workspace agent is in the "connected" state
 	// to avoid an infinite reconnect loop against a missing agent.
@@ -687,7 +677,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					planModeEnabled={planModeEnabled}
 					onPlanModeToggle={handlePlanModeToggle}
@@ -719,7 +708,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 				<AgentChatPageView
 					key={agentId}
 					chat={chat}
-					persistedError={persistedError}
+					chatErrorReason={chatErrorReasons[agentId]}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
@@ -745,7 +734,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					modelCount={modelCount}
 					unsupportedProviderNames={unsupportedProviderNames}
 					aiGatewayDisabled={aiGatewayDisabled}
-					hasModelOptions={hasModelOptions}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}
 					isInputDisabled={isInputDisabled}

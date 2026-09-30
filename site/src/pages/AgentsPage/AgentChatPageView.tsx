@@ -28,7 +28,10 @@ import {
 	ChatConversationSkeleton,
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
-import type { ChatDetailError } from "./components/ChatConversation/chatError";
+import {
+	type ChatDetailError,
+	getPersistedDetailError,
+} from "./components/ChatConversation/chatError";
 import {
 	selectChatStatus,
 	useChatSelector,
@@ -101,7 +104,8 @@ type EditingState = {
 
 type AgentChatPageViewProps = {
 	chat: TypesGen.Chat;
-	persistedError: ChatDetailError | undefined;
+	/** Error reported by the last failed request, preferred over chat.last_error. */
+	chatErrorReason: ChatDetailError | undefined;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 
@@ -129,7 +133,6 @@ type AgentChatPageViewProps = {
 	modelCount?: number;
 	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isInputDisabled: boolean;
@@ -268,7 +271,7 @@ const UserTabContent: React.FC<UserTabContentProps> = ({
 
 export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	chat,
-	persistedError,
+	chatErrorReason,
 	workspaceAgent,
 	workspace,
 	store,
@@ -289,7 +292,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	modelCount,
 	unsupportedProviderNames,
 	aiGatewayDisabled,
-	hasModelOptions,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
 	isInputDisabled,
@@ -328,6 +330,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	const isArchived = chat.archived;
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chat.status;
+	const persistedError = getPersistedDetailError({
+		chatStatus: liveChatStatus,
+		chatRecord: chat,
+		cachedError: chatErrorReason,
+	});
+	const hasModelOptions = modelOptions.length > 0;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -1064,7 +1072,6 @@ type AgentChatPageLoadingViewProps = {
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
-	hasModelOptions: boolean;
 	isModelCatalogLoading?: boolean;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
@@ -1084,13 +1091,13 @@ export const AgentChatPageLoadingView: React.FC<
 	setSelectedModel,
 	modelOptions,
 	modelSelectorPlaceholder,
-	hasModelOptions,
 	isModelCatalogLoading = false,
 	planModeEnabled,
 	onPlanModeToggle,
 	showRightPanel,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const hasModelOptions = modelOptions.length > 0;
 	return (
 		<div
 			className={cn(
