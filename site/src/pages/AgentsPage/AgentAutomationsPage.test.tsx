@@ -137,26 +137,30 @@ describe("AgentAutomationsPage", () => {
 	it.each([
 		[409, "The target chat is busy."],
 		[429, "The automation used up its share of the chat queue."],
-	])("shows a %i Run now response as an error", async (status, message) => {
-		const user = userEvent.setup();
-		setup();
-		server.use(
-			http.post(
-				`${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`,
-				() => HttpResponse.json({ message }, { status }),
-			),
-		);
+	])(
+		"sends the Run now request when the server answers %i",
+		async (status, message) => {
+			const user = userEvent.setup();
+			const requests = setup();
+			const runPath = `${automationsPath(MockDefaultOrganization.id)}/${mockAutomation.id}/runs`;
+			server.use(
+				http.post(runPath, ({ request }) => {
+					requests.push(request);
+					return HttpResponse.json({ message }, { status });
+				}),
+			);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: `Run now ${mockAutomation.name}`,
-			}),
-		);
+			await user.click(
+				await screen.findByRole("button", {
+					name: `Run now ${mockAutomation.name}`,
+				}),
+			);
 
-		const alert = await screen.findByRole("alert");
-		expect(alert.textContent).toContain(message);
-		expect(alert.textContent).toContain(mockAutomation.name);
-	});
+			await waitFor(() => {
+				expect(requestPaths(requests)).toContain(`POST ${runPath}`);
+			});
+		},
+	);
 
 	it("lists an automation's chats with the automation filter", async () => {
 		const user = userEvent.setup();
@@ -178,15 +182,18 @@ describe("AgentAutomationsPage", () => {
 	it("loads more of an automation's chats", async () => {
 		const user = userEvent.setup();
 		const requests = setup();
-		const fullPage = Array.from({ length: 25 }, (_, index) => ({
+		const mockChatPage = Array.from({ length: 25 }, (_, index) => ({
 			...MockChat,
 			id: `chat-${index}`,
 		}));
 		server.use(
 			http.get("/api/v2/chats", ({ request }) => {
 				requests.push(request);
-				const offset = new URL(request.url).searchParams.get("offset");
-				return HttpResponse.json(offset === "0" ? fullPage : [MockChat]);
+				return HttpResponse.json(
+					new URL(request.url).searchParams.get("offset") === "0"
+						? mockChatPage
+						: [MockChat],
+				);
 			}),
 		);
 

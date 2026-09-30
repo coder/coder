@@ -23,18 +23,18 @@ import {
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
+import { useAutomationsEnabled } from "./components/Automations/AutomationsNavItem";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
-	const { experiments, organizations, showOrganizations } = useDashboard();
-	if (!experiments.includes("chat-automations")) {
-		return <NotFoundPage />;
-	}
-	return (
+	const { organizations, showOrganizations } = useDashboard();
+	return useAutomationsEnabled() ? (
 		<AutomationsList
 			organizations={organizations}
 			showOrganizations={showOrganizations}
 		/>
+	) : (
+		<NotFoundPage />
 	);
 };
 

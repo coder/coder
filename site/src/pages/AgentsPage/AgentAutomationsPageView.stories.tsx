@@ -142,6 +142,21 @@ export const ChatsDialog: Story = {
 	},
 };
 
+export const ChatsDialogLoadMoreError: Story = {
+	args: {
+		chatsDialog: {
+			automation: mockScheduleAutomation,
+			chats: [mockTargetChat, mockCreatingChat],
+			isLoading: false,
+			error: mockApiError({ message: "Failed to load more chats." }),
+			hasNextPage: true,
+			isFetchingNextPage: false,
+			onLoadMore: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
 export const Loading: Story = {
 	args: { automations: undefined, isLoading: true },
 };

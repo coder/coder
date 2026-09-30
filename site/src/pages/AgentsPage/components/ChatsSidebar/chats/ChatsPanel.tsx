@@ -50,7 +50,10 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
-import { AutomationsNavItem } from "../../Automations/AutomationsNavItem";
+import {
+	AutomationsMobileLink,
+	AutomationsNavItem,
+} from "../../Automations/AutomationsNavItem";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -485,6 +488,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									<SearchIcon />
 								</Button>
 							)}
+							<AutomationsMobileLink />
 							<FilterPopover
 								filters={sidebarFilters}
 								onFiltersChange={onSidebarFiltersChange}

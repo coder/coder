@@ -2486,3 +2486,24 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 		});
 	},
 };
+
+export const MobileWithAutomations: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		experiments: ["chat-automations"],
+		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	decorators: [
+		(Story) => (
+			<div className="h-125 w-90">
+				<Story />
+			</div>
+		),
+	],
+};

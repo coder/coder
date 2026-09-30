@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { getErrorStatus } from "#/api/errors";
+import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { chat } from "#/api/queries/chats";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -51,6 +51,7 @@ type ChatTitleLinkProps = {
 	chat: Chat | undefined;
 	chatId: string;
 	isLoading: boolean;
+	error: unknown;
 	size?: LinkProps["size"];
 };
 
@@ -58,10 +59,18 @@ const ChatTitleLink: React.FC<ChatTitleLinkProps> = ({
 	chat,
 	chatId,
 	isLoading,
+	error,
 	size = "lg",
 }) => {
 	if (isLoading) {
 		return <Skeleton className="h-4 w-32" />;
+	}
+	if (error) {
+		return (
+			<span className="text-content-secondary">
+				{getErrorMessage(error, "Chat unavailable")}
+			</span>
+		);
 	}
 	return (
 		<Link asChild showExternalIcon={false} size={size}>
@@ -88,6 +97,7 @@ const CreatingChat: React.FC<CreatingChatProps> = ({ chatId }) => {
 					chat={chatQuery.data}
 					chatId={chatId}
 					isLoading={chatQuery.isLoading}
+					error={chatQuery.error}
 					size="sm"
 				/>
 			)}
@@ -115,8 +125,9 @@ const TriggerCell: React.FC<TriggerCellProps> = ({ automation }) => {
 	return (
 		<div className="flex flex-col gap-0.5">
 			<span>
-				Webhook,{" "}
-				{automation.webhook_use === "single" ? "single use" : "multi use"}
+				{automation.webhook_use === "single"
+					? "Webhook, single-use"
+					: "Webhook, multi-use"}
 			</span>
 			{automation.webhook_consumed_at && (
 				<span className="text-xs text-content-secondary">Used</span>
@@ -190,6 +201,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 							chat={targetQuery.data}
 							chatId={targetChatId}
 							isLoading={targetQuery.isLoading}
+							error={targetQuery.error}
 						/>
 					)}
 				</TableCell>
