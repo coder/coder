@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -205,6 +206,8 @@ type Server struct {
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
 	experimentEvaluator      *experiments.Evaluator
+	// agentBoxes is nil unless the agent-boxes experiment is enabled.
+	agentBoxes *agentbox.Engine
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
@@ -2944,6 +2947,9 @@ type Config struct {
 	Auditor               *atomic.Pointer[audit.Auditor]
 	// Limits are the deployment chat limits.
 	Limits Limits
+	// AgentBoxRootDir is the parent directory for agent box scratch
+	// files. Empty uses the OS temp directory.
+	AgentBoxRootDir string
 }
 
 // New creates a new chat processor with the required pubsub dependency.
@@ -3076,6 +3082,19 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 	}
 	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics, chatloop.WithClock(clk))
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
+	if cfg.Experiments.Enabled(codersdk.ExperimentAgentBoxes) {
+		engine, err := agentbox.NewEngine(ctx, agentbox.Options{
+			Logger:  cfg.Logger.Named("agentbox"),
+			Clock:   clk,
+			RootDir: cfg.AgentBoxRootDir,
+		})
+		if err != nil {
+			p.messagePartBuffer.Close()
+			cancel()
+			return nil, xerrors.Errorf("create agent box engine: %w", err)
+		}
+		p.agentBoxes = engine
+	}
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
 		Logger: cfg.Logger,
@@ -3440,7 +3459,8 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file",
+		chattool.BoxRunToolName, chattool.BoxWriteFileToolName, chattool.BoxReadFileToolName, chattool.BoxAttachFileToolName:
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
@@ -3537,6 +3557,9 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"read_skill_file":      true,
 		"ask_user_question":    false,
 	}
+	for _, name := range chattool.BoxToolNames {
+		builtinExplorePolicy[name] = false
+	}
 
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
@@ -3603,6 +3626,8 @@ type systemPromptBehaviorContext struct {
 	chatMode             database.NullChatMode
 	planModeInstructions string
 	isRootChat           bool
+	// agentBoxes reports that the box tools are registered for the turn.
+	agentBoxes bool
 }
 
 func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
@@ -3649,6 +3674,9 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if behaviorContext.agentBoxes && !isExploreSubagentMode(behaviorContext.chatMode) {
+		prompt = chatprompt.InsertSystem(prompt, AgentBoxPromptBlock)
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
@@ -4940,6 +4968,13 @@ func (p *Server) Close() error {
 	if p.chatWorker != nil {
 		if err := p.chatWorker.Close(); err != nil {
 			p.logger.Warn(context.Background(), "failed to close chat worker", slog.Error(err))
+		}
+	}
+	// After the worker so no run is in flight when the wazero runtime
+	// closes.
+	if p.agentBoxes != nil {
+		if err := p.agentBoxes.Close(context.Background()); err != nil {
+			p.logger.Warn(context.Background(), "failed to close agent box engine", slog.Error(err))
 		}
 	}
 	if p.streamSyncPoller != nil {

@@ -53,6 +53,9 @@ type generationPrepareInput struct {
 	// TurnExperiments holds the turn's user-scoped experiment
 	// decisions, shared by every step of the turn. Required.
 	TurnExperiments *turnExperimentDecisions
+	// TurnBoxes holds the turn's agent box across steps. Nil leaves the
+	// box tools unregistered.
+	TurnBoxes *turnBoxTracker
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -496,6 +499,7 @@ func (s *taskStarter) runGenerationStep(
 		Messages:                  messages,
 		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		TurnExperiments:           input.TurnExperiments,
+		TurnBoxes:                 input.TurnBoxes,
 	}
 	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
 	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (generationPrepared, error) {

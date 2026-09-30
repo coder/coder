@@ -5516,6 +5516,7 @@ const (
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatBoard                 Experiment = "chat-board"                  // Offers the Coder Agents chat board as a per-browser opt-in.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentAgentBoxes                Experiment = "agent-boxes"                 // Enables the sandboxed box_* tools for agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5552,6 +5553,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatBoard:
 		return "Chat Board"
+	case ExperimentAgentBoxes:
+		return "Agent Boxes"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5580,6 +5583,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatBoard,
 	ExperimentChatStageMetrics,
+	ExperimentAgentBoxes,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

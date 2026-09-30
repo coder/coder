@@ -24009,11 +24009,13 @@ const docTemplate = `{
                 "chat-inline-mcp-servers",
                 "enable-ai-workspace-debug",
                 "chat-board",
-                "chat-stage-metrics"
+                "chat-stage-metrics",
+                "agent-boxes"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
                 "ExperimentAIGatewaySeatExclusion": "Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.",
+                "ExperimentAgentBoxes": "Enables the sandboxed box_* tools for agent chats.",
                 "ExperimentAgentLifecycleHooks": "Enables chat lifecycle hook webhooks for agent chats.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentChatAdvisor": "Enables the advisor tool for root agent chats.",
@@ -24049,7 +24051,8 @@ const docTemplate = `{
                 "Enables inline MCP servers declared on POST /chats.",
                 "Enables debugging failed workspace builds with Coder Agents.",
                 "Offers the Coder Agents chat board as a per-browser opt-in.",
-                "Exposes chat lifecycle stage durations as Prometheus metrics."
+                "Exposes chat lifecycle stage durations as Prometheus metrics.",
+                "Enables the sandboxed box_* tools for agent chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -24069,7 +24072,8 @@ const docTemplate = `{
                 "ExperimentChatInlineMCPServers",
                 "ExperimentEnableAIWorkspaceDebug",
                 "ExperimentChatBoard",
-                "ExperimentChatStageMetrics"
+                "ExperimentChatStageMetrics",
+                "ExperimentAgentBoxes"
             ]
         },
         "codersdk.ExperimentRule": {

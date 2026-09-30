@@ -34,10 +34,6 @@ func (p *Server) storeChatAttachment(
 	detectName string,
 	data []byte,
 ) (chattool.AttachmentMetadata, error) {
-	if !chatSnapshot.WorkspaceID.Valid {
-		return chattool.AttachmentMetadata{}, xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
-	}
-
 	storedName, mediaType, err := chatfiles.PrepareStoredFile(name, detectName, data)
 	if err != nil {
 		return chattool.AttachmentMetadata{}, err
@@ -47,9 +43,15 @@ func (p *Server) storeChatAttachment(
 	// failure does not leave behind an unlinked chat file row.
 	var attachment chattool.AttachmentMetadata
 	err = p.db.InTx(func(tx database.Store) error {
-		ws, err := tx.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
-		if err != nil {
-			return xerrors.Errorf("resolve workspace: %w", err)
+		// The file belongs to the workspace's organization when the chat
+		// has one; a workspace-less chat files under its own.
+		organizationID := chatSnapshot.OrganizationID
+		if chatSnapshot.WorkspaceID.Valid {
+			ws, err := tx.GetWorkspaceByID(ctx, chatSnapshot.WorkspaceID.UUID)
+			if err != nil {
+				return xerrors.Errorf("resolve workspace: %w", err)
+			}
+			organizationID = ws.OrganizationID
 		}
 
 		attachment, err = storeLinkedChatFileTx(
@@ -57,7 +59,7 @@ func (p *Server) storeChatAttachment(
 			tx,
 			chatSnapshot.ID,
 			chatSnapshot.OwnerID,
-			ws.OrganizationID,
+			organizationID,
 			storedName,
 			mediaType,
 			data,

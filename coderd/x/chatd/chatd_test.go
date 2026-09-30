@@ -5500,6 +5500,9 @@ func newChatdServer(t testing.TB, ps dbpubsub.Pubsub, cfg chatd.Config) *chatd.S
 		require.NoError(t, err)
 		cfg.ExperimentEvaluator = evaluator
 	}
+	if cfg.AgentBoxRootDir == "" {
+		cfg.AgentBoxRootDir = t.TempDir()
+	}
 	server, err := chatd.New(ps, cfg)
 	require.NoError(t, err)
 	return server

@@ -5292,6 +5292,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 export type Experiment =
 	| "ai-gateway-reverse-proxy"
 	| "ai-gateway-seat-exclusion"
+	| "agent-boxes"
 	| "agent-lifecycle-hooks"
 	| "auto-fill-parameters"
 	| "chat-advisor"
@@ -5373,6 +5374,7 @@ export const ExperimentRuleModes: ExperimentRuleMode[] = [
 export const Experiments: Experiment[] = [
 	"ai-gateway-reverse-proxy",
 	"ai-gateway-seat-exclusion",
+	"agent-boxes",
 	"agent-lifecycle-hooks",
 	"auto-fill-parameters",
 	"chat-advisor",

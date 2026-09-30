@@ -61,6 +61,7 @@ type runner struct {
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
 	experiments   turnExperimentDecisions
+	boxes         turnBoxTracker
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -88,6 +89,7 @@ func (r *runner) run() {
 		case <-r.ctx.Done():
 			r.cancelActiveTask()
 			r.waitForTasks()
+			r.closeTurnBoxSync()
 			r.closeDebugTurn()
 			r.turnSpan.End(nil)
 			return
@@ -184,6 +186,7 @@ func (r *runner) acceptState(state runnerStateUpdate) {
 
 func (r *runner) spawnForState(state runnerStateUpdate) {
 	if state.Archived {
+		r.closeTurnBox()
 		r.spawnTaskIfNeeded(taskKindAbandon, state)
 		return
 	}
@@ -191,12 +194,17 @@ func (r *runner) spawnForState(state runnerStateUpdate) {
 	case database.ChatStatusRunning:
 		r.spawnTaskIfNeeded(taskKindGeneration, state)
 	case database.ChatStatusInterrupting:
+		r.closeTurnBox()
 		r.spawnTaskIfNeeded(taskKindInterrupt, state)
 	case database.ChatStatusRequiresAction:
+		// The same prompt row resumes this turn once the caller
+		// answers, so its box stays available.
 		r.spawnTaskIfNeeded(taskKindRequiresActionTimeout, state)
 	case database.ChatStatusWaiting, database.ChatStatusError:
+		r.closeTurnBox()
 		r.spawnTaskIfNeeded(taskKindAbandon, state)
 	default:
+		r.closeTurnBox()
 		r.spawnTaskIfNeeded(taskKindAbandon, state)
 	}
 }
@@ -237,6 +245,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
 		TurnExperiments:          &r.experiments,
+		TurnBoxes:                &r.boxes,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

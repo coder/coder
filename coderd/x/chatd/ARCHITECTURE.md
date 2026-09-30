@@ -883,6 +883,8 @@ The runner maintains the following local state:
 - the ID of the currently active goroutine, if there is one.
 - per-turn decisions that must hold across all steps of a turn, keyed by the turn's prompt row (the ID of the last user prompt message): currently the chat owner's `mcp-tool-search` experiment decision.
 
+TODO(agent-boxes): with the `agent-boxes` experiment enabled, the runner also holds the turn's agent box (`turnBoxTracker`, `coderd/x/chatd/agent_boxes.go`), keyed by the same prompt row. The box is created lazily by the first `box_*` tool call of the turn and is the same object for every step. A new runner after a handoff creates a fresh box; the tools report `box_reset` when the turn's history shows an earlier box. Describe this here.
+
 Each step of a turn runs as its own goroutine, so turn-wide decisions live on the runner. The first step with MCP candidates decides `mcp-tool-search` for the chat owner and later steps reuse it, so a rule change applies from the next turn and never withdraws a `find_tools` call already issued. Steps without MCP candidates never offer `find_tools`, so they skip the rule read and cache nothing. A late result from an older turn never replaces a newer decision, because prompt row IDs only increase. Turns without a prompt row are not cached. The decision lives in memory only, so a new runner after a handoff evaluates it again.
 
 ### Event processing
@@ -935,6 +937,8 @@ Retriable conditions include, but are not limited to:
 #### Generation goroutine
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
+
+TODO(agent-boxes): when the `agent-boxes` experiment is enabled, every non-explore turn (with or without a workspace, including plan mode) also registers the `box_run`, `box_write_file`, `box_read_file`, and `box_attach_file` tools from `coderd/x/chatd/chattool/box.go`, backed by the in-process wazero sandbox in `coderd/x/chatd/agentbox`. The system prompt gains an `<agent-box>` block. `box_attach_file` stores the file under the chat's organization, so attachments work without a workspace. Describe this here.
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
 
@@ -1081,6 +1085,8 @@ The abandon chat goroutine is responsible for abandoning the chat. It is spawned
 ## Runner cleanup
 
 When the manager cleans up a runner, the runner must cancel all goroutines it has spawned and unsubscribe from pubsub.
+
+TODO(agent-boxes): the runner closes the turn's agent box (removing its scratch directory) when the chat leaves the turn: on `waiting`, `error`, `interrupting`, archival, and runner exit. It keeps the box through `requires_action`, because the same prompt row resumes the turn once the caller posts tool results. Runner exit closes the box synchronously because `Server.Close` closes the worker before the agent box engine. Describe this here.
 
 ## Concurrent agent limiter
 

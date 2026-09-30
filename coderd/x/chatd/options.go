@@ -70,6 +70,9 @@ type chatWorkerTaskStartInput struct {
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
+	// TurnBoxes holds the turn's agent box. Nil disables the box tools
+	// for the task.
+	TurnBoxes *turnBoxTracker
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {

@@ -547,6 +547,7 @@ func (server *Server) prepareGeneration(
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
 			isRootChat:           isRootChat,
+			agentBoxes:           server.agentBoxes != nil && input.TurnBoxes != nil,
 		},
 	)
 	if advisorRuntime != nil {
@@ -593,6 +594,21 @@ func (server *Server) prepareGeneration(
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
+	}
+	agentBoxes := server.agentBoxes != nil && input.TurnBoxes != nil && !isExploreSubagent
+	if agentBoxes {
+		boxOptions := chattool.BoxOptions{
+			GetBox:    newTurnBoxGetter(server.agentBoxes, input.TurnBoxes, input.Messages),
+			Languages: server.agentBoxes.Languages(),
+			Limits:    server.agentBoxes.Limits(),
+			StoreFile: storeChatAttachment,
+		}
+		tools = append(tools,
+			chattool.BoxRun(boxOptions),
+			chattool.BoxWriteFile(boxOptions),
+			chattool.BoxReadFile(boxOptions),
+			chattool.BoxAttachFile(boxOptions),
+		)
 	}
 	if isRootChat {
 		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{

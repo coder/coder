@@ -155,11 +155,38 @@ func TestStoreChatAttachment_NoWorkspace(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
 	server := newStoreChatAttachmentTestServer(db)
 
-	attachment, err := server.storeChatAttachment(context.Background(), database.Chat{}, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, "this tool requires a workspace")
-	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
+	chatID := uuid.New()
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	fileID := uuid.New()
+	chatSnapshot := database.Chat{
+		ID:             chatID,
+		OwnerID:        ownerID,
+		OrganizationID: orgID,
+	}
+
+	// No GetWorkspaceByID expectation: a workspace-less chat files the
+	// attachment under its own organization.
+	expectStoreChatAttachmentInTx(t, db, tx)
+	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatFileParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
+			require.Equal(t, ownerID, arg.OwnerID)
+			require.Equal(t, orgID, arg.OrganizationID)
+			return database.InsertChatFileRow{ID: fileID}, nil
+		},
+	)
+	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: storeChatAttachmentTestCap,
+		FileIds:      []uuid.UUID{fileID},
+	}).Return(int32(0), nil)
+
+	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
+	require.NoError(t, err)
+	require.Equal(t, fileID, attachment.FileID)
 }
 
 func TestStoreChatAttachment_WorkspaceLookupError(t *testing.T) {

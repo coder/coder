@@ -886,6 +886,10 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("read_skill_file"),
 		newTestAgentTool("ask_user_question"),
 		newTestAgentTool(chattool.FindToolsName),
+		newTestAgentTool(chattool.BoxRunToolName),
+		newTestAgentTool(chattool.BoxWriteFileToolName),
+		newTestAgentTool(chattool.BoxReadFileToolName),
+		newTestAgentTool(chattool.BoxAttachFileToolName),
 	})
 
 	require.Equal(t, []string{
@@ -901,6 +905,9 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
 	require.NotContains(t, got, chattool.FindToolsName)
+	for _, name := range chattool.BoxToolNames {
+		require.NotContains(t, got, name)
+	}
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
