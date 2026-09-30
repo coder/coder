@@ -3,18 +3,24 @@ package responses_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/extract"
 	"github.com/coder/coder/v2/aibridge/extract/responses"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 )
@@ -33,46 +39,70 @@ var wsFrames = []string{
 
 // TestResponseExtractionTransports feeds the same events as WebSocket
 // frames and as an SSE stream split into single bytes, and requires the
-// same facts from both.
+// same records and outcome from both.
 func TestResponseExtractionTransports(t *testing.T) {
 	t.Parallel()
 
-	want := extract.ResponseFacts{
-		ResponseID:  "resp_ws",
-		Model:       "gpt-5-2025",
-		ServiceTier: "default",
-		Usage: &extract.TokenUsage{
-			Input:           30,
-			Output:          20,
-			CacheReadInput:  60,
-			CacheWriteInput: 10,
-			Extra:           map[string]int64{"output_reasoning": 5, "total_tokens": 120},
-		},
-		ToolCalls: []extract.ToolCall{{ItemID: "fc_1", CallID: "call_1", Name: "add", Args: map[string]any{"a": float64(1)}}},
-		Thoughts:  []extract.Thought{{Content: "thinking", Source: recorder.ThoughtSourceReasoningSummary}},
-		Terminal:  extract.Terminal{Status: extract.TerminalCompleted},
+	wantOutcome := extract.Outcome{ResponseID: "resp_ws", Terminal: extract.Terminal{Status: extract.TerminalCompleted}}
+	wantPrompts := []recorder.PromptUsageRecord{{InterceptionID: interceptionID, MsgID: "resp_ws", Prompt: "hi"}}
+	wantTokens := []recorder.TokenUsageRecord{{
+		InterceptionID:        interceptionID,
+		MsgID:                 "resp_ws",
+		ProviderModel:         "gpt-5-2025",
+		Input:                 30,
+		Output:                20,
+		CacheReadInputTokens:  60,
+		CacheWriteInputTokens: 10,
+		ExtraTokenTypes:       map[string]int64{"output_reasoning": 5, "total_tokens": 120},
+		Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+	}}
+	wantTools := []recorder.ToolUsageRecord{{
+		InterceptionID: interceptionID, MsgID: "resp_ws", ItemID: "fc_1", ToolCallID: "call_1", Tool: "add",
+		Args: map[string]any{"a": float64(1)},
+	}}
+	wantThoughts := []recorder.ModelThoughtRecord{{
+		InterceptionID: interceptionID, Content: "thinking",
+		Metadata: recorder.Metadata{"source": recorder.ThoughtSourceReasoningSummary},
+	}}
+	check := func(t *testing.T, h harness) {
+		t.Helper()
+		require.Equal(t, wantOutcome, h.ext.Outcome())
+		require.Equal(t, wantPrompts, withoutTime(h.rec.RecordedPromptUsages()))
+		require.Equal(t, wantTokens, withoutTime(h.rec.RecordedTokenUsages()))
+		require.Equal(t, wantTools, withoutTime(h.rec.RecordedToolUsages()))
+		require.Equal(t, wantThoughts, withoutTime(h.rec.RecordedModelThoughts()))
+		require.Empty(t, h.notes.list())
 	}
 
-	ws := responses.NewResponseExtraction()
-	for _, frame := range wsFrames {
-		ws.OnEvent("", []byte(frame))
-	}
-	require.Equal(t, want, ws.Result())
+	t.Run("websocket_frames", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t, "hi")
+		for _, frame := range wsFrames {
+			h.ext.OnEvent("", []byte(frame))
+		}
+		check(t, h)
+	})
 
-	// CRLF line endings, comments, and a data field split over two lines.
-	var stream strings.Builder
-	_, _ = stream.WriteString(": keep-alive\r\n\r\n")
-	for _, frame := range wsFrames {
-		// Split after the first comma, which sits between JSON tokens, so
-		// the newline that joins data lines is only whitespace.
-		i := strings.Index(frame, ",") + 1
-		_, _ = fmt.Fprintf(&stream, "event: ignored\r\ndata: %s\r\ndata:%s\r\n\r\n", frame[:i], frame[i:])
-	}
-	sse := extract.NewSSEStream(responses.NewResponseExtraction())
-	for _, b := range []byte(stream.String()) {
-		_, _ = sse.Write([]byte{b})
-	}
-	require.Equal(t, want, sse.Result())
+	t.Run("sse_bytes", func(t *testing.T) {
+		t.Parallel()
+		// CRLF line endings, comments, and a data field split over two
+		// lines.
+		var stream strings.Builder
+		_, _ = stream.WriteString(": keep-alive\r\n\r\n")
+		for _, frame := range wsFrames {
+			// Split after the first comma, which sits between JSON tokens,
+			// so the newline that joins data lines is only whitespace.
+			i := strings.Index(frame, ",") + 1
+			_, _ = fmt.Fprintf(&stream, "event: ignored\r\ndata: %s\r\ndata:%s\r\n\r\n", frame[:i], frame[i:])
+		}
+		h := newHarness(t, "hi")
+		sse := extract.NewSSEStream(t.Context(), h.logger, h.ext)
+		for _, b := range []byte(stream.String()) {
+			_, _ = sse.Write([]byte{b})
+		}
+		require.NoError(t, sse.Close())
+		check(t, h)
+	})
 }
 
 // TestResponseExtractionTerminalErrors checks that provider-reported
@@ -99,27 +129,27 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 	}{
 		{
 			name:     "http_400",
-			feed:     body(400, `{"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}`),
+			feed:     blocking(400, `{"error":{"message":"too long","type":"invalid_request_error","code":"context_length_exceeded"}}`),
 			wantType: recorder.ErrorTypeBadRequest, todayErr: sdkErr(400), wantMsg: "too long", wantCode: "context_length_exceeded",
 		},
 		{
 			name:     "http_401",
-			feed:     body(401, `{"error":{"message":"bad key","type":"invalid_request_error","code":"invalid_api_key"}}`),
+			feed:     blocking(401, `{"error":{"message":"bad key","type":"invalid_request_error","code":"invalid_api_key"}}`),
 			wantType: recorder.ErrorTypeUnauthorized, todayErr: sdkErr(401), wantMsg: "bad key", wantCode: "invalid_api_key",
 		},
 		{
 			name:     "http_429",
-			feed:     body(429, `{"error":{"message":"slow down","type":"rate_limit_error","code":"rate_limit_exceeded"}}`),
+			feed:     blocking(429, `{"error":{"message":"slow down","type":"rate_limit_error","code":"rate_limit_exceeded"}}`),
 			wantType: recorder.ErrorTypeRateLimited, todayErr: sdkErr(429), wantMsg: "slow down", wantCode: "rate_limit_exceeded",
 		},
 		{
 			name:     "http_503",
-			feed:     body(503, `{"error":{"message":"overloaded","type":"server_error"}}`),
+			feed:     blocking(503, `{"error":{"message":"overloaded","type":"server_error"}}`),
 			wantType: recorder.ErrorTypeOverloaded, todayErr: sdkErr(503), wantMsg: "overloaded",
 		},
 		{
 			name:     "http_500_not_json",
-			feed:     body(500, `<html>oops</html>`),
+			feed:     blocking(500, `<html>oops</html>`),
 			wantType: recorder.ErrorTypeServerError, todayErr: sdkErr(500), wantMsg: "Internal Server Error", wantNotes: true,
 		},
 		{
@@ -150,19 +180,19 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			ext := responses.NewResponseExtraction()
-			tc.feed(ext)
-			facts := ext.Result()
+			h := newHarness(t, "")
+			tc.feed(h.ext)
+			out := h.ext.Outcome()
 
-			require.Equal(t, extract.TerminalFailed, facts.Terminal.Status)
-			require.Equal(t, tc.wantCode, facts.Terminal.Reason)
+			require.Equal(t, extract.TerminalFailed, out.Terminal.Status)
+			require.Equal(t, tc.wantCode, out.Terminal.Reason)
 			var respErr *intercept.ResponseError
-			require.ErrorAs(t, facts.Err, &respErr)
+			require.ErrorAs(t, out.Err, &respErr)
 			require.Equal(t, tc.wantMsg, respErr.ErrorObject.Message)
 			require.Equal(t, tc.wantCode, respErr.ErrorObject.Code)
-			require.Equal(t, tc.wantNotes, len(facts.ParseNotes) > 0, "notes: %v", facts.ParseNotes)
+			require.Equal(t, tc.wantNotes, len(h.notes.list()) > 0, "notes: %v", h.notes.list())
 
-			gotType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), facts.Err)
+			gotType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), out.Err)
 			require.Equal(t, tc.wantType, gotType)
 			if tc.todayErr != nil {
 				todayType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), tc.todayErr)
@@ -173,8 +203,8 @@ func TestResponseExtractionTerminalErrors(t *testing.T) {
 }
 
 // TestResponseExtractionFailOpen checks that malformed, oversized, and
-// truncated input yields partial facts and parse notes, never a provider
-// error.
+// truncated input records what could be read and logs parse notes, never a
+// provider error.
 func TestResponseExtractionFailOpen(t *testing.T) {
 	t.Parallel()
 
@@ -187,11 +217,20 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 		return buf.Bytes()
 	}
 	oversized := `{"pad":"` + strings.Repeat("x", extract.MaxEventBytes) + `"}`
+	// decodeAndProcess is what a caller does with a blocking body: a decode
+	// error is a parse note, and the body is still processed.
+	decodeAndProcess := func(h harness, enc string, raw []byte) {
+		decoded, err := extract.DecodeBody(enc, raw)
+		if err != nil {
+			h.notes.add(err.Error())
+		}
+		h.ext.ProcessBlocking(http.StatusOK, decoded)
+	}
 
 	cases := []struct {
 		name string
-		run  func() extract.ResponseFacts
-		// wantUsage is whether the completed response was still extracted.
+		run  func(h harness)
+		// wantUsage is whether the completed response was still recorded.
 		wantUsage bool
 		wantID    string
 		// clean is set for the one valid input, which must add no notes.
@@ -199,86 +238,86 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 	}{
 		{
 			name: "malformed_event",
-			run: func() extract.ResponseFacts {
-				ext := responses.NewResponseExtraction()
-				ext.OnEvent("response.output_text.delta", []byte(`{ "wrong format`))
-				ext.OnEvent("", completed)
-				return ext.Result()
+			run: func(h harness) {
+				h.ext.OnEvent("response.output_text.delta", []byte(`{ "wrong format`))
+				h.ext.OnEvent("", completed)
 			},
 			wantUsage: true, wantID: "resp_ws",
 		},
 		{
 			name: "oversized_frame",
-			run: func() extract.ResponseFacts {
-				ext := responses.NewResponseExtraction()
-				ext.OnEvent("", []byte(oversized))
-				ext.OnEvent("", completed)
-				return ext.Result()
+			run: func(h harness) {
+				h.ext.OnEvent("", []byte(oversized))
+				h.ext.OnEvent("", completed)
 			},
 			wantUsage: true, wantID: "resp_ws",
 		},
 		{
 			name: "oversized_sse_event",
-			run: func() extract.ResponseFacts {
-				sse := extract.NewSSEStream(responses.NewResponseExtraction())
+			run: func(h harness) {
+				sse := extract.NewSSEStream(t.Context(), h.logger, h.ext)
 				// The second data line belongs to the skipped event and must
 				// not be dispatched.
 				smuggled := `{"type":"response.created","response":{"id":"resp_smuggled"}}`
 				_, _ = sse.Write([]byte("event: big\ndata: " + oversized + "\ndata: " + smuggled + "\n\n"))
 				_, _ = sse.Write([]byte("data: " + string(completed) + "\n\n"))
-				return sse.Result()
+				_ = sse.Close()
 			},
 			wantUsage: true, wantID: "resp_ws",
 		},
 		{
-			// A stream cut mid-event keeps what the earlier events said,
-			// including tool calls from finished output items.
+			// A stream cut mid-event keeps the response ID and records the
+			// prompt, but nothing from the missing terminal event.
 			name: "truncated_stream",
-			run: func() extract.ResponseFacts {
-				sse := extract.NewSSEStream(responses.NewResponseExtraction())
+			run: func(h harness) {
+				sse := extract.NewSSEStream(t.Context(), h.logger, h.ext)
 				for _, frame := range wsFrames[:3] {
 					_, _ = sse.Write([]byte("data: " + frame + "\n\n"))
 				}
 				_, _ = sse.Write([]byte("data: " + string(completed[:40])))
-				facts := sse.Result()
-				require.Len(t, facts.ToolCalls, 1)
-				require.Equal(t, extract.TerminalNone, facts.Terminal.Status)
-				return facts
+				_ = sse.Close()
+				require.Equal(t, extract.TerminalNone, h.ext.Outcome().Terminal.Status)
+				require.Len(t, h.rec.RecordedPromptUsages(), 1)
+				require.Empty(t, h.rec.RecordedToolUsages())
 			},
 			wantID: "resp_ws",
 		},
 		{
 			name: "oversized_body",
-			run: func() extract.ResponseFacts {
-				big := []byte(`{"pad":"` + strings.Repeat("x", extract.MaxBodyBytes) + `"}`)
-				return extract.FromBody(responses.NewResponseExtraction(), http.StatusOK, "", bytes.NewReader(big))
+			run: func(h harness) {
+				decodeAndProcess(h, "", []byte(`{"pad":"`+strings.Repeat("x", extract.MaxBodyBytes)+`"}`))
 			},
 		},
 		{
 			name: "gzip_body",
-			run: func() extract.ResponseFacts {
-				body := gzipped([]byte(`{"id":"resp_gz","status":"completed","usage":{"input_tokens":1}}`))
-				return extract.FromBody(responses.NewResponseExtraction(), http.StatusOK, "gzip", bytes.NewReader(body))
+			run: func(h harness) {
+				decodeAndProcess(h, "gzip", gzipped([]byte(`{"id":"resp_gz","status":"completed","usage":{"input_tokens":1}}`)))
 			},
 			wantUsage: true, wantID: "resp_gz", clean: true,
 		},
 		{
 			name: "invalid_gzip_body",
-			run: func() extract.ResponseFacts {
-				return extract.FromBody(responses.NewResponseExtraction(), http.StatusOK, "gzip", bytes.NewReader(completed))
+			run: func(h harness) {
+				decodeAndProcess(h, "gzip", completed)
 			},
 		},
 		{
 			name: "truncated_gzip_body",
-			run: func() extract.ResponseFacts {
+			run: func(h harness) {
 				body := gzipped(completed)
-				return extract.FromBody(responses.NewResponseExtraction(), http.StatusOK, "gzip", bytes.NewReader(body[:len(body)/2]))
+				decodeAndProcess(h, "gzip", body[:len(body)/2])
+			},
+		},
+		{
+			name: "oversized_gzip_body",
+			run: func(h harness) {
+				decodeAndProcess(h, "gzip", gzipped([]byte(`{"pad":"`+strings.Repeat("x", extract.MaxBodyBytes)+`"}`)))
 			},
 		},
 		{
 			name: "unsupported_encoding",
-			run: func() extract.ResponseFacts {
-				return extract.FromBody(responses.NewResponseExtraction(), http.StatusOK, "br", bytes.NewReader(completed))
+			run: func(h harness) {
+				decodeAndProcess(h, "br", completed)
 			},
 		},
 	}
@@ -287,36 +326,107 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			facts := tc.run()
-			require.Equal(t, tc.clean, len(facts.ParseNotes) == 0, "notes: %v", facts.ParseNotes)
-			require.NoError(t, facts.Err)
-			require.Equal(t, tc.wantUsage, facts.Usage != nil)
-			require.Equal(t, tc.wantID, facts.ResponseID)
+			h := newHarness(t, "hi")
+			tc.run(h)
+			out := h.ext.Outcome()
+			require.Equal(t, tc.clean, len(h.notes.list()) == 0, "notes: %v", h.notes.list())
+			require.NoError(t, out.Err)
+			require.Equal(t, tc.wantUsage, len(h.rec.RecordedTokenUsages()) == 1)
+			require.Equal(t, tc.wantID, out.ResponseID)
 		})
 	}
 }
 
 // TestResponseExtractionIncomplete checks that an incomplete response keeps
-// its reason and usage.
+// its reason and records its usage.
 func TestResponseExtractionIncomplete(t *testing.T) {
 	t.Parallel()
 
-	ext := responses.NewResponseExtraction()
-	ext.OnEvent("response.incomplete", []byte(`{"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete",`+
+	h := newHarness(t, "")
+	h.ext.OnEvent("response.incomplete", []byte(`{"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete",`+
 		`"incomplete_details":{"reason":"max_output_tokens"},"output":[],"usage":{"input_tokens":5,"output_tokens":7,"total_tokens":12}}}`))
-	facts := ext.Result()
-	require.Equal(t, extract.Terminal{Status: extract.TerminalIncomplete, Reason: "max_output_tokens"}, facts.Terminal)
-	require.NotNil(t, facts.Usage)
-	require.EqualValues(t, 7, facts.Usage.Output)
-	require.NoError(t, facts.Err)
+	out := h.ext.Outcome()
+	require.Equal(t, extract.Terminal{Status: extract.TerminalIncomplete, Reason: "max_output_tokens"}, out.Terminal)
+	require.NoError(t, out.Err)
+	tokens := h.rec.RecordedTokenUsages()
+	require.Len(t, tokens, 1)
+	require.EqualValues(t, 7, tokens[0].Output)
 }
 
-func body(status int, raw string) func(*responses.ResponseExtraction) {
-	return func(ext *responses.ResponseExtraction) {
-		_ = extract.FromBody(ext, status, "", strings.NewReader(raw))
+const interceptionID = "intc_1"
+
+// harness is one extraction wired to an in-memory recorder and a logger
+// that captures parse notes.
+type harness struct {
+	ext    *responses.ResponseExtraction
+	rec    *testutil.MockRecorder
+	logger slog.Logger
+	notes  *noteSink
+}
+
+func newHarness(t *testing.T, prompt string) harness {
+	t.Helper()
+	notes := &noteSink{}
+	logger := slog.Make(notes)
+	rec := &testutil.MockRecorder{}
+	return harness{
+		ext:    responses.NewResponseExtraction(t.Context(), logger, rec, interceptionID, prompt),
+		rec:    rec,
+		logger: logger,
+		notes:  notes,
 	}
+}
+
+// noteSink captures parse notes logged by the extractor.
+type noteSink struct {
+	mu    sync.Mutex
+	notes []string
+}
+
+func (s *noteSink) LogEntry(_ context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.notes = append(s.notes, e.Message)
+}
+
+func (*noteSink) Sync() {}
+
+func (s *noteSink) add(note string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.notes = append(s.notes, note)
+}
+
+func (s *noteSink) list() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.notes)
+}
+
+func blocking(status int, raw string) func(*responses.ResponseExtraction) {
+	return func(ext *responses.ResponseExtraction) { ext.ProcessBlocking(status, []byte(raw)) }
 }
 
 func event(raw string) func(*responses.ResponseExtraction) {
 	return func(ext *responses.ResponseExtraction) { ext.OnEvent("", []byte(raw)) }
+}
+
+// withoutTime clears CreatedAt so records compare by content.
+func withoutTime[T any](records []*T) []T {
+	out := make([]T, 0, len(records))
+	for _, r := range records {
+		v := *r
+		switch rec := any(&v).(type) {
+		case *recorder.PromptUsageRecord:
+			rec.CreatedAt = time.Time{}
+		case *recorder.TokenUsageRecord:
+			rec.CreatedAt = time.Time{}
+		case *recorder.ToolUsageRecord:
+			rec.CreatedAt = time.Time{}
+		case *recorder.ModelThoughtRecord:
+			rec.CreatedAt = time.Time{}
+		}
+		out = append(out, v)
+	}
+	return out
 }

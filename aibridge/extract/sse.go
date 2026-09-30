@@ -2,6 +2,9 @@ package extract
 
 import (
 	"bytes"
+	"context"
+
+	"cdr.dev/slog/v3"
 )
 
 // SSEStream feeds a Server-Sent Events byte stream to a ResponseExtraction,
@@ -10,11 +13,21 @@ import (
 // end in LF or CRLF, lines starting with ':' are comments, one leading space
 // is stripped from values, and multiple data lines join with LF.
 //
-// It is an io.Writer so it can sit behind an io.TeeReader. Write never fails
-// and never blocks beyond the synchronous OnEvent calls. Events larger than
-// MaxEventBytes are skipped with a note. An SSEStream is not safe for
-// concurrent use.
+// It is an io.WriteCloser so it can sit behind an io.TeeReader; call Close
+// when the stream ends. Write never fails and never blocks beyond the
+// synchronous OnEvent calls. Events larger than MaxEventBytes are skipped
+// with a parse note. An SSEStream is not safe for concurrent use: write the
+// stream bytes sequentially, in order.
+//
+// It does not reuse aibridge.SSEParser: that parser lives in the root
+// aibridge package (importing it here would create a cycle for any
+// interceptor that later adopts extractors), reads the whole stream before
+// returning, buffers every event in memory, and fails on lines longer than
+// bufio.Scanner's 64 KiB default. A pass-through proxy needs incremental
+// parsing with a per-event bound instead.
 type SSEStream struct {
+	// ctx scopes the notes logged from Write, which has no context.
+	ctx context.Context
 	ext ResponseExtraction
 
 	// line holds a partial line carried across writes.
@@ -28,12 +41,13 @@ type SSEStream struct {
 	notes    ParseNotes
 }
 
-// NewSSEStream returns an SSEStream that feeds ext.
-func NewSSEStream(ext ResponseExtraction) *SSEStream {
+// NewSSEStream returns an SSEStream that feeds ext and logs parse notes to
+// logger. ctx scopes the logging and is usually the request context.
+func NewSSEStream(ctx context.Context, logger slog.Logger, ext ResponseExtraction) *SSEStream {
 	if ext == nil {
 		panic("extract: NewSSEStream requires a ResponseExtraction")
 	}
-	return &SSEStream{ext: ext}
+	return &SSEStream{ctx: ctx, ext: ext, notes: NewParseNotes(logger)}
 }
 
 // Write consumes stream bytes. It always returns len(p), nil.
@@ -54,17 +68,16 @@ func (s *SSEStream) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Result returns the extraction's facts plus the stream's own parse notes.
-// A trailing event without its terminating blank line is not dispatched,
-// as the SSE specification requires, and is reported as a note.
-func (s *SSEStream) Result() ResponseFacts {
-	facts := s.ext.Result()
-	notes := s.notes
+// Close ends the stream. A trailing event without its terminating blank
+// line is not dispatched, as the SSE specification requires, and is logged
+// as a parse note. It always returns nil.
+func (s *SSEStream) Close() error {
 	if s.skipping || s.hasData || len(s.line) > 0 {
-		notes.Addf("stream ended mid-event: partial %q event discarded", s.eventType)
+		s.notes.Addf(s.ctx, "stream ended mid-event: partial %q event discarded", s.eventType)
 	}
-	facts.ParseNotes = append(facts.ParseNotes, notes.List()...)
-	return facts
+	s.line, s.data = nil, nil
+	s.eventType, s.hasData, s.skipping = "", false, false
+	return nil
 }
 
 func (s *SSEStream) appendPartial(p []byte) {
@@ -83,7 +96,7 @@ func (s *SSEStream) appendPartial(p []byte) {
 }
 
 func (s *SSEStream) startSkipping() {
-	s.notes.Addf("skipped %q event: exceeds %d bytes", s.eventType, MaxEventBytes)
+	s.notes.Addf(s.ctx, "skipped %q event: exceeds %d bytes", s.eventType, MaxEventBytes)
 	nonBlank := len(s.line) > 0
 	s.skipping = true
 	s.line = s.line[:0]

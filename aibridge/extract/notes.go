@@ -1,37 +1,36 @@
 package extract
 
-import "fmt"
+import (
+	"context"
+	"fmt"
 
-// maxParseNotes bounds the notes kept per response so a stream of malformed
-// events cannot grow memory without limit.
+	"cdr.dev/slog/v3"
+)
+
+// maxParseNotes bounds the notes logged per response so a stream of
+// malformed events cannot flood the log.
 const maxParseNotes = 16
 
-// ParseNotes collects parse notes, keeping the first few and counting the
-// rest. The zero value is ready to use. Notes must not quote traffic
-// content: they are logged.
+// ParseNotes logs parse notes: input an extractor skipped because it could
+// not be parsed. Notes never indicate a traffic error and must not quote
+// traffic content. After maxParseNotes notes, further notes are dropped.
 type ParseNotes struct {
-	notes   []string
-	dropped int
+	logger slog.Logger
+	count  int
 }
 
-// Addf records a note.
-func (n *ParseNotes) Addf(format string, args ...any) {
-	if len(n.notes) >= maxParseNotes {
-		n.dropped++
-		return
-	}
-	n.notes = append(n.notes, fmt.Sprintf(format, args...))
+// NewParseNotes returns ParseNotes that log to logger.
+func NewParseNotes(logger slog.Logger) ParseNotes {
+	return ParseNotes{logger: logger}
 }
 
-// List returns the recorded notes, with a summary of dropped notes last.
-func (n *ParseNotes) List() []string {
-	if len(n.notes) == 0 {
-		return nil
+// Addf logs a note.
+func (n *ParseNotes) Addf(ctx context.Context, format string, args ...any) {
+	n.count++
+	switch {
+	case n.count <= maxParseNotes:
+		n.logger.Warn(ctx, "extractor parse note", slog.F("note", fmt.Sprintf(format, args...)))
+	case n.count == maxParseNotes+1:
+		n.logger.Warn(ctx, "extractor parse notes limit reached, dropping further notes")
 	}
-	out := make([]string, len(n.notes), len(n.notes)+1)
-	copy(out, n.notes)
-	if n.dropped > 0 {
-		out = append(out, fmt.Sprintf("%d more parse notes dropped", n.dropped))
-	}
-	return out
 }

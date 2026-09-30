@@ -1,13 +1,15 @@
 package responses
 
 import (
+	"context"
 	"encoding/json"
-	"maps"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/tidwall/gjson"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/extract"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -15,14 +17,13 @@ import (
 
 // Responses API event and item type names.
 const (
-	eventCreated        = "response.created"
-	eventInProgress     = "response.in_progress"
-	eventQueued         = "response.queued"
-	eventOutputItemDone = "response.output_item.done"
-	eventCompleted      = "response.completed"
-	eventIncomplete     = "response.incomplete"
-	eventFailed         = "response.failed"
-	eventError          = "error"
+	eventCreated    = "response.created"
+	eventInProgress = "response.in_progress"
+	eventQueued     = "response.queued"
+	eventCompleted  = "response.completed"
+	eventIncomplete = "response.incomplete"
+	eventFailed     = "response.failed"
+	eventError      = "error"
 
 	itemFunctionCall   = "function_call"
 	itemCustomToolCall = "custom_tool_call"
@@ -45,29 +46,57 @@ var hostedToolItems = map[string]bool{
 	"image_generation_call": true,
 }
 
-// ResponseExtraction accumulates facts for one Responses API response. It
-// accepts SSE events, WebSocket frames (raw event JSON with an empty event
-// type), and complete bodies. It is not safe for concurrent use.
+// ResponseExtraction records one Responses API response as it is observed.
+// It accepts SSE events, WebSocket frames (raw event JSON with an empty
+// event type), and complete bodies.
 //
-// Token usage, tool calls, and thoughts come from the terminal response
-// object (response.completed, response.incomplete, response.failed, or a
-// complete body), as in the interceptor. When a stream ends without a
-// terminal event, tool calls and thoughts fall back to the items seen in
-// response.output_item.done events.
+// It is not safe for concurrent use: call its methods sequentially, feeding
+// events in stream order.
+//
+// The prompt is recorded as soon as the response ID is known, so a failed
+// or truncated stream still records it, as in the interceptor. Token usage,
+// tool calls, and model thoughts are recorded once, from the terminal
+// response object (response.completed, response.incomplete,
+// response.failed, or a complete body), with the interceptor's field
+// semantics. A stream that ends without a terminal event records no usage,
+// tool calls, or thoughts.
 type ResponseExtraction struct {
-	facts extract.ResponseFacts
-	// doneItems are output items from response.output_item.done events.
-	doneItems []gjson.Result
-	// terminalOutput is the output of the terminal response object.
-	terminalOutput []gjson.Result
-	notes          extract.ParseNotes
+	// ctx scopes the recorder calls and logging of OnEvent and
+	// ProcessBlocking, which have no context of their own.
+	ctx            context.Context
+	logger         slog.Logger
+	rec            recorder.Recorder
+	interceptionID string
+	prompt         string
+
+	outcome        extract.Outcome
+	promptRecorded bool
+	// recorded is set once a terminal response object was recorded.
+	recorded bool
+	notes    extract.ParseNotes
 }
 
 var _ extract.ResponseExtraction = (*ResponseExtraction)(nil)
 
-// NewResponseExtraction returns an empty extraction for one response.
-func NewResponseExtraction() *ResponseExtraction {
-	return &ResponseExtraction{}
+// NewResponseExtraction returns an extraction that writes the records of one
+// response to rec. ctx scopes the recorder calls and is usually the request
+// context. prompt is the request's extract.RequestFacts.Prompt; an empty
+// prompt is not recorded.
+func NewResponseExtraction(ctx context.Context, logger slog.Logger, rec recorder.Recorder, interceptionID, prompt string) *ResponseExtraction {
+	if rec == nil {
+		panic("responses: NewResponseExtraction requires a recorder")
+	}
+	if interceptionID == "" {
+		panic("responses: NewResponseExtraction requires an interception ID")
+	}
+	return &ResponseExtraction{
+		ctx:            ctx,
+		logger:         logger,
+		rec:            rec,
+		interceptionID: interceptionID,
+		prompt:         prompt,
+		notes:          extract.NewParseNotes(logger),
+	}
 }
 
 // OnEvent observes one streamed event. The JSON "type" field takes
@@ -83,11 +112,7 @@ func (e *ResponseExtraction) OnEvent(eventType string, raw []byte) {
 	}
 	switch typ {
 	case eventCreated, eventInProgress, eventQueued:
-		e.observeResponse(ev.Get("response"))
-	case eventOutputItemDone:
-		if item := ev.Get("item"); item.IsObject() {
-			e.doneItems = append(e.doneItems, item)
-		}
+		e.observeResponseID(ev.Get("response"))
 	case eventCompleted:
 		e.finish(extract.TerminalCompleted, ev.Get("response"))
 	case eventIncomplete:
@@ -99,15 +124,16 @@ func (e *ResponseExtraction) OnEvent(eventType string, raw []byte) {
 	}
 }
 
-// OnBody observes a complete body. A 2xx body is a response object and is
-// treated like a terminal event; a 4xx or 5xx body is an error envelope.
-func (e *ResponseExtraction) OnBody(statusCode int, raw []byte) {
+// ProcessBlocking observes a complete, decoded body. A 2xx body is a
+// response object and is treated like a terminal event; a 4xx or 5xx body
+// is an error envelope.
+func (e *ResponseExtraction) ProcessBlocking(statusCode int, raw []byte) {
 	if statusCode >= http.StatusBadRequest {
 		e.httpError(statusCode, raw)
 		return
 	}
 	if statusCode < 200 || statusCode > 299 {
-		e.notes.Addf("skipped body: unexpected status %d", statusCode)
+		e.notes.Addf(e.ctx, "skipped body: unexpected status %d", statusCode)
 		return
 	}
 	r, ok := e.parse("body", raw, extract.MaxBodyBytes)
@@ -126,75 +152,101 @@ func (e *ResponseExtraction) OnBody(statusCode int, raw []byte) {
 	e.finish(status, r)
 }
 
-// Result returns the facts gathered so far.
-func (e *ResponseExtraction) Result() extract.ResponseFacts {
-	facts := e.facts
-	if facts.Usage != nil {
-		u := *facts.Usage
-		u.Extra = maps.Clone(u.Extra)
-		facts.Usage = &u
-	}
-	items := e.terminalOutput
-	if len(items) == 0 {
-		items = e.doneItems
-	}
-	facts.ToolCalls = toolCalls(items)
-	facts.Thoughts = thoughts(items)
-	facts.ParseNotes = e.notes.List()
-	return facts
+// Outcome returns the response ID, terminal status, and provider error
+// observed so far.
+func (e *ResponseExtraction) Outcome() extract.Outcome {
+	return e.outcome
 }
 
 // parse validates raw and copies it, so no gjson result aliases the
 // caller's buffer.
 func (e *ResponseExtraction) parse(what string, raw []byte, limit int) (gjson.Result, bool) {
 	if len(raw) > limit {
-		e.notes.Addf("skipped %q: exceeds %d bytes", what, limit)
+		e.notes.Addf(e.ctx, "skipped %q: exceeds %d bytes", what, limit)
 		return gjson.Result{}, false
 	}
 	if !gjson.ValidBytes(raw) {
-		e.notes.Addf("skipped %q: invalid JSON (%d bytes)", what, len(raw))
+		e.notes.Addf(e.ctx, "skipped %q: invalid JSON (%d bytes)", what, len(raw))
 		return gjson.Result{}, false
 	}
 	return gjson.Parse(string(raw)), true
 }
 
-// observeResponse records the response ID (first seen) and model (last
-// seen) of a response object.
-func (e *ResponseExtraction) observeResponse(r gjson.Result) {
-	if !r.IsObject() {
+// observeResponseID keeps the first response ID seen and records the prompt
+// against it.
+func (e *ResponseExtraction) observeResponseID(r gjson.Result) {
+	if e.outcome.ResponseID != "" || !r.IsObject() {
 		return
 	}
-	if id := r.Get("id").String(); id != "" && e.facts.ResponseID == "" {
-		e.facts.ResponseID = id
+	id := r.Get("id").String()
+	if id == "" {
+		return
 	}
-	if model := r.Get("model").String(); model != "" {
-		e.facts.Model = model
+	e.outcome.ResponseID = id
+	if e.prompt == "" || e.promptRecorded {
+		return
+	}
+	e.promptRecorded = true
+	if err := e.rec.RecordPromptUsage(e.ctx, &recorder.PromptUsageRecord{
+		InterceptionID: e.interceptionID,
+		MsgID:          id,
+		Prompt:         e.prompt,
+		CreatedAt:      time.Now().UTC(),
+	}); err != nil {
+		e.logger.Warn(e.ctx, "failed to record prompt usage", slog.Error(err))
 	}
 }
 
+// finish handles a terminal response object: it sets the outcome and
+// records token usage, model thoughts, and tool usage.
 func (e *ResponseExtraction) finish(status extract.TerminalStatus, r gjson.Result) {
 	if !r.IsObject() {
-		e.notes.Addf("skipped terminal %q: no response object", status)
+		e.notes.Addf(e.ctx, "skipped terminal %q: no response object", status)
 		return
 	}
-	e.observeResponse(r)
-	e.facts.Terminal = extract.Terminal{Status: status}
-	e.facts.ServiceTier = r.Get("service_tier").String()
-	if u := r.Get("usage"); u.IsObject() {
-		e.facts.Usage = tokenUsage(u)
+	if e.recorded {
+		e.notes.Addf(e.ctx, "skipped terminal %q: response already recorded", status)
+		return
 	}
-	if out := r.Get("output"); out.IsArray() {
-		e.terminalOutput = out.Array()
-	}
+	e.recorded = true
+	e.observeResponseID(r)
 
+	e.outcome.Terminal = extract.Terminal{Status: status}
 	switch status {
 	case extract.TerminalIncomplete:
-		e.facts.Terminal.Reason = r.Get("incomplete_details.reason").String()
+		e.outcome.Terminal.Reason = r.Get("incomplete_details.reason").String()
 	case extract.TerminalFailed:
 		errObj := r.Get("error")
 		code := errObj.Get("code").String()
-		e.facts.Terminal.Reason = code
-		e.facts.Err = providerError(0, errObj.Get("message").String(), errObj.Get("type").String(), code, "response failed")
+		e.outcome.Terminal.Reason = code
+		e.outcome.Err = providerError(0, errObj.Get("message").String(), errObj.Get("type").String(), code, "response failed")
+	}
+
+	// Records use the terminal object's own ID and model, as the
+	// interceptor does.
+	msgID := r.Get("id").String()
+	now := time.Now().UTC()
+	if u := r.Get("usage"); u.IsObject() {
+		e.recordTokenUsage(msgID, r, u, now)
+	}
+	output := r.Get("output").Array()
+	for _, t := range thoughts(output) {
+		if err := e.rec.RecordModelThought(e.ctx, &recorder.ModelThoughtRecord{
+			InterceptionID: e.interceptionID,
+			Content:        t.content,
+			Metadata:       recorder.Metadata{"source": t.source},
+			CreatedAt:      now,
+		}); err != nil {
+			e.logger.Warn(e.ctx, "failed to record model thought", slog.Error(err))
+		}
+	}
+	for _, call := range toolCalls(output) {
+		call.InterceptionID = e.interceptionID
+		call.MsgID = msgID
+		call.CreatedAt = now
+		if err := e.rec.RecordToolUsage(e.ctx, call); err != nil {
+			e.logger.Warn(e.ctx, "failed to record tool usage", slog.Error(err), slog.F("tool", call.Tool))
+		}
 	}
 }
 
@@ -210,8 +262,8 @@ func (e *ResponseExtraction) streamError(ev gjson.Result) {
 		status = 0
 	}
 	code := obj.Get("code").String()
-	e.facts.Terminal = extract.Terminal{Status: extract.TerminalFailed, Reason: code}
-	e.facts.Err = providerError(status, obj.Get("message").String(), obj.Get("type").String(), code, "upstream stream error")
+	e.outcome.Terminal = extract.Terminal{Status: extract.TerminalFailed, Reason: code}
+	e.outcome.Err = providerError(status, obj.Get("message").String(), obj.Get("type").String(), code, "upstream stream error")
 }
 
 // httpError handles a 4xx or 5xx body, normally {"error": {...}}.
@@ -220,13 +272,13 @@ func (e *ResponseExtraction) httpError(status int, raw []byte) {
 	switch {
 	case len(raw) == 0:
 	case !gjson.ValidBytes(raw):
-		e.notes.Addf("error body is not valid JSON (%d bytes)", len(raw))
+		e.notes.Addf(e.ctx, "error body is not valid JSON (%d bytes)", len(raw))
 	default:
 		errObj = gjson.Get(string(raw), "error")
 	}
 	code := errObj.Get("code").String()
-	e.facts.Terminal = extract.Terminal{Status: extract.TerminalFailed, Reason: code}
-	e.facts.Err = providerError(status, errObj.Get("message").String(), errObj.Get("type").String(), code, http.StatusText(status))
+	e.outcome.Terminal = extract.Terminal{Status: extract.TerminalFailed, Reason: code}
+	e.outcome.Err = providerError(status, errObj.Get("message").String(), errObj.Get("type").String(), code, http.StatusText(status))
 }
 
 // providerError builds the OpenAI-shaped error the interceptors return, so
@@ -246,26 +298,39 @@ func providerError(status int, msg, errType, code, fallbackMsg string) *intercep
 	return intercept.NewResponseError(msg, errType, code, status, 0)
 }
 
-// tokenUsage applies the interceptor's math: input tokens include cache
-// reads and writes, which are reported separately.
-func tokenUsage(u gjson.Result) *extract.TokenUsage {
+// recordTokenUsage applies the interceptor's math: input tokens include
+// cache reads and writes, which are reported separately.
+func (e *ResponseExtraction) recordTokenUsage(msgID string, r, u gjson.Result, now time.Time) {
 	input := u.Get("input_tokens").Int()
 	cached := u.Get("input_tokens_details.cached_tokens").Int()
 	cacheWrite := u.Get("input_tokens_details.cache_write_tokens").Int()
-	return &extract.TokenUsage{
-		Input:           max(0, input-cached-cacheWrite),
-		Output:          u.Get("output_tokens").Int(),
-		CacheReadInput:  cached,
-		CacheWriteInput: cacheWrite,
-		Extra: map[string]int64{
+	var metadata recorder.Metadata
+	if tier := r.Get("service_tier").String(); tier != "" {
+		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: tier}
+	}
+	if err := e.rec.RecordTokenUsage(e.ctx, &recorder.TokenUsageRecord{
+		InterceptionID:        e.interceptionID,
+		MsgID:                 msgID,
+		ProviderModel:         r.Get("model").String(),
+		Input:                 max(0, input-cached-cacheWrite),
+		Output:                u.Get("output_tokens").Int(),
+		CacheReadInputTokens:  cached,
+		CacheWriteInputTokens: cacheWrite,
+		ExtraTokenTypes: map[string]int64{
 			"output_reasoning": u.Get("output_tokens_details.reasoning_tokens").Int(),
 			"total_tokens":     u.Get("total_tokens").Int(),
 		},
+		Metadata:  metadata,
+		CreatedAt: now,
+	}); err != nil {
+		e.logger.Warn(e.ctx, "failed to record token usage", slog.Error(err))
 	}
 }
 
-func toolCalls(items []gjson.Result) []extract.ToolCall {
-	var calls []extract.ToolCall
+// toolCalls returns tool usage records for the tool call output items,
+// without interception, message, or time fields.
+func toolCalls(items []gjson.Result) []*recorder.ToolUsageRecord {
+	var calls []*recorder.ToolUsageRecord
 	for _, item := range items {
 		typ := item.Get("type").String()
 		var args recorder.ToolArgs
@@ -283,11 +348,14 @@ func toolCalls(items []gjson.Result) []extract.ToolCall {
 		if name == "" {
 			name = typ
 		}
-		calls = append(calls, extract.ToolCall{
-			ItemID: item.Get("id").String(),
-			CallID: item.Get("call_id").String(),
-			Name:   name,
-			Args:   args,
+		calls = append(calls, &recorder.ToolUsageRecord{
+			// ToolCallID (call_id) is empty for hosted tools the provider
+			// executes itself.
+			ItemID:     item.Get("id").String(),
+			ToolCallID: item.Get("call_id").String(),
+			Tool:       name,
+			Args:       args,
+			Injected:   false,
 		})
 	}
 	return calls
@@ -311,16 +379,22 @@ func functionCallArgs(v gjson.Result) recorder.ToolArgs {
 	return args
 }
 
+type thought struct {
+	content string
+	// source is one of the recorder.ThoughtSource* constants.
+	source string
+}
+
 // thoughts returns reasoning summaries and assistant commentary messages
 // (message items with "phase": "commentary").
-func thoughts(items []gjson.Result) []extract.Thought {
-	var out []extract.Thought
+func thoughts(items []gjson.Result) []thought {
+	var out []thought
 	for _, item := range items {
 		switch item.Get("type").String() {
 		case itemReasoning:
 			for _, s := range item.Get("summary").Array() {
 				if text := s.Get("text").String(); text != "" {
-					out = append(out, extract.Thought{Content: text, Source: recorder.ThoughtSourceReasoningSummary})
+					out = append(out, thought{content: text, source: recorder.ThoughtSourceReasoningSummary})
 				}
 			}
 		case itemMessage:
@@ -332,7 +406,7 @@ func thoughts(items []gjson.Result) []extract.Thought {
 					continue
 				}
 				if text := part.Get("text").String(); text != "" {
-					out = append(out, extract.Thought{Content: text, Source: recorder.ThoughtSourceCommentary})
+					out = append(out, thought{content: text, source: recorder.ThoughtSourceCommentary})
 				}
 			}
 		}

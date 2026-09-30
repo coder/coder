@@ -1,7 +1,24 @@
-// Package responses extracts recording facts from OpenAI Responses API
-// traffic. It mirrors what the aibridge/intercept/responses interceptors
-// record, reading raw JSON with gjson instead of SDK types so the same code
-// serves SSE, complete-body, and WebSocket transports.
+// Package responses records OpenAI Responses API traffic. It writes the same
+// records the aibridge/intercept/responses interceptors write, reading raw
+// JSON with gjson instead of SDK types so the same code serves SSE,
+// complete-body, and WebSocket transports.
+//
+// Intentional differences from the interceptors, all following from the
+// extractor being a fail-open observer of a single upstream exchange:
+//   - "error" events with top-level fields and "response.failed" events are
+//     reported as provider errors (status 0, categorized as unknown); the
+//     streaming interceptor relays them and ends the interception as a
+//     success.
+//   - A 2xx body that is not a valid response object is a parse note, not
+//     a terminal error.
+//   - Streamed "response.incomplete" and "response.failed" events record
+//     token usage, tool calls, and thoughts from their response objects; the
+//     streaming interceptor records them only for "response.completed".
+//   - A response without a usage object records no token usage, where the
+//     interceptor records a zero-valued record.
+//   - An empty prompt is not recorded.
+//   - Injected MCP tools and the inner agentic loop do not exist here: every
+//     tool call is recorded as not injected.
 package responses
 
 import (

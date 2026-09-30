@@ -1,26 +1,34 @@
-// Package extract defines read-only extractors that derive recording facts
-// from AI provider traffic without taking part in the HTTP request lifecycle.
+// Package extract defines read-only extractors that record facts about AI
+// provider traffic without taking part in the HTTP request lifecycle.
 //
-// Extractors never touch, block, or alter the traffic they observe. Parse
-// failures reduce recorded detail and are reported as notes, never as
-// traffic errors. Provider-specific extractors live in subpackages (for
-// example extract/responses); this package holds the shared interfaces, the
-// transport adapters (SSE and complete bodies), and the conversion into
-// recorder records.
+// Extractors never touch, block, or alter the traffic they observe. They
+// write recorder records (prompt, token, tool, and model thought usage) as
+// they observe the traffic, and keep only the small outcome a caller needs
+// to end the interception. Parse failures reduce recorded detail and are
+// logged as parse notes, never reported as traffic errors.
+//
+// Provider-specific extractors live in subpackages (for example
+// extract/responses); this package holds the shared interfaces and the
+// transport adapters for SSE streams and complete bodies.
+//
+// Bodies are passed as []byte: callers fill one reusable buffer once and
+// share it between forwarding and extraction. Accepting a streaming
+// io.Reader for large bodies is a possible future direction.
 package extract
-
-import "github.com/coder/coder/v2/aibridge/recorder"
 
 const (
 	// MaxEventBytes bounds a single streamed event. Larger events are
-	// skipped with a note.
+	// skipped with a parse note.
 	MaxEventBytes = 4 << 20
 	// MaxBodyBytes bounds a complete (non-streaming) response body after
-	// decoding. Larger bodies are skipped with a note.
+	// decoding. Larger bodies are skipped with a parse note.
 	MaxBodyBytes = 8 << 20
 )
 
-// RequestFacts are the recording facts derived from a request body.
+// RequestFacts are the facts derived from a request body. Model, Streaming,
+// and CorrelatingToolCallID are known before any response exists, for the
+// interception start record. Prompt is passed on to the response
+// extraction, which records it once the provider response ID is known.
 type RequestFacts struct {
 	Model     string
 	Streaming bool
@@ -38,73 +46,38 @@ type RequestExtractor interface {
 	ExtractRequest(body []byte) (RequestFacts, error)
 }
 
-// ResponseExtraction accumulates facts for one upstream response. SSE,
-// complete-body, and WebSocket transports all feed it the same provider
-// event JSON. Implementations must never block, never retain or mutate the
-// passed slices after returning, and must tolerate any input.
+// ResponseExtraction observes one upstream response and records what it
+// finds. SSE, complete-body, and WebSocket transports all feed it the same
+// provider JSON.
+//
+// A ResponseExtraction is not safe for concurrent use: callers must call
+// its methods sequentially, feeding events in stream order. It never
+// blocks beyond its recorder calls, never retains or mutates the passed
+// slices after returning, and tolerates any input.
 type ResponseExtraction interface {
 	// OnEvent observes one streamed event. eventType is the transport-level
 	// event name (the SSE "event" field) and may be empty, for example for
 	// WebSocket frames; raw is the event JSON.
 	OnEvent(eventType string, raw []byte)
-	// OnBody observes a complete response body and its HTTP status code:
-	// either a non-streaming response or an error response to any request.
-	OnBody(statusCode int, raw []byte)
-	// Result returns the facts gathered so far. It may be called at any
-	// time, including on a truncated stream.
-	Result() ResponseFacts
+	// ProcessBlocking observes a complete, decoded response body and its
+	// HTTP status code: either a non-streaming response or an error
+	// response to any request. DecodeBody produces raw from the wire body.
+	ProcessBlocking(statusCode int, raw []byte)
+	// Outcome reports how the response ended so far. It is meant to be
+	// read after the terminal event, or when the stream ends.
+	Outcome() Outcome
 }
 
-// ResponseFacts are the recording facts derived from one upstream response.
-type ResponseFacts struct {
-	// ResponseID is the provider's response or message ID.
+// Outcome is what a caller needs to end an interception.
+type Outcome struct {
+	// ResponseID is the provider's response or message ID, empty if none
+	// was seen.
 	ResponseID string
-	// Model is the model reported by the provider.
-	Model string
-	// ServiceTier is the provider's service tier for the response, if any.
-	ServiceTier string
-	// Usage is nil when the response reported no usage.
-	Usage     *TokenUsage
-	ToolCalls []ToolCall
-	Thoughts  []Thought
-	Terminal  Terminal
+	Terminal   Terminal
 	// Err is the provider-shaped terminal error, if the provider reported
 	// one. It is the same error type the provider's interceptors return, so
-	// provider error categorization applies unchanged.
+	// interceptionerror.Categorize applies unchanged.
 	Err error
-	// ParseNotes describe input that was skipped because it could not be
-	// parsed. They never indicate a traffic error.
-	ParseNotes []string
-}
-
-// TokenUsage is normalized token usage, matching the fields of
-// recorder.TokenUsageRecord. Input excludes cache reads and writes.
-type TokenUsage struct {
-	Input           int64
-	Output          int64
-	CacheReadInput  int64
-	CacheWriteInput int64
-	// Extra holds provider-specific token types, for example reasoning
-	// output tokens.
-	Extra map[string]int64
-}
-
-// ToolCall is a tool call the provider asked for or executed.
-type ToolCall struct {
-	// ItemID is the provider's output item ID, if the API has one.
-	ItemID string
-	// CallID correlates the call with its result. Empty for hosted tools
-	// the provider executes itself.
-	CallID string
-	Name   string
-	Args   recorder.ToolArgs
-}
-
-// Thought is model reasoning or commentary surfaced by the provider.
-type Thought struct {
-	Content string
-	// Source is one of the recorder.ThoughtSource* constants.
-	Source string
 }
 
 // TerminalStatus is how a response ended.

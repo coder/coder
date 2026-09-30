@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/extract"
 	extractresponses "github.com/coder/coder/v2/aibridge/extract/responses"
@@ -26,8 +27,8 @@ import (
 
 // TestResponsesExtractorRecordingParity replays every OpenAI Responses
 // fixture through the Responses interceptor and through the read-only
-// extractor, and requires both to produce the same prompt, token, tool, and
-// model thought records and the same categorized terminal error.
+// extractor, and requires both to write the same prompt, token, tool, and
+// model thought records and to report the same categorized terminal error.
 //
 // Fixtures with injected tools run without an MCP proxy, so the interceptor
 // makes a single upstream call like a reverse proxy would; the extractor
@@ -89,24 +90,29 @@ func TestResponsesExtractorRecordingParity(t *testing.T) {
 			} else {
 				raw = fix.NonStreaming()
 			}
-			ext := extractresponses.NewResponseExtraction()
-			var respFacts extract.ResponseFacts
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			extracted := &testutil.MockRecorder{}
+			ext := extractresponses.NewResponseExtraction(ctx, logger, extracted, interceptionID, reqFacts.Prompt)
 			switch {
 			case bytes.HasPrefix(raw, []byte("HTTP/")):
 				// Error fixtures hold a raw HTTP response.
 				httpResp, err := http.ReadResponse(bufio.NewReader(bytes.NewReader(raw)), nil)
 				require.NoError(t, err)
-				respFacts = extract.FromBody(ext, httpResp.StatusCode, httpResp.Header.Get("Content-Encoding"), httpResp.Body)
+				body, err := io.ReadAll(httpResp.Body)
+				require.NoError(t, err)
 				require.NoError(t, httpResp.Body.Close())
+				decoded, err := extract.DecodeBody(httpResp.Header.Get("Content-Encoding"), body)
+				require.NoError(t, err)
+				ext.ProcessBlocking(httpResp.StatusCode, decoded)
 			case reqFacts.Streaming:
-				sse := extract.NewSSEStream(ext)
+				sse := extract.NewSSEStream(ctx, logger, ext)
 				_, _ = sse.Write(raw)
-				respFacts = sse.Result()
+				require.NoError(t, sse.Close())
 			default:
-				respFacts = extract.FromBody(ext, http.StatusOK, "", bytes.NewReader(raw))
+				decoded, err := extract.DecodeBody("", raw)
+				require.NoError(t, err)
+				ext.ProcessBlocking(http.StatusOK, decoded)
 			}
-			extracted := &testutil.MockRecorder{}
-			require.NoError(t, extract.NewRecords(interceptionID, reqFacts, respFacts, time.Time{}).Record(ctx, extracted))
 
 			// Records match, ignoring timestamps. The bridge records
 			// asynchronously, so order is not significant.
@@ -116,7 +122,7 @@ func TestResponsesExtractorRecordingParity(t *testing.T) {
 			require.ElementsMatch(t, withoutTime(extracted.RecordedModelThoughts()), withoutTime(bridgeServer.Recorder.RecordedModelThoughts()), "model thoughts")
 
 			// Terminal errors categorize the same way.
-			gotType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), respFacts.Err)
+			gotType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), ext.Outcome().Err)
 			if diff, ok := errorTypeDiffs[name]; ok {
 				require.Equal(t, diff.interceptor, ended.ErrorType, "interceptor error type")
 				require.Equal(t, diff.extractor, gotType, "extractor error type")
