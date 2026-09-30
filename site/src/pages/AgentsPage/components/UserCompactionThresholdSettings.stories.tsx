@@ -294,6 +294,25 @@ export const OrganizationTriggerBeyondModelWindow: Story = {
 	},
 };
 
+export const DisableCompactionBeyondOrganizationPoint: Story = {
+	args: {
+		models: [mockSmallWindowModel],
+		compactionTriggersByOrganizationID: mockCompactionTriggersByOrganizationID,
+	},
+	play: async ({ canvasElement }) => {
+		const row = within(canvasElement).getByRole("row", { name: /GPT-4o/i });
+		await userEvent.type(
+			within(row).getByRole("textbox", {
+				name: /GPT-4o compaction threshold/i,
+			}),
+			"100",
+		);
+		await within(row).findByText(
+			"Setting 100% turns off automatic compaction for this model.",
+		);
+	},
+};
+
 export const CompactionTriggersLoadError: Story = {
 	args: {
 		models: [
