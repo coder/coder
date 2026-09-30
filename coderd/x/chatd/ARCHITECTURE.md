@@ -1090,6 +1090,8 @@ By default, chatd runs up to five top-level chats and ten subagent chats at once
 
 The worker periodically archives old, unused chats.
 
+TODO: the candidate list is still read without locks, but each candidate is now rechecked against the same filters (unarchived, unpinned root, idle status, family last message before the cutoff) inside the `SetFamilyArchived` transaction after the root and every family member row are locked (root first). A chat that stopped qualifying, for example because a message landed after the candidate read, is skipped for that tick. Unarchiving without a message is still not activity, so such a chat is archived again. Describe this here.
+
 ## Manual compaction
 
 Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.

@@ -1188,6 +1188,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetAutoArchiveInactiveChatCandidates(gomock.Any(), arg).Return([]database.GetAutoArchiveInactiveChatCandidatesRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.GetAutoArchiveInactiveChatCandidatesRow{})
 	}))
+	s.Run("GetAutoArchiveInactiveChatCandidateByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAutoArchiveInactiveChatCandidateByIDParams{ID: uuid.New()}
+		dbm.EXPECT().GetAutoArchiveInactiveChatCandidateByID(gomock.Any(), arg).Return(database.GetAutoArchiveInactiveChatCandidateByIDRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(database.GetAutoArchiveInactiveChatCandidateByIDRow{})
+	}))
 	s.Run("GetChatMessageByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
