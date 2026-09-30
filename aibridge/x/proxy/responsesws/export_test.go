@@ -6,12 +6,10 @@ func StateSizes(s *Session) map[string]int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	sizes := map[string]int{
-		"open":          len(s.open),
-		"pending":       len(s.pending),
-		"continuations": len(s.continuations),
-		"active":        len(s.active),
-		"responses":     len(s.responses),
-		"steered":       len(s.steered),
+		"open":      len(s.open),
+		"pending":   len(s.pending),
+		"active":    len(s.active),
+		"responses": len(s.responses),
 	}
 	for name, n := range sizes {
 		if n == 0 {

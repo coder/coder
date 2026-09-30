@@ -164,3 +164,25 @@ func lastUserPrompt(input gjson.Result) (string, bool) {
 	}
 	return strings.Join(parts, "\n"), len(parts) > 0
 }
+
+// correlatingToolCallID mirrors the HTTP Responses interceptor: it returns
+// the call_id of a trailing function_call_output input item, or nil.
+func correlatingToolCallID(frame []byte) *string {
+	input := gjson.GetBytes(frame, "input")
+	if !input.IsArray() {
+		return nil
+	}
+	items := input.Array()
+	if len(items) == 0 {
+		return nil
+	}
+	last := items[len(items)-1]
+	if last.Get("type").String() != "function_call_output" {
+		return nil
+	}
+	callID := last.Get("call_id").String()
+	if callID == "" {
+		return nil
+	}
+	return &callID
+}
