@@ -5,7 +5,8 @@ import (
 )
 
 // LanguageJavaScript runs scripts with quickjs-ng. The std and os modules
-// are exposed as globals; ES module imports resolve under /box.
+// are exposed as globals. The script runs from /script, so ES modules
+// staged in the box are imported by absolute /box/... path.
 const LanguageJavaScript = "javascript"
 
 //go:embed runtimes/quickjs/qjs-wasi.wasm

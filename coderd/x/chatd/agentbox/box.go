@@ -20,6 +20,7 @@ import (
 	"github.com/tetratelabs/wazero/sys"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -68,8 +69,12 @@ type Box struct {
 	root      *os.Root
 	quota     *quota
 
-	mu        sync.Mutex
-	closed    bool
+	mu     sync.Mutex
+	closed bool
+	// closing is set by Close before it cancels the current run, so a
+	// run that has not stored its cancel yet, or is queued on mu, stops
+	// instead of executing.
+	closing   atomic.Bool
 	runCancel atomic.Pointer[context.CancelFunc]
 }
 
@@ -125,6 +130,9 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 	defer cancel()
 	b.runCancel.Store(&cancel)
 	defer b.runCancel.Store(nil)
+	if b.closing.Load() {
+		return RunResult{}, ErrClosed
+	}
 
 	if err := b.engine.runs.Acquire(runCtx, 1); err != nil {
 		return RunResult{}, xerrors.Errorf("acquire run slot (%v): %w", err, ErrBusy)
@@ -175,7 +183,6 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		Stderr:          stderr.String(),
 		StdoutTruncated: stdout.truncated(),
 		StderrTruncated: stderr.truncated(),
-		TimedOut:        timedOut.Load(),
 		Duration:        duration,
 	}
 	if err == nil {
@@ -183,29 +190,41 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 	}
 	if exitErr, ok := errors.AsType[*sys.ExitError](err); ok {
 		result.ExitCode = int(exitErr.ExitCode())
+		// The timer can fire after the guest exited on its own; only an
+		// interrupted run timed out.
+		switch exitErr.ExitCode() {
+		case sys.ExitCodeContextCanceled, sys.ExitCodeDeadlineExceeded:
+			result.TimedOut = timedOut.Load()
+		}
 		return result, nil
 	}
 	if runCtx.Err() != nil {
 		// Cancellation surfaces as an ExitError with
 		// ExitCodeContextCanceled in most paths; this covers the rest.
 		result.ExitCode = int(sys.ExitCodeContextCanceled)
+		result.TimedOut = timedOut.Load()
 		return result, nil
 	}
 	return RunResult{}, xerrors.Errorf("run guest: %w", err)
 }
 
 // fsConfig mounts the box directory at /box through the quota adapter and
-// the script directory read-only at /script.
+// the script directory read-only at /script. Both mounts share one open
+// file limit.
 func (b *Box) fsConfig() (wazero.FSConfig, error) {
+	limit := &openLimit{max: maxOpenFiles}
+	boxMount := limitedFS{FS: newBoxFS(sysfs.DirFS(b.rootDir), b.quota), limit: limit}
+	scriptMount := limitedFS{FS: &sysfs.ReadFS{FS: sysfs.DirFS(b.scriptDir)}, limit: limit}
+
 	base, ok := wazero.NewFSConfig().(sysfs.FSConfig)
 	if !ok {
 		return nil, xerrors.New("wazero FSConfig does not support sys.FS mounts")
 	}
-	withBox, ok := base.WithSysFSMount(newBoxFS(sysfs.DirFS(b.rootDir), b.quota), GuestDir).(sysfs.FSConfig)
+	withBox, ok := base.WithSysFSMount(boxMount, GuestDir).(sysfs.FSConfig)
 	if !ok {
 		return nil, xerrors.New("wazero FSConfig does not support sys.FS mounts")
 	}
-	return withBox.WithSysFSMount(&sysfs.ReadFS{FS: sysfs.DirFS(b.scriptDir)}, guestScriptDir), nil
+	return withBox.WithSysFSMount(scriptMount, guestScriptDir), nil
 }
 
 // WriteFile writes data to p under the box, creating parent directories.
@@ -356,6 +375,7 @@ func (b *Box) ReadLines(p string, offset, limit int) (ReadLinesResult, error) {
 // Close cancels any in-flight run, waits for it to return, and removes
 // the box directory. It is idempotent.
 func (b *Box) Close() error {
+	b.closing.Store(true)
 	if cancel := b.runCancel.Load(); cancel != nil {
 		(*cancel)()
 	}
@@ -374,6 +394,16 @@ func (b *Box) Close() error {
 		errs = append(errs, xerrors.Errorf("remove box dir: %w", err))
 	}
 	return errors.Join(errs...)
+}
+
+// CloseAsync closes the box in the background and logs a failure.
+// Engine.Close waits for closes started this way.
+func (b *Box) CloseAsync() {
+	b.engine.closes.Go(func() {
+		if err := b.Close(); err != nil {
+			b.engine.logger.Warn(context.Background(), "failed to close agent box", slog.F("box_id", b.id), slog.Error(err))
+		}
+	})
 }
 
 // boxPath validates a caller path and returns it relative to the box root.

@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -71,8 +72,8 @@ type Limits struct {
 	// OutputBytes caps captured stdout and stderr separately. Bytes past
 	// the cap are discarded and reported as truncated.
 	OutputBytes int
-	// DiskBytes caps the bytes written under /box plus 4 KiB for every
-	// created file or directory.
+	// DiskBytes caps the apparent size of files under /box plus 4 KiB
+	// for every created file or directory.
 	DiskBytes int64
 }
 
@@ -103,7 +104,7 @@ type Options struct {
 	RootDir string
 	Limits  Limits
 	// MaxConcurrent bounds runs executing at once across all boxes. Zero
-	// uses max(2, GOMAXPROCS/2).
+	// uses min(4, max(2, GOMAXPROCS/2)).
 	MaxConcurrent int
 	// MaxBoxes bounds live boxes. Zero uses DefaultMaxBoxes.
 	MaxBoxes int
@@ -124,7 +125,14 @@ type Engine struct {
 	compiled map[string]func() (wazero.CompiledModule, error)
 
 	live   atomic.Int64
+	closes sync.WaitGroup
 	closed atomic.Bool
+}
+
+// defaultMaxConcurrent bounds guest memory at a few runs' worth
+// regardless of core count.
+func defaultMaxConcurrent(procs int) int {
+	return min(4, max(2, procs/2))
 }
 
 // NewEngine creates the engine root, removes stale roots left by dead
@@ -141,7 +149,7 @@ func NewEngine(ctx context.Context, opts Options) (*Engine, error) {
 	}
 	maxConcurrent := opts.MaxConcurrent
 	if maxConcurrent <= 0 {
-		maxConcurrent = max(2, runtime.GOMAXPROCS(0)/2)
+		maxConcurrent = defaultMaxConcurrent(runtime.GOMAXPROCS(0))
 	}
 	maxBoxes := opts.MaxBoxes
 	if maxBoxes <= 0 {
@@ -214,7 +222,15 @@ func (e *Engine) sweepStaleRoots(ctx context.Context, parent string) {
 		if err != nil || info.ModTime().After(cutoff) {
 			continue
 		}
-		lock := flock.New(filepath.Join(dir, lockFile))
+		// flock opens with O_CREATE and follows symlinks, so only an
+		// absent or regular lock file is safe to lock.
+		lockPath := filepath.Join(dir, lockFile)
+		if st, err := os.Lstat(lockPath); err == nil && !st.Mode().IsRegular() {
+			continue
+		} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		lock := flock.New(lockPath)
 		locked, err := lock.TryLock()
 		if err != nil || !locked {
 			continue
@@ -268,7 +284,8 @@ func (e *Engine) compile(ctx context.Context, rt guestRuntime) (wazero.CompiledM
 		return nil, ErrUnknownLanguage
 	}
 	// Compilation is shared by every box, so it runs on the engine's
-	// context; a caller that gave up while waiting still returns promptly.
+	// context and a caller whose context ends still waits for it to
+	// finish.
 	compiled, err := once()
 	if err != nil {
 		return nil, xerrors.Errorf("compile %s runtime: %w", rt.name, err)
@@ -279,12 +296,14 @@ func (e *Engine) compile(ctx context.Context, rt guestRuntime) (wazero.CompiledM
 	return compiled, nil
 }
 
-// Close releases the wazero runtime and removes the engine root. Boxes
-// still open lose their directories; callers close boxes first.
+// Close waits for boxes closing in the background, releases the wazero
+// runtime, and removes the engine root. Boxes still open lose their
+// directories; callers close boxes first.
 func (e *Engine) Close(ctx context.Context) error {
 	if !e.closed.CompareAndSwap(false, true) {
 		return nil
 	}
+	e.closes.Wait()
 	var errs []error
 	if err := e.runtime.Close(ctx); err != nil {
 		errs = append(errs, xerrors.Errorf("close wazero runtime: %w", err))

@@ -3,7 +3,6 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -79,7 +78,7 @@ func TestBoxTools(t *testing.T) {
 			chattool.BoxAttachFile(h.options),
 		} {
 			info := tool.Info()
-			assert.Contains(t, chattool.BoxToolNames, info.Name)
+			assert.Contains(t, chattool.BoxToolNames(), info.Name)
 			serial, ok := tool.(interface{ SerialToolCalls() bool })
 			require.True(t, ok, info.Name)
 			assert.True(t, serial.SerialToolCalls(), info.Name)
@@ -131,6 +130,39 @@ func TestBoxTools(t *testing.T) {
 		assert.Equal(t, true, result["stdout_truncated"])
 		assert.Len(t, result["stdout"], 32<<10)
 		assert.Equal(t, false, result["stderr_truncated"])
+	})
+
+	t.Run("ResultBudget", func(t *testing.T) {
+		t.Parallel()
+		h := newBoxHarness(t)
+		const budget = 16 << 10
+		h.options.ResultBudgetBytes = budget
+		// Both characters expand to six bytes when JSON-encoded.
+		code := `std.out.puts("<".repeat(32 << 10)); std.err.puts("\x01".repeat(32 << 10));`
+		input, err := json.Marshal(map[string]string{"language": "javascript", "code": code})
+		require.NoError(t, err)
+		resp, result := runBoxTool(t, chattool.BoxRun(h.options), string(input))
+		assert.LessOrEqual(t, len(resp.Content), budget)
+		assert.Equal(t, true, result["stdout_truncated"])
+		assert.Equal(t, true, result["stderr_truncated"])
+		assert.NotEmpty(t, result["stdout"])
+		assert.NotEmpty(t, result["stderr"])
+		assert.Equal(t, h.box.ID(), result["box_id"])
+
+		// Output that fits is returned whole.
+		_, result = runBoxTool(t, chattool.BoxRun(h.options), `{"language":"javascript","code":"console.log('<ok>')"}`)
+		assert.Equal(t, "<ok>\n", result["stdout"])
+		assert.Equal(t, false, result["stdout_truncated"])
+	})
+
+	t.Run("ResetOnError", func(t *testing.T) {
+		t.Parallel()
+		h := newBoxHarness(t)
+		h.reset = true
+		_, result := runBoxTool(t, chattool.BoxReadFile(h.options), `{"path":"lost.txt"}`)
+		assert.Contains(t, result["error"], "open")
+		assert.Equal(t, true, result["box_reset"])
+		assert.Equal(t, h.box.ID(), result["box_id"])
 	})
 
 	t.Run("Reset", func(t *testing.T) {
@@ -211,6 +243,6 @@ func TestBoxTools(t *testing.T) {
 		h.options.StoreFile = nil
 		resp, _ = runBoxTool(t, chattool.BoxAttachFile(h.options), `{"path":"out/report.txt"}`)
 		assert.True(t, resp.IsError)
-		assert.True(t, strings.Contains(resp.Content, "not configured"))
+		assert.Contains(t, resp.Content, "not configured")
 	})
 }

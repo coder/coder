@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -90,7 +91,7 @@ func TestAgentBoxTurn(t *testing.T) {
 
 	tools := firstTools.Load()
 	require.NotNil(t, tools)
-	for _, name := range chattool.BoxToolNames {
+	for _, name := range chattool.BoxToolNames() {
 		require.Contains(t, *tools, name)
 	}
 	require.Contains(t, *systemPrompt.Load(), "agent-box", "the prompt block is present (JSON escapes the angle brackets)")
@@ -150,13 +151,13 @@ func TestAgentBoxTurn(t *testing.T) {
 	require.Equal(t, "line one\nline two\n", string(file.Data))
 
 	// The turn's box directory is removed once the chat is waiting.
-	require.Eventually(t, func() bool {
+	testutil.Eventually(ctx, t, func(context.Context) bool {
 		roots, err := os.ReadDir(boxRoot)
 		if err != nil {
 			return false
 		}
 		for _, root := range roots {
-			entries, err := os.ReadDir(boxRoot + "/" + root.Name())
+			entries, err := os.ReadDir(filepath.Join(boxRoot, root.Name()))
 			if err != nil {
 				return false
 			}
@@ -165,7 +166,7 @@ func TestAgentBoxTurn(t *testing.T) {
 			}
 		}
 		return true
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.IntervalFast)
 }
 
 // The box survives a requires_action wait: the step after the caller
@@ -326,7 +327,7 @@ func TestAgentBoxToolGating(t *testing.T) {
 		names := newChat(t, true, func(o *chatd.CreateOptions) {
 			o.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
 		})
-		for _, name := range chattool.BoxToolNames {
+		for _, name := range chattool.BoxToolNames() {
 			require.Contains(t, names, name)
 		}
 	})

@@ -905,7 +905,7 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, "stop_workspace")
 	require.NotContains(t, got, "ask_user_question")
 	require.NotContains(t, got, chattool.FindToolsName)
-	for _, name := range chattool.BoxToolNames {
+	for _, name := range chattool.BoxToolNames() {
 		require.NotContains(t, got, name)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -17,45 +18,65 @@ import (
 
 // turnBoxTracker holds the agent box of the turn a runner is executing.
 // Turns are keyed by the prompt row ID (stopNudgeKey), which increases
-// monotonically, so a canceled task of a finished turn cannot recreate
-// the turn's box after the runner closed it.
+// monotonically, so a canceled task of an older turn can neither recreate
+// that turn's box after it was closed nor replace a newer turn's box.
 type turnBoxTracker struct {
-	mu        sync.Mutex
+	mu sync.Mutex
+	// key is the newest turn that held a box.
 	key       int64
 	closedKey int64
 	box       *agentbox.Box
 }
 
 // acquire returns the box for key, creating one when the tracker holds
-// none or holds a box for another key. created reports that this call
-// made the box. key must be positive and newer than the last closed turn.
-func (t *turnBoxTracker) acquire(engine *agentbox.Engine, key int64) (box *agentbox.Box, created bool, err error) {
+// none. A box held for an older key is closed first so it does not count
+// against the engine's live box limit. created reports that this call
+// made the box. key must be positive, at least the newest key seen, and
+// newer than the last closed turn.
+func (t *turnBoxTracker) acquire(
+	logger slog.Logger,
+	engine *agentbox.Engine,
+	key int64,
+) (box *agentbox.Box, created bool, err error) {
 	if key <= 0 {
 		return nil, false, xerrors.New("agent box requires a user prompt")
 	}
-	var stale *agentbox.Box
-	t.mu.Lock()
-	switch {
-	case key <= t.closedKey:
-		t.mu.Unlock()
-		return nil, false, xerrors.New("agent box for this turn is closed")
-	case t.box != nil && t.key == key:
-		box = t.box
-	default:
-		stale = t.box
+	for {
+		t.mu.Lock()
+		switch {
+		case t.box != nil && t.key == key:
+			box = t.box
+			t.mu.Unlock()
+			return box, false, nil
+		case key <= t.closedKey || key < t.key:
+			t.mu.Unlock()
+			return nil, false, xerrors.New("agent box for this turn is closed")
+		case t.box != nil:
+			stale := t.detachLocked()
+			t.mu.Unlock()
+			closeBox(logger, stale)
+			continue
+		}
 		box, err = engine.NewBox()
 		if err != nil {
 			t.mu.Unlock()
 			return nil, false, err
 		}
 		t.box, t.key = box, key
-		created = true
+		t.mu.Unlock()
+		return box, true, nil
 	}
-	t.mu.Unlock()
-	if stale != nil {
-		_ = stale.Close()
+}
+
+// retireOlder detaches a box held for a turn older than key so the caller
+// can close it. It returns nil when there is none.
+func (t *turnBoxTracker) retireOlder(key int64) *agentbox.Box {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.box == nil || t.key >= key {
+		return nil
 	}
-	return box, created, nil
+	return t.detachLocked()
 }
 
 // take detaches the current box for the caller to close and marks its
@@ -63,6 +84,10 @@ func (t *turnBoxTracker) acquire(engine *agentbox.Engine, key int64) (box *agent
 func (t *turnBoxTracker) take() *agentbox.Box {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.detachLocked()
+}
+
+func (t *turnBoxTracker) detachLocked() *agentbox.Box {
 	box := t.box
 	if box != nil {
 		t.closedKey = max(t.closedKey, t.key)
@@ -71,20 +96,25 @@ func (t *turnBoxTracker) take() *agentbox.Box {
 	return box
 }
 
+func closeBox(logger slog.Logger, box *agentbox.Box) {
+	if err := box.Close(); err != nil {
+		logger.Warn(context.Background(), "failed to close agent box", slog.F("box_id", box.ID()), slog.Error(err))
+	}
+}
+
 // closeTurnBox releases the turn's box in the background. Directory
 // removal must not delay the runner's state loop.
 func (r *runner) closeTurnBox() {
 	if box := r.boxes.take(); box != nil {
-		go func() { _ = box.Close() }()
+		box.CloseAsync()
 	}
 }
 
-// closeTurnBoxSync releases the turn's box before returning. Server.Close
-// closes the worker before the engine, so the runner exit path must not
-// leave a close running against a closing engine.
+// closeTurnBoxSync releases the turn's box before returning, so no close
+// is left running after the runner exits.
 func (r *runner) closeTurnBoxSync() {
 	if box := r.boxes.take(); box != nil {
-		_ = box.Close()
+		closeBox(r.opts.Logger, box)
 	}
 }
 
@@ -102,7 +132,7 @@ func lastTurnBoxID(messages []database.ChatMessage) string {
 		}
 		for _, part := range parts {
 			if part.Type != codersdk.ChatMessagePartTypeToolResult || part.IsError ||
-				!slices.Contains(chattool.BoxToolNames, part.ToolName) {
+				!slices.Contains(chattool.BoxToolNames(), part.ToolName) {
 				continue
 			}
 			var result struct {
@@ -116,19 +146,27 @@ func lastTurnBoxID(messages []database.ChatMessage) string {
 	return last
 }
 
-// newTurnBoxGetter returns the GetBox callback for one step. The box is
-// acquired on first use; reset is reported by the first call only, and
-// only when the turn's history shows a different box was used before.
+// newTurnBoxGetter returns the GetBox callback for one step. A box still
+// held for an older turn is closed in the background. The box is acquired
+// on first use; reset is reported by the first call only, and only when
+// the turn's history shows a different box was used before.
 func newTurnBoxGetter(
+	logger slog.Logger,
 	engine *agentbox.Engine,
 	tracker *turnBoxTracker,
 	messages []database.ChatMessage,
 ) chattool.GetBoxFunc {
 	key := stopNudgeKey(messages)
+	if stale := tracker.retireOlder(key); stale != nil {
+		stale.CloseAsync()
+	}
 	var mu sync.Mutex
 	resetReported := false
-	return func(context.Context) (*agentbox.Box, bool, error) {
-		box, _, err := tracker.acquire(engine, key)
+	return func(ctx context.Context) (*agentbox.Box, bool, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
+		}
+		box, _, err := tracker.acquire(logger, engine, key)
 		if err != nil {
 			return nil, false, err
 		}

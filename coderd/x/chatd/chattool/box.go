@@ -2,9 +2,12 @@ package chattool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
@@ -21,12 +24,12 @@ const (
 )
 
 // BoxToolNames lists every box tool.
-var BoxToolNames = []string{BoxRunToolName, BoxWriteFileToolName, BoxReadFileToolName, BoxAttachFileToolName}
+func BoxToolNames() []string {
+	return []string{BoxRunToolName, BoxWriteFileToolName, BoxReadFileToolName, BoxAttachFileToolName}
+}
 
-// maxBoxOutputToModel caps each captured stream in a box_run result. The
-// sandbox keeps up to agentbox.Limits.OutputBytes; anything past this cap
-// would be cut by chatloop's head-and-tail result truncation, which would
-// corrupt the JSON object.
+// maxBoxOutputToModel caps each captured stream in a box_run result.
+// BoxOptions.ResultBudgetBytes can lower it further.
 const maxBoxOutputToModel = maxOutputToModel
 
 // GetBoxFunc returns the current turn's box, creating it on first use.
@@ -44,6 +47,10 @@ type BoxOptions struct {
 	Limits agentbox.Limits
 	// StoreFile persists box_attach_file output as a chat attachment.
 	StoreFile StoreFileFunc
+	// ResultBudgetBytes caps the marshaled box_run result. A result cut
+	// past this size is no longer valid JSON, so both streams shrink until
+	// the result fits. Zero applies only the per-stream cap.
+	ResultBudgetBytes int
 }
 
 // boxTool runs box calls in tool-call order within a step so a script sees
@@ -66,12 +73,13 @@ type BoxRunArgs struct {
 func BoxRun(options BoxOptions) fantasy.AgentTool {
 	description := "Run a program in a temporary sandbox that has no workspace, network, or package access. " +
 		"Languages: " + strings.Join(options.Languages, ", ") + ". " +
-		"JavaScript runs on QuickJS with the std and os modules available as globals; ES module imports resolve under /box. " +
+		"JavaScript runs on QuickJS with the std and os modules available as globals. " +
+		"The program itself runs from /script, so import modules staged in the box by absolute path, for example import { f } from \"/box/lib.mjs\". " +
 		"The program can read and write files under /box, which is private to the current turn and deleted when the turn ends. " +
 		"Limits: " + options.Limits.RunTimeout.String() + " per run, " +
 		byteCountString(int64(options.Limits.MemoryBytes)) + " memory, " +
 		byteCountString(options.Limits.DiskBytes) + " under /box. " +
-		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream is dropped and flagged. " +
+		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged. " +
 		"Use box_write_file to stage inputs, box_read_file to inspect outputs, and box_attach_file to hand a result file to the user."
 	return boxTool{fantasy.NewAgentTool(
 		BoxRunToolName,
@@ -94,19 +102,21 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 				Args:     args.Args,
 			})
 			if err != nil {
-				return boxErrorResponse(err), nil
+				return h.errorResponse(err), nil
 			}
 			stdout, stdoutCut := truncateBoxOutput(result.Stdout)
 			stderr, stderrCut := truncateBoxOutput(result.Stderr)
-			return h.response(map[string]any{
-				"exit_code":        result.ExitCode,
-				"stdout":           stdout,
-				"stderr":           stderr,
-				"stdout_truncated": result.StdoutTruncated || stdoutCut,
-				"stderr_truncated": result.StderrTruncated || stderrCut,
-				"timed_out":        result.TimedOut,
-				"duration_ms":      result.Duration.Milliseconds(),
-			}), nil
+			fields := h.withIdentity(map[string]any{
+				"exit_code":   result.ExitCode,
+				"timed_out":   result.TimedOut,
+				"duration_ms": result.Duration.Milliseconds(),
+			})
+			stdout, stderr, fitCut := fitStreams(fields, stdout, stderr, options.ResultBudgetBytes)
+			fields["stdout"] = stdout
+			fields["stderr"] = stderr
+			fields["stdout_truncated"] = result.StdoutTruncated || stdoutCut || fitCut[0]
+			fields["stderr_truncated"] = result.StderrTruncated || stderrCut || fitCut[1]
+			return toolResponse(fields), nil
 		},
 	)}
 }
@@ -132,7 +142,7 @@ func BoxWriteFile(options BoxOptions) fantasy.AgentTool {
 				return boxErrorResponse(err), nil
 			}
 			if err := h.box.WriteFile(args.Path, []byte(args.Content)); err != nil {
-				return boxErrorResponse(err), nil
+				return h.errorResponse(err), nil
 			}
 			return h.response(map[string]any{
 				"path":  args.Path,
@@ -172,7 +182,7 @@ func BoxReadFile(options BoxOptions) fantasy.AgentTool {
 			}
 			result, err := h.box.ReadLines(args.Path, offset, limit)
 			if err != nil {
-				return boxErrorResponse(err), nil
+				return h.errorResponse(err), nil
 			}
 			return h.response(map[string]any{
 				"content":     result.Content,
@@ -210,7 +220,7 @@ func BoxAttachFile(options BoxOptions) fantasy.AgentTool {
 			}
 			data, err := h.box.ReadFile(path, maxAttachmentSize+1)
 			if err != nil {
-				return boxErrorResponse(err), nil
+				return h.errorResponse(err), nil
 			}
 			name := strings.TrimSpace(args.Name)
 			if name == "" {
@@ -223,7 +233,7 @@ func BoxAttachFile(options BoxOptions) fantasy.AgentTool {
 			}
 			attachment, err := storeAttachmentData(ctx, options.StoreFile, name, path, data)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(err.Error()), nil
+				return h.errorResponse(err), nil
 			}
 			return WithAttachments(h.response(map[string]any{
 				"ok":         true,
@@ -255,20 +265,35 @@ func (o BoxOptions) getBox(ctx context.Context) (boxHandle, error) {
 	return boxHandle{box: box, reset: reset}, nil
 }
 
-// response adds the box identity to a successful result. box_id lets a
-// later step detect that the box changed; box_reset tells the model that
-// files from earlier in the turn are gone.
-func (h boxHandle) response(result map[string]any) fantasy.ToolResponse {
+// withIdentity adds the box identity to a result. box_id lets a later
+// step detect that the box changed; box_reset tells the model that files
+// from earlier in the turn are gone.
+func (h boxHandle) withIdentity(result map[string]any) map[string]any {
 	result["box_id"] = h.box.ID()
 	if h.reset {
 		result["box_reset"] = true
 	}
-	return toolResponse(result)
+	return result
 }
 
-// boxErrorResponse maps sandbox errors to a structured result. Capacity
-// errors are flagged so the model retries instead of giving up.
+func (h boxHandle) response(result map[string]any) fantasy.ToolResponse {
+	return toolResponse(h.withIdentity(result))
+}
+
+// errorResponse reports a failed operation on an obtained box. It carries
+// the box identity so a reset is not lost behind the error.
+func (h boxHandle) errorResponse(err error) fantasy.ToolResponse {
+	return toolResponse(h.withIdentity(boxErrorResult(err)))
+}
+
+// boxErrorResponse reports a failure to obtain a box.
 func boxErrorResponse(err error) fantasy.ToolResponse {
+	return toolResponse(boxErrorResult(err))
+}
+
+// boxErrorResult maps sandbox errors to a structured result. Capacity
+// errors are flagged so the model retries instead of giving up.
+func boxErrorResult(err error) map[string]any {
 	result := map[string]any{"error": err.Error()}
 	switch {
 	case errors.Is(err, agentbox.ErrBusy), errors.Is(err, agentbox.ErrTooManyBoxes):
@@ -277,7 +302,7 @@ func boxErrorResponse(err error) fantasy.ToolResponse {
 	case errors.Is(err, agentbox.ErrUnknownLanguage):
 		result["hint"] = "use one of the languages listed in the box_run description"
 	}
-	return toolResponse(result)
+	return result
 }
 
 func truncateBoxOutput(output string) (string, bool) {
@@ -285,6 +310,82 @@ func truncateBoxOutput(output string) (string, bool) {
 		return output, false
 	}
 	return strings.ToValidUTF8(output[:maxBoxOutputToModel], ""), true
+}
+
+// fitStreams shrinks stdout and stderr so fields marshaled with both
+// streams and their truncation flags stay within budget bytes. cut
+// reports which streams it shortened. A budget of zero or less leaves the
+// streams unchanged.
+func fitStreams(fields map[string]any, stdout, stderr string, budget int) (fitOut, fitErr string, cut [2]bool) {
+	if budget <= 0 {
+		return stdout, stderr, cut
+	}
+	outCost, errCost := jsonStringCost(stdout), jsonStringCost(stderr)
+	probe := maps.Clone(fields)
+	probe["stdout"], probe["stderr"] = stdout, stderr
+	probe["stdout_truncated"], probe["stderr_truncated"] = false, false
+	if whole, err := json.Marshal(probe); err == nil && len(whole) <= budget {
+		return stdout, stderr, cut
+	}
+	probe["stdout"], probe["stderr"] = "", ""
+	overhead, err := json.Marshal(probe)
+	if err != nil {
+		return "", "", [2]bool{stdout != "", stderr != ""}
+	}
+	avail := max(0, budget-len(overhead))
+	outBudget, errBudget := avail/2, avail-avail/2
+	switch {
+	case errCost <= errBudget:
+		outBudget, errBudget = avail-errCost, errCost
+	case outCost <= outBudget:
+		outBudget, errBudget = outCost, avail-outCost
+	}
+	if outCost > outBudget {
+		stdout, cut[0] = jsonStringPrefix(stdout, outBudget), true
+	}
+	if errCost > errBudget {
+		stderr, cut[1] = jsonStringPrefix(stderr, errBudget), true
+	}
+	return stdout, stderr, cut
+}
+
+// jsonRuneCost is an upper bound on the bytes encoding/json writes for a
+// rune inside a string, including HTML escaping.
+func jsonRuneCost(r rune, size int) int {
+	switch {
+	case r == '"', r == '\\', r == '\n', r == '\r', r == '\t':
+		return 2
+	case r == utf8.RuneError && size == 1, r < 0x20, r == '<', r == '>', r == '&', r == '\u2028', r == '\u2029':
+		return 6
+	default:
+		return size
+	}
+}
+
+// jsonStringCost bounds the encoded size of s without its quotes.
+func jsonStringCost(s string) int {
+	cost := 0
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		cost += jsonRuneCost(r, size)
+		i += size
+	}
+	return cost
+}
+
+// jsonStringPrefix returns the longest rune-aligned prefix of s whose
+// encoded size is at most budget.
+func jsonStringPrefix(s string, budget int) string {
+	cost := 0
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		cost += jsonRuneCost(r, size)
+		if cost > budget {
+			return s[:i]
+		}
+		i += size
+	}
+	return s
 }
 
 func byteCountString(n int64) string {

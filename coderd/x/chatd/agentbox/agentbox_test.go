@@ -134,6 +134,10 @@ func TestFiles(t *testing.T) {
 		result := runJS(t, box, `import { answer } from "/box/lib.mjs"; console.log(answer);`)
 		require.Equal(t, 0, result.ExitCode, result.Stderr)
 		assert.Equal(t, "42\n", result.Stdout)
+		// Relative specifiers resolve against the /script mount.
+		result = runJS(t, box, `import { answer } from "./lib.mjs"; console.log(answer);`)
+		assert.NotEqual(t, 0, result.ExitCode)
+		assert.Empty(t, result.Stdout)
 	})
 
 	t.Run("ReadLines", func(t *testing.T) {
@@ -236,6 +240,21 @@ func TestIsolation(t *testing.T) {
 		_, err := box.ReadFile("link", 100)
 		require.Error(t, err)
 		require.Error(t, box.WriteFile("link", []byte("x")))
+	})
+
+	t.Run("BoxRootProtected", func(t *testing.T) {
+		t.Parallel()
+		box := newBox(t, engine)
+		result := runJS(t, box, `
+			os.mkdir("/box/d");
+			console.log(os.remove("/box") < 0, os.rename("/box", "/box/d/x") < 0, os.rename("/box/d", "/box") < 0);
+		`)
+		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.Equal(t, "true true true\n", result.Stdout)
+		require.NoError(t, box.WriteFile("a.txt", []byte("x")))
+		result = runJS(t, box, `console.log(std.loadFile("/box/a.txt"));`)
+		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.Equal(t, "x\n", result.Stdout)
 	})
 }
 
@@ -351,6 +370,67 @@ func TestLimits(t *testing.T) {
 		require.NoError(t, box.WriteFile("a", make([]byte, 3072)))
 	})
 
+	t.Run("SparseWriteCharged", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t, agentbox.Options{Limits: agentbox.Limits{DiskBytes: 1 << 20}})
+		box := newBox(t, engine)
+		result := runJS(t, box, `
+			const fd = os.open("/box/s", os.O_RDWR | os.O_CREAT, 0o600);
+			os.seek(fd, 2 ** 40, std.SEEK_SET);
+			const sparse = os.write(fd, new Uint8Array(1).buffer, 0, 1);
+			os.close(fd);
+			os.remove("/box/s");
+			const g = os.open("/box/big", os.O_RDWR | os.O_CREAT, 0o600);
+			const big = os.write(g, new Uint8Array(2 << 20).buffer, 0, 2 << 20);
+			os.close(g);
+			console.log(sparse < 0, big < 0);
+		`)
+		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.Equal(t, "true true\n", result.Stdout)
+		require.ErrorContains(t, box.WriteFile("host.bin", make([]byte, 2<<20)), "quota")
+	})
+
+	t.Run("UnlinkWhileOpenCharged", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t, agentbox.Options{Limits: agentbox.Limits{DiskBytes: 1 << 20}})
+		box := newBox(t, engine)
+		result := runJS(t, box, `
+			const buf = new Uint8Array(900 << 10);
+			let ok = 0;
+			for (let i = 0; i < 20; i++) {
+				const p = "/box/o" + i;
+				const fd = os.open(p, os.O_RDWR | os.O_CREAT, 0o600);
+				if (os.write(fd, buf.buffer, 0, buf.length) === buf.length) ok++;
+				os.remove(p);
+			}
+			console.log(ok);
+		`)
+		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		assert.Equal(t, "1\n", result.Stdout)
+		// The run's handles closed when it ended, releasing the bytes.
+		require.NoError(t, box.WriteFile("after.bin", make([]byte, 900<<10)))
+	})
+
+	t.Run("OpenFiles", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t, agentbox.Options{})
+		box := newBox(t, engine)
+		require.NoError(t, box.WriteFile("f", nil))
+		result := runJS(t, box, `
+			let n = 0;
+			for (let i = 0; i < 100000; i++) { if (os.open("/box/f", os.O_RDONLY) < 0) break; n++; }
+			console.log(n);
+		`)
+		require.Equal(t, 0, result.ExitCode, result.Stderr)
+		opened, err := strconv.Atoi(strings.TrimSpace(result.Stdout))
+		require.NoError(t, err)
+		assert.Greater(t, opened, 200)
+		assert.Less(t, opened, 256)
+		// The limit is per run.
+		result = runJS(t, box, `console.log(os.open("/box/f", os.O_RDONLY) >= 0);`)
+		assert.Equal(t, "true\n", result.Stdout)
+	})
+
 	t.Run("MaxBoxes", func(t *testing.T) {
 		t.Parallel()
 		engine := newEngine(t, agentbox.Options{MaxBoxes: 1})
@@ -424,6 +504,48 @@ func TestLifecycle(t *testing.T) {
 		require.ErrorIs(t, box.WriteFile("x", nil), agentbox.ErrClosed)
 		_, err = box.ReadFile("x", 1)
 		require.ErrorIs(t, err, agentbox.ErrClosed)
+	})
+
+	t.Run("CloseStopsQueuedRun", func(t *testing.T) {
+		t.Parallel()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().AfterFunc("agentbox", "run-timeout")
+		defer trap.Close()
+		engine := newEngine(t, agentbox.Options{Clock: mClock})
+		box := newBox(t, engine)
+		loop := agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `for (;;) {}`}
+
+		first := make(chan error, 1)
+		go func() {
+			_, err := box.Run(context.Background(), loop)
+			first <- err
+		}()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		trap.MustWait(ctx).MustRelease(ctx)
+
+		// The second run queues behind the first. The mock clock never
+		// fires the timeout, so Close returns only if the queued run
+		// stops without executing.
+		second := make(chan error, 1)
+		go func() {
+			_, err := box.Run(context.Background(), loop)
+			second <- err
+		}()
+		require.NoError(t, box.Close())
+		require.NoError(t, testutil.RequireReceive(ctx, t, first))
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, second), agentbox.ErrClosed)
+	})
+
+	t.Run("EngineCloseWaitsForAsyncClose", func(t *testing.T) {
+		t.Parallel()
+		engine := newEngine(t, agentbox.Options{})
+		box, err := engine.NewBox()
+		require.NoError(t, err)
+		dir := filepath.Join(engine.RootDir(), box.ID())
+		box.CloseAsync()
+		require.NoError(t, engine.Close(t.Context()))
+		require.ErrorIs(t, box.WriteFile("x", nil), agentbox.ErrClosed)
+		require.NoDirExists(t, dir)
 	})
 
 	t.Run("EngineCloseRemovesRoot", func(t *testing.T) {
