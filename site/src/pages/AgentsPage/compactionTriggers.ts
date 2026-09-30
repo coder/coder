@@ -25,6 +25,13 @@ export type ResolvedCompactionThreshold = {
 	readonly pointTokens?: number;
 };
 
+export const modelCompactionTrigger = (
+	model: TypesGen.ChatModel,
+): CompactionTrigger => ({
+	thresholdPercent: model.compression_threshold,
+	contextLimit: model.context_limit,
+});
+
 export const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
 	trigger.thresholdPercent >= 0 &&
 	trigger.thresholdPercent < 100 &&
@@ -84,10 +91,7 @@ export const resolveOrganizationCompactionTrigger = (
 		return undefined;
 	}
 
-	const trigger = {
-		thresholdPercent: model.compression_threshold,
-		contextLimit: model.context_limit,
-	};
+	const trigger = modelCompactionTrigger(model);
 	if (!isCompactionTriggerEnabled(trigger)) {
 		return undefined;
 	}

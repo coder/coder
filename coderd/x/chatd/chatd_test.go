@@ -6937,8 +6937,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			}
 		})
 		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
-		model = updateChatModelCompressionThreshold(t, db, model, 1_000, thresholdPercent)
-		seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		// Usage 80: the override trigger fires at 60% of 100 = 60 tokens,
+		// while the chat threshold on the stricter limit would be 90% of 100 = 90.
+		model = updateChatModelCompressionThreshold(t, db, model, 1_000, 90)
+		overrideModel := seedOverrideModel(ctx, t, db, model, overrideModelName, "high", 100)
+		updateChatModelCompressionThreshold(t, db, overrideModel, 100, 60)
 		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
 		ctrl := gomock.NewController(t)

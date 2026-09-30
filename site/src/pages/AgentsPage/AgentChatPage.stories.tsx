@@ -969,6 +969,31 @@ const mockContextUsageMessage: TypesGen.ChatMessage = {
 	usage: { input_tokens: 50_000, context_limit: 200_000 },
 };
 
+export const CompactionHintSurvivesOverrideFetchError: Story = {
+	parameters: {
+		queries: buildQueries(MockChat, {
+			messages: [mockContextUsageMessage],
+			queued_messages: [],
+			has_more: false,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockRejectedValue(new Error("Failed to load model overrides"));
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: /Context usage 25%/ }),
+		);
+		await within(canvasElement.ownerDocument.body).findByText(
+			"Compacts at 70%",
+		);
+	},
+};
+
 export const CompactionHintSurvivesOverrideRefetchError: Story = {
 	render: function CompactionHintRefetchStory() {
 		const { refetch, isFetching } = useQuery(
