@@ -214,7 +214,7 @@ coder_pubsub_send_latency_seconds{backend=""} 0
 # HELP coder_pubsub_subscribes_total Total number of calls to Subscribe/SubscribeWithErr
 # TYPE coder_pubsub_subscribes_total counter
 coder_pubsub_subscribes_total{backend="",success=""} 0
-# HELP coder_servertailnet_agent_unreachable_total Number of connection attempts where the workspace agent did not answer before the request ended, by peer state.
+# HELP coder_servertailnet_agent_unreachable_total Number of connection attempts where the workspace agent did not answer in time. reason is no_node, no_handshake, handshake_stale (older than 180s), handshake_ok, or diagnostics_timeout.
 # TYPE coder_servertailnet_agent_unreachable_total counter
 coder_servertailnet_agent_unreachable_total{reason=""} 0
 # HELP coder_servertailnet_await_reachable_seconds Time until a workspace agent answered the first ping when a new connection was opened.

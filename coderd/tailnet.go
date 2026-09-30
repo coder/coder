@@ -18,6 +18,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/tailscale/wireguard-go/device"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
@@ -139,7 +140,7 @@ func NewServerTailnet(
 			Namespace: "coder",
 			Subsystem: "servertailnet",
 			Name:      "agent_unreachable_total",
-			Help:      "Number of connection attempts where the workspace agent did not answer before the request ended, by peer state.",
+			Help:      "Number of connection attempts where the workspace agent did not answer in time. reason is no_node, no_handshake, handshake_stale (older than 180s), handshake_ok, or diagnostics_timeout.",
 		}, []string{"reason"}),
 		awaitReachable: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coder",
@@ -507,14 +508,7 @@ func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.
 			slog.F("peer_last_handshake", d.LastWireguardHandshake),
 			slog.F("preferred_derp", d.PreferredDERP),
 		)
-		switch {
-		case d.ReceivedNode == nil:
-			reason = "no_node"
-		case d.LastWireguardHandshake.IsZero():
-			reason = "no_handshake"
-		default:
-			reason = "handshake_ok"
-		}
+		reason = unreachableReason(d, time.Now())
 		if d.ReceivedNode != nil {
 			fields = append(fields,
 				slog.F("peer_tx_bytes", d.TxBytes),
@@ -530,6 +524,22 @@ func (s *ServerTailnet) agentUnreachableError(ctx context.Context, agentID uuid.
 		rl.WithFields(fields...)
 	}
 	return &workspaceapps.AgentUnreachableError{Fields: fields}
+}
+
+// unreachableReason is the reason label for agent_unreachable_total. A
+// handshake older than WireGuard's session limit means our handshakes went
+// unanswered while we waited.
+func unreachableReason(d tailnet.PeerDiagnostics, now time.Time) string {
+	switch {
+	case d.ReceivedNode == nil:
+		return "no_node"
+	case d.LastWireguardHandshake.IsZero():
+		return "no_handshake"
+	case now.Sub(d.LastWireguardHandshake) > device.RejectAfterTime:
+		return "handshake_stale"
+	default:
+		return "handshake_ok"
+	}
 }
 
 func (s *ServerTailnet) ServeHTTPDebug(w http.ResponseWriter, r *http.Request) {
