@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useContext, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -13,7 +13,6 @@ import {
 	PopoverContent,
 } from "#/components/Popover/Popover";
 import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
-import { ChatPresentationContext } from "../ChatPresentationContext";
 
 type SkillSource = "personal" | "workspace";
 
@@ -173,7 +172,6 @@ export const SkillsTriggerMenu = ({
 	onClose,
 	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
@@ -186,7 +184,7 @@ export const SkillsTriggerMenu = ({
 			? "Loading workspace skills..."
 			: undefined,
 	].filter((item) => item !== undefined);
-	const shouldRender = isPresented && open && anchor !== null;
+	const shouldRender = open && anchor !== null;
 	const portalContainer = useMobileMenuPosition(anchor, shouldRender);
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
@@ -234,9 +232,6 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
 				portalContainer={portalContainer}
 				align="start"
 				side="top"

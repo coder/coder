@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -20,7 +20,6 @@ import {
 } from "#/components/Popover/Popover";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { belowMdViewportMediaQuery } from "#/utils/mobile";
-import { ChatPresentationContext } from "../ChatPresentationContext";
 import { composerMenuAnchor } from "../composerMenuAnchor";
 
 type CompactOrgSelectorProps = {
@@ -44,19 +43,12 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	dropdownAlign = "start",
 	composer,
 }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const [open, setOpen] = useState(false);
-	if (!isPresented && open) setOpen(false);
 	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Popover
-			open={open && isPresented}
-			onOpenChange={
-				isDisabled ? undefined : (next) => setOpen(next && isPresented)
-			}
-		>
+		<Popover open={open} onOpenChange={isDisabled ? undefined : setOpen}>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -95,20 +87,18 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
-			{isBelowMd && composer && (
-				<PopoverAnchor virtualRef={{ current: composerMenuAnchor(composer) }} />
+			{isBelowMd && composer !== undefined && (
+				<PopoverAnchor
+					virtualRef={{
+						current: composer ? composerMenuAnchor(composer) : null,
+					}}
+				/>
 			)}
 			<PopoverContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
 				side={isBelowMd && composer ? "top" : dropdownSide}
 				sideOffset={isBelowMd && composer ? 0 : 4}
 				avoidCollisions={!isBelowMd || !composer}
 				align={dropdownAlign}
-				onCloseAutoFocus={(event) => {
-					if (!isPresented) event.preventDefault();
-				}}
 				className={cn(
 					"w-64 p-0",
 					composer && "max-md:w-(--radix-popper-anchor-width)",

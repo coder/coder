@@ -13,7 +13,6 @@ import {
 } from "#/components/Command/Command";
 import {
 	Popover,
-	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
@@ -23,12 +22,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
 import { formatReasoningEffort } from "#/modules/aiModels/helpers";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel as defaultFormatProviderLabel } from "#/utils/aiProviders";
-import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 export type ModelSelectorOption = {
 	id: string;
@@ -69,8 +66,6 @@ type ModelSelectorProps = {
 	onTriggerTouchStart?: () => void;
 	/** Docks the mobile picker to this composer instead of its trigger. */
 	mobileAnchor?: HTMLElement | null;
-	/** Hidden panes dismiss their picker without restoring focus into the pane. */
-	isPresented?: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 };
@@ -116,26 +111,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	contentClassName,
 	onTriggerTouchStart,
 	mobileAnchor,
-	isPresented = true,
 	reasoningEffort,
 	onReasoningEffortChange,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
-	const portalContainer = useMobileMenuPosition(
-		mobileAnchor,
-		open && isPresented,
-	);
-	if (!isPresented && open) {
-		setOpen(false);
-		setSearch("");
-	}
+	const portalContainer = useMobileMenuPosition(mobileAnchor, open);
+
 	const handleOpenChange = (nextOpen: boolean) => {
 		if (!nextOpen) {
 			setSearch("");
 		}
-		setOpen(nextOpen && isPresented);
+		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
 	const triggerLabel = selectedModel?.displayName ?? placeholder;
@@ -166,7 +153,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	})();
 
 	return (
-		<Popover open={open && isPresented} onOpenChange={handleOpenChange}>
+		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
 					aria-label={
@@ -205,13 +192,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					<ChevronDownIcon open={open} />
 				</Button>
 			</PopoverTrigger>
-			{isBelowMd && mobileAnchor && (
-				<PopoverAnchor virtualRef={{ current: mobileAnchor }} />
-			)}
 			<PopoverContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
 				portalContainer={portalContainer}
 				side={dropdownSide}
 				align={dropdownAlign}
@@ -220,9 +201,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					"w-72 overflow-hidden border-border-default p-0",
 					contentClassName,
 				)}
-				onCloseAutoFocus={(event) => {
-					if (!isPresented) event.preventDefault();
-				}}
 				onOpenAutoFocus={(event) => {
 					// On touch devices, auto-focusing the search input pops the
 					// software keyboard as soon as the picker opens, hiding the

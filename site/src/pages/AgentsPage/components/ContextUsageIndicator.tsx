@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useContext, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -33,7 +33,6 @@ import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { formatKiB } from "#/utils/fileSize";
 import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
-import { ChatPresentationContext } from "./ChatPresentationContext";
 import { composerMenuAnchor } from "./composerMenuAnchor";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -231,13 +230,9 @@ export const ContextUsageIndicator: React.FC<{
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
 }> = ({ usage, composer, onRefreshContext, isRefreshingContext }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const [open, setOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-	if (!isPresented && open) {
-		setOpen(false);
-	}
 
 	const cancelClose = () => {
 		if (closeTimerRef.current) {
@@ -256,7 +251,7 @@ export const ContextUsageIndicator: React.FC<{
 
 	const handleMouseEnter = () => {
 		cancelClose();
-		setOpen(isPresented);
+		setOpen(true);
 	};
 
 	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
@@ -667,29 +662,20 @@ export const ContextUsageIndicator: React.FC<{
 	// nested tooltips to the right.
 	if (isMobile) {
 		return (
-			<Popover
-				open={open && isPresented}
-				onOpenChange={(next) => setOpen(next && isPresented)}
-			>
+			<Popover>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
-				{composer && (
+				{composer !== undefined && (
 					<PopoverAnchor
-						virtualRef={{ current: composerMenuAnchor(composer) }}
+						virtualRef={{
+							current: composer ? composerMenuAnchor(composer) : null,
+						}}
 					/>
 				)}
 				<PopoverContent
-					style={
-						isPresented
-							? undefined
-							: { animation: "none", visibility: "hidden" }
-					}
 					side="top"
 					sideOffset={composer ? 0 : 4}
 					align="start"
 					avoidCollisions={!composer}
-					onCloseAutoFocus={(event) => {
-						if (!isPresented) event.preventDefault();
-					}}
 					className={cn(
 						"w-auto max-w-72 px-3 py-2",
 						composer &&
@@ -703,10 +689,7 @@ export const ContextUsageIndicator: React.FC<{
 	}
 
 	return (
-		<Popover
-			open={open && isPresented}
-			onOpenChange={(next) => setOpen(next && isPresented)}
-		>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<div
 					className="flex"
@@ -717,13 +700,7 @@ export const ContextUsageIndicator: React.FC<{
 				</div>
 			</PopoverTrigger>
 			<PopoverContent
-				style={
-					isPresented ? undefined : { animation: "none", visibility: "hidden" }
-				}
 				side="top"
-				onCloseAutoFocus={(event) => {
-					if (!isPresented) event.preventDefault();
-				}}
 				className="w-auto max-w-72 px-3 py-2"
 				onMouseEnter={cancelClose}
 				onMouseLeave={scheduleClose}

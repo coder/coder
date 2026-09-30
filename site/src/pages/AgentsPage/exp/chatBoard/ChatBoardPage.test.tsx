@@ -136,6 +136,7 @@ describe("ChatBoardPage", () => {
 				],
 			}),
 		);
+
 		const writes = vi.spyOn(Storage.prototype, "setItem");
 		renderWithAuth(<ChatBoardPage />);
 		const input = await screen.findByRole("textbox", {
@@ -143,7 +144,9 @@ describe("ChatBoardPage", () => {
 		});
 		await user.click(input);
 		writes.mockClear();
+
 		await user.type(input, "Inspect this chat");
+
 		expect(
 			writes.mock.calls.filter(([key]) => key.startsWith("agents.board.")),
 		).toHaveLength(0);
@@ -428,9 +431,13 @@ describe("ChatBoardPage", () => {
 		titleBar.focus();
 
 		const consumeEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") event.preventDefault();
+			if (event.key === "Escape") {
+				event.preventDefault();
+			}
 		};
+
 		document.addEventListener("keydown", consumeEscape, { capture: true });
+
 		try {
 			await user.keyboard("{Escape}");
 			expect(storedWindows()).toEqual([

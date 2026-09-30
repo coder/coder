@@ -4,7 +4,7 @@ import {
 	Share2Icon,
 	UserPlusIcon,
 } from "lucide-react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -46,7 +46,6 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
-import { ChatPresentationContext } from "./ChatPresentationContext";
 
 type ChatShareButtonProps = {
 	chatId: string;
@@ -206,7 +205,6 @@ const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 export const ChatSharingPopoverContent: React.FC<
 	ChatSharingPopoverContentProps
 > = ({ chatId, organizationId, open }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const { user: currentUser } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
@@ -314,12 +312,6 @@ export const ChatSharingPopoverContent: React.FC<
 
 	return (
 		<PopoverContent
-			style={
-				isPresented ? undefined : { animation: "none", visibility: "hidden" }
-			}
-			onCloseAutoFocus={(event) => {
-				if (!isPresented) event.preventDefault();
-			}}
 			align="end"
 			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
 		>

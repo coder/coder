@@ -388,6 +388,7 @@ export const EmptyPorts: Story = {
 const mobilePortsStoryConfig = {
 	render: function MobileWorkspaceMenu(args) {
 		const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+
 		return (
 			<div
 				ref={setComposer}

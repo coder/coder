@@ -502,6 +502,7 @@ export const MobileEffortRow: Story = {
 	},
 	render: function MobileModelPicker(args) {
 		const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
+
 		return (
 			<div
 				ref={setAnchor}

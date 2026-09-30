@@ -26,7 +26,6 @@ import {
 	PASTE_COMMAND,
 } from "lexical";
 import {
-	useContext,
 	useEffect,
 	useImperativeHandle,
 	useLayoutEffect,
@@ -45,7 +44,6 @@ import {
 	isPersonalSkillTriggerToken,
 } from "../../utils/personalSkills";
 import type { ChatSlashCommand } from "../../utils/slashCommands";
-import { ChatPresentationContext } from "../ChatPresentationContext";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -647,7 +645,6 @@ const ChatMessageInput = ({
 	ref,
 	...props
 }: ChatMessageInputProps & { ref?: React.Ref<ChatMessageInputRef> }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const initialConfig = {
 		namespace: "ChatMessageInput",
 		theme: {
@@ -673,21 +670,7 @@ const ChatMessageInput = ({
 		useState<HTMLDivElement | null>(null);
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
-	const [autoFocusMount, setAutoFocusMount] = useState({
-		remountKey,
-		enabled: Boolean(autoFocus && isPresented),
-	});
-	if (autoFocusMount.remountKey !== remountKey) {
-		setAutoFocusMount({
-			remountKey,
-			enabled: Boolean(autoFocus && isPresented),
-		});
-	}
-	if (!isPresented && skillsTrigger) {
-		setSkillsTrigger(null);
-		setSkillsMenuSelectedIndex(0);
-	}
-	const hasSkillsTrigger = isPresented && Boolean(skillsTrigger);
+	const hasSkillsTrigger = Boolean(skillsTrigger);
 	const hasPersonalSkillsOverride = personalSkillsOverride !== undefined;
 	const personalSkillsQueryEnabled =
 		hasSkillsTrigger && !hasPersonalSkillsOverride;
@@ -775,7 +758,6 @@ const ChatMessageInput = ({
 			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
-		if (!isPresented) return;
 		if (
 			trigger &&
 			isSameSkillsTriggerLocation(trigger, suppressedSkillsTriggerRef.current)
@@ -892,7 +874,7 @@ const ChatMessageInput = ({
 			},
 			focus: () => {
 				const editor = editorRef.current;
-				if (!editor || !isPresented) return;
+				if (!editor) return;
 				editor.focus(() => {
 					editor.update(() => {
 						const root = $getRoot();
@@ -993,7 +975,7 @@ const ChatMessageInput = ({
 				return parts as EditorContentPart[];
 			},
 		}),
-		[isPresented],
+		[],
 	);
 
 	return (
@@ -1061,7 +1043,7 @@ const ChatMessageInput = ({
 				{onFilePaste && acceptFilePasteWhileDisabled && (
 					<LockedFilePastePlugin onFilePaste={onFilePaste} />
 				)}
-				{autoFocusMount.enabled && <AutoFocusPlugin />}
+				{autoFocus && <AutoFocusPlugin />}
 				<SkillsTriggerMenu
 					open={skillsMenuOpen}
 					anchor={skillsMenuAnchor ?? containerElement}

@@ -9,7 +9,7 @@ import {
 	Share2Icon,
 	UsersIcon,
 } from "lucide-react";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation, useOutletContext } from "react-router";
 import { checkAuthorization } from "#/api/queries/authCheck";
@@ -34,7 +34,6 @@ import {
 	chatHasMenuActions,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
-import { ChatPresentationContext } from "./ChatPresentationContext";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
@@ -59,9 +58,7 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 	chatId,
 	organizationId,
 }) => {
-	const isPresented = useContext(ChatPresentationContext);
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
-	if (!isPresented && isChatSharingOpen) setIsChatSharingOpen(false);
 	const [contentGeneration, setContentGeneration] = useState(0);
 
 	const handleOpenChange = (nextOpen: boolean) => {
@@ -69,14 +66,11 @@ const ChatSharingTopBarButton: React.FC<ChatSharingTopBarButtonProps> = ({
 			setContentGeneration((generation) => generation + 1);
 		}
 
-		setIsChatSharingOpen(nextOpen && isPresented);
+		setIsChatSharingOpen(nextOpen);
 	};
 
 	return (
-		<Popover
-			open={isChatSharingOpen && isPresented}
-			onOpenChange={handleOpenChange}
-		>
+		<Popover open={isChatSharingOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="subtle"
@@ -102,9 +96,6 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	liveChatStatus,
 	panel,
 }) => {
-	const isPresented = useContext(ChatPresentationContext);
-	const [actionsOpen, setActionsOpen] = useState(false);
-	if (!isPresented && actionsOpen) setActionsOpen(false);
 	const { isEmbedded } = useEmbedContext();
 	const { user: currentUser } = useAuthenticated();
 	const location = useLocation();
@@ -253,10 +244,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 				)}
 				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
 				{chat && showActionsMenu && (
-					<DropdownMenu
-						open={actionsOpen && isPresented}
-						onOpenChange={(next) => setActionsOpen(next && isPresented)}
-					>
+					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
 								size="icon"
@@ -268,16 +256,8 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
-							style={
-								isPresented
-									? undefined
-									: { animation: "none", visibility: "hidden" }
-							}
 							align="start"
 							collisionPadding={16}
-							onCloseAutoFocus={(event) => {
-								if (!isPresented) event.preventDefault();
-							}}
 							className="max-md:w-[calc(100vw-2rem)] [&_[role=menuitem]]:text-[13px]"
 						>
 							<ChatActionsMenuItems

@@ -115,8 +115,10 @@ export const minimizeWindow = (
 /** Raises the window for `key`, pinning a preview; a key without a window is left alone. */
 export const raise = (list: readonly ChatWindow[], key: string) => {
 	const win = list.find((w) => windowKey(w) === key);
-	if (!win || (win === list.at(-1) && win.pinned && !win.minimized))
+	if (!win || (win === list.at(-1) && win.pinned && !win.minimized)) {
 		return list;
+	}
+
 	return toFront(list, win);
 };
 
