@@ -25,11 +25,26 @@ func TestHasGeneratedBanner(t *testing.T) {
 		{"LaterInBody", "# Title\n\n" + banner + "\n", false},
 		{"UnclosedFrontMatter", "---\ntitle: x\n" + banner + "\n", false},
 		{"Empty", "", false},
+		// The preamble the API generator writes, so a layout change there
+		// fails here.
+		{"GeneratedHeader", docgenenv.GeneratedHeader(docgenenv.Route{Title: "x", Description: "y"}) + "Body\n", true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, hasGeneratedBanner([]byte(tt.page)))
+			require.Equal(t, tt.want, bodyOpensWithContentBanner([]byte(tt.page)))
 		})
+	}
+
+	// Committed generator output, so a layout change in the CLI template,
+	// which builds its preamble inline, fails here after make gen.
+	for _, page := range []string{
+		"../../docs/reference/cli/index.md",
+		"../../docs/reference/api/index.md",
+		"../../docs/admin/setup/configuration-reference.md",
+	} {
+		b, err := os.ReadFile(page)
+		require.NoError(t, err)
+		require.True(t, bodyOpensWithContentBanner(b), page)
 	}
 }
 
