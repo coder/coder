@@ -11,7 +11,6 @@ import { DetailedError, isApiValidationError } from "#/api/errors";
 import type {
 	CreateWorkspaceRequest,
 	ProvisionerLogLevel,
-	UsageAppName,
 	Workspace,
 	WorkspaceACL,
 	WorkspaceAgent,
@@ -537,7 +536,6 @@ export const agentListeningPorts = (agentId: string) => {
 
 // workspace usage options
 type WorkspaceUsageOptions = {
-	usageApp: UsageAppName;
 	connectionStatus: ConnectionStatus;
 	workspaceId: string | undefined;
 	agentId: string | undefined;
@@ -551,7 +549,6 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 			"agents",
 			options.agentId,
 			"usage",
-			options.usageApp,
 		],
 		enabled:
 			options.workspaceId !== undefined &&
@@ -562,10 +559,7 @@ export const workspaceUsage = (options: WorkspaceUsageOptions) => {
 				return Promise.reject();
 			}
 
-			return API.postWorkspaceUsage(options.workspaceId, {
-				agent_id: options.agentId,
-				app_name: options.usageApp,
-			});
+			return API.postWorkspaceUsage(options.workspaceId);
 		},
 		// ...disabledRefetchOptions,
 		refetchInterval: 60000,

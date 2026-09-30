@@ -715,7 +715,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 							SessionCountJetbrains:       stat.sessionCountJetBrains,
 							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
 							SessionCountSsh:             stat.sessionCountSSH,
-						}, false)
+						})
 						createdAt = createdAt.Add(30 * time.Second)
 					}
 				}
@@ -1626,7 +1626,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 							SessionCountJetbrains:       stat.sessionCountJetBrains,
 							SessionCountReconnectingPty: stat.sessionCountReconnectingPTY,
 							SessionCountSsh:             stat.sessionCountSSH,
-						}, false)
+						})
 						createdAt = createdAt.Add(30 * time.Second)
 					}
 				}

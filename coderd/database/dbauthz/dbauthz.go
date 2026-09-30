@@ -3903,10 +3903,6 @@ func (q *querier) GetDeploymentWorkspaceAgentStats(ctx context.Context, createdA
 	return q.db.GetDeploymentWorkspaceAgentStats(ctx, createdAt)
 }
 
-func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
-	return q.db.GetDeploymentWorkspaceAgentUsageStats(ctx, createdAt)
-}
-
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
@@ -5642,14 +5638,6 @@ func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAt time.Tim
 
 func (q *querier) GetWorkspaceAgentStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentStatsAndLabelsRow, error) {
 	return q.db.GetWorkspaceAgentStatsAndLabels(ctx, createdAt)
-}
-
-func (q *querier) GetWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
-	return q.db.GetWorkspaceAgentUsageStats(ctx, createdAt)
-}
-
-func (q *querier) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, createdAt time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
-	return q.db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAt)
 }
 
 func (q *querier) GetWorkspaceAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.WorkspaceAgent, error) {

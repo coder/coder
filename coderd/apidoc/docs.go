@@ -16849,9 +16849,6 @@ const docTemplate = `{
         },
         "/api/v2/workspaces/{workspace}/usage": {
             "post": {
-                "consumes": [
-                    "application/json"
-                ],
                 "tags": [
                     "Workspaces"
                 ],
@@ -16865,14 +16862,6 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "description": "Post workspace usage request",
-                        "name": "request",
-                        "in": "body",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PostWorkspaceUsageRequest"
-                        }
                     }
                 ],
                 "responses": {
@@ -23995,7 +23984,6 @@ const docTemplate = `{
                 "example",
                 "auto-fill-parameters",
                 "notifications",
-                "workspace-usage",
                 "mcp-server-http",
                 "mcp-tool-search",
                 "workspace-build-updates",
@@ -24028,14 +24016,12 @@ const docTemplate = `{
                 "ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
-                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
-                "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
+                "ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit."
             },
             "x-enum-descriptions": [
                 "This isn't used for anything.",
                 "This should not be taken out of experiments until we have redesigned the feature.",
                 "Sends notifications via SMTP and webhooks following certain events.",
-                "Enables the new workspace usage tracking.",
                 "Enables the MCP HTTP server functionality.",
                 "Defers MCP tool schemas behind a searchable catalog in agent chats.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -24055,7 +24041,6 @@ const docTemplate = `{
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
                 "ExperimentNotifications",
-                "ExperimentWorkspaceUsage",
                 "ExperimentMCPServerHTTP",
                 "ExperimentMCPToolSearch",
                 "ExperimentWorkspaceBuildUpdates",
@@ -27166,19 +27151,6 @@ const docTemplate = `{
                 },
                 "scope": {
                     "description": "Scope is the space-separated list of scopes this app's tokens may be\ngranted. Leave empty, or omit, for unrestricted.",
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.PostWorkspaceUsageRequest": {
-            "type": "object",
-            "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "app_name": {
-                    "description": "AppName is any name for the app reporting usage. The server normalizes\nit at ingestion, so a new app needs no server change. The UsageAppName\nconstants are the well-known names.",
                     "type": "string"
                 }
             }

@@ -1705,7 +1705,6 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		TxBytes:                   []int64{takeFirst(orig.TxBytes, 0)},
 		SessionCounts:             json.RawMessage(fmt.Sprintf("[%s]", jsonCounts)),
 		ConnectionMedianLatencyMS: []float64{takeFirst(orig.ConnectionMedianLatencyMS, 0)},
-		Usage:                     []bool{takeFirst(orig.Usage, false)},
 	}
 	err := db.InsertWorkspaceAgentStats(genCtx, params)
 	require.NoError(t, err, "insert workspace agent stat")
@@ -1724,7 +1723,6 @@ func WorkspaceAgentStat(t testing.TB, db database.Store, orig database.Workspace
 		TxPackets:                 params.TxPackets[0],
 		TxBytes:                   params.TxBytes[0],
 		ConnectionMedianLatencyMS: params.ConnectionMedianLatencyMS[0],
-		Usage:                     params.Usage[0],
 		SessionCounts:             jsonCounts,
 	}
 }

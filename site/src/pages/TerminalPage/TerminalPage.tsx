@@ -89,7 +89,6 @@ const TerminalPage: React.FC = () => {
 	// Periodically report workspace usage.
 	useQuery(
 		workspaceUsage({
-			usageApp: "reconnecting-pty",
 			connectionStatus,
 			workspaceId: workspace.data?.id,
 			agentId: workspaceAgent?.id,

@@ -9252,9 +9252,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                      |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-board`, `chat-inline-mcp-servers`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                   |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-board`, `chat-inline-mcp-servers`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `mcp-tool-search`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing` |
 
 ## codersdk.ExperimentRule
 
@@ -12661,22 +12661,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`          | string          | true     |              |                                                                                                                                                                  |
 | `redirect_uris` | array of string | false    |              | Redirect uris is the ordered list of URIs the app may redirect to. The first entry is the primary. Required, unless the deprecated callback_url is sent instead. |
 | `scope`         | string          | false    |              | Scope is the space-separated list of scopes this app's tokens may be granted. Leave empty, or omit, for unrestricted.                                            |
-
-## codersdk.PostWorkspaceUsageRequest
-
-```json
-{
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "app_name": "string"
-}
-```
-
-### Properties
-
-| Name       | Type   | Required | Restrictions | Description                                                                                                                                                                        |
-|------------|--------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id` | string | false    |              |                                                                                                                                                                                    |
-| `app_name` | string | false    |              | App name is any name for the app reporting usage. The server normalizes it at ingestion, so a new app needs no server change. The UsageAppName constants are the well-known names. |
 
 ## codersdk.PprofConfig
 

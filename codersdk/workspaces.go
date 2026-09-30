@@ -387,42 +387,7 @@ func (c *Client) PutExtendWorkspace(ctx context.Context, id uuid.UUID, req PutEx
 	return nil
 }
 
-type PostWorkspaceUsageRequest struct {
-	AgentID uuid.UUID `json:"agent_id" format:"uuid"`
-	// AppName is any name for the app reporting usage. The server normalizes
-	// it at ingestion, so a new app needs no server change. The UsageAppName
-	// constants are the well-known names.
-	AppName string `json:"app_name"`
-}
-
-type UsageAppName string
-
-// Well-known usage app names. The values are wire format and cannot change.
-// UsageAppNameReconnectingPty keeps its hyphen, which the server folds to the
-// canonical reconnecting_pty.
-const (
-	UsageAppNameVscode          UsageAppName = "vscode"
-	UsageAppNameJetbrains       UsageAppName = "jetbrains"
-	UsageAppNameReconnectingPty UsageAppName = "reconnecting-pty"
-	UsageAppNameSSH             UsageAppName = "ssh"
-)
-
-// PostWorkspaceUsage marks the workspace as having been used recently and records an app stat.
-func (c *Client) PostWorkspaceUsageWithBody(ctx context.Context, id uuid.UUID, req PostWorkspaceUsageRequest) error {
-	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
-	res, err := c.Request(ctx, http.MethodPost, path, req)
-	if err != nil {
-		return xerrors.Errorf("post workspace usage: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
 // PostWorkspaceUsage marks the workspace as having been used recently.
-// Deprecated: use PostWorkspaceUsageWithBody instead
 func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	path := fmt.Sprintf("/api/v2/workspaces/%s/usage", id.String())
 	res, err := c.Request(ctx, http.MethodPost, path, nil)
@@ -436,47 +401,10 @@ func (c *Client) PostWorkspaceUsage(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// UpdateWorkspaceUsageWithBodyContext periodically posts workspace usage for the workspace
-// with the given id and app name in the background.
-// The caller is responsible for calling the returned function to stop the background
-// process.
-func (c *Client) UpdateWorkspaceUsageWithBodyContext(ctx context.Context, workspaceID uuid.UUID, req PostWorkspaceUsageRequest) func() {
-	hbCtx, hbCancel := context.WithCancel(ctx)
-	// Perform one initial update
-	err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
-	if err != nil {
-		c.logger.Warn(ctx, "failed to post workspace usage", slog.Error(err))
-	}
-	ticker := time.NewTicker(time.Minute)
-	doneCh := make(chan struct{})
-	go func() {
-		defer func() {
-			ticker.Stop()
-			close(doneCh)
-		}()
-		for {
-			select {
-			case <-ticker.C:
-				err := c.PostWorkspaceUsageWithBody(hbCtx, workspaceID, req)
-				if err != nil {
-					c.logger.Warn(ctx, "failed to post workspace usage in background", slog.Error(err))
-				}
-			case <-hbCtx.Done():
-				return
-			}
-		}
-	}()
-	return func() {
-		hbCancel()
-		<-doneCh
-	}
-}
-
 // UpdateWorkspaceUsageContext periodically posts workspace usage for the workspace
 // with the given id in the background.
 // The caller is responsible for calling the returned function to stop the background
 // process.
-// Deprecated: use UpdateWorkspaceUsageContextWithBody instead
 func (c *Client) UpdateWorkspaceUsageContext(ctx context.Context, workspaceID uuid.UUID) func() {
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	// Perform one initial update

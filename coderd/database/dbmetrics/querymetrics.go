@@ -2056,14 +2056,6 @@ func (m queryMetricsStore) GetDeploymentWorkspaceAgentStats(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, arg time.Time) (database.GetDeploymentWorkspaceAgentUsageStatsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetDeploymentWorkspaceAgentUsageStats(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceAgentUsageStats").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDeploymentWorkspaceStats(ctx)
@@ -3677,22 +3669,6 @@ func (m queryMetricsStore) GetWorkspaceAgentStatsAndLabels(ctx context.Context, 
 	r0, r1 := m.s.GetWorkspaceAgentStatsAndLabels(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentStatsAndLabels").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentStatsAndLabels").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentUsageStats(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentUsageStatsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentUsageStats(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStats").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentUsageStats").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetWorkspaceAgentUsageStatsAndLabels(ctx context.Context, arg time.Time) ([]database.GetWorkspaceAgentUsageStatsAndLabelsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentUsageStatsAndLabels(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceAgentUsageStatsAndLabels").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAgentUsageStatsAndLabels").Inc()
 	return r0, r1
 }
 

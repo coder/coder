@@ -41,7 +41,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
-	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -50,7 +49,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -1626,125 +1624,6 @@ func TestSSH(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, ents, 1, "expected one file in logdir %s", logDir)
 	})
-	t.Run("UpdateUsage", func(t *testing.T) {
-		t.Parallel()
-
-		type testCase struct {
-			name           string
-			experiment     bool
-			usageAppName   string
-			expectedCalls  int
-			expectedCounts map[string]int64
-		}
-		tcs := []testCase{
-			{
-				name: "NoExperiment",
-			},
-			{
-				name:           "Empty",
-				experiment:     true,
-				expectedCalls:  1,
-				expectedCounts: map[string]int64{"ssh": 1},
-			},
-			{
-				name:           "SSH",
-				experiment:     true,
-				usageAppName:   "ssh",
-				expectedCalls:  1,
-				expectedCounts: map[string]int64{"ssh": 1},
-			},
-			{
-				name:           "Jetbrains",
-				experiment:     true,
-				usageAppName:   "jetbrains",
-				expectedCalls:  1,
-				expectedCounts: map[string]int64{"jetbrains": 1},
-			},
-			{
-				name:           "Vscode",
-				experiment:     true,
-				usageAppName:   "vscode",
-				expectedCalls:  1,
-				expectedCounts: map[string]int64{"vscode": 1},
-			},
-			{
-				// Arbitrary app names are accepted, normalized by the server
-				// at ingestion, so new IDEs need no CLI changes.
-				name:           "ArbitraryNamePassthrough",
-				experiment:     true,
-				usageAppName:   "Some-Future-IDE",
-				expectedCalls:  1,
-				expectedCounts: map[string]int64{"some_future_ide": 1},
-			},
-			{
-				name:         "Disable",
-				experiment:   true,
-				usageAppName: "disable",
-			},
-		}
-
-		for _, tc := range tcs {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				logger := testutil.Logger(t)
-				dv := coderdtest.DeploymentValues(t)
-				if tc.experiment {
-					dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-				}
-				batcher := &workspacestatstest.StatsBatcher{
-					LastStats: &agentproto.Stats{},
-				}
-				admin, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-					DeploymentValues: dv,
-					StatsBatcher:     batcher,
-				})
-				admin.SetLogger(testutil.Logger(t).Named("client"))
-				first := coderdtest.CreateFirstUser(t, admin)
-				client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-				r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-					OrganizationID: first.OrganizationID,
-					OwnerID:        user.ID,
-				}).WithAgent().Do()
-				workspace := r.Workspace
-				agentToken := r.AgentToken
-				inv, root := clitest.New(t, "ssh", workspace.Name, fmt.Sprintf("--usage-app=%s", tc.usageAppName))
-				clitest.SetupConfig(t, client, root)
-				stdout := expecter.NewAttachedToInvocation(t, inv)
-				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
-
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-				defer cancel()
-
-				cmdDone := tGo(t, func() {
-					err := inv.WithContext(ctx).Run()
-					assert.NoError(t, err)
-				})
-				stdout.ExpectMatch(ctx, "Waiting")
-
-				_ = agenttest.New(t, client.URL, agentToken)
-				coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-				// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
-				stdin.WriteLine("exit")
-				<-cmdDone
-
-				// The agent may still be reporting stats concurrently, so
-				// the batcher fields are only safe to read under its mutex.
-				batcher.Mu.Lock()
-				called := batcher.Called
-				sessionCounts := batcher.LastStats.GetSessionCounts()
-				batcher.Mu.Unlock()
-				require.EqualValues(t, tc.expectedCalls, called)
-				if len(tc.expectedCounts) == 0 {
-					require.Empty(t, sessionCounts)
-				} else {
-					require.EqualValues(t, tc.expectedCounts, sessionCounts)
-				}
-			})
-		}
-	})
-
 	t.Run("SSHHost", func(t *testing.T) {
 		t.Parallel()
 

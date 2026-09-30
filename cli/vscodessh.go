@@ -176,10 +176,7 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 
 			agentConn.AwaitReachable(ctx)
 
-			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
-				AgentID: workspaceAgent.ID,
-				AppName: string(codersdk.UsageAppNameVscode),
-			})
+			closeUsage := client.UpdateWorkspaceUsageContext(ctx, workspace.ID)
 			defer closeUsage()
 
 			rawSSH, err := agentConn.SSH(ctx)

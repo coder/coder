@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspacestats"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type StatsAPI struct {
@@ -24,7 +23,6 @@ type StatsAPI struct {
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
 	AgentStatsRefreshInterval time.Duration
-	Experiments               codersdk.Experiments
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -66,13 +64,6 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		slog.F("connections_by_proto_keys", len(req.Stats.GetConnectionsByProto())),
 	)
 
-	if a.Experiments.Enabled(codersdk.ExperimentWorkspaceUsage) {
-		// while the experiment is enabled we will not report
-		// session stats from the agent. This is because it is
-		// being handled by the CLI and the postWorkspaceUsage route.
-		workspacestats.ClearSessionCounts(req.Stats)
-	}
-
 	err := a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
@@ -80,7 +71,6 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		a.AgentID,
 		a.AgentName,
 		req.Stats,
-		false,
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("report agent stats: %w", err)

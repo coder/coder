@@ -32,7 +32,6 @@ import type {
 	AdvisorConfig,
 	DeleteExternalAuthByIDResponse,
 	DynamicParametersRequest,
-	PostWorkspaceUsageRequest,
 	UpdateAdvisorConfigRequest,
 	UsersRequest,
 } from "./typesGenerated";
@@ -2889,13 +2888,9 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 	};
 
-	postWorkspaceUsage = async (
-		workspaceID: string,
-		options: PostWorkspaceUsageRequest,
-	) => {
+	postWorkspaceUsage = async (workspaceID: string) => {
 		const response = await this.axios.post(
 			`/api/v2/workspaces/${workspaceID}/usage`,
-			options,
 		);
 
 		return response.data;

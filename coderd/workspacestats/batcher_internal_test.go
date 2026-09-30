@@ -71,10 +71,10 @@ func TestBatchStats(t *testing.T) {
 	t.Log("inserting 2 stats")
 	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
 		s.SessionCounts = map[string]int64{"VSCode": 3, "ssh": 1, "idle-ide": 0}
-	}), false)
+	}))
 	b.Add(t2.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t, func(s *agentproto.Stats) {
 		s.SessionCounts = map[string]int64{"jetbrains": 4, "reconnecting-pty": 2}
-	}), false)
+	}))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -108,9 +108,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.Template.ID, deps1.User.ID, deps1.Workspace.ID, randStats(t))
 			} else {
-				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t), false)
+				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.Template.ID, deps2.User.ID, deps2.Workspace.ID, randStats(t))
 			}
 		}
 	}()
@@ -180,7 +180,7 @@ func TestBatchStatsSessionCountFold(t *testing.T) {
 			s.SessionCounts[fmt.Sprintf("app_%d", i)] = 1
 		}
 	})
-	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st, false)
+	b.Add(dbtime.Now(), deps.Agent.ID, deps.Template.ID, deps.User.ID, deps.Workspace.ID, st)
 
 	overcap := sink.Entries(func(e slog.SinkEntry) bool {
 		return strings.Contains(e.Message, "too many distinct session types")

@@ -31,7 +31,6 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wspubsub"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -130,7 +129,6 @@ type Options struct {
 	DisableUserSecretFilePath bool
 	DerpMapUpdateFrequency    time.Duration
 	ExternalAuthConfigs       []*externalauth.Config
-	Experiments               codersdk.Experiments
 
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
@@ -196,7 +194,6 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
 		AgentStatsRefreshInterval: opts.AgentStatsRefreshInterval,
-		Experiments:               opts.Experiments,
 	}
 
 	api.LifecycleAPI = &LifecycleAPI{

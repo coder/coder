@@ -45,7 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -4912,207 +4912,35 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 
 func TestWorkspaceUsageTracking(t *testing.T) {
 	t.Parallel()
-	t.Run("NoExperiment", func(t *testing.T) {
-		t.Parallel()
-		client, db := coderdtest.NewWithDatabase(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		tmpDir := t.TempDir()
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			agents[0].Directory = tmpDir
-			return agents
-		}).Do()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-
-		// continue legacy behavior
-		err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
-		require.NoError(t, err)
-	})
-	t.Run("Experiment", func(t *testing.T) {
-		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			DeploymentValues: dv,
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		tmpDir := t.TempDir()
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.UserID,
-			OrganizationID: org.ID,
-		})
-		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.UserID,
-		})
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
-			ActiveVersionID: templateVersion.ID,
-			CreatedBy:       user.UserID,
-			DefaultTTL:      int64(8 * time.Hour),
-		})
-		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ActivityBumpMillis: ptr.Ref(8 * time.Hour.Milliseconds()),
-		})
-		require.NoError(t, err)
-		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: user.OrganizationID,
-			OwnerID:        user.UserID,
-			TemplateID:     template.ID,
-			Ttl:            sql.NullInt64{Valid: true, Int64: int64(8 * time.Hour)},
-		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
-			agents[0].Directory = tmpDir
-			return agents
-		}).Do()
-
-		// continue legacy behavior
-		err = client.PostWorkspaceUsage(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{})
-		require.NoError(t, err)
-
-		workspace, err := client.Workspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-
-		// only agent id fails
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-		})
-		require.ErrorContains(t, err, "agent_id")
-		// only app name fails
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AppName: "ssh",
-		})
-		require.ErrorContains(t, err, "app_name")
-		// unknown app names are accepted
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "SomeFutureIDE",
-		})
-		require.NoError(t, err)
-
-		// an app name of only whitespace or control characters, at any
-		// length, reads as an absent app name: the usage bump still happens
-		// and no session is counted
-		for _, appName := range []string{"   ", strings.Repeat(" ", 300), "\x00", "\x1b\x07", " \x1b \t"} {
-			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-				AppName: appName,
-			})
-			require.NoError(t, err)
-
-			// with an agent set, those names fail like an empty one
-			err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-				AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-				AppName: appName,
-			})
-			require.ErrorContains(t, err, "app_name")
-		}
-
-		// vscode works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "vscode",
-		})
-		require.NoError(t, err)
-		// jetbrains works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "jetbrains",
-		})
-		require.NoError(t, err)
-		// reconnecting-pty works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "reconnecting-pty",
-		})
-		require.NoError(t, err)
-		// ssh works
-		err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-			AgentID: workspace.LatestBuild.Resources[0].Agents[0].ID,
-			AppName: "ssh",
-		})
-		require.NoError(t, err)
-
-		// ensure deadline has been bumped
-		newWorkspace, err := client.Workspace(ctx, r.Workspace.ID)
-		require.NoError(t, err)
-		require.True(t, workspace.LatestBuild.Deadline.Valid)
-		require.True(t, newWorkspace.LatestBuild.Deadline.Valid)
-		require.Greater(t, newWorkspace.LatestBuild.Deadline.Time, workspace.LatestBuild.Deadline.Time)
-	})
-}
-
-// TestWorkspaceUsageArbitraryAppNameNormalized posts an arbitrary app name
-// through a real batcher and asserts the database stores the normalized key,
-// so readers of session_counts only ever see canonical names.
-func TestWorkspaceUsageArbitraryAppNameNormalized(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
-		workspacestats.BatcherWithStore(store),
-		workspacestats.BatcherWithLogger(testutil.Logger(t).Named("batcher")),
-		workspacestats.BatcherWithInterval(testutil.IntervalFast),
-	)
-	require.NoError(t, err)
-	t.Cleanup(closeBatcher)
-
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentWorkspaceUsage)}
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database:         store,
-		Pubsub:           ps,
-		DeploymentValues: dv,
-		StatsBatcher:     batcher,
+	batcher := &workspacestatstest.StatsBatcher{}
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		StatsBatcher: batcher,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
-		Name:           fmt.Sprintf("usage-%d", time.Now().UnixNano()),
 	}).WithAgent().Do()
-	require.Len(t, r.Agents, 1)
-	agentID := r.Agents[0].ID
 
-	err = client.PostWorkspaceUsageWithBody(ctx, r.Workspace.ID, codersdk.PostWorkspaceUsageRequest{
-		AgentID: agentID,
-		AppName: "Some-Future-IDE",
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	err := client.PostWorkspaceUsage(ctx, r.Workspace.ID)
+	require.NoError(t, err)
+
+	// Older clients send an agent ID and app name. The server must keep
+	// accepting and ignoring that body.
+	res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/usage", r.Workspace.ID), map[string]any{
+		"agent_id": r.Agents[0].ID,
+		"app_name": "vscode",
 	})
 	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
 
-	// The batcher flushes on its own schedule, so poll until the row lands.
-	var count int64
-	require.True(t, testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		err := sqlDB.QueryRowContext(ctx, `
-			SELECT coalesce(sum((session_counts->>'some_future_ide')::bigint), 0)
-			FROM workspace_agent_stats
-			WHERE agent_id = $1`, agentID).Scan(&count)
-		if err != nil {
-			t.Logf("query session counts: %s", err)
-			return false
-		}
-		return count > 0
-	}, testutil.IntervalFast), "expected the normalized app name to reach the database")
-	require.EqualValues(t, 1, count)
-
-	// The raw name must never reach storage as a key.
-	var rawKeyRows int64
-	err = sqlDB.QueryRowContext(ctx, `
-		SELECT count(*)
-		FROM workspace_agent_stats
-		WHERE agent_id = $1 AND session_counts ? 'Some-Future-IDE'`, agentID).Scan(&rawKeyRows)
-	require.NoError(t, err)
-	require.Zero(t, rawKeyRows)
+	batcher.Mu.Lock()
+	defer batcher.Mu.Unlock()
+	require.Zero(t, batcher.Called, "usage requests must not record agent stats")
 }
 
 func TestWorkspaceNotifications(t *testing.T) {

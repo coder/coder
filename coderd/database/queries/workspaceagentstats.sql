@@ -14,8 +14,7 @@ INSERT INTO
 		tx_packets,
 		tx_bytes,
 		session_counts,
-		connection_median_latency_ms,
-		usage
+		connection_median_latency_ms
 	)
 SELECT
 	unnest(@id :: uuid[]) AS id,
@@ -31,8 +30,7 @@ SELECT
 	unnest(@tx_packets :: bigint[]) AS tx_packets,
 	unnest(@tx_bytes :: bigint[]) AS tx_bytes,
 	jsonb_array_elements(@session_counts :: jsonb) AS session_counts,
-	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms,
-	unnest(@usage :: boolean[]) AS usage;
+	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms;
 
 -- name: DeleteOldWorkspaceAgentStats :exec
 DELETE FROM
@@ -103,56 +101,6 @@ SELECT
 	), '{}'::jsonb)::jsonb AS session_counts
 FROM stats;
 
--- name: GetDeploymentWorkspaceAgentUsageStats :one
-WITH agent_stats AS (
-	SELECT
-		coalesce(SUM(rx_bytes), 0)::bigint AS workspace_rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS workspace_tx_bytes,
-		coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_50,
-		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
-	 FROM workspace_agent_stats
-	 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-),
-latest_minutes AS (
-	SELECT
-		agent_id,
-		MAX(date_trunc('minute', created_at)) AS minute_bucket
-	FROM
-		workspace_agent_stats
-	WHERE
-		created_at >= $1
-		-- Exclude the current partial minute.
-		AND created_at < date_trunc('minute', now())
-		AND usage
-	GROUP BY
-		agent_id
-),
-latest_agent_stats AS (
-	-- Aggregating the per app name sums separately keeps the byte and latency
-	-- aggregates in agent_stats free of the decomposed rows.
-	SELECT
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM
-			latest_minutes
-		JOIN
-			workspace_agent_stats AS stats
-		ON
-			stats.agent_id = latest_minutes.agent_id
-			AND stats.created_at >= $1
-			AND stats.created_at >= latest_minutes.minute_bucket
-			AND stats.created_at < latest_minutes.minute_bucket + '1 minute'::interval
-			AND stats.usage,
-			jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
-		GROUP BY sess.app_name
-	) AS app_totals
-)
-SELECT * FROM agent_stats, latest_agent_stats;
-
 -- name: GetWorkspaceAgentStats :many
 WITH agent_stats AS (
 	SELECT
@@ -182,54 +130,6 @@ WITH agent_stats AS (
 	WHERE rn = 1
 )
 SELECT * FROM agent_stats JOIN latest_agent_stats ON agent_stats.agent_id = latest_agent_stats.agent_id;
-
--- name: GetWorkspaceAgentUsageStats :many
-WITH stats AS (
-	SELECT
-		*,
-		-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-		created_at > $1 AND connection_median_latency_ms > 0 AS reports_latency,
-		usage AND date_trunc('minute', created_at) = MAX(date_trunc('minute', created_at)) FILTER (
-			-- Exclude the current partial minute.
-			WHERE usage AND created_at < date_trunc('minute', now())
-		) OVER (PARTITION BY agent_id) AS in_latest_usage_minute
-	FROM workspace_agent_stats
-	WHERE created_at >= $1
-), latest_sessions AS (
-	-- One row per agent, so joining it below neither multiplies the byte and
-	-- latency aggregates nor adds groups.
-	SELECT
-		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			stats.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM stats, jsonb_each_text(stats.session_counts) AS sess(app_name, sessions)
-		WHERE stats.in_latest_usage_minute
-		GROUP BY stats.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-)
-SELECT
-	stats.user_id,
-	stats.agent_id,
-	stats.workspace_id,
-	stats.template_id,
-	MIN(stats.created_at) FILTER (WHERE reports_latency)::timestamptz AS aggregated_from,
-	coalesce(SUM(stats.rx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_rx_bytes,
-	coalesce(SUM(stats.tx_bytes) FILTER (WHERE reports_latency), 0)::bigint AS workspace_tx_bytes,
-	coalesce((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_50,
-	coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY stats.connection_median_latency_ms) FILTER (WHERE reports_latency)), -1)::FLOAT AS workspace_connection_latency_95,
-	-- Repeated so this row keeps the same layout as GetWorkspaceAgentStats, which
-	-- telemetry converts between.
-	stats.agent_id,
-	coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts
-FROM stats
-LEFT JOIN latest_sessions ON latest_sessions.agent_id = stats.agent_id
-GROUP BY stats.user_id, stats.agent_id, stats.workspace_id, stats.template_id, latest_sessions.session_counts
-HAVING BOOL_OR(reports_latency);
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
 WITH agent_stats AS (
@@ -265,73 +165,6 @@ SELECT
 FROM
 	agent_stats
 JOIN
-	latest_agent_stats
-ON
-	agent_stats.agent_id = latest_agent_stats.agent_id
-JOIN
-	users
-ON
-	users.id = agent_stats.user_id
-JOIN
-	workspace_agents
-ON
-	workspace_agents.id = agent_stats.agent_id
-JOIN
-	workspaces
-ON
-	workspaces.id = agent_stats.workspace_id;
-
--- name: GetWorkspaceAgentUsageStatsAndLabels :many
-WITH agent_stats AS (
-	SELECT
-		user_id,
-		agent_id,
-		workspace_id,
-		coalesce(SUM(rx_bytes), 0)::bigint AS rx_bytes,
-		coalesce(SUM(tx_bytes), 0)::bigint AS tx_bytes,
-		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
-	FROM workspace_agent_stats
-	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
-	GROUP BY user_id, agent_id, workspace_id
-), latest_stats AS (
-	SELECT *
-	FROM workspace_agent_stats
-	-- We only want the latest stats, but those stats might be
-	-- spread across multiple rows.
-	WHERE usage AND created_at > now() - '1 minute'::interval
-), latest_sessions AS (
-	-- Summed per app name here so the connection count below keeps seeing one
-	-- row per agent instead of one row per app name.
-	SELECT
-		agent_id,
-		coalesce(jsonb_object_agg(app_name, app_sessions), '{}'::jsonb)::jsonb AS session_counts
-	FROM (
-		SELECT
-			latest_stats.agent_id,
-			sess.app_name,
-			SUM(sess.sessions::bigint) AS app_sessions
-		FROM latest_stats, jsonb_each_text(latest_stats.session_counts) AS sess(app_name, sessions)
-		GROUP BY latest_stats.agent_id, sess.app_name
-	) AS app_totals
-	GROUP BY agent_id
-), latest_agent_stats AS (
-	SELECT
-		latest_stats.agent_id,
-		coalesce(latest_sessions.session_counts, '{}'::jsonb)::jsonb AS session_counts,
-		coalesce(SUM(latest_stats.connection_count), 0)::bigint AS connection_count
-	FROM latest_stats
-	LEFT JOIN latest_sessions ON latest_sessions.agent_id = latest_stats.agent_id
-	GROUP BY latest_stats.user_id, latest_stats.agent_id, latest_stats.workspace_id, latest_sessions.session_counts
-)
-SELECT
-	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	coalesce(session_counts, '{}'::jsonb)::jsonb AS session_counts,
-	coalesce(connection_count, 0)::bigint AS connection_count,
-	connection_median_latency_ms
-FROM
-	agent_stats
-LEFT JOIN
 	latest_agent_stats
 ON
 	agent_stats.agent_id = latest_agent_stats.agent_id

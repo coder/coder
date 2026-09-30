@@ -28,7 +28,7 @@ func date(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
-func newMetricsCache(t *testing.T, log slog.Logger, clock quartz.Clock, intervals metricscache.Intervals, usage bool) (*metricscache.Cache, database.Store) {
+func newMetricsCache(t *testing.T, log slog.Logger, clock quartz.Clock, intervals metricscache.Intervals) (*metricscache.Cache, database.Store) {
 	t.Helper()
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -39,7 +39,7 @@ func newMetricsCache(t *testing.T, log slog.Logger, clock quartz.Clock, interval
 		auth   = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 		db, _  = dbtestutil.NewDB(t)
 		dbauth = dbauthz.New(db, auth, log, accessControlStore)
-		cache  = metricscache.New(dbauth, log, clock, intervals, usage)
+		cache  = metricscache.New(dbauth, log, clock, intervals)
 	)
 
 	t.Cleanup(func() { cache.Close() })
@@ -61,7 +61,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 
 	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
 		TemplateBuildTimes: time.Minute,
-	}, false)
+	})
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	user1 := dbgen.User(t, db, database.User{})
@@ -220,7 +220,7 @@ func TestCache_BuildTime(t *testing.T) {
 			defer trapTickerFunc.Close()
 			cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
 				TemplateBuildTimes: time.Minute,
-			}, false)
+			})
 
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
@@ -295,73 +295,65 @@ func TestCache_BuildTime(t *testing.T) {
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
 
-	for name, usage := range map[string]bool{"Stats": false, "Usage": true} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+	var (
+		ctx        = testutil.Context(t, testutil.WaitLong)
+		clock      = quartz.NewMock(t)
+		now        = dbtime.Now().Truncate(time.Minute)
+		tickerTrap = clock.Trap().TickerFunc("metricscache")
+	)
+	clock.Set(now)
+	defer tickerTrap.Close()
 
-			var (
-				ctx        = testutil.Context(t, testutil.WaitLong)
-				clock      = quartz.NewMock(t)
-				now        = dbtime.Now().Truncate(time.Minute)
-				tickerTrap = clock.Trap().TickerFunc("metricscache")
-			)
-			clock.Set(now)
-			defer tickerTrap.Close()
+	cache, db := newMetricsCache(t, testutil.Logger(t), clock, metricscache.Intervals{
+		DeploymentStats: time.Minute,
+	})
 
-			cache, db := newMetricsCache(t, testutil.Logger(t), clock, metricscache.Intervals{
-				DeploymentStats: time.Minute,
-			}, usage)
+	counts := map[string]int64{"vscode": 1, "cursor": 2, "zed": 3, "future_ide": 4, "jetbrains": 5, "reconnecting_pty": 6}
+	agentStat := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		CreatedAt:                 now.Add(-2 * time.Minute),
+		RxBytes:                   1,
+		TxBytes:                   1,
+		ConnectionCount:           1,
+		ConnectionMedianLatencyMS: 10,
+		SessionCounts:             dbgen.SessionCounts(t, counts),
+	})
 
-			counts := map[string]int64{"vscode": 1, "cursor": 2, "zed": 3, "future_ide": 4, "jetbrains": 5, "reconnecting_pty": 6}
-			agentStat := dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-				CreatedAt:                 now.Add(-2 * time.Minute),
-				Usage:                     usage,
-				RxBytes:                   1,
-				TxBytes:                   1,
-				ConnectionCount:           1,
-				ConnectionMedianLatencyMS: 10,
-				SessionCounts:             dbgen.SessionCounts(t, counts),
-			})
+	// Both ticker functions: template build times and deployment stats.
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	clock.Advance(time.Minute).MustWait(ctx)
 
-			// Both ticker functions: template build times and deployment stats.
-			tickerTrap.MustWait(ctx).MustRelease(ctx)
-			tickerTrap.MustWait(ctx).MustRelease(ctx)
-			clock.Advance(time.Minute).MustWait(ctx)
+	stat, ok := cache.DeploymentStats()
+	require.True(t, ok, "cache should be populated after refresh")
+	// Legacy totals fold cursor into VS Code and zed into SSH.
+	require.Equal(t, codersdk.SessionCountDeploymentStats{
+		Apps: map[string]codersdk.SessionCountApp{
+			"vscode":           {Count: 1, DisplayName: "VS Code", Icon: "/icon/code.svg", Family: codersdk.AppFamilyVSCode},
+			"cursor":           {Count: 2, DisplayName: "Cursor", Icon: "/icon/cursor.svg", Family: codersdk.AppFamilyVSCode},
+			"zed":              {Count: 3, DisplayName: "Zed", Icon: "/icon/zed.svg", Family: codersdk.AppFamilySSH},
+			"future_ide":       {Count: 4, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
+			"jetbrains":        {Count: 5, DisplayName: "JetBrains", Icon: "/icon/jetbrains.svg", Family: codersdk.AppFamilyJetBrains},
+			"reconnecting_pty": {Count: 6, DisplayName: "Web Terminal", Family: codersdk.AppFamilyReconnectingPTY},
+		},
+		VSCode: 3, SSH: 3, JetBrains: 5, ReconnectingPTY: 6,
+	}, stat.SessionCount)
 
-			stat, ok := cache.DeploymentStats()
-			require.True(t, ok, "cache should be populated after refresh")
-			// Legacy totals fold cursor into VS Code and zed into SSH.
-			require.Equal(t, codersdk.SessionCountDeploymentStats{
-				Apps: map[string]codersdk.SessionCountApp{
-					"vscode":           {Count: 1, DisplayName: "VS Code", Icon: "/icon/code.svg", Family: codersdk.AppFamilyVSCode},
-					"cursor":           {Count: 2, DisplayName: "Cursor", Icon: "/icon/cursor.svg", Family: codersdk.AppFamilyVSCode},
-					"zed":              {Count: 3, DisplayName: "Zed", Icon: "/icon/zed.svg", Family: codersdk.AppFamilySSH},
-					"future_ide":       {Count: 4, DisplayName: "future_ide", Family: codersdk.AppFamilyUnknown},
-					"jetbrains":        {Count: 5, DisplayName: "JetBrains", Icon: "/icon/jetbrains.svg", Family: codersdk.AppFamilyJetBrains},
-					"reconnecting_pty": {Count: 6, DisplayName: "Web Terminal", Family: codersdk.AppFamilyReconnectingPTY},
-				},
-				VSCode: 3, SSH: 3, JetBrains: 5, ReconnectingPTY: 6,
-			}, stat.SessionCount)
+	// A later report with no sessions clears every app.
+	dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+		AgentID:                   agentStat.AgentID,
+		UserID:                    agentStat.UserID,
+		WorkspaceID:               agentStat.WorkspaceID,
+		TemplateID:                agentStat.TemplateID,
+		CreatedAt:                 now.Add(-time.Minute),
+		ConnectionMedianLatencyMS: 10,
+		SessionCounts:             dbgen.SessionCounts(t, map[string]int64{}),
+	})
+	clock.Advance(time.Minute).MustWait(ctx)
 
-			// A later report with no sessions clears every app.
-			dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
-				AgentID:                   agentStat.AgentID,
-				UserID:                    agentStat.UserID,
-				WorkspaceID:               agentStat.WorkspaceID,
-				TemplateID:                agentStat.TemplateID,
-				CreatedAt:                 now.Add(-time.Minute),
-				Usage:                     usage,
-				ConnectionMedianLatencyMS: 10,
-				SessionCounts:             dbgen.SessionCounts(t, map[string]int64{}),
-			})
-			clock.Advance(time.Minute).MustWait(ctx)
-
-			empty, ok := cache.DeploymentStats()
-			require.True(t, ok)
-			require.Equal(t, codersdk.SessionCountDeploymentStats{
-				Apps: map[string]codersdk.SessionCountApp{},
-			}, empty.SessionCount)
-			require.Len(t, stat.SessionCount.Apps, len(counts), "refresh must not mutate a published snapshot")
-		})
-	}
+	empty, ok := cache.DeploymentStats()
+	require.True(t, ok)
+	require.Equal(t, codersdk.SessionCountDeploymentStats{
+		Apps: map[string]codersdk.SessionCountApp{},
+	}, empty.SessionCount)
+	require.Len(t, stat.SessionCount.Apps, len(counts), "refresh must not mutate a published snapshot")
 }

@@ -5507,11 +5507,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetDeploymentWorkspaceAgentStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
-	s.Run("GetDeploymentWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetDeploymentWorkspaceAgentUsageStats(gomock.Any(), t).Return(database.GetDeploymentWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
-	}))
 	s.Run("GetDeploymentWorkspaceStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetDeploymentWorkspaceStats(gomock.Any()).Return(database.GetDeploymentWorkspaceStatsRow{}, nil).AnyTimes()
 		check.Args().Asserts()
@@ -5542,19 +5537,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceAgentStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsAndLabelsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
-	s.Run("GetWorkspaceAgentUsageStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStatsAndLabels(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsAndLabelsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
-	}))
 	s.Run("GetWorkspaceAgentStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
 		dbm.EXPECT().GetWorkspaceAgentStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentStatsRow{}, nil).AnyTimes()
-		check.Args(t).Asserts()
-	}))
-	s.Run("GetWorkspaceAgentUsageStats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		t := time.Time{}
-		dbm.EXPECT().GetWorkspaceAgentUsageStats(gomock.Any(), t).Return([]database.GetWorkspaceAgentUsageStatsRow{}, nil).AnyTimes()
 		check.Args(t).Asserts()
 	}))
 	s.Run("GetWorkspaceProxyByHostname", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
