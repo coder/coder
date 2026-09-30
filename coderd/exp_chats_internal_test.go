@@ -723,24 +723,37 @@ func TestIsZeroChatModelCallConfigReasoningModel(t *testing.T) {
 func TestWriteWorkspaceAgentUploadError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AgentStatus", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		agentStatus int
+		wantStatus  int
+		wantMessage string
+	}{
+		{name: "Conflict", agentStatus: http.StatusConflict, wantStatus: http.StatusConflict, wantMessage: "conflicts with existing files"},
+		{name: "Forbidden", agentStatus: http.StatusForbidden, wantStatus: http.StatusForbidden, wantMessage: "denied permission"},
+		{name: "Unauthorized", agentStatus: http.StatusUnauthorized, wantStatus: http.StatusBadGateway, wantMessage: "Failed to upload file to workspace agent"},
+		{name: "InternalServerError", agentStatus: http.StatusInternalServerError, wantStatus: http.StatusBadGateway, wantMessage: "Failed to upload file to workspace agent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		res := &http.Response{
-			StatusCode: http.StatusConflict,
-			Header: http.Header{
-				"Content-Type": []string{"application/json"},
-			},
-			Body: io.NopCloser(strings.NewReader(`{"message":"too many existing files"}`)),
-		}
-		err := codersdk.ReadBodyAsError(res)
-		rw := httptest.NewRecorder()
+			err := codersdk.NewError(tc.agentStatus, codersdk.Response{
+				Message:     strings.Repeat("x", 4096),
+				Validations: []codersdk.ValidationError{{Field: "name", Detail: "agent-validation"}},
+			})
+			rw := httptest.NewRecorder()
 
-		writeWorkspaceAgentUploadError(context.Background(), rw, err)
+			writeWorkspaceAgentUploadError(context.Background(), rw, err)
 
-		require.Equal(t, http.StatusConflict, rw.Code)
-		require.Contains(t, rw.Body.String(), "too many existing files")
-	})
+			require.Equal(t, tc.wantStatus, rw.Code)
+			var got codersdk.Response
+			require.NoError(t, json.NewDecoder(rw.Body).Decode(&got))
+			require.Contains(t, got.Message, tc.wantMessage)
+			require.Contains(t, got.Detail, "xxx")
+			require.Less(t, len(got.Detail), 1024)
+			require.Empty(t, got.Validations)
+		})
+	}
 
 	t.Run("OutdatedAgent", func(t *testing.T) {
 		t.Parallel()
