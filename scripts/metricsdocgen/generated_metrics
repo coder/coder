@@ -223,9 +223,9 @@ coder_servertailnet_await_reachable_seconds 0
 # HELP coder_servertailnet_connections_total Total number of TCP connections made to workspace agents.
 # TYPE coder_servertailnet_connections_total counter
 coder_servertailnet_connections_total{network=""} 0
-# HELP coder_servertailnet_derp_reconnects_total Number of times the server tailnet connected to the embedded DERP relay. The value is 1 after startup and only rises when that connection is rebuilt.
-# TYPE coder_servertailnet_derp_reconnects_total counter
-coder_servertailnet_derp_reconnects_total 0
+# HELP coder_servertailnet_derp_connects_total Number of times the server tailnet connected to the embedded DERP relay. It reads 1 after startup, rises when that connection is rebuilt, and stays 0 when the embedded relay is disabled.
+# TYPE coder_servertailnet_derp_connects_total counter
+coder_servertailnet_derp_connects_total 0
 # HELP coder_servertailnet_open_connections Total number of TCP connections currently open to workspace agents.
 # TYPE coder_servertailnet_open_connections gauge
 coder_servertailnet_open_connections{network=""} 0

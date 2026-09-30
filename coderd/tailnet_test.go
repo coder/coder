@@ -63,7 +63,10 @@ func TestServerTailnet_AgentConn_OK(t *testing.T) {
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
-	assert.False(t, testutil.PromCounterGathered(t, metrics, "coder_servertailnet_agent_unreachable_total", "no_node"))
+	// A reachable agent must not be counted under any reason.
+	for _, mf := range metrics {
+		assert.NotEqual(t, "coder_servertailnet_agent_unreachable_total", mf.GetName())
+	}
 }
 
 func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
@@ -112,7 +115,7 @@ func TestServerTailnet_AgentConn_Unreachable(t *testing.T) {
 	assert.EqualValues(t, 0, testutil.PromHistogramSampleCount(t, metrics, "coder_servertailnet_await_reachable_seconds"))
 }
 
-func TestServerTailnet_DERPReconnects(t *testing.T) {
+func TestServerTailnet_DERPConnects(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
@@ -132,7 +135,7 @@ func TestServerTailnet_DERPReconnects(t *testing.T) {
 	// One connection to the embedded relay for the life of the process.
 	metrics, err := registry.Gather()
 	require.NoError(t, err)
-	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_reconnects_total"))
+	assert.True(t, testutil.PromCounterHasValue(t, metrics, 1, "coder_servertailnet_derp_connects_total"))
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {

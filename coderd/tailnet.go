@@ -74,11 +74,11 @@ func NewServerTailnet(
 	}
 	serverCtx, cancel := context.WithCancel(ctx)
 
-	derpReconnects := prometheus.NewCounter(prometheus.CounterOpts{
+	derpConnects := prometheus.NewCounter(prometheus.CounterOpts{
 		Namespace: "coder",
 		Subsystem: "servertailnet",
-		Name:      "derp_reconnects_total",
-		Help:      "Number of times the server tailnet connected to the embedded DERP relay. The value is 1 after startup and only rises when that connection is rebuilt.",
+		Name:      "derp_connects_total",
+		Help:      "Number of times the server tailnet connected to the embedded DERP relay. It reads 1 after startup, rises when that connection is rebuilt, and stays 0 when the embedded relay is disabled.",
 	})
 
 	// This is set to allow local DERP traffic to be proxied through memory
@@ -90,7 +90,7 @@ func NewServerTailnet(
 			if !region.EmbeddedRelay || ctx.Err() != nil {
 				return nil
 			}
-			derpReconnects.Inc()
+			derpConnects.Inc()
 			logger.Debug(ctx, "connecting to embedded DERP via in-memory pipe")
 			left, right := net.Pipe()
 			go func() {
@@ -135,7 +135,7 @@ func NewServerTailnet(
 			Name:      "connections_total",
 			Help:      "Total number of TCP connections made to workspace agents.",
 		}, []string{"network"}),
-		derpReconnects: derpReconnects,
+		derpConnects: derpConnects,
 		agentUnreachable: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -183,7 +183,7 @@ func (s *ServerTailnet) Conn() *tailnet.Conn {
 func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
 	s.connsPerAgent.Describe(descs)
 	s.totalConns.Describe(descs)
-	s.derpReconnects.Describe(descs)
+	s.derpConnects.Describe(descs)
 	s.agentUnreachable.Describe(descs)
 	s.awaitReachable.Describe(descs)
 }
@@ -191,7 +191,7 @@ func (s *ServerTailnet) Describe(descs chan<- *prometheus.Desc) {
 func (s *ServerTailnet) Collect(metrics chan<- prometheus.Metric) {
 	s.connsPerAgent.Collect(metrics)
 	s.totalConns.Collect(metrics)
-	s.derpReconnects.Collect(metrics)
+	s.derpConnects.Collect(metrics)
 	s.agentUnreachable.Collect(metrics)
 	s.awaitReachable.Collect(metrics)
 }
@@ -215,7 +215,7 @@ type ServerTailnet struct {
 
 	connsPerAgent    *prometheus.GaugeVec
 	totalConns       *prometheus.CounterVec
-	derpReconnects   prometheus.Counter
+	derpConnects     prometheus.Counter
 	agentUnreachable *prometheus.CounterVec
 	awaitReachable   prometheus.Histogram
 
