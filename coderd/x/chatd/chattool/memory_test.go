@@ -109,40 +109,56 @@ func TestNormalizeMemoryInput(t *testing.T) {
 	require.ErrorContains(t, err, "description is required")
 }
 
-func TestFormatMemoryGuidanceAndIndexForTool(t *testing.T) {
+func TestFormatMemoryGuidance(t *testing.T) {
 	t.Parallel()
-	entries := make([]chattool.MemoryIndexEntry, chattool.MaxMemoryIndexLines+1)
-	for i := range entries {
-		entries[i] = chattool.MemoryIndexEntry{Name: "memory-" + strings.Repeat("x", 50) + string(rune('a'+i%26)), Description: strings.Repeat("description ", 20)}
-	}
 	guidance := chattool.FormatMemoryGuidance("platform")
 	require.Contains(t, guidance, "<memory>")
 	require.Contains(t, guidance, `project "platform"`)
-	require.Contains(t, guidance, chattool.ConsolidateMemoryToolName)
-	require.NotContains(t, guidance, "memory-")
-	index := chattool.FormatMemoryIndexForTool(entries)
-	require.Contains(t, index, "Available memories:")
-	require.Contains(t, index, "more memories not shown.")
-	require.LessOrEqual(t, len(index), chattool.MaxMemoryIndexBytes)
-
-	// A project at the cap with the longest allowed names and descriptions
-	// still lists every memory, so nothing becomes unreachable.
-	full := make([]chattool.MemoryIndexEntry, chattool.MaxMemories)
-	for i := range full {
-		full[i] = chattool.MemoryIndexEntry{Name: fmt.Sprintf("%03d-%s", i, strings.Repeat("n", 60)), Description: strings.Repeat("d", chattool.MaxMemoryDescriptionChars)}
-	}
-	fullIndex := chattool.FormatMemoryIndexForTool(full)
-	require.NotContains(t, fullIndex, "not shown")
-	require.Contains(t, fullIndex, full[len(full)-1].Name)
 	require.Contains(t, guidance, "people on this project")
-	require.Equal(t, "No memories saved yet.", chattool.FormatMemoryIndexForTool(nil))
+	require.Contains(t, guidance, "<project-memory-index>")
+	require.Contains(t, guidance, chattool.ConsolidateMemoryToolName)
 }
 
-func TestReadMemoryDescriptionIncludesIndex(t *testing.T) {
+func TestReadMemoryDescriptionIsFixed(t *testing.T) {
 	t.Parallel()
-	tool := chattool.ReadMemory(newMemoryStore(0), []chattool.MemoryIndexEntry{{Name: "release", Description: "Release process"}})
-	require.Contains(t, tool.Info().Description, "Read a memory by name.")
-	require.Contains(t, tool.Info().Description, "- release: Release process")
+	// Tool definitions lead the provider's cached prefix, so memory state
+	// must never reach them.
+	a := chattool.ReadMemory(newMemoryStore(0)).Info().Description
+	b := chattool.ReadMemory(newMemoryStore(chattool.MaxMemories)).Info().Description
+	require.Equal(t, a, b)
+}
+
+func TestMemoryIndexReplay(t *testing.T) {
+	t.Parallel()
+	entry := func(name, description string) chattool.MemoryIndexEntry {
+		return chattool.MemoryIndexEntry{Name: name, Description: description}
+	}
+
+	_, ok := chattool.ReplayMemoryIndex([]string{"unrelated", chattool.FormatMemoryIndexUpdate([]chattool.MemoryIndexEntry{entry("a", "A")}, nil)})
+	require.False(t, ok, "an update without a snapshot has no base")
+
+	snapshot := chattool.FormatMemoryIndexSnapshot([]chattool.MemoryIndexEntry{entry("alpha", "First: with a colon"), entry("beta", "Second")})
+	seen, ok := chattool.ReplayMemoryIndex([]string{snapshot})
+	require.True(t, ok)
+	require.Equal(t, map[string]string{"alpha": "First: with a colon", "beta": "Second"}, seen)
+
+	current := []chattool.MemoryIndexEntry{entry("alpha", "First, corrected"), entry("gamma", "Third")}
+	changed, removed := chattool.DiffMemoryIndex(seen, current)
+	require.Equal(t, []chattool.MemoryIndexEntry{entry("alpha", "First, corrected"), entry("gamma", "Third")}, changed)
+	require.Equal(t, []string{"beta"}, removed)
+
+	// Replaying the snapshot and the update reproduces the current index,
+	// so the next diff is empty.
+	seen, ok = chattool.ReplayMemoryIndex([]string{snapshot, "unrelated", chattool.FormatMemoryIndexUpdate(changed, removed)})
+	require.True(t, ok)
+	changed, removed = chattool.DiffMemoryIndex(seen, current)
+	require.Empty(t, changed)
+	require.Empty(t, removed)
+
+	// A later snapshot replaces everything before it.
+	seen, ok = chattool.ReplayMemoryIndex([]string{snapshot, chattool.FormatMemoryIndexSnapshot(nil)})
+	require.True(t, ok)
+	require.Empty(t, seen)
 }
 
 func TestSaveMemory(t *testing.T) {
