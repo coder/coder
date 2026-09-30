@@ -58,6 +58,7 @@ func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {
 	requireTaskCanceled(t, first)
 	second := starter.waitCall(t, taskKindInterrupt, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
+	require.NotNil(t, second.input.Interrupt, "interrupt tasks share retry state across attempts")
 }
 
 func TestRunner_CleansUpOnOwnershipTakeover(t *testing.T) {

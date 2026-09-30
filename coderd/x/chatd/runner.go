@@ -256,6 +256,10 @@ func (r *runner) runTask(
 		WorkerID: input.WorkerID,
 		RunnerID: input.RunnerID,
 	}
+	if kind == taskKindInterrupt {
+		// Allocated outside the retry loop so every attempt shares it.
+		input.Interrupt = &interruptTaskState{}
+	}
 	err := runTaskWithRetry(ctx, r.opts.retryOptions(), kind, taskInfo, func(ctx context.Context) error {
 		unlock, ok := r.localLocks.acquire(ctx, key)
 		if !ok {

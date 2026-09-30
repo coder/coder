@@ -1070,6 +1070,8 @@ The goroutine does the following in order:
 4. It cancels the chat's unresolved `execute`, `edit_files`, and `write_file` calls on the workspace agent, waiting up to 30 seconds for their results.
 5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
+TODO: steps 2 and 3, the model invocation instant, the tool completion times, and the interrupt instant are now captured once per interrupt task and reused by its retries. A retry no longer rereads the buffer, whose closed episodes are collected 15 seconds after `CloseEpisode`, and retry delay is not billed. Describe this here.
+
 #### Dynamic tools timeout goroutine
 
 The dynamic tools timeout goroutine is responsible for waiting for the dynamic tool timeout to pass, which is determined by the `requires_action_deadline_at` field on the chat. It is spawned when the event indicates the core state machine is in `A0` or `A1` (status is `requires_action`). The goroutine fetches the deadline value from the database. When the timeout passes, it applies the `CancelRequiresAction` transition on the core state machine.

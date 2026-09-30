@@ -287,32 +287,22 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		HistoryVersion:    input.HistoryVersion,
 		GenerationAttempt: chat.GenerationAttempt,
 	}
-	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
-	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
-	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
-		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
+	snapshot := input.Interrupt
+	if snapshot == nil {
+		snapshot = &interruptTaskState{}
+	}
+	if !snapshot.captured || snapshot.key != key {
+		if err := s.captureInterruptSnapshot(ctx, key, snapshot); err != nil {
+			return err
 		}
-		return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
 	}
-	parts, err := s.opts.MessagePartBuffer.GetParts(key)
-	if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
-		parts = nil
-		err = nil
-	}
-	if err != nil {
-		if ctx.Err() != nil {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
-		}
-		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
-	}
-	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
+	interruptedAt := snapshot.interruptedAt
 	var attemptRuntime time.Duration
-	if !modelInvokedAt.IsZero() {
-		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
+	if !snapshot.modelInvokedAt.IsZero() {
+		attemptRuntime = interruptedAt.Sub(snapshot.modelInvokedAt)
 	}
 	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
-		parts:          parts,
+		parts:          snapshot.parts,
 		modelConfigID:  chat.LastModelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
@@ -337,7 +327,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions, canceled)
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, snapshot.toolCompletions, canceled)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
@@ -375,6 +365,56 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		Chat: committed,
 		Kind: runnerActionKindFinishInterruption,
 	})
+}
+
+// interruptTaskState is what an interrupt task reads from the message part
+// buffer. The first attempt captures it and retries reuse it: CloseEpisode
+// starts the buffer's retention window, so a retry after that window would
+// find no episode and commit the interruption without the partial answer,
+// its model runtime, or tool completion times. Reusing interruptedAt also
+// keeps retry delay out of the billed runtime. Attempts run sequentially,
+// so the state needs no lock.
+type interruptTaskState struct {
+	captured        bool
+	key             messagepartbuffer.Key
+	parts           []messagepartbuffer.Part
+	modelInvokedAt  time.Time
+	toolCompletions map[int]messagepartbuffer.ToolCompletion
+	interruptedAt   time.Time
+}
+
+// captureInterruptSnapshot closes the episode and records its buffered
+// state in snapshot. It leaves snapshot unchanged on error so a retry
+// captures again.
+func (s *taskStarter) captureInterruptSnapshot(ctx context.Context, key messagepartbuffer.Key, snapshot *interruptTaskState) error {
+	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
+	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
+	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
+		if ctx.Err() != nil {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
+		}
+		return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
+	}
+	parts, err := s.opts.MessagePartBuffer.GetParts(key)
+	if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
+		parts = nil
+		err = nil
+	}
+	if err != nil {
+		if ctx.Err() != nil {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
+		}
+		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
+	}
+	*snapshot = interruptTaskState{
+		captured:        true,
+		key:             key,
+		parts:           parts,
+		modelInvokedAt:  modelInvokedAt,
+		toolCompletions: toolCompletions,
+		interruptedAt:   s.opts.Clock.Now("chatworker", "interrupt"),
+	}
+	return nil
 }
 
 func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome interruptionOutcome) error {

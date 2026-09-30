@@ -70,6 +70,10 @@ type chatWorkerTaskStartInput struct {
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
+	// Interrupt is shared by every attempt of one interrupt task so a retry
+	// commits what the first attempt read from the message part buffer. Nil
+	// means a single attempt with no retry memory.
+	Interrupt *interruptTaskState
 }
 
 func (i chatWorkerTaskStartInput) hookTurnID() *uuid.UUID {
