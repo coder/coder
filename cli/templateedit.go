@@ -14,6 +14,11 @@ import (
 	"github.com/coder/serpent"
 )
 
+// defaultAutostopRequirementWeeks mirrors the server-side normalization in
+// resolveTemplateMetaUpdate (coderd/templates_meta_update.go), which forces
+// any nonpositive autostop requirement weeks value to 1.
+const defaultAutostopRequirementWeeks = 1
+
 // templateEditWorkspaceImpactingChanges describes requested changes that act on
 // existing workspaces without a new build (dormancy, failure TTL, active
 // version, and autostop requirement), so they need confirmation. Settings that
@@ -28,6 +33,14 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 		autostopRequirementDaysOfWeek = req.AutostopRequirement.DaysOfWeek
 		autostopRequirementWeeks      = req.AutostopRequirement.Weeks
 	)
+
+	// The server normalizes a nonpositive value to defaultAutostopRequirementWeeks,
+	// so a requested value of 0 (or negative) against a template already at the
+	// normalized value is a no-op. Normalize before comparing so we don't prompt
+	// for a change that won't actually apply.
+	if autostopRequirementWeeks <= 0 {
+		autostopRequirementWeeks = defaultAutostopRequirementWeeks
+	}
 
 	currentFailureTTL := time.Duration(template.FailureTTLMillis) * time.Millisecond
 	if failureTTL != currentFailureTTL {
