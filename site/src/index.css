@@ -160,6 +160,9 @@
 		}
 	}
 
+	/* Steep ease-out for overlay enter and exit. Named curves start too gently. */
+	--ease-out-strong: cubic-bezier(0.19, 1, 0.22, 1);
+
 	/* Spinner leaves fade in a staggered wave. Each leaf starts 0.1s further
 		into the cycle, and the cycle lasts one stagger per leaf so the wave wraps
 		seamlessly whatever the leaf count is. Spinner sets --spinner-leaf-index
@@ -744,6 +747,19 @@
 			margin-right: 0 !important;
 			overflow-y: scroll !important;
 		}
+	}
+
+	/* Kept outside the @supports guard on purpose: the overflow rules apply
+	regardless of scrollbar-gutter support. Must stay in this layer, since a
+	layered !important beats an unlayered one. */
+	html[data-agents-layout] {
+		overflow: hidden;
+		scrollbar-gutter: auto;
+	}
+
+	html[data-agents-layout] body,
+	html[data-agents-layout] body[data-scroll-locked] {
+		overflow: hidden !important;
 	}
 
 	h1 {

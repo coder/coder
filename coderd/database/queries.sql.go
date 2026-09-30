@@ -1230,8 +1230,8 @@ WITH per_request AS (
 			c.root_chat_id = $1::uuid
 			OR (c.root_chat_id IS NULL AND c.id = $1::uuid)
 		)
-		-- Restrict to aibridge.ClientCoderAgents so another client's session
-		-- reference cannot match a chat ID.
+		-- Restrict to aibridge/client.CoderAgents so another client's
+		-- session reference cannot match a chat ID.
 		AND i.client = 'Coder Agents'
 		AND i.ended_at IS NOT NULL
 	GROUP BY i.id
@@ -1477,7 +1477,7 @@ func (q *sqlQuerier) GetAIBridgeSessionTopDomains(ctx context.Context, arg GetAI
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -1510,6 +1510,8 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.CacheReadPriceMicros,
 			&i.CacheWritePriceMicros,
 			&i.CostMicros,
+			&i.ProviderModel,
+			&i.PricedModel,
 		); err != nil {
 			return nil, err
 		}
@@ -1726,12 +1728,12 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
-  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
-  $10, $11, $12, $13, $14, $15
+  $10, $11, $12, $13, $14, $15, $16, $17
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 `
 
 type InsertAIBridgeTokenUsageParams struct {
@@ -1750,6 +1752,8 @@ type InsertAIBridgeTokenUsageParams struct {
 	CacheReadPriceMicros  sql.NullInt64   `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64   `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64   `db:"cost_micros" json:"cost_micros"`
+	ProviderModel         sql.NullString  `db:"provider_model" json:"provider_model"`
+	PricedModel           sql.NullString  `db:"priced_model" json:"priced_model"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -1769,6 +1773,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.CacheReadPriceMicros,
 		arg.CacheWritePriceMicros,
 		arg.CostMicros,
+		arg.ProviderModel,
+		arg.PricedModel,
 	)
 	var i AIBridgeTokenUsage
 	err := row.Scan(
@@ -1787,6 +1793,8 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.CacheReadPriceMicros,
 		&i.CacheWritePriceMicros,
 		&i.CostMicros,
+		&i.ProviderModel,
+		&i.PricedModel,
 	)
 	return i, err
 }
@@ -2588,7 +2596,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros, provider_model, priced_model
 FROM
 	aibridge_token_usages
 WHERE
@@ -2623,6 +2631,8 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.CacheReadPriceMicros,
 			&i.CacheWritePriceMicros,
 			&i.CostMicros,
+			&i.ProviderModel,
+			&i.PricedModel,
 		); err != nil {
 			return nil, err
 		}
@@ -2953,20 +2963,28 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
-WHERE provider = $1 AND model = $2
-ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+WHERE provider = $1 AND model IN ($2, $3)
+ORDER BY
+	CASE WHEN model = $2 THEN 0 ELSE 1 END ASC,
+	CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 LIMIT 1
 `
 
 type GetAIModelPriceByProviderModelParams struct {
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
+	Provider      string `db:"provider" json:"provider"`
+	Model         string `db:"model" json:"model"`
+	ProviderModel string `db:"provider_model" json:"provider_model"`
 }
 
-// Returns the price in effect for the model, preferring a custom price over
-// the price book.
+// Returns the price in effect for the requested model, falling back to the
+// model reported by the provider when the requested model has no price.
+// Rows are ordered by model first, then by source, so the lookup order is:
+//  1. Custom price for the requested model.
+//  2. Price book price for the requested model.
+//  3. Custom price for the provider-reported model.
+//  4. Price book price for the provider-reported model.
 func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
-	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
+	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model, arg.ProviderModel)
 	var i AIModelPrice
 	err := row.Scan(
 		&i.Provider,
@@ -3686,59 +3704,64 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 }
 
 const listOrganizationAISpendUsers = `-- name: ListOrganizationAISpendUsers :many
+WITH spend AS (
+	SELECT
+		ai.initiator_id AS user_id,
+		COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
+		COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
+		ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
+		ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
+		ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models
+	FROM aibridge_token_usages tu
+	JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+	JOIN groups ON groups.id = tu.effective_group_id
+	WHERE groups.organization_id = $1
+		AND tu.created_at >= $4::timestamptz
+		AND tu.created_at < $5::timestamptz
+		AND CASE
+			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			ELSE true
+		END
+		AND CASE
+			WHEN $7::text != '' THEN ai.model = $7::text
+			ELSE true
+		END
+		AND CASE
+			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			ELSE true
+		END
+	GROUP BY ai.initiator_id
+)
 SELECT
-	ai.initiator_id AS user_id,
-	users.username AS username,
-	users.name AS name,
-	users.avatar_url AS avatar_url,
-	groups.organization_id AS organization_id,
-	COALESCE(SUM(tu.cost_micros), 0)::BIGINT AS cost_micros,
-	COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)::BIGINT AS unpriced_usage_count,
-	ARRAY_AGG(DISTINCT ai.provider ORDER BY ai.provider)::text[] AS providers,
-	ARRAY_AGG(DISTINCT COALESCE(ai.client, 'Unknown') ORDER BY COALESCE(ai.client, 'Unknown'))::text[] AS clients,
-	ARRAY_AGG(DISTINCT ai.model ORDER BY ai.model)::text[] AS models,
-	COUNT(*) OVER ()::BIGINT AS count,
-	COALESCE(SUM(SUM(tu.cost_micros)) OVER (), 0)::BIGINT AS total_cost_micros,
-	COALESCE(SUM(COUNT(*) FILTER (WHERE tu.cost_micros IS NULL)) OVER (), 0)::BIGINT AS total_unpriced_usage_count
-FROM aibridge_token_usages tu
-JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
-JOIN users ON users.id = ai.initiator_id
-JOIN groups ON groups.id = tu.effective_group_id
-WHERE groups.organization_id = $1
-	AND tu.created_at >= $2::timestamptz
-	AND tu.created_at < $3::timestamptz
-	AND CASE
-		WHEN $4::text != '' THEN ai.provider_name = $4::text
-		ELSE true
-	END
-	AND CASE
-		WHEN $5::text != '' THEN ai.model = $5::text
-		ELSE true
-	END
-	AND CASE
-		WHEN $6::text != '' THEN COALESCE(ai.client, 'Unknown') = $6::text
-		ELSE true
-	END
-GROUP BY
-	ai.initiator_id,
+	spend.user_id,
 	users.username,
 	users.name,
 	users.avatar_url,
-	groups.organization_id
-ORDER BY cost_micros DESC, LOWER(users.username), ai.initiator_id
-LIMIT NULLIF($8::int, 0)
-OFFSET $7::int
+	$1::uuid AS organization_id,
+	spend.cost_micros,
+	spend.unpriced_usage_count,
+	spend.providers,
+	spend.clients,
+	spend.models,
+	COUNT(*) OVER ()::BIGINT AS count,
+	COALESCE(SUM(spend.cost_micros) OVER (), 0)::BIGINT AS total_cost_micros,
+	COALESCE(SUM(spend.unpriced_usage_count) OVER (), 0)::BIGINT AS total_unpriced_usage_count
+FROM spend
+JOIN users ON users.id = spend.user_id
+ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
+LIMIT NULLIF($3::int, 0)
+OFFSET $2::int
 `
 
 type ListOrganizationAISpendUsersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 	PeriodStart    time.Time `db:"period_start" json:"period_start"`
 	PeriodEnd      time.Time `db:"period_end" json:"period_end"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
-	OffsetOpt      int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt       int32     `db:"limit_opt" json:"limit_opt"`
 }
 
 type ListOrganizationAISpendUsersRow struct {
@@ -3765,13 +3788,13 @@ type ListOrganizationAISpendUsersRow struct {
 func (q *sqlQuerier) ListOrganizationAISpendUsers(ctx context.Context, arg ListOrganizationAISpendUsersParams) ([]ListOrganizationAISpendUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOrganizationAISpendUsers,
 		arg.OrganizationID,
+		arg.OffsetOpt,
+		arg.LimitOpt,
 		arg.PeriodStart,
 		arg.PeriodEnd,
 		arg.ProviderName,
 		arg.Model,
 		arg.Client,
-		arg.OffsetOpt,
-		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -6456,6 +6479,222 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
+const deleteChatMCPServersByChatIDExcludingSlugs = `-- name: DeleteChatMCPServersByChatIDExcludingSlugs :exec
+DELETE FROM
+    chat_mcp_servers
+WHERE
+    chat_id = $1::uuid
+    AND NOT (slug = ANY($2::text[]))
+`
+
+type DeleteChatMCPServersByChatIDExcludingSlugsParams struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Slugs  []string  `db:"slugs" json:"slugs"`
+}
+
+func (q *sqlQuerier) DeleteChatMCPServersByChatIDExcludingSlugs(ctx context.Context, arg DeleteChatMCPServersByChatIDExcludingSlugsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatMCPServersByChatIDExcludingSlugs, arg.ChatID, pq.Array(arg.Slugs))
+	return err
+}
+
+const getChatMCPServersByChatID = `-- name: GetChatMCPServersByChatID :many
+SELECT
+    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_subagents, forward_coder_headers, created_at, updated_at
+FROM
+    chat_mcp_servers
+WHERE
+    chat_id = $1::uuid
+ORDER BY
+    slug ASC
+`
+
+func (q *sqlQuerier) GetChatMCPServersByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMCPServer, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMCPServersByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMCPServer
+	for rows.Next() {
+		var i ChatMCPServer
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Slug,
+			&i.Url,
+			&i.Headers,
+			&i.HeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.AllowInSubagents,
+			&i.ForwardCoderHeaders,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatMCPServersByChatOwnerID = `-- name: GetChatMCPServersByChatOwnerID :many
+SELECT
+    cms.id, cms.chat_id, cms.slug, cms.url, cms.headers, cms.headers_key_id, cms.tool_allow_list, cms.tool_deny_list, cms.allow_in_subagents, cms.forward_coder_headers, cms.created_at, cms.updated_at
+FROM
+    chat_mcp_servers cms
+JOIN
+    chats ON chats.id = cms.chat_id
+WHERE
+    chats.owner_id = $1::uuid
+ORDER BY
+    cms.id ASC
+`
+
+func (q *sqlQuerier) GetChatMCPServersByChatOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatMCPServer, error) {
+	rows, err := q.db.QueryContext(ctx, getChatMCPServersByChatOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatMCPServer
+	for rows.Next() {
+		var i ChatMCPServer
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Slug,
+			&i.Url,
+			&i.Headers,
+			&i.HeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.AllowInSubagents,
+			&i.ForwardCoderHeaders,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateEncryptedChatMCPServerHeaders = `-- name: UpdateEncryptedChatMCPServerHeaders :exec
+UPDATE
+    chat_mcp_servers
+SET
+    headers = $1::text,
+    headers_key_id = $2::text
+WHERE
+    id = $3::uuid
+`
+
+type UpdateEncryptedChatMCPServerHeadersParams struct {
+	Headers      string         `db:"headers" json:"headers"`
+	HeadersKeyID sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ID           uuid.UUID      `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error {
+	_, err := q.db.ExecContext(ctx, updateEncryptedChatMCPServerHeaders, arg.Headers, arg.HeadersKeyID, arg.ID)
+	return err
+}
+
+const upsertChatMCPServer = `-- name: UpsertChatMCPServer :one
+INSERT INTO chat_mcp_servers (
+    id,
+    chat_id,
+    slug,
+    url,
+    headers,
+    headers_key_id,
+    tool_allow_list,
+    tool_deny_list,
+    allow_in_subagents,
+    forward_coder_headers
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5::text,
+    $6::text,
+    $7::text[],
+    $8::text[],
+    $9::boolean,
+    $10::boolean
+)
+ON CONFLICT (chat_id, slug) DO UPDATE SET
+    url = EXCLUDED.url,
+    headers = EXCLUDED.headers,
+    headers_key_id = EXCLUDED.headers_key_id,
+    tool_allow_list = EXCLUDED.tool_allow_list,
+    tool_deny_list = EXCLUDED.tool_deny_list,
+    allow_in_subagents = EXCLUDED.allow_in_subagents,
+    forward_coder_headers = EXCLUDED.forward_coder_headers,
+    updated_at = now()
+RETURNING
+    id, chat_id, slug, url, headers, headers_key_id, tool_allow_list, tool_deny_list, allow_in_subagents, forward_coder_headers, created_at, updated_at
+`
+
+type UpsertChatMCPServerParams struct {
+	ID                  uuid.UUID      `db:"id" json:"id"`
+	ChatID              uuid.UUID      `db:"chat_id" json:"chat_id"`
+	Slug                string         `db:"slug" json:"slug"`
+	Url                 string         `db:"url" json:"url"`
+	Headers             string         `db:"headers" json:"headers"`
+	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
+	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+}
+
+func (q *sqlQuerier) UpsertChatMCPServer(ctx context.Context, arg UpsertChatMCPServerParams) (ChatMCPServer, error) {
+	row := q.db.QueryRowContext(ctx, upsertChatMCPServer,
+		arg.ID,
+		arg.ChatID,
+		arg.Slug,
+		arg.Url,
+		arg.Headers,
+		arg.HeadersKeyID,
+		pq.Array(arg.ToolAllowList),
+		pq.Array(arg.ToolDenyList),
+		arg.AllowInSubagents,
+		arg.ForwardCoderHeaders,
+	)
+	var i ChatMCPServer
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.Slug,
+		&i.Url,
+		&i.Headers,
+		&i.HeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.AllowInSubagents,
+		&i.ForwardCoderHeaders,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :one
 UPDATE
     chat_model_configs
@@ -7304,7 +7543,7 @@ func (q *sqlQuerier) DeleteChatProjectMemoryByID(ctx context.Context, id uuid.UU
 	return err
 }
 
-const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :exec
+const deleteChatProjectMemoryByName = `-- name: DeleteChatProjectMemoryByName :execrows
 DELETE FROM chat_project_memories
 WHERE project_id = $1::uuid
     AND lower(name) = lower($2::text)
@@ -7315,19 +7554,22 @@ type DeleteChatProjectMemoryByNameParams struct {
 	Name      string    `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
-	return err
+func (q *sqlQuerier) DeleteChatProjectMemoryByName(ctx context.Context, arg DeleteChatProjectMemoryByNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatProjectMemoryByName, arg.ProjectID, arg.Name)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatProjectMemoriesByProjectID = `-- name: GetChatProjectMemoriesByProjectID :many
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
 WHERE chat_project_memories.project_id = $1::uuid
-ORDER BY chat_project_memories.updated_at DESC
+ORDER BY lower(chat_project_memories.name)
 `
 
 type GetChatProjectMemoriesByProjectIDRow struct {
@@ -7351,10 +7593,8 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 			&i.ChatProjectMemory.Name,
 			&i.ChatProjectMemory.Description,
 			&i.ChatProjectMemory.Body,
-			&i.ChatProjectMemory.SourceChatID,
 			&i.ChatProjectMemory.CreatedBy,
 			&i.ChatProjectMemory.CreatedAt,
-			&i.ChatProjectMemory.UpdatedAt,
 			&i.CreatedByUsername,
 		); err != nil {
 			return nil, err
@@ -7372,7 +7612,7 @@ func (q *sqlQuerier) GetChatProjectMemoriesByProjectID(ctx context.Context, proj
 
 const getChatProjectMemoryByID = `-- name: GetChatProjectMemoryByID :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7394,10 +7634,8 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
-		&i.ChatProjectMemory.SourceChatID,
 		&i.ChatProjectMemory.CreatedBy,
 		&i.ChatProjectMemory.CreatedAt,
-		&i.ChatProjectMemory.UpdatedAt,
 		&i.CreatedByUsername,
 	)
 	return i, err
@@ -7405,7 +7643,7 @@ func (q *sqlQuerier) GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID)
 
 const getChatProjectMemoryByName = `-- name: GetChatProjectMemoryByName :one
 SELECT
-    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.source_chat_id, chat_project_memories.created_by, chat_project_memories.created_at, chat_project_memories.updated_at,
+    chat_project_memories.id, chat_project_memories.project_id, chat_project_memories.organization_id, chat_project_memories.name, chat_project_memories.description, chat_project_memories.body, chat_project_memories.created_by, chat_project_memories.created_at,
     visible_users.username AS created_by_username
 FROM chat_project_memories
 JOIN visible_users ON visible_users.id = chat_project_memories.created_by
@@ -7433,10 +7671,8 @@ func (q *sqlQuerier) GetChatProjectMemoryByName(ctx context.Context, arg GetChat
 		&i.ChatProjectMemory.Name,
 		&i.ChatProjectMemory.Description,
 		&i.ChatProjectMemory.Body,
-		&i.ChatProjectMemory.SourceChatID,
 		&i.ChatProjectMemory.CreatedBy,
 		&i.ChatProjectMemory.CreatedAt,
-		&i.ChatProjectMemory.UpdatedAt,
 		&i.CreatedByUsername,
 	)
 	return i, err
@@ -7450,7 +7686,6 @@ INSERT INTO chat_project_memories (
     name,
     description,
     body,
-    source_chat_id,
     created_by
 )
 VALUES (
@@ -7460,10 +7695,9 @@ VALUES (
     $4::text,
     $5::text,
     $6::text,
-    $7::uuid,
-    $8::uuid
+    $7::uuid
 )
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
+RETURNING id, project_id, organization_id, name, description, body, created_by, created_at
 `
 
 type InsertChatProjectMemoryParams struct {
@@ -7473,7 +7707,6 @@ type InsertChatProjectMemoryParams struct {
 	Name           string        `db:"name" json:"name"`
 	Description    string        `db:"description" json:"description"`
 	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 }
 
@@ -7485,7 +7718,6 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		arg.Name,
 		arg.Description,
 		arg.Body,
-		arg.SourceChatID,
 		arg.CreatedBy,
 	)
 	var i ChatProjectMemory
@@ -7496,117 +7728,23 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 		&i.Name,
 		&i.Description,
 		&i.Body,
-		&i.SourceChatID,
 		&i.CreatedBy,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const updateChatProjectMemoryByID = `-- name: UpdateChatProjectMemoryByID :one
-UPDATE chat_project_memories
-SET
-    name = $1::text,
-    description = $2::text,
-    body = $3::text,
-    updated_at = now()
-WHERE id = $4::uuid
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
+const countChatProjectsByOwnerID = `-- name: CountChatProjectsByOwnerID :one
+SELECT COUNT(*)::bigint
+FROM chat_projects
+WHERE owner_id = $1::uuid
 `
 
-type UpdateChatProjectMemoryByIDParams struct {
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description"`
-	Body        string    `db:"body" json:"body"`
-	ID          uuid.UUID `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProjectMemoryByID(ctx context.Context, arg UpdateChatProjectMemoryByIDParams) (ChatProjectMemory, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProjectMemoryByID,
-		arg.Name,
-		arg.Description,
-		arg.Body,
-		arg.ID,
-	)
-	var i ChatProjectMemory
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Description,
-		&i.Body,
-		&i.SourceChatID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertChatProjectMemoryByName = `-- name: UpsertChatProjectMemoryByName :one
-INSERT INTO chat_project_memories (
-    project_id,
-    organization_id,
-    name,
-    description,
-    body,
-    source_chat_id,
-    created_by
-)
-VALUES (
-    $1::uuid,
-    $2::uuid,
-    $3::text,
-    $4::text,
-    $5::text,
-    $6::uuid,
-    $7::uuid
-)
-ON CONFLICT (project_id, lower(name)) DO UPDATE
-SET
-    description = EXCLUDED.description,
-    body = EXCLUDED.body,
-    source_chat_id = EXCLUDED.source_chat_id,
-    updated_at = now()
-RETURNING id, project_id, organization_id, name, description, body, source_chat_id, created_by, created_at, updated_at
-`
-
-type UpsertChatProjectMemoryByNameParams struct {
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-}
-
-func (q *sqlQuerier) UpsertChatProjectMemoryByName(ctx context.Context, arg UpsertChatProjectMemoryByNameParams) (ChatProjectMemory, error) {
-	row := q.db.QueryRowContext(ctx, upsertChatProjectMemoryByName,
-		arg.ProjectID,
-		arg.OrganizationID,
-		arg.Name,
-		arg.Description,
-		arg.Body,
-		arg.SourceChatID,
-		arg.CreatedBy,
-	)
-	var i ChatProjectMemory
-	err := row.Scan(
-		&i.ID,
-		&i.ProjectID,
-		&i.OrganizationID,
-		&i.Name,
-		&i.Description,
-		&i.Body,
-		&i.SourceChatID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *sqlQuerier) CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countChatProjectsByOwnerID, ownerID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const deleteChatProjectByID = `-- name: DeleteChatProjectByID :exec
@@ -7641,15 +7779,15 @@ func (q *sqlQuerier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (Chat
 	return i, err
 }
 
-const getChatProjectsByOrganizationID = `-- name: GetChatProjectsByOrganizationID :many
+const getChatProjectsByOwnerID = `-- name: GetChatProjectsByOwnerID :many
 SELECT id, organization_id, owner_id, name, description, icon, created_at, updated_at
 FROM chat_projects
-WHERE organization_id = $1::uuid
-ORDER BY lower(name)
+WHERE owner_id = $1::uuid
+ORDER BY lower(name), id
 `
 
-func (q *sqlQuerier) GetChatProjectsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsByOrganizationID, organizationID)
+func (q *sqlQuerier) GetChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsByOwnerID, ownerID)
 	if err != nil {
 		return nil, err
 	}
@@ -9301,7 +9439,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9338,6 +9476,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+		&i.QueuedMessageID,
 	)
 	return i, err
 }
@@ -9424,7 +9563,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9479,6 +9618,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -9495,7 +9635,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9550,6 +9690,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -9566,7 +9707,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9634,6 +9775,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -9650,7 +9792,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9702,6 +9844,7 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -9733,7 +9876,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -9810,6 +9953,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -10373,71 +10517,91 @@ WHERE
         ) = $12::boolean
         ELSE true
     END
+    -- Filter by the stored chat_status enum, the same value the sidebar
+    -- row icon uses.
+    AND CASE
+        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($13::text[])
+        ELSE true
+    END
     -- Filter by pull request status. Unlike the diff_url filter above,
     -- this intentionally checks only the root chat's own diff status.
     -- Child chats share the same workspace and git branch as their
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
+    -- "none" matches chats with no pull request: no diff-status row, or a
+    -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN EXISTS (
-            SELECT 1
-            FROM chat_diff_statuses cds
-            WHERE cds.chat_id = chats_expanded.id
-                AND (
-                    CASE
-                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
-                        WHEN cds.pull_request_state = 'open' THEN 'open'
-                        ELSE cds.pull_request_state
-                    END
-                ) = ANY($13::text[])
+        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN (
+            (
+                'none' = ANY($14::text[])
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM chat_diff_statuses cds
+                    WHERE cds.chat_id = chats_expanded.id
+                        AND NULLIF(cds.pull_request_state, '') IS NOT NULL
+                )
+            )
+            OR EXISTS (
+                SELECT 1
+                FROM chat_diff_statuses cds
+                WHERE cds.chat_id = chats_expanded.id
+                    AND (
+                        CASE
+                            WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                            WHEN cds.pull_request_state = 'open' THEN 'open'
+                            ELSE cds.pull_request_state
+                        END
+                    ) = ANY($14::text[])
+            )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $14::int != 0 THEN EXISTS (
+        WHEN $15::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $14
+                AND cds.pr_number = $15
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $15::text != '' THEN EXISTS (
+        WHEN $16::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $15 || '%'
-                    OR cds.url ILIKE '%' || $15 || '%'
+                    cds.git_remote_origin ILIKE '%' || $16 || '%'
+                    OR cds.url ILIKE '%' || $16 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $16::text != '' THEN EXISTS (
+        WHEN $17::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $16 || '%'
+                AND cds.pull_request_title ILIKE '%' || $17 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $17::text != '' THEN (
+        WHEN $18::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $17)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $17)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -10451,18 +10615,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $17))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $17))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $17 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $17::bigint
+                        AND cds.pr_number = $18::bigint
                 )
                 ELSE false
             END
@@ -10485,11 +10649,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $18
+OFFSET $19
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($19 :: int, 0), 50)
+    COALESCE(NULLIF($20 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -10505,6 +10669,7 @@ type GetChatsParams struct {
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
 	TitleQuery          string                `db:"title_query" json:"title_query"`
 	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	ChatStatuses        []string              `db:"chat_statuses" json:"chat_statuses"`
 	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
 	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
 	RepoQuery           string                `db:"repo_query" json:"repo_query"`
@@ -10533,6 +10698,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.DiffURL,
 		arg.TitleQuery,
 		arg.HasUnread,
+		pq.Array(arg.ChatStatuses),
 		pq.Array(arg.PullRequestStatuses),
 		arg.PrNumber,
 		arg.RepoQuery,
@@ -11054,7 +11220,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM
     chat_messages
 WHERE
@@ -11103,6 +11269,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.ReasoningEffort,
 		&i.SearchTsv,
 		&i.SearchTsvConfig,
+		&i.QueuedMessageID,
 	)
 	return i, err
 }
@@ -11604,7 +11771,9 @@ inserted AS (
         cache_read_tokens,
         context_limit,
         compressed,
-        runtime_ms
+        runtime_ms,
+        provider_response_id,
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -11624,11 +11793,14 @@ inserted AS (
         NULLIF(($14::bigint[])[allocated.ord], 0),
         NULLIF(($15::bigint[])[allocated.ord], 0),
         ($16::boolean[])[allocated.ord],
-        NULLIF(($17::bigint[])[allocated.ord], 0)
+        NULLIF(($17::bigint[])[allocated.ord], 0),
+        NULLIF(($18::text[])[allocated.ord], ''),
+        -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
+        NULLIF(($19::bigint[])[allocated.ord], 0)
     FROM allocated
-    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 )
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id
 FROM inserted
 ORDER BY id
 `
@@ -11651,6 +11823,8 @@ type InsertChatMessagesParams struct {
 	ContextLimit        []int64                 `db:"context_limit" json:"context_limit"`
 	Compressed          []bool                  `db:"compressed" json:"compressed"`
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
+	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
+	QueuedMessageID     []int64                 `db:"queued_message_id" json:"queued_message_id"`
 }
 
 type InsertChatMessagesRow struct {
@@ -11679,6 +11853,7 @@ type InsertChatMessagesRow struct {
 	ReasoningEffort     NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
 	SearchTsv           interface{}                    `db:"search_tsv" json:"search_tsv"`
 	SearchTsvConfig     NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	QueuedMessageID     sql.NullInt64                  `db:"queued_message_id" json:"queued_message_id"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the
@@ -11703,6 +11878,8 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.ContextLimit),
 		pq.Array(arg.Compressed),
 		pq.Array(arg.RuntimeMs),
+		pq.Array(arg.ProviderResponseID),
+		pq.Array(arg.QueuedMessageID),
 	)
 	if err != nil {
 		return nil, err
@@ -11737,6 +11914,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.ReasoningEffort,
 			&i.SearchTsv,
 			&i.SearchTsvConfig,
+			&i.QueuedMessageID,
 		); err != nil {
 			return nil, err
 		}
@@ -11908,8 +12086,8 @@ inserted AS (
     ON CONFLICT (chat_id, file_id) DO NOTHING
     RETURNING file_id
 )
-SELECT (SELECT COUNT(*)::int FROM genuinely_new)
-     - (SELECT COUNT(*)::int FROM inserted) AS rejected_new_files
+SELECT (CASE WHEN (SELECT ok FROM fits) THEN 0
+             ELSE (SELECT COUNT(*) FROM new_links) END)::int AS rejected_files
 `
 
 type LinkChatFilesAfterLockParams struct {
@@ -11925,9 +12103,9 @@ type LinkChatFilesAfterLockParams struct {
 // exceeds the cap.
 func (q *sqlQuerier) LinkChatFilesAfterLock(ctx context.Context, arg LinkChatFilesAfterLockParams) (int32, error) {
 	row := q.db.QueryRowContext(ctx, linkChatFilesAfterLock, pq.Array(arg.FileIds), arg.MaxFileLinks, arg.ChatID)
-	var rejected_new_files int32
-	err := row.Scan(&rejected_new_files)
-	return rejected_new_files, err
+	var rejected_files int32
+	err := row.Scan(&rejected_files)
+	return rejected_files, err
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
@@ -13468,12 +13646,13 @@ WHERE id = $2::uuid
 `
 
 type UpdateChatLastReadMessageIDParams struct {
-	LastReadMessageID int64     `db:"last_read_message_id" json:"last_read_message_id"`
-	ID                uuid.UUID `db:"id" json:"id"`
+	LastReadMessageID sql.NullInt64 `db:"last_read_message_id" json:"last_read_message_id"`
+	ID                uuid.UUID     `db:"id" json:"id"`
 }
 
 // Updates the last read message ID for a chat. This is used to track
-// which messages the owner has seen, enabling unread indicators.
+// which messages the owner has seen, enabling unread indicators. A NULL
+// value clears the cursor, marking every message unread again.
 func (q *sqlQuerier) UpdateChatLastReadMessageID(ctx context.Context, arg UpdateChatLastReadMessageIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatLastReadMessageID, arg.LastReadMessageID, arg.ID)
 	return err
@@ -14679,7 +14858,8 @@ const batchUpsertConnectionLogs = `-- name: BatchUpsertConnectionLogs :exec
 INSERT INTO connection_logs (
     id, connect_time, organization_id, workspace_owner_id, workspace_id,
     workspace_name, agent_name, type, code, ip, user_agent, user_id,
-    slug_or_port, connection_id, disconnect_reason, disconnect_time
+    slug_or_port, connection_id, disconnect_reason, disconnect_time,
+	client_session_id
 )
 SELECT
     u.id,
@@ -14699,7 +14879,8 @@ SELECT
     NULLIF(u.slug_or_port, ''),
     NULLIF(u.connection_id, '00000000-0000-0000-0000-000000000000'::uuid),
     NULLIF(u.disconnect_reason, ''),
-    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz)
+    NULLIF(u.disconnect_time, '0001-01-01 00:00:00Z'::timestamptz),
+    NULLIF(u.client_session_id, '')
 FROM (
     SELECT
         unnest($1::uuid[]) AS id,
@@ -14718,7 +14899,8 @@ FROM (
         unnest($14::text[]) AS slug_or_port,
         unnest($15::uuid[]) AS connection_id,
         unnest($16::text[]) AS disconnect_reason,
-        unnest($17::timestamptz[]) AS disconnect_time
+        unnest($17::timestamptz[]) AS disconnect_time,
+        unnest($18::text[]) AS client_session_id
 ) AS u
 ON CONFLICT (connection_id, workspace_id, agent_name)
 DO UPDATE SET
@@ -14767,6 +14949,7 @@ type BatchUpsertConnectionLogsParams struct {
 	ConnectionID     []uuid.UUID      `db:"connection_id" json:"connection_id"`
 	DisconnectReason []string         `db:"disconnect_reason" json:"disconnect_reason"`
 	DisconnectTime   []time.Time      `db:"disconnect_time" json:"disconnect_time"`
+	ClientSessionID  []string         `db:"client_session_id" json:"client_session_id"`
 }
 
 func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error {
@@ -14788,6 +14971,7 @@ func (q *sqlQuerier) BatchUpsertConnectionLogs(ctx context.Context, arg BatchUps
 		pq.Array(arg.ConnectionID),
 		pq.Array(arg.DisconnectReason),
 		pq.Array(arg.DisconnectTime),
+		pq.Array(arg.ClientSessionID),
 	)
 	return err
 }
@@ -14970,7 +15154,7 @@ func (q *sqlQuerier) DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldC
 
 const getConnectionLogsOffset = `-- name: GetConnectionLogsOffset :many
 SELECT
-	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason,
+	connection_logs.id, connection_logs.connect_time, connection_logs.organization_id, connection_logs.workspace_owner_id, connection_logs.workspace_id, connection_logs.workspace_name, connection_logs.agent_name, connection_logs.type, connection_logs.ip, connection_logs.code, connection_logs.user_agent, connection_logs.user_id, connection_logs.slug_or_port, connection_logs.connection_id, connection_logs.disconnect_time, connection_logs.disconnect_reason, connection_logs.client_session_id,
 	-- sqlc.embed(users) would be nice but it does not seem to play well with
 	-- left joins. This user metadata is necessary for parity with the audit logs
 	-- API.
@@ -15184,6 +15368,7 @@ func (q *sqlQuerier) GetConnectionLogsOffset(ctx context.Context, arg GetConnect
 			&i.ConnectionLog.ConnectionID,
 			&i.ConnectionLog.DisconnectTime,
 			&i.ConnectionLog.DisconnectReason,
+			&i.ConnectionLog.ClientSessionID,
 			&i.UserUsername,
 			&i.UserName,
 			&i.UserEmail,
@@ -20933,6 +21118,44 @@ SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, clie
 
 func (q *sqlQuerier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
 	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByID, id)
+	var i OAuth2ProviderApp
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Icon,
+		&i.CallbackURL,
+		pq.Array(&i.RedirectUris),
+		&i.ClientType,
+		&i.DynamicallyRegistered,
+		&i.ClientIDIssuedAt,
+		&i.ClientSecretExpiresAt,
+		pq.Array(&i.GrantTypes),
+		pq.Array(&i.ResponseTypes),
+		&i.TokenEndpointAuthMethod,
+		&i.Scope,
+		pq.Array(&i.Contacts),
+		&i.ClientUri,
+		&i.LogoUri,
+		&i.TosUri,
+		&i.PolicyUri,
+		&i.JwksUri,
+		&i.Jwks,
+		&i.SoftwareID,
+		&i.SoftwareVersion,
+		&i.RegistrationAccessToken,
+		&i.RegistrationClientUri,
+	)
+	return i, err
+}
+
+const getOAuth2ProviderAppByIDForUpdate = `-- name: GetOAuth2ProviderAppByIDForUpdate :one
+SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE id = $1 FOR UPDATE
+`
+
+func (q *sqlQuerier) GetOAuth2ProviderAppByIDForUpdate(ctx context.Context, id uuid.UUID) (OAuth2ProviderApp, error) {
+	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByIDForUpdate, id)
 	var i OAuth2ProviderApp
 	err := row.Scan(
 		&i.ID,
@@ -27095,6 +27318,59 @@ func (q *sqlQuerier) GetDeploymentID(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getExperimentRule = `-- name: GetExperimentRule :one
+SELECT site_configs.value
+FROM site_configs
+WHERE site_configs.key = 'experiment_rule:' || $1::text
+`
+
+func (q *sqlQuerier) GetExperimentRule(ctx context.Context, experiment string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExperimentRule, experiment)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
+const getExperimentRules = `-- name: GetExperimentRules :many
+SELECT
+    substr(site_configs.key, length('experiment_rule:') + 1)::text AS experiment,
+    site_configs.value
+FROM site_configs
+WHERE starts_with(site_configs.key, 'experiment_rule:')
+ORDER BY site_configs.key
+`
+
+type GetExperimentRulesRow struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+// GetExperimentRules returns every stored runtime experiment rule, keyed by
+// the experiment name. starts_with is used instead of LIKE because '_' is a
+// LIKE wildcard.
+func (q *sqlQuerier) GetExperimentRules(ctx context.Context) ([]GetExperimentRulesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExperimentRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExperimentRulesRow
+	for rows.Next() {
+		var i GetExperimentRulesRow
+		if err := rows.Scan(&i.Experiment, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getHealthSettings = `-- name: GetHealthSettings :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'health_settings'), '{}') :: text AS health_settings
@@ -27477,6 +27753,22 @@ type UpsertDefaultProxyParams struct {
 // The functional values are immutable and controlled implicitly.
 func (q *sqlQuerier) UpsertDefaultProxy(ctx context.Context, arg UpsertDefaultProxyParams) error {
 	_, err := q.db.ExecContext(ctx, upsertDefaultProxy, arg.DisplayName, arg.IconURL)
+	return err
+}
+
+const upsertExperimentRule = `-- name: UpsertExperimentRule :exec
+INSERT INTO site_configs (key, value)
+VALUES ('experiment_rule:' || $1::text, $2::text)
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+`
+
+type UpsertExperimentRuleParams struct {
+	Experiment string `db:"experiment" json:"experiment"`
+	Value      string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertExperimentRule(ctx context.Context, arg UpsertExperimentRuleParams) error {
+	_, err := q.db.ExecContext(ctx, upsertExperimentRule, arg.Experiment, arg.Value)
 	return err
 }
 
@@ -31777,6 +32069,8 @@ SELECT
 				--
 				-- organizations.default_org_member_roles is unioned in so changes
 				-- to org defaults propagate to every member on the next request.
+				-- Service accounts do not inherit agents-access from the defaults
+				-- so they only get chat access through an explicit grant.
 				unnest(
 					array_cat(
 						array_append(
@@ -31787,7 +32081,11 @@ SELECT
 								'organization-member'
 							END
 						),
-						organizations.default_org_member_roles
+						CASE WHEN users.is_service_account THEN
+							array_remove(organizations.default_org_member_roles, 'agents-access')
+						ELSE
+							organizations.default_org_member_roles
+						END
 					)
 				) AS org_roles
 			WHERE
@@ -32047,6 +32345,23 @@ func (q *sqlQuerier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const getUserCollapseAssistantSteps = `-- name: GetUserCollapseAssistantSteps :one
+SELECT
+	value::boolean as collapse_assistant_steps
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_collapse_assistant_steps'
+`
+
+func (q *sqlQuerier) GetUserCollapseAssistantSteps(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRowContext(ctx, getUserCollapseAssistantSteps, userID)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const getUserCount = `-- name: GetUserCount :one
@@ -32681,6 +32996,33 @@ func (q *sqlQuerier) UpdateUserCodeDiffDisplayMode(ctx context.Context, arg Upda
 	var code_diff_display_mode string
 	err := row.Scan(&code_diff_display_mode)
 	return code_diff_display_mode, err
+}
+
+const updateUserCollapseAssistantSteps = `-- name: UpdateUserCollapseAssistantSteps :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_collapse_assistant_steps', ($2::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_collapse_assistant_steps'
+RETURNING value::boolean AS collapse_assistant_steps
+`
+
+type UpdateUserCollapseAssistantStepsParams struct {
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	CollapseAssistantSteps bool      `db:"collapse_assistant_steps" json:"collapse_assistant_steps"`
+}
+
+func (q *sqlQuerier) UpdateUserCollapseAssistantSteps(ctx context.Context, arg UpdateUserCollapseAssistantStepsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCollapseAssistantSteps, arg.UserID, arg.CollapseAssistantSteps)
+	var collapse_assistant_steps bool
+	err := row.Scan(&collapse_assistant_steps)
+	return collapse_assistant_steps, err
 }
 
 const updateUserDeletedByID = `-- name: UpdateUserDeletedByID :exec
@@ -40333,13 +40675,18 @@ WHERE
 	FROM
 		filtered_workspaces fw
 	ORDER BY
-		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
+		-- Favorited workspaces should show up first only for their owner.
 		CASE WHEN favorite AND owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		-- Workspaces you own should show up first.
+		CASE WHEN owner_username = (SELECT users.username FROM users WHERE users.id = $25) THEN 0 ELSE 1 END ASC,
+		-- Running workspaces should show up first.
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
 			latest_build_transition = 'start'::workspace_transition) DESC,
+		-- Group workspaces by owner.
 		LOWER(owner_username) ASC,
+		-- Order workspaces by name.
 		LOWER(name) ASC
 	LIMIT
 		CASE

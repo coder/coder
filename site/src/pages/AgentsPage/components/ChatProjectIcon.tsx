@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { FolderIcon, FolderOpenIcon } from "lucide-react";
-import type { FC } from "react";
 import type { ChatProject } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
@@ -11,7 +10,7 @@ type ChatProjectIconProps = {
 };
 
 /** The project's chosen icon, or a folder glyph when none is set. */
-export const ChatProjectIcon: FC<ChatProjectIconProps> = ({
+export const ChatProjectIcon: React.FC<ChatProjectIconProps> = ({
 	project,
 	expanded = false,
 	className,

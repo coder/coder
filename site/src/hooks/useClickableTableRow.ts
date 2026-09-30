@@ -15,15 +15,15 @@
  */
 
 import { cn } from "cn";
-import type { ComponentProps, MouseEventHandler } from "react";
 import {
 	type ClickableAriaRole,
+	isFromPortal,
 	type UseClickableResult,
 	useClickable,
 } from "./useClickable";
 
 type TableRowClickHandlers = Pick<
-	ComponentProps<"tr">,
+	React.ComponentProps<"tr">,
 	"onClick" | "onDoubleClick" | "onAuxClick"
 >;
 
@@ -33,14 +33,14 @@ type UseClickableTableRowResult<
 	TableRowClickHandlers & {
 		className: string;
 		hover: true;
-		onAuxClick: MouseEventHandler<HTMLTableRowElement>;
+		onAuxClick: React.MouseEventHandler<HTMLTableRowElement>;
 	};
 
 type UseClickableTableRowConfig<TRole extends ClickableAriaRole> =
 	TableRowClickHandlers & {
 		role?: TRole;
-		onClick: MouseEventHandler<HTMLTableRowElement>;
-		onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
+		onClick: React.MouseEventHandler<HTMLTableRowElement>;
+		onMiddleClick?: React.MouseEventHandler<HTMLTableRowElement>;
 	};
 
 export const useClickableTableRow = <
@@ -61,8 +61,19 @@ export const useClickableTableRow = <
 			"first:rounded-t-md last:rounded-b-md",
 		]),
 		hover: true,
-		onDoubleClick,
+		onDoubleClick:
+			onDoubleClick &&
+			((event) => {
+				if (!isFromPortal(event)) {
+					onDoubleClick(event);
+				}
+			}),
 		onAuxClick: (event) => {
+			// A middle-click paste (Linux) into a portaled dialog's input would
+			// otherwise open the row's link in a new tab.
+			if (isFromPortal(event)) {
+				return;
+			}
 			// Regardless of which callback gets called, the hook won't stop the event
 			// from bubbling further up the DOM
 			const isMiddleMouseButton = event.button === 1;

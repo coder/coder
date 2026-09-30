@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
-import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { API } from "#/api/api";
@@ -57,7 +56,7 @@ type AgentDevcontainerCardProps = {
 	wildcardHostname: string;
 };
 
-export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
+export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 	parentAgent,
 	subAgents,
 	devcontainer,
@@ -405,11 +404,9 @@ type DevcontainerDeleteErrorDialogProps = {
 	onClose: () => void;
 };
 
-const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
-	open,
-	error,
-	onClose,
-}) => {
+const DevcontainerDeleteErrorDialog: React.FC<
+	DevcontainerDeleteErrorDialogProps
+> = ({ open, error, onClose }) => {
 	const errorDetail = getErrorDetail(error);
 	const errorMessage = getErrorMessage(
 		error,

@@ -273,7 +273,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 		if len(emptyTables) > 0 {
 			t.Log("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
 			t.Errorf("tables have zero rows: %v", emptyTables)
-			t.Log("See https://github.com/coder/coder/blob/main/docs/about/contributing/backend.md#database-fixtures-for-testing-migrations for more information")
+			t.Log("See https://github.com/coder/coder/blob/main/contributing/backend.md#database-fixtures-for-testing-migrations for more information")
 		}
 	})
 
@@ -403,6 +403,7 @@ func TestMigrationChain(t *testing.T) {
 		{"Migration000587RemoveAgentsAccessRole", 587, testMigration000587RemoveAgentsAccessRole},
 		{"Migration000590WorkspaceAgentSessionCounts", 590, testMigration000590WorkspaceAgentSessionCounts},
 		{"Migration000595RemoveTaskPermissions", 595, testMigration000595RemoveTaskPermissions},
+		{"Migration000602RestoreAgentsAccessDefaultRole", 602, testMigration000602RestoreAgentsAccessDefaultRole},
 	}
 	for _, step := range steps {
 		stepTo(step.version - 1)
@@ -1660,6 +1661,105 @@ func testMigration000587RemoveAgentsAccessRole(t *testing.T, sqlDB *sql.DB, next
 	require.Equal(t, []string{"auditor"}, []string(siteRoles))
 	require.Equal(t, []string{"organization-auditor"}, []string(orgRoles))
 	require.Equal(t, []string{"organization-workspace-access"}, []string(defaultRoles))
+}
+
+func testMigration000602RestoreAgentsAccessDefaultRole(t *testing.T, sqlDB *sql.DB, next migrationStepper) {
+	const migrationVersion = 602
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db := database.New(sqlDB)
+
+	orgs := []struct {
+		defaults []string
+		want     []string
+	}{
+		{[]string{"organization-workspace-access"}, []string{"organization-workspace-access", "agents-access"}},
+		{[]string{}, []string{"agents-access"}},
+		{[]string{"organization-workspace-access", "organization-auditor"}, []string{"organization-workspace-access", "organization-auditor", "agents-access"}},
+	}
+	orgIDs := make([]uuid.UUID, len(orgs))
+	for i, o := range orgs {
+		org := dbgen.Organization(t, db, database.Organization{})
+		// dbgen replaces an empty slice with the current defaults.
+		_, err := sqlDB.ExecContext(ctx, "UPDATE organizations SET default_org_member_roles = $1 WHERE id = $2", pq.StringArray(o.defaults), org.ID)
+		require.NoError(t, err)
+		orgIDs[i] = org.ID
+	}
+
+	member := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: orgIDs[0],
+		UserID:         member.ID,
+		Roles:          []string{"organization-auditor"},
+	})
+	serviceAccount := dbgen.User(t, db, database.User{IsServiceAccount: true})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: orgIDs[0],
+		UserID:         serviceAccount.ID,
+		Roles:          []string{},
+	})
+	legacyRole := dbgen.CustomRole(t, db, database.CustomRole{
+		Name:           "agents-access",
+		OrganizationID: uuid.NullUUID{UUID: orgIDs[1], Valid: true},
+	})
+	unrelatedRole := dbgen.CustomRole(t, db, database.CustomRole{
+		OrganizationID: uuid.NullUUID{UUID: orgIDs[1], Valid: true},
+	})
+
+	memberRoles := func(userID uuid.UUID) []string {
+		t.Helper()
+		var roles pq.StringArray
+		err := sqlDB.QueryRowContext(ctx, "SELECT roles FROM organization_members WHERE organization_id = $1 AND user_id = $2", orgIDs[0], userID).Scan(&roles)
+		require.NoError(t, err)
+		return roles
+	}
+	assertDefaults := func(withAgentsAccess bool) {
+		t.Helper()
+		for i, o := range orgs {
+			var roles pq.StringArray
+			err := sqlDB.QueryRowContext(ctx, "SELECT default_org_member_roles FROM organizations WHERE id = $1", orgIDs[i]).Scan(&roles)
+			require.NoError(t, err)
+			want := o.defaults
+			if withAgentsAccess {
+				want = o.want
+			}
+			require.Equal(t, want, []string(roles), "org %d", i)
+		}
+	}
+	customRoleExists := func(id uuid.UUID) bool {
+		t.Helper()
+		var exists bool
+		err := sqlDB.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM custom_roles WHERE id = $1)", id).Scan(&exists)
+		require.NoError(t, err)
+		return exists
+	}
+
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+	assertDefaults(true)
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(member.ID))
+	require.Empty(t, memberRoles(serviceAccount.ID))
+	require.False(t, customRoleExists(legacyRole.ID))
+	require.True(t, customRoleExists(unrelatedRole.ID))
+
+	// An explicit grant made after the upgrade is removed on downgrade.
+	_, err = sqlDB.ExecContext(ctx, "UPDATE organization_members SET roles = array_append(roles, 'agents-access') WHERE user_id = $1", serviceAccount.ID)
+	require.NoError(t, err)
+
+	downSQL, err := os.ReadFile("000602_restore_agents_access_default_role.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+	assertDefaults(false)
+	require.Equal(t, []string{"organization-auditor"}, memberRoles(member.ID))
+	require.Empty(t, memberRoles(serviceAccount.ID))
+
+	upSQL, err := os.ReadFile("000602_restore_agents_access_default_role.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertDefaults(true)
 }
 
 func TestMigration000504AIProvidersBackfill(t *testing.T) {
@@ -4033,4 +4133,85 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
+}
+
+// Migration 000599 makes redirect_uris the source of truth for an OAuth2
+// app's redirect URIs, with the callback as the first entry. Every row shape
+// the column could hold before the migration must come out with the callback
+// first and nothing lost, and running the statement again must change
+// nothing.
+func TestMigration000599OAuth2RedirectURIsPrimary(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 599
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	const (
+		callback = "https://app.example.com/callback"
+		other    = "https://other.example.com/callback"
+		third    = "https://third.example.com/callback"
+	)
+	rows := []struct {
+		name   string
+		id     uuid.UUID
+		before pq.StringArray
+		after  pq.StringArray
+	}{
+		{name: "null-list", id: uuid.New(), before: nil, after: pq.StringArray{callback}},
+		{name: "empty-list", id: uuid.New(), before: pq.StringArray{}, after: pq.StringArray{callback}},
+		{name: "callback-first", id: uuid.New(), before: pq.StringArray{callback, other}, after: pq.StringArray{callback, other}},
+		{name: "callback-absent", id: uuid.New(), before: pq.StringArray{other, third}, after: pq.StringArray{callback, other, third}},
+		{name: "callback-second", id: uuid.New(), before: pq.StringArray{other, callback}, after: pq.StringArray{callback, other}},
+	}
+	for _, row := range rows {
+		_, err = sqlDB.ExecContext(ctx, `
+			INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, redirect_uris)
+			VALUES ($1, $2, $2, $3, '', $4, $5)
+		`, row.id, now, row.name, callback, row.before)
+		require.NoError(t, err, row.name)
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertRows := func() {
+		t.Helper()
+		for _, row := range rows {
+			var got pq.StringArray
+			var callbackURL string
+			err := sqlDB.QueryRowContext(ctx, `
+				SELECT redirect_uris, callback_url FROM oauth2_provider_apps WHERE id = $1
+			`, row.id).Scan(&got, &callbackURL)
+			require.NoError(t, err, row.name)
+			require.Equal(t, row.after, got, row.name)
+			require.Equal(t, callback, callbackURL, row.name)
+		}
+	}
+	assertRows()
+
+	// Running the statement again must be a no-op.
+	upSQL, err := os.ReadFile("000599_oauth2_redirect_uris_primary.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+	assertRows()
 }

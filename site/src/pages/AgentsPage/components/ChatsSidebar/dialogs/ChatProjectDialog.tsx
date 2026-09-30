@@ -1,5 +1,6 @@
 import { useFormik } from "formik";
-import { type FC, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as Yup from "yup";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatProject, Organization } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -24,6 +25,28 @@ type ChatProjectFormValues = {
 	organization_id?: string;
 };
 
+const nameMaxLength = 64;
+const descriptionMaxLength = 1024;
+const iconMaxLength = 256;
+
+const validationSchema = Yup.object({
+	name: Yup.string()
+		.trim()
+		.required("Name is required.")
+		.max(
+			nameMaxLength,
+			`Name cannot be longer than ${nameMaxLength} characters.`,
+		),
+	description: Yup.string().max(
+		descriptionMaxLength,
+		`Description cannot be longer than ${descriptionMaxLength} characters.`,
+	),
+	icon: Yup.string().max(
+		iconMaxLength,
+		`Icon cannot be longer than ${iconMaxLength} characters.`,
+	),
+});
+
 type ChatProjectDialogProps = {
 	readonly project?: ChatProject;
 	/**
@@ -39,7 +62,7 @@ type ChatProjectDialogProps = {
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
-export const ChatProjectDialog: FC<ChatProjectDialogProps> = ({
+export const ChatProjectDialog: React.FC<ChatProjectDialogProps> = ({
 	project,
 	organizations = [],
 	open,
@@ -81,7 +104,7 @@ type ChatProjectFormProps = {
 	readonly onSubmit: (values: ChatProjectFormValues) => void;
 };
 
-const ChatProjectForm: FC<ChatProjectFormProps> = ({
+const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 	project,
 	organizations,
 	isSubmitting,
@@ -111,8 +134,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 			icon: project?.icon ?? "",
 		},
 		validateOnMount: true,
-		validate: (values) =>
-			values.name.trim() ? {} : { name: "Name is required." },
+		validationSchema,
 		onSubmit: (values) => {
 			const name = values.name.trim();
 			const description = values.description.trim();
@@ -134,9 +156,11 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form);
-	const nameField = getFieldHelpers("name", { maxLength: 64 });
-	const descriptionField = getFieldHelpers("description", { maxLength: 1024 });
-	const iconField = getFieldHelpers("icon", { maxLength: 256 });
+	const nameField = getFieldHelpers("name", { maxLength: nameMaxLength });
+	const descriptionField = getFieldHelpers("description", {
+		maxLength: descriptionMaxLength,
+	});
+	const iconField = getFieldHelpers("icon", { maxLength: iconMaxLength });
 
 	return (
 		<>
@@ -159,7 +183,7 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 					label="Name"
 					required
 					disabled={isSubmitting}
-					maxLength={64}
+					maxLength={nameMaxLength}
 					autoFocus
 				/>
 				<FormField
@@ -173,14 +197,14 @@ const ChatProjectForm: FC<ChatProjectFormProps> = ({
 							onChange={descriptionField.onChange}
 							onBlur={descriptionField.onBlur}
 							disabled={isSubmitting}
-							maxLength={1024}
+							maxLength={descriptionMaxLength}
 						/>
 					)}
 				/>
 				<IconField
 					{...iconField}
 					disabled={isSubmitting}
-					maxLength={256}
+					maxLength={iconMaxLength}
 					onPickEmoji={(value) => form.setFieldValue("icon", value)}
 				/>
 				{Boolean(error) && (

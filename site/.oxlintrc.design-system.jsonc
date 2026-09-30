@@ -1,0 +1,17 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"extends": ["./.oxlintrc.jsonc"],
+	"jsPlugins": ["@shadcn/lint"],
+	// Oxlint 1.80 does not inherit ignorePatterns through extends.
+	// Keep these aligned with .oxlintrc.jsonc.
+	"ignorePatterns": [
+		"e2e/**/*Generated.ts",
+		"scripts/*.mjs",
+		"**/typesGenerated.ts",
+		"src/vendor/**"
+	],
+	"rules": {
+		// Advisory until existing palette colors and undeclared tokens are resolved.
+		"shadcn/no-raw-colors": "warn"
+	}
+}

@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
 	Tooltip,
@@ -25,7 +25,7 @@ type CodeExampleProps = {
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<CodeExampleProps> = ({
+export const CodeExample: React.FC<CodeExampleProps> = ({
 	code,
 	className,
 	secret = true,

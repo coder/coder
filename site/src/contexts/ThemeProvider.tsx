@@ -1,9 +1,4 @@
-import {
-	type FC,
-	type PropsWithChildren,
-	type ReactNode,
-	useEffect,
-} from "react";
+import { useEffect } from "react";
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
@@ -16,7 +11,9 @@ import {
 } from "#/theme/themeMode";
 import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
-export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
+export const ThemeProvider: React.FC<React.PropsWithChildren> = ({
+	children,
+}) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
@@ -51,10 +48,13 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 type ThemeOverrideProps = {
 	theme: Theme;
-	children?: ReactNode;
+	children?: React.ReactNode;
 };
 
-export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
+export const ThemeOverride: React.FC<ThemeOverrideProps> = ({
+	theme,
+	children,
+}) => {
 	return (
 		<ThemeContextProvider theme={theme}>
 			<AppearanceProvider externalImages={theme.externalImages}>

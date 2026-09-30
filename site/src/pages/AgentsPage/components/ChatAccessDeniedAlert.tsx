@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -8,10 +7,12 @@ type ChatAccessDeniedAlertProps = {
 	readonly description?: string;
 };
 
-export const ChatAccessDeniedAlert: FC<ChatAccessDeniedAlertProps> = ({
-	description = "You don't have permission to use Coder Agents. Contact your Coder administrator, then refresh this page.",
+export const ChatAccessDeniedAlert: React.FC<ChatAccessDeniedAlertProps> = ({
+	description = "You don't have permission to use Coder Agents. Your existing chats are kept and reappear when your access is restored. Contact your Coder administrator, then refresh this page.",
 }) => {
-	const docsLink = docs("/ai-coder/agents/getting-started");
+	const docsLink = docs(
+		"/ai-coder/agents/getting-started#control-who-can-use-coder-agents",
+	);
 
 	return (
 		<Alert

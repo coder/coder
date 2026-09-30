@@ -134,6 +134,7 @@ func TestConvertMessagesWithFiles_InlinesTextFilePartWhenProviderRejects(t *test
 				resolver,
 				slogtest.Make(t, nil),
 				tc.accepts,
+				uuid.NullUUID{},
 			)
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
@@ -165,6 +166,7 @@ func TestConvertMessagesWithFiles_NilPredicateKeepsFilePart(t *testing.T) {
 		resolver,
 		slogtest.Make(t, nil),
 		nil,
+		uuid.NullUUID{},
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -189,6 +191,7 @@ func TestConvertMessagesWithFiles_InlinedTextNotTruncated(t *testing.T) {
 		resolver,
 		slogtest.Make(t, nil),
 		acceptNone,
+		uuid.NullUUID{},
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)

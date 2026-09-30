@@ -7,6 +7,10 @@
 # they 404 on the docs site. The comment is updated in place on later
 # pushes and deleted when nothing previewable remains.
 #
+# Generated reference pages (docs/reference/**) are excluded from the
+# comment too: a review checkbox for machine-generated CLI/API docs is
+# noise. Still logged to the job output, so nothing is silently lost.
+#
 # Changed images get an informational section (no checkboxes: the image
 # changed, the embedding pages did not). Each image lists the manifest-
 # routed pages that embed it; mapping needs the referencing Markdown on
@@ -218,6 +222,10 @@ jobs:
           all_comment_ids=$(list_docs_preview_comments)
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
+          # Computed early: the reference-page log below needs it too.
+          encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
+          url_prefix="https://coder.com/docs/@${encoded_branch}"
+
           # Fetch the PR's changed files once, then derive the Markdown and
           # image sets from the same payload: one read halves the rate-limit
           # cost and avoids two paginated reads straddling a synchronize.
@@ -226,11 +234,21 @@ jobs:
           # caps at 3000 files, which docs PRs never approach.
           files_json=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files")
 
-          # Non-removed docs/*.md (outside docs/.style/) as <filename>\t<sha>.
-          # The blob sha lets a later run detect a page changed since it was
-          # last listed.
+          # Non-removed docs/*.md. The blob sha lets a later run detect a
+          # page changed since it was last listed.
           changed_tsv=$(printf '%s' "$files_json" \
-            | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
+            | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | select((.filename | test("^docs/reference/")) | not) | [.filename, .sha] | @tsv')
+
+          # Logged instead of listed on the comment; see header note.
+          reference_tsv=$(printf '%s' "$files_json" \
+            | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/reference/.*\\.md$")) | [.filename, .sha] | @tsv')
+          if [ -n "$reference_tsv" ]; then
+            echo "Generated reference page(s) changed (excluded from the docs-preview comment):"
+            printf '%s\n' "$reference_tsv" | while IFS=$'\t' read -r filename sha; do
+              [ -z "$filename" ] && continue
+              echo "  ${filename} -> $(page_url "$filename")"
+            done
+          fi
 
           # Changed docs/ images (outside docs/.style/), extensions matched
           # case-insensitively. No sha: the image section is stateless. Keep
@@ -241,7 +259,7 @@ jobs:
           # Nothing previewable changed at all: drop any stale comment and
           # stop before the manifest read and reference resolution below.
           if [ -z "$changed_tsv" ] && [ -z "$changed_images" ]; then
-            echo "No added/modified Markdown or image files under docs/ (outside docs/.style/) on this push."
+            echo "No added/modified Markdown or image files under docs/ (outside docs/.style/ and docs/reference/) on this push."
             cleanup_stale_and_exit
           fi
 
@@ -366,12 +384,6 @@ jobs:
               end) as $checked |
               {filename: $f.filename, sha: $f.sha, checked: $checked}
             ] | sort_by(.filename)')
-
-          # URL-encode the branch so slashes and special characters don't
-          # break the preview URL. The page path is left as-is: its slashes
-          # are real path separators that must be preserved.
-          encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
-          url_prefix="https://coder.com/docs/@${encoded_branch}"
 
           total_pages=$(printf '%s' "$final_rows" | jq 'length')
 

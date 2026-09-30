@@ -21,9 +21,12 @@ import (
 
 const (
 	MaxMemories = 200
-	// MemoryNearCapWarning is the count from which save_memory results carry
-	// a reminder to prune, so the agent tidies before the cap refuses a save.
-	MemoryNearCapWarning = 180
+	// MemoryConsolidateThreshold is the count from which save results ask the
+	// agent to consolidate, and MemoryConsolidateTarget is the count they ask
+	// it to get under. The 80% trigger and 70% target mirror the nudge Claude
+	// Code gives when its memory index approaches its read limit.
+	MemoryConsolidateThreshold = MaxMemories * 8 / 10
+	MemoryConsolidateTarget    = MaxMemories * 7 / 10
 
 	MaxMemoryIndexLines = 200
 	// MaxMemoryIndexBytes fits MaxMemories entries at the longest name and
@@ -33,78 +36,99 @@ const (
 	MaxMemoryBodyBytes        = 8192
 	MaxMemoryDescriptionChars = 150
 
-	ReadMemoryToolName   = "read_memory"
-	SaveMemoryToolName   = "save_memory"
-	DeleteMemoryToolName = "delete_memory"
+	ReadMemoryToolName        = "read_memory"
+	SaveMemoryToolName        = "save_memory"
+	DeleteMemoryToolName      = "delete_memory"
+	ConsolidateMemoryToolName = "consolidate_memory"
 )
 
 var (
 	memoryNameRE      = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
 	ErrMemoryNotFound = xerrors.New("memory not found")
 	ErrMemoryExists   = xerrors.New("memory already exists")
-	// ErrMemoryLimit is returned when a scope already holds MaxMemories
-	// memories and a new name cannot be added.
+	// ErrMemoryLimit is returned when a write would leave a project with
+	// more than MaxMemories memories.
 	ErrMemoryLimit = xerrors.New("memory limit reached")
 )
 
-// insertUnderCap runs a creating write in one transaction behind a per-scope
-// advisory lock so two concurrent writers cannot both observe room and
-// overshoot the cap. The count runs as the system because the caller has
-// already been authorized to create in this scope, and a create-only scope
-// may lack the read the count would otherwise require.
-func insertUnderCap(ctx context.Context, db database.Store, lockID int64, count func(ctx context.Context, tx database.Store) (int64, error), write func(tx database.Store) error) error {
-	return db.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, lockID); err != nil {
+// writeProjectMemories runs a memory write in one transaction behind a
+// per-project advisory lock, then rejects it if it left more than
+// MaxMemories memories. The lock serializes writers so two of them cannot
+// both observe room and overshoot the cap, and the transaction means a
+// consolidation applies all of its deletes and saves or none of them. The
+// count runs as the system because the caller has already been authorized
+// to write memories in this project, and a create-only scope may lack the
+// read the count would otherwise require.
+func writeProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, write func(tx database.Store) error) (int64, error) {
+	var count int64
+	err := db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, database.GenLockID("chat-project-memory:"+projectID.String())); err != nil {
 			return xerrors.Errorf("lock memories: %w", err)
 		}
-		//nolint:gocritic // See insertUnderCap.
-		n, err := count(dbauthz.AsSystemRestricted(ctx), tx)
+		if err := write(tx); err != nil {
+			return err
+		}
+		//nolint:gocritic // See writeProjectMemories.
+		n, err := tx.CountChatProjectMemoriesByProjectID(dbauthz.AsSystemRestricted(ctx), projectID)
 		if err != nil {
 			return xerrors.Errorf("count memories: %w", err)
 		}
-		if n >= MaxMemories {
+		if n > MaxMemories {
 			return ErrMemoryLimit
 		}
-		return write(tx)
+		count = n
+		return nil
 	}, nil)
+	return count, err
 }
 
-func projectMemoryLockID(projectID uuid.UUID) int64 {
-	return database.GenLockID("chat-project-memory:" + projectID.String())
-}
-
-// InsertProjectMemory creates a project memory under the cap.
-func InsertProjectMemory(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
+// InsertProjectMemory creates a project memory under the cap and returns it
+// with the project's memory count after the insert.
+func InsertProjectMemory(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, int64, error) {
 	var memory database.ChatProjectMemory
-	err := insertUnderCap(ctx, db, projectMemoryLockID(params.ProjectID),
-		func(ctx context.Context, tx database.Store) (int64, error) {
-			return tx.CountChatProjectMemoriesByProjectID(ctx, params.ProjectID)
-		},
-		func(tx database.Store) error {
-			var err error
-			memory, err = tx.InsertChatProjectMemory(ctx, params)
-			return err
-		})
-	return memory, err
+	count, err := writeProjectMemories(ctx, db, params.ProjectID, func(tx database.Store) error {
+		var err error
+		memory, err = insertProjectMemoryTx(ctx, tx, params)
+		return err
+	})
+	return memory, count, err
 }
 
-// UpsertProjectMemory saves a project memory by name. Updating an existing
-// name is always allowed; creating one is subject to the cap.
-func UpsertProjectMemory(ctx context.Context, db database.Store, params database.UpsertChatProjectMemoryByNameParams) (database.ChatProjectMemory, error) {
-	var memory database.ChatProjectMemory
-	err := insertUnderCap(ctx, db, projectMemoryLockID(params.ProjectID),
-		func(ctx context.Context, tx database.Store) (int64, error) {
-			if _, err := tx.GetChatProjectMemoryByName(ctx, database.GetChatProjectMemoryByNameParams{ProjectID: params.ProjectID, Name: params.Name}); err == nil {
-				return 0, nil
+// ConsolidateProjectMemories deletes and inserts project memories in one
+// transaction and returns the project's memory count afterward. Deletes run
+// first, so an insert may reuse a deleted name to replace that memory. Any
+// missing delete, duplicate insert, or result over the cap rolls back every
+// change.
+func ConsolidateProjectMemories(ctx context.Context, db database.Store, projectID uuid.UUID, deleteNames []string, inserts []database.InsertChatProjectMemoryParams) (int64, error) {
+	return writeProjectMemories(ctx, db, projectID, func(tx database.Store) error {
+		for _, name := range deleteNames {
+			if err := deleteProjectMemory(ctx, tx, projectID, name); err != nil {
+				return err
 			}
-			return tx.CountChatProjectMemoriesByProjectID(ctx, params.ProjectID)
-		},
-		func(tx database.Store) error {
-			var err error
-			memory, err = tx.UpsertChatProjectMemoryByName(ctx, params)
-			return err
-		})
+		}
+		for _, params := range inserts {
+			if _, err := insertProjectMemoryTx(ctx, tx, params); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func insertProjectMemoryTx(ctx context.Context, db database.Store, params database.InsertChatProjectMemoryParams) (database.ChatProjectMemory, error) {
+	memory, err := db.InsertChatProjectMemory(ctx, params)
+	if database.IsUniqueViolation(err) {
+		return database.ChatProjectMemory{}, xerrors.Errorf("%w: %q", ErrMemoryExists, params.Name)
+	}
 	return memory, err
+}
+
+func deleteProjectMemory(ctx context.Context, db database.Store, projectID uuid.UUID, name string) error {
+	rows, err := db.DeleteChatProjectMemoryByName(ctx, database.DeleteChatProjectMemoryByNameParams{ProjectID: projectID, Name: name})
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && rows == 0) {
+		return xerrors.Errorf("%w: %q", ErrMemoryNotFound, name)
+	}
+	return err
 }
 
 func memoryIntro(projectName string) string {
@@ -116,11 +140,11 @@ type Memory struct {
 	Name              string
 	Description       string
 	Body              string
-	UpdatedAt         time.Time
+	CreatedAt         time.Time
 	CreatedByUsername string
 }
 
-// MemoryInput is the mutable content of a durable memory.
+// MemoryInput is the content of a new durable memory.
 type MemoryInput struct {
 	Name        string
 	Description string
@@ -133,27 +157,31 @@ type MemoryIndexEntry struct {
 	Description string
 }
 
-// MemoryStore stores durable memories in one scope.
+// MemoryStore stores durable memories in one scope. Memories are immutable:
+// changing one means deleting it and saving its replacement, which
+// Consolidate does atomically.
 type MemoryStore interface {
 	Get(ctx context.Context, name string) (Memory, error)
 	List(ctx context.Context) ([]MemoryIndexEntry, error)
-	Count(ctx context.Context) (int64, error)
-	Insert(ctx context.Context, input MemoryInput) (Memory, error)
-	Upsert(ctx context.Context, input MemoryInput) (Memory, error)
+	// Insert saves a new memory and returns the memory count afterward.
+	Insert(ctx context.Context, input MemoryInput) (int64, error)
 	Delete(ctx context.Context, name string) error
+	// Consolidate deletes and saves memories in one transaction and returns
+	// the memory count afterward.
+	Consolidate(ctx context.Context, deleteNames []string, saves []MemoryInput) (int64, error)
 }
 
 type projectMemoryStore struct {
 	db             database.Store
 	projectID      uuid.UUID
 	organizationID uuid.UUID
-	chatID         uuid.UUID
 	ownerID        uuid.UUID
 }
 
-// NewProjectMemoryStore returns a store scoped to a chat project.
-func NewProjectMemoryStore(db database.Store, projectID, organizationID, chatID, ownerID uuid.UUID) MemoryStore {
-	return projectMemoryStore{db: db, projectID: projectID, organizationID: organizationID, chatID: chatID, ownerID: ownerID}
+// NewProjectMemoryStore returns a store scoped to a chat project. New
+// memories are attributed to ownerID.
+func NewProjectMemoryStore(db database.Store, projectID, organizationID, ownerID uuid.UUID) MemoryStore {
+	return projectMemoryStore{db: db, projectID: projectID, organizationID: organizationID, ownerID: ownerID}
 }
 
 func (s projectMemoryStore) Get(ctx context.Context, name string) (Memory, error) {
@@ -164,7 +192,7 @@ func (s projectMemoryStore) Get(ctx context.Context, name string) (Memory, error
 	if err != nil {
 		return Memory{}, err
 	}
-	return Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, UpdatedAt: row.ChatProjectMemory.UpdatedAt, CreatedByUsername: row.CreatedByUsername}, nil
+	return Memory{Name: row.ChatProjectMemory.Name, Description: row.ChatProjectMemory.Description, Body: row.ChatProjectMemory.Body, CreatedAt: row.ChatProjectMemory.CreatedAt, CreatedByUsername: row.CreatedByUsername}, nil
 }
 
 func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error) {
@@ -179,78 +207,61 @@ func (s projectMemoryStore) List(ctx context.Context) ([]MemoryIndexEntry, error
 	return entries, nil
 }
 
-func (s projectMemoryStore) Count(ctx context.Context) (int64, error) {
-	return s.db.CountChatProjectMemoriesByProjectID(ctx, s.projectID)
-}
-
-func (s projectMemoryStore) Insert(ctx context.Context, input MemoryInput) (Memory, error) {
-	memory, err := InsertProjectMemory(ctx, s.db, database.InsertChatProjectMemoryParams{
+func (s projectMemoryStore) insertParams(input MemoryInput) database.InsertChatProjectMemoryParams {
+	return database.InsertChatProjectMemoryParams{
 		ID: uuid.NullUUID{}, ProjectID: s.projectID, OrganizationID: s.organizationID,
-		Name: input.Name, Description: input.Description, Body: input.Body,
-		SourceChatID: uuid.NullUUID{UUID: s.chatID, Valid: s.chatID != uuid.Nil}, CreatedBy: s.ownerID,
-	})
-	if database.IsUniqueViolation(err) {
-		return Memory{}, ErrMemoryExists
+		Name: input.Name, Description: input.Description, Body: input.Body, CreatedBy: s.ownerID,
 	}
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: memory.Name, Description: memory.Description, Body: memory.Body, UpdatedAt: memory.UpdatedAt}, nil
 }
 
-func (s projectMemoryStore) Upsert(ctx context.Context, input MemoryInput) (Memory, error) {
-	memory, err := UpsertProjectMemory(ctx, s.db, database.UpsertChatProjectMemoryByNameParams{
-		ProjectID: s.projectID, OrganizationID: s.organizationID, Name: input.Name, Description: input.Description, Body: input.Body,
-		SourceChatID: uuid.NullUUID{UUID: s.chatID, Valid: s.chatID != uuid.Nil}, CreatedBy: s.ownerID,
-	})
-	if err != nil {
-		return Memory{}, err
-	}
-	return Memory{Name: memory.Name, Description: memory.Description, Body: memory.Body, UpdatedAt: memory.UpdatedAt}, nil
+func (s projectMemoryStore) Insert(ctx context.Context, input MemoryInput) (int64, error) {
+	_, count, err := InsertProjectMemory(ctx, s.db, s.insertParams(input))
+	return count, err
 }
 
 func (s projectMemoryStore) Delete(ctx context.Context, name string) error {
-	err := s.db.DeleteChatProjectMemoryByName(ctx, database.DeleteChatProjectMemoryByNameParams{ProjectID: s.projectID, Name: name})
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrMemoryNotFound
-	}
-	return err
+	return deleteProjectMemory(ctx, s.db, s.projectID, name)
 }
 
-// ValidateMemoryName validates a stable memory identifier.
-func ValidateMemoryName(name string) error {
-	if !memoryNameRE.MatchString(name) {
-		return xerrors.Errorf("name must match %q", memoryNameRE.String())
+func (s projectMemoryStore) Consolidate(ctx context.Context, deleteNames []string, saves []MemoryInput) (int64, error) {
+	inserts := make([]database.InsertChatProjectMemoryParams, len(saves))
+	for i, input := range saves {
+		inserts[i] = s.insertParams(input)
 	}
-	return nil
+	return ConsolidateProjectMemories(ctx, s.db, s.projectID, deleteNames, inserts)
 }
 
-// NormalizeMemoryText sanitizes durable memory text and removes prompt-index tags.
-func NormalizeMemoryText(text string) string {
-	text = codersdk.SanitizePromptText(text)
-	for _, tag := range []string{"<memory>", "</memory>", "<project-memory>", "</project-memory>"} {
-		text = strings.ReplaceAll(text, tag, "")
-	}
-	return strings.TrimSpace(text)
-}
-
-func normalizeMemoryInput(name, description, body string) (MemoryInput, error) {
+// NormalizeMemoryName lowercases and validates a stable memory identifier.
+func NormalizeMemoryName(name string) (string, error) {
 	name = strings.ToLower(strings.TrimSpace(name))
-	if err := ValidateMemoryName(name); err != nil {
+	if !memoryNameRE.MatchString(name) {
+		return "", xerrors.Errorf("name %q must match %q", name, memoryNameRE.String())
+	}
+	return name, nil
+}
+
+// NormalizeMemoryInput sanitizes and validates a new memory. Memory text is
+// shown to every chat in the project, so invisible characters that could
+// hide instructions are stripped, and the description is folded onto one
+// line because each one is a single line of the memory index.
+func NormalizeMemoryInput(name, description, body string) (MemoryInput, error) {
+	name, err := NormalizeMemoryName(name)
+	if err != nil {
 		return MemoryInput{}, err
 	}
-	description, body = NormalizeMemoryText(description), NormalizeMemoryText(body)
+	description = strings.Join(strings.Fields(codersdk.SanitizePromptText(description)), " ")
+	body = codersdk.SanitizePromptText(body)
 	if description == "" {
-		return MemoryInput{}, xerrors.New("description is required")
+		return MemoryInput{}, xerrors.Errorf("memory %q: description is required", name)
 	}
 	if utf8.RuneCountInString(description) > MaxMemoryDescriptionChars {
-		return MemoryInput{}, xerrors.Errorf("description must be at most %d characters", MaxMemoryDescriptionChars)
+		return MemoryInput{}, xerrors.Errorf("memory %q: description must be at most %d characters", name, MaxMemoryDescriptionChars)
 	}
 	if body == "" {
-		return MemoryInput{}, xerrors.New("body is required")
+		return MemoryInput{}, xerrors.Errorf("memory %q: body is required", name)
 	}
 	if len(body) > MaxMemoryBodyBytes {
-		return MemoryInput{}, xerrors.Errorf("body must be at most %d bytes", MaxMemoryBodyBytes)
+		return MemoryInput{}, xerrors.Errorf("memory %q: body must be at most %d bytes", name, MaxMemoryBodyBytes)
 	}
 	return MemoryInput{Name: name, Description: description, Body: body}, nil
 }
@@ -261,9 +272,9 @@ const memoryGuidance = "Save facts that will matter in future chats: who the peo
 	"and where to find information outside the project, such as an issue tracker or dashboard.\n" +
 	"Save a memory as soon as durable information surfaces, without waiting to be asked. " +
 	"Do not save anything derivable from the codebase (architecture, file paths, debugging fixes), anything already stated in instructions, or temporary in-progress state. " +
-	"Never save that something is unknown or undecided. " +
+	"Never save that something is unknown or undecided. Convert relative dates to absolute dates. " +
 	"When a question might be answered by a memory in the index, call read_memory before answering or asking the user. " +
-	"Memories may be stale or wrong; verify before relying on one and update or delete it when it no longer holds."
+	"Memories may be stale or wrong; verify before relying on one. Memories cannot be edited: replace one that no longer holds with consolidate_memory, or delete it."
 
 // FormatMemoryGuidance renders the stable durable-memory prompt block. It
 // carries no per-turn state so the system prompt prefix stays identical
@@ -280,7 +291,7 @@ func FormatMemoryIndexForTool(entries []MemoryIndexEntry) string {
 	}
 
 	var b strings.Builder
-	_, _ = b.WriteString("Available memories (newest first):\n")
+	_, _ = b.WriteString("Available memories:\n")
 	shown := 0
 	truncationReserve := len(fmt.Sprintf("%d more memories not shown.", len(entries)))
 	for _, entry := range entries {
@@ -313,6 +324,27 @@ type saveMemoryArgs struct {
 type deleteMemoryArgs struct {
 	Name string `json:"name" description:"The name of the memory to delete."`
 }
+type consolidateMemoryArgs struct {
+	Delete []string         `json:"delete,omitempty" description:"Names of memories to remove: stale, wrong, superseded, or folded into a memory in save."`
+	Save   []saveMemoryArgs `json:"save,omitempty" description:"Memories to create, such as merged replacements for deleted ones. A name in delete may be reused here to replace that memory."`
+}
+
+// consolidateNudge asks the agent to consolidate once memory nears the cap,
+// modeled on the in-turn nudge Claude Code gives when its memory index nears
+// its read limit.
+func consolidateNudge(count int64) string {
+	return fmt.Sprintf("memory is %d/%d, approaching the limit. Consolidate it to under %d memories now with %s: "+
+		"merge overlapping memories into one, and drop stale, wrong, or superseded ones.",
+		count, MaxMemories, MemoryConsolidateTarget, ConsolidateMemoryToolName)
+}
+
+func memoryWriteResult(result map[string]any, count int64) fantasy.ToolResponse {
+	result["count"] = count
+	if count >= MemoryConsolidateThreshold {
+		result["warning"] = consolidateNudge(count)
+	}
+	return toolResponse(result)
+}
 
 // ReadMemory returns a tool that reads a full memory body.
 func ReadMemory(store MemoryStore, entries []MemoryIndexEntry) fantasy.AgentTool {
@@ -320,42 +352,41 @@ func ReadMemory(store MemoryStore, entries []MemoryIndexEntry) fantasy.AgentTool
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
-		name := strings.ToLower(strings.TrimSpace(args.Name))
-		if err := ValidateMemoryName(name); err != nil {
+		name, err := NormalizeMemoryName(args.Name)
+		if err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
 		memory, err := store.Get(ctx, name)
 		if err != nil {
 			return fantasy.NewTextErrorResponse("memory was not found"), nil
 		}
-		return toolResponse(map[string]any{"name": memory.Name, "description": memory.Description, "body": memory.Body, "updated_at": memory.UpdatedAt, "created_by": memory.CreatedByUsername}), nil
+		return toolResponse(map[string]any{"name": memory.Name, "description": memory.Description, "body": memory.Body, "created_at": memory.CreatedAt, "created_by": memory.CreatedByUsername}), nil
 	})
 }
 
-// SaveMemory returns a tool that upserts a durable memory.
+// SaveMemory returns a tool that creates a durable memory.
 func SaveMemory(store MemoryStore, projectName string) fantasy.AgentTool {
-	return fantasy.NewAgentTool(SaveMemoryToolName, "Save or update a durable memory by name. "+memoryIntro(projectName), func(ctx context.Context, args saveMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+	return fantasy.NewAgentTool(SaveMemoryToolName, "Save a new durable memory. "+memoryIntro(projectName)+
+		" Memories cannot be edited; to change one, replace it with "+ConsolidateMemoryToolName+".", func(ctx context.Context, args saveMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
-		input, err := normalizeMemoryInput(args.Name, args.Description, args.Body)
+		input, err := NormalizeMemoryInput(args.Name, args.Description, args.Body)
 		if err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
-		memory, err := store.Upsert(ctx, input)
-		if errors.Is(err, ErrMemoryLimit) {
+		count, err := store.Insert(ctx, input)
+		switch {
+		case errors.Is(err, ErrMemoryExists):
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("a memory named %q already exists; read it, then replace it with %s by deleting %q and saving the new version in one call", input.Name, ConsolidateMemoryToolName, input.Name)), nil
+		case errors.Is(err, ErrMemoryLimit):
 			// The agent resolves a full project itself, in this turn, with
 			// the tools it already has; there is no background cleanup.
-			return fantasy.NewTextErrorResponse(fmt.Sprintf("memory is full (%d/%d); delete a stale memory with %s or fold this into an existing memory with %s, then retry", MaxMemories, MaxMemories, DeleteMemoryToolName, SaveMemoryToolName)), nil
-		}
-		if err != nil {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("memory is full (%d/%d); use %s to merge overlapping memories and drop stale ones, and include this memory in its save list", MaxMemories, MaxMemories, ConsolidateMemoryToolName)), nil
+		case err != nil:
 			return fantasy.NewTextErrorResponse("failed to save memory"), nil
 		}
-		result := map[string]any{"name": memory.Name, "updated_at": memory.UpdatedAt}
-		if count, err := store.Count(ctx); err == nil && count >= MemoryNearCapWarning {
-			result["warning"] = fmt.Sprintf("memory is %d/%d; merge or delete stale entries soon", count, MaxMemories)
-		}
-		return toolResponse(result), nil
+		return memoryWriteResult(map[string]any{"saved": input.Name}, count), nil
 	})
 }
 
@@ -365,13 +396,65 @@ func DeleteMemory(store MemoryStore, projectName string) fantasy.AgentTool {
 		if store == nil {
 			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
 		}
-		name := strings.ToLower(strings.TrimSpace(args.Name))
-		if err := ValidateMemoryName(name); err != nil {
+		name, err := NormalizeMemoryName(args.Name)
+		if err != nil {
 			return fantasy.NewTextErrorResponse(err.Error()), nil
 		}
-		if err := store.Delete(ctx, name); err != nil {
+		err = store.Delete(ctx, name)
+		switch {
+		case errors.Is(err, ErrMemoryNotFound):
 			return fantasy.NewTextErrorResponse("memory was not found"), nil
+		case err != nil:
+			return fantasy.NewTextErrorResponse("failed to delete memory"), nil
 		}
 		return toolResponse(map[string]any{"deleted": name}), nil
+	})
+}
+
+// ConsolidateMemory returns a tool that deletes and saves memories in one
+// transaction, so the agent can rewrite the memory set without leaving it
+// half-consolidated or letting another chat claim the freed room.
+func ConsolidateMemory(store MemoryStore, projectName string) fantasy.AgentTool {
+	return fantasy.NewAgentTool(ConsolidateMemoryToolName, "Delete and save memories in one atomic step: either every change applies or none does. "+memoryIntro(projectName)+
+		" Use it when memory is nearly full, or to replace a memory that no longer holds. Read the memories you are merging first, then: "+
+		"merge overlapping memories into one, delete memories that are stale, contradicted, or superseded, and convert relative dates to absolute dates. "+
+		"Keep what future chats need; drop what they do not.", func(ctx context.Context, args consolidateMemoryArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		if store == nil {
+			return fantasy.NewTextErrorResponse("memory store is not configured"), nil
+		}
+		if len(args.Delete) == 0 && len(args.Save) == 0 {
+			return fantasy.NewTextErrorResponse("delete or save at least one memory"), nil
+		}
+		if len(args.Delete) > MaxMemories || len(args.Save) > MaxMemories {
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("delete and save take at most %d memories each", MaxMemories)), nil
+		}
+		deleteNames := make([]string, len(args.Delete))
+		for i, raw := range args.Delete {
+			name, err := NormalizeMemoryName(raw)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			deleteNames[i] = name
+		}
+		saves := make([]MemoryInput, len(args.Save))
+		savedNames := make([]string, len(args.Save))
+		for i, save := range args.Save {
+			input, err := NormalizeMemoryInput(save.Name, save.Description, save.Body)
+			if err != nil {
+				return fantasy.NewTextErrorResponse(err.Error()), nil
+			}
+			saves[i] = input
+			savedNames[i] = input.Name
+		}
+		count, err := store.Consolidate(ctx, deleteNames, saves)
+		switch {
+		case errors.Is(err, ErrMemoryNotFound), errors.Is(err, ErrMemoryExists):
+			return fantasy.NewTextErrorResponse(err.Error() + "; no changes were applied"), nil
+		case errors.Is(err, ErrMemoryLimit):
+			return fantasy.NewTextErrorResponse(fmt.Sprintf("this would leave more than %d memories; delete more and retry. No changes were applied", MaxMemories)), nil
+		case err != nil:
+			return fantasy.NewTextErrorResponse("failed to consolidate memory; no changes were applied"), nil
+		}
+		return memoryWriteResult(map[string]any{"deleted": deleteNames, "saved": savedNames}, count), nil
 	})
 }

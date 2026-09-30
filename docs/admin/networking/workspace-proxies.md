@@ -25,8 +25,8 @@ over workspace proxies.
 
 Each workspace proxy should be a unique instance. At no point should two
 workspace proxy instances share the same authentication token. They only require
-port 443 to be open and are expected to have network connectivity to the coderd
-dashboard. Workspace proxies **do not** make any database connections.
+port 443 to be open and are expected to have network connectivity to the control
+plane dashboard. Workspace proxies **do not** make any database connections.
 
 Workspace proxies can be used in the browser by navigating to the user
 `Account -> Workspace Proxy`
@@ -58,9 +58,9 @@ newyork                             unregistered
 
 ## Step 2: Deploy the proxy
 
-Deploying the workspace proxy will also register the proxy with coderd and make
-the workspace proxy usable. If the proxy deployment is successful,
-`coder wsproxy ls` will show an `ok` status code:
+Deploying the workspace proxy will also register the proxy with the control
+plane and make the workspace proxy usable. If the proxy deployment is
+successful, `coder wsproxy ls` will show an `ok` status code:
 
 ```sh
 $ coder wsproxy ls
@@ -83,7 +83,7 @@ Other Status codes:
 
 ### Configuration
 
-Workspace proxy configuration overlaps with a subset of the coderd
+Workspace proxy configuration overlaps with a subset of the `coderd`
 configuration. To see the full list of configuration options:
 `coder wsproxy server --help`
 
@@ -109,7 +109,9 @@ CODER_TLS_KEY_FILE="<key_file_location>"
 # Additional configuration options are available.
 ```
 
-### Running on Kubernetes
+<a id="running-on-kubernetes"></a>
+
+### Run on Kubernetes
 
 Make a `values-wsproxy.yaml` with the workspace proxy configuration.
 
@@ -148,14 +150,18 @@ Test that the workspace proxy is reachable with `curl -vvv`. If for some reason,
 the Coder dashboard still shows the workspace proxy is `UNHEALTHY`, scale down
 and up the deployment's replicas.
 
-### Running on a VM
+<a id="running-on-a-vm"></a>
+
+### Run on a VM
 
 ```sh
 # Set configuration options via environment variables, a config file, or cmd flags
 coder wsproxy server
 ```
 
-### Running as a system service
+<a id="running-as-a-system-service"></a>
+
+### Run as a system service
 
 If you've installed Coder via a [system package](../../install/index.md), you
 can configure the workspace proxy by settings in
@@ -177,10 +183,12 @@ To restart workspace proxy after applying system changes:
 sudo systemctl restart coder-workspace-proxy
 ```
 
-### Running in Docker
+<a id="running-in-docker"></a>
+
+### Run in Docker
 
 Modify the default entrypoint to run a workspace proxy server instead of a
-regular Coder server.
+regular control plane.
 
 #### Docker Compose
 
@@ -206,12 +214,14 @@ FROM ghcr.io/coder/coder:latest
 ENTRYPOINT ["/opt/coder", "wsproxy", "server"]
 ```
 
-### Selecting a proxy
+<a id="selecting-a-proxy"></a>
 
-Users can select a workspace proxy at the top-right of the browser-based Coder
-dashboard. Workspace proxy preferences are cached by the web browser. If a proxy
-goes offline, the session will fall back to the primary proxy. This could take
-up to 60 seconds.
+### Select a proxy
+
+Users can select a workspace proxy at the top-right of the browser-based Coder dashboard.
+Workspace proxy preferences are cached by the web browser.
+If a proxy goes offline, the session will fall back to the primary proxy.
+This could take up to 60&nbsp;seconds.
 
 ![Workspace proxy picker](../../images/admin/networking/workspace-proxies/ws-proxy-picker.png)
 

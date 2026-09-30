@@ -157,8 +157,9 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -271,8 +272,9 @@ func TestPrepareGenerationReplacesUnsupportedToolMedia(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-				Chat:     created.Chat,
-				Messages: created.InitialMessages,
+				Chat:            created.Chat,
+				Messages:        created.InitialMessages,
+				TurnExperiments: &turnExperimentDecisions{},
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Cleanup)
@@ -375,8 +377,9 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -555,8 +558,9 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
-		Chat:     created.Chat,
-		Messages: created.InitialMessages,
+		Chat:            created.Chat,
+		Messages:        created.InitialMessages,
+		TurnExperiments: &turnExperimentDecisions{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
@@ -622,6 +626,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,
@@ -774,6 +779,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			LastModelConfigID: modelCfg.ID,
 			Title:             "derive-chat-error",
 			ClientType:        database.ChatClientTypeUi,
+			InitialStatus:     database.ChatStatusRunning,
 			InitialMessages: []chatstate.Message{
 				{
 					Role:           database.ChatMessageRoleUser,

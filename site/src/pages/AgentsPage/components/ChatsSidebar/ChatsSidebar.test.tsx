@@ -1,9 +1,8 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import type { FC, PropsWithChildren } from "react";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, useLocation } from "react-router";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -25,7 +24,10 @@ import {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
 import themes, { DEFAULT_THEME } from "#/theme";
-import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	type AgentSidebarFilters,
+} from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
@@ -71,14 +73,14 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...overrides,
 });
 
-type WrapperProps = PropsWithChildren<{
+type WrapperProps = React.PropsWithChildren<{
 	experiments?: TypesGen.Experiment[];
 	organizations?: TypesGen.Organization[];
 	showOrganizations?: boolean;
 	initialEntry?: string;
 }>;
 
-const Wrapper: FC<WrapperProps> = ({
+const Wrapper: React.FC<WrapperProps> = ({
 	children,
 	experiments = [],
 	organizations = [MockDefaultOrganization],
@@ -114,7 +116,8 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	archiveStatus: "active",
 	groupBy: "date",
 	prStatuses: [],
-	chatStatuses: ["unread", "read"],
+	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+	unread: false,
 	sources: ["created_by_me"],
 };
 
@@ -127,6 +130,8 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onArchiveAndDeleteWorkspace: vi.fn(),
 	onPinAgent: vi.fn(),
 	onUnpinAgent: vi.fn(),
+	onMarkChatRead: vi.fn(),
+	onMarkChatUnread: vi.fn(),
 	onRenameTitle: vi.fn(async () => {}),
 	onBeforeNewAgent: vi.fn(),
 	isSearchDialogOpen: false,
@@ -193,17 +198,65 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() =>
 			expect(document.activeElement).toBe(projectActionsButton),
 		);
+
+		await user.click(projectActionsButton);
+		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await screen.findByRole("dialog", { name: "Delete project" });
+		await user.click(screen.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(document.activeElement).toBe(projectActionsButton),
+		);
+	});
+
+	it("keeps project chats out of the chat sections while projects load", async () => {
+		let resolveProjects: () => void = () => {};
+		const projectsLoaded = new Promise<void>((resolve) => {
+			resolveProjects = resolve;
+		});
+		let projectsRequested = false;
+		server.use(
+			http.get("/api/experimental/chats/projects", async () => {
+				projectsRequested = true;
+				await projectsLoaded;
+				return HttpResponse.json([MockChatProject]);
+			}),
+		);
+		const projectChat = buildChat({
+			id: "project-chat",
+			title: "Project chat",
+			project_id: MockChatProject.id,
+		});
+		const looseChat = buildChat({ id: "loose-chat", title: "Loose chat" });
+
+		render(
+			<Wrapper experiments={["chat-projects"]}>
+				<ChatsSidebar {...defaultProps} chats={[projectChat, looseChat]} />
+			</Wrapper>,
+		);
+
+		await waitFor(() => expect(projectsRequested).toBe(true));
+		await screen.findByRole("link", { name: /Loose chat/ });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
+
+		resolveProjects();
+		await screen.findByRole("link", { name: MockChatProject.name });
+		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
 	it("creates a project when there are no chats", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json(MockChatProject);
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json(MockChatProject);
+				},
+			),
 		);
 
 		render(
@@ -227,8 +280,8 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
+			expect(requestOrganizationID).toBe(MockDefaultOrganization.id);
 			expect(requestBody).toEqual({
-				organization_id: MockDefaultOrganization.id,
 				name: "New project name",
 				description: "Project description",
 				icon: "",
@@ -238,23 +291,27 @@ describe("ChatsSidebar projects", () => {
 
 	it("uses the first accessible organization when no default is available", async () => {
 		const user = userEvent.setup();
-		const nonDefaultOrganization = MockOrganization2;
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json({
-					...MockChatProject,
-					organization_id: nonDefaultOrganization.id,
-				});
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json({
+						...MockChatProject,
+						organization_id: MockOrganization2.id,
+					});
+				},
+			),
 		);
 
 		render(
 			<Wrapper
 				experiments={["chat-projects"]}
-				organizations={[nonDefaultOrganization]}
+				organizations={[MockOrganization2]}
 			>
 				<ChatsSidebar {...defaultProps} />
 			</Wrapper>,
@@ -271,9 +328,8 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(requestBody).toMatchObject({
-				organization_id: nonDefaultOrganization.id,
-			});
+			expect(requestOrganizationID).toBe(MockOrganization2.id);
+			expect(requestBody).toMatchObject({ name: "Accessible project" });
 		});
 		expect(screen.queryByTestId("compact-org-selector")).toBeNull();
 	});
@@ -281,6 +337,7 @@ describe("ChatsSidebar projects", () => {
 	it("creates a project in the organization chosen from the picker", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 			http.get("/api/v2/organizations", () =>
@@ -294,13 +351,17 @@ describe("ChatsSidebar projects", () => {
 					Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 				);
 			}),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json({
-					...MockChatProject,
-					organization_id: MockOrganization2.id,
-				});
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json({
+						...MockChatProject,
+						organization_id: MockOrganization2.id,
+					});
+				},
+			),
 		);
 
 		render(
@@ -332,16 +393,15 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(requestBody).toMatchObject({
-				organization_id: MockOrganization2.id,
-				name: "Other org project",
-			});
+			expect(requestOrganizationID).toBe(MockOrganization2.id);
+			expect(requestBody).toMatchObject({ name: "Other org project" });
 		});
 	});
 
 	it("sends the only chat organization when the default organization cannot create chats", async () => {
 		const user = userEvent.setup();
 		let requestBody: unknown;
+		let requestOrganizationID: string | undefined;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
 			http.get("/api/v2/organizations", () =>
@@ -360,13 +420,17 @@ describe("ChatsSidebar projects", () => {
 					),
 				);
 			}),
-			http.post("/api/experimental/chats/projects", async ({ request }) => {
-				requestBody = await request.json();
-				return HttpResponse.json({
-					...MockChatProject,
-					organization_id: MockOrganization2.id,
-				});
-			}),
+			http.post(
+				"/api/experimental/organizations/:organizationId/chats/projects",
+				async ({ request, params }) => {
+					requestOrganizationID = String(params.organizationId);
+					requestBody = await request.json();
+					return HttpResponse.json({
+						...MockChatProject,
+						organization_id: MockOrganization2.id,
+					});
+				},
+			),
 		);
 
 		render(
@@ -394,9 +458,8 @@ describe("ChatsSidebar projects", () => {
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() => {
-			expect(requestBody).toMatchObject({
-				organization_id: MockOrganization2.id,
-			});
+			expect(requestOrganizationID).toBe(MockOrganization2.id);
+			expect(requestBody).toMatchObject({ name: "Permitted org project" });
 		});
 	});
 
@@ -433,10 +496,13 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			http.delete("*", ({ request }) => {
-				deletedProjectID = request.url.split("/").at(-1);
-				return new HttpResponse(null, { status: 204 });
-			}),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				({ params }) => {
+					deletedProjectID = String(params.projectId);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
 		);
 
 		render(
@@ -469,8 +535,10 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json([MockChatProject]),
 			),
-			http.delete("*", () =>
-				HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
+			http.delete(
+				"/api/experimental/organizations/:organizationId/chats/projects/:projectId",
+				() =>
+					HttpResponse.json({ message: "Project is locked" }, { status: 500 }),
 			),
 		);
 
@@ -528,6 +596,37 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.getByRole("link", { name: "New chat" })).not.toHaveAttribute(
 			"aria-current",
 		);
+	});
+});
+
+describe("ChatsSidebar section switcher", () => {
+	const LocationProbe: React.FC = () => {
+		const location = useLocation();
+		return <div data-testid="location-pathname">{location.pathname}</div>;
+	};
+
+	it.each([
+		["Workspaces", "/workspaces"],
+		["Templates", "/templates"],
+		["Agents", "/agents"],
+	])("navigates to %s", async (label, pathname) => {
+		const user = userEvent.setup();
+
+		render(
+			<Wrapper initialEntry="/agents/chat-1">
+				<ChatsSidebar {...defaultProps} />
+				<LocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Agents" }));
+		await user.click(await screen.findByRole("menuitem", { name: label }));
+
+		await waitFor(() => {
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				pathname,
+			);
+		});
 	});
 });
 
@@ -603,8 +702,43 @@ describe("ChatsSidebar sections", () => {
 	});
 });
 
+type MenuUser = ReturnType<typeof userEvent.setup>;
+
+const openFilterMenu = async (user: MenuUser) => {
+	await user.click(screen.getByRole("button", { name: "Filter agents" }));
+};
+
+// Every element reports a zero-size rect in jsdom, so Radix's pointer grace
+// area closes a submenu as soon as user-event moves the pointer into it.
+// Keyboard navigation drives the same selection path, and the real pointer
+// path is covered by the FilterPopover stories.
+const focusMenuItem = async (
+	user: MenuUser,
+	role: "menuitem" | "menuitemcheckbox" | "menuitemradio",
+	name: string | RegExp,
+) => {
+	const item = await screen.findByRole(role, { name });
+	for (let step = 0; step < 16 && document.activeElement !== item; step++) {
+		await user.keyboard("{ArrowDown}");
+	}
+	expect(item).toHaveFocus();
+};
+
+const toggleSubmenuOption = async (
+	user: MenuUser,
+	submenu: string | RegExp,
+	name: string,
+) => {
+	await openFilterMenu(user);
+	await focusMenuItem(user, "menuitem", submenu);
+	await user.keyboard("{ArrowRight}");
+	await focusMenuItem(user, "menuitemcheckbox", name);
+	await user.keyboard("{Enter}");
+	await user.keyboard("{Escape}{Escape}");
+};
+
 describe("ChatsSidebar filters", () => {
-	it("calls the sidebar filter change callback after Apply is clicked", async () => {
+	it("applies the archived checkbox", async () => {
 		const user = userEvent.setup();
 		const onSidebarFiltersChange = vi.fn();
 
@@ -619,11 +753,9 @@ describe("ChatsSidebar filters", () => {
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("radio", { name: "Archived" }));
-
-		expect(onSidebarFiltersChange).not.toHaveBeenCalled();
-
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Archived" }),
+		);
 
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...defaultSidebarFilters,
@@ -639,7 +771,7 @@ describe("ChatsSidebar filters", () => {
 			archiveStatus: "archived",
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
-			chatStatuses: ["unread"],
+			chatStatuses: ["running"],
 			sources: ["shared_with_me"],
 		};
 
@@ -666,7 +798,7 @@ describe("ChatsSidebar filters", () => {
 		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
 			...sidebarFilters,
 			prStatuses: [],
-			chatStatuses: ["unread", "read"],
+			chatStatuses: defaultSidebarFilters.chatStatuses,
 			sources: ["created_by_me"],
 		});
 	});
@@ -685,9 +817,7 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await toggleSubmenuOption(user, "Source", "Shared with me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
@@ -707,13 +837,96 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
-		await user.click(screen.getByRole("button", { name: "Apply" }));
+		await toggleSubmenuOption(user, "Source", "Created by me");
 
 		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
 			...defaultSidebarFilters,
 			sources: ["shared_with_me"],
+		});
+	});
+
+	it("resets a filter subset when its last option is cleared", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+		const sidebarFilters: AgentSidebarFilters = {
+			...defaultSidebarFilters,
+			chatStatuses: ["running"],
+			sources: ["shared_with_me"],
+		};
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={sidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await toggleSubmenuOption(user, "Status", "Working");
+		await toggleSubmenuOption(user, /Source/, "Shared with me");
+
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(1, {
+			...sidebarFilters,
+			chatStatuses: defaultSidebarFilters.chatStatuses,
+		});
+		expect(onSidebarFiltersChange).toHaveBeenNthCalledWith(2, {
+			...sidebarFilters,
+			sources: defaultSidebarFilters.sources,
+		});
+	});
+
+	it("applies the unread checkbox", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(
+			await screen.findByRole("menuitemcheckbox", { name: "Unread" }),
+		);
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			unread: true,
+		});
+	});
+
+	it("clears every sidebar filter from the menu", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						archiveStatus: "archived",
+						groupBy: "chat_status",
+						prStatuses: ["draft"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Reset" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenCalledWith({
+			...defaultSidebarFilters,
+			groupBy: "chat_status",
 		});
 	});
 
@@ -724,13 +937,29 @@ describe("ChatsSidebar filters", () => {
 					{...defaultProps}
 					chats={[
 						buildChat({
-							id: "unread-chat",
-							title: "Unread chat",
-							has_unread: true,
+							id: "attention-chat",
+							title: "Needs action",
+							status: "requires_action",
 						}),
 						buildChat({
-							id: "read-chat",
-							title: "Read chat",
+							id: "error-chat",
+							title: "Failed chat",
+							status: "error",
+						}),
+						buildChat({
+							id: "working-chat",
+							title: "Working chat",
+							status: "running",
+						}),
+						buildChat({
+							id: "interrupting-chat",
+							title: "Interrupting chat",
+							status: "interrupting",
+						}),
+						buildChat({
+							id: "idle-chat",
+							title: "Idle chat",
+							status: "waiting",
 						}),
 					]}
 					sidebarFilters={{
@@ -741,26 +970,42 @@ describe("ChatsSidebar filters", () => {
 			</Wrapper>,
 		);
 
-		const unreadSection = screen.getByTestId("agents-section-toggle-Unread");
-		const readSection = screen.getByTestId("agents-section-toggle-Read");
-		const unreadNode = screen.getByTestId("agents-tree-node-unread-chat");
-		const readNode = screen.getByTestId("agents-tree-node-read-chat");
+		const attentionSection = screen.getByTestId(
+			"agents-section-toggle-Requires-action",
+		);
+		const errorSection = screen.getByTestId("agents-section-toggle-Error");
+		const workingSection = screen.getByTestId("agents-section-toggle-Working");
+		const interruptingSection = screen.getByTestId(
+			"agents-section-toggle-Interrupting",
+		);
+		const idleSection = screen.getByTestId("agents-section-toggle-Idle");
+		const attentionNode = screen.getByTestId("agents-tree-node-attention-chat");
+		const errorNode = screen.getByTestId("agents-tree-node-error-chat");
+		const workingNode = screen.getByTestId("agents-tree-node-working-chat");
+		const interruptingNode = screen.getByTestId(
+			"agents-tree-node-interrupting-chat",
+		);
+		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
 		).not.toBeInTheDocument();
-		expect(
-			unreadSection.compareDocumentPosition(unreadNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			unreadNode.compareDocumentPosition(readSection) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(
-			readSection.compareDocumentPosition(readNode) &
-				Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+		for (const [before, after] of [
+			[attentionSection, attentionNode],
+			[attentionNode, errorSection],
+			[errorSection, errorNode],
+			[errorNode, workingSection],
+			[workingSection, workingNode],
+			[workingNode, interruptingSection],
+			[interruptingSection, interruptingNode],
+			[interruptingNode, idleSection],
+			[idleSection, idleNode],
+		] as const) {
+			expect(
+				before.compareDocumentPosition(after) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
+			).toBeTruthy();
+		}
 	});
 });
 
@@ -1073,5 +1318,67 @@ describe("ChatsSidebar subtitles", () => {
 		);
 
 		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar read state actions", () => {
+	const openActionsMenu = async (title: string) => {
+		const user = userEvent.setup();
+		await user.click(
+			screen.getByRole("button", { name: `Open actions for ${title}` }),
+		);
+		return user;
+	};
+
+	it("marks a read chat as unread", async () => {
+		const onMarkChatUnread = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "read-chat",
+							title: "Read chat",
+							has_unread: false,
+						}),
+					]}
+					onMarkChatUnread={onMarkChatUnread}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Read chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as unread" }),
+		);
+
+		expect(onMarkChatUnread).toHaveBeenCalledWith("read-chat");
+	});
+
+	it("marks an unread chat as read", async () => {
+		const onMarkChatRead = vi.fn();
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "unread-chat",
+							title: "Unread chat",
+							has_unread: true,
+						}),
+					]}
+					onMarkChatRead={onMarkChatRead}
+				/>
+			</Wrapper>,
+		);
+
+		const user = await openActionsMenu("Unread chat");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Mark as read" }),
+		);
+
+		expect(onMarkChatRead).toHaveBeenCalledWith("unread-chat");
 	});
 });

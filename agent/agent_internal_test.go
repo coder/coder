@@ -29,35 +29,59 @@ func platformAbsPath(parts ...string) string {
 	return "/" + filepath.Join(parts...)
 }
 
-// TestReportConnectionEmpty tests that reportConnection() doesn't choke if given an empty IP string, which is what we
-// send if we cannot get the remote address.
-func TestReportConnectionEmpty(t *testing.T) {
+func TestReportConnection(t *testing.T) {
 	t.Parallel()
-	connID := uuid.UUID{1}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx := testutil.Context(t, testutil.WaitShort)
 
-	uut := &agent{
-		hardCtx: ctx,
-		logger:  logger,
+	tests := []struct {
+		name   string
+		report connectionReport
+	}{
+		{
+			// Test that reportConnection() doesn't choke if given an empty IP string,
+			// which is what we send if we cannot get the remote address.
+			name: "Empty",
+			report: connectionReport{
+				connectionType: proto.Connection_TYPE_UNSPECIFIED,
+			},
+		},
+		{
+			name: "ClientSessionID",
+			report: connectionReport{
+				connectionType:  proto.Connection_TYPE_UNSPECIFIED,
+				clientSessionID: "0123456789abcdef0123456789abcdef",
+			},
+		},
 	}
-	disconnected := uut.reportConnection(connID, proto.Connection_TYPE_UNSPECIFIED, "")
 
-	require.Len(t, uut.reportConnections, 1)
-	req0 := uut.reportConnections[0]
-	require.Equal(t, proto.Connection_TYPE_UNSPECIFIED, req0.GetConnection().GetType())
-	require.Equal(t, "", req0.GetConnection().Ip)
-	require.Equal(t, connID[:], req0.GetConnection().GetId())
-	require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
+	for _, tc := range tests {
+		connID := uuid.UUID{1}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-	disconnected(0, "because")
-	require.Len(t, uut.reportConnections, 2)
-	req1 := uut.reportConnections[1]
-	require.Equal(t, proto.Connection_TYPE_UNSPECIFIED, req1.GetConnection().GetType())
-	require.Equal(t, "", req1.GetConnection().Ip)
-	require.Equal(t, connID[:], req1.GetConnection().GetId())
-	require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
-	require.Equal(t, "because", req1.GetConnection().GetReason())
+		uut := &agent{
+			hardCtx: ctx,
+			logger:  logger,
+		}
+		disconnected := uut.reportConnection(connID, tc.report)
+
+		require.Len(t, uut.reportConnections, 1)
+		req0 := uut.reportConnections[0]
+		require.Equal(t, tc.report.connectionType, req0.GetConnection().GetType())
+		require.Equal(t, tc.report.ip, req0.GetConnection().Ip)
+		require.Equal(t, connID[:], req0.GetConnection().GetId())
+		require.Equal(t, proto.Connection_CONNECT, req0.GetConnection().GetAction())
+		require.Equal(t, tc.report.clientSessionID, req0.GetConnection().GetClientSessionId())
+
+		disconnected(0, "because")
+		require.Len(t, uut.reportConnections, 2)
+		req1 := uut.reportConnections[1]
+		require.Equal(t, tc.report.connectionType, req1.GetConnection().GetType())
+		require.Equal(t, tc.report.ip, req1.GetConnection().Ip)
+		require.Equal(t, connID[:], req1.GetConnection().GetId())
+		require.Equal(t, proto.Connection_DISCONNECT, req1.GetConnection().GetAction())
+		require.Equal(t, "because", req1.GetConnection().GetReason())
+		require.Equal(t, tc.report.clientSessionID, req0.GetConnection().GetClientSessionId())
+	}
 }
 
 func TestContextConfigAPI_InitOnce(t *testing.T) {

@@ -35,13 +35,14 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"ChatProject":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatProjectMemory":             {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
 	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
+	"ExperimentRule":                {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -509,10 +510,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"name":            ActionTrack,
 		"description":     ActionTrack,
 		"body":            ActionTrack,
-		"source_chat_id":  ActionTrack,
 		"created_by":      ActionTrack,
 		"created_at":      ActionIgnore,
-		"updated_at":      ActionIgnore,
 	},
 	&database.ChatModelConfig{}: {
 		"id":                    ActionIgnore, // Conveyed by resource_id.
@@ -590,6 +589,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
+	},
+	&database.ExperimentRule{}: {
+		"id":         ActionIgnore, // Derived from the experiment name.
+		"experiment": ActionTrack,
+		"mode":       ActionTrack,
+		"condition":  ActionTrack,
+		"revision":   ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

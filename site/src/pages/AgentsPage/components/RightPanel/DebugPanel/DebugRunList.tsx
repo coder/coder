@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { DebugRunCard } from "./DebugRunCard";
 import type { DownloadDebugFile } from "./debugExport";
@@ -10,7 +9,7 @@ type DebugRunListProps = {
 	download?: DownloadDebugFile;
 };
 
-export const DebugRunList: FC<DebugRunListProps> = ({
+export const DebugRunList: React.FC<DebugRunListProps> = ({
 	runs,
 	chatId,
 	isVisible,

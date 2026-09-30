@@ -31,7 +31,7 @@ Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
 
 A feature that connects a supported cloud-hosted AI agent provider's hosted sessions to self-hosted [workspaces](#workspace).
 The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
-In [early access](../install/releases/feature-stages.md#early-access-features).
+In [early access](./feature-stages.md#early-access-features).
 Refer to [Agent Relay](../ai-coder/agent-relay/index.md).
 
 ### AI Gateway
@@ -55,7 +55,7 @@ Refer to [AI Governance](../ai-coder/ai-governance.md).
 ### Air-gapped deployment
 
 A Coder installation that has no outbound internet access.
-Refer to [Air-gapped deployments](../install/airgap.md).
+Refer to [Air-gapped deployments](../install/prepare/airgap.md).
 
 ### Audit logging
 
@@ -72,7 +72,8 @@ Refer to [Workspace scheduling](../admin/templates/managing-templates/schedule.m
 
 ### Built-in roles
 
-The predefined roles, including User Admin, Template Admin, Auditor, and Member, with progressively narrower permissions.
+The roles Coder predefines at two scopes.
+Deployment roles such as Owner, User Admin, Template Admin, and Auditor apply across the deployment, and [organization roles](#organization-roles) apply inside one organization.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
 
 ## C
@@ -122,8 +123,27 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
+
+### Coder Validated Architecture
+
+Coder's reference designs for sizing and deploying a control plane, abbreviated CVA.
+Each design covers a user count, from 1,000 to 10,000, and prescribes a Kubernetes-based deployment with tested component sizes, so a deployment is easier to operate and troubleshoot.
+A CVA is guidance rather than a certification: it recommends an architecture, but it doesn't approve yours.
+Refer to [Coder Validated Architecture](../install/plan/sizing/index.md).
+
+### Coder Workspaces
+
+The self-hosted platform capability for running cloud development environments, defined with Terraform, on infrastructure you control.
+Not to be confused with a [workspace](#workspace), the individual on-demand development environment a developer creates from a template.
+Refer to [About Coder](../README.md#coder-workspaces).
+
+### `coder server`
+
+The CLI command that starts [`coderd`](#coderd).
+Use this name only for the command a reader runs, not as a name for the [control plane](#control-plane) itself.
+Refer to the [`coder server` reference](./cli/server/index.md).
 
 ### `coder_agent`
 
@@ -147,16 +167,22 @@ Refer to the [`coder_script` resource](https://registry.terraform.io/providers/c
 
 ### `coderd`
 
-The Coder control plane server, started with `coder server`.
-It serves the dashboard and API, brokers connections to workspaces, and stores state in PostgreSQL.
-Refer to [Architecture](../admin/infrastructure/architecture.md).
+The process that runs the [control plane](#control-plane), started with [`coder server`](#coder-server).
+Use `coderd` for the process itself, such as in metric names, log output, configuration flags, and troubleshooting steps.
+Introduce it on first use in a page as "`coderd`, the process that runs the control plane".
+Refer to [Architecture](../install/plan/architecture.md).
 
 ### codersdk
 
 The Go SDK that the CLI and dashboard use and that you can use for automation.
 Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/codersdk).
 
+<!-- "Coding" is an adjective in this glossary term, not a task verb. -->
+<!-- vale Coder.GerundHeading = NO -->
+
 ### Coding agent
+
+<!-- vale Coder.GerundHeading = YES -->
 
 An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
@@ -177,14 +203,20 @@ Refer to [Connection logs](../admin/monitoring/connection-logs.md).
 
 ### Control plane
 
-The collective term for `coderd`, its provisioners, and its database.
-The control plane also runs the agent loop for [Coder Agents](#coder-agents).
+The component that serves the Coder API and dashboard, brokers connections to workspaces, and coordinates provisioners.
+It is implemented by the [`coderd`](#coderd) process and also runs the agent loop for [Coder Agents](#coder-agents).
+Use *control plane* in prose, diagrams, and any planning, sizing, architecture, or security discussion.
+Do not call it "the Coder server", and do not describe it generically as "a service".
 
 ### Custom roles
 
-Deployment-defined roles composed of specific RBAC actions.
+Roles an administrator defines inside an organization from a chosen set of permissions.
 This is a Premium feature.
 Refer to [Groups and roles](../admin/users/groups-roles.md).
+
+### CVA
+
+Refer to [Coder Validated Architecture](#coder-validated-architecture).
 
 ## D
 
@@ -251,7 +283,7 @@ Refer to [External authentication](../admin/external-auth/index.md).
 ### External provisioner
 
 A `provisionerd` that runs outside `coderd`, tagged so specific templates route to it, for example to reach an isolated network or to scale build throughput.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### External workspace
 
@@ -264,7 +296,7 @@ Refer to [External workspaces](../admin/templates/managing-templates/external-wo
 ### Feature stages
 
 The Early Access, Beta, and General Availability labels that describe how production-ready a feature is.
-Refer to [Feature stages](../install/releases/feature-stages.md).
+Refer to [Feature stages](./feature-stages.md).
 
 ## G
 
@@ -310,7 +342,7 @@ Coder templates are infrastructure as code, written in Terraform.
 
 A signed token applied through the dashboard or with `coder licenses add`.
 Coder validates the key locally, so it works in air-gapped deployments.
-Refer to [Licensing](../admin/licensing/index.md).
+Refer to [Licensing](../install/prepare/licensing.md).
 
 ## M
 
@@ -345,6 +377,12 @@ Refer to [Provisioning with OpenTofu](../admin/integrations/opentofu.md).
 An isolation boundary for members, templates, provisioners, and quotas.
 Multi-organization support is a Premium feature.
 Refer to [Organizations](../admin/users/organizations.md).
+
+### Organization roles
+
+The [built-in roles](#built-in-roles) that apply inside a single organization, such as Organization Admin and Organization Template Admin.
+A user can hold different organization roles in each organization they belong to.
+Refer to [Organization roles](../admin/users/groups-roles.md#organization-roles).
 
 ### Owner
 
@@ -391,18 +429,18 @@ Refer to [Prometheus](../admin/integrations/prometheus.md).
 ### Provisioner
 
 A `provisionerd` instance that executes template builds.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### Provisioner tags
 
 Key-value tags on templates and provisioner daemons that route a build to a matching provisioner.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ### `provisionerd`
 
 The daemon that runs Terraform to create, update, and destroy workspace resources.
 It runs bundled with `coderd` by default and can also run externally.
-Refer to [External provisioners](../admin/provisioners/index.md).
+Refer to [External provisioners](../install/operate/provisioners/index.md).
 
 ## Q
 
@@ -425,7 +463,7 @@ The [Coder Registry](https://registry.coder.com/), where Coder publishes reusabl
 ### Release channels
 
 Coder's supported release lines: mainline, stable, and Extended Support Release.
-Refer to [Releases](../install/releases/index.md).
+Refer to [Releases](./releases.md).
 
 ### Resource
 
@@ -552,6 +590,7 @@ Refer to [Web terminal](../user-guides/workspace-access/web-terminal.md).
 ### Workspace
 
 A developer's on-demand development environment, such as a virtual machine, container, or Kubernetes pod, provisioned from a template.
+Not to be confused with [Coder Workspaces](#coder-workspaces), the platform capability.
 Refer to [Workspace management](../user-guides/workspace-management.md).
 
 ### Workspace agent
@@ -584,7 +623,7 @@ Refer to [Workspace proxies](../admin/networking/workspace-proxies.md).
 
 ## Learn more
 
-- [Architecture](../admin/infrastructure/architecture.md)
+- [Architecture](../install/plan/architecture.md)
 - [Coder Agents](../ai-coder/agents/index.md)
 - [Templates](../admin/templates/index.md)
 - [API reference](./api/index.md)

@@ -1,5 +1,4 @@
 import { InfoIcon } from "lucide-react";
-import type { FC } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -11,7 +10,7 @@ type CoderWorkspacesProductCardProps = {
 	userLimitLimit?: number;
 };
 
-export const CoderWorkspacesProductCard: FC<
+export const CoderWorkspacesProductCard: React.FC<
 	CoderWorkspacesProductCardProps
 > = ({ userLimitActual, userLimitLimit }) => {
 	const actualLabel =

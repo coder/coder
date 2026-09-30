@@ -17,6 +17,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -66,6 +67,10 @@ type PersistedStep struct {
 	// Runtime is the wall-clock duration from opening to consuming the
 	// model stream.
 	Runtime time.Duration
+	// ProviderResponseID is the response ID the model endpoint reported, if
+	// any. Through the AI Gateway, Anthropic Messages responses carry the
+	// gateway's interception ID instead of the upstream message ID.
+	ProviderResponseID string
 	// BatchRuntime is the union of billed local-tool execution intervals.
 	// Parallel calls count once and serial calls count from their own start.
 	BatchRuntime time.Duration
@@ -263,6 +268,7 @@ type stepResult struct {
 	content              []fantasy.Content
 	usage                fantasy.Usage
 	providerMetadata     fantasy.ProviderMetadata
+	providerResponseID   string
 	finishReason         fantasy.FinishReason
 	toolCalls            []fantasy.ToolCallContent
 	toolCallCreatedAt    map[string]time.Time
@@ -380,6 +386,7 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		Usage:                result.usage,
 		ContextLimit:         contextLimit,
 		Runtime:              opts.Clock.Since(stepStart),
+		ProviderResponseID:   result.providerResponseID,
 		ToolCallCreatedAt:    result.toolCallCreatedAt,
 		ToolResultCreatedAt:  result.toolResultCreatedAt,
 		ReasoningStartedAt:   result.reasoningStartedAt,
@@ -999,6 +1006,7 @@ func processStepStream(
 			result.usage = part.Usage
 			result.finishReason = part.FinishReason
 			result.providerMetadata = part.ProviderMetadata
+			result.providerResponseID = providerResponseID(part)
 
 		case fantasy.StreamPartTypeError:
 			return result, part.Error
@@ -1006,6 +1014,22 @@ func processStepStream(
 	}
 
 	return result, nil
+}
+
+// providerResponseID returns the response ID from a finish part.
+// Anthropic and Bedrock report the message ID as the part ID, and the OpenAI
+// Responses API reports it in provider metadata. Chat Completions providers
+// report neither.
+func providerResponseID(part fantasy.StreamPart) string {
+	if part.ID != "" {
+		return part.ID
+	}
+	for _, metadata := range part.ProviderMetadata {
+		if responses, ok := metadata.(*fantasyopenai.ResponsesProviderMetadata); ok && responses != nil {
+			return responses.ResponseID
+		}
+	}
+	return ""
 }
 
 type toolExecutionResult struct {

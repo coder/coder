@@ -24,7 +24,7 @@ If you have experience with a provider that is not listed here, please
 
 ### Set environment variables
 
-After you create an OAuth application, set environment variables to configure the Coder server to use it:
+After you create an OAuth application, set environment variables to configure the control plane to use it:
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
@@ -88,7 +88,7 @@ Reference the documentation for your chosen provider for more information on how
 
 ### Workspace CLI
 
-Use [`external-auth`](../../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
+Use [`external-auth`](../../reference/cli/external-auth/index.md) in the Coder CLI to access a token within the workspace:
 
 ```sh
 coder external-auth access-token <USER_DEFINED_ID>

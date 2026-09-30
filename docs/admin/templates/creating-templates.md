@@ -63,13 +63,15 @@ standard Terraform HCL that you can edit later through the dashboard or CLI.
 > The template builder requires outbound access to `registry.coder.com` so
 > that `terraform init` can resolve module sources. For air-gapped or
 > restricted-egress deployments, visit
-> [Air-gapped deployments](../../install/airgap.md#template-builder).
+> [Air-gapped deployments](../../install/prepare/airgap.md#template-builder).
 
 If you select modules that are known to conflict with each other, the builder
 displays a warning. Module conflicts do not block template creation, but you
 should review the warning before proceeding.
 
-#### Disabling the template builder
+<a id="disabling-the-template-builder"></a>
+
+#### Turn off the template builder
 
 Operators can disable the template builder by setting the
 `CODER_DISABLE_TEMPLATE_BUILDER` environment variable or the
@@ -100,7 +102,7 @@ The template builder's first step also links to alternative creation paths:
 
 You can use the [Coder CLI](../../install/cli.md) to manage templates for Coder.
 
-After [logging in](../../reference/cli/login.md) to your deployment, create a
+After [logging in](../../reference/cli/login/index.md) to your deployment, create a
 folder to store your templates:
 
 ```sh
@@ -109,7 +111,7 @@ mkdir $HOME/coder-templates
 cd $HOME/coder-templates
 ```
 
-Use the [`templates init`](../../reference/cli/templates_init.md) command to
+Use the [`templates init`](../../reference/cli/templates/init.md) command to
 pull a starter template:
 
 ```sh
@@ -126,7 +128,7 @@ cd universal-template
 ```
 
 Next, push it to Coder with the
-[`templates push`](../../reference/cli/templates_push.md) command:
+[`templates push`](../../reference/cli/templates/push.md) command:
 
 ```sh
 coder templates push
@@ -134,10 +136,10 @@ coder templates push
 
 If `templates push` fails, it is likely that Coder is not authorized to deploy
 infrastructure in the given location. Learn how to configure
-[provisioner authentication](../provisioners/index.md).
+[provisioner authentication](../../install/operate/provisioners/index.md).
 
 You can edit the metadata of the template such as the display name with the
-[`templates edit`](../../reference/cli/templates_edit.md) command:
+[`templates edit`](../../reference/cli/templates/edit.md) command:
 
 ```sh
 coder templates edit universal-template \

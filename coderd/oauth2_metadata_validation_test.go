@@ -541,9 +541,6 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// Registration stores the scope verbatim, so every value below is accepted.
-// The catalog is enforced at authorization: see
-// TestOAuth2AuthorizeDCRScopeCompatibility in coderd/oauth2provider.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()
 
@@ -552,60 +549,27 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, client)
 	oauth2providertest.EnableDCR(t, client)
 
+	// TestRegisteredScopeAllowlist covers the scope rules. These rows prove
+	// the handler wiring only.
 	tests := []struct {
-		name        string
-		scope       string
-		expectError bool
+		name      string
+		scope     string
+		wantScope string
+		// Empty means the request is accepted.
+		wantError string
+		// The scope text the error echoes.
+		wantShown string
 	}{
 		{
-			name:        "DefaultEmpty",
-			scope:       "",
-			expectError: false,
+			name:      "UnknownNameDropped",
+			scope:     "workspace:read nosuch:scope",
+			wantScope: "workspace:read",
 		},
 		{
-			name:        "ValidRead",
-			scope:       "read",
-			expectError: false,
-		},
-		{
-			name:        "ValidWrite",
-			scope:       "write",
-			expectError: false,
-		},
-		{
-			name:        "ValidMultiple",
-			scope:       "read write",
-			expectError: false,
-		},
-		{
-			name:        "ValidOpenID",
-			scope:       "openid",
-			expectError: false,
-		},
-		{
-			name:        "ValidProfile",
-			scope:       "profile",
-			expectError: false,
-		},
-		{
-			name:        "ValidEmail",
-			scope:       "email",
-			expectError: false,
-		},
-		{
-			name:        "ValidCombined",
-			scope:       "openid profile email read write",
-			expectError: false,
-		},
-		{
-			name:        "InvalidAdmin",
-			scope:       "admin",
-			expectError: false, // Rejected at authorization, not registration.
-		},
-		{
-			name:        "ValidCustom",
-			scope:       "custom:scope",
-			expectError: false,
+			name:      "OnlyUnknownNames",
+			scope:     "openid profile email",
+			wantError: "unknown or unsupported scope",
+			wantShown: "openid profile email",
 		},
 	}
 
@@ -621,13 +585,16 @@ func TestOAuth2ClientScopeValidation(t *testing.T) {
 				Scope:        test.scope,
 			}
 
-			_, err := client.PostOAuth2ClientRegistration(ctx, req)
+			resp, err := client.PostOAuth2ClientRegistration(ctx, req)
 
-			if test.expectError {
-				require.Error(t, err)
-			} else {
+			if test.wantError == "" {
 				require.NoError(t, err)
+				require.Equal(t, test.wantScope, resp.Scope)
+				return
 			}
+			require.ErrorContains(t, err, "invalid_client_metadata")
+			require.ErrorContains(t, err, test.wantError)
+			require.ErrorContains(t, err, test.wantShown)
 		})
 	}
 }

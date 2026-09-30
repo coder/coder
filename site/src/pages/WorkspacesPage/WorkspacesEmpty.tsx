@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { Link } from "react-router";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -8,13 +7,15 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 
 type WorkspacesEmptyProps = {
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 	templates?: Template[];
 	canCreateTemplate: boolean;
 	canCreateWorkspace: boolean;
 };
 
-export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
+export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
+	onClearFilter,
 	templates,
 	canCreateTemplate,
 	canCreateWorkspace,
@@ -28,7 +29,16 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		"A workspace is your personal, customizable development environment.";
 
 	if (isUsingFilter) {
-		return <EmptyState message="No results matched your search" />;
+		return (
+			<EmptyState
+				message="No workspaces match your search."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Clear all
+					</Button>
+				}
+			/>
+		);
 	}
 
 	if (!canCreateWorkspace) {

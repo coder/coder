@@ -3,6 +3,7 @@ package chatstate_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,6 +44,9 @@ func TestTransitionCreate_NToR0(t *testing.T) {
 	require.NotEmpty(t, res.InitialMessages)
 	require.Equal(t, int64(1), res.InitialMessages[0].Revision)
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, res.Chat.ID))
+	require.Contains(t,
+		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
+		chatstate.StateR0, "transition matrix must admit the N -> R0 create path")
 	require.True(t, f.Pub.hasOwnership(), "newly created chat is runnable and unowned")
 	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
 }
@@ -60,11 +64,67 @@ func TestCreateChat_RejectsEmptyInitialMessages(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		ClientType:        database.ChatClientTypeApi,
 		Title:             "t",
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   nil,
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
 	require.Empty(t, f.Pub.channels, "rejected create must not publish")
+}
+
+// TestTransitionCreate_NToW verifies that CreateChat with
+// InitialStatus waiting lands a fresh chat in W: the chat is created
+// idle, so no ownership hint is published and no worker acquires it.
+func TestTransitionCreate_NToW(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	systemMsg := userTextMessage("system context", f.User.ID, f.Model.ID)
+	systemMsg.Role = database.ChatMessageRoleSystem
+	res, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+		OrganizationID:    f.Org.ID,
+		OwnerID:           f.User.ID,
+		LastModelConfigID: f.Model.ID,
+		Title:             "t",
+		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusWaiting,
+		InitialMessages:   []chatstate.Message{systemMsg},
+	})
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, res.Chat.Status)
+	require.Equal(t, int64(1), res.Chat.SnapshotVersion)
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, res.Chat.ID))
+	require.Contains(t,
+		chatstate.AllowedExecutionTransitionOutputs(chatstate.StateN, chatstate.TransitionCreateChat),
+		chatstate.StateW, "transition matrix must admit the N -> W create path")
+	require.False(t, f.Pub.hasOwnership(), "waiting chat is not runnable, must not publish an ownership hint")
+	f.Pub.expectChatUpdate(t, res.Chat.ID, 1)
+}
+
+// TestCreateChat_RejectsInvalidInitialStatus verifies that CreateChat
+// only accepts waiting or running as the initial status. The zero
+// value defaults to running (see CreateChatInput), so only explicit
+// non-initial statuses are rejected.
+func TestCreateChat_RejectsInvalidInitialStatus(t *testing.T) {
+	t.Parallel()
+	for _, status := range []database.ChatStatus{database.ChatStatusError, database.ChatStatusInterrupting} {
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := chatstate.CreateChat(ctx, f.DB, f.Pub, chatstate.CreateChatInput{
+			OrganizationID:    f.Org.ID,
+			OwnerID:           f.User.ID,
+			LastModelConfigID: f.Model.ID,
+			Title:             "t",
+			ClientType:        database.ChatClientTypeApi,
+			InitialStatus:     status,
+			InitialMessages: []chatstate.Message{
+				userTextMessage("hello", f.User.ID, f.Model.ID),
+			},
+		})
+		require.Error(t, err, "status %q", status)
+		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed, "status %q", status)
+		require.Empty(t, f.Pub.channels, "rejected create must not publish")
+	}
 }
 
 func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
@@ -79,6 +139,7 @@ func TestCreateChat_AllowsNoUserMessages(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages:   []chatstate.Message{assistant},
 	})
 	require.NoError(t, err)
@@ -95,6 +156,7 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 		LastModelConfigID: f.Model.ID,
 		Title:             "t",
 		ClientType:        database.ChatClientTypeApi,
+		InitialStatus:     database.ChatStatusRunning,
 		InitialMessages: []chatstate.Message{
 			userTextMessage("context user", f.User.ID, f.Model.ID),
 			userTextMessage("final user", f.User.ID, f.Model.ID),
@@ -351,6 +413,7 @@ func runInvalidBusyBehaviorCase(t *testing.T, from chatstate.ExecutionState, bb 
 		_, serr := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("invalid-bb", f.User.ID, f.Model.ID),
 			BusyBehavior: bb,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return serr
 	})
@@ -540,54 +603,55 @@ func TestTransitionInputValidation(t *testing.T) {
 	})
 }
 
-// TestSendMessageQueueCapRejectsQueueAppend seeds a chat with the
-// maximum queued messages and asserts that the next SendMessage in
-// a queue-appending state returns chatstate.ErrMessageQueueFull and
-// rolls back without persisting another queued row.
-func TestSendMessageQueueCapRejectsQueueAppend(t *testing.T) {
+func TestSendMessageQueueCap(t *testing.T) {
 	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-	// createTestChat lands the chat in R0; SendMessage in R0 with
-	// BusyBehaviorQueue queues. Fill the queue to MaxQueueSize.
-	for i := 0; i < chatstate.MaxQueueSize; i++ {
-		sendQueuedMessage(t, f, m, "filler")
-	}
-	count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.EqualValues(t, chatstate.MaxQueueSize, count)
-	chatBefore := f.readChat(ctx, t, created.Chat.ID)
+	for _, maxQueueSize := range []int{-1, 0, 1, 3, codersdk.DefaultChatMaxQueuedMessagesPerChat} {
+		t.Run(fmt.Sprintf("Max%d", maxQueueSize), func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			// createTestChat lands the chat in R0, where BusyBehaviorQueue queues.
+			created := createTestChat(t, f)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+			send := func(ctx context.Context, body string) error {
+				return m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.SendMessage(chatstate.SendMessageInput{
+						Message:      userTextMessage(body, f.User.ID, f.Model.ID),
+						BusyBehavior: chatstate.BusyBehaviorQueue,
+						MaxQueueSize: maxQueueSize,
+					})
+					return err
+				})
+			}
 
-	// The next queue append must fail with ErrMessageQueueFull and a
-	// typed wrapper that exposes the cap.
-	err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, serr := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("overflow", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorQueue,
+			ctx := testutil.Context(t, testutil.WaitShort)
+			if maxQueueSize < 1 {
+				require.ErrorContains(t, send(ctx, "queued"), "max queue size must be positive")
+				count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+				require.NoError(t, err)
+				require.Zero(t, count)
+				return
+			}
+
+			for range maxQueueSize {
+				require.NoError(t, send(ctx, "filler"))
+			}
+			chatBefore := f.readChat(ctx, t, created.Chat.ID)
+
+			err := send(ctx, "overflow")
+			require.ErrorIs(t, err, chatstate.ErrMessageQueueFull)
+			var typed *chatstate.MessageQueueFullError
+			require.ErrorAs(t, err, &typed)
+			require.EqualValues(t, maxQueueSize, typed.Max)
+
+			count, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
+			require.NoError(t, err)
+			require.EqualValues(t, maxQueueSize, count)
+			chatAfter := f.readChat(ctx, t, created.Chat.ID)
+			require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion)
+			require.Equal(t, chatBefore.QueueVersion, chatAfter.QueueVersion)
 		})
-		return serr
-	})
-	require.Error(t, err)
-	require.ErrorIs(t, err, chatstate.ErrMessageQueueFull,
-		"queue-append over the cap returns ErrMessageQueueFull")
-	var typed *chatstate.MessageQueueFullError
-	require.ErrorAs(t, err, &typed, "ErrMessageQueueFull is carried as a typed error")
-	require.EqualValues(t, chatstate.MaxQueueSize, typed.Max)
-
-	// The transaction rolled back: queue size, snapshot version,
-	// and queue version are unchanged.
-	countAfter, err := f.DB.CountChatQueuedMessages(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	require.EqualValues(t, chatstate.MaxQueueSize, countAfter,
-		"queue size must not change when the cap rejects the append")
-	chatAfter := f.readChat(ctx, t, created.Chat.ID)
-	require.Equal(t, chatBefore.SnapshotVersion, chatAfter.SnapshotVersion,
-		"failed queue append must not bump snapshot_version")
-	require.Equal(t, chatBefore.QueueVersion, chatAfter.QueueVersion,
-		"failed queue append must not bump queue_version")
+	}
 }
 
 func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
@@ -604,6 +668,7 @@ func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
 	}))

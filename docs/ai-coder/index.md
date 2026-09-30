@@ -29,7 +29,7 @@ Developers interact with agents through the web UI or the REST API.
 The provider's orchestration and AI inference stay cloud-hosted; a worker process inside the workspace executes the agent's tool calls.
 [Cursor Cloud Agents](https://cursor.com/cloud) and [Claude Code](https://claude.ai/code) are the supported providers.
 
-Agent Relay is in [early access](../install/releases/feature-stages.md#early-access-features) and is in closed preview with select customers.
+Agent Relay is in [early access](../reference/feature-stages.md#early-access-features) and is in closed preview with select customers.
 
 [Learn more about Agent Relay](./agent-relay/index.md) for architecture details and supported providers.
 

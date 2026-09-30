@@ -48,6 +48,9 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
+	// TurnExperiments holds the turn's user-scoped experiment
+	// decisions, shared by every step of the turn. Required.
+	TurnExperiments *turnExperimentDecisions
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -90,7 +93,7 @@ type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
 	// prepare time. Its model client is built in the compact action path,
 	// so construction failures cannot fail turns that never compact.
-	Override *resolvedCompactionOverride
+	Override *resolvedModelOverride
 	// ChatModelConfig is the chat model's config, used to detect provider
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
@@ -200,6 +203,9 @@ type generationDecisionInput struct {
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
+	if input.maxSteps < 1 {
+		return generationDecision{}, terminalGeneration(xerrors.Errorf("max steps must be positive, got %d", input.maxSteps))
+	}
 	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(input.messages, input.dynamicToolNames)
 	if err != nil {
 		return generationDecision{}, err
@@ -248,7 +254,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if complete {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, nil
 	}
-	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
+	if currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
@@ -428,6 +434,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	if input.StopNudges == nil {
 		input.StopNudges = &stopNudgeTracker{}
 	}
+	if input.TurnExperiments == nil {
+		input.TurnExperiments = &turnExperimentDecisions{}
+	}
 	if input.TurnID == uuid.Nil {
 		input.TurnID = uuid.New()
 	}
@@ -454,6 +463,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			Chat:                      chat,
 			Messages:                  messages,
 			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
+			TurnExperiments:           input.TurnExperiments,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
@@ -588,7 +598,7 @@ func loadGenerationState(
 	return chat, messages, nil
 }
 
-func (*taskStarter) recordGenerationRetry(
+func (s *taskStarter) recordGenerationRetry(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
@@ -602,7 +612,7 @@ func (*taskStarter) recordGenerationRetry(
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		decision.generationAttempt = chat.GenerationAttempt
-		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt >= int64(chatretry.MaxAttempts) {
+		if chat.GenerationAttempt <= 0 || chat.GenerationAttempt > int64(s.server.chatLimits.MaxGenerationRetries) {
 			decision.retry = false
 			return errRetryStateDecisionOnly
 		}
@@ -1592,6 +1602,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		ProviderResponseID:   step.ProviderResponseID,
 		BatchRuntime:         step.BatchRuntime,
 		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,

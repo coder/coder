@@ -1,6 +1,5 @@
 import { cn } from "cn";
 import { ChevronDownIcon } from "lucide-react";
-import type { FC } from "react";
 
 export const PINNED_SECTION_KEY = "Pinned";
 
@@ -15,7 +14,7 @@ type ChatSectionHeaderProps = {
 	readonly testId: string;
 };
 
-export const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
+export const ChatSectionHeader: React.FC<ChatSectionHeaderProps> = ({
 	label,
 	count,
 	expanded,

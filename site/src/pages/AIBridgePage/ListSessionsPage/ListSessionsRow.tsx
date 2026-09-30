@@ -1,5 +1,4 @@
 import { ChevronRightIcon } from "lucide-react";
-import type { FC } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -10,19 +9,18 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { ClientsBadge } from "../ClientsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
+import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
-import { getProviderDisplayName } from "../utils";
 
 type ListSessionsRowProps = {
 	session: AIBridgeSession;
 	onClick?: () => void;
 };
 
-export const ListSessionsRow: FC<ListSessionsRowProps> = ({
+export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 	session,
 	onClick,
 }) => {
@@ -64,38 +62,12 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					{session.providers.length > 1 ? (
-						<Badge className="max-w-full">
-							{session.providers.length} providers
-						</Badge>
-					) : session.providers.length === 1 ? (
-						<Badge className="gap-1.5 max-w-full">
-							<div className="shrink-0 flex items-center">
-								<AIBridgeProviderIcon
-									provider={session.providers[0]}
-									className="size-icon-xs"
-								/>
-							</div>
-							<span className="truncate min-w-0">
-								{getProviderDisplayName(session.providers[0])}
-							</span>
-						</Badge>
-					) : null}
+					<ProvidersBadge providers={session.providers} />
 				</div>
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<Badge className="gap-1.5 max-w-full">
-						<div className="shrink-0 flex items-center">
-							<AIBridgeClientIcon
-								client={session.client}
-								className="size-icon-xs"
-							/>
-						</div>
-						<span className="truncate min-w-0">
-							{session.client ?? "Unknown"}
-						</span>
-					</Badge>
+					<ClientsBadge clients={[session.client ?? "Unknown"]} />
 				</div>
 			</TableCell>
 			<TableCell className="w-32">

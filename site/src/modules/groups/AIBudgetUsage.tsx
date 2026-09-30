@@ -1,9 +1,8 @@
-import type { FC } from "react";
 import { formatBudgetUSD } from "#/utils/currency";
 import { AIBudgetAmount } from "./AIBudgetAmount";
 
 /** Spend against budget. Highlights spend once it nears or exceeds the limit; values in micros. */
-export const AIBudgetUsage: FC<{
+export const AIBudgetUsage: React.FC<{
 	currentSpend: number;
 	spendLimit: number | null;
 }> = ({ currentSpend, spendLimit }) => {

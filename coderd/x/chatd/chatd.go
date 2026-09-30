@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -82,20 +83,12 @@ const (
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 9 * time.Second
-	maxChatSteps                 = 1200
 
 	// slowPrepareThreshold is the generation-preparation duration
 	// above which a warning is logged. Preparation runs before
 	// every generation step, so sustained slowness (workspace
 	// dials, MCP connects) taxes the whole turn.
 	slowPrepareThreshold = 30 * time.Second
-
-	// maxConcurrentRecordingUploads caps the number of recording
-	// stop-and-store operations that can run concurrently. Each
-	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
-	// (110 MB) in memory, so this value implicitly bounds memory
-	// to roughly maxConcurrentRecordingUploads * 110 MB.
-	maxConcurrentRecordingUploads = 25
 
 	// agentDisconnectedRecoveryThreshold is how long the latest
 	// workspace agent must be disconnected before chatd suggests
@@ -186,6 +179,7 @@ type Server struct {
 	hooks                          *chathooks.Trigger
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
+	disableCallerSuppliedTools     bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
 	mcpHTTPClient                  *http.Client
 	debugSvc                       *chatdebug.Service
@@ -207,10 +201,16 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
+	experimentEvaluator      *experiments.Evaluator
+
+	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
+	// model that accepted Anthropic's thinking drop_block control.
+	thinkingDropBlock sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
 	streamSilenceTimeout   time.Duration
+	chatLimits             Limits
 }
 
 func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
@@ -248,11 +248,6 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-const advisorOverrideContext = "advisor"
-
-// resolveAdvisorModelOverride resolves the advisor model override for the
-// chat's organization. Missing or unusable overrides fall back to the chat
-// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -260,78 +255,37 @@ func (p *Server) resolveAdvisorModelOverride(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
-	override, err := p.db.GetChatOrganizationModelOverride(
-		dbauthz.AsChatd(ctx),
-		database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: chat.OrganizationID,
-			Context:        advisorOverrideContext,
-		},
-	)
+	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:         advisorOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeSoft,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeHard,
+	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to load advisor model override, continuing with chat model",
-			slog.F("organization_id", chat.OrganizationID),
-			slog.Error(err),
-		)
-		return resolvedModelCall{}, false, nil
+		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 	}
-
-	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if modelCtxErr != nil {
-		logger.Warn(
-			ctx,
-			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(modelCtxErr),
-		)
-		return resolvedModelCall{}, false, nil
-	}
-	// Re-read the model row for every runtime so disabled models or providers
-	// stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(
-				ctx,
-				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(err),
-		)
+	if !override.Set {
 		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
-		explicitConfig:  &overrideConfig,
-		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
+		explicitConfig:  &override.Config,
+		requestedEffort: override.ReasoningEffort,
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		var parseErr modelCallConfigParseError
-		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+		if override.Config.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
-		logger.Warn(
-			ctx,
+		logger.Warn(ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
+			slog.F("model_config_id", override.Config.ID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -350,10 +304,10 @@ func (p *Server) newAdvisorRuntime(
 	switch {
 	case maxUsesPerRun == 0:
 		// Advisor config treats 0 as unlimited, but the runtime
-		// requires a positive bound. maxChatSteps is the
+		// requires a positive bound. The per-turn step limit is the
 		// effective upper bound because advisor can run at most
 		// once per loop step.
-		maxUsesPerRun = maxChatSteps
+		maxUsesPerRun = p.chatLimits.MaxStepsPerTurn
 	case maxUsesPerRun < 0:
 		logger.Warn(
 			ctx,
@@ -405,6 +359,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxUsesPerRun:        maxUsesPerRun,
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
+		MaxRetries:           p.chatLimits.MaxGenerationRetries,
 	})
 	if err != nil {
 		logger.Warn(
@@ -1147,10 +1102,14 @@ type CreateOptions struct {
 	PlanMode                database.NullChatPlanMode
 	ClientType              database.ChatClientType
 	SystemPrompt            string
-	InitialUserContent      []codersdk.ChatMessagePart
-	MCPServerIDs            []uuid.UUID
-	Labels                  database.StringMap
-	DynamicTools            json.RawMessage
+	// InitialUserContent is the first user message. When empty, the
+	// chat is created idle (`waiting`) with system messages only and
+	// no worker processes it until the first SendMessage.
+	InitialUserContent []codersdk.ChatMessagePart
+	MCPServerIDs       []uuid.UUID
+	InlineMCPServers   []codersdk.InlineMCPServerRequest
+	Labels             database.StringMap
+	DynamicTools       json.RawMessage
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1176,6 +1135,8 @@ type SendMessageOptions struct {
 	BusyBehavior    SendMessageBusyBehavior
 	PlanMode        *database.NullChatPlanMode
 	MCPServerIDs    *[]uuid.UUID
+	// InlineMCPServers replaces the inline MCP servers. nil: no change.
+	InlineMCPServers *[]codersdk.InlineMCPServerRequest
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1188,6 +1149,11 @@ type SendMessageResult struct {
 	// insert messages by promoting the previous queue head.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
+	// FirstUserTurn reports that the send inserted the first
+	// user-visible message into a chat still carrying
+	// chatprompt.DefaultChatTitle. The send already persisted the
+	// fallback title, so callers only schedule the async title upgrade.
+	FirstUserTurn bool
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1305,8 +1271,10 @@ func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.
 }
 
 // CreateChat creates a chat with its initial history through
-// chatstate.CreateChat. The new chat starts in `running` status per
-// the chat execution state model. Ownership hints wake chat workers.
+// chatstate.CreateChat. With initial user content the new chat starts
+// in `running` status and ownership hints wake chat workers. Without
+// initial user content the chat is created idle in `waiting` status
+// with system messages only; the first SendMessage starts generation.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
 	if opts.OrganizationID == uuid.Nil {
 		return database.Chat{}, xerrors.New("organization_id is required")
@@ -1317,8 +1285,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if strings.TrimSpace(opts.Title) == "" {
 		return database.Chat{}, xerrors.New("title is required")
 	}
-	if len(opts.InitialUserContent) == 0 {
-		return database.Chat{}, xerrors.New("initial user content is required")
+	initialStatus := database.ChatStatusWaiting
+	if len(opts.InitialUserContent) > 0 {
+		initialStatus = database.ChatStatusRunning
 	}
 	// Ensure MCPServerIDs is non-nil so pq.Array produces '{}'
 	// instead of SQL NULL, which violates the NOT NULL column
@@ -1359,7 +1328,9 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 
 	chatID := uuid.New()
 	contentParts := opts.InitialUserContent
-	if p.hooks.Enabled() {
+	// The prompt-submit hook fires with the first SendMessage when the
+	// chat is created without an initial user message.
+	if p.hooks.Enabled() && len(contentParts) > 0 {
 		// Validate model admission before dispatch, matching the insert path.
 		if err := validateCreateModelConfigID(ctx, p.db, opts.OrganizationID, opts.ModelConfigID); err != nil {
 			return database.Chat{}, err
@@ -1400,11 +1371,6 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts(contentParts)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
-	}
-
 	var initialMessages []chatstate.Message
 	if deploymentPrompt != "" {
 		deploymentContent, marshalErr := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
@@ -1425,7 +1391,13 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		initialMessages = append(initialMessages, systemMessage(userPromptContent, opts.ModelConfigID))
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, opts.ModelConfigID))
-	initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	if len(contentParts) > 0 {
+		userContent, marshalErr := chatprompt.MarshalParts(contentParts)
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", marshalErr)
+		}
+		initialMessages = append(initialMessages, userMessage(userContent, opts.ModelConfigID, cmp.Or(opts.CreatedBy, opts.OwnerID), opts.ReasoningEffort))
+	}
 
 	result, err := chatstate.CreateChatWithID(ctx, p.db, p.pubsub, chatID, chatstate.CreateChatInput{
 		OrganizationID:    opts.OrganizationID,
@@ -1441,6 +1413,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		Mode:              opts.ChatMode,
 		PlanMode:          opts.PlanMode,
 		MCPServerIDs:      opts.MCPServerIDs,
+		InlineMCPServers:  opts.InlineMCPServers,
 		Labels: pqtype.NullRawMessage{
 			RawMessage: labelsJSON,
 			Valid:      true,
@@ -1452,6 +1425,8 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 		FileIDs:         chatprompt.FileIDs(contentParts),
+		InitialStatus:   initialStatus,
+		MaxFileLinks:    p.chatLimits.MaxAttachmentsPerChat,
 	})
 	if err != nil {
 		return database.Chat{}, err
@@ -1519,8 +1494,8 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 		}
-		if queuedCount >= chatstate.MaxQueueSize {
-			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: chatstate.MaxQueueSize}
+		if queuedCount >= int64(p.chatLimits.MaxQueuedMessagesPerChat) {
+			return SendMessageResult{}, &chatstate.MessageQueueFullError{Max: int64(p.chatLimits.MaxQueuedMessagesPerChat)}
 		}
 		promptMessage, err := chathooks.UserPromptMessage(contentParts)
 		if err != nil {
@@ -1581,9 +1556,27 @@ func (p *Server) SendMessage(
 			return err
 		}
 
+		if opts.InlineMCPServers != nil {
+			if err := chatstate.ReplaceInlineMCPServers(ctx, store, lockedChat.ID, *opts.InlineMCPServers); err != nil {
+				return xerrors.Errorf("replace inline MCP servers: %w", err)
+			}
+		}
+
 		messageCreatedBy := opts.CreatedBy
 		if messageCreatedBy == uuid.Nil {
 			messageCreatedBy = lockedChat.OwnerID
+		}
+
+		firstUserTurn := false
+		if lockedChat.Title == chatprompt.DefaultChatTitle {
+			visible, err := store.GetChatMessagesByChatIDAscPaginated(ctx, database.GetChatMessagesByChatIDAscPaginatedParams{
+				ChatID:   opts.ChatID,
+				LimitVal: 1,
+			})
+			if err != nil {
+				return xerrors.Errorf("probe visible chat messages: %w", err)
+			}
+			firstUserTurn = len(visible) == 0
 		}
 
 		// Queue capacity is enforced inside tx.SendMessage; this
@@ -1592,6 +1585,7 @@ func (p *Server) SendMessage(
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
+			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
 		})
 		if err != nil {
 			return err
@@ -1612,8 +1606,26 @@ func (p *Server) SendMessage(
 		result.InsertedMessages = sendResult.InsertedMessages
 
 		// File-link errors must roll back the message.
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
+		}
+		if firstUserTurn && !result.Queued {
+			result.FirstUserTurn = true
+			// Persist the fallback title with the message so a failed
+			// async title call cannot leave the placeholder forever.
+			firstMessage := []database.ChatMessage{result.Message}
+			pasteText, err := titlePasteText(ctx, store, firstMessage)
+			if err != nil {
+				return err
+			}
+			if titleText, ok := titleInput(lockedChat, firstMessage, pasteText); ok {
+				if _, err := store.UpdateChatTitleByID(ctx, database.UpdateChatTitleByIDParams{
+					ID:    opts.ChatID,
+					Title: chatprompt.FallbackTitle(titleText),
+				}); err != nil {
+					return xerrors.Errorf("update fallback chat title: %w", err)
+				}
+			}
 		}
 		// Capture the post-transition chat inside the same
 		// transaction so the returned chat and the watch event
@@ -1633,6 +1645,9 @@ func (p *Server) SendMessage(
 	// Sidebar watch event keeps the chat list in sync. Stream side
 	// effects are handled by chat:update consumers.
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.FirstUserTurn && result.Chat.Title != chatprompt.DefaultChatTitle {
+		p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindTitleChange, nil)
+	}
 	return result, nil
 }
 
@@ -1991,7 +2006,7 @@ func (p *Server) EditMessage(
 		inserted = append(inserted, editResult.SuffixMessages...)
 		result.InsertedMessages = inserted
 		result.DeletedMessageIDs = editResult.DeletedMessageIDs
-		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts)); err != nil {
+		if err := chatstate.LinkFiles(ctx, store, opts.ChatID, chatprompt.FileIDs(contentParts), p.chatLimits.MaxAttachmentsPerChat); err != nil {
 			return err
 		}
 		// Capture the post-edit chat inside the same transaction so
@@ -2717,6 +2732,7 @@ func (p *Server) generateManualTitleCandidate(
 		pasteText,
 		resolved.model.LanguageModel(),
 		titleObjectCall(resolved),
+		p.chatLimits.MaxGenerationRetries,
 	)
 	finishDebugRun(err)
 	if err != nil {
@@ -2897,13 +2913,17 @@ type Config struct {
 	AllowBYOK                      bool
 	AllowBYOKSet                   bool
 	AlwaysEnableDebugLogs          bool
+	DisableCallerSuppliedTools     bool
 	WebpushDispatcher              webpush.Dispatcher
 	HookDispatcher                 *dispatch.Dispatcher
 	UsageTracker                   *workspacestats.UsageTracker
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	PrometheusRegistry             prometheus.Registerer
+	// ExperimentEvaluator decides user-scoped experiments for a chat's
+	// owner. It is required.
+	ExperimentEvaluator *experiments.Evaluator
+	PrometheusRegistry  prometheus.Registerer
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -2916,12 +2936,17 @@ type Config struct {
 
 	NotificationsEnqueuer notifications.Enqueuer
 	Auditor               *atomic.Pointer[audit.Auditor]
+	// Limits are the deployment chat limits.
+	Limits Limits
 }
 
 // New creates a new chat processor with the required pubsub dependency.
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
-func New(ps pubsub.Pubsub, cfg Config) *Server {
+func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
+	if cfg.ExperimentEvaluator == nil {
+		return nil, xerrors.New("chatd: experiment evaluator is required")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 
 	pendingChatAcquireInterval := cfg.PendingChatAcquireInterval
@@ -2969,6 +2994,8 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		workerID = uuid.New()
 	}
 
+	limits := cfg.Limits.withDefaults()
+
 	allowBYOK := true
 	if cfg.AllowBYOKSet {
 		allowBYOK = cfg.AllowBYOK
@@ -2999,6 +3026,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hooks:                          chathooks.NewTrigger(hookDispatcher),
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
+		disableCallerSuppliedTools:     cfg.DisableCallerSuppliedTools,
 		oidcTokenSource:                cfg.OIDCTokenSource,
 		mcpHTTPClient:                  mcpHTTPClient,
 		debugSvcFactory: func() *chatdebug.Service {
@@ -3017,11 +3045,13 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
+		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
 		clock:                    clk,
-		recordingSem:             make(chan struct{}, maxConcurrentRecordingUploads),
+		recordingSem:             make(chan struct{}, limits.MaxConcurrentRecordingUploads),
+		chatLimits:               limits,
 	}
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
@@ -3120,7 +3150,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 
 	// Spawn background goroutines that all servers need.
 
-	return p
+	return p, nil
 }
 
 // Start runs the background acquire/wake loop that picks up
@@ -3356,6 +3386,36 @@ func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
 
+// filterMCPServersForTurn returns the external MCP servers visible on the
+// current turn and the set of their IDs. Outside plan mode every server is
+// visible and the set is nil. Plan-mode subagents see none: their trust
+// boundary is narrower than the root chat's. Root plan-mode chats see the
+// servers whose policy allows plan mode.
+func filterMCPServersForTurn[T any](
+	servers []T,
+	mode database.NullChatPlanMode,
+	parentChatID uuid.NullUUID,
+	policy func(T) (id uuid.UUID, allowInPlanMode bool),
+) ([]T, map[uuid.UUID]struct{}) {
+	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
+		return servers, nil
+	}
+	approved := map[uuid.UUID]struct{}{}
+	if parentChatID.Valid {
+		return nil, approved
+	}
+	filtered := make([]T, 0, len(servers))
+	for _, srv := range servers {
+		id, allowInPlanMode := policy(srv)
+		if !allowInPlanMode {
+			continue
+		}
+		filtered = append(filtered, srv)
+		approved[id] = struct{}{}
+	}
+	return filtered, approved
+}
+
 // filterExternalMCPConfigsForTurn returns the external MCP server configs
 // visible on the current turn. Explore children snapshot this filtered set at
 // spawn time so later model overrides cannot widen the external-tool boundary.
@@ -3364,25 +3424,9 @@ func filterExternalMCPConfigsForTurn(
 	mode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
 ) ([]database.MCPServerConfig, map[uuid.UUID]struct{}) {
-	if !mode.Valid || mode.ChatPlanMode != database.ChatPlanModePlan {
-		return configs, nil
-	}
-	if parentChatID.Valid {
-		// Plan-mode subagents do not receive external MCP tools because
-		// their trust boundary is narrower than the root chat's.
-		return nil, map[uuid.UUID]struct{}{}
-	}
-
-	filtered := make([]database.MCPServerConfig, 0, len(configs))
-	approvedIDs := make(map[uuid.UUID]struct{})
-	for _, cfg := range configs {
-		if !cfg.AllowInPlanMode {
-			continue
-		}
-		filtered = append(filtered, cfg)
-		approvedIDs[cfg.ID] = struct{}{}
-	}
-	return filtered, approvedIDs
+	return filterMCPServersForTurn(configs, mode, parentChatID, func(cfg database.MCPServerConfig) (uuid.UUID, bool) {
+		return cfg.ID, cfg.AllowInPlanMode
+	})
 }
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
@@ -3393,7 +3437,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
 		"spawn_explore_agent", "wait_agent", "list_agents", "list_subagent_models",
 		"ask_user_question", "attach_file",
-		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName:
+		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -3493,11 +3537,12 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 			toolNames = append(toolNames, name)
 			continue
 		}
-		// External MCP tools pass through here. They were snapshot-filtered
-		// at spawn time on chat.MCPServerIDs. WorkspaceMCPTool does not
-		// implement MCPToolIdentifier, so workspace tools are excluded
-		// here too, in addition to the structural exclusion in runChat
-		// tool assembly.
+		// External MCP tools pass through here. Org tools were
+		// snapshot-filtered at spawn time on chat.MCPServerIDs, and inline
+		// tools come only from root chat servers with allow_in_subagents.
+		// WorkspaceMCPTool does not implement MCPToolIdentifier, so
+		// workspace tools are excluded here too, in addition to the
+		// structural exclusion in runChat tool assembly.
 		if _, ok := tool.(mcpclient.MCPToolIdentifier); ok {
 			toolNames = append(toolNames, name)
 		}
@@ -3916,8 +3961,13 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		}
 	}
 	region := ""
+	supportsAmbientCredentials := false
 	if settings.Bedrock != nil {
 		region = strings.TrimSpace(settings.Bedrock.Region)
+	}
+	if cp := settings.ClaudePlatformAWS; cp != nil {
+		region = strings.TrimSpace(cp.Region)
+		supportsAmbientCredentials = true
 	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
@@ -3928,6 +3978,7 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
+		SupportsAmbientCredentials: supportsAmbientCredentials,
 	}, nil
 }
 
@@ -4106,6 +4157,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
 }
+
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
 
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
@@ -4471,6 +4524,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 		status,
 		assistantText,
 		*runResult.StatusLabelCall,
+		p.chatLimits.MaxGenerationRetries,
 		logger,
 		p.existingDebugService(),
 		runResult.TriggerMessageID,
@@ -4698,7 +4752,7 @@ func (p *Server) generateAndStoreChatSummary(
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
-	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
+	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), p.chatLimits.MaxGenerationRetries, transcript)
 
 	if genErr != nil {
 		logger.Warn(ctx, "failed to generate chat summary",

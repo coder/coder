@@ -106,7 +106,6 @@ func ChatProjectMemory(t testing.TB, db database.Store, seed database.ChatProjec
 		Name:           takeFirst(seed.Name, testutil.GetRandomName(t)),
 		Description:    seed.Description,
 		Body:           seed.Body,
-		SourceChatID:   seed.SourceChatID,
 		CreatedBy:      takeFirst(seed.CreatedBy, uuid.New()),
 	})
 	require.NoError(t, err, "insert chat project memory")
@@ -174,6 +173,8 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
+		ProviderResponseID:  []string{seed.ProviderResponseID.String},
+		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
@@ -446,6 +447,38 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 	return cfg
 }
 
+func ChatMCPServer(t testing.TB, db database.Store, seed database.ChatMCPServer) database.ChatMCPServer {
+	t.Helper()
+
+	chatID := seed.ChatID
+	if chatID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		owner := User(t, db, database.User{})
+		model := ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: defaultOrg.ID})
+		chatID = Chat(t, db, database.Chat{
+			OrganizationID:    defaultOrg.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: model.ID,
+		}).ID
+	}
+
+	server, err := db.UpsertChatMCPServer(genCtx, database.UpsertChatMCPServerParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		ChatID:              chatID,
+		Slug:                takeFirst(seed.Slug, testutil.GetRandomName(t)),
+		Url:                 takeFirst(seed.Url, "https://mcp.example.com/mcp"),
+		Headers:             takeFirst(seed.Headers, "{}"),
+		HeadersKeyID:        seed.HeadersKeyID,
+		ToolAllowList:       takeFirstSlice(seed.ToolAllowList, []string{}),
+		ToolDenyList:        takeFirstSlice(seed.ToolDenyList, []string{}),
+		AllowInSubagents:    seed.AllowInSubagents,
+		ForwardCoderHeaders: seed.ForwardCoderHeaders,
+	})
+	require.NoError(t, err, "upsert chat MCP server")
+	return server
+}
+
 func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnectionLogParams) database.ConnectionLog {
 	arg := database.UpsertConnectionLogParams{
 		ID:               takeFirst(seed.ID, uuid.New()),
@@ -487,6 +520,10 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 			String: takeFirst(seed.DisconnectReason.String, ""),
 			Valid:  takeFirst(seed.DisconnectReason.Valid, false),
 		},
+		ClientSessionID: sql.NullString{
+			String: takeFirst(seed.ClientSessionID.String, ""),
+			Valid:  takeFirst(seed.ClientSessionID.Valid, false),
+		},
 		ConnectionStatus: takeFirst(seed.ConnectionStatus, database.ConnectionStatusConnected),
 	}
 
@@ -513,6 +550,7 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 		ConnectionID:     []uuid.UUID{arg.ConnectionID.UUID},
 		DisconnectReason: []string{arg.DisconnectReason.String},
 		DisconnectTime:   []time.Time{disconnectTime.Time},
+		ClientSessionID:  []string{arg.ClientSessionID.String},
 	})
 	require.NoError(t, err, "insert connection log")
 
@@ -2067,6 +2105,8 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
 		CacheWritePriceMicros: seed.CacheWritePriceMicros,
 		CostMicros:            seed.CostMicros,
+		ProviderModel:         seed.ProviderModel,
+		PricedModel:           seed.PricedModel,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

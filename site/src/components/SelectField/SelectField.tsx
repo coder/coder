@@ -1,5 +1,4 @@
 import { cn } from "cn";
-import type { FC, ReactNode } from "react";
 import { FormField } from "#/components/FormField/FormField";
 import {
 	Select,
@@ -11,11 +10,11 @@ import type { FormHelpers } from "#/utils/formUtils";
 
 type SelectFieldProps = {
 	field: FormHelpers;
-	label: ReactNode;
+	label: React.ReactNode;
 	onValueChange: (value: string) => void;
-	children: ReactNode;
+	children: React.ReactNode;
 	id?: string;
-	description?: ReactNode;
+	description?: React.ReactNode;
 	placeholder?: string;
 	required?: boolean;
 	disabled?: boolean;
@@ -26,7 +25,7 @@ type SelectFieldProps = {
  * A labelled Select wired to Formik through getFormHelpers. The label's
  * `htmlFor` targets the trigger's `id`, which makes the ComboBox name accessible.
  */
-export const SelectField: FC<SelectFieldProps> = ({
+export const SelectField: React.FC<SelectFieldProps> = ({
 	field,
 	label,
 	onValueChange,

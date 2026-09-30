@@ -1,8 +1,7 @@
-import type { FC } from "react";
 import { Link } from "react-router";
 import { LunarLander } from "./LunarLander";
 
-const CoderCupPage: FC = () => {
+const CoderCupPage: React.FC = () => {
 	return (
 		<div className="relative w-screen h-screen bg-black overflow-hidden">
 			<title>Codernauts</title>

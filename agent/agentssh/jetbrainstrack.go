@@ -33,6 +33,7 @@ type JetbrainsChannelWatcher struct {
 	startSession     startSessionFunc
 	logger           slog.Logger
 	originAddr       string
+	clientSessionID  string
 	reportConnection reportConnectionFunc
 }
 
@@ -73,7 +74,11 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, reportConne
 }
 
 func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request, error) {
-	disconnected := w.reportConnection(uuid.New(), string(codersdk.AppFamilyJetBrains), w.originAddr)
+	disconnected := w.reportConnection(uuid.New(), ConnectionReport{
+		AppName:         string(codersdk.AppFamilyJetBrains),
+		IP:              w.originAddr,
+		ClientSessionID: w.clientSessionID,
+	})
 
 	c, r, err := w.NewChannel.Accept()
 	if err != nil {

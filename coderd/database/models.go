@@ -538,7 +538,6 @@ const (
 	ApiKeyScopeChatProjectMemory                   APIKeyScope = "chat_project_memory:*"
 	ApiKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
 	ApiKeyScopeChatProjectMemoryRead               APIKeyScope = "chat_project_memory:read"
-	ApiKeyScopeChatProjectMemoryUpdate             APIKeyScope = "chat_project_memory:update"
 	ApiKeyScopeChatProjectMemoryDelete             APIKeyScope = "chat_project_memory:delete"
 )
 
@@ -830,7 +829,6 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete:
 		return true
 	}
@@ -1090,7 +1088,6 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatProjectMemory,
 		ApiKeyScopeChatProjectMemoryCreate,
 		ApiKeyScopeChatProjectMemoryRead,
-		ApiKeyScopeChatProjectMemoryUpdate,
 		ApiKeyScopeChatProjectMemoryDelete,
 	}
 }
@@ -3697,6 +3694,7 @@ const (
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
 	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
+	ResourceTypeExperimentRule              ResourceType = "experiment_rule"
 	ResourceTypeChatProject                 ResourceType = "chat_project"
 	ResourceTypeChatProjectMemory           ResourceType = "chat_project_memory"
 )
@@ -3778,6 +3776,7 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory:
 		return true
@@ -3827,6 +3826,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
 		ResourceTypeChatOperationalSettings,
+		ResourceTypeExperimentRule,
 		ResourceTypeChatProject,
 		ResourceTypeChatProjectMemory,
 	}
@@ -4856,6 +4856,10 @@ type AIBridgeTokenUsage struct {
 	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
 	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
 	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
+	// The model reported by the upstream provider. NULL when the provider did not report one.
+	ProviderModel sql.NullString `db:"provider_model" json:"provider_model"`
+	// The model whose price was used to compute the cost, either the requested model or the model reported by the provider. NULL when no price was found for either.
+	PricedModel sql.NullString `db:"priced_model" json:"priced_model"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
@@ -5220,6 +5224,24 @@ type ChatHeartbeat struct {
 	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
 }
 
+// MCP servers that a chat owner attached to a root chat. Experimental. chatd connects to every row on each turn of the chat.
+type ChatMCPServer struct {
+	ID     uuid.UUID `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	Slug   string    `db:"slug" json:"slug"`
+	Url    string    `db:"url" json:"url"`
+	// JSON object of HTTP header name to value sent on every request to the server. Encrypted at rest via dbcrypt when headers_key_id is set.
+	Headers string `db:"headers" json:"headers"`
+	// The ID of the key used to encrypt headers. If this is NULL, headers are not encrypted.
+	HeadersKeyID        sql.NullString `db:"headers_key_id" json:"headers_key_id"`
+	ToolAllowList       []string       `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList        []string       `db:"tool_deny_list" json:"tool_deny_list"`
+	AllowInSubagents    bool           `db:"allow_in_subagents" json:"allow_in_subagents"`
+	ForwardCoderHeaders bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -5249,6 +5271,8 @@ type ChatMessage struct {
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
 	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
+	// ID of the chat_queued_messages row this message was promoted from. NULL when the message was not promoted from the queue, or when a version that did not record the link wrote it. Not a foreign key: promotion deletes the queued row in the same transaction.
+	QueuedMessageID sql.NullInt64 `db:"queued_message_id" json:"queued_message_id"`
 }
 
 type ChatModelConfig struct {
@@ -5293,18 +5317,16 @@ type ChatProject struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
-// Organization-scoped durable memories for chat projects.
+// Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.
 type ChatProjectMemory struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	Name           string        `db:"name" json:"name"`
-	Description    string        `db:"description" json:"description"`
-	Body           string        `db:"body" json:"body"`
-	SourceChatID   uuid.NullUUID `db:"source_chat_id" json:"source_chat_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description"`
+	Body           string    `db:"body" json:"body"`
+	CreatedBy      uuid.UUID `db:"created_by" json:"created_by"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
 type ChatQueuedMessage struct {
@@ -5422,6 +5444,8 @@ type ConnectionLog struct {
 	DisconnectTime sql.NullTime `db:"disconnect_time" json:"disconnect_time"`
 	// The reason the connection was closed. Null for web connections. For other connections, this is null until we receive a disconnect event for the same connection_id.
 	DisconnectReason sql.NullString `db:"disconnect_reason" json:"disconnect_reason"`
+	// Tracks all connections over the lifetime of a single client (IDE or ssh) session. As it originates from the client, it is not guaranteed to be unique.
+	ClientSessionID sql.NullString `db:"client_session_id" json:"client_session_id"`
 }
 
 type CryptoKey struct {
@@ -5689,13 +5713,14 @@ type NotificationTemplate struct {
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	Name        string    `db:"name" json:"name"`
-	Icon        string    `db:"icon" json:"icon"`
-	CallbackURL string    `db:"callback_url" json:"callback_url"`
-	// List of valid redirect URIs for the application
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	Name      string    `db:"name" json:"name"`
+	Icon      string    `db:"icon" json:"icon"`
+	// Deprecated: the primary redirect URI is the first entry of redirect_uris. Every writer keeps this column equal to it until the column is dropped.
+	CallbackURL string `db:"callback_url" json:"callback_url"`
+	// Redirect URIs the authorize and token endpoints accept. The first entry is the primary, used when a request omits redirect_uri.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType string `db:"client_type" json:"client_type"`

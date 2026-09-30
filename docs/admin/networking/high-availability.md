@@ -10,17 +10,18 @@ Postgres endpoint.
 and other cloud vendors offer fully-managed HA Postgres services that pair
 nicely with Coder.
 
-For Coder to operate correctly, Coderd instances should have low-latency
+For Coder to operate correctly, `coderd` instances should have low-latency
 connections to each other so that they can effectively relay traffic between
-users and workspaces no matter which Coderd instance users or workspaces connect
-to. We make a best-effort attempt to warn the user when inter-Coderd latency is
-too high, but if requests start dropping, this is one metric to investigate.
+users and workspaces no matter which `coderd` instance users or workspaces
+connect to. We make a best-effort attempt to warn the user when inter-`coderd`
+latency is too high, but if requests start dropping, this is one metric to
+investigate.
 
-We also recommend that you deploy all Coderd instances such that they have
-low-latency connections to Postgres. Coderd often makes several database
+We also recommend that you deploy all `coderd` instances such that they have
+low-latency connections to Postgres. `coderd` often makes several database
 round-trips while processing a single API request, so prioritizing low-latency
-between Coderd and Postgres is more important than low-latency between users and
-Coderd.
+between `coderd` and Postgres is more important than low-latency between users
+and `coderd`.
 
 Note that this latency requirement applies _only_ to Coder services. Coder will
 operate correctly even with few seconds of latency on workspace <-> Coder and
@@ -34,10 +35,10 @@ connect to the same Postgres endpoint.
 > [!NOTE]
 > When upgrading HA deployments, database migrations may require special
 > handling to avoid lock contention. See
-> [Upgrading Best Practices](../../install/upgrade-best-practices.md) for
+> [Upgrading Best Practices](../../install/operate/upgrade/best-practices.md) for
 > recommended procedures.
 
-HA brings one configuration variable to set in each Coderd node:
+HA brings one configuration variable to set in each `coderd` node:
 `CODER_DERP_SERVER_RELAY_URL`. The HA nodes use these URLs to communicate with
 each other. Inter-node communication is only required while using the embedded
 relay (default). If you're using [custom relays](./index.md#custom-relays),
@@ -67,7 +68,7 @@ Here's an example 3-node network configuration setup:
 ## Kubernetes
 
 If you installed Coder via
-[our Helm Chart](../../install/kubernetes.md#4-install-coder-with-helm), just
+[our Helm Chart](../../install/server/kubernetes/index.md#4-install-coder-with-helm), just
 increase `coder.replicaCount` in `values.yaml`.
 
 If you installed Coder into Kubernetes by some other means, insert the relay URL
@@ -90,4 +91,4 @@ Then, increase the number of pods.
 ## Up next
 
 - [Read more on Coder's networking stack](./index.md)
-- [Install on Kubernetes](../../install/kubernetes.md)
+- [Install on Kubernetes](../../install/server/kubernetes/index.md)
