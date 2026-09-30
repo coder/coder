@@ -160,10 +160,10 @@ describe("getChatHeat", () => {
 		expect(heat?.heat).toBeCloseTo(
 			heatCurve(((18_000 / CONTEXT_LIMIT) * 2) / 3),
 		);
-		expect(heat?.missRate).toBeCloseTo(18_000 / 64_000);
+		expect(heat?.missRate).toBeCloseTo(18_000 / 23_000);
 		expect(heat?.lastTurnRequestCount).toBe(3);
 		expect(heat?.lastTurnMissedTokens).toBe(18_000);
-		expect(heat?.lastTurnReusableTokens).toBe(64_000);
+		expect(heat?.lastTurnReusableTokens).toBe(23_000);
 		expect(heat?.lastTurnHasSegmentStart).toBe(false);
 		expect(heat?.lastPromptTokens).toBe(24_000);
 	});
@@ -302,6 +302,8 @@ describe("getChatHeat scenarios", () => {
 			);
 		}
 		expect(heatOf(messages)).toBe("hot");
+		// The miss rate agrees with the flame despite the cached tool steps.
+		expect(getChatHeat(messages, 70)?.missRate).toBeGreaterThan(0.95);
 	});
 
 	it("reads cool for a warm 30-step tool loop", () => {

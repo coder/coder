@@ -156,10 +156,12 @@ const scoreTurns = (
 	return turns.reverse();
 };
 
-const sumTokens = (
-	requests: readonly ScoredRequest[],
-	key: "missedTokens" | "reusableTokens",
-): number => requests.reduce((total, request) => total + request[key], 0);
+const sumMissedTokens = (requests: readonly ScoredRequest[]): number =>
+	requests.reduce((total, request) => total + request.missedTokens, 0);
+
+// The largest prefix any request in the turn could have read from the cache.
+const maxReusableTokens = (requests: readonly ScoredRequest[]): number =>
+	Math.max(0, ...requests.map((request) => request.reusableTokens));
 
 export const getChatHeat = (
 	messages: readonly TypesGen.ChatMessage[],
@@ -197,8 +199,8 @@ export const getChatHeat = (
 	let missRateWeightTotal = 0;
 	let weightedMissRate = 0;
 	for (const [index, turn] of turns.entries()) {
-		const missedTokens = sumTokens(turn, "missedTokens");
-		const reusableTokens = sumTokens(turn, "reusableTokens");
+		const missedTokens = sumMissedTokens(turn);
+		const reusableTokens = maxReusableTokens(turn);
 		const referenceTokens = Math.min(
 			(turn.at(-1)?.contextLimit ?? 1) * (thresholdPercent / 100),
 			HEAT_REFERENCE_TOKENS,
@@ -208,7 +210,7 @@ export const getChatHeat = (
 		weightedSample += weight * (missedTokens / referenceTokens);
 		if (reusableTokens > 0) {
 			missRateWeightTotal += weight;
-			weightedMissRate += weight * (missedTokens / reusableTokens);
+			weightedMissRate += weight * Math.min(1, missedTokens / reusableTokens);
 		}
 	}
 
@@ -220,8 +222,8 @@ export const getChatHeat = (
 		missRate:
 			missRateWeightTotal > 0 ? weightedMissRate / missRateWeightTotal : 0,
 		lastTurnRequestCount: latestTurn.length,
-		lastTurnMissedTokens: sumTokens(latestTurn, "missedTokens"),
-		lastTurnReusableTokens: sumTokens(latestTurn, "reusableTokens"),
+		lastTurnMissedTokens: sumMissedTokens(latestTurn),
+		lastTurnReusableTokens: maxReusableTokens(latestTurn),
 		lastTurnHasSegmentStart: latestTurn.some(
 			(request) => request.isSegmentStart,
 		),
