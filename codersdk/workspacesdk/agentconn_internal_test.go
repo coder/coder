@@ -1,11 +1,15 @@
 package workspacesdk
 
 import (
+	"io"
+	"net/http"
 	neturl "net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAgentAPIPath(t *testing.T) {
@@ -67,4 +71,61 @@ func TestAgentAPIPath(t *testing.T) {
 		require.Equal(t, "/debug/logs", parsed.Path)
 		require.Equal(t, after.UTC().Format(time.RFC3339Nano), parsed.Query().Get("after"))
 	})
+}
+
+// countingReader serves filler bytes after a prefix, up to size bytes,
+// and records how many bytes the consumer pulled.
+type countingReader struct {
+	prefix string
+	size   int64
+	read   int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	if r.read >= r.size {
+		return 0, io.EOF
+	}
+	n := 0
+	for n < len(p) && r.read < r.size {
+		if int(r.read) < len(r.prefix) {
+			p[n] = r.prefix[r.read]
+		} else {
+			p[n] = 'a'
+		}
+		n++
+		r.read++
+	}
+	return n, nil
+}
+
+func TestDecodeAgentJSONRejectsOversizedBody(t *testing.T) {
+	t.Parallel()
+
+	body := &countingReader{prefix: `{"output":"`, size: 2 * agentJSONResponseMaxBytes}
+	res := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(body),
+	}
+
+	var out DesktopActionResponse
+	err := decodeAgentJSON(res, &out)
+	require.ErrorContains(t, err, "agent response exceeds")
+	require.LessOrEqual(t, body.read, agentJSONResponseMaxBytes+1)
+}
+
+func TestReadAgentErrorBoundsBody(t *testing.T) {
+	t.Parallel()
+
+	body := &countingReader{prefix: `{"message":"`, size: 1 << 20}
+	res := &http.Response{
+		StatusCode: http.StatusConflict,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(body),
+	}
+
+	err := readAgentError(res)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	require.LessOrEqual(t, body.read, agentErrorResponseMaxBytes)
 }
