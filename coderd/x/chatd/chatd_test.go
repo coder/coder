@@ -7095,8 +7095,8 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 
 	const (
 		chatOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
-		overrideOverLimitMessage = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window."
-		bothOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold."
+		overrideOverLimitMessage = "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
+		bothOverLimitMessage     = "Conversation compaction could not reduce the history below your compaction threshold or the organization override's compaction threshold. Start a new conversation, or raise your compaction threshold in settings and ask an administrator to raise the organization override's compaction threshold or choose an override model with a larger context window."
 	)
 	// Usage stays at 80 tokens and both thresholds are 70%.
 	for _, tc := range []struct {
