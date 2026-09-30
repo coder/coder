@@ -15,7 +15,8 @@ import (
 // Observer receives the frames bound to each interception. Calls come from
 // the Send and reader goroutines concurrently, so implementations must be
 // safe for concurrent use. They must not modify or retain frame, and must
-// fail open: errors are logged, never returned.
+// fail open: errors are logged, never returned. ctx is detached from session
+// and caller cancellation and bounded by recorder.DefaultAsyncTimeout.
 type Observer interface {
 	// ClientEvent receives a forwarded response.create or a response.steer
 	// that targets a response owned by the interception.
@@ -69,6 +70,11 @@ func (o *recordingObserver) ServerEvent(ctx context.Context, interceptionID stri
 			o.recordPrompt(ctx, interceptionID, gjson.GetBytes(frame, "response.id").String(), prompt)
 		}
 	case eventCompleted, eventIncomplete, eventFailed:
+		// Unlike the HTTP streaming path, which records usage only from the
+		// final completed response, every terminal response that carries
+		// usage is recorded: steered and max_output_tokens incompletes and
+		// failures are billed, and each has a distinct response ID, so
+		// nothing is counted twice.
 		raw := gjson.GetBytes(frame, "response")
 		if !raw.Get("usage").IsObject() {
 			return

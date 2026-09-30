@@ -256,6 +256,7 @@ func TestAdmissionRefused(t *testing.T) {
 		require.Equal(t, tc.code, gjson.GetBytes(ev, "error.code").String())
 		require.Equal(t, tc.status, gjson.GetBytes(ev, "status").Int())
 		require.Equal(t, tc.field, gjson.GetBytes(ev, "stream_id").String())
+		require.False(t, gjson.GetBytes(ev, "param").Exists())
 	}
 	require.Empty(t, h.rec.RecordedInterceptions())
 
@@ -355,23 +356,171 @@ func TestUnexplainedResponseOpensInterception(t *testing.T) {
 	require.Zero(t, admitted.Load())
 }
 
-func TestErrorsEndInterceptions(t *testing.T) {
+func TestErrorsAndTerminalEvents(t *testing.T) {
 	t.Parallel()
 	h := newHarness(codertestutil.Context(t, codertestutil.WaitShort), t, nil)
+	errEvent := func(streamID string) string {
+		return fmt.Sprintf(`{"type":"error","status":400%s,"error":{"type":"invalid_request_error","code":"previous_response_not_found","message":"not found"}}`, lane(streamID))
+	}
 
-	h.send(create("a", "model-a", "a"))
+	h.send(create("a", "model-a1", "a1"))
+	h.relay(created("a", "resp_a1", "model-a1"))
+	h.send(create("a", "model-a2", "a2"))
 	h.send(create("b", "model-b", "b"))
+	h.send(create("", "model-d", "d"))
 	h.relay(
-		`{"type":"error","status":400,"stream_id":"a","error":{"type":"invalid_request_error","code":"previous_response_not_found","message":"not found"}}`,
+		// Errors reject the oldest pending create on their lane, never the
+		// in-flight response.
+		errEvent("a"), errEvent(""), errEvent(""),
+		completed("a", "resp_unknown"),
+		terminal("a", "response.incomplete", "resp_a1", `,"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}`),
 		created("b", "resp_b", "model-b"),
 		terminal("b", "response.failed", "resp_b", `,"status":"failed","error":{"code":"rate_limit_exceeded","message":"slow down"}`),
 	)
-	endA := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-a").ID)
-	require.Equal(t, recorder.ErrorTypeBadRequest, endA.ErrorType)
-	require.Equal(t, "not found", endA.ErrorMessage)
-	endB := h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID)
-	require.Equal(t, recorder.ErrorTypeRateLimited, endB.ErrorType)
-	require.Equal(t, "slow down", endB.ErrorMessage)
+	for model, want := range map[string]recorder.ErrorType{
+		"model-a1": "", "model-a2": recorder.ErrorTypeBadRequest,
+		"model-d": recorder.ErrorTypeBadRequest, "model-b": recorder.ErrorTypeRateLimited,
+	} {
+		end := h.rec.RecordedInterceptionEnd(h.interceptionFor(model).ID)
+		require.NotNil(t, end, model)
+		require.Equal(t, want, end.ErrorType, model)
+	}
+	require.Equal(t, "slow down", h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID).ErrorMessage)
+	// Incomplete and failed responses are billed, so their usage is recorded.
+	usages := h.rec.RecordedTokenUsages()
+	require.Len(t, usages, 2)
+	require.Equal(t, h.interceptionFor("model-a1").ID, usages[0].InterceptionID)
+	require.Equal(t, h.interceptionFor("model-b").ID, usages[1].InterceptionID)
+}
+
+func steerEvent(eventType, target string) string {
+	return fmt.Sprintf(`{"type":%q,"steer":{"id":"steer_1","previous_response_id":%q}}`, eventType, target)
+}
+
+func TestSteerAfterCompletion(t *testing.T) {
+	t.Parallel()
+	steer := `{"type":"response.steer","previous_response_id":"resp_1","input":"also this"}`
+	// start leaves the interception for model-a awaiting a continuation after
+	// resp_1 completed with an accepted, unapplied steer.
+	start := func(t *testing.T) (*harness, string) {
+		h := newHarness(codertestutil.Context(t, codertestutil.WaitShort), t, nil)
+		h.send(create("", "model-a", "a"))
+		h.relay(created("", "resp_1", "model-a"))
+		h.send(steer)
+		h.relay(steerEvent("response.steer.accepted", "resp_1"), completed("", "resp_1"))
+		id := h.interceptionFor("model-a").ID
+		require.Nil(t, h.rec.RecordedInterceptionEnd(id))
+		return h, id
+	}
+
+	t.Run("Continuation", func(t *testing.T) {
+		t.Parallel()
+		h, id := start(t)
+		h.relay(created("", "resp_2", "model-a"), completed("", "resp_2"))
+		require.Len(t, h.rec.RecordedInterceptions(), 1)
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(id))
+		require.Len(t, h.rec.RecordedTokenUsages(), 2)
+	})
+
+	t.Run("ClientCreateWinsThenSteerPending", func(t *testing.T) {
+		t.Parallel()
+		h, id := start(t)
+		h.send(create("", "model-b", "b"))
+		h.relay(created("", "resp_2", "model-b"), completed("", "resp_2"))
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(h.interceptionFor("model-b").ID))
+		require.Nil(t, h.rec.RecordedInterceptionEnd(id))
+		h.relay(steerEvent("response.steer.pending", "resp_1"))
+		require.Empty(t, h.rec.RecordedInterceptionEnd(id).ErrorType)
+	})
+
+	t.Run("ToolOutputCreateConsumesSteer", func(t *testing.T) {
+		t.Parallel()
+		h, id := start(t)
+		h.send(`{"type":"response.create","model":"model-b","previous_response_id":"resp_1","input":[]}`)
+		require.NotNil(t, h.rec.RecordedInterceptionEnd(id))
+		h.relay(created("", "resp_2", "model-b"), completed("", "resp_2"))
+		usages := h.rec.RecordedTokenUsages()
+		require.Equal(t, h.interceptionFor("model-b").ID, usages[len(usages)-1].InterceptionID)
+	})
+}
+
+func TestSteerFailedEndsWaitingInterception(t *testing.T) {
+	t.Parallel()
+	h := newHarness(codertestutil.Context(t, codertestutil.WaitShort), t, nil)
+
+	h.send(create("", "model-a", "a"))
+	h.relay(created("", "resp_1", "model-a"),
+		terminal("", "response.incomplete", "resp_1", `,"status":"incomplete","incomplete_details":{"reason":"steered"}`))
+	id := h.interceptionFor("model-a").ID
+	require.Nil(t, h.rec.RecordedInterceptionEnd(id))
+	h.relay(steerEvent("response.steer.failed", "resp_1"))
+	require.NotNil(t, h.rec.RecordedInterceptionEnd(id))
+	h.relay(created("", "resp_2", "model-z"))
+	require.NotEqual(t, id, h.interceptionFor("model-z").ID)
+}
+
+// TestConcurrentSendRecvClose fills every buffer (upstream writes, relayed
+// frames, synthesized errors) and closes the session while all sides are
+// blocked or busy.
+func TestConcurrentSendRecvClose(t *testing.T) {
+	t.Parallel()
+	var n atomic.Int32
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	h := newHarness(ctx, t, func(context.Context, string) error {
+		if n.Add(1)%2 == 0 {
+			return xerrors.New("refused")
+		}
+		return nil
+	})
+
+	var wg sync.WaitGroup
+	loop := func(step func(i int) bool) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; ; i++ {
+				if !step(i) {
+					return
+				}
+			}
+		}()
+	}
+	loop(func(i int) bool {
+		return h.sess.Send(ctx, []byte(create(fmt.Sprint(i%3), "gpt-6", "hi"))) == nil
+	})
+	loop(func(int) bool {
+		select {
+		case <-h.conn.written:
+			return true
+		case <-h.conn.closed:
+			return false
+		}
+	})
+	loop(func(i int) bool {
+		select {
+		case h.conn.toClient <- []byte(created(fmt.Sprint(i%3), fmt.Sprintf("resp_%d", i), "gpt-6")):
+			return true
+		case <-h.conn.closed:
+			return false
+		}
+	})
+	// Receive a few frames, then stop until Close so every buffer fills.
+	paused, closed := make(chan struct{}), make(chan struct{})
+	loop(func(i int) bool {
+		if i == 20 {
+			close(paused)
+			<-closed
+		}
+		_, err := h.sess.Recv(ctx)
+		return err == nil
+	})
+	codertestutil.TryReceive(ctx, t, paused)
+	require.Eventually(t, func() bool { return len(h.conn.toClient) == cap(h.conn.toClient) }, testutil.WaitShort, testutil.IntervalFast)
+	require.NoError(t, h.sess.Close(nil))
+	close(closed)
+	wg.Wait()
+	require.NotEmpty(t, h.rec.RecordedInterceptions())
+	h.rec.VerifyAllInterceptionsEnded(t)
 }
 
 func TestSessionEndEndsOpenInterceptions(t *testing.T) {

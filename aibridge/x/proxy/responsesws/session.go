@@ -5,6 +5,7 @@
 package responsesws
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -43,6 +44,10 @@ const (
 	eventIncomplete = "response.incomplete"
 	eventError      = "error"
 
+	eventSteerAccepted = "response.steer.accepted"
+	eventSteerPending  = "response.steer.pending"
+	eventSteerFailed   = "response.steer.failed"
+
 	reasonSteered = "steered"
 )
 
@@ -50,7 +55,8 @@ const (
 var ErrClosed = xerrors.New("responses websocket session closed")
 
 // MessageConn is the upstream text-message connection. Read and Write must
-// honor ctx. Close must unblock pending Read and Write calls.
+// honor ctx. Read may reuse the returned buffer on the next call. Close must
+// unblock pending Read and Write calls.
 type MessageConn interface {
 	Read(ctx context.Context) ([]byte, error)
 	Write(ctx context.Context, msg []byte) error
@@ -119,6 +125,8 @@ type Session struct {
 	active map[string]*interception
 	// responses maps response IDs to their owning interception.
 	responses map[string]*interception
+	// steered marks responses with an accepted steer not yet applied.
+	steered map[string]bool
 }
 
 type interception struct {
@@ -159,6 +167,7 @@ func NewSession(ctx context.Context, upstream MessageConn, opts Options) (*Sessi
 		continuations: make(map[string][]*interception),
 		active:        make(map[string]*interception),
 		responses:     make(map[string]*interception),
+		steered:       make(map[string]bool),
 	}
 	go s.readLoop()
 	return s, nil
@@ -174,14 +183,23 @@ func (s *Session) Send(ctx context.Context, frame []byte) error {
 	if closed || s.ctx.Err() != nil {
 		return ErrClosed
 	}
-	switch gjson.GetBytes(frame, "type").String() {
-	case eventCreate:
+	eventType := gjson.GetBytes(frame, "type").String()
+	if eventType == eventCreate {
 		return s.sendCreate(ctx, frame)
-	case eventSteer:
-		s.observeSteer(ctx, frame)
+	}
+	var steered *interception
+	if eventType == eventSteer {
+		s.mu.Lock()
+		steered = s.responses[gjson.GetBytes(frame, "previous_response_id").String()]
+		s.mu.Unlock()
 	}
 	if err := s.upstream.Write(ctx, frame); err != nil {
 		return xerrors.Errorf("write upstream: %w", err)
+	}
+	if steered != nil {
+		recordCtx, cancel := recordContext(ctx)
+		defer cancel()
+		s.opts.Observer.ClientEvent(recordCtx, steered.id, frame)
 	}
 	return nil
 }
@@ -229,6 +247,7 @@ func (s *Session) readLoop() {
 	for {
 		frame, err := s.upstream.Read(s.ctx)
 		if err == nil {
+			frame = bytes.Clone(frame)
 			s.handleServerEvent(frame)
 			select {
 			case s.frames <- frame:
@@ -260,6 +279,8 @@ func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
 			return s.enqueueError(ctx, lane, http.StatusForbidden, "invalid_request_error", "request_refused", "request refused by AI Gateway")
 		}
 	}
+	// Starting uses the caller's ctx so a canceled caller fails fast instead
+	// of recording an interception for a frame that is never forwarded.
 	ic, err := s.startInterception(ctx, lane, model, func(ic *interception) {
 		s.pending[lane] = append(s.pending[lane], ic)
 	})
@@ -270,22 +291,20 @@ func (s *Session) sendCreate(ctx context.Context, frame []byte) error {
 		}
 		return s.enqueueError(ctx, lane, http.StatusInternalServerError, intercept.OpenAIErrTypeAPI, intercept.OpenAIErrCodeServer, "failed to record interception")
 	}
-	s.opts.Observer.ClientEvent(ctx, ic.id, frame)
+	recordCtx, cancel := recordContext(ctx)
+	defer cancel()
+	s.opts.Observer.ClientEvent(recordCtx, ic.id, frame)
 	if err := s.upstream.Write(ctx, frame); err != nil {
 		s.endInterception(ic, err)
 		return xerrors.Errorf("write response.create upstream: %w", err)
 	}
-	return nil
-}
-
-func (s *Session) observeSteer(ctx context.Context, frame []byte) {
-	previous := gjson.GetBytes(frame, "previous_response_id").String()
-	s.mu.Lock()
-	ic := s.responses[previous]
-	s.mu.Unlock()
-	if ic != nil {
-		s.opts.Observer.ClientEvent(ctx, ic.id, frame)
+	// A client create continuing a response consumes any steer queued on it
+	// (the steering guide's tool-output flow), so no automatic continuation
+	// follows.
+	if previous := gjson.GetBytes(frame, "previous_response_id").String(); previous != "" {
+		s.cancelContinuation(previous)
 	}
+	return nil
 }
 
 // startInterception records a new interception and runs register under the
@@ -321,20 +340,39 @@ func (s *Session) startInterception(ctx context.Context, lane, model string, reg
 }
 
 func (s *Session) handleServerEvent(frame []byte) {
-	ctx := s.ctx
+	ctx, cancel := recordContext(s.ctx)
+	defer cancel()
 	lane := gjson.GetBytes(frame, "stream_id").String()
+	steerTarget := gjson.GetBytes(frame, "steer.previous_response_id").String()
 	var ic *interception
-	switch gjson.GetBytes(frame, "type").String() {
+	switch eventType := gjson.GetBytes(frame, "type").String(); eventType {
 	case eventCreated:
-		ic = s.bindCreated(lane, frame)
+		ic = s.bindCreated(ctx, lane, frame)
 	case eventCompleted, eventFailed, eventIncomplete:
-		s.finishResponse(lane, gjson.GetBytes(frame, "type").String(), frame)
+		s.finishResponse(ctx, eventType, frame)
+		return
+	case eventSteerAccepted, eventSteerPending, eventSteerFailed:
+		s.mu.Lock()
+		ic = s.responses[steerTarget]
+		if ic != nil && eventType == eventSteerAccepted {
+			s.steered[steerTarget] = true
+		}
+		s.mu.Unlock()
+		if ic != nil {
+			s.opts.Observer.ServerEvent(ctx, ic.id, frame)
+		}
+		if eventType != eventSteerAccepted {
+			// The steer waits for client input or was dropped, so no
+			// automatic continuation follows.
+			s.cancelContinuation(steerTarget)
+		}
 		return
 	case eventError:
+		// Error events are request-scoped: they reject the oldest pending
+		// create on their lane. In-flight responses end via response.failed.
 		s.mu.Lock()
-		ic = s.active[lane]
-		if ic == nil && len(s.pending[lane]) > 0 {
-			ic = s.pending[lane][0]
+		if q := s.pending[lane]; len(q) > 0 {
+			ic = q[0]
 		}
 		s.mu.Unlock()
 		if ic == nil {
@@ -358,11 +396,11 @@ func (s *Session) handleServerEvent(frame []byte) {
 	}
 }
 
-// bindCreated binds a new response to the interception that explains it: a
-// steered continuation first, then the oldest pending create on the lane.
-// Otherwise the response opens its own interception so nothing goes
-// unrecorded. Admission is not applied to such responses.
-func (s *Session) bindCreated(lane string, frame []byte) *interception {
+// bindCreated binds a new response to the interception that explains it: the
+// oldest pending create on the lane, else a steered interception awaiting its
+// continuation. Otherwise the response opens its own interception so nothing
+// goes unrecorded. Admission is not applied to such responses.
+func (s *Session) bindCreated(ctx context.Context, lane string, frame []byte) *interception {
 	responseID := gjson.GetBytes(frame, "response.id").String()
 	bind := func(ic *interception) {
 		s.active[lane] = ic
@@ -373,10 +411,10 @@ func (s *Session) bindCreated(lane string, frame []byte) *interception {
 	}
 	s.mu.Lock()
 	var ic *interception
-	if q := s.continuations[lane]; len(q) > 0 {
-		ic, s.continuations[lane] = q[0], q[1:]
-	} else if q := s.pending[lane]; len(q) > 0 {
+	if q := s.pending[lane]; len(q) > 0 {
 		ic, s.pending[lane] = q[0], q[1:]
+	} else if q := s.continuations[lane]; len(q) > 0 {
+		ic, s.continuations[lane] = q[0], q[1:]
 	}
 	if ic != nil {
 		bind(ic)
@@ -386,50 +424,65 @@ func (s *Session) bindCreated(lane string, frame []byte) *interception {
 	s.mu.Unlock()
 
 	model := gjson.GetBytes(frame, "response.model").String()
-	ic, err := s.startInterception(s.ctx, lane, model, bind)
+	ic, err := s.startInterception(ctx, lane, model, bind)
 	if err != nil {
-		s.opts.Logger.Warn(s.ctx, "failed to record unexplained response", slog.Error(err), slog.F("response_id", responseID))
+		s.opts.Logger.Warn(ctx, "failed to record unexplained response", slog.Error(err), slog.F("response_id", responseID))
 		return nil
 	}
 	return ic
 }
 
-func (s *Session) finishResponse(lane, eventType string, frame []byte) {
+func (s *Session) finishResponse(ctx context.Context, eventType string, frame []byte) {
 	response := gjson.GetBytes(frame, "response")
+	responseID := response.Get("id").String()
 	s.mu.Lock()
-	ic := s.responses[response.Get("id").String()]
-	if ic == nil {
-		ic = s.active[lane]
-	}
-	if ic != nil && s.active[lane] == ic {
-		delete(s.active, lane)
+	ic := s.responses[responseID]
+	if ic != nil && s.active[ic.lane] == ic {
+		delete(s.active, ic.lane)
 	}
 	s.mu.Unlock()
 	if ic == nil {
+		s.opts.Logger.Warn(ctx, "ignoring terminal event for unknown response", slog.F("type", eventType), slog.F("response_id", responseID))
 		return
 	}
-	s.opts.Observer.ServerEvent(s.ctx, ic.id, frame)
+	s.opts.Observer.ServerEvent(ctx, ic.id, frame)
 
-	// A steer that interrupts a response ends it as incomplete with reason
-	// "steered", and the server then starts a continuation response on the
-	// same lane. The continuation stays in the steered interception. This
-	// linkage follows the steering guide and is unverified against a live
-	// trace. If no continuation follows (for example the steer waits for a
-	// tool result), the next response on the lane binds to this interception.
-	if eventType == eventIncomplete && response.Get("incomplete_details.reason").String() == reasonSteered {
-		s.mu.Lock()
-		if s.open[ic.id] != nil {
-			s.continuations[lane] = append(s.continuations[lane], ic)
-		}
+	// Per the steering guide, the server starts a continuation response on
+	// the same lane after a steer ends a response as incomplete with reason
+	// "steered", or after a response with an accepted, unapplied steer
+	// completes normally. The continuation stays in the steered interception.
+	// Both linkages are unverified against a live trace.
+	s.mu.Lock()
+	continues := (eventType == eventIncomplete && response.Get("incomplete_details.reason").String() == reasonSteered) ||
+		(eventType == eventCompleted && s.steered[responseID])
+	delete(s.steered, responseID)
+	if continues && s.open[ic.id] != nil {
+		s.continuations[ic.lane] = append(s.continuations[ic.lane], ic)
 		s.mu.Unlock()
 		return
 	}
+	s.mu.Unlock()
 	var err error
 	if eventType == eventFailed {
 		code, message := response.Get("error.code").String(), response.Get("error.message").String()
 		err = upstreamError(codeStatus(code), "", code, message)
 	}
 	s.endInterception(ic, err)
+}
+
+// cancelContinuation drops the steer state of responseID. If its interception
+// was waiting for an automatic continuation, it ends successfully.
+func (s *Session) cancelContinuation(responseID string) {
+	s.mu.Lock()
+	delete(s.steered, responseID)
+	ic := s.responses[responseID]
+	if ic == nil || !slices.Contains(s.continuations[ic.lane], ic) {
+		s.mu.Unlock()
+		return
+	}
+	s.forgetLocked(ic)
+	s.mu.Unlock()
+	s.recordEnded(ic, nil)
 }
 
 func (s *Session) endInterception(ic *interception, err error) {
@@ -452,6 +505,7 @@ func (s *Session) endAll(err error) {
 	clear(s.continuations)
 	clear(s.active)
 	clear(s.responses)
+	clear(s.steered)
 	s.mu.Unlock()
 	if err == nil {
 		err = ErrClosed
@@ -465,6 +519,7 @@ func (s *Session) forgetLocked(ic *interception) {
 	delete(s.open, ic.id)
 	for _, id := range ic.responseIDs {
 		delete(s.responses, id)
+		delete(s.steered, id)
 	}
 	if s.active[ic.lane] == ic {
 		delete(s.active, ic.lane)
@@ -475,7 +530,7 @@ func (s *Session) forgetLocked(ic *interception) {
 }
 
 func (s *Session) recordEnded(ic *interception, err error) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), recorder.DefaultAsyncTimeout)
+	ctx, cancel := recordContext(s.ctx)
 	defer cancel()
 	s.opts.Observer.InterceptionEnded(ctx, ic.id)
 	errType, message := interceptionerror.Categorize(s.opts.Provider, err, 0)
@@ -491,16 +546,20 @@ func (s *Session) recordEnded(ic *interception, err error) {
 }
 
 // enqueueError delivers a synthesized error event to the client. The event
-// carries both the Responses streaming error shape (top-level code, message,
-// param) and the WebSocket mode shape (status and a nested error object),
-// plus stream_id, so clients parsing either shape understand it.
+// carries both the Responses streaming error shape (top-level code and
+// message) and the WebSocket mode shape (status and a nested error object),
+// plus stream_id, so clients parsing either shape understand it. Synthesized
+// errors never have a param, so it is omitted.
 func (s *Session) enqueueError(ctx context.Context, lane string, status int, errType, code, message string) error {
 	ev, err := json.Marshal(responses.ResponseErrorEvent{Code: code, Message: message})
+	if err == nil {
+		ev, err = sjson.DeleteBytes(ev, "param")
+	}
 	if err == nil {
 		ev, err = sjson.SetBytes(ev, "status", status)
 	}
 	if err == nil {
-		ev, err = sjson.SetBytes(ev, "error", map[string]string{"type": errType, "code": code, "message": message, "param": ""})
+		ev, err = sjson.SetBytes(ev, "error", map[string]string{"type": errType, "code": code, "message": message})
 	}
 	if err == nil && lane != "" {
 		ev, err = sjson.SetBytes(ev, "stream_id", lane)
@@ -516,6 +575,12 @@ func (s *Session) enqueueError(ctx context.Context, lane string, status int, err
 	case <-s.ctx.Done():
 		return ErrClosed
 	}
+}
+
+// recordContext detaches recording from cancellation, bounded like async
+// recordings, so a closing session or caller still persists what it saw.
+func recordContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), recorder.DefaultAsyncTimeout)
 }
 
 // upstreamError wraps an upstream error event so provider categorizers see
