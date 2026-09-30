@@ -441,7 +441,7 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	case fantasyanthropic.Name:
 		keys.Anthropic = trimmedKey
 	}
-	if trimmedKey != "" || (availability.Available && ProviderAllowsAmbientCredentials(normalizedProvider)) {
+	if trimmedKey != "" || availability.Available {
 		keys.ByProvider[normalizedProvider] = trimmedKey
 	}
 }

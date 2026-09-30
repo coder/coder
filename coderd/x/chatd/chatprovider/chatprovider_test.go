@@ -153,6 +153,37 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 		},
 		{
+			name: "AnthropicCentralOnlyAmbientCredentialsEnabled",
+			providers: []chatprovider.ConfiguredProvider{{
+				ProviderID:                 anthropicProviderID,
+				Provider:                   fantasyanthropic.Name,
+				CentralAPIKeyEnabled:       true,
+				SupportsAmbientCredentials: true,
+			}},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: true,
+			},
+		},
+		{
+			name:      "AnthropicCentralOnlyKeyMissing",
+			providers: []chatprovider.ConfiguredProvider{configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", false, false)},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
+			},
+		},
+		{
 			name:      "UserOnlyUserHasKey",
 			providers: []chatprovider.ConfiguredProvider{configuredProvider(openAIProviderID, fantasyopenai.Name, false, "sk-central", true, false)},
 			userKeys:  []chatprovider.UserProviderKey{userProviderKey(openAIProviderID, "sk-user")},
