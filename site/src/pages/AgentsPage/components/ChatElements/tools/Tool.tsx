@@ -14,7 +14,7 @@ import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
-import { EditFilesTool } from "./EditFilesTool";
+import { type EditFilesRow, EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
 import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
@@ -389,22 +389,55 @@ const EditFilesRenderer: React.FC<ToolRendererProps> = ({
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
-	// On error, render no diff: the agent rejected the edit, so a
-	// synthetic args-derived diff would misrepresent it as applied.
 	const serverResults = parseServerEditResults(result);
-	const editDiffs = isError
-		? editFiles.map(() => null)
-		: editFiles.map((file) => {
-				const entry = serverResults?.find((d) => d.path === file.path);
-				return entry
-					? parseServerEditDiffText(entry.diff)
-					: buildEditDiff(file.path, file.edits);
-			});
+	const isPartial = rec?.status === "partial";
+	const rows = editFiles.map(({ path, edits }): EditFilesRow => {
+		// On error, render no diff: the agent rejected the edit, so a
+		// synthetic args-derived diff would misrepresent it as applied.
+		if (isError) return { path, status: "failed", diff: null };
+		const entry = serverResults?.find((d) => d.path === path);
+		if (entry?.status === "rejected") {
+			return {
+				path,
+				status: "rejected",
+				diff: null,
+				error: entry.error || "Not applied",
+			};
+		}
+		if (entry?.status === "unknown") {
+			return {
+				path,
+				status: "unknown",
+				diff: null,
+				error: [
+					"Could not confirm whether these edits were applied.",
+					entry.error,
+				]
+					.filter(Boolean)
+					.join("\n"),
+			};
+		}
+		if (entry) {
+			return {
+				path,
+				status: "applied",
+				diff:
+					entry.diff === undefined
+						? buildEditDiff(path, edits)
+						: parseServerEditDiffText(entry.diff),
+			};
+		}
+		// A partial result lists every file, so an omitted file has no
+		// known outcome and gets no args diff. Other results report
+		// success only when every file was written; older ones may omit
+		// files, which get the args diff.
+		if (isPartial) return { path, status: "unreported", diff: null };
+		return { path, status: "applied", diff: buildEditDiff(path, edits) };
+	});
 
 	return (
 		<EditFilesTool
-			files={editFiles}
-			diffs={editDiffs}
+			files={rows}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}

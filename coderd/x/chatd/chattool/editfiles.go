@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"reflect"
 	"slices"
 	"strings"
@@ -292,7 +291,8 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return editFilesTool{AgentTool: fantasy.NewAgentTool(
 		EditFilesName,
 		"Edit files by replacing old_text with new_text. Edits to the same"+
-			" file apply in order. If any edit fails, no file is changed.",
+			" file apply in order. If any edit to a file fails, that file is"+
+			" left unchanged; other files are still edited.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if len(args.Edits) == 0 {
 				return rejectEditFiles("Add at least one edit to edits"), nil
@@ -339,77 +339,189 @@ func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	)}
 }
 
+// executeEditFilesTool applies each file in its own agent request, in
+// order of each path's first edit, so a file with an error does not
+// stop the others. Results index edits by their position in args.
 func executeEditFilesTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args EditFilesArgs,
 	resolvePlanPath func(context.Context) (chatPath string, home string, err error),
 ) (fantasy.ToolResponse, error) {
+	editIndexes := make(map[string][]int)
+	for i, edit := range args.Edits {
+		editIndexes[edit.Path] = append(editIndexes[edit.Path], i)
+	}
+
 	var (
 		chatPath       string
 		home           string
 		planPathErr    error
 		planPathLoaded bool
 	)
-	for _, edit := range args.Edits {
-		hasPlanFileName := looksLikePlanFileName(edit.Path)
-		if hasPlanFileName && !isAbsolutePath(edit.Path) {
-			return rejectEditFiles(
-				"Use the chat-specific absolute plan path; plan files must use absolute paths",
-			), nil
+	// checkPath runs the coderd checks tied to one path and returns the
+	// reason to reject that file, or "" when it passes.
+	checkPath := func(path string) string {
+		hasPlanFileName := looksLikePlanFileName(path)
+		if hasPlanFileName && !isAbsolutePath(path) {
+			return "Use the chat-specific absolute plan path; plan files must use absolute paths"
 		}
 		if resolvePlanPath == nil || !hasPlanFileName {
-			continue
+			return ""
 		}
 		if !planPathLoaded {
 			chatPath, home, planPathErr = resolvePlanPath(ctx)
 			planPathLoaded = true
 		}
-		if resp, rejected := rejectSharedPlanPath(edit.Path, home, chatPath, planPathErr); rejected {
-			return rejectEditFiles(resp.Content), nil
+		if resp, rejected := rejectSharedPlanPath(path, home, chatPath, planPathErr); rejected {
+			return resp.Content
 		}
+		return ""
 	}
 
-	request := workspacesdk.FileEditRequest{
-		Files:       GroupEditsByPath(args.Edits),
-		IncludeDiff: true,
-	}
-	resp, err := conn.EditFiles(ctx, request)
-	if err != nil {
-		if agentWroteNothing(err, len(request.Files)) {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"Applied 0 of %s: %s\nFix the failing edit and resend all edits.",
-				countEdits(len(args.Edits)), agentAPIErrorMessage(err),
-			)), nil
+	var applied, notApplied []editFilesFileResult
+	appliedEdits := 0
+	for _, file := range GroupEditsByPath(args.Edits) {
+		indexes := editIndexes[file.Path]
+		// The interrupt handler can persist this result, so a file not yet
+		// sent is reported as not applied; sending it now would fail and
+		// report its outcome as unknown. This check runs before checkPath
+		// so the interrupt is the reason given.
+		if ctx.Err() != nil {
+			notApplied = append(notApplied, editFilesFileResult{
+				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: editFilesInterruptedError,
+			})
+			continue
 		}
-		return fantasy.NewTextErrorResponse(
-			"It is unknown whether any edits were applied. " + agentAPIErrorMessage(err) + "\nRe-read the files before resending edits.",
-		), nil
-	}
-
-	result := editFilesResult{
-		Status: editFilesStatusApplied,
-		Files:  make([]editFilesFileResult, 0, len(resp.Files)),
-	}
-	for _, file := range resp.Files {
-		result.Files = append(result.Files, editFilesFileResult{
-			Path:   file.Path,
-			Status: editFilesStatusApplied,
-			Diff:   file.Diff,
+		if reason := checkPath(file.Path); reason != "" {
+			notApplied = append(notApplied, editFilesFileResult{
+				Path: file.Path, Status: editFilesStatusRejected, Edits: indexes, Error: reason,
+			})
+			continue
+		}
+		resp, err := conn.EditFiles(ctx, workspacesdk.FileEditRequest{
+			Files:       []workspacesdk.FileEdits{file},
+			IncludeDiff: true,
 		})
+		if err != nil {
+			// An agent response means nothing was written: the agent
+			// validates the file, writes a temporary file and renames it
+			// into place, and only a panic after the rename returns an
+			// error after writing. A dropped connection may follow a
+			// completed write.
+			status := editFilesStatusUnknown
+			if isAgentResponse(err) {
+				status = editFilesStatusRejected
+			}
+			notApplied = append(notApplied, editFilesFileResult{
+				Path: file.Path, Status: status, Edits: indexes, Error: agentAPIErrorMessage(err),
+			})
+			continue
+		}
+		result := editFilesFileResult{Path: file.Path, Status: editFilesStatusApplied}
+		// Agents that predate per-file results return none.
+		if len(resp.Files) > 0 {
+			diff := resp.Files[0].Diff
+			result.Diff = &diff
+		}
+		applied = append(applied, result)
+		appliedEdits += len(indexes)
 	}
-	// The request is all or nothing, so success means every edit was
-	// applied.
-	result.Message = fmt.Sprintf("Applied %d of %s.", len(args.Edits), countEdits(len(args.Edits)))
-	return marshalToolResponse(result), nil
+
+	message := editFilesResultMessage(appliedEdits, len(args.Edits), notApplied)
+	switch {
+	case len(notApplied) == 0:
+		return marshalToolResponse(editFilesResult{
+			Status:  editFilesStatusApplied,
+			Message: message,
+			Files:   applied,
+		}), nil
+	case len(applied) > 0:
+		return marshalToolResponse(editFilesResult{
+			Status:  editFilesStatusPartial,
+			Message: message,
+			Files:   append(notApplied, applied...),
+		}), nil
+	default:
+		return fantasy.NewTextErrorResponse(message), nil
+	}
+}
+
+// isAgentResponse reports whether an EditFiles error carries the
+// agent's response rather than a transport or decoding failure.
+func isAgentResponse(err error) bool {
+	_, ok := codersdk.AsError(err)
+	return ok
+}
+
+// editFilesResultMessage counts the applied edits out of total, then
+// lists one line per file that was not applied, in the order of
+// notApplied, with files of unknown outcome under their own heading.
+func editFilesResultMessage(applied, total int, notApplied []editFilesFileResult) string {
+	var rejected, unknown []string
+	for _, file := range notApplied {
+		prefix := "\n- " + formatEditIndexes(file.Edits) + " (" + file.Path + "): "
+		// Each line appends a sentence to the error, so its own trailing
+		// periods and spaces are trimmed to avoid "..".
+		reason := strings.TrimRight(file.Error, ". ")
+		switch {
+		case file.Status == editFilesStatusUnknown:
+			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
+		case file.Error == editFilesInterruptedError:
+			rejected = append(rejected, prefix+reason+".")
+		default:
+			rejected = append(rejected, prefix+reason+". "+file.Path+" is unchanged; fix and resend only these edits.")
+		}
+	}
+	var sb strings.Builder
+	_, _ = fmt.Fprintf(&sb, "Applied %d of %s.", applied, countEdits(total))
+	// The first heading follows the count on the same line; a later one
+	// starts its own line.
+	separator := " "
+	for _, section := range []struct {
+		heading string
+		lines   []string
+	}{
+		{"Not applied:", rejected},
+		{"Unknown whether applied:", unknown},
+	} {
+		if len(section.lines) == 0 {
+			continue
+		}
+		_, _ = sb.WriteString(separator + section.heading + strings.Join(section.lines, ""))
+		separator = "\n"
+	}
+	return sb.String()
+}
+
+// editFilesInterruptedError is the error of a file that was not sent
+// because the tool call was interrupted. Nothing is known to be wrong
+// with such a file, and the user may have interrupted to stop it, so
+// its line has no resend instruction.
+const editFilesInterruptedError = "not sent because the tool call was interrupted"
+
+// formatEditIndexes renders indexes as "edits[1], edits[3]".
+func formatEditIndexes(indexes []int) string {
+	parts := make([]string, 0, len(indexes))
+	for _, i := range indexes {
+		parts = append(parts, fmt.Sprintf("edits[%d]", i))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // editFilesNoneApplied ends every whole-call rejection.
 const editFilesNoneApplied = "No edits were applied."
 
-const editFilesStatusApplied = "applied"
+// File and result statuses in edit_files results.
+const (
+	editFilesStatusApplied  = "applied"
+	editFilesStatusPartial  = "partial"
+	editFilesStatusRejected = "rejected"
+	editFilesStatusUnknown  = "unknown"
+)
 
-// editFilesResult is the successful edit_files tool result.
+// editFilesResult is the edit_files tool result when at least one file
+// was applied. Files that were not applied come first.
 type editFilesResult struct {
 	Status  string                `json:"status"`
 	Message string                `json:"message"`
@@ -420,7 +532,13 @@ type editFilesResult struct {
 type editFilesFileResult struct {
 	Path   string `json:"path"`
 	Status string `json:"status"`
-	Diff   string `json:"diff"`
+	// Edits holds the edits[i] indexes of a file that was not applied.
+	// The agent does not say which edit failed, so it lists them all.
+	Edits []int  `json:"edits,omitempty"`
+	Error string `json:"error,omitempty"`
+	// Diff is the agent's diff for an applied file, nil when the agent
+	// returned no per-file result.
+	Diff *string `json:"diff,omitempty"`
 }
 
 // countEdits renders n with the noun edit, singular when n is 1.
@@ -439,30 +557,6 @@ func rejectEditFiles(reason string) fantasy.ToolResponse {
 		reason += "."
 	}
 	return fantasy.NewTextErrorResponse(reason + "\n" + editFilesNoneApplied)
-}
-
-// agentWroteNothing reports whether an EditFiles error proves that the
-// agent wrote no file. Only an agent response can prove it; a dropped
-// connection may follow a completed write. The agent writes each file
-// to a temporary file and renames it into place, so a failed
-// single-file request wrote nothing unless the agent panicked after the
-// rename. With several files, 400 and 404 come only from validation,
-// before any write, but 403 and 500 can come after earlier files were
-// written.
-func agentWroteNothing(err error, requestFiles int) bool {
-	sdkErr, ok := codersdk.AsError(err)
-	if !ok {
-		return false
-	}
-	if requestFiles == 1 {
-		return true
-	}
-	switch sdkErr.StatusCode() {
-	case http.StatusBadRequest, http.StatusNotFound:
-		return true
-	default:
-		return false
-	}
 }
 
 // agentAPIErrorMessage preserves the agent's actionable message while

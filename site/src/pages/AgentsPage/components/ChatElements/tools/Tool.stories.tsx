@@ -1956,6 +1956,58 @@ export const EditFilesServerDiffPartialFallback: Story = {
 	},
 };
 
+export const EditFilesPartial: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			edits: [
+				{
+					path: "src/config.ts",
+					old_text: "const timeout = 30;",
+					new_text: "const timeout = 60;",
+				},
+				{
+					path: "src/server.ts",
+					old_text: "listen();",
+					new_text: "listen(port);",
+				},
+				{
+					path: "src/routes.ts",
+					old_text: 'const base = "/";',
+					new_text: 'const base = "/api";',
+				},
+			],
+		},
+		result: {
+			status: "partial",
+			message:
+				'Applied 1 of 3 edits. Not applied:\n- edits[1] (src/server.ts): old_text matches 3 occurrences (expected exactly 1). Include more surrounding context to make the match unique, or set replace_all to true. src/server.ts is unchanged; fix and resend only these edits.\nUnknown whether applied:\n- edits[2] (src/routes.ts): Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF. Re-read src/routes.ts before resending these edits.',
+			files: [
+				{
+					path: "src/server.ts",
+					status: "rejected",
+					edits: [1],
+					error:
+						"old_text matches 3 occurrences (expected exactly 1). Include more surrounding context to make the match unique, or set replace_all to true",
+				},
+				{
+					path: "src/routes.ts",
+					status: "unknown",
+					edits: [2],
+					error: 'Post "http://127.0.0.1/api/v0/edit-files": unexpected EOF',
+				},
+				{
+					path: "src/config.ts",
+					status: "applied",
+					diff: "--- src/config.ts\n+++ src/config.ts\n@@ -1,3 +1,3 @@\n export const settings = {\n-\tconst timeout = 30;\n+\tconst timeout = 60;\n };\n",
+				},
+			],
+		},
+	},
+};
+
 // ---------------------------------------------------------------------------
 // Computer tool stories
 // ---------------------------------------------------------------------------
