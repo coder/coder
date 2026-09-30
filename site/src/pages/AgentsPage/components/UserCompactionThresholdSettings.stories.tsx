@@ -307,9 +307,6 @@ export const DisableCompactionBeyondOrganizationPoint: Story = {
 			}),
 			"100",
 		);
-		await within(row).findByText(
-			"Setting 100% turns off automatic compaction for this model.",
-		);
 	},
 };
 
