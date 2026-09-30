@@ -18,7 +18,7 @@ If you lose track of your spawned agents, call list_agents to recover them befor
 // AgentBoxPromptBlock advertises the box tools. It is inserted only when
 // the tools are registered for the turn.
 const AgentBoxPromptBlock = `<agent-box>
-A temporary sandbox is available through box_run, box_write_file, box_read_file, and box_attach_file. It runs JavaScript (QuickJS with the std and os modules) without a workspace, network, or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns.
+A temporary sandbox is available through box_run, box_write_file, box_read_file, and box_attach_file. It runs JavaScript (QuickJS with the std and os modules) without a workspace, network, or packages, and gives you a private /box directory that lasts for the current turn only; every file in it is deleted when the turn ends and nothing carries over to later turns. Import modules you stage in the box by absolute path, for example "/box/lib.mjs".
 Use it for self-contained computation: parsing or transforming data the user pasted, checking arithmetic, generating a file to attach, or prototyping an algorithm. Use workspace tools when the task needs the repository, installed tooling, or persistent files. Stage inputs with box_write_file, and hand results to the user with box_attach_file before the turn ends.
 If a result carries box_reset, the sandbox was replaced and earlier files are gone; recreate what you need.
 </agent-box>`
