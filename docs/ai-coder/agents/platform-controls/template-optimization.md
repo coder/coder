@@ -1,5 +1,5 @@
 ---
-title: Template Optimization
+title: Template optimization
 ---
 
 Not every chat with Coder Agents requires a workspace.

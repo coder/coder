@@ -1,5 +1,5 @@
 ---
-title: Git Providers
+title: Git providers
 ---
 
 Coder Agents leverages your existing
