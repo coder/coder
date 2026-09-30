@@ -3,6 +3,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
 	DialogContent,
@@ -52,7 +53,10 @@ type AgentAutomationsPageViewProps = {
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
+	onCreateAutomation: () => void;
+	onEditAutomation: (automation: ChatAutomation) => void;
 	chatsDialog?: AutomationChatsDialogState;
+	editorDialog?: React.ReactNode;
 };
 
 type AutomationChatsDialogProps = {
@@ -127,7 +131,10 @@ export const AgentAutomationsPageView: React.FC<
 	onToggleEnabled,
 	onRunNow,
 	onViewChats,
+	onCreateAutomation,
+	onEditAutomation,
 	chatsDialog,
+	editorDialog,
 }) => {
 	let rows: React.ReactNode;
 	if (isLoading) {
@@ -136,7 +143,7 @@ export const AgentAutomationsPageView: React.FC<
 		rows = (
 			<TableEmpty
 				message="No automations yet"
-				description="Automations are created through the chat automations API."
+				description="Create a schedule to send a prompt to an agent."
 			/>
 		);
 	} else {
@@ -150,6 +157,7 @@ export const AgentAutomationsPageView: React.FC<
 				onToggleEnabled={onToggleEnabled}
 				onRunNow={onRunNow}
 				onViewChats={onViewChats}
+				onEdit={onEditAutomation}
 			/>
 		));
 	}
@@ -165,7 +173,14 @@ export const AgentAutomationsPageView: React.FC<
 								? `Schedules and webhooks that send prompts to agents in ${organizationName}.`
 								: "Schedules and webhooks that send prompts to agents."
 						}
-						action={organizationSelector}
+						action={
+							<div className="flex items-center gap-2">
+								{organizationSelector}
+								<Button size="sm" onClick={onCreateAutomation}>
+									New automation
+								</Button>
+							</div>
+						}
 					/>
 					{runError && (
 						<Alert
@@ -207,6 +222,7 @@ export const AgentAutomationsPageView: React.FC<
 				</div>
 			</div>
 			{chatsDialog && <AutomationChatsDialog state={chatsDialog} />}
+			{editorDialog}
 		</ScrollArea>
 	);
 };

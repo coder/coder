@@ -5,10 +5,16 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	automationChats,
 	chatAutomations,
+	createChatAutomation,
 	runChatAutomation,
 	updateChatAutomation,
 } from "#/api/queries/chatAutomations";
-import type { ChatAutomation, Organization } from "#/api/typesGenerated";
+import type {
+	ChatAutomation,
+	CreateChatAutomationRequest,
+	Organization,
+	UpdateChatAutomationRequest,
+} from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
@@ -17,6 +23,7 @@ import {
 	type AutomationRunError,
 } from "./AgentAutomationsPageView";
 import { selectedOrganizationIdStorageKey } from "./components/AgentCreateForm";
+import { AutomationEditorDialog } from "./components/Automations/AutomationEditorDialog";
 import { CompactOrgSelector } from "./components/ChatElements/CompactOrgSelector";
 
 const AgentAutomationsPage: React.FC = () => {
@@ -31,6 +38,10 @@ const AgentAutomationsPage: React.FC = () => {
 		/>
 	);
 };
+
+type EditorState =
+	| { mode: "create" }
+	| { mode: "edit"; automation: ChatAutomation };
 
 type AutomationsListProps = {
 	organizations: readonly Organization[];
@@ -54,6 +65,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 
 	const [runError, setRunError] = useState<AutomationRunError>();
 	const [chatsAutomation, setChatsAutomation] = useState<ChatAutomation>();
+	const [editor, setEditor] = useState<EditorState>();
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -69,11 +81,48 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const runMutation = useMutation(
 		runChatAutomation(queryClient, organizationId),
 	);
+	const createMutation = useMutation(
+		createChatAutomation(queryClient, organizationId),
+	);
+	const editMutation = useMutation(
+		updateChatAutomation(queryClient, organizationId),
+	);
+
+	const openEditor = (next: EditorState) => {
+		createMutation.reset();
+		editMutation.reset();
+		setEditor(next);
+	};
+
+	const handleCreate = (req: CreateChatAutomationRequest) => {
+		createMutation.mutate(req, {
+			onSuccess: ({ automation }) => {
+				toast.success(`Created ${automation.name}.`);
+				setEditor(undefined);
+			},
+		});
+	};
+
+	const handleUpdate = (
+		automation: ChatAutomation,
+		req: UpdateChatAutomationRequest,
+	) => {
+		editMutation.mutate(
+			{ automationId: automation.id, req },
+			{
+				onSuccess: (updated) => {
+					toast.success(`Saved ${updated.name}.`);
+					setEditor(undefined);
+				},
+			},
+		);
+	};
 
 	const handleOrganizationChange = (organization: Organization) => {
 		setSelectedOrgId(organization.id);
 		localStorage.setItem(selectedOrganizationIdStorageKey, organization.id);
 		setRunError(undefined);
+		setEditor(undefined);
 	};
 
 	const handleToggleEnabled = (
@@ -135,6 +184,34 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 			onToggleEnabled={handleToggleEnabled}
 			onRunNow={handleRunNow}
 			onViewChats={setChatsAutomation}
+			onCreateAutomation={() => openEditor({ mode: "create" })}
+			onEditAutomation={(automation) =>
+				openEditor({ mode: "edit", automation })
+			}
+			editorDialog={
+				editor && (
+					<AutomationEditorDialog
+						organizationId={organizationId}
+						automation={editor.mode === "edit" ? editor.automation : undefined}
+						currentUserId={user.id}
+						error={
+							editor.mode === "edit" ? editMutation.error : createMutation.error
+						}
+						isSubmitting={
+							editor.mode === "edit"
+								? editMutation.isPending
+								: createMutation.isPending
+						}
+						onCreate={handleCreate}
+						onUpdate={(req) => {
+							if (editor.mode === "edit") {
+								handleUpdate(editor.automation, req);
+							}
+						}}
+						onClose={() => setEditor(undefined)}
+					/>
+				)
+			}
 			chatsDialog={
 				chatsAutomation && {
 					automation: chatsAutomation,

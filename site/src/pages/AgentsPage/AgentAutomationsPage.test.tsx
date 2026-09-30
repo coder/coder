@@ -1,9 +1,13 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
-import type { ChatAutomation } from "#/api/typesGenerated";
+import type { Chat, ChatAutomation, ChatModel } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -160,5 +164,228 @@ describe("AgentAutomationsPage", () => {
 				`GET /api/v2/chats?automation_id=${mockAutomation.id}&limit=25`,
 			);
 		});
+	});
+});
+
+const otherChat: Chat = { ...MockChat, id: "chat-2", title: "Release notes" };
+
+const mockModel: ChatModel = {
+	...MockChatModel,
+	organization_id: MockDefaultOrganization.id,
+	reasoning_efforts: ["low", "high"],
+};
+
+const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const validationError = (field: string, detail: string) =>
+	HttpResponse.json(
+		{ message: "Invalid chat automation.", validations: [{ field, detail }] },
+		{ status: 400 },
+	);
+
+const setupEditor = () => {
+	const previewBodies: unknown[] = [];
+	const createBodies: unknown[] = [];
+	const updateBodies: unknown[] = [];
+	setup();
+	server.use(
+		http.get("/api/v2/chats", () => HttpResponse.json([MockChat, otherChat])),
+		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
+			HttpResponse.json({
+				models: [mockModel],
+				providers: [MockChatModelProviderDescriptor],
+				unsupported_providers: [],
+			}),
+		),
+		http.post(
+			`${automationsPath(":organizationId")}/schedule-preview`,
+			async ({ request }) => {
+				const body = await request.json();
+				previewBodies.push(body);
+				return HttpResponse.json({
+					next_run_times: ["2026-10-01T09:30:00Z"],
+				});
+			},
+		),
+		http.post(automationsPath(":organizationId"), async ({ request }) => {
+			createBodies.push(await request.json());
+			return HttpResponse.json({ automation: mockAutomation }, { status: 201 });
+		}),
+		http.patch(
+			`${automationsPath(":organizationId")}/:automationId`,
+			async ({ request }) => {
+				updateBodies.push(await request.json());
+				return HttpResponse.json(mockAutomation);
+			},
+		),
+	);
+	return { previewBodies, createBodies, updateBodies };
+};
+
+const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
+	await user.click(
+		await screen.findByRole("button", { name: "New automation" }),
+	);
+	const dialog = await screen.findByRole("dialog");
+	await user.click(within(dialog).getByLabelText(/^Name/));
+	await user.paste("Standup");
+	await user.click(within(dialog).getByLabelText(/^Prompt/));
+	await user.paste("Summarize yesterday.");
+	return dialog;
+};
+
+const pickChat = async (
+	user: ReturnType<typeof userEvent.setup>,
+	dialog: HTMLElement,
+	title: string,
+) => {
+	await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+	await user.click(await screen.findByRole("option", { name: title }));
+};
+
+// Each editor test drives several Radix popovers, which is slow in jsdom.
+describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
+	it("creates an existing chat schedule from the Repeat and Time shortcuts", async () => {
+		const user = userEvent.setup();
+		const { previewBodies, createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("combobox", { name: "Repeat" }));
+		await user.click(await screen.findByRole("option", { name: "Weekdays" }));
+		const time = within(dialog).getByLabelText("Time");
+		await user.clear(time);
+		await user.type(time, "09:30");
+		expect(within(dialog).getByLabelText(/^Cron expression/)).toHaveValue(
+			"30 9 * * 1-5",
+		);
+		await waitFor(() => {
+			expect(previewBodies).toContainEqual({
+				schedule_cron: "30 9 * * 1-5",
+				schedule_time_zone: browserTimeZone,
+			});
+		});
+
+		await pickChat(user, dialog, otherChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				{
+					name: "Standup",
+					kind: "schedule",
+					target_mode: "existing_chat",
+					prompt: "Summarize yesterday.",
+					schedule_cron: "30 9 * * 1-5",
+					schedule_time_zone: browserTimeZone,
+					target_chat_id: otherChat.id,
+					when_busy: "skip",
+				},
+			]);
+		});
+	});
+
+	it("creates a new chat schedule with a model and reasoning effort", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		await user.click(
+			await within(dialog).findByRole("combobox", { name: /^Model/ }),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(mockModel.display_name),
+			}),
+		);
+		const effort = await screen.findByRole("slider");
+		effort.focus();
+		await user.keyboard("{ArrowRight}");
+		await user.keyboard("{Escape}");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				{
+					name: "Standup",
+					kind: "schedule",
+					target_mode: "new_chat",
+					prompt: "Summarize yesterday.",
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: browserTimeZone,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "high",
+				},
+			]);
+		});
+	});
+
+	it("shows the server's cron validation errors on the cron input", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError("schedule_cron", "Expected exactly five fields."),
+			),
+			http.post(automationsPath(":organizationId"), () =>
+				validationError("schedule_cron", "Must be a valid cron expression."),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+		const cron = within(dialog).getByLabelText(/^Cron expression/);
+
+		await user.clear(cron);
+		await user.type(cron, "bad");
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Expected exactly five fields."),
+			);
+		});
+
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(cron).toHaveAccessibleDescription(
+				expect.stringContaining("Must be a valid cron expression."),
+			);
+		});
+	});
+
+	it("sends only the changed fields when editing", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor();
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		const dialog = await screen.findByRole("dialog");
+		await pickChat(user, dialog, otherChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(updateBodies).toEqual([{ target_chat_id: otherChat.id }]);
+		});
+	});
+
+	it("keeps the editor open with the server message when saving is forbidden", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const message = "Only the owner of a chat automation can change it.";
+		server.use(
+			http.patch(`${automationsPath(":organizationId")}/:automationId`, () =>
+				HttpResponse.json({ message }, { status: 403 }),
+			),
+		);
+
+		await user.click(await screen.findByRole("button", { name: "Edit" }));
+		const dialog = await screen.findByRole("dialog");
+		const name = within(dialog).getByLabelText(/^Name/);
+		await user.clear(name);
+		await user.type(name, "Renamed");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		const alert = await within(dialog).findByRole("alert");
+		expect(alert.textContent).toContain(message);
+		expect(within(dialog).getByLabelText(/^Name/)).toHaveValue("Renamed");
 	});
 });

@@ -21,6 +21,7 @@ type AutomationRowProps = {
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
 	onRunNow: (automation: ChatAutomation) => void;
 	onViewChats: (automation: ChatAutomation) => void;
+	onEdit: (automation: ChatAutomation) => void;
 };
 
 const formatNextRun = (automation: ChatAutomation): string => {
@@ -134,6 +135,7 @@ export const AutomationRow = memo<AutomationRowProps>(
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
+		onEdit,
 	}) => {
 		const targetChatId =
 			automation.target_mode === "existing_chat"
@@ -210,6 +212,13 @@ export const AutomationRow = memo<AutomationRowProps>(
 							onClick={() => onViewChats(automation)}
 						>
 							View chats
+						</Button>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => onEdit(automation)}
+						>
+							Edit
 						</Button>
 					</div>
 				</TableCell>
