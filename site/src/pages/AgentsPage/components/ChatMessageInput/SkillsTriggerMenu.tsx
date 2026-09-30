@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useLayoutEffect, useRef } from "react";
+import { useContext, useLayoutEffect, useRef } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -12,6 +12,8 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
+import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
+import { ChatPresentationContext } from "../ChatPresentationContext";
 
 type SkillSource = "personal" | "workspace";
 
@@ -171,6 +173,7 @@ export const SkillsTriggerMenu = ({
 	onClose,
 	onEscapeKeyDown,
 }: SkillsTriggerMenuProps) => {
+	const isPresented = useContext(ChatPresentationContext);
 	const allSkills = [...commands, ...personalSkills, ...workspaceSkills];
 	const statusItems = [
 		isPersonalLoading && personalSkills.length === 0
@@ -183,7 +186,8 @@ export const SkillsTriggerMenu = ({
 			? "Loading workspace skills..."
 			: undefined,
 	].filter((item) => item !== undefined);
-	const shouldRender = open && anchor !== null;
+	const shouldRender = isPresented && open && anchor !== null;
+	const portalContainer = useMobileMenuPosition(anchor, shouldRender);
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -230,10 +234,17 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
+				style={
+					isPresented ? undefined : { animation: "none", visibility: "hidden" }
+				}
+				portalContainer={portalContainer}
 				align="start"
 				side="top"
 				sideOffset={8}
-				className="w-(--radix-popper-anchor-width) overflow-hidden p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
+				className={cn(
+					"w-(--radix-popper-anchor-width) overflow-hidden p-1",
+					portalContainer && "mobile-composer-menu",
+				)}
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}
@@ -245,7 +256,7 @@ export const SkillsTriggerMenu = ({
 					onValueChange={handleHighlightedValueChange}
 					value={selectedValue}
 				>
-					<CommandList className="max-h-72 border-t-0 mobile-full-width-dropdown-scroll-area">
+					<CommandList className="max-h-72 border-t-0 mobile-composer-menu-scroll-area">
 						{commands.length > 0 && (
 							<CommandGroup heading="Commands">
 								{commands.map((skill, index) => renderSkill(skill, index))}

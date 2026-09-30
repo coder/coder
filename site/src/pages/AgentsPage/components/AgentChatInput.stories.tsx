@@ -91,6 +91,34 @@ const getEditor = (canvasElement: HTMLElement) =>
 
 export const Default: Story = {};
 
+export const MobileOptionsOpen: Story = {
+	args: { onPlanModeToggle: fn() },
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+	},
+};
+
+export const MobileContextOpen: Story = {
+	args: {
+		contextUsage: { usedTokens: 24_000, contextLimitTokens: 128_000 },
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: /context/i }),
+		);
+	},
+};
+
 export const PromptHistoryCycling: Story = {
 	args: {
 		userPromptHistory: promptHistory,

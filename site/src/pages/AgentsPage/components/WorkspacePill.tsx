@@ -34,6 +34,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -59,6 +60,8 @@ type WorkspacePillProps = {
 	// tooltip and makes the menu non-modal so one outside click
 	// dismisses both layers.
 	inOverflowPopover?: boolean;
+	composer?: HTMLElement | null;
+	isPresented?: boolean;
 };
 
 export const WorkspacePill: React.FC<WorkspacePillProps> = ({
@@ -69,6 +72,8 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	folder,
 	onRemoveWorkspace,
 	inOverflowPopover,
+	composer,
+	isPresented = true,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -103,6 +108,13 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
+	const portalContainer = useMobileMenuPosition(composer, open && isPresented);
+	if (!isPresented && (open || tooltipOpen)) {
+		setOpen(false);
+		setTooltipOpen(false);
+		setView("main");
+		setFocusPortsOnMain(false);
+	}
 
 	const portsData = usePortsData(
 		workspace,
@@ -119,10 +131,10 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 
 	return (
 		<DropdownMenu
-			open={open}
+			open={open && isPresented}
 			modal={!inOverflowPopover}
 			onOpenChange={(next) => {
-				setOpen(next);
+				setOpen(next && isPresented);
 				if (!next) {
 					setView("main");
 					setFocusPortsOnMain(false);
@@ -133,7 +145,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			 * wrapper in AgentChatInput; this span just fills it. */}
 			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
-					open={!inOverflowPopover && tooltipOpen}
+					open={isPresented && !inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
 				>
 					<TooltipTrigger asChild>
@@ -166,11 +178,21 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
+				style={
+					isPresented ? undefined : { animation: "none", visibility: "hidden" }
+				}
+				portalContainer={portalContainer}
+				onCloseAutoFocus={(event) => {
+					if (!isPresented) event.preventDefault();
+				}}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
+				className={cn(
+					portalContainer && "mobile-composer-menu",
+					"w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!",
+				)}
 			>
 				{/* Scrolls within the capped above-composer height on mobile;
 				 * no-op on desktop. overflow-x-hidden avoids a horizontal
@@ -178,7 +200,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 				 * ARIA tree. */}
 				<div
 					role="none"
-					className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden"
+					className="mobile-composer-menu-scroll-area min-h-0 overflow-x-hidden"
 				>
 					{showPortsView ? (
 						<MobilePortsPanel

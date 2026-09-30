@@ -20,7 +20,14 @@ import {
 	ZapIcon,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import {
+	useContext,
+	useEffect,
+	useId,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -43,6 +50,7 @@ import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	type PopoverContentProps,
 	PopoverTrigger,
@@ -99,8 +107,10 @@ import {
 	type ChatMessageInputRef,
 } from "./ChatMessageInput/ChatMessageInput";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import { ChatPresentationContext } from "./ChatPresentationContext";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import { composerMenuAnchor } from "./composerMenuAnchor";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { QueuedMessagesList } from "./QueuedMessagesList";
@@ -145,6 +155,8 @@ type AgentChatInputProps = {
 	isLoading: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
+	/** Shares the composer anchor with sibling controls in the creation form. */
+	onComposerElementChange?: (element: HTMLDivElement | null) => void;
 	// Initial text to seed the editor on first mount only.
 	initialValue: string;
 	// Serialized Lexical editor state for restoring drafts with
@@ -336,11 +348,16 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	isDisabled,
 	className,
 }) => {
+	const isPresented = useContext(ChatPresentationContext);
 	const [open, setOpen] = useState(false);
+	if (!isPresented && open) setOpen(false);
 	const label = `${servers.length} MCPs`;
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover
+			open={open && isPresented}
+			onOpenChange={(next) => setOpen(next && isPresented)}
+		>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -357,7 +374,14 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
-			<BadgePopoverContent>
+			<BadgePopoverContent
+				style={
+					isPresented ? undefined : { animation: "none", visibility: "hidden" }
+				}
+				onCloseAutoFocus={(event) => {
+					if (!isPresented) event.preventDefault();
+				}}
+			>
 				{servers.map((server) => (
 					<ToolBadge
 						key={server.id}
@@ -557,6 +581,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	isReadOnly = false,
 	isLoading,
 	inputRef,
+	onComposerElementChange,
 	initialValue,
 	initialEditorState,
 	remountKey,
@@ -618,6 +643,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
+	const isPresented = useContext(ChatPresentationContext);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -737,12 +763,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			setValue: (text) => internalRef.current?.setValue(text),
 			insertText: (text) => internalRef.current?.insertText(text),
 			clear: () => internalRef.current?.clear(),
-			focus: () => internalRef.current?.focus(),
+			focus: () => {
+				if (isPresented) internalRef.current?.focus();
+			},
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
-		[],
+		[isPresented],
 	);
 
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
@@ -864,142 +892,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
-	useEffect(() => {
-		if (!composerElement || !isBelowMd) return;
-		// Radix popover wrappers are fixed-positioned, so their
-		// inset values need to be in layout-viewport coordinates.
-		// The visual viewport can be offset inside the layout
-		// viewport when the mobile keyboard is open. Treat
-		// `visualViewport.offsetTop` as a clamp only when it yields
-		// a positive height, since mobile WebKit can report mixed
-		// coordinate systems while the keyboard is settling.
-		const viewport = globalThis.visualViewport;
-		const root = document.documentElement;
-		const fixedProbe = document.createElement("div");
-		Object.assign(fixedProbe.style, {
-			position: "fixed",
-			bottom: "0",
-			left: "0",
-			width: "0",
-			height: "0",
-			pointerEvents: "none",
-			visibility: "hidden",
-		});
-		document.body.appendChild(fixedProbe);
-		const composerGap = 8;
-		const viewportPadding = 16;
-		const minimumMenuHeight = 96;
-		const update = () => {
-			const rect = composerElement.getBoundingClientRect();
-			const fixedViewportBottom = fixedProbe.getBoundingClientRect().bottom;
-			const visibleViewportTop = viewport?.offsetTop ?? 0;
-			const bottom = Math.max(0, fixedViewportBottom - rect.bottom);
-			// Keep the dropdown's bottom edge above the software keyboard,
-			// which covers the bottom of the layout viewport without moving
-			// fixed-positioned elements.
-			const keyboardInset = viewport
-				? Math.max(
-						0,
-						fixedViewportBottom - (viewport.offsetTop + viewport.height),
-					)
-				: 0;
-			const aboveComposerBottom = Math.max(
-				0,
-				fixedViewportBottom - rect.top + composerGap,
-				keyboardInset + composerGap,
-			);
-			const dropdownBottomEdgeTop = fixedViewportBottom - aboveComposerBottom;
-			const maxHeightCandidates = [
-				dropdownBottomEdgeTop - visibleViewportTop - viewportPadding,
-				dropdownBottomEdgeTop - viewportPadding,
-			].filter((height) => height > 0);
-			const aboveComposerMaxHeight = Math.max(
-				minimumMenuHeight,
-				maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
-			);
-			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
-			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
-			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-bottom",
-				`${aboveComposerBottom}px`,
-			);
-			root.style.setProperty(
-				"--mobile-dropdown-above-composer-max-height",
-				`${aboveComposerMaxHeight}px`,
-			);
-		};
-		const animationFrameIDs = new Set<number>();
-		const timeoutIDs = new Set<ReturnType<typeof setTimeout>>();
-		const cancelScheduledUpdates = () => {
-			for (const id of animationFrameIDs) {
-				cancelAnimationFrame(id);
-			}
-			animationFrameIDs.clear();
-			for (const id of timeoutIDs) {
-				clearTimeout(id);
-			}
-			timeoutIDs.clear();
-		};
-		const queueAnimationFrame = (callback: () => void) => {
-			const id = requestAnimationFrame(() => {
-				animationFrameIDs.delete(id);
-				callback();
-			});
-			animationFrameIDs.add(id);
-		};
-		const scheduleUpdate = () => {
-			cancelScheduledUpdates();
-			update();
-			// Mobile WebKit can finish keyboard panning after focus and
-			// input events. Re-read geometry after the viewport settles so
-			// the first slash-menu render is not stuck under the composer.
-			queueAnimationFrame(() => {
-				update();
-				queueAnimationFrame(update);
-			});
-			for (const delay of [50, 150, 300]) {
-				const id = setTimeout(() => {
-					timeoutIDs.delete(id);
-					update();
-				}, delay);
-				timeoutIDs.add(id);
-			}
-		};
-		scheduleUpdate();
-		const ro = new ResizeObserver(scheduleUpdate);
-		ro.observe(composerElement);
-		addEventListener("resize", scheduleUpdate);
-		addEventListener("scroll", scheduleUpdate, { passive: true });
-		addEventListener("focusin", scheduleUpdate);
-		addEventListener("focusout", scheduleUpdate);
-		composerElement.addEventListener("input", scheduleUpdate);
-		composerElement.addEventListener("keyup", scheduleUpdate);
-		document.addEventListener("selectionchange", scheduleUpdate);
-		viewport?.addEventListener("resize", scheduleUpdate);
-		viewport?.addEventListener("scroll", scheduleUpdate);
-		viewport?.addEventListener("scrollend", scheduleUpdate);
-		return () => {
-			ro.disconnect();
-			cancelScheduledUpdates();
-			removeEventListener("resize", scheduleUpdate);
-			removeEventListener("scroll", scheduleUpdate);
-			removeEventListener("focusin", scheduleUpdate);
-			removeEventListener("focusout", scheduleUpdate);
-			composerElement.removeEventListener("input", scheduleUpdate);
-			composerElement.removeEventListener("keyup", scheduleUpdate);
-			document.removeEventListener("selectionchange", scheduleUpdate);
-			viewport?.removeEventListener("resize", scheduleUpdate);
-			viewport?.removeEventListener("scroll", scheduleUpdate);
-			viewport?.removeEventListener("scrollend", scheduleUpdate);
-			fixedProbe.remove();
-			root.style.removeProperty("--mobile-dropdown-bottom");
-			root.style.removeProperty("--mobile-dropdown-left");
-			root.style.removeProperty("--mobile-dropdown-width");
-			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
-			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
-		};
-	}, [composerElement, isBelowMd]);
+	if (
+		!isPresented &&
+		(plusMenuOpen || workspacePickerOpen || overflowPopoverOpen)
+	) {
+		setPlusMenuOpen(false);
+		setPlusMenuView("main");
+		setWorkspacePickerOpen(false);
+		setOverflowPopoverOpen(false);
+	}
 
 	// Workspace uploads eagerly write bytes into the workspace, so a
 	// disabled (read-only) composer must not route files to them. The
@@ -1423,7 +1324,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				</div>
 			)}
 			<div
-				ref={setComposerElement}
+				ref={(element) => {
+					setComposerElement(element);
+					onComposerElementChange?.(element);
+				}}
 				data-testid="chat-composer"
 				className={cn(
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
@@ -1551,7 +1455,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							modal={false}
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
-								setPlusMenuOpen(open);
+								setPlusMenuOpen(open && isPresented);
 								if (!open) setPlusMenuView("main");
 							}}
 						>
@@ -1572,10 +1476,25 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<PlusIcon />
 								</Button>
 							</PopoverTrigger>
+							{isBelowMd && composerElement && (
+								<PopoverAnchor
+									virtualRef={{ current: composerMenuAnchor(composerElement) }}
+								/>
+							)}
 							<PopoverContent
-								side="bottom"
+								style={
+									isPresented
+										? undefined
+										: { animation: "none", visibility: "hidden" }
+								}
+								side={isBelowMd ? "top" : "bottom"}
+								sideOffset={isBelowMd ? 0 : 4}
+								avoidCollisions={!isBelowMd}
 								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+								onCloseAutoFocus={(event) => {
+									if (!isPresented) event.preventDefault();
+								}}
+								className="w-auto min-w-[200px] p-1 max-md:w-(--radix-popper-anchor-width)"
 							>
 								{plusMenuView === "workspace" ? (
 									<div className="p-0">
@@ -1666,6 +1585,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														</button>
 													</PopoverTrigger>
 													<PopoverContent
+														style={
+															isPresented
+																? undefined
+																: { animation: "none", visibility: "hidden" }
+														}
+														onCloseAutoFocus={(event) => {
+															if (!isPresented) event.preventDefault();
+														}}
 														side="right"
 														align="start"
 														sideOffset={8}
@@ -1793,7 +1720,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								className={cn(pillSizingClasses, "md:h-auto")}
 								dropdownSide="top"
 								dropdownAlign="start"
-								enableMobileFullWidthDropdown
+								mobileAnchor={composerElement}
+								isPresented={isPresented}
 								reasoningEffort={reasoningEffort}
 								onReasoningEffortChange={onReasoningEffortChange}
 							/>
@@ -1843,6 +1771,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												sshCommand={sshCommand}
 												folder={folder}
 												onRemoveWorkspace={removeWorkspaceHandler}
+												composer={composerElement}
+												isPresented={isPresented && !isOverflow}
 											/>
 										</span>
 									);
@@ -1877,6 +1807,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									</button>
 								</PopoverTrigger>
 								<BadgePopoverContent
+									style={
+										isPresented
+											? undefined
+											: { animation: "none", visibility: "hidden" }
+									}
+									onCloseAutoFocus={(event) => {
+										if (!isPresented) event.preventDefault();
+									}}
 									onInteractOutside={(event) => {
 										// The workspace pill portals its menu outside
 										// this popover; dismissing would unmount the
@@ -1913,6 +1851,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
+														composer={composerElement}
+														isPresented={isPresented}
 														inOverflowPopover
 													/>
 												</span>
@@ -1979,6 +1919,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							>
 								<ContextUsageIndicator
 									usage={contextUsage}
+									composer={composerElement}
 									onRefreshContext={onRefreshContext}
 									isRefreshingContext={isRefreshingContext}
 								/>

@@ -162,7 +162,8 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="end"
-						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
+						collisionPadding={16}
+						className="max-md:w-[calc(100vw-2rem)] [&_[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
 							<Link

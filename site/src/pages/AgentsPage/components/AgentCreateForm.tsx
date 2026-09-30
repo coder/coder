@@ -338,6 +338,9 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 		resetDraft,
 	} = useEmptyStateDraft(prefill?.message, draftKeys.text);
 	const [isPrefillEdited, setIsPrefillEdited] = useState(false);
+	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
+		null,
+	);
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -940,6 +943,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 						isUserOrgSelectionActive &&
 						permittedOrgs.length > 1 && (
 							<CompactOrgSelector
+								composer={composerElement}
 								value={effectiveOrg}
 								options={permittedOrgs}
 								disabled={isSubmitPending}
@@ -966,6 +970,7 @@ const AgentCreateFormContent: React.FC<AgentCreateFormProps> = ({
 							/>
 						)}
 					<AgentChatInput
+						onComposerElementChange={setComposerElement}
 						onSend={handleSendWithAttachments}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
