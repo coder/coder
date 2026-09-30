@@ -28,7 +28,7 @@ We say that the following data constitutes a chat's **execution state**:
 - chat status on the `chats` table, such as `waiting`, `running`, `interrupting`, `requires_action`, or `error`;
 - the `archived` marker on the `chats` table;
 - message history in the `chat_messages` table, including the `revision` field;
-- queued user messages in the `chat_queued_messages` table, including the `position` and `created_by` fields;
+- queued user messages in the `chat_queued_messages` table, including the `position`, `created_by`, and `busy_behavior` fields;
 - `worker_id` and `runner_id` fields on the `chats` table (ownership fields);
 - the `last_error` field on the `chats` table (last error message from the agent loop);
 - the `retry_state` field on the `chats` table, a JSONB object that stores the last error message encountered by the agent loop, and information about when the next retry will be attempted;

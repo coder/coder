@@ -14358,6 +14358,7 @@ func insertQueuedMessage(
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
 		CreatedBy:     createdBy,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	return queued
@@ -14387,6 +14388,7 @@ func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
 		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
 		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		CreatedBy:       user.ID,
+		BusyBehavior:    database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.True(t, queued.ReasoningEffort.Valid)
