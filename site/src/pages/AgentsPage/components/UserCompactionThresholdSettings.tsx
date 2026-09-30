@@ -100,7 +100,7 @@ const ContextCompactionHeader: React.FC<ContextCompactionHeaderProps> = ({
 			Control when conversation context is automatically summarized for each
 			model.{" "}
 			{hasOrganizationCompactionOverride
-				? "Setting 100% turns off that model's own compaction threshold. An organization compaction model may still compact its chats."
+				? "Setting 100% turns off that model's own compaction threshold. An organization override may still compact chats with that model."
 				: "Setting 100% turns off automatic compaction for that model."}
 		</p>
 	</div>
@@ -171,11 +171,17 @@ type EffectiveCompactionThresholdProps = {
 	modelConfig: TypesGen.ChatModel;
 	chatTrigger: CompactionTrigger | undefined;
 	organizationTrigger: OrganizationCompactionTrigger | undefined;
+	isOrganizationPointBeyondWindow: boolean;
 };
 
 const EffectiveCompactionThreshold: React.FC<
 	EffectiveCompactionThresholdProps
-> = ({ modelConfig, chatTrigger, organizationTrigger }) => {
+> = ({
+	modelConfig,
+	chatTrigger,
+	organizationTrigger,
+	isOrganizationPointBeyondWindow,
+}) => {
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const organizationTriggerPercent = organizationTrigger
 		? compactionPointAsPercent(
@@ -201,26 +207,20 @@ const EffectiveCompactionThreshold: React.FC<
 			organizationTrigger.model.model;
 		const organizationWindowLabel =
 			organizationTrigger.model.context_limit.toLocaleString("en-US");
-		// A point past this window can only bind while the chat trigger is
-		// off, so no trigger fires within this window.
-		const isBeyondWindow = isCompactionPointBeyondWindow(
-			organizationTrigger.pointTokens,
-			modelConfig.context_limit,
-		);
 
 		return (
 			<TableCell className="w-0 whitespace-nowrap tabular-nums">
 				<div className="flex items-center gap-1">
-					{isBeyondWindow ? (
+					{isOrganizationPointBeyondWindow ? (
 						off
 					) : (
 						<span>{organizationTriggerPercentLabel}%</span>
 					)}
 					<OrganizationOverridePopover
 						modelName={modelName}
-						isWarning={!isBeyondWindow}
+						isWarning={!isOrganizationPointBeyondWindow}
 					>
-						{isBeyondWindow ? (
+						{isOrganizationPointBeyondWindow ? (
 							<>
 								{organizationModelName} compacts at{" "}
 								{organizationTrigger.pointTokens.toLocaleString("en-US")} tokens
@@ -290,9 +290,18 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 	const isDraftDisablingCompaction =
 		draftValue === String(compactionDisabledThresholdPercent) &&
 		draft !== undefined;
-	const disablingCompactionWarning = organizationTrigger
-		? "Setting 100% turns off this model's own compaction threshold. Chats still compact when they reach the organization compaction model's trigger."
-		: "Setting 100% turns off automatic compaction for this model.";
+	// A point past this window can only bind while the chat trigger is off,
+	// so no trigger fires within this window.
+	const isOrganizationPointBeyondWindow =
+		organizationTrigger !== undefined &&
+		isCompactionPointBeyondWindow(
+			organizationTrigger.pointTokens,
+			modelConfig.context_limit,
+		);
+	const disablingCompactionWarning =
+		organizationTrigger && !isOrganizationPointBeyondWindow
+			? "Setting 100% turns off this model's own compaction threshold. Chats still compact when they reach the organization override's trigger."
+			: "Setting 100% turns off automatic compaction for this model.";
 	const modelName = modelConfig.display_name || modelConfig.model;
 	const providerLabel = formatProviderLabel(provider);
 	const effectiveThresholdPercent =
@@ -419,6 +428,7 @@ const CompactionThresholdRow: React.FC<CompactionThresholdRowProps> = ({
 				modelConfig={modelConfig}
 				chatTrigger={chatTrigger}
 				organizationTrigger={organizationTrigger}
+				isOrganizationPointBeyondWindow={isOrganizationPointBeyondWindow}
 			/>
 		</TableRow>
 	);
