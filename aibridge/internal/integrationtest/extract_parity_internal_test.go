@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -116,10 +115,10 @@ func TestResponsesExtractorRecordingParity(t *testing.T) {
 
 			// Records match, ignoring timestamps. The bridge records
 			// asynchronously, so order is not significant.
-			require.ElementsMatch(t, withoutTime(extracted.RecordedPromptUsages()), withoutTime(bridgeServer.Recorder.RecordedPromptUsages()), "prompt usage")
-			require.ElementsMatch(t, withoutTime(extracted.RecordedTokenUsages()), withoutTime(bridgeServer.Recorder.RecordedTokenUsages()), "token usage")
-			require.ElementsMatch(t, withoutTime(extracted.RecordedToolUsages()), withoutTime(bridgeServer.Recorder.RecordedToolUsages()), "tool usage")
-			require.ElementsMatch(t, withoutTime(extracted.RecordedModelThoughts()), withoutTime(bridgeServer.Recorder.RecordedModelThoughts()), "model thoughts")
+			require.ElementsMatch(t, testutil.WithoutCreatedAt(extracted.RecordedPromptUsages()), testutil.WithoutCreatedAt(bridgeServer.Recorder.RecordedPromptUsages()), "prompt usage")
+			require.ElementsMatch(t, testutil.WithoutCreatedAt(extracted.RecordedTokenUsages()), testutil.WithoutCreatedAt(bridgeServer.Recorder.RecordedTokenUsages()), "token usage")
+			require.ElementsMatch(t, testutil.WithoutCreatedAt(extracted.RecordedToolUsages()), testutil.WithoutCreatedAt(bridgeServer.Recorder.RecordedToolUsages()), "tool usage")
+			require.ElementsMatch(t, testutil.WithoutCreatedAt(extracted.RecordedModelThoughts()), testutil.WithoutCreatedAt(bridgeServer.Recorder.RecordedModelThoughts()), "model thoughts")
 
 			// Terminal errors categorize the same way.
 			gotType, _ := interceptionerror.Categorize((*provider.OpenAI)(nil), ext.Outcome().Err)
@@ -131,24 +130,4 @@ func TestResponsesExtractorRecordingParity(t *testing.T) {
 			require.Equal(t, ended.ErrorType, gotType, "error type")
 		})
 	}
-}
-
-// withoutTime clears CreatedAt so records from both paths compare equal.
-func withoutTime[T any](records []*T) []T {
-	out := make([]T, 0, len(records))
-	for _, r := range records {
-		v := *r
-		switch rec := any(&v).(type) {
-		case *recorder.PromptUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.TokenUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.ToolUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.ModelThoughtRecord:
-			rec.CreatedAt = time.Time{}
-		}
-		out = append(out, v)
-	}
-	return out
 }

@@ -69,8 +69,7 @@ type ResponseExtraction struct {
 	interceptionID string
 	prompt         string
 
-	outcome        extract.Outcome
-	promptRecorded bool
+	outcome extract.Outcome
 	// recorded is set once a terminal response object was recorded.
 	recorded bool
 	notes    extract.ParseNotes
@@ -183,10 +182,9 @@ func (e *ResponseExtraction) observeResponseID(r gjson.Result) {
 		return
 	}
 	e.outcome.ResponseID = id
-	if e.prompt == "" || e.promptRecorded {
+	if e.prompt == "" {
 		return
 	}
-	e.promptRecorded = true
 	if err := e.rec.RecordPromptUsage(e.ctx, &recorder.PromptUsageRecord{
 		InterceptionID: e.interceptionID,
 		MsgID:          id,

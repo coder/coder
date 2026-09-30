@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/openai/openai-go/v3"
 	"github.com/stretchr/testify/require"
@@ -67,10 +66,10 @@ func TestResponseExtractionTransports(t *testing.T) {
 	check := func(t *testing.T, h harness) {
 		t.Helper()
 		require.Equal(t, wantOutcome, h.ext.Outcome())
-		require.Equal(t, wantPrompts, withoutTime(h.rec.RecordedPromptUsages()))
-		require.Equal(t, wantTokens, withoutTime(h.rec.RecordedTokenUsages()))
-		require.Equal(t, wantTools, withoutTime(h.rec.RecordedToolUsages()))
-		require.Equal(t, wantThoughts, withoutTime(h.rec.RecordedModelThoughts()))
+		require.Equal(t, wantPrompts, testutil.WithoutCreatedAt(h.rec.RecordedPromptUsages()))
+		require.Equal(t, wantTokens, testutil.WithoutCreatedAt(h.rec.RecordedTokenUsages()))
+		require.Equal(t, wantTools, testutil.WithoutCreatedAt(h.rec.RecordedToolUsages()))
+		require.Equal(t, wantThoughts, testutil.WithoutCreatedAt(h.rec.RecordedModelThoughts()))
 		require.Empty(t, h.notes.list())
 	}
 
@@ -409,24 +408,4 @@ func blocking(status int, raw string) func(*responses.ResponseExtraction) {
 
 func event(raw string) func(*responses.ResponseExtraction) {
 	return func(ext *responses.ResponseExtraction) { ext.OnEvent("", []byte(raw)) }
-}
-
-// withoutTime clears CreatedAt so records compare by content.
-func withoutTime[T any](records []*T) []T {
-	out := make([]T, 0, len(records))
-	for _, r := range records {
-		v := *r
-		switch rec := any(&v).(type) {
-		case *recorder.PromptUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.TokenUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.ToolUsageRecord:
-			rec.CreatedAt = time.Time{}
-		case *recorder.ModelThoughtRecord:
-			rec.CreatedAt = time.Time{}
-		}
-		out = append(out, v)
-	}
-	return out
 }
