@@ -3,6 +3,7 @@ package mcp_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/afero"
@@ -27,6 +29,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -170,6 +174,118 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	}
 }
 
+func TestMCPHTTP_E2E_CancelLogStream(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	logsDB := &mcpLogStreamStore{Store: db, queried: make(chan struct{}, 1)}
+	outerDone := make(chan struct{})
+	type outerContextKey struct{}
+	coderClient, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:         logsDB,
+		DeploymentValues: mcpDeploymentValues(t),
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == mcpserver.MCPEndpoint {
+					defer close(outerDone)
+					r = r.WithContext(context.WithValue(r.Context(), outerContextKey{}, "outer-request-state"))
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
+	t.Cleanup(func() { _ = closer.Close() })
+	user := coderdtest.CreateFirstUser(t, coderClient)
+	build := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID, OwnerID: user.UserID,
+	}).Starting().Do().Build
+	key, token := dbgen.APIKey(t, api.Database, database.APIKey{
+		UserID: user.UserID, LoginType: database.LoginTypeOAuth2ProviderApp,
+	})
+	app := dbgen.OAuth2ProviderApp(t, api.Database, database.OAuth2ProviderApp{})
+	dbgen.OAuth2ProviderAppToken(t, api.Database, database.OAuth2ProviderAppToken{
+		AppID: app.ID, UserID: user.UserID, APIKeyID: key.ID,
+		Audience: sql.NullString{String: api.AccessURL.String() + mcpserver.MCPEndpoint, Valid: true},
+	})
+
+	innerDone := make(chan struct{})
+	cancelInner := make(chan context.CancelFunc, 1)
+	root := api.RootHandler
+	api.RootHandler = chi.NewRouter()
+	api.RootHandler.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == fmt.Sprintf("/api/v2/workspacebuilds/%s/logs", build.ID) {
+				defer close(innerDone)
+				assert.Nil(t, r.Context().Value(outerContextKey{}), "outer request values must not reach internal authentication")
+				// Allow cleanup to release the log follower even if the
+				// cancellation regression fails.
+				innerCtx, cancel := context.WithCancel(r.Context())
+				defer cancel()
+				cancelInner <- cancel
+				r = r.WithContext(innerCtx)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+	api.RootHandler.Mount("/", root)
+	t.Cleanup(func() {
+		select {
+		case cancel := <-cancelInner:
+			cancel()
+		default:
+		}
+	})
+
+	// Send a raw stateless MCP call so canceling it disconnects the HTTP
+	// request without an SDK cancellation notification masking the leak.
+	body, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{
+			"name":      toolsdk.ToolNameGetWorkspaceBuildLogs,
+			"arguments": map[string]any{"workspace_build_id": build.ID.String()},
+		},
+	})
+	require.NoError(t, err)
+	requestCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodPost, api.AccessURL.String()+mcpserver.MCPEndpoint, strings.NewReader(string(body)))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set("MCP-Protocol-Version", "2025-03-26")
+	requestDone := make(chan error, 1)
+	go func() {
+		resp, err := coderClient.HTTPClient.Do(req)
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		requestDone <- err
+	}()
+
+	// The log query runs after WebSocket acceptance and pubsub subscription.
+	testutil.TryReceive(ctx, t, logsDB.queried)
+	cancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, requestDone), context.Canceled)
+	waitCtx := testutil.Context(t, testutil.WaitShort)
+	testutil.TryReceive(waitCtx, t, innerDone)
+	testutil.TryReceive(waitCtx, t, outerDone)
+}
+
+type mcpLogStreamStore struct {
+	database.Store
+	queried chan struct{}
+}
+
+func (s *mcpLogStreamStore) GetProvisionerLogsAfterID(ctx context.Context, params database.GetProvisionerLogsAfterIDParams) ([]database.ProvisionerJobLog, error) {
+	logs, err := s.Store.GetProvisionerLogsAfterID(ctx, params)
+	select {
+	case s.queried <- struct{}{}:
+	default:
+	}
+	return logs, err
+}
+
 func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	t.Parallel()
 
@@ -198,10 +314,98 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 
 	// Verify we get 401 Unauthorized
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Should get HTTP 401 for unauthenticated access")
+	require.Contains(t, resp.Header.Get("WWW-Authenticate"), "Bearer ")
+	require.Contains(t, resp.Header.Get("WWW-Authenticate"), fmt.Sprintf(`resource_metadata=%q`,
+		api.AccessURL.String()+"/.well-known/oauth-protected-resource"+mcpserver.MCPEndpoint))
+	require.Empty(t, resp.Header.Get("Location"))
 
 	// Also test with MCP client to ensure it handles the error gracefully
 	_, err = newIsolatedMCPClient(ctx, mcpURL, "test-client-unauth", nil)
 	require.Error(t, err, "Should fail during MCP initialization without authentication")
+}
+
+func TestMCPHTTP_E2E_ResourcePaths(t *testing.T) {
+	t.Parallel()
+	client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: mcpDeploymentValues(t)})
+	coderdtest.CreateFirstUser(t, client)
+	tokens := []string{"", client.SessionToken()}
+	httpClient := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	for _, audience := range []string{client.URL.String(), client.URL.String() + mcpserver.MCPEndpoint} {
+		app, secret := oauth2providertest.CreateTestOAuth2App(t, client)
+		verifier, challenge := oauth2providertest.GeneratePKCE(t)
+		code := oauth2providertest.AuthorizeOAuth2App(t, client, client.URL.String(), oauth2providertest.AuthorizeParams{
+			ClientID: app.ID.String(), ResponseType: "code", RedirectURI: oauth2providertest.TestRedirectURI,
+			State: oauth2providertest.GenerateState(t), CodeChallenge: challenge, CodeChallengeMethod: "S256",
+			Resource: audience,
+		})
+		token := oauth2providertest.ExchangeCodeForToken(t, client.URL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType: "authorization_code", Code: code, ClientID: app.ID.String(), ClientSecret: secret,
+			RedirectURI: oauth2providertest.TestRedirectURI, CodeVerifier: verifier, Resource: audience,
+		})
+		tokens = append(tokens, token.AccessToken)
+	}
+	for _, path := range []string{
+		"/api//experimental/mcp/http", "/api/experimental//mcp/http",
+		"/api/experimental/mcp//http", "/api/experimental/mcp/http//",
+		"/api/experimental/mcp/http/child", "/api/experimental/mcp/http/../http",
+		"/api/experimental/mcp/%68ttp", "/api/experimental/mcp/http%2f",
+	} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			for _, token := range tokens {
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
+					strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				if token != "" {
+					req.Header.Set("Authorization", "Bearer "+token)
+				}
+				resp, err := httpClient.Do(req)
+				require.NoError(t, err)
+				_ = resp.Body.Close()
+				require.Equal(t, http.StatusNotFound, resp.StatusCode)
+				require.Empty(t, resp.Header.Get("WWW-Authenticate"))
+			}
+		})
+	}
+	t.Run("CanonicalPaths", func(t *testing.T) {
+		t.Parallel()
+		for _, path := range []string{mcpserver.MCPEndpoint, mcpserver.MCPEndpoint + "/"} {
+			for i, token := range tokens {
+				req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, client.URL.String()+path,
+					strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`))
+				require.NoError(t, err)
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Accept", "application/json, text/event-stream")
+				if token != "" {
+					req.Header.Set("Authorization", "Bearer "+token)
+				}
+				resp, err := httpClient.Do(req)
+				require.NoError(t, err)
+				_ = resp.Body.Close()
+				want := []int{http.StatusUnauthorized, http.StatusOK, http.StatusForbidden, http.StatusOK}[i]
+				require.Equal(t, want, resp.StatusCode)
+				if want == http.StatusUnauthorized {
+					metadataURL := client.URL.String() + "/.well-known/oauth-protected-resource" + path
+					require.Contains(t, resp.Header.Get("WWW-Authenticate"), fmt.Sprintf(`resource_metadata=%q`, metadataURL))
+					var metadata codersdk.OAuth2ProtectedResourceMetadata
+					testutil.RequireEventuallyResponseOK(testutil.Context(t, testutil.WaitLong), t, metadataURL, &metadata)
+					require.Equal(t, client.URL.String()+path, metadata.Resource)
+				}
+			}
+		}
+	})
+	t.Run("CallbackStillRequiresAuthentication", func(t *testing.T) {
+		t.Parallel()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+			client.URL.String()+"/api/experimental/mcp/servers/"+uuid.NewString()+"/oauth2/callback", nil)
+		require.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	})
 }
 
 func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
@@ -518,6 +722,204 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NotEmpty(t, tools.Tools)
 
 		t.Logf("OAuth2 Bearer token MCP test successful: Found %d tools", len(tools.Tools))
+	})
+
+	t.Run("PathQualifiedResource", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+		app, secret := oauth2providertest.CreateTestOAuth2App(t, coderClient)
+		verifier, challenge := oauth2providertest.GeneratePKCE(t)
+		code := oauth2providertest.AuthorizeOAuth2App(t, coderClient, api.AccessURL.String(), oauth2providertest.AuthorizeParams{
+			ClientID: app.ID.String(), ResponseType: "code",
+			RedirectURI:   oauth2providertest.TestRedirectURI,
+			State:         oauth2providertest.GenerateState(t),
+			CodeChallenge: challenge, CodeChallengeMethod: "S256",
+			Resource: mcpURL,
+		})
+		token := oauth2providertest.ExchangeCodeForToken(t, api.AccessURL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType: "authorization_code", Code: code,
+			ClientID: app.ID.String(), ClientSecret: secret,
+			RedirectURI:  oauth2providertest.TestRedirectURI,
+			CodeVerifier: verifier, Resource: mcpURL,
+		})
+		mcpClient, err := newIsolatedMCPClient(ctx, mcpURL, "path-resource-client", map[string]string{
+			"Authorization": "Bearer " + token.AccessToken,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = mcpClient.Close() })
+		require.Equal(t, mcpserver.MCPServerName, mcpClient.InitializeResult().ServerInfo.Name)
+		tools, err := mcpClient.ListTools(ctx, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, tools.Tools)
+
+		result, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+			Name: toolsdk.ToolNameGetAuthenticatedUser,
+		})
+		require.NoError(t, err)
+		require.False(t, result.IsError, "REST-backed tool failed: %+v", result.Content)
+		require.Len(t, result.Content, 1)
+		text, ok := result.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		var user codersdk.User
+		require.NoError(t, json.Unmarshal([]byte(text.Text), &user))
+		me, err := coderClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, me.ID, user.ID)
+
+		// Exercise SDK URL construction through the delegated transport. A
+		// workspace owner must not select the token-creation endpoint.
+		before, err := coderClient.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+		require.NoError(t, err)
+		for _, injectedUser := range []string{
+			"me/keys/tokens?", "me/keys/tokens#", "me/keys/tokens/../tokens?",
+			"me%2fkeys%2ftokens%3f", "../users/me/keys/tokens?",
+		} {
+			result, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{
+				Name: toolsdk.ToolNameCreateWorkspace,
+				Arguments: map[string]any{
+					"user": injectedUser, "name": "unused",
+					"template_id": uuid.NewString(), "rich_parameters": map[string]string{},
+				},
+			})
+			require.NoError(t, err)
+			assert.True(t, result.IsError, "injected owner %q must fail", injectedUser)
+			require.Len(t, result.Content, 1)
+			text, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok)
+			assert.Contains(t, text.Text, "invalid user")
+			after, err := coderClient.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+			require.NoError(t, err)
+			require.ElementsMatch(t, before, after, "workspace tool must not create API keys")
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.AccessURL.String()+"/api/v2/users/me", nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+		// Neither a claimed origin nor a delegation-looking header may
+		// turn an external REST request into trusted MCP work.
+		req.Header.Set("X-Coder-MCP-Delegation", "true")
+		req.Header.Set("X-Forwarded-Uri", mcpserver.MCPEndpoint)
+		req.Header.Set("Referer", mcpURL)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+		var response codersdk.Response
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&response))
+		require.Equal(t, "Token audience validation failed", response.Message)
+
+		refreshed := oauth2providertest.ExchangeCodeForToken(t, api.AccessURL.String(), oauth2providertest.TokenExchangeParams{
+			GrantType: "refresh_token", RefreshToken: token.RefreshToken,
+			ClientID: app.ID.String(), ClientSecret: secret, Resource: mcpURL,
+		})
+		refreshedClient, err := newIsolatedMCPClient(ctx, mcpURL, "refreshed-path-resource", map[string]string{
+			"Authorization": "Bearer " + refreshed.AccessToken,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = refreshedClient.Close() })
+		result, err = refreshedClient.CallTool(ctx, &mcp.CallToolParams{Name: toolsdk.ToolNameGetAuthenticatedUser})
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+		require.NoError(t, coderClient.RevokeOAuth2Token(ctx, app.ID, secret, refreshed.AccessToken))
+		_, err = refreshedClient.CallTool(ctx, &mcp.CallToolParams{Name: toolsdk.ToolNameGetAuthenticatedUser})
+		require.Error(t, err, "revoked token must not execute tools")
+	})
+
+	t.Run("PathQualifiedAuthorization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		me, err := coderClient.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		orgID := me.OrganizationIDs[0]
+		memberClient, member := coderdtest.CreateAnotherUser(t, coderClient, orgID)
+		orgAdminClient, orgAdmin := coderdtest.CreateAnotherUser(t, coderClient, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+		otherOrg := dbgen.Organization(t, api.Database, database.Organization{})
+		ownWorkspace := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: orgID, OwnerID: member.ID,
+		}).Do().Workspace
+		peerWorkspace := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: orgID, OwnerID: me.ID,
+		}).Do().Workspace
+		otherOrgWorkspace := dbfake.WorkspaceBuild(t, api.Database, database.WorkspaceTable{
+			OrganizationID: otherOrg.ID, OwnerID: me.ID,
+		}).Do().Workspace
+
+		for _, tc := range []struct {
+			name        string
+			client      *codersdk.Client
+			userID      uuid.UUID
+			scope       string
+			ownAllowed  bool
+			peerAllowed bool
+		}{
+			{name: "Member", client: memberClient, userID: member.ID, scope: "coder:all", ownAllowed: true},
+			{name: "OrganizationAdmin", client: orgAdminClient, userID: orgAdmin.ID, scope: "coder:all", ownAllowed: true, peerAllowed: true},
+			{name: "UserReadOnlyScope", client: memberClient, userID: member.ID, scope: "user:read"},
+			{name: "OwnerReadOnlyScope", client: coderClient, userID: me.ID, scope: "user:read"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
+				app, secret := oauth2providertest.CreateTestOAuth2App(t, coderClient)
+				verifier, challenge := oauth2providertest.GeneratePKCE(t)
+				code := oauth2providertest.AuthorizeOAuth2App(t, tc.client, api.AccessURL.String(), oauth2providertest.AuthorizeParams{
+					ClientID: app.ID.String(), ResponseType: "code",
+					RedirectURI: oauth2providertest.TestRedirectURI, State: oauth2providertest.GenerateState(t),
+					CodeChallenge: challenge, CodeChallengeMethod: "S256", Resource: mcpURL, Scope: tc.scope,
+				})
+				token := oauth2providertest.ExchangeCodeForToken(t, api.AccessURL.String(), oauth2providertest.TokenExchangeParams{
+					GrantType: "authorization_code", Code: code, ClientID: app.ID.String(), ClientSecret: secret,
+					RedirectURI: oauth2providertest.TestRedirectURI, CodeVerifier: verifier, Resource: mcpURL,
+				})
+				client, err := newIsolatedMCPClient(ctx, mcpURL, tc.name, map[string]string{
+					"Authorization": "Bearer " + token.AccessToken,
+				})
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = client.Close() })
+				result, err := client.CallTool(ctx, &mcp.CallToolParams{Name: toolsdk.ToolNameGetAuthenticatedUser})
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+				var user codersdk.User
+				require.NoError(t, json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &user))
+				require.Equal(t, tc.userID, user.ID)
+
+				if tc.scope == "user:read" {
+					visible, err := tc.client.Workspaces(ctx, codersdk.WorkspaceFilter{Owner: "me"})
+					require.NoError(t, err)
+					require.NotEmpty(t, visible.Workspaces, "unrestricted credential must see fixture workspaces")
+					result, err := client.CallTool(ctx, &mcp.CallToolParams{Name: toolsdk.ToolNameListWorkspaces})
+					require.NoError(t, err)
+					require.False(t, result.IsError)
+					var workspaces []toolsdk.MinimalWorkspace
+					require.NoError(t, json.Unmarshal([]byte(result.Content[0].(*mcp.TextContent).Text), &workspaces))
+					require.Empty(t, workspaces, "OAuth scope must filter workspace visibility even for an Owner")
+				}
+
+				for _, ws := range []struct {
+					id      uuid.UUID
+					allowed bool
+				}{
+					{id: ownWorkspace.ID, allowed: tc.ownAllowed},
+					{id: peerWorkspace.ID, allowed: tc.peerAllowed},
+					{id: otherOrgWorkspace.ID},
+				} {
+					result, err := client.CallTool(ctx, &mcp.CallToolParams{
+						Name: toolsdk.ToolNameGetWorkspace, Arguments: map[string]any{"workspace_id": ws.id.String()},
+					})
+					require.NoError(t, err)
+					require.Equal(t, !ws.allowed, result.IsError)
+					text := result.Content[0].(*mcp.TextContent).Text
+					if ws.allowed {
+						var workspace codersdk.Workspace
+						require.NoError(t, json.Unmarshal([]byte(text), &workspace))
+						require.Equal(t, ws.id, workspace.ID)
+					} else {
+						require.Contains(t, text, "404", "must fail RBAC, not audience validation")
+					}
+				}
+			})
+		}
 	})
 
 	// Test 3: Full OAuth2 Authorization Code Flow with Token Refresh
