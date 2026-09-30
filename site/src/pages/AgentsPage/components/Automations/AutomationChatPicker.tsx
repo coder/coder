@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
+import { getErrorStatus } from "#/api/errors";
 import { chat, chatSearch } from "#/api/queries/chats";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
 import {
 	Combobox,
+	ComboboxButton,
 	ComboboxContent,
 	ComboboxEmpty,
 	ComboboxInput,
@@ -14,51 +14,61 @@ import {
 } from "#/components/Combobox/Combobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
-import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
 
-type AutomationChatPickerProps = {
-	id: string;
+type AutomationChatPickerProps = Pick<
+	React.ComponentProps<"button">,
+	"id" | "aria-invalid" | "aria-describedby"
+> & {
+	organizationId: string;
 	value: string;
-	currentUserId: string;
-	invalid: boolean;
-	describedBy?: string;
 	onChange: (chatId: string) => void;
 };
 
 /** Picks one of the current user's root chats as an automation target. */
 export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
-	id,
+	organizationId,
 	value,
-	currentUserId,
-	invalid,
-	describedBy,
 	onChange,
+	...buttonProps
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search.trim(), 300);
+	// Quotes make the text one backend token; the backend has no escaping.
+	const debouncedSearch = useDebouncedValue(
+		search.replaceAll('"', "").trim(),
+		300,
+	);
+	// The picker shows titles only, so match a title substring. The full-text
+	// `search:` term matches whole words and message content instead.
 	const searchQuery = useQuery({
 		...chatSearch({
-			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
+			q: `${debouncedSearch ? `title:"${debouncedSearch}" ` : ""}archived:false source:created_by_me`,
 		}),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	// The chats API returns root chats only; automations target your own.
+	// Chat search has no organization term, and a target must share the
+	// automation's organization.
 	const chats = (searchQuery.data ?? []).filter(
-		(c) => c.owner_id === currentUserId,
+		(c) => c.organization_id === organizationId,
 	);
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),
 		enabled: Boolean(value) && !listedChat,
 	});
-	const selectedChat = listedChat ?? selectedQuery.data;
-	let triggerLabel = "Select a chat";
-	if (value) {
-		triggerLabel = selectedQuery.isLoading
-			? "Loading chat"
-			: selectedChat?.title || "Untitled";
+	let selectedLabel: string | undefined;
+	if (listedChat) {
+		selectedLabel = listedChat.title || "Untitled";
+	} else if (selectedQuery.data) {
+		selectedLabel = selectedQuery.data.title || "Untitled";
+	} else if (selectedQuery.isLoading) {
+		selectedLabel = "Loading chat";
+	} else if (value) {
+		selectedLabel =
+			getErrorStatus(selectedQuery.error) === 404
+				? "Chat not found"
+				: "Could not load chat";
 	}
 
 	return (
@@ -78,16 +88,13 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 			}}
 		>
 			<ComboboxTrigger asChild>
-				<Button
-					id={id}
-					variant="outline"
-					className="justify-between"
-					aria-invalid={invalid}
-					aria-describedby={describedBy}
-				>
-					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon className="p-0.5" />
-				</Button>
+				<ComboboxButton
+					{...buttonProps}
+					selectedOption={
+						selectedLabel ? { label: selectedLabel, value } : undefined
+					}
+					placeholder="Select a chat"
+				/>
 			</ComboboxTrigger>
 			<ComboboxContent
 				shouldFilter={false}
@@ -109,7 +116,7 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 							Could not load chats.
 						</p>
 					)}
-					{!searchQuery.isLoading && (
+					{!searchQuery.isLoading && !searchQuery.isError && (
 						<ComboboxEmpty>No chats found.</ComboboxEmpty>
 					)}
 					{chats.map((c) => (
