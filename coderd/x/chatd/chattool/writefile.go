@@ -87,7 +87,6 @@ func executeWriteFileTool(
 	return writeFileResponse(conn.WriteFile(ctx, requestedPath, strings.NewReader(args.Content))), nil
 }
 
-// writeFileResponse builds the write_file result of a WriteFile call.
 func writeFileResponse(err error) fantasy.ToolResponse {
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error())

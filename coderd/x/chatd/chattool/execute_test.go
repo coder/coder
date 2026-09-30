@@ -390,7 +390,7 @@ func TestExecuteTool(t *testing.T) {
 
 		// First call (blocking wait) returns context error
 		// because the 50ms timeout expires. An old agent ignores
-		// timeout_ms, so chatd's own timeout ends the wait.
+		// timeout_ms.
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
@@ -428,9 +428,8 @@ func TestExecuteTool(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
-		// The fake agent keeps the execute timeout from the first start
-		// and ends only waits that ask for it. On a retry that timeout
-		// passes long before chatd's own.
+		// On a retry, the agent's execute timeout, counted from the first
+		// start, passes before chatd's own.
 		var executeTimeout time.Duration
 		mockConn.EXPECT().
 			StartProcess(gomock.Any(), gomock.Any()).

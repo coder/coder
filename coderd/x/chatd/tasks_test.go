@@ -863,12 +863,10 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	tests := []struct {
 		name     string
 		toolName string
-		// agentless marks a tool that does not act on the agent, so the
-		// interrupt sends it no cancel.
-		agentless bool
-		cancel    workspacesdk.CancelToolCallResponse
-		cancelErr error
-		// cancelPanics makes the agent connection's cancel panic.
+		// agentless marks a tool that gets no cancel.
+		agentless    bool
+		cancel       workspacesdk.CancelToolCallResponse
+		cancelErr    error
 		cancelPanics bool
 		output       *workspacesdk.ProcessOutputResponse
 		outputErr    error
@@ -876,8 +874,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		want         string
 	}{
 		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"not run: canceled before the agent received it"}`},
-		// The agent forgot the call, but its process outlives the record
-		// and the cancel killed it.
+		// The agent has no record, but the cancel killed the call's process.
 		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"canceled by the user","exit_code":-1,"output":"partial","success":false}`},
 		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
@@ -911,9 +908,8 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	require.NoError(t, err)
 	assistantID := messages[len(messages)-1].ID
 
-	// The agent responds to each cancel only after it received every
-	// cancel, so cancels sent one at a time wait until the interrupt's
-	// context ends and commit no real result.
+	// Each cancel waits until all cancels arrive, so sequential cancels
+	// would time out.
 	var pending atomic.Int64
 	for _, tc := range tests {
 		if !tc.agentless {

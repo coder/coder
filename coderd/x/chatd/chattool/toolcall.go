@@ -14,24 +14,20 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// toolCallIDNamespace is the UUIDv5 namespace of tool call IDs. Changing
-// it changes every tool call ID, so the agent would run a retried call
-// again.
+// toolCallIDNamespace is the UUIDv5 namespace for tool call IDs. Changing
+// it changes every ID, so the agent would rerun in-flight tool calls.
 var toolCallIDNamespace = uuid.MustParse("0af4d6d3-691c-45dd-ac54-55ea97970ebc")
 
-// ToolCallID returns the ID the workspace agent knows the tool call by:
-// the call with provider tool call ID providerToolCallID in assistant
-// message messageID of chat chatID. Every replica and attempt computes
-// the same ID from committed rows, so the agent runs the call once.
+// ToolCallID returns the ID the agent uses to deduplicate a tool call. It
+// is derived from the chat, the assistant message, and the provider tool
+// call ID, so every replica and retry computes the same ID.
 func ToolCallID(chatID uuid.UUID, messageID int64, providerToolCallID string) uuid.UUID {
 	return uuid.NewSHA1(toolCallIDNamespace, fmt.Appendf(nil, "%s/%d/%s", chatID, messageID, providerToolCallID))
 }
 
-// ToolCallIDs returns the ToolCallID of each of calls, the unresolved
-// calls of assistant message messageID, by provider tool call ID. A call
-// whose provider tool call ID is empty or repeats gets none and runs as
-// before tool call IDs: calls sharing an ID would get each other's saved
-// responses from the agent.
+// ToolCallIDs returns the ToolCallID of each call, keyed by provider tool
+// call ID. Calls with an empty or repeated provider ID get none, since
+// calls sharing an ID would get each other's saved responses.
 func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallContent) map[string]uuid.UUID {
 	count := make(map[string]int, len(calls))
 	for _, call := range calls {
@@ -46,10 +42,9 @@ func ToolCallIDs(chatID uuid.UUID, messageID int64, calls []fantasy.ToolCallCont
 	return ids
 }
 
-// CancelToolCall cancels the execute, edit_files, or write_file call with
-// tool call ID id on the agent and returns the call's result. An error
-// means the agent gave no usable response, including the 404 of an agent
-// without the cancel route.
+// CancelToolCall cancels tool call id on the agent and returns its result.
+// It returns an error if there is no result, such as when an old agent
+// responds with 404.
 func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UUID, toolName string) (fantasy.ToolResponse, error) {
 	if !CanCancelToolCall(toolName) {
 		return fantasy.ToolResponse{}, xerrors.Errorf("tool %q cannot be canceled on the agent", toolName)
@@ -75,11 +70,9 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 				return errorResult(enrichStartError(fmt.Sprintf("start process: %v", err))), nil
 			}
 		}
-		// Read the output even when the agent has no record of the call: a
-		// process started with the tool call ID outlives the record, and the
-		// cancel killed it. The agent responds to the cancel request after it
-		// sends the kill, which can be before the process exits, so wait for
-		// the exit to read all of its output. ctx bounds the wait.
+		// Read the output even without a record, since the process can
+		// outlive it. Wait, because the cancel can return before the killed
+		// process exits.
 		output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 		var sdkErr *codersdk.Error
 		if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
@@ -98,8 +91,7 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	}
 }
 
-// CanCancelToolCall reports whether CancelToolCall can cancel a call of
-// the tool named toolName.
+// CanCancelToolCall reports whether CancelToolCall supports tool toolName.
 func CanCancelToolCall(toolName string) bool {
 	switch toolName {
 	case EditFilesToolName, WriteFileToolName, ExecuteToolName:

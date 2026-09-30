@@ -351,8 +351,8 @@ func waitForProcess(
 	// The server-side wait may return before the
 	// process exits if maxWaitDuration is shorter than
 	// the client's timeout. Retry if our context still
-	// has time left and the agent's waitUntil, set by the
-	// first start of a retried tool call, has not passed.
+	// has time left and the execute timeout, counted from
+	// the first start, has not passed.
 	if resp.Running {
 		if ctx.Err() == nil && !resp.TimedOut {
 			// Still within the caller's timeout, retry.
@@ -372,7 +372,6 @@ func waitForProcess(
 	return exitedResult(resp)
 }
 
-// exitedResult builds the result of an exited process from its output.
 func exitedResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
 	exitCode := 0
 	if resp.ExitCode != nil {

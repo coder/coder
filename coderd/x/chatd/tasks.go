@@ -33,11 +33,9 @@ const (
 	postCommitWatchPublishTimeout = 10 * time.Second
 	defaultTaskTimeout            = 15 * time.Minute
 	taskTimeoutMargin             = 5 * time.Minute
-	// interruptCancelTimeout bounds the agent dial and all tool call
-	// cancels of one interrupt. The agent responds to a cancel only after
-	// the call's running handler finishes, so waiting longer gives running
-	// tool calls a chance to finish and the interrupt records their real
-	// result instead of an unknown one.
+	// interruptCancelTimeout bounds the agent dial and all cancels of one
+	// interrupt. A cancel returns only after the tool call's running
+	// request finishes, so a longer timeout records more real results.
 	interruptCancelTimeout = 30 * time.Second
 )
 
@@ -713,12 +711,10 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 }
 
 // cancelableToolCalls returns the chat's unresolved tool calls that can be
-// canceled on its agent, with their tool call IDs by provider tool call ID.
-// Call it with the store of the chat's locked read so the calls belong to
-// the state the interrupt task started for. If the messages cannot be
-// read, it returns the error and the interrupt task retries. Continuing
-// without the cancels would not help: the commit reads the same messages.
-// Unparsable history logs a warning and returns no calls.
+// canceled on its agent, and their tool call IDs. store must be the chat's
+// locked read, so the calls match the interrupted state. A message read
+// error is returned so the interrupt retries; unparsable history yields no
+// calls.
 func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.Store, chat database.Chat) ([]fantasy.ToolCallContent, map[string]uuid.UUID, error) {
 	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
 		return nil, nil, nil
@@ -732,8 +728,8 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 		s.opts.Logger.Warn(ctx, "find tool calls to cancel on agent", slog.F("chat_id", chat.ID), slog.Error(err))
 		return nil, nil, nil
 	}
-	// Only these tools act on the agent, and only calls with a tool call
-	// ID can be canceled there, so other calls do not dial the agent.
+	// Keep only cancelable calls with an ID, so an interrupt without them
+	// does not dial the agent.
 	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
 	calls = slices.DeleteFunc(calls, func(call fantasy.ToolCallContent) bool {
 		_, ok := ids[call.ToolCallID]
@@ -742,11 +738,9 @@ func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.St
 	return calls, ids, nil
 }
 
-// cancelUnresolvedToolCalls cancels calls, the chat's unresolved tool
-// calls from cancelableToolCalls, on its agent and returns the results
-// from the agent's responses, by provider tool call ID. ids holds the
-// calls' tool call IDs. Calls without a result keep the generic
-// interrupted result, and a warning says why.
+// cancelUnresolvedToolCalls cancels calls on the chat's agent and returns
+// their results by provider tool call ID. It logs a warning for each call
+// without a result.
 func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat, calls []fantasy.ToolCallContent, ids map[string]uuid.UUID) map[string]fantasy.ToolResponse {
 	if len(calls) == 0 {
 		return nil
@@ -824,9 +818,8 @@ func committedPendingLocalToolCancellationMessages(
 		if !ok {
 			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)
 		}
-		// Cap the result as chatloop caps tool results. An interrupted result is
-		// at most an execute result (the agent keeps 32 KB of output) or a short
-		// edit or write result, so the 64 KB default budget does not cut it.
+		// Cap the result as chatloop caps tool results. The 64 KB default
+		// budget holds an execute result, whose output is capped at 32 KB.
 		text, _ := chatloop.TruncateToolResultText(resp.Content, chatloop.ToolResultByteBudget(0))
 		var output fantasy.ToolResultOutputContent = fantasy.ToolResultOutputContentText{Text: text}
 		if resp.IsError {

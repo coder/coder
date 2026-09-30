@@ -13930,11 +13930,8 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		"plan-file-path block should be part of the main system prompt, not a standalone message")
 }
 
-// TestInterruptChatCancelsToolCallsOnAgent interrupts a step whose
-// write_file call has finished and whose execute call is still running on
-// a real agent. The interrupt must commit the agent's own write result and
-// kill the running command, which works only when the tool calls reached
-// the agent with the tool call IDs the interrupt cancels.
+// TestInterruptChatCancelsToolCallsOnAgent checks that tool calls reach a
+// real agent with the tool call IDs the interrupt cancels.
 func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 
@@ -13966,8 +13963,7 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	startedPath := filepath.Join(dir, "started")
 	writeArgs, err := json.Marshal(map[string]string{"path": writtenPath, "content": "hello"})
 	require.NoError(t, err)
-	// The timeout keeps execute running until the interrupt; the default
-	// would end its wait first.
+	// The default timeout would end execute's wait before the interrupt.
 	executeArgs, err := json.Marshal(map[string]string{
 		"command": "touch started && sleep 300",
 		"workdir": dir,
@@ -14002,8 +13998,6 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Both files exist once write_file has written and execute's command
-	// has started. The command then sleeps, so execute is still running.
 	testutil.Eventually(ctx, t, func(context.Context) bool {
 		for _, path := range []string{writtenPath, startedPath} {
 			if _, err := os.Stat(path); err != nil {
