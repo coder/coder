@@ -16,6 +16,7 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
+	MockBuildInfo,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
@@ -616,35 +617,46 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 	});
 
-	it("keeps the editor open while a save is pending", async () => {
-		const user = userEvent.setup();
-		setupEditor();
-		let releaseSave = () => {};
-		server.use(
-			http.post(automationsPath(":organizationId"), async () => {
-				await new Promise<void>((resolve) => {
-					releaseSave = resolve;
-				});
-				return HttpResponse.json(
-					{ automation: mockAutomation },
-					{ status: 201 },
-				);
-			}),
-		);
-		const dialog = await openCreateDialog(user);
-		await pickChat(user, dialog, mockTargetChat.title);
-		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+	it.each([
+		{ trigger: "Schedule", warnsOnLeave: false },
+		{ trigger: "Webhook", warnsOnLeave: true },
+	])(
+		"keeps the editor open while a $trigger save is pending",
+		async ({ trigger, warnsOnLeave }) => {
+			const user = userEvent.setup();
+			setupEditor();
+			let releaseSave = () => {};
+			server.use(
+				http.post(automationsPath(":organizationId"), async () => {
+					await new Promise<void>((resolve) => {
+						releaseSave = resolve;
+					});
+					return HttpResponse.json(
+						{ automation: mockAutomation },
+						{ status: 201 },
+					);
+				}),
+			);
+			const dialog = await openCreateDialog(user);
+			await user.click(within(dialog).getByRole("radio", { name: trigger }));
+			await pickChat(user, dialog, mockTargetChat.title);
+			await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
-		await waitFor(() => {
-			expect(
-				within(dialog).getByRole("button", { name: "Cancel" }),
-			).toBeDisabled();
-		});
-		expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
-		await user.keyboard("{Escape}");
-		expect(screen.getByRole("dialog")).toBe(dialog);
-		releaseSave();
-	});
+			await waitFor(() => {
+				expect(
+					within(dialog).getByRole("button", { name: "Cancel" }),
+				).toBeDisabled();
+			});
+			expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+			await user.keyboard("{Escape}");
+			expect(screen.getByRole("dialog")).toBe(dialog);
+			// Only a webhook create carries a one-time secret worth guarding.
+			const unload = new Event("beforeunload", { cancelable: true });
+			window.dispatchEvent(unload);
+			expect(unload.defaultPrevented).toBe(warnsOnLeave);
+			releaseSave();
+		},
+	);
 
 	it("keeps the reasoning effort when the same model is picked again", async () => {
 		const user = userEvent.setup();
@@ -895,6 +907,13 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		).toHaveFocus();
+		// The endpoint and the curl example use the configured dashboard URL.
+		expect(
+			within(secretDialog).getAllByText(
+				`${new URL(MockBuildInfo.dashboard_url).origin}/api/experimental/chat-automations/`,
+				{ exact: false },
+			),
+		).toHaveLength(2);
 		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
