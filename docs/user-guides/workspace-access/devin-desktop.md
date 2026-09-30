@@ -1,4 +1,6 @@
-# Devin Desktop
+---
+title: Devin Desktop
+---
 
 [Devin Desktop](https://devin.ai/desktop) is Cognition's AI-powered code editor designed for AI-assisted development.
 Cognition, the maker of the Devin autonomous coding agent, rebranded the Windsurf Editor (formerly Codeium) as Devin Desktop on June 2, 2026.
