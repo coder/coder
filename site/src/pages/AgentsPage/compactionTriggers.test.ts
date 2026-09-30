@@ -13,8 +13,8 @@ import {
 	isCompactionTriggerEnabled,
 	organizationCompactionTrigger,
 	resolveCompactionThreshold,
+	resolveCompactionTriggersByOrganization,
 	resolveOrganizationCompactionTrigger,
-	resolveOrganizationCompactionTriggers,
 } from "./compactionTriggers";
 import { providerInfoByIDFromDescriptors } from "./utils/modelOptions";
 
@@ -246,7 +246,7 @@ describe("compaction triggers", () => {
 		).toMatchObject({ model, pointTokens: 20_000 });
 	});
 
-	describe("resolveOrganizationCompactionTriggers", () => {
+	describe("resolveCompactionTriggersByOrganization", () => {
 		const compactionModel: TypesGen.ChatModel = {
 			...MockChatModel,
 			id: "compaction-model",
@@ -266,7 +266,7 @@ describe("compaction triggers", () => {
 
 		it("reports an organization whose first overrides load failed", () => {
 			expect(
-				resolveOrganizationCompactionTriggers(
+				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: undefined, error }],
 					[compactionModel],
 					providers,
@@ -279,7 +279,7 @@ describe("compaction triggers", () => {
 
 		it("keeps cached overrides without reporting a failed refetch", () => {
 			expect(
-				resolveOrganizationCompactionTriggers(
+				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: overrides, error }],
 					[compactionModel],
 					providers,
@@ -294,7 +294,7 @@ describe("compaction triggers", () => {
 
 		it("reports nothing when the overrides load succeeds", () => {
 			expect(
-				resolveOrganizationCompactionTriggers(
+				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: overrides, error: null }],
 					[compactionModel],
 					providers,
@@ -304,7 +304,7 @@ describe("compaction triggers", () => {
 
 		it("ignores a failed load for an organization without enabled models", () => {
 			expect(
-				resolveOrganizationCompactionTriggers(
+				resolveCompactionTriggersByOrganization(
 					[{ organizationID, data: undefined, error }],
 					[{ ...compactionModel, enabled: false }],
 					providers,

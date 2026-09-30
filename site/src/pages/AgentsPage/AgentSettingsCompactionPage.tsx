@@ -8,7 +8,7 @@ import {
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import { resolveOrganizationCompactionTriggers } from "./compactionTriggers";
+import { resolveCompactionTriggersByOrganization } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
 	providerInfoByIDFromDescriptors,
@@ -53,7 +53,7 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const isCompactionOverridesLoading = modelOverrideQueries.some(
 		(query) => query.isLoading,
 	);
-	const compactionTriggers = resolveOrganizationCompactionTriggers(
+	const compactionTriggers = resolveCompactionTriggersByOrganization(
 		organizations.map((organization, index) => ({
 			organizationID: organization.id,
 			data: modelOverrideQueries[index]?.data,
