@@ -73,6 +73,14 @@ func TestCompactionMetricIdentity(t *testing.T) {
 	require.Equal(t, "gpt-4.1-mini", model)
 }
 
+func TestCompactionStillOverLimitError(t *testing.T) {
+	t.Parallel()
+
+	err := compactionStillOverLimitError(compactionTriggerSourceOrganization, 70, 100)
+	require.ErrorIs(t, err, errCompactionStillOverLimit)
+	require.Equal(t, "organization trigger at 70% of 100 tokens: compaction left the chat above the compaction limit", err.Error())
+}
+
 func TestGenerationCompactionContextLimit(t *testing.T) {
 	t.Parallel()
 
