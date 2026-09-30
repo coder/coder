@@ -434,7 +434,7 @@ describe("compaction triggers", () => {
 			expect(resolve(undefined, error)).toEqual({
 				percent: 80,
 				source: "model",
-				organizationOverrideUnavailable: true,
+				organizationOverrideNotLoaded: true,
 			});
 		});
 
@@ -452,6 +452,13 @@ describe("compaction triggers", () => {
 
 		it("does not flag loaded overrides without a compaction override", () => {
 			expect(resolve({ overrides: [] }, null)).toEqual({
+				percent: 80,
+				source: "model",
+			});
+		});
+
+		it("does not flag a pending overrides load", () => {
+			expect(resolve(undefined, null)).toEqual({
 				percent: 80,
 				source: "model",
 			});

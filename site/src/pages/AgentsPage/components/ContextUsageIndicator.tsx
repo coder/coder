@@ -303,15 +303,18 @@ export const ContextUsageIndicator: React.FC<{
 	const compactionSuffix =
 		compaction?.source === "organization"
 			? " (organization override)"
-			: compaction?.organizationOverrideUnavailable
+			: compaction?.organizationOverrideNotLoaded
 				? " (organization override not loaded)"
 				: "";
 	const compactionLabel =
-		compaction !== undefined &&
-		compactionPercent !== undefined &&
-		isCompactionReachable
-			? `Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${compactionSuffix}`
-			: undefined;
+		compaction === undefined || compactionPercent === undefined
+			? undefined
+			: isCompactionReachable
+				? `Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${compactionSuffix}`
+				: compaction.source !== "organization" &&
+						compaction.organizationOverrideNotLoaded
+					? "Compaction off (organization override not loaded)"
+					: undefined;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;

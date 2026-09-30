@@ -21,7 +21,7 @@ export type ResolvedCompactionThreshold =
 			readonly source: "user" | "model";
 			// The organization overrides never loaded, so a binding organization
 			// override may exist that this threshold does not reflect.
-			readonly organizationOverrideUnavailable?: boolean;
+			readonly organizationOverrideNotLoaded?: boolean;
 	  }
 	| {
 			readonly percent: number;
@@ -276,7 +276,7 @@ export const resolveChatCompactionThreshold = (
 		overrides.error != null &&
 		overrides.data === undefined
 	) {
-		return { ...threshold, organizationOverrideUnavailable: true };
+		return { ...threshold, organizationOverrideNotLoaded: true };
 	}
 	return threshold;
 };
