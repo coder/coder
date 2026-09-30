@@ -43,7 +43,6 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const { user } = useAuthenticated();
-	// The create form stores the Agents picker selection under this key.
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
 		localStorage.getItem(selectedOrganizationIdStorageKey),
 	);
