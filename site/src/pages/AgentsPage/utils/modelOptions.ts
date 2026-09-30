@@ -30,7 +30,7 @@ export const countConfiguredProviderConfigs = (
 	);
 };
 
-const hasConfiguredModelsInCatalog = (
+export const hasConfiguredModelsInCatalog = (
 	catalog: TypesGen.OrganizationChatModelsResponse | null | undefined,
 ): boolean => (catalog?.models.length ?? 0) > 0;
 

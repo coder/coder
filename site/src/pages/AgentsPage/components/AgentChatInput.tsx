@@ -29,6 +29,7 @@ import {
 	disconnectMCPServerOAuth2,
 	invalidateMCPServerConfigQueries,
 } from "#/api/queries/chats";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -232,7 +233,6 @@ type AgentChatInputProps = {
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
@@ -552,7 +552,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	workspace,
 	workspaceAgent,
 	chatId,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
@@ -583,6 +582,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			: undefined;
 	const modelCount = modelCatalog ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(modelCatalog);
+	const sshConfigQuery = useQuery({
+		...deploymentSSHConfig(),
+		enabled: Boolean(workspace && workspaceAgent),
+	});
+	const sshHostnameSuffix = sshConfigQuery.data?.hostname_suffix;
+	const sshCommand =
+		workspace && workspaceAgent && sshHostnameSuffix
+			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshHostnameSuffix}`
+			: undefined;
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup

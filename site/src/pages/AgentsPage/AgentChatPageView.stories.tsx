@@ -17,8 +17,10 @@ import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatEntityKey,
 	organizationChatModelsKey,
+	userChatDebugLogging,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
+import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { preferenceSettingsKey } from "#/api/queries/users";
 import { workspacesKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -30,6 +32,7 @@ import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 import {
 	MockAIProviderOpenAI,
 	MockDefaultOrganization,
+	MockDeploymentSSH,
 	MockGroup,
 	MockOrganizationMember,
 	MockOrganizationMember2,
@@ -179,16 +182,13 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
-		models: [],
 		modelSelectorPlaceholder: "Select a model",
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
 		showSidebarPanel: false,
 		onSetShowSidebarPanel: fn(),
-		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
@@ -245,6 +245,7 @@ const defaultQueries = [
 			count: 0,
 		} satisfies TypesGen.WorkspacesResponse,
 	},
+	{ key: deploymentSSHConfig().queryKey, data: MockDeploymentSSH },
 ];
 
 // The chat input derives the agent setup notice from these cached queries.
@@ -700,7 +701,6 @@ export const WithWorkspace: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1519,7 +1519,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1540,7 +1539,6 @@ export const PersistsSidebarTabClick: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1637,7 +1635,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1658,7 +1655,6 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1680,7 +1676,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1712,7 +1707,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 				},
 			}}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1729,7 +1723,6 @@ export const PreservesUnavailableBrowserTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1749,16 +1742,30 @@ export const PreservesUnavailableBrowserTab: Story = {
 const renderWithSingletonSupport = () => (
 	<StoryAgentChatPageView
 		showSidebarPanel
-		debugLoggingEnabled
 		workspace={MockWorkspace}
 		workspaceAgent={mockAgentWithBrowserApp}
-		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
 	/>
 );
 
+// Enables the desktop and debug singleton panels.
+const singletonSupportParameters = {
+	experiments: ["chat-virtual-desktop"],
+	queries: [
+		...defaultQueries,
+		{
+			key: userChatDebugLogging().queryKey,
+			data: {
+				debug_logging_enabled: true,
+				user_toggle_allowed: true,
+				forced_by_deployment: false,
+			} satisfies TypesGen.UserChatDebugLoggingSettings,
+		},
+	],
+};
+
 export const SingletonPanelsHiddenByDefault: Story = {
 	beforeEach: clearVisibleSingletonTabs,
+	parameters: singletonSupportParameters,
 	render: renderWithSingletonSupport,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1775,6 +1782,7 @@ export const SingletonPanelsHiddenByDefault: Story = {
 
 export const TogglesSingletonPanelFromDropdown: Story = {
 	beforeEach: clearVisibleSingletonTabs,
+	parameters: singletonSupportParameters,
 	render: renderWithSingletonSupport,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1826,6 +1834,7 @@ export const TogglesSingletonPanelFromDropdown: Story = {
 
 export const ClosesActiveSingletonPanel: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
+	parameters: singletonSupportParameters,
 	render: renderWithSingletonSupport,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1868,6 +1877,7 @@ export const ClosesActiveSingletonPanel: Story = {
 
 export const ReopenedSingletonPanelStaysSingle: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
+	parameters: singletonSupportParameters,
 	render: renderWithSingletonSupport,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1895,16 +1905,14 @@ export const ReopenedSingletonPanelStaysSingle: Story = {
  */
 export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 	beforeEach: clearVisibleSingletonTabs,
+	parameters: singletonSupportParameters,
 	render: () => (
 		<StoryAgentChatPageView
 			showSidebarPanel
 			chat={{ archived: true }}
 			isInputDisabled
-			debugLoggingEnabled
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			desktopChatId={AGENT_ID}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1929,6 +1937,7 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 
 export const RestoresPersistedSingletonPanel: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
+	parameters: singletonSupportParameters,
 	render: renderWithSingletonSupport,
 };
 
@@ -1939,7 +1948,6 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1985,7 +1993,6 @@ export const DoesNotPersistForArchivedChat: Story = {
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {

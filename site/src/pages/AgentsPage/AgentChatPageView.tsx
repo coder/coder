@@ -1,9 +1,12 @@
 import { cn } from "cn";
 import { ArchiveIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { invalidateChatDiffContents } from "#/api/queries/chats";
+import {
+	invalidateChatDiffContents,
+	userChatDebugLogging,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -47,6 +50,7 @@ import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTa
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
+import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "./components/RightPanel/DesktopPanel";
 import { PortPreviewPanel } from "./components/RightPanel/PortPreviewPanel";
@@ -57,6 +61,11 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "./context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import {
+	hasConfiguredModelsInCatalog,
+	hasUserFixableProviders,
+	isUnavailableHistoricalModelID,
+} from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import {
 	getPersistedDefaultTerminalHidden,
@@ -121,11 +130,9 @@ type AgentChatPageViewProps = {
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
 	modelOptions: readonly ModelSelectorOption[];
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog?: TypesGen.OrganizationChatModelsResponse;
 	modelSelectorPlaceholder: string;
-	modelSelectorHelp?: React.ReactNode;
 	modelCatalogError?: unknown;
-	unavailableModelNotice?: string;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
@@ -144,7 +151,6 @@ type AgentChatPageViewProps = {
 	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
-	debugLoggingEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -152,9 +158,6 @@ type AgentChatPageViewProps = {
 
 		refresh: () => boolean;
 	};
-
-	// Workspace action handlers.
-	sshCommand: string | undefined;
 
 	// Chat action handlers.
 	handleInterrupt: () => void;
@@ -175,8 +178,6 @@ type AgentChatPageViewProps = {
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
-	// Desktop chat ID (optional).
-	desktopChatId?: string;
 };
 
 const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
@@ -275,11 +276,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	effectiveSelectedModel,
 	setSelectedModel,
 	modelOptions,
-	models,
+	modelCatalog,
 	modelSelectorPlaceholder,
-	modelSelectorHelp,
 	modelCatalogError,
-	unavailableModelNotice,
 	reasoningEffort,
 	onReasoningEffortChange,
 	canConfigureAgentSetup,
@@ -293,9 +292,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	isWorkspaceLoading = false,
 	showSidebarPanel,
 	onSetShowSidebarPanel,
-	debugLoggingEnabled,
 	gitWatcher,
-	sshCommand,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -309,11 +306,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
+	const { entitlements, experiments } = useDashboard();
+	const debugLoggingQuery = useQuery(userChatDebugLogging());
+	const debugLoggingEnabled = Boolean(
+		debugLoggingQuery.data?.debug_logging_enabled,
+	);
 	const { permissions, user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
@@ -327,6 +327,29 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		cachedError: chatErrorReason,
 	});
 	const hasModelOptions = modelOptions.length > 0;
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	const modelSelectorHelp = getModelSelectorHelp({
+		isModelCatalogLoading,
+		hasModelOptions,
+		hasConfiguredModels: hasConfiguredModelsInCatalog(modelCatalog),
+		hasUserFixableModelProviders,
+	});
+	const hasResolvedModelData =
+		!isModelCatalogLoading && modelCatalog !== undefined && !modelCatalogError;
+	const hasUnavailableHistoricalModel =
+		hasResolvedModelData &&
+		isUnavailableHistoricalModelID(chat.last_model_config_id, modelOptions);
+	const unavailableModelNotice = hasUnavailableHistoricalModel
+		? hasModelOptions
+			? "The model used by this chat is not available. A usable model is selected for new messages."
+			: hasUserFixableModelProviders
+				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
+		: hasResolvedModelData && !hasModelOptions
+			? hasUserFixableModelProviders
+				? "No usable chat model is available. Add your API key in provider settings to enable models."
+				: "No usable chat model is currently available. Generation is disabled."
+			: undefined;
 	const parsedPrNumber = Number(
 		parsePullRequestUrl(chat.diff_status?.url)?.number,
 	);
@@ -454,6 +477,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		};
 	})();
 
+	const desktopChatId = experiments.includes("chat-virtual-desktop")
+		? agentId
+		: undefined;
 	// The desktop panel owns the stopped and starting states, so it only
 	// needs a workspace to render; the agent arrives once the build runs.
 	const availableDesktopChatId = workspace ? desktopChatId : undefined;
@@ -960,7 +986,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									<ChatPageInput
 										chat={chat}
 										store={store}
-										models={models}
+										models={modelCatalog?.models}
 										onSend={editing.handleSendFromInput}
 										onDeleteQueuedMessage={handleDeleteQueuedMessage}
 										onPromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -996,7 +1022,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										onMCPSelectionChange={onMCPSelectionChange}
 										workspace={workspace}
 										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
 										attachedWorkspace={attachedWorkspace}
 										folder={preferredFolder}
 									/>

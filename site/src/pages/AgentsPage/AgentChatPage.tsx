@@ -27,9 +27,7 @@ import {
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
-	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { deploymentSSHConfig } from "#/api/queries/deployment";
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -65,7 +63,6 @@ import { useChatToolInvalidations } from "./components/ChatConversation/useChatT
 import { useWorkspaceWatch } from "./components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "./components/ChatConversation/watchedWorkspace";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
-import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "./components/RightPanel/useAgentChatPanelPreference";
 import {
 	type SendChatTurnOptions,
@@ -84,8 +81,6 @@ import {
 import {
 	getModelSelectorPlaceholder,
 	getUsableDefaultModelIDForOrganization,
-	hasUserFixableProviders,
-	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -109,7 +104,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
-	const { organizations, experiments } = useDashboard();
+	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const [selectedReasoningEffort, setSelectedReasoningEffort] = useState("");
@@ -162,7 +157,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 
 	const modelsQuery = useQuery(chatModels(chatOrganizationId));
 	const models = modelsQuery.data?.models ?? [];
-	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
 		enabled: Boolean(chatOrganizationId),
@@ -170,10 +164,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	const isDefaultChatOrganization = organizations.some(
 		(organization) =>
 			organization.id === chatOrganizationId && organization.is_default,
-	);
-	const desktopEnabled = experiments.includes("chat-virtual-desktop");
-	const debugLoggingEnabled = Boolean(
-		userDebugLoggingQuery.data?.debug_logging_enabled,
 	);
 
 	// MCP server selection state.
@@ -201,7 +191,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		agentId,
 		chatAgentId,
 	});
-	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const chat = chatQuery.data;
 	const isArchived = Boolean(chat?.archived);
@@ -401,23 +390,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		);
 	})();
 	const hasModelOptions = modelOptions.length > 0;
-	const hasResolvedModelData =
-		!isModelDataPending && Boolean(modelsQuery.data) && !modelsQuery.error;
-	const hasUnavailableHistoricalModel =
-		hasResolvedModelData &&
-		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
-	const unavailableModelNotice = hasUnavailableHistoricalModel
-		? hasModelOptions
-			? "The model used by this chat is not available. A usable model is selected for new messages."
-			: hasUserFixableModelProviders
-				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
-				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
-		: hasResolvedModelData && !hasModelOptions
-			? hasUserFixableModelProviders
-				? "No usable chat model is available. Add your API key in provider settings to enable models."
-				: "No usable chat model is currently available. Generation is disabled."
-			: undefined;
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
@@ -436,12 +408,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		hasConfiguredModels,
 		modelCatalog,
 	);
-	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading: isModelDataPending,
-		hasModelOptions,
-		hasConfiguredModels,
-		hasUserFixableModelProviders,
-	});
 	const isSubmissionPending =
 		isSendPending ||
 		isEditPending ||
@@ -540,13 +506,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		editing.handleEditUserMessage(...args);
 	};
 
-	const chatTitle = chatQuery.data?.title;
-
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
-
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
 	const chatReadyFiredRef = useRef<string | null>(null);
@@ -638,7 +597,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 	return (
 		<>
 			<title>
-				{chatTitle ? pageTitle(chatTitle, "Agents") : pageTitle("Agents")}
+				{chat?.title ? pageTitle(chat.title, "Agents") : pageTitle("Agents")}
 			</title>
 			{chatQuery.isLoading || chatMessagesQuery.isLoading ? (
 				<AgentChatPageLoadingView
@@ -692,11 +651,9 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
-					models={modelCatalog?.models}
+					modelCatalog={modelCatalog}
 					modelSelectorPlaceholder={modelSelectorPlaceholder}
-					modelSelectorHelp={modelSelectorHelp}
 					modelCatalogError={modelsQuery.error}
-					unavailableModelNotice={unavailableModelNotice}
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
@@ -717,9 +674,7 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					isWorkspaceLoading={isUpdateChatWorkspacePending}
 					showSidebarPanel={showSidebarPanel}
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
-					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -730,7 +685,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={chatMessagesQuery.isFetchNextPageError}
 					onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-					desktopChatId={desktopEnabled ? agentId : undefined}
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
