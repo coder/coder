@@ -3,13 +3,16 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -202,6 +205,9 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 	case err == nil:
 		logger.Info(ctx, "chat automation schedule occurrence accepted",
 			slog.F("chat_id", result.ChatID), slog.F("input_id", result.InputID))
+		if row.TargetMode == database.ChatAutomationTargetModeNewChat {
+			p.auditAutomationCreatedChat(ctx, logger, row, result)
+		}
 	case errors.Is(err, ErrAutomationChatBusy),
 		errors.Is(err, ErrAutomationQueueShareFull),
 		errors.Is(err, chatstate.ErrMessageQueueFull),
@@ -222,4 +228,41 @@ func (p *Server) runAutomationOccurrence(ctx context.Context, row database.ChatA
 			logger.Warn(ctx, "publish chat automation schedule occurrence", slog.Error(err))
 		}
 	}
+}
+
+// auditAutomationCreatedChat records the chat that a new_chat schedule
+// automation created, as chat creation through the chat API and webhook
+// deliveries do. The entry names the automation owner, whose authority
+// created the chat, and carries the automation and input ids.
+func (p *Server) auditAutomationCreatedChat(ctx context.Context, logger slog.Logger, automation database.ChatAutomation, result PublishAutomationResult) {
+	if p.chatWorker == nil || p.chatWorker.opts.Auditor == nil {
+		return
+	}
+	auditor := p.chatWorker.opts.Auditor.Load()
+	if auditor == nil {
+		return
+	}
+	//nolint:gocritic // The scheduler has no user identity; the entry needs the chat the owner's automation created.
+	chat, err := p.db.GetChatByID(dbauthz.AsChatd(ctx), result.ChatID)
+	if err != nil {
+		logger.Warn(ctx, "load chat created by automation for audit", slog.F("chat_id", result.ChatID), slog.Error(err))
+		return
+	}
+	fields, err := json.Marshal(map[string]string{
+		"automation_id": automation.ID.String(),
+		"input_id":      result.InputID.String(),
+	})
+	if err != nil {
+		fields = nil
+	}
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Chat]{
+		Audit:            *auditor,
+		Log:              logger,
+		UserID:           automation.OwnerID,
+		OrganizationID:   automation.OrganizationID,
+		Action:           database.AuditActionCreate,
+		New:              chat,
+		Status:           http.StatusAccepted,
+		AdditionalFields: fields,
+	})
 }

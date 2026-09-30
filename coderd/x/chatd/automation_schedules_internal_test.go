@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -56,6 +57,7 @@ type scheduleFixture struct {
 	sqlDB      *sql.DB
 	clock      *quartz.Mock
 	experiment *automationsExperimentStore
+	auditor    *audit.MockAuditor
 	owner      database.User
 	org        database.Organization
 	model      database.ChatModelConfig
@@ -92,6 +94,7 @@ func newScheduleFixture(t *testing.T, status database.ChatStatus, start time.Tim
 	return &scheduleFixture{
 		db: db, ps: ps, sqlDB: sqlDB, clock: clock,
 		experiment: &automationsExperimentStore{t: t},
+		auditor:    audit.NewMock(),
 		owner:      owner, org: org, model: model, chat: chat,
 	}
 }
@@ -103,6 +106,9 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 	evaluator, err := experiments.New(logger, f.experiment, codersdk.ExperimentsKnown)
 	require.NoError(t, err)
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	var auditor atomic.Pointer[audit.Auditor]
+	var a audit.Auditor = f.auditor
+	auditor.Store(&a)
 	server, err := New(f.ps, Config{
 		Logger: logger,
 		// The server authorizes like coderd does, so the scan's reads and
@@ -114,6 +120,7 @@ func (f *scheduleFixture) newServer(t *testing.T, limits Limits) *Server {
 		Experiments:                codersdk.ExperimentsKnown,
 		ExperimentEvaluator:        evaluator,
 		Authorizer:                 authorizer,
+		Auditor:                    &auditor,
 		Limits:                     limits,
 	})
 	require.NoError(t, err)
@@ -306,6 +313,14 @@ func TestAutomationScheduleScan(t *testing.T) {
 					require.Len(t, chats, 1, "the refused instance's chat is rolled back")
 					// 10:01 UTC is 19:01 in Tokyo.
 					require.Equal(t, "Standup 2026-06-01 19:01 JST", chats[0].Title)
+					// Like a chat created through the chat API, the chat is
+					// audited once, as created by the owner.
+					logs := f.auditor.AuditLogs()
+					require.Len(t, logs, 1)
+					require.Equal(t, database.AuditActionCreate, logs[0].Action)
+					require.Equal(t, database.ResourceTypeChat, logs[0].ResourceType)
+					require.Equal(t, chats[0].ID, logs[0].ResourceID)
+					require.Equal(t, f.owner.ID, logs[0].UserID)
 				}
 				require.Equal(t, scheduleStart.Add(90*time.Second), f.cursor(ctx, t, automation.ID))
 			})

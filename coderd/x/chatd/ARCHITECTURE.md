@@ -1100,7 +1100,7 @@ Under the locks (the chat row first, then the automation), the callback requires
 
 When the publish is refused because the chat is busy and When busy is `skip`, because the queue or the automations' share of it is full, because a lifecycle hook denied the prompt, because the owner may no longer write the chat or create chats, because the experiment is off for the owner, or because the occurrence expired while the publish waited for a lock, the scan skips the occurrence: it moves the cursor to the first cron time after a fresh clock read, with the same conditional write. A stale, disabled, or deleted automation is left alone. Any other error leaves the cursor in place, so the next scan retries while the occurrence is within the grace window and treats it as missed after that. No occurrence is published before its cursor.
 
-A chat that a `new_chat` schedule automation creates is titled with the automation name followed by the acceptance time in the schedule's time zone (`2006-01-02 15:04 MST`).
+A chat that a `new_chat` schedule automation creates is titled with the automation name followed by the acceptance time in the schedule's time zone (`2006-01-02 15:04 MST`). The scan records an audit entry for each such chat, as created by the automation owner, with the automation and input ids in the additional fields, as the webhook endpoint does for the chats it creates.
 
 ## Manual compaction
 
