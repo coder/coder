@@ -27,13 +27,13 @@ const HEAT_LABELS: Record<ChatHeat["label"], string> = {
 
 const EXPIRY_CHECK_INTERVAL_MS = 15_000;
 
-// Blends secondary to warning over the first half of the heat range and
+// Blends success to warning over the first half of the heat range and
 // warning to destructive over the second half.
 const heatColor = (heat: number): string => {
 	const clamped = Math.min(Math.max(heat, 0), 1);
 	if (clamped <= 0.5) {
 		const stop = Math.round((clamped / 0.5) * 100);
-		return `color-mix(in oklab, var(--color-content-secondary), var(--color-content-warning) ${stop}%)`;
+		return `color-mix(in oklab, var(--color-content-success), var(--color-content-warning) ${stop}%)`;
 	}
 	const stop = Math.round(((clamped - 0.5) / 0.5) * 100);
 	return `color-mix(in oklab, var(--color-content-warning), var(--color-content-destructive) ${stop}%)`;
@@ -98,9 +98,9 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 			{isCacheExpired && (
 				<span
 					aria-hidden="true"
-					className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-solid border-border-default bg-surface-primary text-content-primary"
+					className="absolute bottom-0 right-0 flex size-3 items-center justify-center rounded-full border border-solid border-border bg-surface-primary text-content-primary"
 				>
-					<ClockIcon className="size-2.5" strokeWidth={2.5} />
+					<ClockIcon className="size-2" strokeWidth={3} />
 				</span>
 			)}
 		</button>
@@ -113,7 +113,7 @@ export const ChatHeatIndicator: React.FC<ChatHeatIndicatorProps> = ({
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 				<PopoverContent
 					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
+					className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-auto max-w-72 px-3 py-2"
 				>
 					{panelContent}
 				</PopoverContent>
