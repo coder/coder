@@ -39,6 +39,7 @@ describe("ChatProjectDialog", () => {
 			"  My project  ",
 		);
 		await user.tab();
+		await user.tab();
 		await user.keyboard("{Enter}");
 		await user.type(
 			screen.getByRole("combobox"),

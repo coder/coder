@@ -168,6 +168,21 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 					maxLength={nameMaxLength}
 					autoFocus
 				/>
+				<FormField
+					field={descriptionField}
+					label="Description"
+					control={(props) => (
+						<Textarea
+							{...props}
+							name={descriptionField.name}
+							value={descriptionField.value}
+							onChange={descriptionField.onChange}
+							onBlur={descriptionField.onBlur}
+							disabled={isSubmitting}
+							maxLength={descriptionMaxLength}
+						/>
+					)}
+				/>
 				{!project && (
 					<FormField
 						field={organizationField}
@@ -199,21 +214,6 @@ const ChatProjectForm: React.FC<ChatProjectFormProps> = ({
 						)}
 					/>
 				)}
-				<FormField
-					field={descriptionField}
-					label="Description"
-					control={(props) => (
-						<Textarea
-							{...props}
-							name={descriptionField.name}
-							value={descriptionField.value}
-							onChange={descriptionField.onChange}
-							onBlur={descriptionField.onBlur}
-							disabled={isSubmitting}
-							maxLength={descriptionMaxLength}
-						/>
-					)}
-				/>
 				<IconField
 					{...iconField}
 					disabled={isSubmitting}
