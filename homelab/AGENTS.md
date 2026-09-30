@@ -5,26 +5,34 @@ install. Read this file first, then inspect live state before changing
 anything. Canonical procedures live in `.agents/skills/coder-homelab/SKILL.md`;
 upstream first-time setup lives in `.agents/skills/coder-setup/SKILL.md`.
 
-## Deployment (verified live 2026-09-24)
+## Deployment (verified live 2026-09-30)
 
 - **Control plane:** Docker container `coder` on **lnx**
   (`100.81.88.113`, MagicDNS `lnx.hippo-tilapia.ts.net`).
-  Image `coder-keep:pre-url-fix-20260923`, restart policy `unless-stopped`.
+  Image `coder-keep:pr15-pr16-batch`, restart policy `unless-stopped`.
 - **Access URL:** `http://lnx.hippo-tilapia.ts.net:7080` (tailnet-only, no
   public ingress). `CODER_HTTP_ADDRESS=0.0.0.0:7080`.
-- **Version:** `v2.37.1-devel+70321bfd78` — a development build. There is no
+- **Version:** `v2.37.1-devel+337f49d6cd` — a development build. There is no
   downloadable CLI for it (`/bin/coder-darwin-arm64` 404s); closest clients
   are brew stable (2.36.6) and coder/coder tap (2.37.3). Version-mismatch
   warnings are expected, not failures. Do not hand-copy binaries to chase an
-  exact match.
+  exact match. Exception: the Linux agent binary IS hand-seeded from the
+  running build (`docker cp coder:/opt/coder` into
+  `/home/coder/.cache/coder/site/orig/bin/coder-linux-amd64`); without it
+  `/bin/coder-linux-amd64` 404s and no workspace agent can start. Re-seed
+  after every recreate (verified 2026-09-30: HEAD 200, ELF x86-64).
 - **Mounts:** `/var/lib/coder:/var/lib/coder`, `/var/run/docker.sock`
   (workspaces are sibling Docker containers on lnx).
-- **Database:** built-in PostgreSQL. No automated backup exists (no crontab
-  on lnx as of 2026-09-24) — treat the container as non-deletable and record
-  any backup procedure here once one exists. See open questions below.
+- **Database:** built-in PostgreSQL, data at
+  `/home/coder/.config/coderv2/postgres` inside the container (host
+  `/var/lib/coder` bind is empty). No automated backup exists (no crontab
+  on lnx as of 2026-09-30) — treat the container as non-deletable;
+  snapshot with `docker commit coder coder-keep:<reason>-YYYYMMDD`
+  before touching the deployment (taken 2026-09-30:
+  `coder-keep:pre-bin-fix-20260930`). See open questions below.
 - **Provisioning:** built-in provisioner daemons (`scope=organization`,
   key `built-in`); no separate provisionerd on this single host.
-- **CLI auth (this machine):** `coder` CLI is logged in as `trillium-admin`.
+- **CLI auth (this machine):** `coder` CLI is logged in as `admin`.
   Read-only commands (`templates list`, `list`, `show <workspace>`,
   `templates pull`) work now; anything mutating needs the task brief.
 
