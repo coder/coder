@@ -1166,6 +1166,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 		InitialStatus:   database.ChatStatusRunning,
 	})
 	if err != nil {
+		if errors.Is(err, chatstate.ErrChatFamilyArchived) {
+			return database.Chat{}, xerrors.Errorf("cannot create a child agent because the parent chat is archived: %w", err)
+		}
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
