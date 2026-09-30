@@ -440,7 +440,7 @@ func TestExecuteTool(t *testing.T) {
 		mockConn.EXPECT().
 			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
 			DoAndReturn(func(ctx context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
-				if executeTimeout == 10*time.Minute && opts != nil && opts.TimeoutFromExecute {
+				if executeTimeout == 10*time.Minute && opts != nil && opts.TimeoutFromStartProcess {
 					return workspacesdk.ProcessOutputResponse{Running: true, TimedOut: true, Output: "partial output"}, nil
 				}
 				<-ctx.Done()

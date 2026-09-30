@@ -295,8 +295,8 @@ func waitForProcess(
 	// Block until the process exits or the context is
 	// canceled.
 	resp, err := conn.ProcessOutput(ctx, processID, &workspacesdk.ProcessOutputOptions{
-		Wait:               true,
-		TimeoutFromExecute: true,
+		Wait:                    true,
+		TimeoutFromStartProcess: true,
 	})
 	if err != nil {
 		origErr := err
