@@ -1067,7 +1067,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.NoError(t, err)
 		counted := func(status string) bool {
 			return testutil.PromCounterAssertion(t, metrics, func(v float64) bool { return v >= 1 },
-				"coder_workspaceapps_offline_total", "path", status)
+				"coder_workspaceapps_agent_offline_total", "path", status)
 		}
 		require.True(t, counted("connecting") || counted("disconnected"), "offline page was not counted")
 	})

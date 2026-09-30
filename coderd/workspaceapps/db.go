@@ -49,10 +49,11 @@ type DBTokenProvider struct {
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
 
-	// appOfflineTotal counts how often the offline page was served, by agent
-	// status and access method. Browser tabs left open on stopped workspaces
-	// produce a steady baseline, so a change in rate matters more than the
-	// absolute value.
+	// appOfflineTotal counts requests that got the agent offline page. Unlike
+	// coderd_agents_connections, which samples agent status once a minute, it
+	// records every failed request, so it can alert on the offline page now
+	// that the page is a 404 and not a 502. Open tabs on workspaces with a
+	// disconnected agent produce a steady baseline, so alert on rate changes.
 	appOfflineTotal *prometheus.CounterVec
 }
 
@@ -81,8 +82,8 @@ func NewDBTokenProvider(ctx context.Context,
 	appOfflineTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coder",
 		Subsystem: "workspaceapps",
-		Name:      "offline_total",
-		Help:      "Number of workspace app requests answered with the offline page because the agent was not connected.",
+		Name:      "agent_offline_total",
+		Help:      "Number of workspace app requests that got the offline page because the agent was not connected.",
 	}, []string{"status", "access_method"})
 	reg.MustRegister(appOfflineTotal)
 

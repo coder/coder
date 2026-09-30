@@ -229,9 +229,9 @@ coder_servertailnet_derp_reconnects_total 0
 # HELP coder_servertailnet_open_connections Total number of TCP connections currently open to workspace agents.
 # TYPE coder_servertailnet_open_connections gauge
 coder_servertailnet_open_connections{network=""} 0
-# HELP coder_workspaceapps_offline_total Number of workspace app requests answered with the offline page because the agent was not connected.
-# TYPE coder_workspaceapps_offline_total counter
-coder_workspaceapps_offline_total{status="",access_method=""} 0
+# HELP coder_workspaceapps_agent_offline_total Number of workspace app requests that got the offline page because the agent was not connected.
+# TYPE coder_workspaceapps_agent_offline_total counter
+coder_workspaceapps_agent_offline_total{status="",access_method=""} 0
 # HELP coderd_agentapi_metadata_batch_size Total number of metadata entries in each batch, updated before flushes.
 # TYPE coderd_agentapi_metadata_batch_size histogram
 coderd_agentapi_metadata_batch_size 0
