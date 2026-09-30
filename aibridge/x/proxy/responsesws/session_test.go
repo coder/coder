@@ -799,6 +799,9 @@ func TestSendFailureClassification(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.event, gjson.GetBytes(ev, "error.code").String())
 			}
+			// When upstream ends, Send can return ErrClosed before the
+			// reader records the session's end. Close waits for the reader.
+			_ = c.h.sess.Close(nil)
 			ics := c.h.rec.RecordedInterceptions()
 			if tc.ended == nil {
 				require.Empty(t, ics)
