@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -81,7 +81,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const [webhookSecret, setWebhookSecret] = useState<{
 		automationId: string;
 		secret: string;
+		returnFocusTo: HTMLElement | null;
 	}>();
+	const editorOpenerRef = useRef<HTMLElement | null>(null);
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -113,6 +115,10 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		createMutation.reset();
 		editMutation.reset();
 		rotateMutation.reset();
+		editorOpenerRef.current =
+			document.activeElement instanceof HTMLElement
+				? document.activeElement
+				: null;
 		setEditor(next);
 	};
 
@@ -127,6 +133,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 					setWebhookSecret({
 						automationId: automation.id,
 						secret: webhook_secret,
+						returnFocusTo: editorOpenerRef.current,
 					});
 				}
 				createMutation.reset();
@@ -134,12 +141,20 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		});
 	};
 
-	const handleRotateSecret = (automation: ChatAutomation) => {
+	// Each save or rotate replaces the other's error so alerts do not stack.
+	const handleRotateSecret = (
+		automation: ChatAutomation,
+		rotateButton: HTMLButtonElement | null,
+	) => {
+		if (editMutation.isError) {
+			editMutation.reset();
+		}
 		rotateMutation.mutate(automation.id, {
 			onSuccess: ({ webhook_secret }) => {
 				setWebhookSecret({
 					automationId: automation.id,
 					secret: webhook_secret,
+					returnFocusTo: rotateButton,
 				});
 				rotateMutation.reset();
 			},
@@ -150,6 +165,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		automation: ChatAutomation,
 		req: UpdateChatAutomationRequest,
 	) => {
+		if (rotateMutation.isError) {
+			rotateMutation.reset();
+		}
 		editMutation.mutate(
 			{ automationId: automation.id, req },
 			{
@@ -257,9 +275,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 						}}
 						rotateSecretError={rotateMutation.error}
 						isRotatingSecret={rotateMutation.isPending}
-						onRotateSecret={() => {
+						onRotateSecret={(rotateButton) => {
 							if (editor.mode === "edit") {
-								handleRotateSecret(editor.automation);
+								handleRotateSecret(editor.automation, rotateButton);
 							}
 						}}
 						onClose={() => setEditor(undefined)}
@@ -274,6 +292,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 							webhookSecret.automationId,
 						)}
 						secret={webhookSecret.secret}
+						returnFocusTo={webhookSecret.returnFocusTo}
 						onClose={() => setWebhookSecret(undefined)}
 					/>
 				)

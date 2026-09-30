@@ -165,7 +165,8 @@ type AutomationEditorDialogProps = {
 	isRotatingSecret: boolean;
 	onCreate: (req: CreateChatAutomationRequest) => void;
 	onUpdate: (req: UpdateChatAutomationRequest) => void;
-	onRotateSecret: () => void;
+	/** Receives the Rotate secret button so focus can return to it later. */
+	onRotateSecret: (rotateButton: HTMLButtonElement | null) => void;
 	onClose: () => void;
 };
 
@@ -192,6 +193,8 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const singleUseId = useId();
 	const rotateButtonRef = useRef<HTMLButtonElement>(null);
 	const [confirmingRotate, setConfirmingRotate] = useState(false);
+	// A user-picked When busy value survives trigger changes.
+	const [whenBusyChosen, setWhenBusyChosen] = useState(false);
 	// Radix returns focus to a DialogTrigger on close; this dialog has none.
 	const [opener] = useState(() =>
 		document.activeElement instanceof HTMLElement
@@ -209,6 +212,9 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const initialValues = initialFormValues(automation);
 	const form = useFormik<AutomationFormValues>({
 		initialValues,
+		// A blur error would shift the fields below it between pointerdown and
+		// pointerup, so the click on a radio below would not register.
+		validateOnBlur: false,
 		validationSchema: Yup.object({
 			name: Yup.string()
 				.trim()
@@ -258,7 +264,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const modelField = getFieldHelpers("new_chat_model_config_id");
 	const isSchedule = form.values.kind === "schedule";
 	const handleKindChange = (kind: ChatAutomationKind) => {
-		if (form.values.when_busy === defaultWhenBusy(form.values.kind)) {
+		if (!whenBusyChosen) {
 			form.setFieldValue("when_busy", defaultWhenBusy(kind));
 		}
 		form.setFieldValue("kind", kind);
@@ -340,19 +346,6 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 											</span>
 										))}
 									</AlertDescription>
-								)}
-							</Alert>
-						)}
-						{Boolean(rotateSecretError) && (
-							<Alert severity="error" prominent>
-								<AlertTitle>
-									{getErrorMessage(
-										rotateSecretError,
-										"Could not rotate the webhook secret.",
-									)}
-								</AlertTitle>
-								{rotateApiError?.detail && (
-									<AlertDescription>{rotateApiError.detail}</AlertDescription>
 								)}
 							</Alert>
 						)}
@@ -479,20 +472,43 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										<CodeExample
 											secret={false}
 											code={webhookEventsUrl(origin, automation.id)}
+											copyLabel="Copy endpoint"
 										/>
 									</div>
-									<Button
-										ref={rotateButtonRef}
-										type="button"
-										variant="outline"
-										size="sm"
-										className="w-fit"
-										disabled={isRotatingSecret}
-										onClick={() => setConfirmingRotate(true)}
-									>
-										<Spinner loading={isRotatingSecret} />
-										Rotate secret
-									</Button>
+									{/* Next to the button so it stays in view in a scrolled form. */}
+									{Boolean(rotateSecretError) && (
+										<Alert severity="error" prominent>
+											<AlertTitle>
+												{getErrorMessage(
+													rotateSecretError,
+													"Could not rotate the webhook secret.",
+												)}
+											</AlertTitle>
+											{rotateApiError?.detail && (
+												<AlertDescription>
+													{rotateApiError.detail}
+												</AlertDescription>
+											)}
+										</Alert>
+									)}
+									{/* A consumed single-use webhook rejects every event, so a new secret would be useless. */}
+									{!(
+										automation.webhook_use === "single" &&
+										automation.webhook_consumed_at
+									) && (
+										<Button
+											ref={rotateButtonRef}
+											type="button"
+											variant="outline"
+											size="sm"
+											className="w-fit"
+											disabled={isRotatingSecret}
+											onClick={() => setConfirmingRotate(true)}
+										>
+											<Spinner loading={isRotatingSecret} />
+											Rotate secret
+										</Button>
+									)}
 								</>
 							)}
 						</section>
@@ -553,6 +569,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 										label="When busy"
 										onValueChange={(value) => {
 											if (value === "skip" || value === "queue") {
+												setWhenBusyChosen(true);
 												form.setFieldValue("when_busy", value);
 											}
 										}}
@@ -621,7 +638,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					onClose={() => setConfirmingRotate(false)}
 					onConfirm={() => {
 						setConfirmingRotate(false);
-						onRotateSecret();
+						onRotateSecret(rotateButtonRef.current);
 					}}
 					onCloseAutoFocus={(event) => {
 						event.preventDefault();

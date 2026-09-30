@@ -675,10 +675,25 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(secretDialog).toHaveTextContent(
 			`/api/experimental/chat-automations/${mockWebhookAutomation.id}/events`,
 		);
+		expect(
+			within(secretDialog).getByRole("button", { name: "Done" }),
+		).toHaveFocus();
+		// A stray click on the overlay must not lose the secret.
+		const overlay = secretDialog.previousElementSibling;
+		if (!(overlay instanceof HTMLElement)) {
+			throw new Error("The secret dialog has no overlay.");
+		}
+		await user.click(overlay);
+		expect(secretDialog).toBeInTheDocument();
 		await user.click(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		);
 		await expectSecretGone(queryClient);
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "New automation" }),
+			).toHaveFocus();
+		});
 	});
 
 	it("sends a schedule body after switching the trigger to webhook and back", async () => {
@@ -703,6 +718,29 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 					target_chat_id: MockChat.id,
 					when_busy: "skip",
 				},
+			]);
+		});
+	});
+
+	it("keeps a picked When busy value across trigger changes", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(
+			within(dialog).getByRole("combobox", { name: "When busy" }),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: "Queue the prompt" }),
+		);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		await user.click(within(dialog).getByRole("radio", { name: "Schedule" }));
+		await pickChat(user, dialog, MockChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([
+				expect.objectContaining({ kind: "schedule", when_busy: "queue" }),
 			]);
 		});
 	});
@@ -738,6 +776,11 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		);
 		await expectSecretGone(queryClient);
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Rotate secret" }),
+			).toHaveFocus();
+		});
 	});
 
 	it("shows the server message when rotating the secret is forbidden", async () => {
