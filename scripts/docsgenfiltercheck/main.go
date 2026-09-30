@@ -154,8 +154,8 @@ func parseFilters(workflow []byte) (map[string][]string, error) {
 
 // check returns one problem per generated file that matches the docs filter
 // but not docs-gen, and per docs-gen pattern that matches no tracked file.
-// Tracked Markdown files that match docs count as generated when read returns
-// content with the generated-content banner (see bodyOpensWithContentBanner).
+// Tracked Markdown files that match docs count as generated when their body
+// opens with the generated-content banner (see bodyOpensWithContentBanner).
 func check(filters map[string][]string, generated, tracked []string, read func(string) ([]byte, error)) ([]string, error) {
 	docs, err := compileFilter(filters, "docs")
 	if err != nil {

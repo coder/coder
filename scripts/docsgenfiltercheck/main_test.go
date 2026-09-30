@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/scripts/docgenenv"
 )
 
-func TestHasGeneratedBanner(t *testing.T) {
+func TestBodyOpensWithContentBanner(t *testing.T) {
 	t.Parallel()
 
 	banner := docgenenv.GeneratedContentBanner
@@ -35,16 +35,16 @@ func TestHasGeneratedBanner(t *testing.T) {
 		})
 	}
 
-	// Committed generator output, so a layout change in the CLI template,
-	// which builds its preamble inline, fails here after make gen.
+	// Committed output of the CLI template, which builds its preamble inline,
+	// and of the REST API postprocess index write, so a layout change in
+	// either fails here after make gen.
 	for _, page := range []string{
 		"../../docs/reference/cli/index.md",
 		"../../docs/reference/api/index.md",
-		"../../docs/admin/setup/configuration-reference.md",
 	} {
 		b, err := os.ReadFile(page)
 		require.NoError(t, err)
-		require.True(t, bodyOpensWithContentBanner(b), page)
+		require.True(t, bodyOpensWithContentBanner(b), "%s: the body does not open with docgenenv.GeneratedContentBanner, so lint/docs-gen-filter stops treating this generator's pages as generated; restore the layout or update bodyOpensWithContentBanner", page)
 	}
 }
 
