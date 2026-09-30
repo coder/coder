@@ -31,7 +31,10 @@ const mockAutomation: ChatAutomation = {
 const automationsPath = (organizationId: string) =>
 	`/api/experimental/organizations/${organizationId}/chat-automations`;
 
-const setup = ({ experiments = ["chat-automations"] } = {}) => {
+const setup = ({
+	experiments = ["chat-automations"],
+	automations = [mockAutomation],
+} = {}) => {
 	const requests: Request[] = [];
 	server.use(
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
@@ -51,7 +54,7 @@ const setup = ({ experiments = ["chat-automations"] } = {}) => {
 			},
 		),
 		http.get(automationsPath(":organizationId"), () =>
-			HttpResponse.json([mockAutomation]),
+			HttpResponse.json(automations),
 		),
 	);
 	renderWithAuth(<AgentAutomationsPage />);
@@ -248,11 +251,11 @@ const validationError = (field: string, detail: string) =>
 		{ status: 400 },
 	);
 
-const setupEditor = () => {
+const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	const previewBodies: unknown[] = [];
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
-	const requests = setup();
+	const requests = setup(options);
 	server.use(
 		http.get("/api/v2/chats", ({ request }) => {
 			requests.push(request);
@@ -439,6 +442,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(
 			within(dialog).getByRole("button", { name: "Chat" }),
 		).toHaveAccessibleDescription("Choose a chat.");
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		expect(
+			await within(dialog).findByRole("combobox", { name: /^Model/ }),
+		).toHaveAccessibleDescription("Choose a model.");
 		expect(createBodies).toEqual([]);
 	});
 
@@ -558,6 +568,94 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 				name: "Model, No Models Configured",
 			}),
 		).toBeDisabled();
+	});
+
+	it("shows upcoming runs in UTC when the browser does not know the zone", async () => {
+		const user = userEvent.setup();
+		setupEditor({
+			automations: [{ ...mockAutomation, schedule_time_zone: "Mars/Olympus" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("region", { name: "Upcoming runs" }),
+			).toHaveTextContent(/9:30 AM UTC/);
+		});
+	});
+
+	it("keeps the editor open while a save is pending", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		let releaseSave = () => {};
+		server.use(
+			http.post(automationsPath(":organizationId"), async () => {
+				await new Promise<void>((resolve) => {
+					releaseSave = resolve;
+				});
+				return HttpResponse.json(
+					{ automation: mockAutomation },
+					{ status: 201 },
+				);
+			}),
+		);
+		const dialog = await openCreateDialog(user);
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Cancel" }),
+			).toBeDisabled();
+		});
+		expect(within(dialog).getByLabelText(/^Name/)).toBeDisabled();
+		await user.keyboard("{Escape}");
+		expect(screen.getByRole("dialog")).toBe(dialog);
+		releaseSave();
+	});
+
+	it("keeps the reasoning effort when the same model is picked again", async () => {
+		const user = userEvent.setup();
+		const { updateBodies } = setupEditor({
+			automations: [
+				{
+					...mockAutomation,
+					target_mode: "new_chat",
+					target_chat_id: undefined,
+					new_chat_model_config_id: mockModel.id,
+					reasoning_effort: "low",
+				},
+			],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		await user.click(
+			await within(dialog).findByRole("combobox", {
+				name: `Model, ${mockModel.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: new RegExp(mockModel.display_name),
+			}),
+		);
+		await user.keyboard("{Escape}");
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).toBeNull();
+		});
+		expect(updateBodies).toEqual([]);
 	});
 
 	it("sends only the changed fields when editing", async () => {

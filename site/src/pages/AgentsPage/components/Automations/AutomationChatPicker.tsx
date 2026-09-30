@@ -116,7 +116,7 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 							Could not load chats.
 						</p>
 					)}
-					{!searchQuery.isLoading && !searchQuery.isError && (
+					{!searchQuery.isFetching && !searchQuery.isError && (
 						<ComboboxEmpty>No chats found.</ComboboxEmpty>
 					)}
 					{chats.map((c) => (
