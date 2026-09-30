@@ -14,14 +14,14 @@ type AutomationWebhookSecretDialogProps = {
 	endpoint: string;
 	secret: string;
 	/** The dialog has no trigger, so Radix cannot restore focus on its own. */
-	returnFocusTo: HTMLElement | null;
+	returnFocusRef: React.RefObject<HTMLElement | null>;
 	onClose: () => void;
 };
 
 /** Shows a new webhook secret once. */
 export const AutomationWebhookSecretDialog: React.FC<
 	AutomationWebhookSecretDialogProps
-> = ({ endpoint, secret, returnFocusTo, onClose }) => {
+> = ({ endpoint, secret, returnFocusRef, onClose }) => {
 	const doneButtonRef = useRef<HTMLButtonElement>(null);
 
 	return (
@@ -42,6 +42,7 @@ export const AutomationWebhookSecretDialog: React.FC<
 					doneButtonRef.current?.focus();
 				}}
 				onCloseAutoFocus={(event) => {
+					const returnFocusTo = returnFocusRef.current;
 					if (returnFocusTo?.isConnected) {
 						event.preventDefault();
 						returnFocusTo.focus();

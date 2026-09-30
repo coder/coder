@@ -46,6 +46,12 @@ import { RadioOption } from "./RadioOption";
 
 const NAME_MAX_LENGTH = 128;
 
+const KIND_FIELDS: readonly string[] = [
+	"schedule_cron",
+	"schedule_time_zone",
+	"webhook_use",
+];
+
 const TARGET_FIELDS: readonly string[] = [
 	"target_chat_id",
 	"when_busy",
@@ -265,15 +271,17 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 			onUpdate(req);
 		},
 	});
-	// Server errors on target fields go stale once the target mode changes.
-	const isStaleTargetField = (field: string) =>
+	// Server errors on kind or target fields go stale once that choice changes.
+	const isStaleField = (field: string) =>
 		submittedValues !== undefined &&
-		submittedValues.target_mode !== form.values.target_mode &&
-		TARGET_FIELDS.includes(field);
+		((submittedValues.kind !== form.values.kind &&
+			KIND_FIELDS.includes(field)) ||
+			(submittedValues.target_mode !== form.values.target_mode &&
+				TARGET_FIELDS.includes(field)));
 	const getFieldHelpers = (name: keyof AutomationFormValues) =>
 		getFormHelpers(
 			form,
-			submittedValues?.[name] === form.values[name] && !isStaleTargetField(name)
+			submittedValues?.[name] === form.values[name] && !isStaleField(name)
 				? error
 				: undefined,
 		)(name);
@@ -296,7 +304,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 	const alertValidations = (apiError?.validations ?? []).filter(
 		(validation) =>
 			!renderedFields.includes(validation.field) &&
-			!isStaleTargetField(validation.field),
+			!isStaleField(validation.field),
 	);
 	const isPending = isSubmitting || isRotatingSecret;
 	const showAlert =
@@ -341,7 +349,7 @@ export const AutomationEditorDialog: React.FC<AutomationEditorDialogProps> = ({
 					{/* Radix Select triggers open on pointerdown, which browsers still
 					    dispatch to fieldset-disabled buttons. */}
 					<fieldset
-						disabled={isPending}
+						disabled={isSubmitting}
 						className="m-0 flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto border-0 px-6 py-4 [&_button:disabled]:pointer-events-none"
 					>
 						{automation && automation.owner_id !== currentUserId && (

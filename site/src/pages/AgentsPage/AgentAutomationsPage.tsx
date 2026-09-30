@@ -78,10 +78,9 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const [webhookSecret, setWebhookSecret] = useState<{
 		automationId: string;
 		secret: string;
-		returnFocusTo: HTMLElement | null;
 	}>();
-	const editorOpenerRef = useRef<HTMLElement | null>(null);
-	const rotateButtonRef = useRef<HTMLButtonElement | null>(null);
+	// The editor's opener, or the Rotate secret button during a rotation.
+	const secretReturnFocusRef = useRef<HTMLElement | null>(null);
 
 	const automationsQuery = useQuery({
 		...chatAutomations(organizationId),
@@ -102,41 +101,30 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 	const editMutation = useMutation(
 		updateChatAutomation(queryClient, organizationId),
 	);
-	// On the mutation, not mutate(): a reset mid-flight would drop a per-call
-	// onSuccess and lose the secret.
 	const createMutation = useMutation({
-		...createChatAutomation(queryClient, organizationId),
-		onSuccess: ({ automation, webhook_secret }) => {
+		...createChatAutomation(
+			queryClient,
+			organizationId,
+			(automationId, secret) => setWebhookSecret({ automationId, secret }),
+		),
+		onSuccess: ({ automation }) => {
 			toast.success(`Created ${automation.name}.`);
 			setEditor(undefined);
-			if (webhook_secret) {
-				setWebhookSecret({
-					automationId: automation.id,
-					secret: webhook_secret,
-					returnFocusTo: editorOpenerRef.current,
-				});
-			}
-			createMutation.reset();
 		},
 	});
-	const rotateMutation = useMutation({
-		...rotateChatAutomationSecret(queryClient, organizationId),
-		onSuccess: ({ webhook_secret }, automationId) => {
-			setWebhookSecret({
-				automationId,
-				secret: webhook_secret,
-				returnFocusTo: rotateButtonRef.current,
-			});
-			// Drops the secret-bearing response from the mutation cache.
-			rotateMutation.reset();
-		},
-	});
+	const rotateMutation = useMutation(
+		rotateChatAutomationSecret(
+			queryClient,
+			organizationId,
+			(automationId, secret) => setWebhookSecret({ automationId, secret }),
+		),
+	);
 
 	const openEditor = (next: EditorState) => {
 		createMutation.reset();
 		editMutation.reset();
 		rotateMutation.reset();
-		editorOpenerRef.current =
+		secretReturnFocusRef.current =
 			document.activeElement instanceof HTMLElement
 				? document.activeElement
 				: null;
@@ -149,7 +137,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 		rotateButton: HTMLButtonElement | null,
 	) => {
 		editMutation.reset();
-		rotateButtonRef.current = rotateButton;
+		secretReturnFocusRef.current = rotateButton;
 		rotateMutation.mutate(automation.id);
 	};
 
@@ -282,7 +270,7 @@ const AutomationsList: React.FC<AutomationsListProps> = ({
 							webhookSecret.automationId,
 						)}
 						secret={webhookSecret.secret}
-						returnFocusTo={webhookSecret.returnFocusTo}
+						returnFocusRef={secretReturnFocusRef}
 						onClose={() => setWebhookSecret(undefined)}
 					/>
 				)

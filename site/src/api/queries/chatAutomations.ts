@@ -33,29 +33,43 @@ export const invalidateChatAutomations = (queryClient: QueryClient) =>
 export const webhookPublishEndpoint = (origin: string, automationId: string) =>
 	`${origin}/api/experimental/chat-automations/${encodeURIComponent(automationId)}/events`;
 
-/** A webhook response carries the secret. */
+type OnWebhookSecret = (automationId: string, secret: string) => void;
+
+/** Hands a new webhook secret to the caller; it never reaches the mutation cache. */
 export const createChatAutomation = (
 	queryClient: QueryClient,
 	organizationId: string,
+	onWebhookSecret: OnWebhookSecret,
 ) => ({
-	mutationFn: (req: CreateChatAutomationRequest) =>
-		API.experimental.createChatAutomation(organizationId, req),
-	// Drops the settled mutation, and the secret in its response, once reset.
-	gcTime: 0,
+	mutationFn: async (req: CreateChatAutomationRequest) => {
+		const { webhook_secret, ...response } =
+			await API.experimental.createChatAutomation(organizationId, req);
+		if (webhook_secret) {
+			onWebhookSecret(response.automation.id, webhook_secret);
+		}
+		return response;
+	},
 	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),
 		}),
 });
 
-/** The response carries the new secret. */
+/** Hands the new secret to the caller; it never reaches the mutation cache. */
 export const rotateChatAutomationSecret = (
 	queryClient: QueryClient,
 	organizationId: string,
+	onWebhookSecret: OnWebhookSecret,
 ) => ({
-	mutationFn: (automationId: string) =>
-		API.experimental.rotateChatAutomationSecret(organizationId, automationId),
-	gcTime: 0,
+	mutationFn: async (automationId: string) => {
+		const { webhook_secret, ...response } =
+			await API.experimental.rotateChatAutomationSecret(
+				organizationId,
+				automationId,
+			);
+		onWebhookSecret(automationId, webhook_secret);
+		return response;
+	},
 	onSettled: () =>
 		queryClient.invalidateQueries({
 			queryKey: chatAutomationsKey(organizationId),

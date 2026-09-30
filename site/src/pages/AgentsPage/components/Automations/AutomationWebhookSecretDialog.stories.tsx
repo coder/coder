@@ -13,7 +13,7 @@ const meta: Meta<typeof AutomationWebhookSecretDialog> = {
 			MockWebhookChatAutomation.id,
 		),
 		secret: "cwhs_4f9a2c7e1b8d6a3f5e0c9b2d7a4e1f8c",
-		returnFocusTo: null,
+		returnFocusRef: { current: null },
 		onClose: fn(),
 	},
 };

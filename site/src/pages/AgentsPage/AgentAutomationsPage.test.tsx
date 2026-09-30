@@ -269,6 +269,11 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
 	const { requests, queryClient } = setup(options);
+	// Every published mutation state, as a cache subscriber like devtools sees it.
+	const mutationStates: string[] = [];
+	queryClient.getMutationCache().subscribe(({ mutation }) => {
+		mutationStates.push(JSON.stringify(mutation?.state));
+	});
 	server.use(
 		http.get("/api/v2/chats", ({ request }) => {
 			requests.push(request);
@@ -307,7 +312,14 @@ const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 			},
 		),
 	);
-	return { requests, queryClient, previewBodies, createBodies, updateBodies };
+	return {
+		requests,
+		queryClient,
+		mutationStates,
+		previewBodies,
+		createBodies,
+		updateBodies,
+	};
 };
 
 const openCreateDialog = async (user: ReturnType<typeof userEvent.setup>) => {
@@ -503,6 +515,8 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(cron).toHaveAccessibleDescription(
 			expect.not.stringContaining("Must be a valid cron expression."),
 		);
+		await user.click(within(dialog).getByRole("radio", { name: "Webhook" }));
+		expect(within(dialog).queryByRole("alert")).toBeNull();
 	});
 
 	it("offers only chats from the automation's organization", async () => {
@@ -793,6 +807,7 @@ const dismissSecret = async (
 	user: ReturnType<typeof userEvent.setup>,
 	secretDialog: HTMLElement,
 	queryClient: QueryClient,
+	mutationStates: readonly string[],
 ) => {
 	expect(secretDialog).toHaveTextContent(webhookSecret);
 	// The modal sets pointer-events: none on the body, but Radix still sees this outside press.
@@ -808,10 +823,7 @@ const dismissSecret = async (
 					.getQueryCache()
 					.getAll()
 					.map((query) => query.state.data),
-				queryClient
-					.getMutationCache()
-					.getAll()
-					.map((mutation) => mutation.state.data),
+				mutationStates,
 			]),
 		).not.toContain(webhookSecret);
 	});
@@ -849,7 +861,7 @@ const confirmRotate = async (
 describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 	it("creates a single-use webhook and shows its secret only once", async () => {
 		const user = userEvent.setup();
-		const { queryClient, createBodies } = setupEditor();
+		const { queryClient, mutationStates, createBodies } = setupEditor();
 		server.use(
 			http.post(automationsPath(":organizationId"), async ({ request }) => {
 				createBodies.push(await request.json());
@@ -883,7 +895,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		expect(
 			within(secretDialog).getByRole("button", { name: "Done" }),
 		).toHaveFocus();
-		await dismissSecret(user, secretDialog, queryClient);
+		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
 				screen.getByRole("button", { name: "New automation" }),
@@ -951,7 +963,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 
 	it("rotates the secret only after confirmation and shows it once", async () => {
 		const user = userEvent.setup();
-		const { queryClient } = setupEditor();
+		const { queryClient, mutationStates } = setupEditor();
 		const rotateRequests: Request[] = [];
 		let releaseRotate = () => {};
 		server.use(
@@ -977,6 +989,10 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		await waitFor(() => {
 			expect(rotateRequests).toHaveLength(1);
 		});
+		// The name includes the spinner's label while rotating.
+		expect(
+			within(dialog).getByRole("button", { name: /Rotate secret/ }),
+		).toHaveFocus();
 		// Closing the editor mid-rotation would lose the new secret.
 		await user.keyboard("{Escape}");
 		releaseRotate();
@@ -984,7 +1000,7 @@ describe("AgentAutomationsPage webhooks", { timeout: 15_000 }, () => {
 		const secretDialog = await screen.findByRole("dialog", {
 			name: "Copy the webhook secret",
 		});
-		await dismissSecret(user, secretDialog, queryClient);
+		await dismissSecret(user, secretDialog, queryClient, mutationStates);
 		await waitFor(() => {
 			expect(
 				within(dialog).getByRole("button", { name: "Rotate secret" }),
