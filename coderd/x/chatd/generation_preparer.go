@@ -528,15 +528,8 @@ func (server *Server) prepareGeneration(
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 	memoryStore, memoryProjectName, hasMemory := server.resolveProjectMemory(ctx, chat)
 	memoryIndex := ""
-	var memoryEntries []chattool.MemoryIndexEntry
 	if hasMemory {
-		entries, memoryErr := memoryStore.List(ctx)
-		if memoryErr != nil {
-			logger.Debug(ctx, "failed to load chat memories", slog.F("chat_id", chat.ID), slog.Error(memoryErr))
-		} else {
-			memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
-			memoryEntries = entries
-		}
+		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
 	}
 
 	prompt = buildSystemPrompt(
@@ -647,7 +640,7 @@ func (server *Server) prepareGeneration(
 	}
 	tools, _ = appendCurrentSkillTools(tools)
 	if hasMemory {
-		tools = append(tools, chattool.ReadMemory(memoryStore, memoryEntries), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
+		tools = append(tools, chattool.ReadMemory(memoryStore), chattool.SaveMemory(memoryStore, memoryProjectName), chattool.DeleteMemory(memoryStore, memoryProjectName), chattool.ConsolidateMemory(memoryStore, memoryProjectName))
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
