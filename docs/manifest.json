@@ -775,7 +775,7 @@
 				{
 					"title": "External authentication",
 					"description": "Configure external authentication so workspaces can access Git providers and other OAuth services.",
-					"path": "./admin/external-auth/index.md",
+					"path": "./admin/external-auth.md",
 					"icon_path": "./images/icons/plug.svg"
 				},
 				{
@@ -1125,7 +1125,7 @@
 						{
 							"title": "Tools",
 							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
-							"path": "./ai-coder/agents/tools/index.md"
+							"path": "./ai-coder/agents/tools.md"
 						},
 						{
 							"title": "Chat sharing",
