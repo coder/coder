@@ -2582,6 +2582,43 @@
 							"title": "`whoami`",
 							"description": "Fetch authenticated user info for Coder deployment",
 							"path": "reference/cli/whoami.md"
+						},
+						{
+							"title": "`workspace-proxy`",
+							"description": "Workspace proxies provide low-latency experiences for geo-distributed teams.",
+							"path": "reference/cli/workspace-proxy/index.md",
+							"children": [
+								{
+									"title": "`create`",
+									"description": "Create a workspace proxy",
+									"path": "reference/cli/workspace-proxy/create.md"
+								},
+								{
+									"title": "`delete`",
+									"description": "Delete a workspace proxy",
+									"path": "reference/cli/workspace-proxy/delete.md"
+								},
+								{
+									"title": "`edit`",
+									"description": "Edit a workspace proxy",
+									"path": "reference/cli/workspace-proxy/edit.md"
+								},
+								{
+									"title": "`ls`",
+									"description": "List all workspace proxies",
+									"path": "reference/cli/workspace-proxy/ls.md"
+								},
+								{
+									"title": "`regenerate-token`",
+									"description": "Regenerate a workspace proxy authentication token. This will invalidate the existing authentication token.",
+									"path": "reference/cli/workspace-proxy/regenerate-token.md"
+								},
+								{
+									"title": "`server`",
+									"description": "Start a workspace proxy server",
+									"path": "reference/cli/workspace-proxy/server.md"
+								}
+							]
 						}
 					]
 				},
