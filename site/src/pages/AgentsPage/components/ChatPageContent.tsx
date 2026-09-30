@@ -328,7 +328,6 @@ type ChatPageInputProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading?: boolean;
 	workspace?: TypesGen.Workspace;
@@ -376,7 +375,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	onWorkspaceChange,
 	isWorkspaceLoading = false,
 	workspace,
@@ -840,7 +838,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
 			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}

@@ -196,10 +196,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		}
 	};
 
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -762,7 +758,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

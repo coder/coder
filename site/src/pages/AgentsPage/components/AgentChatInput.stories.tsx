@@ -660,9 +660,7 @@ const mockSlackMCPAlwaysOnNeedingAuth = buildMCPServer({
 const mcpDefaults = {
 	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
-	onMCPAuthComplete: fn(),
 };
-
 const dispatchMCPOAuthComplete = (
 	serverID: string,
 	source: MessageEventSource | null = null,
@@ -811,7 +809,6 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 				linearMCP.id,
 				githubMCP.id,
 			]);
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
 		});
 	},
 };
@@ -869,9 +866,6 @@ export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
 		await startMCPOAuthFlow(canvasElement);
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
 		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
@@ -885,9 +879,6 @@ export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
 	play: async ({ args }) => {
 		dispatchMCPOAuthComplete(githubMCP.id, window);
 
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
-		});
 		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
@@ -905,9 +896,6 @@ export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
 		await startMCPOAuthFlow(canvasElement);
 		dispatchMCPOAuthComplete(linearMCP.id, window);
 
-		await waitFor(() => {
-			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
-		});
 		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };

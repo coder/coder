@@ -178,8 +178,6 @@ type AgentChatPageViewProps = {
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
-
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
 };
@@ -317,7 +315,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	desktopChatId,
 }) => {
 	const queryClient = useQueryClient();
@@ -1006,7 +1003,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										mcpServers={mcpServers}
 										selectedMCPServerIds={selectedMCPServerIds}
 										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
 										workspace={workspace}
 										workspaceAgent={workspaceAgent}
 										sshCommand={sshCommand}

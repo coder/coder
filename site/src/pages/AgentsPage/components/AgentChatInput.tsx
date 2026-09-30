@@ -23,7 +23,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import {
+	disconnectMCPServerOAuth2,
+	invalidateMCPServerConfigQueries,
+} from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -219,7 +222,6 @@ type AgentChatInputProps = {
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -543,7 +545,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	workspaceSkills,
 	workspace,
 	workspaceAgent,
@@ -591,10 +592,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+	const queryClient = useQueryClient();
 	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
 		useMCPOAuthFlow({
 			organizationId: chatOrganizationId,
-			onAuthComplete: onMCPAuthComplete,
+			onAuthComplete: () => {
+				void invalidateMCPServerConfigQueries(queryClient);
+			},
 			onFlowSuccess: (serverID) => {
 				if (
 					onMCPSelectionChange &&
@@ -610,7 +614,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
-	const queryClient = useQueryClient();
 	const mcpDisconnectMutation = useMutation(
 		disconnectMCPServerOAuth2(queryClient),
 	);

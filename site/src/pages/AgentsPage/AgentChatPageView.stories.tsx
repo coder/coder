@@ -200,7 +200,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 			typeof AgentChatPageView
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
