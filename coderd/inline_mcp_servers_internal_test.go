@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -114,13 +113,6 @@ func TestValidateInlineMCPServers(t *testing.T) {
 			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: "https://mcp.example.com?token=secret"}},
 			wantField:  "inline_mcp_servers[0].url",
 			wantDetail: "query",
-		},
-		{
-			// Only coderd code can attach an internal MCP server.
-			name:       "InternalScheme",
-			servers:    []codersdk.InlineMCPServerRequest{{Slug: "private", URL: mcpclient.InternalScheme + "://slack"}},
-			wantField:  "inline_mcp_servers[0].url",
-			wantDetail: "scheme must be http or https",
 		},
 		{
 			name:       "BlockedIPLiteral",

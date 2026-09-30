@@ -109,16 +109,28 @@ func (server *Server) prepareGeneration(
 		mcpConfigs, err = server.effectiveMCPServerConfigs(ctx, chat)
 		return err
 	})
-	if server.callerSuppliedMCPServersEnabled() || !server.internalMCPServers.Empty() {
+	if server.inlineMCPServersEnabled() {
 		g.Go(func() error {
 			var err error
 			inlineMCPServers, mcpLoadFailures, err = server.loadInlineMCPServers(ctx, chat)
 			return err
 		})
 	}
+	var (
+		internalMCPServers  []mcpclient.Server
+		internalMCPFailures []mcpclient.ConnectSummary
+	)
+	if len(server.internalMCPServers) > 0 {
+		g.Go(func() error {
+			internalMCPServers, internalMCPFailures = server.internalMCPServersForChat(ctx, chat)
+			return nil
+		})
+	}
 	if err := g.Wait(); err != nil {
 		return generationPrepared{}, err
 	}
+	inlineMCPServers = slices.Concat(internalMCPServers, inlineMCPServers)
+	mcpLoadFailures = append(mcpLoadFailures, internalMCPFailures...)
 
 	apiKeyID, err := server.ensureSyntheticAPIKeyID(ctx, chat.OwnerID)
 	if err != nil {
@@ -193,8 +205,8 @@ func (server *Server) prepareGeneration(
 		currentPlanMode,
 		chat.ParentChatID,
 	)
-	// The caller picks the inline servers for each turn, so all of them
-	// are allowed in plan mode.
+	// The caller picks the inline servers for each turn and coderd code
+	// picks the internal ones, so all of them are allowed in plan mode.
 	inlineMCPConnectServers, approvedInlineMCPServerIDs := filterMCPServersForTurn(
 		inlineMCPServers,
 		currentPlanMode,
@@ -514,7 +526,6 @@ func (server *Server) prepareGeneration(
 				inlineMCPConnectServers,
 				chatprovider.CoderHeaders(chat),
 				server.mcpHTTPClient,
-				server.internalMCPServers,
 			)
 			return nil
 		})

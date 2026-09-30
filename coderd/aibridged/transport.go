@@ -1,19 +1,22 @@
 package aibridged
 
 import (
+	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/coderd/util/xhttp"
 )
 
 // NewTransportFactory returns an [aibridge.TransportFactory] whose RoundTripper
-// dispatches requests to handler in-process through [xhttp.HandlerTransport],
-// so SSE/NDJSON/chunked responses propagate token-by-token just as they would
-// over the wire.
+// dispatches requests to handler in-process, streaming the response body
+// through an [io.Pipe] so SSE/NDJSON/chunked responses propagate token-by-token
+// just as they would over the wire.
 //
 // handler is typically the aibridged HTTP entrypoint registered via
 // [API.RegisterInMemoryAIBridgedHTTPHandler].
@@ -39,17 +42,13 @@ func (f *transportFactory) TransportFor(providerName string, source aibridge.Sou
 	if providerName == "" {
 		return nil, xerrors.New("provider name is required")
 	}
-	return &inMemoryRoundTripper{
-		next:         xhttp.HandlerTransport(f.handler),
-		providerName: providerName,
-		source:       source,
-	}, nil
+	return &inMemoryRoundTripper{handler: f.handler, providerName: providerName, source: source}, nil
 }
 
-// inMemoryRoundTripper adapts requests to the aibridged mount layout and
-// serves them in process through next.
+// inMemoryRoundTripper implements [http.RoundTripper] by invoking handler
+// in a goroutine and streaming its response back through an [io.Pipe].
 type inMemoryRoundTripper struct {
-	next         http.RoundTripper
+	handler      http.Handler
 	providerName string
 	source       aibridge.Source
 }
@@ -71,9 +70,155 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	if err != nil {
 		return nil, xerrors.Errorf("rewrite request URL for provider %q: %w", t.providerName, err)
 	}
-	// The Source is attached to the served context so downstream handlers
-	// can log the call site.
-	req = req.Clone(aibridge.WithSource(req.Context(), t.source))
+	callerCtx := req.Context()
+	servedCtx, cancelServed := context.WithCancel(callerCtx)
+	req = req.Clone(callerCtx)
 	req.URL.Path = newPath
-	return t.next.RoundTrip(req)
+
+	pr, pw := io.Pipe()
+	rw := &pipeResponseWriter{
+		header:     http.Header{},
+		body:       pw,
+		gotHeaders: make(chan struct{}),
+		status:     http.StatusOK,
+	}
+
+	// Cloning preserves caller-supplied headers and context but lets the
+	// handler operate on its own request value without surprising the caller
+	// if it mutates Headers or stores the request. The Source is attached to
+	// the served context so downstream handlers can log the call site.
+	served := req.Clone(aibridge.WithSource(servedCtx, t.source))
+
+	handlerDone := make(chan struct{})
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				//nolint:errorlint // Match net/http: only the exact sentinel aborts.
+				if r == http.ErrAbortHandler {
+					abortErr := io.ErrUnexpectedEOF
+					if cause := context.Cause(served.Context()); cause != nil {
+						abortErr = cause
+					}
+					_ = pw.CloseWithError(abortErr)
+				} else {
+					// Mirror net/http.Server behavior: a panicking handler
+					// produces a 500 instead of crashing the process.
+					rw.WriteHeader(http.StatusInternalServerError)
+					_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
+				}
+			} else if cause := context.Cause(served.Context()); cause != nil {
+				_ = pw.CloseWithError(cause)
+			} else {
+				// Finalize the stream before canceling internal work so normal
+				// completion remains a clean EOF.
+				_ = pw.Close()
+			}
+			// Always unblock RoundTrip if the handler returned without writing.
+			rw.ensureHeaders()
+			close(handlerDone)
+			cancelServed()
+		}()
+		t.handler.ServeHTTP(rw, served)
+	}()
+
+	// Close the pipe eagerly when the caller cancels, so an unresponsive
+	// handler does not strand the consumer's body read. The handler's own
+	// context derives from req.Context(), so it observes the same
+	// cancellation independently. The goroutine also exits when the handler
+	// completes normally (handlerDone closes) to avoid leaking a parked
+	// goroutine per successful request.
+	go func() {
+		select {
+		case <-served.Context().Done():
+			_ = pw.CloseWithError(context.Cause(served.Context()))
+		case <-handlerDone:
+			// Handler finished; nothing to cancel.
+		}
+	}()
+
+	select {
+	case <-rw.gotHeaders:
+	case <-callerCtx.Done():
+		cancelServed()
+		_ = pr.Close()
+		return nil, context.Cause(callerCtx)
+	}
+
+	return &http.Response{
+		Status:        fmt.Sprintf("%d %s", rw.status, http.StatusText(rw.status)),
+		StatusCode:    rw.status,
+		Proto:         "HTTP/1.1",
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		Header:        rw.frozenHeader,
+		Body:          &cancelingResponseBody{ReadCloser: pr, cancel: cancelServed},
+		Request:       req,
+		ContentLength: -1, // streaming; unknown length
+	}, nil
 }
+
+type cancelingResponseBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (b *cancelingResponseBody) Close() error {
+	b.cancel()
+	return b.ReadCloser.Close()
+}
+
+// pipeResponseWriter is an [http.ResponseWriter] that streams the response
+// body into an [io.PipeWriter]. The first call to WriteHeader (implicit or
+// explicit) closes gotHeaders so the RoundTrip caller can return an
+// *http.Response while the handler keeps writing.
+type pipeResponseWriter struct {
+	header       http.Header
+	frozenHeader http.Header
+	body         *io.PipeWriter
+
+	once       sync.Once
+	gotHeaders chan struct{}
+	status     int
+}
+
+func (w *pipeResponseWriter) Header() http.Header {
+	return w.header
+}
+
+func (w *pipeResponseWriter) WriteHeader(status int) {
+	w.once.Do(func() {
+		w.status = status
+		w.frozenHeader = w.header.Clone()
+		close(w.gotHeaders)
+	})
+}
+
+func (w *pipeResponseWriter) Write(p []byte) (int, error) {
+	// net/http semantics: an implicit 200 OK on first Write if the handler
+	// did not call WriteHeader explicitly.
+	w.WriteHeader(http.StatusOK)
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return w.body.Write(p)
+}
+
+// Flush is a no-op: pipe writes are already synchronous with the reader, so
+// each Write is observed as soon as the reader consumes it. We satisfy
+// [http.Flusher] so handlers that type-assert it (the aibridge library does
+// for SSE) do not fall back to buffered mode.
+func (*pipeResponseWriter) Flush() {}
+
+// ensureHeaders closes gotHeaders if it has not already been closed, with the
+// current status. Used to unblock RoundTrip on handler return-without-write.
+func (w *pipeResponseWriter) ensureHeaders() {
+	w.once.Do(func() {
+		w.frozenHeader = w.header.Clone()
+		close(w.gotHeaders)
+	})
+}
+
+var (
+	_ http.ResponseWriter = (*pipeResponseWriter)(nil)
+	_ http.Flusher        = (*pipeResponseWriter)(nil)
+)
