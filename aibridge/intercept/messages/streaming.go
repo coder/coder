@@ -243,7 +243,7 @@ newStream:
 			iterationStarted = true
 			event := stream.Current()
 			if err := message.Accumulate(event); err != nil && accumulateErr == nil {
-				logger.Warn(ctx, "failed to accumulate streaming event", slog.Error(err), slog.F("event_type", event.Type), slog.F("event_index", event.Index))
+				logger.Warn(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
 				accumulateErr = err
 			}
 			if event.Type == string(constant.ValueOf[constant.MessageStop]()) {
