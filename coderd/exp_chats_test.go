@@ -6531,6 +6531,48 @@ func TestPatchChat(t *testing.T) {
 				UserID:       firstUser.UserID,
 			}))
 		})
+
+		t.Run("NonOwnerForbidden", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client, db := newChatClientWithDatabase(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			modelConfig := createChatModel(t, client)
+			_, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+
+			memberWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        member.ID,
+			}).WithAgent().Do()
+			// The deployment owner can SSH into its own workspace, so only
+			// the ownership check can stop this rebind.
+			ownerWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: firstUser.OrganizationID,
+				OwnerID:        firstUser.UserID,
+			}).WithAgent().Do()
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           member.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             "member chat",
+				WorkspaceID:       uuid.NullUUID{UUID: memberWorkspace.Workspace.ID, Valid: true},
+			})
+
+			for _, workspaceID := range []uuid.UUID{ownerWorkspace.Workspace.ID, uuid.Nil} {
+				err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+					Title:       ptr.Ref("renamed by admin"),
+					WorkspaceID: &workspaceID,
+				})
+				sdkErr := requireSDKError(t, err, http.StatusForbidden)
+				require.Equal(t, "Only the chat owner can change its workspace.", sdkErr.Message)
+
+				persisted := getChat(ctx, t, client, chat.ID)
+				require.Equal(t, "member chat", persisted.Title)
+				require.NotNil(t, persisted.WorkspaceID)
+				require.Equal(t, memberWorkspace.Workspace.ID, *persisted.WorkspaceID)
+			}
+		})
 	})
 
 	t.Run("Title", func(t *testing.T) {
