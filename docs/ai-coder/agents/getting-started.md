@@ -21,8 +21,10 @@ Before you begin, confirm the following:
   The **Organization Admin** role and the **Owner** role include this access.
   A custom role with model configuration access also works.
 - **Organization membership** for each user who uses Coder Agents.
+  Every organization member can use Coder Agents by default.
+  To restrict access, see [Control who can use Coder Agents](#control-who-can-use-coder-agents).
   Users also need read access to at least one model in the organization.
-  New models are shared with the whole organization by default; to restrict who can use Coder Agents, narrow the model access lists.
+  New models are shared with the whole organization by default.
   See [Manage model permissions](./models.md#manage-model-permissions).
 
 ## Step 1: Configure an LLM provider and model
@@ -69,6 +71,36 @@ The agent processes the prompt in the control plane.
 When the conversation and available tools are sufficient, it works without provisioning a workspace.
 If missing tools, skills, MCP integrations, or context block progress, the agent selects a template and provisions a workspace to continue.
 It also provisions a workspace for tasks that need file access, command execution, or code changes.
+
+## Control who can use Coder Agents
+
+Organization members can use Coder Agents by default.
+Access comes from the **Coder Agents User** (`agents-access`) organization role, which each organization grants to members through its [default member roles](../../admin/users/organizations.md#default-member-roles).
+Upgrading to this release adds the role to the default roles of every existing organization once, so members keep their access.
+If you remove it afterward, it stays removed.
+
+Members who don't hold the role directly lose Coder Agents access when you remove **Coder Agents User** from the default roles.
+Role sync assigns roles at sign-in and doesn't store default roles, so members who get the role through role sync regain access at their next sign-in, and mapping the role in advance doesn't shorten the gap.
+
+To limit Coder Agents to a subset of members in an organization (requires a Premium license):
+
+1. Remove **Coder Agents User** from the organization's default roles.
+   In the dashboard, go to **Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+   You can also set `default_org_member_roles` with `PATCH /api/v2/organizations/{organization}`, keeping any other default roles in the list.
+1. Grant `agents-access` to the members who need it:
+   - With [IdP organization role sync](../../admin/users/idp-sync.md#role-sync), map an IdP group or role to `agents-access`.
+   - Without role sync, assign **Coder Agents User** from **Admin settings** > **Organizations** > **Members**.
+
+Keep the following behavior in mind:
+
+- Removing a user from the mapped IdP group or role removes their Coder Agents access at their next sign-in.
+- Owners and Organization Admins can always use Coder Agents, whatever the default roles are.
+- Service accounts don't inherit `agents-access` from the default roles.
+  Assign the role to a service account directly if it needs Coder Agents.
+- Members without the role can't use Coder Agents or open chats they created earlier.
+  Their chats are kept and become available again when they regain the role.
+  A chat shared with them stays readable.
+- [Model permissions](./models.md#manage-model-permissions) still apply: users also need read access to at least one model.
 
 ## Optimize your templates
 
@@ -194,6 +226,8 @@ Good starting points:
   understanding legacy systems.
 - **Prototyping** — building proof-of-concept implementations, simple
   dashboards, internal tools.
+
+To limit Coder Agents to the pilot group, see [Control who can use Coder Agents](#control-who-can-use-coder-agents).
 
 Set expectations that this is an evaluation period. Developers should still
 review all agent-produced code before merging. The agent is a force

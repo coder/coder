@@ -2,6 +2,8 @@ package rolestore
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"maps"
 	"net/http"
 
@@ -82,14 +84,6 @@ func Expand(ctx context.Context, db database.Store, names []rbac.RoleIdentifier)
 	roles := make([]rbac.Role, 0, len(names))
 
 	for _, name := range names {
-		if rbac.IsRetiredRoleName(name.Name) {
-			// Retired built-in role names may linger in stored role arrays
-			// until a cleanup migration lands. They grant nothing and stay
-			// reserved, so skip them instead of falling through to the
-			// custom-role lookup, which could resurrect an unrelated
-			// pre-reservation custom role with the same name.
-			continue
-		}
 		// Remove any built in roles
 		expanded, err := rbac.RoleByName(name)
 		if err == nil {
@@ -306,6 +300,46 @@ func ReconcileSystemRoles(ctx context.Context, log slog.Logger, db database.Stor
 			}
 		}
 
+		return nil
+	}, nil)
+}
+
+// AgentsAccessDefaultRoleBackfilledKey is the site config key that marks
+// BackfillAgentsAccessDefaultRole as done. Later releases read it in their
+// agents-access migrations, so it must never be deleted.
+const AgentsAccessDefaultRoleBackfilledKey = "agents_access_default_role_backfilled"
+
+// BackfillAgentsAccessDefaultRole adds agents-access to every organization's
+// default member roles and deletes custom roles named agents-access, once per
+// deployment. It runs at startup because release branches cannot add
+// migrations. After the marker is written, an organization without
+// agents-access in its defaults reflects an admin choice and is left alone.
+func BackfillAgentsAccessDefaultRole(ctx context.Context, db database.Store) error {
+	return db.InTx(func(tx database.Store) error {
+		err := tx.AcquireLock(ctx, database.LockIDReconcileSystemRoles)
+		if err != nil {
+			return xerrors.Errorf("acquire system roles reconciliation lock: %w", err)
+		}
+
+		_, err = tx.GetRuntimeConfig(ctx, AgentsAccessDefaultRoleBackfilledKey)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get agents-access backfill marker: %w", err)
+		}
+
+		if err := tx.BackfillAgentsAccessDefaultOrgMemberRole(ctx); err != nil {
+			return xerrors.Errorf("backfill agents-access default role: %w", err)
+		}
+
+		err = tx.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+			Key:   AgentsAccessDefaultRoleBackfilledKey,
+			Value: "true",
+		})
+		if err != nil {
+			return xerrors.Errorf("set agents-access backfill marker: %w", err)
+		}
 		return nil
 	}, nil)
 }

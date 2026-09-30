@@ -41,6 +41,12 @@ organization through its default member roles. See
 [Default member roles](./organizations.md#default-member-roles) for how to
 remove workspace operations from the default member set.
 
+Coder Agents access works the same way through the **Coder Agents User**
+(`agents-access`) organization role, which every organization grants to its
+members by default. See
+[Control who can use Coder Agents](../../ai-coder/agents/getting-started.md#control-who-can-use-coder-agents)
+to restrict it.
+
 ## Custom Roles
 
 > [!NOTE]

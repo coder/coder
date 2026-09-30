@@ -184,6 +184,14 @@ func (m queryMetricsStore) AutoArchiveInactiveChats(ctx context.Context, arg dat
 	return r0, r1
 }
 
+func (m queryMetricsStore) BackfillAgentsAccessDefaultOrgMemberRole(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.BackfillAgentsAccessDefaultOrgMemberRole(ctx)
+	m.queryLatencies.WithLabelValues("BackfillAgentsAccessDefaultOrgMemberRole").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackfillAgentsAccessDefaultOrgMemberRole").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BackfillChatMessagesSearchTsv(ctx, batchSize)

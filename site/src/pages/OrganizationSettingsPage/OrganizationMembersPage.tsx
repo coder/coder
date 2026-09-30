@@ -11,10 +11,11 @@ import {
 	updateOrganizationMemberRoles,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
-import type {
-	AssignableRoles,
-	OrganizationMemberWithUserData,
-	User,
+import {
+	type AssignableRoles,
+	type OrganizationMemberWithUserData,
+	RoleAgentsAccess,
+	type User,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -143,7 +144,14 @@ const OrganizationMembersPage: FC = () => {
 				key={memberToEditRoles?.username}
 				user={memberToEditRoles}
 				availableRoles={organizationRolesQuery.data}
-				additionalImpliedRoles={defaultMemberImpliedRoles}
+				// Service accounts do not inherit agents-access from the org defaults.
+				additionalImpliedRoles={
+					memberToEditRoles?.is_service_account
+						? defaultMemberImpliedRoles.filter(
+								(r) => r.name !== RoleAgentsAccess,
+							)
+						: defaultMemberImpliedRoles
+				}
 				onCancel={() => setMemberToEditRoles(undefined)}
 				onUpdateRoles={async (roles) => {
 					try {

@@ -2229,6 +2229,18 @@ export const OrgChangeConfirmation: Story = {
 };
 
 export const ForbiddenNoOrganizationAccess: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: emptyModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
 	args: {
 		...defaultArgs,
 		canCreateChat: false,
@@ -2242,7 +2254,12 @@ export const ForbiddenNoOrganizationAccess: Story = {
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
-		).toBeInTheDocument();
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/agents/getting-started#control-who-can-use-coder-agents",
+			),
+		);
 		await expect(
 			canvas.queryByRole("heading", { name: "Forbidden." }),
 		).not.toBeInTheDocument();
@@ -2250,6 +2267,12 @@ export const ForbiddenNoOrganizationAccess: Story = {
 		// accidentally trigger the generic error.
 		const textbox = canvas.getByRole("textbox");
 		await expect(textbox).toHaveAttribute("aria-disabled", "true");
+		await expect(
+			await canvas.findByRole("combobox", { name: "Select model" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("No Models Configured"),
+		).not.toBeInTheDocument();
 	},
 };
 

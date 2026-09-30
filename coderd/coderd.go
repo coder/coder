@@ -680,6 +680,13 @@ func New(options *Options) *API {
 		}
 	}
 
+	//nolint:gocritic // Startup backfill of organization default roles. There
+	// is no user request context here, so use a system-restricted context.
+	err = rolestore.BackfillAgentsAccessDefaultRole(dbauthz.AsSystemRestricted(ctx), options.Database)
+	if err != nil {
+		options.Logger.Fatal(ctx, "failed to backfill agents-access default organization role", slog.Error(err))
+	}
+
 	// Ensure all system role permissions are current.
 	//nolint:gocritic // Startup reconciliation reads/writes system roles. There is
 	// no user request context here, so use a system-restricted context.
