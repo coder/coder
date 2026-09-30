@@ -913,10 +913,11 @@ lint/mise-versions:
 .PHONY: lint/mise-versions
 
 # Fails when the docs-gen filter in .github/workflows/ci.yaml misses a file
-# make gen writes under a docs-only path, which would let CI skip gen for a PR
-# that hand-edits it. The coderd/apidoc/.gen recipe writes the REST API pages.
+# make gen writes under a path the docs filter matches. GEN_FILES lists only
+# docs/reference/cli/index.md from the CLI reference and no REST API page, so
+# the pages under both directories are passed too.
 lint/docs-gen-filter:
-	go run ./scripts/docsgenfiltercheck $(GEN_FILES) $(wildcard docs/reference/api/*.md)
+	go run ./scripts/docsgenfiltercheck $(GEN_FILES) $$(find docs/reference/cli docs/reference/api -type f -name '*.md')
 .PHONY: lint/docs-gen-filter
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.

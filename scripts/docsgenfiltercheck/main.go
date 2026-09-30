@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -102,13 +103,9 @@ func parseFilters(workflow []byte) (map[string][]string, error) {
 	for name, rules := range entries {
 		for _, rule := range rules {
 			// Status-qualified rules such as "added|modified: glob" are
-			// maps. Keep only plain globs; check rejects the filters it
-			// needs if they contain anything else.
-			if s, ok := rule.(string); ok {
-				filters[name] = append(filters[name], s)
-			} else {
-				filters[name] = append(filters[name], "")
-			}
+			// maps. Keep their text so globRegexp rejects them by name if
+			// they appear in a filter check reads.
+			filters[name] = append(filters[name], fmt.Sprint(rule))
 		}
 	}
 	return filters, nil
@@ -128,13 +125,13 @@ func check(filters map[string][]string, generated, tracked []string) ([]string, 
 
 	var problems []string
 	for _, f := range generated {
-		if matchAny(docs, f) && !matchAny(docsGen, f) {
-			problems = append(problems, fmt.Sprintf("make gen writes %s, which the docs filter matches, but no docs-gen pattern matches it", f))
+		if matchesAny(docs, f) && !matchesAny(docsGen, f) {
+			problems = append(problems, fmt.Sprintf("make gen writes %s, which the docs filter matches; add a docs-gen pattern for it, or docs-only PRs that edit it skip gen", f))
 		}
 	}
 	for i, re := range docsGen {
-		if !matchAny([]*regexp.Regexp{re}, tracked...) {
-			problems = append(problems, fmt.Sprintf("docs-gen pattern %q matches no tracked file", filters["docs-gen"][i]))
+		if !slices.ContainsFunc(tracked, re.MatchString) {
+			problems = append(problems, fmt.Sprintf("docs-gen pattern %q matches no tracked file; remove it or fix the path", filters["docs-gen"][i]))
 		}
 	}
 	return problems, nil
@@ -156,43 +153,23 @@ func compileFilter(filters map[string][]string, name string) ([]*regexp.Regexp, 
 	return res, nil
 }
 
-func matchAny(res []*regexp.Regexp, paths ...string) bool {
-	for _, re := range res {
-		for _, p := range paths {
-			if re.MatchString(p) {
-				return true
-			}
-		}
-	}
-	return false
+func matchesAny(res []*regexp.Regexp, path string) bool {
+	return slices.ContainsFunc(res, func(re *regexp.Regexp) bool { return re.MatchString(path) })
 }
 
-// globRegexp converts the subset of picomatch syntax used by the workflow
-// filters: "**" matches across directories, "*" and "?" match within one
-// path segment. Anything else that picomatch treats specially is rejected,
-// so an unsupported pattern fails the check instead of matching wrongly.
+// globRegexp converts the glob forms the docs and docs-gen filters use: a
+// literal path, "*" within one path segment, and a trailing "/**" that matches
+// the directory and everything under it, as picomatch does. Any other syntax
+// is rejected, so a pattern this check might read differently from
+// dorny/paths-filter fails the lint instead of matching wrongly.
 func globRegexp(glob string) (*regexp.Regexp, error) {
-	if glob == "" || strings.HasPrefix(glob, "!") || strings.ContainsAny(glob, "[]{}()+@") {
-		return nil, xerrors.Errorf("unsupported pattern %q", glob)
+	base, recursive := strings.CutSuffix(glob, "/**")
+	if base == "" || strings.HasPrefix(base, "!") || strings.Contains(base, "**") || strings.ContainsAny(base, `?[]{}()+@\`) {
+		return nil, xerrors.Errorf("unsupported pattern %q: use a literal path, * within one segment, or a trailing /**", glob)
 	}
-	parts := []string{"^"}
-	for i := 0; i < len(glob); i++ {
-		switch {
-		case strings.HasPrefix(glob[i:], "**/"):
-			// "a/**/b" also matches "a/b".
-			parts = append(parts, "(?:.*/)?")
-			i += 2
-		case strings.HasPrefix(glob[i:], "**"):
-			parts = append(parts, ".*")
-			i++
-		case glob[i] == '*':
-			parts = append(parts, "[^/]*")
-		case glob[i] == '?':
-			parts = append(parts, "[^/]")
-		default:
-			parts = append(parts, regexp.QuoteMeta(string(glob[i])))
-		}
+	expr := strings.ReplaceAll(regexp.QuoteMeta(base), `\*`, "[^/]*")
+	if recursive {
+		expr += "(?:/.*)?"
 	}
-	parts = append(parts, "$")
-	return regexp.Compile(strings.Join(parts, ""))
+	return regexp.Compile("^" + expr + "$")
 }

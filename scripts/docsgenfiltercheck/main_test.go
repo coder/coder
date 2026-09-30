@@ -17,8 +17,8 @@ func TestGlobRegexp(t *testing.T) {
 	}{
 		{
 			glob:    "docs/**",
-			match:   []string{"docs/a.md", "docs/a/b/c.md"},
-			noMatch: []string{"docs", "site/docs/a.md"},
+			match:   []string{"docs", "docs/a.md", "docs/a/b/c.md"},
+			noMatch: []string{"docsx/a.md", "site/docs/a.md"},
 		},
 		{
 			glob:    "*.md",
@@ -31,9 +31,9 @@ func TestGlobRegexp(t *testing.T) {
 			noMatch: []string{"docs/reference/api/users.md"},
 		},
 		{
-			glob:    "docs/**/index.md",
-			match:   []string{"docs/index.md", "docs/a/b/index.md"},
-			noMatch: []string{"docs/a/index.mdx"},
+			glob:    "docs/admin/*.md",
+			match:   []string{"docs/admin/users.md"},
+			noMatch: []string{"docs/admin/setup/index.md"},
 		},
 		{
 			glob:    "docs/manifest.json",
@@ -55,7 +55,9 @@ func TestGlobRegexp(t *testing.T) {
 		})
 	}
 
-	for _, glob := range []string{"", "!docs/**", "docs/{a,b}.md", "docs/[ab].md"} {
+	// Forms picomatch reads differently from a naive translation, or that
+	// the filters don't use, must be rejected.
+	for _, glob := range []string{"", "**", "/**", "!docs/**", "docs/**/index.md", "docs/reference/**.md", `docs/\*.md`, "docs/?.md", "docs/{a,b}.md", "docs/[ab].md"} {
 		_, err := globRegexp(glob)
 		require.Error(t, err, "%q should be rejected", glob)
 	}
@@ -106,10 +108,8 @@ func TestCheck(t *testing.T) {
 
 	t.Run("StatusQualifiedRule", func(t *testing.T) {
 		t.Parallel()
-		// parseFilters stores non-string rules as "", which must fail
-		// instead of being skipped.
-		_, err := check(map[string][]string{"docs": {"docs/**"}, "docs-gen": {""}}, []string{"docs/manifest.json"}, tracked)
-		require.ErrorContains(t, err, "unsupported pattern")
+		_, err := check(map[string][]string{"docs": {"docs/**"}, "docs-gen": {"map[added|modified:docs/new/**]"}}, []string{"docs/manifest.json"}, tracked)
+		require.ErrorContains(t, err, `unsupported pattern "map[added|modified:docs/new/**]"`)
 	})
 }
 
@@ -136,7 +136,7 @@ jobs:
 	filters, err := parseFilters([]byte(workflow))
 	require.NoError(t, err)
 	require.Equal(t, []string{"docs/**"}, filters["docs"])
-	require.Equal(t, []string{"docs/manifest.json", ""}, filters["docs-gen"])
+	require.Equal(t, []string{"docs/manifest.json", "map[added|modified:docs/new/**]"}, filters["docs-gen"])
 
 	_, err = parseFilters([]byte("jobs:\n  changes:\n    steps: []\n"))
 	require.ErrorContains(t, err, `no step with id "filter"`)
