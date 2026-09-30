@@ -9,9 +9,10 @@ import (
 
 // SSEStream feeds a Server-Sent Events byte stream to a ResponseExtraction,
 // one OnEvent call per dispatched event. Bytes may arrive in chunks of any
-// size, split anywhere. Field parsing follows the SSE specification: lines
-// end in CR, LF, or CRLF, lines starting with ':' are comments, one leading
-// space is stripped from values, and multiple data lines join with LF.
+// size, split anywhere. Field parsing follows the SSE specification: one
+// leading UTF-8 BOM is stripped, lines end in CR, LF, or CRLF, lines
+// starting with ':' are comments, one leading space is stripped from
+// values, and multiple data lines join with LF.
 //
 // It is an io.WriteCloser so it can sit behind an io.TeeReader; call Close
 // when the stream ends. Write never fails and never blocks beyond the
@@ -32,6 +33,10 @@ type SSEStream struct {
 
 	// line holds a partial line carried across writes.
 	line []byte
+	// bomMatched counts the leading UTF-8 BOM bytes seen so far; started is
+	// set once the stream is past any leading BOM.
+	bomMatched int
+	started    bool
 	// afterCR is set when the last line ended in CR, so an LF that starts
 	// the next write completes that CRLF instead of ending a blank line.
 	afterCR   bool
@@ -53,9 +58,29 @@ func NewSSEStream(ctx context.Context, logger slog.Logger, ext ResponseExtractio
 	return &SSEStream{ctx: ctx, ext: ext, notes: NewParseNotes(logger)}
 }
 
+// utf8BOM is the byte-order mark the SSE specification strips once from
+// the start of a stream.
+var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
+
 // Write consumes stream bytes. It always returns len(p), nil.
 func (s *SSEStream) Write(p []byte) (int, error) {
 	n := len(p)
+	for !s.started && len(p) > 0 {
+		if p[0] != utf8BOM[s.bomMatched] {
+			// Not a BOM: the bytes matched so far are stream content.
+			s.started = true
+			s.feed(utf8BOM[:s.bomMatched])
+			break
+		}
+		s.bomMatched++
+		p = p[1:]
+		s.started = s.bomMatched == len(utf8BOM)
+	}
+	s.feed(p)
+	return n, nil
+}
+
+func (s *SSEStream) feed(p []byte) {
 	for len(p) > 0 {
 		if s.afterCR {
 			s.afterCR = false
@@ -75,7 +100,6 @@ func (s *SSEStream) Write(p []byte) (int, error) {
 		s.processLine(s.line)
 		s.line = s.line[:0]
 	}
-	return n, nil
 }
 
 // Close ends the stream. A trailing event without its terminating blank
