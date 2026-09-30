@@ -62,6 +62,7 @@ afterEach(() => {
 
 describe("AgentAutomationsPage", () => {
 	it("lists the automations of the organization the Agents picker selected", async () => {
+		const user = userEvent.setup();
 		localStorage.setItem(
 			selectedOrganizationIdStorageKey,
 			MockOrganization2.id,
@@ -75,6 +76,27 @@ describe("AgentAutomationsPage", () => {
 		});
 		expect(requestPaths(requests)).not.toContain(
 			`GET ${automationsPath(MockDefaultOrganization.id)}`,
+		);
+
+		// Switching the picker refetches and shares the choice with the
+		// create form.
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		);
+		await user.click(
+			await screen.findByRole("option", {
+				name: MockDefaultOrganization.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(requestPaths(requests)).toContain(
+				`GET ${automationsPath(MockDefaultOrganization.id)}`,
+			);
+		});
+		expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+			MockDefaultOrganization.id,
 		);
 	});
 
