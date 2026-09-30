@@ -954,15 +954,13 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	return fantasy.Usage{}
 }
 
-const compactionDisabledThresholdPercent = 100
-
 type compactionTrigger struct {
 	thresholdPercent int32
 	contextLimit     int64
 }
 
 func (t compactionTrigger) enabled() bool {
-	return t.thresholdPercent >= 0 && t.thresholdPercent < compactionDisabledThresholdPercent && t.contextLimit > 0
+	return t.thresholdPercent >= 0 && t.thresholdPercent < chatloop.CompactionDisabledThresholdPercent && t.contextLimit > 0
 }
 
 func (t compactionTrigger) point() float64 {

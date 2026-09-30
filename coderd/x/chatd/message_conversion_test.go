@@ -344,6 +344,11 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
 	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000,"estimated_context_tokens":5}`, string(resultPart.Result))
+
+	boundary := database.ChatMessage{Role: got.Messages[2].Role, Content: got.Messages[2].Content, ContentVersion: got.Messages[2].ContentVersion, Compressed: true}
+	require.False(t, summaryRecordedUnderOtherTrigger(boundary, 70, 1000))
+	require.True(t, summaryRecordedUnderOtherTrigger(boundary, 40, 1000))
+	require.True(t, summaryRecordedUnderOtherTrigger(boundary, 70, 500))
 }
 
 // A compaction that never reached the summary model call carries no

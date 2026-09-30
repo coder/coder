@@ -20,7 +20,8 @@ import (
 const (
 	defaultCompactionThresholdPercent = int32(70)
 	minCompactionThresholdPercent     = int32(0)
-	maxCompactionThresholdPercent     = int32(100)
+	// CompactionDisabledThresholdPercent turns a compaction trigger off.
+	CompactionDisabledThresholdPercent = int32(100)
 
 	// compactionDebugCreateRunTimeout caps the compaction debug
 	// CreateRun budget. Debug instrumentation is best-effort;
@@ -128,6 +129,10 @@ type CompactionOptions struct {
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 }
 
+// CompactionResult is one generated summary. ThresholdPercent and
+// ContextLimit echo the requested trigger rather than the normalized one, so
+// a later check comparing the persisted summary with a new request compares
+// like with like.
 type CompactionResult struct {
 	SystemSummary    string
 	SummaryReport    string
@@ -146,6 +151,18 @@ type CompactionResult struct {
 	// ProviderResponseID identifies the summary response. See
 	// PersistedStep.ProviderResponseID.
 	ProviderResponseID string
+}
+
+// CompactionToolResult is the chat_summarized tool result payload, both
+// streamed and persisted.
+type CompactionToolResult struct {
+	Summary                string           `json:"summary"`
+	Source                 CompactionSource `json:"source"`
+	ThresholdPercent       int32            `json:"threshold_percent"`
+	UsagePercent           float64          `json:"usage_percent"`
+	ContextTokens          int64            `json:"context_tokens"`
+	ContextLimitTokens     int64            `json:"context_limit_tokens"`
+	EstimatedContextTokens int64            `json:"estimated_context_tokens"`
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -231,23 +248,23 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		),
 		SummaryReport:      summary,
 		Source:             config.Source,
-		ThresholdPercent:   config.ThresholdPercent,
+		ThresholdPercent:   opts.ThresholdPercent,
 		UsagePercent:       usagePercent,
 		ContextTokens:      contextTokens,
-		ContextLimit:       contextLimit,
+		ContextLimit:       opts.ContextLimit,
 		Runtime:            summaryRuntime,
 		ProviderResponseID: responseID,
 	}
 	result.EstimatedContextTokens = int64((len(result.SystemSummary) + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
-		resultJSON, _ := json.Marshal(map[string]any{
-			"summary":                  summary,
-			"source":                   config.Source,
-			"threshold_percent":        config.ThresholdPercent,
-			"usage_percent":            usagePercent,
-			"context_tokens":           contextTokens,
-			"context_limit_tokens":     contextLimit,
-			"estimated_context_tokens": result.EstimatedContextTokens,
+		resultJSON, _ := json.Marshal(CompactionToolResult{
+			Summary:                summary,
+			Source:                 result.Source,
+			ThresholdPercent:       result.ThresholdPercent,
+			UsagePercent:           usagePercent,
+			ContextTokens:          contextTokens,
+			ContextLimitTokens:     result.ContextLimit,
+			EstimatedContextTokens: result.EstimatedContextTokens,
 		})
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleTool,
@@ -290,12 +307,12 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		config.Source = CompactionSourceAutomatic
 	}
 	if config.ThresholdPercent < minCompactionThresholdPercent ||
-		config.ThresholdPercent > maxCompactionThresholdPercent {
+		config.ThresholdPercent > CompactionDisabledThresholdPercent {
 		config.ThresholdPercent = defaultCompactionThresholdPercent
 	}
 	// threshold=100 disables automatic compaction; a forced run
 	// still proceeds because the user asked explicitly.
-	if config.ThresholdPercent == maxCompactionThresholdPercent && !config.Force {
+	if config.ThresholdPercent == CompactionDisabledThresholdPercent && !config.Force {
 		return CompactionOptions{}, false
 	}
 	return config, true

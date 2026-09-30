@@ -151,7 +151,7 @@ var errCompactionStillOverLimit = xerrors.New("compaction left the chat above th
 // compactionStillOverLimitError wraps errCompactionStillOverLimit with a
 // message naming the setting that can clear the binding trigger.
 func compactionStillOverLimitError(source compactionTriggerSource, thresholdPercent int32, contextLimit int64) error {
-	message := "Conversation compaction could not reduce the history below the compaction limit. Raise the compaction threshold in settings, or start a new conversation."
+	message := "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation."
 	if source == compactionTriggerSourceOrganization {
 		message = "Conversation compaction could not reduce the history below the organization compaction model's compaction threshold. Start a new conversation, or ask an administrator to raise that model's compaction threshold or choose a compaction model with a larger context window."
 	}
