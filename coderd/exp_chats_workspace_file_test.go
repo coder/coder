@@ -756,10 +756,19 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		}).WithAgent().Do()
 		chat := createBoundChat(ctx, t, client, firstUser.OrganizationID, workspaceBuild.Workspace.ID)
 
-		res, err := uploadChatWorkspaceFile(ctx, t, client, chat.ID.String(), "", "application/zip", []byte("PK"))
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		for _, tc := range []struct {
+			contentDisposition string
+			detail             string
+		}{
+			{"", "Provide a filename via the Content-Disposition header."},
+			{`attachment; filename="$()"`, "The provided filename has no safe characters left after sanitization or is a reserved device name."},
+		} {
+			res, err := uploadChatWorkspaceFile(ctx, t, client, chat.ID.String(), tc.contentDisposition, "application/zip", []byte("PK"))
+			require.NoError(t, err)
+			sdkErr := requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusBadRequest)
+			_ = res.Body.Close()
+			require.Equal(t, tc.detail, sdkErr.Detail, tc.contentDisposition)
+		}
 	})
 
 	t.Run("NoWorkspace", func(t *testing.T) {

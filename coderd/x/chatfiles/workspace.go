@@ -71,8 +71,8 @@ func isUnsafeWorkspaceUploadRune(r rune) bool {
 		return true
 	}
 	switch r {
-	// Mirrors the frontend sanitizeChatFileName character set so direct
-	// API callers cannot land names the UI would have rewritten.
+	// With the basename step resolving `/` and `\`, this covers the frontend
+	// sanitizeChatFileName set so API callers cannot bypass the UI rewrite.
 	case '<', '>', ':', '"', '|', '?', '*',
 		'(', ')', '[', ']', '{', '}', '\'', '`', ';', ',', '&', '#', '$':
 		return true
