@@ -11,7 +11,6 @@ export const chatAutomations = (organizationId: string) => ({
 	queryKey: chatAutomationsKey(organizationId),
 	queryFn: (): Promise<ChatAutomation[]> =>
 		API.experimental.getChatAutomations(organizationId),
-	enabled: organizationId !== "",
 });
 
 /**
