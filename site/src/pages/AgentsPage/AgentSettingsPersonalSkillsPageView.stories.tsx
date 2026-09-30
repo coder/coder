@@ -54,6 +54,39 @@ type Story = StoryObj<typeof AgentSettingsPersonalSkillsPageView>;
 
 export const Populated: Story = {};
 
+export const LongDescription: Story = {
+	args: {
+		skills: [
+			{
+				...firstSkill,
+				id: "skill-test-audit",
+				name: "test-audit",
+				description:
+					"Invoke whenever writing, changing, reviewing, or sweeping tests in coder/coder. Authoring gate for new tests plus audit workflow for low-value, implementation-coupled, duplicative, or test-only-production-seam-driven tests.",
+			},
+			...skills,
+			{
+				...firstSkill,
+				id: "skill-frontend-review",
+				name: "frontend-review",
+				description:
+					"Review frontend changes for accessibility, loading and error states, reusable components, and regression coverage before opening a pull request.",
+			},
+			{
+				...firstSkill,
+				id: "skill-debug-http",
+				name: "debug-http",
+				description: "",
+			},
+		],
+	},
+};
+
+export const LongDescriptionNarrow: Story = {
+	...LongDescription,
+	globals: { viewport: { value: "ipad" } },
+};
+
 export const DownloadingSkill: Story = {
 	args: {
 		downloadingSkillName: "review-sql",
@@ -140,6 +173,11 @@ export const Loading: Story = {
 		skills: [],
 		isLoading: true,
 	},
+};
+
+export const LoadingNarrow: Story = {
+	...Loading,
+	globals: { viewport: { value: "ipad" } },
 };
 
 export const Empty: Story = {
