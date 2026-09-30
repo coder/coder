@@ -861,11 +861,14 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 		inputTokens     int64
 		outputTokens    int64
 		toolResultBytes int
+		summaryLimit    int64
 		cap             int64
 		wantCap         int64
 	}{
 		{name: "clamps to remaining window", contextLimit: 100, inputTokens: 75, outputTokens: 10, cap: 64_000, wantCap: 13},
 		{name: "reserves trailing tool results", contextLimit: 100, inputTokens: 72, toolResultBytes: 30, cap: 64_000, wantCap: 16},
+		{name: "clamps to a smaller summary window", contextLimit: 200_000, inputTokens: 150_000, summaryLimit: 160_000, cap: 64_000, wantCap: 9998},
+		{name: "larger summary window keeps the trigger clamp", contextLimit: 100, inputTokens: 75, outputTokens: 10, summaryLimit: 1_000, cap: 64_000, wantCap: 13},
 		{name: "keeps cap that fits", contextLimit: 200_000, inputTokens: 140_000, outputTokens: 500, cap: 50_000, wantCap: 50_000},
 		{name: "usage at limit leaves cap unchanged", contextLimit: 100, inputTokens: 100, cap: 64_000, wantCap: 64_000},
 		{name: "reserves leave no room, cap unchanged", contextLimit: 100, inputTokens: 80, outputTokens: 25, cap: 64_000, wantCap: 64_000},
@@ -900,14 +903,15 @@ func TestGenerateCompaction_ClampsSummaryCapToRemainingWindow(t *testing.T) {
 				})
 			}
 			result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
-				Model:            model,
-				Messages:         messages,
-				Clock:            quartz.NewMock(t),
-				ThresholdPercent: 70,
-				ContextLimit:     tc.contextLimit,
-				SummaryPrompt:    "prompt",
-				StepUsage:        fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
-				SummaryCall:      fantasy.Call{MaxOutputTokens: &capTokens},
+				Model:               model,
+				Messages:            messages,
+				Clock:               quartz.NewMock(t),
+				ThresholdPercent:    70,
+				ContextLimit:        tc.contextLimit,
+				SummaryContextLimit: tc.summaryLimit,
+				SummaryPrompt:       "prompt",
+				StepUsage:           fantasy.Usage{InputTokens: tc.inputTokens, OutputTokens: tc.outputTokens},
+				SummaryCall:         fantasy.Call{MaxOutputTokens: &capTokens},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "summary", result.SummaryReport)

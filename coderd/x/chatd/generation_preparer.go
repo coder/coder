@@ -823,19 +823,20 @@ func (server *Server) prepareGeneration(
 	if err != nil {
 		return generationPrepared{}, err
 	}
-	// Each threshold applies to its model's window. The earliest enabled
-	// trigger binds so history also fits the compaction model.
 	binding := chatTrigger
 	var compactionOverride *resolvedModelOverride
-	// With its own trigger disabled the override would receive the chat
-	// trigger's full history, which may exceed its window, so the chat model
-	// summarizes instead.
-	if resolvedCompactionOverride.Set && resolvedCompactionOverride.Config.CompressionThreshold < 100 {
-		compactionOverride = &resolvedCompactionOverride
-		binding = bindingCompactionTrigger(chatTrigger, compactionTrigger{
-			thresholdPercent: compactionOverride.Config.CompressionThreshold,
-			contextLimit:     compactionOverride.Config.ContextLimit,
-		})
+	if resolvedCompactionOverride.Set {
+		overrideTrigger := compactionTrigger{
+			thresholdPercent: resolvedCompactionOverride.Config.CompressionThreshold,
+			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
+		}
+		// With its own trigger disabled the override would receive the chat
+		// trigger's full history, which may exceed its window, so the chat
+		// model summarizes instead.
+		if overrideTrigger.enabled() {
+			compactionOverride = &resolvedCompactionOverride
+			binding = bindingCompactionTrigger(chatTrigger, overrideTrigger)
+		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
@@ -944,8 +945,8 @@ func (t compactionTrigger) point() float64 {
 	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
 }
 
-// When both triggers are enabled, the lower token point binds because they
-// evaluate the same prompt usage.
+// When both triggers are enabled, the lower token point binds so the history
+// also fits the compaction model's window. Both evaluate the same prompt usage.
 func bindingCompactionTrigger(chat, override compactionTrigger) compactionTrigger {
 	switch {
 	case !override.enabled():
