@@ -9,6 +9,7 @@ import {
 	updateChatAutomation,
 } from "#/api/queries/chatAutomations";
 import type { ChatAutomation, Organization } from "#/api/typesGenerated";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
@@ -36,6 +37,7 @@ const AutomationsList: React.FC<{
 	showOrganizations: boolean;
 }> = ({ organizations, showOrganizations }) => {
 	const queryClient = useQueryClient();
+	const { user } = useAuthenticated();
 	// Shares the Agents organization picker selection with the create form.
 	const [selectedOrgId, setSelectedOrgId] = useState(() =>
 		localStorage.getItem(selectedOrganizationIdStorageKey),
@@ -91,7 +93,7 @@ const AutomationsList: React.FC<{
 		setRunError(undefined);
 		runMutation.mutate(automation.id, {
 			onSuccess: () => {
-				toast.success(`Started a run of ${automation.name}.`);
+				toast.success(`${automation.name} accepted the run.`);
 			},
 			onError: (error) => {
 				setRunError({ automation, error });
@@ -101,6 +103,7 @@ const AutomationsList: React.FC<{
 
 	return (
 		<AgentAutomationsPageView
+			currentUserId={user.id}
 			organizationName={selectedOrg?.display_name || selectedOrg?.name}
 			organizationSelector={
 				showOrganizations && (

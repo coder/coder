@@ -467,19 +467,21 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parser := httpapi.NewQueryParamParser()
-	automationID := parser.UUID(r.URL.Query(), uuid.Nil, "automation_id")
-	if len(parser.Errors) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Query parameters have invalid values.",
-			Validations: parser.Errors,
-		})
-		return
-	}
-	// The chat list is not experiment-gated, so the automation filter
-	// is ignored rather than rejected when the experiment is off.
-	if !chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, apiKey.UserID) {
-		automationID = uuid.Nil
+	// The chat list is not experiment-gated, so the automation filter is
+	// ignored, not rejected, when the experiment is off for the caller.
+	// The evaluator reads the database, so it runs only when the filter
+	// is requested.
+	automationID := uuid.Nil
+	if r.URL.Query().Has("automation_id") && chatd.AutomationsEnabled(ctx, api.ExperimentEvaluator, apiKey.UserID) {
+		parser := httpapi.NewQueryParamParser()
+		automationID = parser.UUID(r.URL.Query(), uuid.Nil, "automation_id")
+		if len(parser.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Query parameters have invalid values.",
+				Validations: parser.Errors,
+			})
+			return
+		}
 	}
 
 	var sharedWithGroupIDs []string

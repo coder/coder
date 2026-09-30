@@ -10936,6 +10936,7 @@ WHERE
                 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
                     AND cm.automation_id = $18::uuid
+                    AND cm.deleted = false
             )
         )
         ELSE true

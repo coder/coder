@@ -15,6 +15,8 @@ import { formatDate } from "#/utils/time";
 
 type AutomationRowProps = {
 	automation: ChatAutomation;
+	/** Only the owner can run an automation. */
+	isOwner: boolean;
 	isUpdating: boolean;
 	isRunning: boolean;
 	onToggleEnabled: (automation: ChatAutomation, enabled: boolean) => void;
@@ -122,12 +124,15 @@ const TargetCell: React.FC<{ automation: ChatAutomation }> = ({
 export const AutomationRow = memo<AutomationRowProps>(
 	({
 		automation,
+		isOwner,
 		isUpdating,
 		isRunning,
 		onToggleEnabled,
 		onRunNow,
 		onViewChats,
 	}) => {
+		const isTargetMissing =
+			automation.target_mode === "existing_chat" && !automation.target_chat_id;
 		return (
 			<TableRow>
 				<TableCell>
@@ -165,11 +170,11 @@ export const AutomationRow = memo<AutomationRowProps>(
 				</TableCell>
 				<TableCell>
 					<div className="flex justify-end gap-2">
-						{automation.kind === "schedule" && (
+						{automation.kind === "schedule" && isOwner && (
 							<Button
 								size="sm"
 								variant="outline"
-								disabled={!automation.enabled || isRunning}
+								disabled={!automation.enabled || isTargetMissing || isRunning}
 								onClick={() => onRunNow(automation)}
 							>
 								<Spinner loading={isRunning} />

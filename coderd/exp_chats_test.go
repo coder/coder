@@ -3056,6 +3056,14 @@ func TestListChats(t *testing.T) {
 			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
 		})
 		unrelated := newMemberChat()
+		// A deleted automation message no longer counts as writing to
+		// the chat.
+		deletedMessageChat := newMemberChat()
+		deletedMessage := dbgen.ChatMessage(t, env.db, database.ChatMessage{
+			ChatID:       deletedMessageChat.ID,
+			AutomationID: uuid.NullUUID{UUID: automationID, Valid: true},
+		})
+		require.NoError(t, env.db.SoftDeleteChatMessageByID(dbauthz.AsSystemRestricted(ctx), deletedMessage.ID))
 		// Another user's chat that the member may not read.
 		owner, err := env.owner.User(ctx, codersdk.Me)
 		require.NoError(t, err)
@@ -3091,7 +3099,9 @@ func TestListChats(t *testing.T) {
 			Condition: fmt.Sprintf("user.username != %q", member.Username),
 		})
 		require.NoError(t, err)
-		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		require.ElementsMatch(t, []uuid.UUID{created.ID, writtenTo.ID, unrelated.ID, deletedMessageChat.ID}, chatIDs(&codersdk.ListChatsOptions{AutomationID: automationID}))
+		status, body = rawGet(t, env.member, "/api/v2/chats?automation_id=not-a-uuid")
+		require.Equal(t, http.StatusOK, status, body)
 	})
 }
 

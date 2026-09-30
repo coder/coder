@@ -772,6 +772,7 @@ WHERE
                 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
                     AND cm.automation_id = @automation_id::uuid
+                    AND cm.deleted = false
             )
         )
         ELSE true

@@ -40,6 +40,7 @@ type AutomationChatsDialogState = {
 };
 
 type AgentAutomationsPageViewProps = {
+	currentUserId: string;
 	organizationName: string | undefined;
 	organizationSelector?: React.ReactNode;
 	automations: readonly ChatAutomation[] | undefined;
@@ -66,7 +67,8 @@ const AutomationChatsDialog: React.FC<{
 	} else if (!state.chats || state.chats.length === 0) {
 		body = (
 			<p className="m-0 text-sm text-content-secondary">
-				This automation has not created or written to any chats yet.
+				No chats that you can open were created by or received messages from
+				this automation.
 			</p>
 		);
 	} else {
@@ -109,6 +111,7 @@ const AutomationChatsDialog: React.FC<{
 export const AgentAutomationsPageView: React.FC<
 	AgentAutomationsPageViewProps
 > = ({
+	currentUserId,
 	organizationName,
 	organizationSelector,
 	automations,
@@ -130,7 +133,7 @@ export const AgentAutomationsPageView: React.FC<
 		rows = (
 			<TableEmpty
 				message="No automations yet"
-				description="Automations are created through the API, or by agents with the manage_automations tool."
+				description="Automations are created through the chat automations API."
 			/>
 		);
 	} else {
@@ -138,6 +141,7 @@ export const AgentAutomationsPageView: React.FC<
 			<AutomationRow
 				key={automation.id}
 				automation={automation}
+				isOwner={automation.owner_id === currentUserId}
 				isUpdating={updatingAutomationId === automation.id}
 				isRunning={runningAutomationId === automation.id}
 				onToggleEnabled={onToggleEnabled}

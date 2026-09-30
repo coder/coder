@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 import { chatEntityKey } from "#/api/queries/chats";
 import type { Chat, ChatAutomation } from "#/api/typesGenerated";
 import { MockChat, MockChatAutomation } from "#/testHelpers/chatEntities";
-import { mockApiError } from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import { AgentAutomationsPageView } from "./AgentAutomationsPageView";
 
 const targetChat: Chat = {
@@ -66,6 +66,7 @@ const meta: Meta<typeof AgentAutomationsPageView> = {
 	title: "pages/AgentsPage/AgentAutomationsPageView",
 	component: AgentAutomationsPageView,
 	args: {
+		currentUserId: MockUserOwner.id,
 		organizationName: "Coder",
 		automations: [scheduleAutomation, heartbeatAutomation, webhookAutomation],
 		isLoading: false,
@@ -82,6 +83,11 @@ export default meta;
 type Story = StoryObj<typeof AgentAutomationsPageView>;
 
 export const WithAutomations: Story = {};
+
+// Only the owner can run an automation, so another viewer gets no Run now.
+export const OtherOwner: Story = {
+	args: { currentUserId: "another-user-id" },
+};
 
 export const Empty: Story = {
 	args: { automations: [] },
