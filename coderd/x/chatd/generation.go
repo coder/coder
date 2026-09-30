@@ -102,6 +102,9 @@ type generationCompaction struct {
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
+	// TriggerSource names the trigger whose threshold and limit Options
+	// carry.
+	TriggerSource   compactionTriggerSource
 	Required        bool
 	Options         chatloop.GenerateCompactionOptions
 	PendingUserRows []database.ChatMessage
@@ -143,13 +146,23 @@ const (
 	generationFinishReasonMaxSteps      generationFinishReason = "max_steps"
 )
 
-var errCompactionStillOverLimit = chaterror.WithClassification(
-	xerrors.New("compaction left the chat above the compaction limit"),
-	chaterror.ClassifiedError{
-		Message: "Conversation compaction could not reduce the history below the compaction limit. Start a new conversation, or raise the compaction threshold for this model or for the organization's compaction model.",
-		Kind:    codersdk.ChatErrorKindConfig,
-	},
-)
+var errCompactionStillOverLimit = xerrors.New("compaction left the chat above the compaction limit")
+
+// compactionStillOverLimitError wraps errCompactionStillOverLimit with a
+// message naming the setting that can clear the binding trigger.
+func compactionStillOverLimitError(source compactionTriggerSource, thresholdPercent int32, contextLimit int64) error {
+	message := "Conversation compaction could not reduce the history below the compaction limit. Raise the compaction threshold in settings, or start a new conversation."
+	if source == compactionTriggerSourceOrganization {
+		message = "Conversation compaction could not reduce the history below the organization compaction model's limit. Start a new conversation, or ask an administrator to change the compaction model."
+	}
+	return chaterror.WithClassification(
+		xerrors.Errorf("%s trigger at %d%% of %d tokens: %w", source, thresholdPercent, contextLimit, errCompactionStillOverLimit),
+		chaterror.ClassifiedError{
+			Message: message,
+			Kind:    codersdk.ChatErrorKindConfig,
+		},
+	)
+}
 
 type generationDecision struct {
 	kind           generationActionKind
@@ -205,6 +218,7 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
+	compactionTriggerSource    compactionTriggerSource
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -272,7 +286,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	case compactionStatusAfterCompaction:
 		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	case compactionStatusStillOverLimit:
-		return generationDecision{}, terminalGeneration(errCompactionStillOverLimit)
+		return generationDecision{}, terminalGeneration(compactionStillOverLimitError(
+			input.compactionTriggerSource,
+			input.compactionThresholdPercent,
+			input.compactionContextLimit,
+		))
 	case compactionStatusNotNeeded:
 		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	default:
@@ -295,6 +313,13 @@ func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 		return 0
 	}
 	return compaction.Options.ContextLimit
+}
+
+func generationCompactionTriggerSource(compaction *generationCompaction) compactionTriggerSource {
+	if compaction == nil {
+		return compactionTriggerSourceChat
+	}
+	return compaction.TriggerSource
 }
 
 func unresolvedToolCallsFromHistory(
@@ -627,6 +652,7 @@ func (s *taskStarter) runGenerationStep(
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+				compactionTriggerSource:    generationCompactionTriggerSource(prepared.Compaction),
 			})
 		})
 	}

@@ -842,6 +842,7 @@ func (server *Server) prepareGeneration(
 		return generationPrepared{}, err
 	}
 	binding := chatTrigger
+	bindingSource := compactionTriggerSourceChat
 	var compactionOverride *resolvedModelOverride
 	if resolvedCompactionOverride.Set {
 		overrideTrigger := compactionTrigger{
@@ -852,7 +853,10 @@ func (server *Server) prepareGeneration(
 		// override's window, so the chat model summarizes instead.
 		if overrideTrigger.enabled() {
 			compactionOverride = &resolvedCompactionOverride
-			binding = bindingCompactionTrigger(chatTrigger, overrideTrigger)
+			bindingSource = bindingCompactionTriggerSource(chatTrigger, overrideTrigger)
+			if bindingSource == compactionTriggerSourceOrganization {
+				binding = overrideTrigger
+			}
 		}
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
@@ -910,6 +914,7 @@ func (server *Server) prepareGeneration(
 		MaxSteps:             server.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
+			TriggerSource:   bindingSource,
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
@@ -962,18 +967,25 @@ func (t compactionTrigger) point() float64 {
 	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
 }
 
+type compactionTriggerSource string
+
+const (
+	compactionTriggerSourceChat         compactionTriggerSource = "chat"
+	compactionTriggerSourceOrganization compactionTriggerSource = "organization"
+)
+
 // When both triggers are enabled, the lower token point binds so the history
 // also fits the compaction model's window. Both evaluate the same prompt usage.
-func bindingCompactionTrigger(chat, override compactionTrigger) compactionTrigger {
+func bindingCompactionTriggerSource(chat, override compactionTrigger) compactionTriggerSource {
 	switch {
 	case !override.enabled():
-		return chat
+		return compactionTriggerSourceChat
 	case !chat.enabled():
-		return override
+		return compactionTriggerSourceOrganization
 	case override.point() < chat.point():
-		return override
+		return compactionTriggerSourceOrganization
 	default:
-		return chat
+		return compactionTriggerSourceChat
 	}
 }
 

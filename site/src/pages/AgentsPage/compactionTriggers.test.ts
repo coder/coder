@@ -49,6 +49,8 @@ describe("compaction triggers", () => {
 		expect(compactionPointAsPercent(32_000, 0)).toBeUndefined();
 	});
 
+	// Binding cases must match TestBindingCompactionTriggerSource in
+	// coderd/x/chatd/generation_preparer_internal_test.go.
 	it("selects the lower enabled point and prefers chat on ties", () => {
 		const chat = { thresholdPercent: 80, contextLimit: 100_000 };
 
@@ -70,12 +72,30 @@ describe("compaction triggers", () => {
 				contextLimit: 100_000,
 			}),
 		).toBe("chat");
+		expect(
+			bindingCompactionTriggerSource(chat, {
+				thresholdPercent: 80,
+				contextLimit: 0,
+			}),
+		).toBe("chat");
+		expect(
+			bindingCompactionTriggerSource(chat, {
+				thresholdPercent: 0,
+				contextLimit: 32_000,
+			}),
+		).toBe("organization");
 	});
 
 	it("uses the organization trigger when the chat trigger is disabled", () => {
 		expect(
 			bindingCompactionTriggerSource(
 				{ thresholdPercent: 100, contextLimit: 100_000 },
+				{ thresholdPercent: 80, contextLimit: 100_000 },
+			),
+		).toBe("organization");
+		expect(
+			bindingCompactionTriggerSource(
+				{ thresholdPercent: 80, contextLimit: 0 },
 				{ thresholdPercent: 80, contextLimit: 100_000 },
 			),
 		).toBe("organization");
