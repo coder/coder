@@ -73,13 +73,12 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
-            # Docs paths that make gen reads or rewrites. docs/manifest/ is
-            # included so sources for manifest.json placed there are covered
-            # too. A docs-only change that touches none of these cannot change
-            # the output of make gen, so the gen job skips it.
+            # Docs paths that make gen reads or rewrites. The gen job skips
+            # docs-only PRs that touch none of them. make lint
+            # (lint/docs-gen-filter) fails when a generated file matches docs
+            # but not docs-gen.
             docs-gen:
               - "docs/manifest.json"
-              - "docs/manifest/**"
               - "docs/reference/api/**"
               - "docs/reference/cli/**"
               - "docs/admin/integrations/prometheus.md"
@@ -442,8 +441,8 @@ jobs:
     needs: changes
     timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    # Skip pull requests that only change docs make gen neither reads nor
-    # writes. Every other change, and every non-PR run, regenerates.
+    # On pull requests, skip when every changed file is a docs file that
+    # make gen neither reads nor writes (see the docs-gen filter).
     if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.docs-gen == 'true' || needs.changes.outputs.ci == 'true' || github.event_name != 'pull_request'
     steps:
       - name: Harden Runner
