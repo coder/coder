@@ -194,7 +194,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		promptTokens := int64((promptBytes + bytesPerTokenEstimate - 1) / bytesPerTokenEstimate)
 		reserved := opts.StepUsage.OutputTokens + promptTokens + trailingToolResultTokens(opts.Messages)
 		windowLimit := contextLimit
-		if opts.SummaryContextLimit > 0 && opts.SummaryContextLimit < windowLimit {
+		if opts.SummaryContextLimit > 0 {
 			windowLimit = opts.SummaryContextLimit
 		}
 		remaining := windowLimit - contextTokens - reserved
