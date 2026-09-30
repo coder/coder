@@ -7,7 +7,7 @@ import {
 	WrenchIcon,
 	ZapIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextResource,
@@ -18,6 +18,7 @@ import type {
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
@@ -28,9 +29,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import { formatKiB } from "#/utils/fileSize";
-import { isMobileViewport } from "#/utils/mobile";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
+import { ChatPresentationContext } from "./ChatPresentationContext";
+import { composerMenuAnchor } from "./composerMenuAnchor";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 export type AgentContextUsage = {
@@ -223,11 +227,17 @@ const ContextDirLabel: React.FC<{ dir: string }> = ({ dir }) => (
 
 export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage | null;
+	composer?: HTMLElement | null;
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
-}> = ({ usage, onRefreshContext, isRefreshingContext }) => {
+}> = ({ usage, composer, onRefreshContext, isRefreshingContext }) => {
+	const isPresented = useContext(ChatPresentationContext);
+	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const [open, setOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	if (!isPresented && open) {
+		setOpen(false);
+	}
 
 	const cancelClose = () => {
 		if (closeTimerRef.current) {
@@ -246,7 +256,7 @@ export const ContextUsageIndicator: React.FC<{
 
 	const handleMouseEnter = () => {
 		cancelClose();
-		setOpen(true);
+		setOpen(isPresented);
 	};
 
 	const usedTokens = hasFiniteTokenValue(usage?.usedTokens)
@@ -655,13 +665,36 @@ export const ContextUsageIndicator: React.FC<{
 	// On mobile, a tap toggles the popover. On desktop, hover opens
 	// it like a dropdown menu and skill descriptions appear as
 	// nested tooltips to the right.
-	if (isMobileViewport()) {
+	if (isMobile) {
 		return (
-			<Popover>
+			<Popover
+				open={open && isPresented}
+				onOpenChange={(next) => setOpen(next && isPresented)}
+			>
 				<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+				{composer && (
+					<PopoverAnchor
+						virtualRef={{ current: composerMenuAnchor(composer) }}
+					/>
+				)}
 				<PopoverContent
+					style={
+						isPresented
+							? undefined
+							: { animation: "none", visibility: "hidden" }
+					}
 					side="top"
-					className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto max-w-72 px-3 py-2"
+					sideOffset={composer ? 0 : 4}
+					align="start"
+					avoidCollisions={!composer}
+					onCloseAutoFocus={(event) => {
+						if (!isPresented) event.preventDefault();
+					}}
+					className={cn(
+						"w-auto max-w-72 px-3 py-2",
+						composer &&
+							"max-md:w-(--radix-popper-anchor-width) max-md:max-w-none",
+					)}
 				>
 					{panelContent}
 				</PopoverContent>
@@ -670,7 +703,10 @@ export const ContextUsageIndicator: React.FC<{
 	}
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover
+			open={open && isPresented}
+			onOpenChange={(next) => setOpen(next && isPresented)}
+		>
 			<PopoverTrigger asChild>
 				<div
 					className="flex"
@@ -681,7 +717,13 @@ export const ContextUsageIndicator: React.FC<{
 				</div>
 			</PopoverTrigger>
 			<PopoverContent
+				style={
+					isPresented ? undefined : { animation: "none", visibility: "hidden" }
+				}
 				side="top"
+				onCloseAutoFocus={(event) => {
+					if (!isPresented) event.preventDefault();
+				}}
 				className="w-auto max-w-72 px-3 py-2"
 				onMouseEnter={cancelClose}
 				onMouseLeave={scheduleClose}

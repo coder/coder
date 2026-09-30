@@ -1,8 +1,10 @@
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useContext, useEffect, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { renderComponent } from "#/testHelpers/renderHelpers";
+import { ChatPresentationContext } from "../../components/ChatPresentationContext";
 import type { ChatWindow } from "./boardStorage";
 import { FloatingChat } from "./ChatWindows";
 import { MIN_WINDOW_SIZE } from "./windows";
@@ -179,15 +181,101 @@ describe("FloatingChat", () => {
 		expect(open).toHaveBeenCalledTimes(1);
 	});
 
-	it("minimizes from the title bar without starting a drag", async () => {
+	it("updates presentation on minimize and restore without remounting or affecting another window", async () => {
 		const user = userEvent.setup();
-		const { onChange, onMinimize } = renderWindow();
+		const onChange = vi.fn();
+		const onMinimize = vi.fn();
+		const onPresentationChange = vi.fn();
+		const onMount = vi.fn();
+		const onUnmount = vi.fn();
+		const secondChatId = "second-chat";
+
+		const ChatBody = ({ chatId }: { chatId: string }) => {
+			const isPresented = useContext(ChatPresentationContext);
+			useEffect(() => {
+				onMount(chatId);
+				return () => onUnmount(chatId);
+			}, [chatId, onMount, onUnmount]);
+			useEffect(() => {
+				onPresentationChange(chatId, isPresented);
+			}, [chatId, isPresented, onPresentationChange]);
+			return null;
+		};
+
+		const Windows = ({ isPresented }: { isPresented: boolean }) => {
+			const [minimized, setMinimized] = useState(false);
+			const windows = [
+				{ ...win, minimized },
+				{ ...win, chatId: secondChatId },
+			];
+			return (
+				<>
+					<ChatPresentationContext value={isPresented}>
+						{windows.map((window) => (
+							<FloatingChat
+								key={window.chatId}
+								window={window}
+								title={window.chatId}
+								color={undefined}
+								onChange={onChange}
+								onClose={vi.fn()}
+								onMinimize={() => {
+									onMinimize(window.chatId);
+									setMinimized(true);
+								}}
+								onInteract={vi.fn()}
+								onPreviewEnter={vi.fn()}
+								onPreviewLeave={vi.fn()}
+							>
+								<ChatBody chatId={window.chatId} />
+							</FloatingChat>
+						))}
+					</ChatPresentationContext>
+					<button type="button" onClick={() => setMinimized(false)}>
+						Restore first chat
+					</button>
+				</>
+			);
+		};
+
+		const { rerender } = renderComponent(<Windows isPresented />);
+		expect(onPresentationChange.mock.calls).toEqual([
+			[win.chatId, true],
+			[secondChatId, true],
+		]);
 
 		await user.click(
-			screen.getByRole("button", { name: `Minimize ${MockChat.title}` }),
+			screen.getByRole("button", { name: `Minimize ${win.chatId}` }),
 		);
-
-		expect(onMinimize).toHaveBeenCalledTimes(1);
+		expect(onMinimize).toHaveBeenCalledExactlyOnceWith(win.chatId);
 		expect(onChange).not.toHaveBeenCalled();
+		expect(onPresentationChange.mock.calls).toEqual([
+			[win.chatId, true],
+			[secondChatId, true],
+			[win.chatId, false],
+		]);
+
+		await user.click(
+			screen.getByRole("button", { name: "Restore first chat" }),
+		);
+		expect(onPresentationChange.mock.calls).toEqual([
+			[win.chatId, true],
+			[secondChatId, true],
+			[win.chatId, false],
+			[win.chatId, true],
+		]);
+
+		rerender(<Windows isPresented={false} />);
+		expect(onPresentationChange.mock.calls.slice(-2)).toEqual([
+			[win.chatId, false],
+			[secondChatId, false],
+		]);
+		rerender(<Windows isPresented />);
+		expect(onPresentationChange.mock.calls.slice(-2)).toEqual([
+			[win.chatId, true],
+			[secondChatId, true],
+		]);
+		expect(onMount.mock.calls).toEqual([[win.chatId], [secondChatId]]);
+		expect(onUnmount).not.toHaveBeenCalled();
 	});
 });

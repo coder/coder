@@ -1,5 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
+import { useState } from "react";
 import { flushSync } from "react-dom";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -445,33 +445,6 @@ export const CommandsFilteredOutBySkillQuery: Story = {
 	},
 };
 
-// Stories below verify that on mobile viewports, the skills popup
-// sits directly above the chat input rather than being clipped
-// above the visible viewport.
-
-const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
-
-// Mock window.matchMedia so the `.mobile-full-width-dropdown*` CSS
-// branches in `site/src/index.css` activate even when Storybook's
-// outer viewport differs from the simulated mobile width.
-const mockMobileMatchMedia = (): (() => void) => {
-	const originalMatchMedia = window.matchMedia;
-	window.matchMedia = (query: string) =>
-		({
-			matches: query === MOBILE_MEDIA_QUERY,
-			media: query,
-			onchange: null,
-			addEventListener: () => undefined,
-			removeEventListener: () => undefined,
-			dispatchEvent: () => true,
-			addListener: () => undefined,
-			removeListener: () => undefined,
-		}) as MediaQueryList;
-	return () => {
-		window.matchMedia = originalMatchMedia;
-	};
-};
-
 const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	{ length: 30 },
 	(_, index) => ({
@@ -482,96 +455,22 @@ const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	}),
 );
 
-const mobileDropdownProperties = [
-	"--mobile-dropdown-left",
-	"--mobile-dropdown-width",
-	"--mobile-dropdown-above-composer-bottom",
-	"--mobile-dropdown-above-composer-max-height",
-] as const;
-
-const MOBILE_COMPOSER_HEIGHT = 96; // matches mobile composer min-height
-const MOBILE_COMPOSER_GAP = 8;
-const MOBILE_VIEWPORT_PADDING = 16;
-const MOBILE_MINIMUM_MENU_HEIGHT = 96;
-
-const setMobileDropdownGeometry = (options?: {
-	visualViewportOffsetTop?: number;
-}) => {
-	const composerTop = innerHeight - MOBILE_COMPOSER_HEIGHT;
-	const visualViewportOffsetTop = options?.visualViewportOffsetTop ?? 0;
-	document.documentElement.style.setProperty("--mobile-dropdown-left", "1rem");
-	document.documentElement.style.setProperty(
-		"--mobile-dropdown-width",
-		"calc(100vw - 2rem)",
-	);
-	document.documentElement.style.setProperty(
-		"--mobile-dropdown-above-composer-bottom",
-		`${innerHeight - composerTop + MOBILE_COMPOSER_GAP}px`,
-	);
-	const maxHeightCandidates = [
-		composerTop -
-			visualViewportOffsetTop -
-			MOBILE_COMPOSER_GAP -
-			MOBILE_VIEWPORT_PADDING,
-		composerTop - MOBILE_COMPOSER_GAP - MOBILE_VIEWPORT_PADDING,
-	].filter((height) => height > 0);
-	const maxHeight = Math.max(
-		MOBILE_MINIMUM_MENU_HEIGHT,
-		maxHeightCandidates.length > 0 ? Math.min(...maxHeightCandidates) : 0,
-	);
-	document.documentElement.style.setProperty(
-		"--mobile-dropdown-above-composer-max-height",
-		`${maxHeight}px`,
-	);
-
-	return { composerTop, maxHeight, visualViewportOffsetTop };
-};
-
-const clearMobileDropdownGeometry = () => {
-	for (const property of mobileDropdownProperties) {
-		document.documentElement.style.removeProperty(property);
-	}
-};
-
-const MobileFrame = ({ children }: React.PropsWithChildren) => {
-	useEffect(() => {
-		setMobileDropdownGeometry();
-		return clearMobileDropdownGeometry;
-	}, []);
-
+const MobileDecorator: Decorator = (Story, context) => {
+	const [composer, setComposer] = useState<HTMLDivElement | null>(null);
 	return (
-		<div
-			data-testid="mobile-frame"
-			style={{
-				paddingBottom: MOBILE_COMPOSER_HEIGHT,
-				height: "100vh",
-				position: "relative",
-			}}
-		>
+		<div className="h-screen">
 			<button type="button" className="text-content-secondary text-sm">
 				Outside target
 			</button>
 			<div
-				style={{
-					position: "fixed",
-					bottom: 0,
-					left: "1rem",
-					width: "calc(100vw - 2rem)",
-				}}
+				ref={setComposer}
+				className="fixed bottom-0 left-4 right-4 min-h-24 rounded-xl bg-surface-secondary p-3"
 			>
-				{children}
+				<Story args={{ ...context.args, skillsMenuAnchor: composer }} />
 			</div>
 		</div>
 	);
 };
-
-// Decorator that pins a fake composer to the bottom of the viewport and sets
-// mobile dropdown geometry custom properties to simulate `AgentChatInput`.
-const MobileDecorator: Decorator = (Story) => (
-	<MobileFrame>
-		<Story />
-	</MobileFrame>
-);
 
 // On mobile, the skills popup sits directly above the chat input
 // rather than being clipped above the visible viewport.
@@ -582,32 +481,7 @@ export const MobileAboveChatInput: Story = {
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
-		const restoreMatchMedia = mockMobileMatchMedia();
-		try {
-			await typeInEditor(canvasElement, "/");
-		} finally {
-			restoreMatchMedia();
-		}
-	},
-};
-
-// The popup stays inside a panned visual viewport, which is what iOS
-// WebKit browsers do when the soft keyboard opens. Pixel-excluded.
-export const MobileShiftedVisualViewport: Story = {
-	decorators: [MobileDecorator],
-	parameters: {
-		viewport: { defaultViewport: "mobile1" },
-		pixel: { exclude: true },
-	},
-};
-
-// An over-large visual viewport offset must not collapse the menu.
-// Pixel-excluded.
-export const MobileOffsetTopDoesNotCollapse: Story = {
-	decorators: [MobileDecorator],
-	parameters: {
-		viewport: { defaultViewport: "mobile1" },
-		pixel: { exclude: true },
+		await typeInEditor(canvasElement, "/");
 	},
 };
 
@@ -623,22 +497,6 @@ export const MobileLongListScrolls: Story = {
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
-		const restoreMatchMedia = mockMobileMatchMedia();
-		setMobileDropdownGeometry({
-			visualViewportOffsetTop: Math.max(
-				0,
-				innerHeight -
-					MOBILE_COMPOSER_HEIGHT -
-					MOBILE_COMPOSER_GAP -
-					MOBILE_VIEWPORT_PADDING -
-					MOBILE_MINIMUM_MENU_HEIGHT,
-			),
-		});
-
-		try {
-			await typeInEditor(canvasElement, "/");
-		} finally {
-			restoreMatchMedia();
-		}
+		await typeInEditor(canvasElement, "/");
 	},
 };

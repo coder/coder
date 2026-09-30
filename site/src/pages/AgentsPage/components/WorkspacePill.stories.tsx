@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
@@ -385,6 +386,17 @@ export const EmptyPorts: Story = {
 };
 
 const mobilePortsStoryConfig = {
+	render: function MobileWorkspaceMenu(args) {
+		const [composer, setComposer] = useState<HTMLDivElement | null>(null);
+		return (
+			<div
+				ref={setComposer}
+				className="fixed bottom-4 left-4 right-4 min-h-24 rounded-xl bg-surface-secondary p-3"
+			>
+				<WorkspacePill {...args} composer={composer} />
+			</div>
+		);
+	},
 	args: {
 		...defaultProps,
 		workspace: MockWorkspace,

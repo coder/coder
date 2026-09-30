@@ -96,7 +96,7 @@ export const BoardWindows: React.FC<BoardWindowsProps> = ({
 				target?.tagName === "INPUT" ||
 				target?.tagName === "TEXTAREA" ||
 				target?.isContentEditable;
-			if (e.key === "Escape" && !typing) dismissTop();
+			if (e.key === "Escape" && !e.defaultPrevented && !typing) dismissTop();
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);

@@ -1,11 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef, useLayoutEffect, useRef, useState } from "react";
+import { act, createRef, useLayoutEffect, useRef, useState } from "react";
 import { type QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { ChatPresentationContext } from "../ChatPresentationContext";
 import { ChatMessageInput, type ChatMessageInputRef } from "./ChatMessageInput";
+import { MockSkill } from "./storyHelpers";
 
 const renderWithQueryClient = (
 	children: React.ReactNode,
@@ -207,6 +209,92 @@ describe("ChatMessageInput", () => {
 			);
 		});
 	});
+
+	it("dismisses slash completion on hide while preserving the editor and its draft", async () => {
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onEnter = vi.fn();
+		const input = (isPresented: boolean) => (
+			<ChatPresentationContext value={isPresented}>
+				<button type="button">Outside editor</button>
+				<ChatMessageInput
+					ref={inputRef}
+					aria-label="Chat message input"
+					personalSkillsOverride={[MockSkill]}
+					onEnter={onEnter}
+				/>
+			</ChatPresentationContext>
+		);
+		const queryClient = createTestQueryClient();
+		const rendered = renderWithQueryClient(input(true), queryClient);
+		const editor = screen.getByRole("textbox", { name: "Chat message input" });
+		await user.click(editor);
+		await user.paste("/");
+		await waitFor(() => expect(inputRef.current?.getValue()).toBe("/"));
+		const focus = vi.spyOn(editor, "focus");
+		try {
+			rendered.rerender(
+				<QueryClientProvider client={queryClient}>
+					{input(false)}
+				</QueryClientProvider>,
+			);
+			await user.click(screen.getByRole("button", { name: "Outside editor" }));
+			await act(async () => {
+				inputRef.current?.focus();
+			});
+			expect(focus).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("/");
+			rendered.rerender(
+				<QueryClientProvider client={queryClient}>
+					{input(true)}
+				</QueryClientProvider>,
+			);
+			await user.click(editor);
+			await user.keyboard("{Enter}");
+			expect(onEnter).toHaveBeenCalledOnce();
+			expect(inputRef.current?.getValue()).toBe("/");
+		} finally {
+			focus.mockRestore();
+		}
+	});
+
+	it.each([false, true])(
+		"decides autofocus per editor mount, not on pane restore (initially presented: %s)",
+		async (initiallyPresented) => {
+			const queryClient = createTestQueryClient();
+			const focus = vi.spyOn(HTMLElement.prototype, "focus");
+			const input = (isPresented: boolean, remountKey: number) => (
+				<QueryClientProvider client={queryClient}>
+					<ChatPresentationContext value={isPresented}>
+						<ChatMessageInput
+							aria-label="Chat message input"
+							personalSkillsOverride={[]}
+							autoFocus
+							remountKey={remountKey}
+						/>
+					</ChatPresentationContext>
+				</QueryClientProvider>
+			);
+			const view = render(input(initiallyPresented, 0));
+			await act(async () => {});
+			focus.mockClear();
+			view.rerender(input(false, 1));
+			await act(async () => {});
+			const hiddenEditor = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			expect(focus.mock.contexts).not.toContain(hiddenEditor);
+			focus.mockClear();
+			view.rerender(input(true, 1));
+			await act(async () => {});
+			expect(focus.mock.contexts).not.toContain(hiddenEditor);
+			view.rerender(input(true, 2));
+			const editingEditor = screen.getByRole("textbox", {
+				name: "Chat message input",
+			});
+			await waitFor(() => expect(focus.mock.contexts).toContain(editingEditor));
+		},
+	);
 
 	it("returns updated content even without an external onChange prop", async () => {
 		const inputRef = { current: null as ChatMessageInputRef | null };

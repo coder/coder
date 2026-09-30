@@ -1,7 +1,8 @@
 import { cn } from "cn";
 import { BotIcon, MinusIcon, XIcon } from "lucide-react";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useContext, useEffect, useEffectEvent, useState } from "react";
 import { Button } from "#/components/Button/Button";
+import { ChatPresentationContext } from "../../components/ChatPresentationContext";
 import type { CardColor } from "./boardLabels";
 import type { ChatWindow } from "./boardStorage";
 import { cardSwatch } from "./cardColor";
@@ -101,6 +102,7 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 	cardAssistant,
 	children,
 }) => {
+	const isPresented = useContext(ChatPresentationContext);
 	const [gesture, setGesture] = useState<Gesture | null>(null);
 	const [live, setLive] = useState<ChatWindow | null>(null);
 	const shown = live ?? win;
@@ -165,96 +167,98 @@ export const FloatingChat: React.FC<FloatingChatProps> = ({
 	};
 
 	return (
-		<div
-			role="dialog"
-			aria-label={title}
-			// Kept mounted while minimized so the chat keeps its scroll, stream
-			// and any draft request in flight.
-			className={cn(
-				"fixed z-40 flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)]",
-				!win.pinned && "border-content-link/50",
-				win.minimized && "hidden",
-			)}
-			style={{
-				left: shown.x,
-				top: shown.y,
-				width: shown.width,
-				height: shown.height,
-			}}
-			onPointerDownCapture={onInteract}
-			onKeyDownCapture={onInteract}
-			onPointerEnter={win.pinned ? undefined : onPreviewEnter}
-			onPointerLeave={win.pinned ? undefined : onPreviewLeave}
-		>
+		<ChatPresentationContext value={isPresented && !win.minimized}>
 			<div
-				className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
-				onPointerDown={start("move")}
+				role="dialog"
+				aria-label={title}
+				// Kept mounted while minimized so the chat keeps its scroll, stream
+				// and any draft request in flight.
+				className={cn(
+					"fixed z-40 flex flex-col overflow-hidden rounded-lg border border-border bg-surface-primary shadow-[0_12px_40px_rgba(0,0,0,0.18)]",
+					!win.pinned && "border-content-link/50",
+					win.minimized && "hidden",
+				)}
+				style={{
+					left: shown.x,
+					top: shown.y,
+					width: shown.width,
+					height: shown.height,
+				}}
+				onPointerDownCapture={onInteract}
+				onKeyDownCapture={onInteract}
+				onPointerEnter={win.pinned ? undefined : onPreviewEnter}
+				onPointerLeave={win.pinned ? undefined : onPreviewLeave}
 			>
-				{/* The bar's pointerdown handles drags (its preventDefault keeps a click from focusing this); the button gives the keyboard a target. */}
-				<button
-					type="button"
-					aria-label={`Move or resize ${title}`}
-					aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight"
-					className="flex min-w-0 flex-1 cursor-grab items-center gap-2 border-0 bg-transparent p-0 text-left active:cursor-grabbing"
-					onKeyDown={onKeyDown}
+				<div
+					className="flex h-8 shrink-0 cursor-grab touch-none select-none items-center gap-2 border-b border-border bg-surface-secondary/60 pr-1 pl-3 text-[12.5px] font-medium text-content-primary active:cursor-grabbing"
+					onPointerDown={start("move")}
 				>
-					<span
-						className={cn(
-							"size-2 shrink-0 rounded-[2px]",
-							color ? cardSwatch({ color }) : "bg-content-secondary/30",
-						)}
-					/>
-					<span className="min-w-0 flex-1 truncate">{title}</span>
-					{!win.pinned && (
-						<span className="text-[11px] font-normal text-content-secondary">
-							click or drag to keep
-						</span>
-					)}
-				</button>
-				{win.kind === "draft" && "cardId" in win.target && (
-					<label
-						className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] font-normal text-content-secondary"
-						onPointerDown={(e) => e.stopPropagation()}
+					{/* The bar's pointerdown handles drags (its preventDefault keeps a click from focusing this); the button gives the keyboard a target. */}
+					<button
+						type="button"
+						aria-label={`Move or resize ${title}`}
+						aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight"
+						className="flex min-w-0 flex-1 cursor-grab items-center gap-2 border-0 bg-transparent p-0 text-left active:cursor-grabbing"
+						onKeyDown={onKeyDown}
 					>
-						<input
-							type="checkbox"
-							className="size-3 accent-content-link"
-							checked={win.includeCardContext}
-							onChange={(e) =>
-								onChange({ ...win, includeCardContext: e.target.checked })
-							}
+						<span
+							className={cn(
+								"size-2 shrink-0 rounded-[2px]",
+								color ? cardSwatch({ color }) : "bg-content-secondary/30",
+							)}
 						/>
-						Include card context
-					</label>
-				)}
-				{cardAssistant && (
+						<span className="min-w-0 flex-1 truncate">{title}</span>
+						{!win.pinned && (
+							<span className="text-[11px] font-normal text-content-secondary">
+								click or drag to keep
+							</span>
+						)}
+					</button>
+					{win.kind === "draft" && "cardId" in win.target && (
+						<label
+							className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] font-normal text-content-secondary"
+							onPointerDown={(e) => e.stopPropagation()}
+						>
+							<input
+								type="checkbox"
+								className="size-3 accent-content-link"
+								checked={win.includeCardContext}
+								onChange={(e) =>
+									onChange({ ...win, includeCardContext: e.target.checked })
+								}
+							/>
+							Include card context
+						</label>
+					)}
+					{cardAssistant && (
+						<TitleBarButton
+							aria-label={`Assistant for ${cardAssistant.cardTitle}`}
+							title="Assistant"
+							onClick={cardAssistant.open}
+						>
+							<BotIcon />
+						</TitleBarButton>
+					)}
 					<TitleBarButton
-						aria-label={`Assistant for ${cardAssistant.cardTitle}`}
-						title="Assistant"
-						onClick={cardAssistant.open}
+						aria-label={`Minimize ${title}`}
+						title="Minimize"
+						onClick={onMinimize}
 					>
-						<BotIcon />
+						<MinusIcon />
 					</TitleBarButton>
-				)}
-				<TitleBarButton
-					aria-label={`Minimize ${title}`}
-					title="Minimize"
-					onClick={onMinimize}
-				>
-					<MinusIcon />
-				</TitleBarButton>
-				<TitleBarButton aria-label={`Close ${title}`} onClick={onClose}>
-					<XIcon />
-				</TitleBarButton>
+					<TitleBarButton aria-label={`Close ${title}`} onClick={onClose}>
+						<XIcon />
+					</TitleBarButton>
+				</div>
+				<div className="flex min-h-0 flex-1 flex-col">{children}</div>
+				{/* Above the chat's own footer, which otherwise takes the pointer. */}
+				<div
+					role="presentation"
+					aria-hidden="true"
+					className="absolute right-0 bottom-0 z-10 size-4 cursor-nwse-resize touch-none [background:linear-gradient(135deg,transparent_50%,var(--color-border)_50%,var(--color-border)_60%,transparent_60%,transparent_75%,var(--color-border)_75%,var(--color-border)_85%,transparent_85%)]"
+					onPointerDown={start("resize")}
+				/>
 			</div>
-			<div className="flex min-h-0 flex-1 flex-col">{children}</div>
-			{/* Above the chat's own footer, which otherwise takes the pointer. */}
-			<div
-				role="presentation"
-				aria-hidden="true"
-				className="absolute right-0 bottom-0 z-10 size-4 cursor-nwse-resize touch-none [background:linear-gradient(135deg,transparent_50%,var(--color-border)_50%,var(--color-border)_60%,transparent_60%,transparent_75%,var(--color-border)_75%,var(--color-border)_85%,transparent_85%)]"
-				onPointerDown={start("resize")}
-			/>
-		</div>
+		</ChatPresentationContext>
 	);
 };

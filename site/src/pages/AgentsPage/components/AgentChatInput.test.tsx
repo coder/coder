@@ -6,7 +6,7 @@ import {
 	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef } from "react";
+import { act, createRef } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
@@ -20,6 +20,7 @@ import {
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
+import { ChatPresentationContext } from "./ChatPresentationContext";
 
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({ organizations: [] }),
@@ -129,7 +130,7 @@ afterEach(() => {
 
 describe("AgentChatInput", () => {
 	it.each([false, true])(
-		"updates dropdown geometry only on mobile (mobile: %s)",
+		"does not measure closed menus while typing (mobile: %s)",
 		async (isMobile) => {
 			vi.stubGlobal("matchMedia", (query: string) => {
 				const result = originalMatchMedia(query);
@@ -147,16 +148,71 @@ describe("AgentChatInput", () => {
 					.setup()
 					.type(screen.getByRole("textbox", { name: "Chat message" }), "Hello");
 				const geometryWrites = setProperty.mock.calls.filter(([name]) =>
-					name.startsWith("--mobile-dropdown-"),
+					name.startsWith("--mobile-"),
 				);
-				if (isMobile) expect(geometryWrites.length).toBeGreaterThan(0);
-				else expect(geometryWrites).toHaveLength(0);
+				expect(geometryWrites).toHaveLength(0);
 				rendered.unmount();
 			} finally {
 				setProperty.mockRestore();
 			}
 		},
 	);
+
+	it("dismisses a hidden picker's measurements without restoring focus or losing the draft", async () => {
+		vi.stubGlobal("matchMedia", (query: string) => {
+			const result = originalMatchMedia(query);
+			return query === belowMdViewportMediaQuery
+				? { ...result, matches: true }
+				: result;
+		});
+		const user = userEvent.setup();
+		const inputRef = createRef<ChatMessageInputRef>();
+		const onSend = vi.fn();
+		const renderComposer = (isPresented: boolean) => (
+			<ChatPresentationContext value={isPresented}>
+				<AgentChatInput {...inputProps} inputRef={inputRef} onSend={onSend} />
+			</ChatPresentationContext>
+		);
+		const rendered = renderInput(renderComposer(true));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Saved draft");
+		await waitFor(() =>
+			expect(inputRef.current?.getValue()).toBe("Saved draft"),
+		);
+		await user.click(screen.getByRole("combobox", { name: "GPT-4o" }));
+		const removeListener = vi.spyOn(window, "removeEventListener");
+		const focus = vi.spyOn(
+			screen.getByRole("combobox", { name: "GPT-4o" }),
+			"focus",
+		);
+		try {
+			rendered.rerender(<AppProviders>{renderComposer(false)}</AppProviders>);
+			await act(async () => {
+				await new Promise<void>((resolve) => setTimeout(resolve, 0));
+			});
+			expect(
+				removeListener.mock.calls.some(
+					([event]) => String(event) === "focusin",
+				),
+			).toBe(true);
+			expect(focus).not.toHaveBeenCalled();
+			expect(inputRef.current?.getValue()).toBe("Saved draft");
+			const addListener = vi.spyOn(window, "addEventListener");
+			try {
+				rendered.rerender(<AppProviders>{renderComposer(true)}</AppProviders>);
+				expect(
+					addListener.mock.calls.some(([event]) => String(event) === "focusin"),
+				).toBe(false);
+				await user.click(screen.getByRole("button", { name: "Send" }));
+				expect(onSend).toHaveBeenCalledExactlyOnceWith("Saved draft");
+			} finally {
+				addListener.mockRestore();
+			}
+		} finally {
+			focus.mockRestore();
+			removeListener.mockRestore();
+		}
+	});
 
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { MockModelSelectorOption } from "./modelSelectorFixtures";
@@ -491,7 +491,6 @@ export const MobileEffortRow: Story = {
 		value: "openai/gpt-5",
 		reasoningEffort: "medium",
 		onReasoningEffortChange: fn(),
-		enableMobileFullWidthDropdown: true,
 	},
 	parameters: {
 		// The interaction runner defaults to a desktop width where the
@@ -499,25 +498,19 @@ export const MobileEffortRow: Story = {
 		viewport: { defaultViewport: "mobile1" },
 		// Capture the visual snapshot at a mobile width so the pinned
 		// effort row and scrollable list render in the CI visual gate.
-		lostpixel: { breakpoints: [320] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
-	decorators: [
-		(Story) => {
-			useEffect(() => {
-				// Tight enough that the model list plus the pinned effort row
-				// overflow the dropdown, forcing the layout under test.
-				const root = document.documentElement.style;
-				root.setProperty(
-					"--mobile-dropdown-above-composer-max-height",
-					"260px",
-				);
-				return () => {
-					root.removeProperty("--mobile-dropdown-above-composer-max-height");
-				};
-			}, []);
-			return <Story />;
-		},
-	],
+	render: function MobileModelPicker(args) {
+		const [anchor, setAnchor] = useState<HTMLDivElement | null>(null);
+		return (
+			<div
+				ref={setAnchor}
+				className="fixed left-4 right-4 top-[320px] rounded-xl bg-surface-secondary p-3"
+			>
+				<ModelSelector {...args} mobileAnchor={anchor} />
+			</div>
+		);
+	},
 	play: async ({ canvasElement }) => {
 		// Open the picker so the snapshot captures the dropdown, the pinned
 		// effort row, and the scrollable list.

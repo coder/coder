@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { useContext, useState } from "react";
 import type { Organization } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -14,9 +14,14 @@ import {
 } from "#/components/Command/Command";
 import {
 	Popover,
+	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
+import { ChatPresentationContext } from "../ChatPresentationContext";
+import { composerMenuAnchor } from "../composerMenuAnchor";
 
 type CompactOrgSelectorProps = {
 	value: Organization | null;
@@ -26,6 +31,7 @@ type CompactOrgSelectorProps = {
 	className?: string;
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
+	composer?: HTMLElement | null;
 };
 
 export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
@@ -36,12 +42,21 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	className,
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
+	composer,
 }) => {
+	const isPresented = useContext(ChatPresentationContext);
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const [open, setOpen] = useState(false);
+	if (!isPresented && open) setOpen(false);
 	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Popover open={open} onOpenChange={isDisabled ? undefined : setOpen}>
+		<Popover
+			open={open && isPresented}
+			onOpenChange={
+				isDisabled ? undefined : (next) => setOpen(next && isPresented)
+			}
+		>
 			<PopoverTrigger asChild>
 				<button
 					type="button"
@@ -80,12 +95,26 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 					/>
 				</button>
 			</PopoverTrigger>
+			{isBelowMd && composer && (
+				<PopoverAnchor virtualRef={{ current: composerMenuAnchor(composer) }} />
+			)}
 			<PopoverContent
-				side={dropdownSide}
+				style={
+					isPresented ? undefined : { animation: "none", visibility: "hidden" }
+				}
+				side={isBelowMd && composer ? "top" : dropdownSide}
+				sideOffset={isBelowMd && composer ? 0 : 4}
+				avoidCollisions={!isBelowMd || !composer}
 				align={dropdownAlign}
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
+				onCloseAutoFocus={(event) => {
+					if (!isPresented) event.preventDefault();
+				}}
+				className={cn(
+					"w-64 p-0",
+					composer && "max-md:w-(--radix-popper-anchor-width)",
+				)}
 			>
-				<Command loop>
+				<Command label="Find organization" loop>
 					<CommandInput placeholder="Find organization…" className="text-xs" />
 					<CommandList>
 						<CommandEmpty className="text-xs">
