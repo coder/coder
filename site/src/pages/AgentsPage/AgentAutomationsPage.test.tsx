@@ -36,7 +36,10 @@ const mockAutomation: ChatAutomation = {
 const automationsPath = (organizationId: string) =>
 	`/api/experimental/organizations/${organizationId}/chat-automations`;
 
-const setup = ({ experiments = ["chat-automations"] } = {}) => {
+const setup = ({
+	experiments = ["chat-automations"],
+	automations = [mockAutomation],
+} = {}) => {
 	const requests: Request[] = [];
 	server.use(
 		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
@@ -56,7 +59,7 @@ const setup = ({ experiments = ["chat-automations"] } = {}) => {
 			},
 		),
 		http.get(automationsPath(":organizationId"), () =>
-			HttpResponse.json([mockAutomation]),
+			HttpResponse.json(automations),
 		),
 	);
 	const { queryClient } = renderWithAuth(<AgentAutomationsPage />);
@@ -221,10 +224,22 @@ describe("AgentAutomationsPage", () => {
 	});
 });
 
-const mockOtherChat: Chat = {
+const mockTargetChat: Chat = {
 	...MockChat,
+	organization_id: MockDefaultOrganization.id,
+};
+
+const mockOtherChat: Chat = {
+	...mockTargetChat,
 	id: "chat-2",
 	title: "Release notes",
+};
+
+const mockOtherOrgChat: Chat = {
+	...MockChat,
+	id: "chat-3",
+	organization_id: MockOrganization2.id,
+	title: "Other organization chat",
 };
 
 const mockModel: ChatModel = {
@@ -241,15 +256,19 @@ const validationError = (field: string, detail: string) =>
 		{ status: 400 },
 	);
 
-const setupEditor = () => {
+const setupEditor = (options?: Parameters<typeof setup>[0]) => {
 	const previewBodies: unknown[] = [];
 	const createBodies: unknown[] = [];
 	const updateBodies: unknown[] = [];
-	const { requests, queryClient } = setup();
+	const { requests, queryClient } = setup(options);
 	server.use(
 		http.get("/api/v2/chats", ({ request }) => {
 			requests.push(request);
-			return HttpResponse.json([MockChat, mockOtherChat]);
+			return HttpResponse.json([
+				mockTargetChat,
+				mockOtherChat,
+				mockOtherOrgChat,
+			]);
 		}),
 		http.get("/api/v2/organizations/:organizationId/chats/models", () =>
 			HttpResponse.json({
@@ -428,6 +447,13 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(
 			within(dialog).getByRole("button", { name: "Chat" }),
 		).toHaveAccessibleDescription("Choose a chat.");
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		expect(
+			await within(dialog).findByRole("combobox", { name: /^Model/ }),
+		).toHaveAccessibleDescription("Choose a model.");
 		expect(createBodies).toEqual([]);
 	});
 
@@ -469,6 +495,132 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		expect(cron).toHaveAccessibleDescription(
 			expect.not.stringContaining("Must be a valid cron expression."),
 		);
+	});
+
+	it("offers only chats from the automation's organization", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		const dialog = await openCreateDialog(user);
+
+		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
+		await screen.findByRole("option", { name: mockOtherChat.title });
+		expect(
+			screen.getAllByRole("option").map((option) => option.textContent),
+		).toEqual([mockTargetChat.title, mockOtherChat.title]);
+	});
+
+	it("saves a name of 128 code points that spans more UTF-16 units", async () => {
+		const user = userEvent.setup();
+		const { createBodies } = setupEditor();
+		await user.click(
+			await screen.findByRole("button", { name: "New automation" }),
+		);
+		const dialog = await screen.findByRole("dialog");
+		const name = "\u{1F600}".repeat(65) + "x".repeat(63);
+		await user.click(within(dialog).getByLabelText(/^Name/));
+		await user.paste(name);
+		await user.click(within(dialog).getByLabelText(/^Prompt/));
+		await user.paste("Summarize yesterday.");
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(createBodies).toEqual([expect.objectContaining({ name })]);
+		});
+	});
+
+	it("shows a time zone preview error on the time zone field", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.post(`${automationsPath(":organizationId")}/schedule-preview`, () =>
+				validationError("schedule_time_zone", "Unknown time zone."),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("combobox", { name: "Time zone" }),
+			).toHaveAccessibleDescription("Unknown time zone.");
+		});
+		expect(
+			within(dialog).getByLabelText(/^Cron expression/),
+		).toHaveAccessibleDescription(
+			"Five fields: minute, hour, day of month, month, day of week.",
+		);
+	});
+
+	it("names the empty model catalog on the model selector", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		server.use(
+			http.get("/api/v2/organizations/:organizationId/chats/models", () =>
+				HttpResponse.json({
+					models: [],
+					providers: [],
+					unsupported_providers: [],
+				}),
+			),
+		);
+		const dialog = await openCreateDialog(user);
+
+		await user.click(
+			within(dialog).getByRole("radio", { name: "New chat each run" }),
+		);
+		expect(
+			await within(dialog).findByRole("combobox", {
+				name: "Model, No Models Configured",
+			}),
+		).toBeDisabled();
+	});
+
+	it("shows upcoming runs in UTC when the browser does not know the zone", async () => {
+		const user = userEvent.setup();
+		setupEditor({
+			automations: [{ ...mockAutomation, schedule_time_zone: "Mars/Olympus" }],
+		});
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Edit ${MockChatAutomation.name}`,
+			}),
+		);
+		const dialog = await screen.findByRole("dialog");
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("region", { name: "Upcoming runs" }),
+			).toHaveTextContent(/9:30 AM UTC/);
+		});
+	});
+
+	it("keeps the editor open while a save is pending", async () => {
+		const user = userEvent.setup();
+		setupEditor();
+		let releaseSave = () => {};
+		server.use(
+			http.post(automationsPath(":organizationId"), async () => {
+				await new Promise<void>((resolve) => {
+					releaseSave = resolve;
+				});
+				return HttpResponse.json(
+					{ automation: mockAutomation },
+					{ status: 201 },
+				);
+			}),
+		);
+		const dialog = await openCreateDialog(user);
+		await pickChat(user, dialog, mockTargetChat.title);
+		await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+		await waitFor(() => {
+			expect(
+				within(dialog).getByRole("button", { name: "Cancel" }),
+			).toBeDisabled();
+		});
+		await user.keyboard("{Escape}");
+		expect(screen.getByRole("dialog")).toBe(dialog);
+		releaseSave();
 	});
 
 	it("sends only the changed fields when editing", async () => {

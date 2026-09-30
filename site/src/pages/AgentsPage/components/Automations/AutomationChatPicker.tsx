@@ -19,12 +19,14 @@ type AutomationChatPickerProps = Pick<
 	React.ComponentProps<"button">,
 	"id" | "aria-invalid" | "aria-describedby"
 > & {
+	organizationId: string;
 	value: string;
 	onChange: (chatId: string) => void;
 };
 
 /** Picks one of the current user's root chats as an automation target. */
 export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
+	organizationId,
 	value,
 	onChange,
 	...buttonProps
@@ -45,7 +47,11 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});
-	const chats = searchQuery.data ?? [];
+	// Chat search has no organization term, and a target must share the
+	// automation's organization.
+	const chats = (searchQuery.data ?? []).filter(
+		(c) => c.organization_id === organizationId,
+	);
 	const listedChat = chats.find((c) => c.id === value);
 	const selectedQuery = useQuery({
 		...chat(value),

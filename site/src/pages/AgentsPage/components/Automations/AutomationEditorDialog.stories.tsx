@@ -148,8 +148,8 @@ export const PreviewError: Story = {
 		],
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "previewChatAutomationSchedule").mockRejectedValue(
-			mockApiError({
+		spyOn(API.experimental, "previewChatAutomationSchedule").mockRejectedValue({
+			...mockApiError({
 				message: "Invalid chat automation.",
 				validations: [
 					{
@@ -158,7 +158,8 @@ export const PreviewError: Story = {
 					},
 				],
 			}),
-		);
+			status: 400,
+		});
 	},
 };
 
