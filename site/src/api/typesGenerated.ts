@@ -2936,6 +2936,17 @@ export interface ChatMessage {
 	 * version that did not record the link created it.
 	 */
 	readonly queued_message_id?: number;
+	/**
+	 * AutomationID is the chat automation that delivered this message,
+	 * if any. The automation may since have been deleted.
+	 */
+	readonly automation_id?: string;
+	/**
+	 * InputID identifies the automation input that produced this
+	 * message: a webhook delivery or a schedule occurrence. It is set
+	 * only when AutomationID is set.
+	 */
+	readonly input_id?: string;
 }
 
 // From codersdk/chats.go
@@ -3555,6 +3566,17 @@ export interface ChatQueuedMessage {
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
 	readonly created_at: string;
+	/**
+	 * AutomationID is the chat automation that queued this message, if
+	 * any. The automation may since have been deleted.
+	 */
+	readonly automation_id?: string;
+	/**
+	 * InputID identifies the automation input that produced this
+	 * message: a webhook delivery or a schedule occurrence. It is set
+	 * only when AutomationID is set.
+	 */
+	readonly input_id?: string;
 }
 
 // From codersdk/chats.go

@@ -21243,6 +21243,11 @@ const docTemplate = `{
         "codersdk.ChatMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that delivered this message,\nif any. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -21263,6 +21268,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
@@ -22231,6 +22241,11 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "automation_id": {
+                    "description": "AutomationID is the chat automation that queued this message, if\nany. The automation may since have been deleted.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -22247,6 +22262,11 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "input_id": {
+                    "description": "InputID identifies the automation input that produced this\nmessage: a webhook delivery or a schedule occurrence. It is set\nonly when AutomationID is set.",
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "model_config_id": {
                     "type": "string",
