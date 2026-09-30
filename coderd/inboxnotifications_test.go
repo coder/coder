@@ -83,6 +83,27 @@ func TestInboxNotification_Watch(t *testing.T) {
 		}
 	})
 
+	t.Run("nok - missing scope", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		client, _ = coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(token.Key)
+
+		resp, err := client.Request(ctx, http.MethodGet, "/api/v2/notifications/inbox/watch", nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -98,13 +119,18 @@ func TestInboxNotification_Watch(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, firstClient)
 		member, memberClient := coderdtest.CreateAnotherUser(t, firstClient, firstUser.OrganizationID, rbac.RoleTemplateAdmin())
 
+		token, err := member.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+			Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeInboxNotificationRead},
+		})
+		require.NoError(t, err)
+
 		u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
 		require.NoError(t, err)
 
 		// nolint:bodyclose
 		wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPHeader: http.Header{
-				"Coder-Session-Token": []string{member.SessionToken()},
+				"Coder-Session-Token": []string{token.Key},
 			},
 		})
 		if err != nil {
@@ -926,4 +952,85 @@ func TestInboxNotifications_MarkAllAsRead(t *testing.T) {
 		require.Equal(t, 10, notifs.UnreadCount)
 		require.Len(t, notifs.Notifications, 25)
 	})
+}
+
+func TestInboxNotifications_Scopes(t *testing.T) {
+	t.Parallel()
+
+	var (
+		read   = codersdk.APIKeyScopeInboxNotificationRead
+		update = codersdk.APIKeyScopeInboxNotificationUpdate
+	)
+
+	listInbox := func(ctx context.Context, client *codersdk.Client, _ uuid.UUID) error {
+		_, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+		return err
+	}
+	markRead := func(ctx context.Context, client *codersdk.Client, id uuid.UUID) error {
+		_, err := client.UpdateInboxNotificationReadStatus(ctx, id.String(), codersdk.UpdateInboxNotificationReadStatusRequest{
+			IsRead: true,
+		})
+		return err
+	}
+	markAllRead := func(ctx context.Context, client *codersdk.Client, _ uuid.UUID) error {
+		return client.MarkAllInboxNotificationsAsRead(ctx)
+	}
+
+	tests := []struct {
+		name      string
+		scopes    []codersdk.APIKeyScope
+		call      func(context.Context, *codersdk.Client, uuid.UUID) error
+		forbidden bool
+		wantRead  bool
+	}{
+		{name: "list - ok", scopes: []codersdk.APIKeyScope{read}, call: listInbox},
+		{name: "list - nok - missing read", scopes: []codersdk.APIKeyScope{update}, call: listInbox, forbidden: true},
+		{name: "read status - ok", scopes: []codersdk.APIKeyScope{read, update}, call: markRead, wantRead: true},
+		{name: "read status - nok - missing read", scopes: []codersdk.APIKeyScope{update}, call: markRead, forbidden: true},
+		{name: "read status - nok - missing update", scopes: []codersdk.APIKeyScope{read}, call: markRead, forbidden: true},
+		{name: "mark all - ok", scopes: []codersdk.APIKeyScope{update}, call: markAllRead, wantRead: true},
+		{name: "mark all - nok - missing update", scopes: []codersdk.APIKeyScope{read}, call: markAllRead, forbidden: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, _, api := coderdtest.NewWithAPI(t, nil)
+			firstUser := coderdtest.CreateFirstUser(t, client)
+			client, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			notif := dbgen.NotificationInbox(t, api.Database, database.InsertInboxNotificationParams{
+				ID:         uuid.New(),
+				UserID:     member.ID,
+				TemplateID: notifications.TemplateWorkspaceOutOfMemory,
+				Title:      "Notification",
+				Actions:    json.RawMessage("[]"),
+				Content:    "Content",
+				CreatedAt:  dbtime.Now(),
+			})
+
+			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scopes: tt.scopes,
+			})
+			require.NoError(t, err)
+			scoped := codersdk.New(client.URL)
+			scoped.SetSessionToken(token.Key)
+
+			err = tt.call(ctx, scoped, notif.ID)
+			if tt.forbidden {
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+			} else {
+				require.NoError(t, err)
+			}
+
+			notifs, err := client.ListInboxNotifications(ctx, codersdk.ListInboxNotificationsRequest{})
+			require.NoError(t, err)
+			require.Len(t, notifs.Notifications, 1)
+			require.Equal(t, tt.wantRead, notifs.Notifications[0].ReadAt != nil)
+		})
+	}
 }
