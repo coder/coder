@@ -11,8 +11,10 @@ import {
 	compactionTriggerPoint,
 	isCompactionPointBeyondWindow,
 	isCompactionTriggerEnabled,
+	organizationCompactionTrigger,
 	resolveCompactionThreshold,
 	resolveOrganizationCompactionTrigger,
+	resolveOrganizationCompactionTriggers,
 } from "./compactionTriggers";
 import { providerInfoByIDFromDescriptors } from "./utils/modelOptions";
 
@@ -84,6 +86,12 @@ describe("compaction triggers", () => {
 				contextLimit: 32_000,
 			}),
 		).toBe("organization");
+		expect(
+			bindingCompactionTriggerSource(
+				{ thresholdPercent: 70, contextLimit: 100_000 },
+				{ thresholdPercent: 95, contextLimit: 80_000 },
+			),
+		).toBe("chat");
 	});
 
 	it("uses the organization trigger when the chat trigger is disabled", () => {
@@ -109,11 +117,11 @@ describe("compaction triggers", () => {
 
 	it("reports the token point of whichever trigger binds", () => {
 		const chat = { thresholdPercent: 80, contextLimit: 128_000 };
-		const organizationTrigger = {
-			model: MockChatModel,
-			trigger: { thresholdPercent: 50, contextLimit: 32_000 },
-			pointTokens: 16_000,
-		};
+		const organizationTrigger = organizationCompactionTrigger({
+			...MockChatModel,
+			compression_threshold: 50,
+			context_limit: 32_000,
+		});
 
 		expect(bindingCompactionTriggerPoint(chat, undefined)).toBe(102_400);
 		expect(bindingCompactionTriggerPoint(chat, organizationTrigger)).toBe(
@@ -238,6 +246,73 @@ describe("compaction triggers", () => {
 		).toMatchObject({ model, pointTokens: 20_000 });
 	});
 
+	describe("resolveOrganizationCompactionTriggers", () => {
+		const compactionModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "compaction-model",
+			context_limit: 40_000,
+			compression_threshold: 50,
+		};
+		const overrides: TypesGen.ChatModelOverridesResponse = {
+			overrides: [
+				{ context: "compaction", model_config_id: compactionModel.id },
+			],
+		};
+		const providers = providerInfoByIDFromDescriptors([
+			MockChatModelProviderDescriptor,
+		]);
+		const error = new Error("Network Error");
+		const organizationID = compactionModel.organization_id;
+
+		it("reports an organization whose first overrides load failed", () => {
+			expect(
+				resolveOrganizationCompactionTriggers(
+					[{ organizationID, data: undefined, error }],
+					[compactionModel],
+					providers,
+				),
+			).toEqual({
+				triggersByOrganizationID: new Map(),
+				loadErrors: [{ organizationID, error }],
+			});
+		});
+
+		it("keeps cached overrides without reporting a failed refetch", () => {
+			expect(
+				resolveOrganizationCompactionTriggers(
+					[{ organizationID, data: overrides, error }],
+					[compactionModel],
+					providers,
+				),
+			).toEqual({
+				triggersByOrganizationID: new Map([
+					[organizationID, organizationCompactionTrigger(compactionModel)],
+				]),
+				loadErrors: [],
+			});
+		});
+
+		it("reports nothing when the overrides load succeeds", () => {
+			expect(
+				resolveOrganizationCompactionTriggers(
+					[{ organizationID, data: overrides, error: null }],
+					[compactionModel],
+					providers,
+				).loadErrors,
+			).toEqual([]);
+		});
+
+		it("ignores a failed load for an organization without enabled models", () => {
+			expect(
+				resolveOrganizationCompactionTriggers(
+					[{ organizationID, data: undefined, error }],
+					[{ ...compactionModel, enabled: false }],
+					providers,
+				).loadErrors,
+			).toEqual([]);
+		});
+	});
+
 	describe("resolveCompactionThreshold", () => {
 		const chatModel: TypesGen.ChatModel = {
 			...MockChatModel,
@@ -248,11 +323,13 @@ describe("compaction triggers", () => {
 		const organizationTrigger = (
 			thresholdPercent: number,
 			contextLimit: number,
-		) => ({
-			model: { ...MockChatModel, id: "compaction-model" },
-			trigger: { thresholdPercent, contextLimit },
-			pointTokens: (contextLimit * thresholdPercent) / 100,
-		});
+		) =>
+			organizationCompactionTrigger({
+				...MockChatModel,
+				id: "compaction-model",
+				compression_threshold: thresholdPercent,
+				context_limit: contextLimit,
+			});
 
 		it("returns the organization percent when its trigger binds", () => {
 			expect(

@@ -8,11 +8,7 @@ import {
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import {
-	type OrganizationCompactionTrigger,
-	resolveOrganizationCompactionTrigger,
-} from "./compactionTriggers";
-import type { CompactionTriggerLoadError } from "./components/UserCompactionThresholdSettings";
+import { resolveOrganizationCompactionTriggers } from "./compactionTriggers";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
 	providerInfoByIDFromDescriptors,
@@ -57,44 +53,29 @@ const AgentSettingsCompactionPage: React.FC = () => {
 	const isCompactionOverridesLoading = modelOverrideQueries.some(
 		(query) => query.isLoading,
 	);
-	const compactionTriggerLoadErrors: CompactionTriggerLoadError[] = [];
-	const compactionTriggersByOrganizationID = new Map<
-		string,
-		OrganizationCompactionTrigger
-	>();
-	for (const [index, organization] of organizations.entries()) {
-		const overridesQuery = modelOverrideQueries[index];
-		if (overridesQuery?.error && overridesQuery.data === undefined) {
-			compactionTriggerLoadErrors.push({
-				organizationID: organization.id,
-				error: overridesQuery.error,
-			});
-		}
-		const trigger = resolveOrganizationCompactionTrigger(
-			overridesQuery?.data?.overrides.find(
-				(override) => override.context === "compaction",
-			)?.model_config_id,
-			organizationModels.models.filter(
-				(model) => model.organization_id === organization.id,
-			),
-			providerInfoByID,
-		);
-		if (trigger) {
-			compactionTriggersByOrganizationID.set(organization.id, trigger);
-		}
-	}
+	const compactionTriggers = resolveOrganizationCompactionTriggers(
+		organizations.map((organization, index) => ({
+			organizationID: organization.id,
+			data: modelOverrideQueries[index]?.data,
+			error: modelOverrideQueries[index]?.error,
+		})),
+		organizationModels.models,
+		providerInfoByID,
+	);
 
 	return (
 		<AgentSettingsCompactionPageView
 			models={organizationModels.models}
 			providerTypeByID={providerTypeByID}
 			organizations={organizations}
-			compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
+			compactionTriggersByOrganizationID={
+				compactionTriggers.triggersByOrganizationID
+			}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={
 				organizationModels.isLoading || isCompactionOverridesLoading
 			}
-			compactionTriggerLoadErrors={compactionTriggerLoadErrors}
+			compactionTriggerLoadErrors={compactionTriggers.loadErrors}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}
