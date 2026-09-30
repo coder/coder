@@ -848,9 +848,8 @@ func (server *Server) prepareGeneration(
 			thresholdPercent: resolvedCompactionOverride.Config.CompressionThreshold,
 			contextLimit:     resolvedCompactionOverride.Config.ContextLimit,
 		}
-		// With its own trigger disabled the override would receive the chat
-		// trigger's full history, which may exceed its window, so the chat
-		// model summarizes instead.
+		// With its own trigger disabled, nothing bounds the history by the
+		// override's window, so the chat model summarizes instead.
 		if overrideTrigger.enabled() {
 			compactionOverride = &resolvedCompactionOverride
 			binding = bindingCompactionTrigger(chatTrigger, overrideTrigger)

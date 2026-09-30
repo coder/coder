@@ -238,8 +238,8 @@ type GenerateCompactionOptions struct {
 	ResolvedProvider string
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
-	// SummaryContextLimit is the summary model's window. When positive and
-	// smaller than the trigger's limit, it bounds the summary cap instead.
+	// SummaryContextLimit is the summary model's window. When positive, it
+	// bounds the summary cap instead of the trigger's limit.
 	SummaryContextLimit int64
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
