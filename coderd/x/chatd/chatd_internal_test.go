@@ -1272,12 +1272,10 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(workspaceAgent, nil).Times(1)
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           &Server{db: db},
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	t.Cleanup(workspaceCtx.close)
@@ -1290,7 +1288,7 @@ func TestTurnWorkspaceContext_BindingFirstPath(t *testing.T) {
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
 	require.Equal(t, workspaceAgent, gotAgent)
-	require.Equal(t, chat, currentChat)
+	require.Equal(t, chat, workspaceCtx.currentChatSnapshot())
 }
 
 func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
@@ -1326,12 +1324,10 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 		}).Return(updatedChat, nil),
 	)
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           &Server{db: db},
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	t.Cleanup(workspaceCtx.close)
@@ -1340,7 +1336,7 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updatedChat, chatSnapshot)
 	require.Equal(t, workspaceAgent, agent)
-	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, updatedChat, workspaceCtx.currentChatSnapshot())
 
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
@@ -1401,12 +1397,10 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 		}).Return(updatedChat, nil),
 	)
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           &Server{db: db},
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	t.Cleanup(workspaceCtx.close)
@@ -1415,7 +1409,7 @@ func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, updatedChat, chatSnapshot)
 	require.Equal(t, currentAgent, agent)
-	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, updatedChat, workspaceCtx.currentChatSnapshot())
 }
 
 func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgent(t *testing.T) {
@@ -1478,12 +1472,10 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 		return conn, func() {}, nil
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	t.Cleanup(workspaceCtx.close)
@@ -1492,7 +1484,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	require.NoError(t, err)
 	require.Same(t, conn, gotConn)
 	require.Equal(t, []uuid.UUID{staleAgentID, currentAgentID}, dialed)
-	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, updatedChat, workspaceCtx.currentChatSnapshot())
 
 	gotAgent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	require.NoError(t, err)
@@ -1547,12 +1539,10 @@ func TestTurnWorkspaceContextGetWorkspaceConnFastFailsWithoutCurrentAgent(t *tes
 		return nil, nil, xerrors.New("dial failed")
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -1606,12 +1596,10 @@ func TestTurnWorkspaceContextGetWorkspaceConnDeletedWorkspace(t *testing.T) {
 		return nil, nil, nil
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -1651,12 +1639,10 @@ func TestTurnWorkspaceContextEnsureWorkspaceAgentRebindsFromDeletedWorkspace(t *
 	updatedChat.BuildID = uuid.NullUUID{UUID: buildID, Valid: true}
 	updatedChat.AgentID = uuid.NullUUID{UUID: replacementAgent.ID, Valid: true}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           &Server{db: db},
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -1708,8 +1694,7 @@ func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 	releaseCalls := 0
 
 	workspaceCtx := turnWorkspaceContext{
-		chatStateMu: &sync.Mutex{},
-		currentChat: &currentChat,
+		currentChat: currentChat,
 	}
 	workspaceCtx.agent = database.WorkspaceAgent{ID: uuid.New()}
 	workspaceCtx.agentLoaded = true
@@ -1721,7 +1706,7 @@ func TestTurnWorkspaceContext_SelectWorkspaceClearsCachedState(t *testing.T) {
 
 	workspaceCtx.selectWorkspace(updatedChat)
 
-	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, updatedChat, workspaceCtx.currentChatSnapshot())
 	require.Equal(t, 1, releaseCalls)
 
 	workspaceCtx.mu.Lock()
@@ -1767,12 +1752,10 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 		}).Return(updatedChat, nil),
 	)
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           &Server{db: db},
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	workspaceCtx.agent = cachedAgent
@@ -1784,7 +1767,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	require.NoError(t, err)
 	require.Equal(t, updatedChat, chatSnapshot)
 	require.Equal(t, resolvedAgent, agent)
-	require.Equal(t, updatedChat, currentChat)
+	require.Equal(t, updatedChat, workspaceCtx.currentChatSnapshot())
 }
 
 func TestSubscribeRejectsUnauthorizedCallerBeforeSharedFetches(t *testing.T) {
@@ -2341,12 +2324,10 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 		}
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:      server,
-		chatStateMu: chatStateMu,
-		currentChat: &currentChat,
+		currentChat: currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
 			return database.Chat{}, nil
 		},
@@ -2430,12 +2411,10 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 		return nil, nil, dialErr
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:      server,
-		chatStateMu: chatStateMu,
-		currentChat: &currentChat,
+		currentChat: currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
 			return database.Chat{}, nil
 		},
@@ -2577,13 +2556,11 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				return nil, nil, xerrors.New("should not be called")
 			}
 
-			chatStateMu := &sync.Mutex{}
 			currentChat := chat
 			cachedConn := agentconnmock.NewMockAgentConn(ctrl)
 			workspaceCtx := turnWorkspaceContext{
 				server:      server,
-				chatStateMu: chatStateMu,
-				currentChat: &currentChat,
+				currentChat: currentChat,
 				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) {
 					return database.Chat{}, nil
 				},
@@ -2747,12 +2724,10 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 				return nil, nil, ctx.Err()
 			}
 
-			chatStateMu := &sync.Mutex{}
 			currentChat := chat
 			workspaceCtx := turnWorkspaceContext{
 				server:           server,
-				chatStateMu:      chatStateMu,
-				currentChat:      &currentChat,
+				currentChat:      currentChat,
 				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 			}
 			defer workspaceCtx.close()
@@ -2858,12 +2833,10 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 		return conn, nil, nil
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -2929,13 +2902,11 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 	}
 
 	var releaseCalled bool
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	oldConn := agentconnmock.NewMockAgentConn(ctrl)
 	workspaceCtx := turnWorkspaceContext{
 		server:            server,
-		chatStateMu:       chatStateMu,
-		currentChat:       &currentChat,
+		currentChat:       currentChat,
 		loadChatSnapshot:  func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 		agent:             disconnectedAgent,
 		agentLoaded:       true,
@@ -3009,12 +2980,10 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 		return nil, nil, ctx.Err()
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -3084,12 +3053,10 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 		return nil, nil, ctx.Err()
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -3166,12 +3133,10 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 		return nil, nil, xerrors.New("unexpected agent dial")
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -3237,12 +3202,10 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 		return conn, func() {}, nil
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -3324,12 +3287,10 @@ func TestGetWorkspaceConn_DialErrorNotMisclassifiedAsTimeout(t *testing.T) {
 		return nil, nil, dialErr
 	}
 
-	chatStateMu := &sync.Mutex{}
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      chatStateMu,
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
 	}
 	defer workspaceCtx.close()
@@ -3444,8 +3405,7 @@ func TestGetWorkspaceConnBumpsWorkspaceUsage(t *testing.T) {
 	currentChat := chat
 	workspaceCtx := turnWorkspaceContext{
 		server:           server,
-		chatStateMu:      &sync.Mutex{},
-		currentChat:      &currentChat,
+		currentChat:      currentChat,
 		loadChatSnapshot: db.GetChatByID,
 	}
 	t.Cleanup(workspaceCtx.close)
