@@ -95,6 +95,11 @@ func (*OpenAI) PassthroughRoutes() []string {
 		"/models",
 		"/models/",
 		"/responses/", // Forwards other responses API endpoints, eg: https://platform.openai.com/docs/api-reference/responses/get
+		// GPT-Live voice sessions. POST /live creates a WebRTC call from an SDP
+		// offer; /live/{call_id} is the sideband control WebSocket. Audio flows
+		// directly between the client and OpenAI, so usage is not recorded.
+		"/live",
+		"/live/",
 	}
 }
 
