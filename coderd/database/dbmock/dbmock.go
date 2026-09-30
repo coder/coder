@@ -9236,18 +9236,18 @@ func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 }
 
 // ListActiveWorkspaceSecrets mocks base method.
-func (m *MockStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+func (m *MockStore) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListActiveWorkspaceSecrets", ctx, workspaceID)
+	ret := m.ctrl.Call(m, "ListActiveWorkspaceSecrets", ctx, workspaceBuildID)
 	ret0, _ := ret[0].([]database.WorkspaceSecret)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListActiveWorkspaceSecrets indicates an expected call of ListActiveWorkspaceSecrets.
-func (mr *MockStoreMockRecorder) ListActiveWorkspaceSecrets(ctx, workspaceID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) ListActiveWorkspaceSecrets(ctx, workspaceBuildID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).ListActiveWorkspaceSecrets), ctx, workspaceID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListActiveWorkspaceSecrets", reflect.TypeOf((*MockStore)(nil).ListActiveWorkspaceSecrets), ctx, workspaceBuildID)
 }
 
 // ListAuthorizedAIBridgeClients mocks base method.

@@ -7043,7 +7043,7 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 	return q.db.ListAIGatewayKeys(ctx)
 }
 
-func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
+func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
 	// This query returns decrypted secret values and must only be called
 	// from system contexts: the agent manifest and the build transaction
 	// that copies secrets forward. Workspace secrets are write-only through
@@ -7051,7 +7051,7 @@ func (q *querier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uu
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
-	return q.db.ListActiveWorkspaceSecrets(ctx, workspaceID)
+	return q.db.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
 }
 
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {

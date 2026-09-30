@@ -45,8 +45,8 @@ WHERE env_name != '';
 CREATE UNIQUE INDEX workspace_secrets_build_file_path_idx ON workspace_secrets(workspace_build_id, file_path)
 WHERE file_path != '';
 
--- Live rows are looked up by workspace when assembling the agent manifest
--- and when copying forward to the next build.
+-- Live rows are cleared by workspace when a new build is created. Lookups by
+-- build use workspace_secrets_build_name_idx.
 CREATE INDEX workspace_secrets_workspace_live_idx ON workspace_secrets(workspace_id)
 WHERE cleared_at IS NULL;
 

@@ -633,13 +633,27 @@ func (b *Builder) persistSecrets(store database.Store, workspaceBuildID uuid.UUI
 		requested[secret.Name] = secret
 	}
 
-	// Reading decrypted values is restricted to system contexts. The values
-	// are only re-inserted for the same workspace and never returned, and
-	// the inserts below are authorized as the request's actor.
-	// nolint:gocritic
-	previous, err := store.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(b.ctx), b.workspace.ID)
+	var previous []database.WorkspaceSecret
+	firstBuild, err := b.firstBuild()
 	if err != nil {
-		return BuildError{http.StatusInternalServerError, "list workspace secrets", err}
+		return BuildError{http.StatusInternalServerError, "check if first build", err}
+	}
+	if !firstBuild {
+		// getLastBuild was cached before the new build row was inserted, so
+		// it is the build being superseded.
+		lastBuild, err := b.getLastBuild()
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "get last build", err}
+		}
+		// Reading decrypted values is restricted to system contexts. The
+		// values are only re-inserted for the same workspace and never
+		// returned, and the inserts below are authorized as the request's
+		// actor.
+		// nolint:gocritic
+		previous, err = store.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(b.ctx), lastBuild.ID)
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "list workspace secrets", err}
+		}
 	}
 
 	for _, prev := range previous {

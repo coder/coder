@@ -6725,10 +6725,10 @@ func (s *MethodTestSuite) TestWorkspaceSecrets() {
 		check.Args(arg).Asserts(ws, policy.ActionUpdate)
 	}))
 	s.Run("ListActiveWorkspaceSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ws := testutil.Fake(s.T(), faker, database.Workspace{})
-		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{WorkspaceID: ws.ID})
-		dbm.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), ws.ID).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
-		check.Args(ws.ID).
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
+		secret := testutil.Fake(s.T(), faker, database.WorkspaceSecret{WorkspaceBuildID: build.ID})
+		dbm.EXPECT().ListActiveWorkspaceSecrets(gomock.Any(), build.ID).Return([]database.WorkspaceSecret{secret}, nil).AnyTimes()
+		check.Args(build.ID).
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns([]database.WorkspaceSecret{secret})
 	}))

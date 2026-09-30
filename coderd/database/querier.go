@@ -1332,11 +1332,12 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
-	// Returns the live rows (value not yet cleared) for a workspace, which are
-	// always the rows of its latest build. Includes decrypted values, so this is
-	// used only by the agent manifest and by the build transaction that copies
-	// secrets forward; there is no REST endpoint that reads workspace secrets.
-	ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error)
+	// Returns the live rows (value not yet cleared) linked to a build. Only the
+	// latest build of a workspace has live rows, so an older build returns none.
+	// Includes decrypted values, so this is used only by the agent manifest and
+	// by the build transaction that copies secrets forward; there is no REST
+	// endpoint that reads workspace secrets.
+	ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.

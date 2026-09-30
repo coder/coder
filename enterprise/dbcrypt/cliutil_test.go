@@ -386,7 +386,7 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 
 		f.rotate(t)
 
-		secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
+		secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Build.ID)
 		require.NoError(t, err)
 		require.Len(t, secrets, 1)
 		require.Equal(t, f.cipherB.HexDigest(), secrets[0].ValueKeyID.String)
@@ -413,7 +413,7 @@ func TestRotateWorkspaceSecrets(t *testing.T) {
 		var derr *dbcrypt.DecryptFailedError
 		require.ErrorAs(t, err, &derr, "expected a decrypt error")
 
-		secrets, getErr := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
+		secrets, getErr := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Build.ID)
 		require.NoError(t, getErr)
 		require.Len(t, secrets, 1)
 		require.Equal(t, cipherC.HexDigest(), secrets[0].ValueKeyID.String, "row must remain encrypted under cipher C after a failed rotation")
@@ -1578,7 +1578,7 @@ func TestDecryptWorkspaceSecrets(t *testing.T) {
 
 	f.decrypt(t)
 
-	secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Workspace.ID)
+	secrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, ws.Build.ID)
 	require.NoError(t, err)
 	require.Len(t, secrets, 1)
 	require.False(t, secrets[0].ValueKeyID.Valid)
@@ -1608,7 +1608,7 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 
 	f.delete(t)
 
-	encSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, encWS.Workspace.ID)
+	encSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, encWS.Build.ID)
 	require.NoError(t, err)
 	// Rows are kept as history; only the value is dropped.
 	require.Empty(t, encSecrets, "encrypted workspace_secrets row should have been cleared")
@@ -1618,7 +1618,7 @@ func TestDeleteWorkspaceSecrets(t *testing.T) {
 		require.NotEqual(t, encWS.Workspace.ID, s.WorkspaceID, "cleared row must no longer hold a value")
 	}
 
-	plainSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, plainWS.Workspace.ID)
+	plainSecrets, err := f.rawDB.ListActiveWorkspaceSecrets(f.ctx, plainWS.Build.ID)
 	require.NoError(t, err)
 	require.Len(t, plainSecrets, 1, "never-encrypted workspace_secrets row should survive")
 	require.Equal(t, "plain-secret-value", plainSecrets[0].Value.String)

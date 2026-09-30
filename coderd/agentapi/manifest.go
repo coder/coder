@@ -98,10 +98,9 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, xerrors.Errorf("getting user secrets: %w", err)
 	}
-	//nolint:gocritic // System context needed to read secrets for the workspace.
-	workspaceSecrets, err := a.Database.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+	workspaceSecrets, err := a.agentBuildSecrets(ctx, workspaceAgent)
 	if err != nil {
-		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
+		return nil, err
 	}
 
 	appSlug := appurl.ApplicationURL{
@@ -162,6 +161,28 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		Devcontainers: dbAgentDevcontainersToProto(devcontainers),
 		Secrets:       dbSecretsToProto(userSecrets, workspaceSecrets, secretFilePathPolicy),
 	}, nil
+}
+
+// agentBuildSecrets returns the live workspace secrets linked to the build
+// that created the agent. Only the latest build has live secrets, so an agent
+// left over from an earlier build receives none.
+func (a *ManifestAPI) agentBuildSecrets(ctx context.Context, agent database.WorkspaceAgent) ([]database.WorkspaceSecret, error) {
+	// nolint:gocritic // System context needed to resolve the agent's build
+	// and read decrypted secret values; the agent is already authenticated.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	resource, err := a.Database.GetWorkspaceResourceByID(sysCtx, agent.ResourceID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace agent resource: %w", err)
+	}
+	build, err := a.Database.GetWorkspaceBuildByJobID(sysCtx, resource.JobID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace agent build: %w", err)
+	}
+	secrets, err := a.Database.ListActiveWorkspaceSecrets(sysCtx, build.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("getting workspace secrets: %w", err)
+	}
+	return secrets, nil
 }
 
 func vscodeProxyURI(app appurl.ApplicationURL, accessURL *url.URL, appHost string) string {

@@ -1101,8 +1101,8 @@ func (db *dbCrypt) InsertWorkspaceSecret(ctx context.Context, params database.In
 	return secret, nil
 }
 
-func (db *dbCrypt) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceSecret, error) {
-	secrets, err := db.Store.ListActiveWorkspaceSecrets(ctx, workspaceID)
+func (db *dbCrypt) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceSecret, error) {
+	secrets, err := db.Store.ListActiveWorkspaceSecrets(ctx, workspaceBuildID)
 	if err != nil {
 		return nil, err
 	}

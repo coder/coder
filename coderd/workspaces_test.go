@@ -6644,11 +6644,11 @@ func TestWorkspaceSecrets(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-	// listSecrets returns the live (uncleared) rows for a workspace by name.
-	listSecrets := func(ctx context.Context, t *testing.T, workspaceID uuid.UUID) map[string]database.WorkspaceSecret {
+	// listSecrets returns the live (uncleared) rows linked to a build by name.
+	listSecrets := func(ctx context.Context, t *testing.T, buildID uuid.UUID) map[string]database.WorkspaceSecret {
 		t.Helper()
 		//nolint:gocritic // Reading decrypted secret values requires the system context.
-		rows, err := db.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(ctx), workspaceID)
+		rows, err := db.ListActiveWorkspaceSecrets(dbauthz.AsSystemRestricted(ctx), buildID)
 		require.NoError(t, err)
 		byName := make(map[string]database.WorkspaceSecret, len(rows))
 		for _, row := range rows {
@@ -6690,7 +6690,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		build1 := workspace.LatestBuild
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build1.ID)
 
-		secrets := listSecrets(ctx, t, workspace.ID)
+		secrets := listSecrets(ctx, t, build1.ID)
 		require.Len(t, secrets, 3)
 		require.Equal(t, "first-value", secrets["api-key"].Value.String)
 		require.Equal(t, "API_KEY", secrets["api-key"].EnvName)
@@ -6708,7 +6708,8 @@ func TestWorkspaceSecrets(t *testing.T) {
 		// rows while keeping them as history.
 		build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
-		secrets = listSecrets(ctx, t, workspace.ID)
+		secrets = listSecrets(ctx, t, build2.ID)
+		require.Empty(t, listSecrets(ctx, t, build1.ID), "superseded build must have no live secrets")
 		require.Len(t, secrets, 2)
 		require.Equal(t, build2.ID, secrets["api-key"].WorkspaceBuildID)
 		require.Equal(t, "first-value", secrets["api-key"].Value.String)
@@ -6734,7 +6735,7 @@ func TestWorkspaceSecrets(t *testing.T) {
 		})
 		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build3.ID)
-		secrets = listSecrets(ctx, t, workspace.ID)
+		secrets = listSecrets(ctx, t, build3.ID)
 		require.Len(t, secrets, 1)
 		require.Equal(t, "second-value", secrets["api-key"].Value.String)
 		require.Equal(t, build3.ID, secrets["api-key"].WorkspaceBuildID)
@@ -6803,7 +6804,10 @@ func TestWorkspaceSecrets(t *testing.T) {
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-			require.Empty(t, listSecrets(ctx, t, workspace.ID), "failed build must not persist any secret")
+			//nolint:gocritic // Only the system context may read this table.
+			history, err := db.GetWorkspaceSecretsHistory(dbauthz.AsSystemRestricted(ctx), workspace.ID)
+			require.NoError(t, err)
+			require.Empty(t, history, "failed build must not persist any secret")
 		})
 	})
 }

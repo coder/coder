@@ -33435,17 +33435,18 @@ func (q *sqlQuerier) InsertWorkspaceSecret(ctx context.Context, arg InsertWorksp
 const listActiveWorkspaceSecrets = `-- name: ListActiveWorkspaceSecrets :many
 SELECT id, workspace_id, workspace_build_id, name, value, value_key_id, env_name, file_path, ephemeral, created_at, cleared_at
 FROM workspace_secrets
-WHERE workspace_id = $1
+WHERE workspace_build_id = $1
   AND cleared_at IS NULL
 ORDER BY name ASC
 `
 
-// Returns the live rows (value not yet cleared) for a workspace, which are
-// always the rows of its latest build. Includes decrypted values, so this is
-// used only by the agent manifest and by the build transaction that copies
-// secrets forward; there is no REST endpoint that reads workspace secrets.
-func (q *sqlQuerier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceSecret, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveWorkspaceSecrets, workspaceID)
+// Returns the live rows (value not yet cleared) linked to a build. Only the
+// latest build of a workspace has live rows, so an older build returns none.
+// Includes decrypted values, so this is used only by the agent manifest and
+// by the build transaction that copies secrets forward; there is no REST
+// endpoint that reads workspace secrets.
+func (q *sqlQuerier) ListActiveWorkspaceSecrets(ctx context.Context, workspaceBuildID uuid.UUID) ([]WorkspaceSecret, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveWorkspaceSecrets, workspaceBuildID)
 	if err != nil {
 		return nil, err
 	}

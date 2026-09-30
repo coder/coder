@@ -1,11 +1,12 @@
 -- name: ListActiveWorkspaceSecrets :many
--- Returns the live rows (value not yet cleared) for a workspace, which are
--- always the rows of its latest build. Includes decrypted values, so this is
--- used only by the agent manifest and by the build transaction that copies
--- secrets forward; there is no REST endpoint that reads workspace secrets.
+-- Returns the live rows (value not yet cleared) linked to a build. Only the
+-- latest build of a workspace has live rows, so an older build returns none.
+-- Includes decrypted values, so this is used only by the agent manifest and
+-- by the build transaction that copies secrets forward; there is no REST
+-- endpoint that reads workspace secrets.
 SELECT *
 FROM workspace_secrets
-WHERE workspace_id = @workspace_id
+WHERE workspace_build_id = @workspace_build_id
   AND cleared_at IS NULL
 ORDER BY name ASC;
 
