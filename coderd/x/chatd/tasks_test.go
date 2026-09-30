@@ -861,23 +861,22 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	}
 	exitCode := 0
 	tests := []struct {
-		name     string
-		toolName string
-		// agentless marks a tool that gets no cancel.
-		agentless    bool
-		cancel       workspacesdk.CancelToolCallResponse
-		cancelErr    error
-		cancelPanics bool
-		output       *workspacesdk.ProcessOutputResponse
-		outputErr    error
-		wantError    bool
-		want         string
+		name          string
+		toolName      string
+		notCancelable bool
+		cancel        workspacesdk.CancelToolCallResponse
+		cancelErr     error
+		cancelPanics  bool
+		output        *workspacesdk.ProcessOutputResponse
+		outputErr     error
+		wantError     bool
+		want          string
 	}{
-		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"not run: canceled before the agent received it"}`},
+		{name: "ExecuteNotReceived", toolName: "execute", outputErr: codersdk.NewError(http.StatusNotFound, codersdk.Response{}), wantError: true, want: `{"error":"tool call was canceled before it ran; no changes were made"}`},
 		// The agent has no record, but the cancel killed the call's process.
-		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"canceled by the user","exit_code":-1,"output":"partial","success":false}`},
+		{name: "ExecuteNoRecordProcessKilled", toolName: "execute", output: &workspacesdk.ProcessOutputResponse{Output: "partial", Canceled: true}, want: `{"canceled":true,"error":"tool call was canceled while running","exit_code":-1,"output":"partial","success":false}`},
 		{name: "ExecuteNoRecordOutputError", toolName: "execute", outputErr: xerrors.New("connection reset"), wantError: true, want: interruptedToolResultErrorMessage},
-		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "not applied: canceled before the agent received it"},
+		{name: "EditNotReceived", toolName: "edit_files", wantError: true, want: "tool call was canceled before it ran; no changes were made"},
 		{name: "ExecuteStartError", toolName: "execute", cancel: saved(http.StatusInternalServerError, `{"message":"no shell"}`), want: `"error":"start process: unexpected status code 500: no shell"`},
 		{name: "EditError", toolName: "edit_files", cancel: saved(http.StatusBadRequest, `{"message":"old_text not found"}`), wantError: true, want: "old_text not found"},
 		{name: "ExecuteExited", toolName: "execute", cancel: saved(http.StatusOK, `{}`), output: &workspacesdk.ProcessOutputResponse{Output: "done", ExitCode: &exitCode}, want: `{"exit_code":0,"output":"done","success":true}`},
@@ -886,7 +885,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 		{name: "EditAppliedTruncated", toolName: "edit_files", cancel: saved(http.StatusOK, `{"files":[{"path":"/a","diff":"`+strings.Repeat("d", 64<<10)+`"}]}`), want: "Coder truncated"},
 		{name: "CancelError", toolName: "write_file", cancelErr: xerrors.New("unexpected status code 404"), wantError: true, want: interruptedToolResultErrorMessage},
 		{name: "CancelPanic", toolName: "execute", cancelPanics: true, wantError: true, want: interruptedToolResultErrorMessage},
-		{name: "OtherTool", toolName: "read_file", agentless: true, wantError: true, want: interruptedToolResultErrorMessage},
+		{name: "OtherTool", toolName: "read_file", notCancelable: true, wantError: true, want: interruptedToolResultErrorMessage},
 	}
 
 	f := newTaskTestFixture(t)
@@ -912,7 +911,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	// would time out.
 	var pending atomic.Int64
 	for _, tc := range tests {
-		if !tc.agentless {
+		if !tc.notCancelable {
 			pending.Add(1)
 		}
 	}
@@ -920,7 +919,7 @@ func TestInterruptTask_CancelsUnresolvedToolCallsOnAgent(t *testing.T) {
 	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
 	conn.EXPECT().SetExtraHeaders(gomock.Any())
 	for _, tc := range tests {
-		if tc.agentless {
+		if tc.notCancelable {
 			continue
 		}
 		id := chattool.ToolCallID(batch.chat.ID, assistantID, "call_"+tc.name)

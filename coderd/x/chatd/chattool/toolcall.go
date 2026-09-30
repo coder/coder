@@ -14,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+const canceledBeforeRunMessage = "tool call was canceled before it ran; no changes were made"
+
 // toolCallIDNamespace is the UUIDv5 namespace for tool call IDs. Changing
 // it changes every ID, so the agent would rerun in-flight tool calls.
 var toolCallIDNamespace = uuid.MustParse("0af4d6d3-691c-45dd-ac54-55ea97970ebc")
@@ -56,12 +58,12 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 	switch toolName {
 	case EditFilesToolName:
 		if !canceled.Received {
-			return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
+			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
 		return editFilesResponse(canceled.EditFilesResult()), nil
 	case WriteFileToolName:
 		if !canceled.Received {
-			return fantasy.NewTextErrorResponse("not applied: canceled before the agent received it"), nil
+			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
 		return writeFileResponse(canceled.WriteFileResult()), nil
 	case ExecuteToolName:
@@ -76,14 +78,14 @@ func CancelToolCall(ctx context.Context, conn workspacesdk.AgentConn, id uuid.UU
 		output, err := conn.ProcessOutput(ctx, id.String(), &workspacesdk.ProcessOutputOptions{Wait: true})
 		var sdkErr *codersdk.Error
 		if !canceled.Received && errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-			return fantasy.NewTextErrorResponse("not run: canceled before the agent received it"), nil
+			return fantasy.NewTextErrorResponse(canceledBeforeRunMessage), nil
 		}
 		if err != nil {
 			return fantasy.ToolResponse{}, xerrors.Errorf("read process output: %w", err)
 		}
 		exited := exitedResult(output)
 		if output.Canceled {
-			exited.Success, exited.ExitCode, exited.Error, exited.Canceled = false, -1, "canceled by the user", true
+			exited.Success, exited.ExitCode, exited.Error, exited.Canceled = false, -1, "tool call was canceled while running", true
 		}
 		return marshalToolResponse(exited), nil
 	default:
