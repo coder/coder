@@ -171,6 +171,7 @@ func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -345,6 +346,7 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				Chat:            created.Chat,
 				Messages:        created.InitialMessages,
 				TurnExperiments: &turnExperimentDecisions{},
+				Workspace:       server.newTurnWorkspaceContext(),
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
@@ -450,6 +452,7 @@ func TestBuildTurnEnvironmentComputerUseIgnoresChatTransportOverride(t *testing.
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -694,6 +697,7 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Chat:            created.Chat,
 		Messages:        created.InitialMessages,
 		TurnExperiments: &turnExperimentDecisions{},
+		Workspace:       server.newTurnWorkspaceContext(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
