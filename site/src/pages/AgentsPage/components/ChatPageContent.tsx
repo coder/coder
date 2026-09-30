@@ -109,7 +109,7 @@ export const workspaceSkillsFromChat = (
 };
 
 type ChatPageTimelineProps = {
-	organizationId: string | undefined;
+	organizationId: string;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
@@ -127,8 +127,8 @@ type ChatPageTimelineProps = {
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
 };
 
@@ -290,7 +290,7 @@ type ChatPageInputProps = {
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
-	isReadOnly?: boolean;
+	isReadOnly: boolean;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -300,21 +300,21 @@ type ChatPageInputProps = {
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialValue?: string;
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
+	initialValue: string;
 	initialEditorState?: string;
-	remountKey?: number;
-	onContentChange?: (
+	remountKey: number;
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
@@ -323,14 +323,14 @@ type ChatPageInputProps = {
 	onCancelHistoryEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
 	// MCP server picker state.
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds?: readonly string[];
-	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds: readonly string[];
+	onMCPSelectionChange: (ids: string[]) => void;
+	onMCPAuthComplete: (serverId: string) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	sshCommand?: string;
@@ -347,7 +347,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onPromoteQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
-	isReadOnly = false,
+	isReadOnly,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -364,7 +364,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	inputRef,
 	initialValue,
 	initialEditorState,
@@ -378,7 +378,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
 	sshCommand,
@@ -529,7 +529,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		if (!isEditing) {
 			return;
 		}
-		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
 			setEditPreviewUrls(new Map());
