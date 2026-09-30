@@ -171,6 +171,25 @@ func TestResolveUserProviderKeys(t *testing.T) {
 			},
 		},
 		{
+			name: "AnthropicAmbientCredentialsUserKeyRequiredWithoutFallback",
+			providers: []chatprovider.ConfiguredProvider{{
+				ProviderID:                 anthropicProviderID,
+				Provider:                   fantasyanthropic.Name,
+				CentralAPIKeyEnabled:       true,
+				AllowUserAPIKey:            true,
+				SupportsAmbientCredentials: true,
+			}},
+			wantAvailability: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: false, UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired},
+			},
+			wantKeys: map[string]string{
+				fantasyanthropic.Name: "",
+			},
+			wantKeyPresence: map[string]bool{
+				fantasyanthropic.Name: false,
+			},
+		},
+		{
 			name:      "AnthropicCentralOnlyKeyMissing",
 			providers: []chatprovider.ConfiguredProvider{configuredProvider(anthropicProviderID, fantasyanthropic.Name, true, "", false, false)},
 			wantAvailability: map[string]chatprovider.ProviderAvailability{
