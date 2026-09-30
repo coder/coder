@@ -132,8 +132,7 @@ type CompactionOptions struct {
 // CompactionResult is one generated summary. ThresholdPercent and
 // TriggerContextLimit echo the requested trigger, not the normalized one, so
 // chatd's summaryRecordedUnderOtherTrigger compares like with like;
-// UsagePercent is still measured against the resolved limit. ContextLimit is
-// ContextLimitFallback, the chat model's window shown in chat usage.
+// UsagePercent is still measured against the resolved limit.
 type CompactionResult struct {
 	SystemSummary    string
 	SummaryReport    string
@@ -141,7 +140,7 @@ type CompactionResult struct {
 	ThresholdPercent int32
 	UsagePercent     float64
 	ContextTokens    int64
-	ContextLimit     int64
+	ChatContextLimit int64
 	// EstimatedContextTokens covers only SystemSummary, not the full prompt.
 	EstimatedContextTokens int64
 	TriggerContextLimit    int64
@@ -158,14 +157,17 @@ type CompactionResult struct {
 // CompactionToolResult is the chat_summarized tool result payload, both
 // streamed and persisted.
 type CompactionToolResult struct {
-	Summary                   string           `json:"summary"`
-	Source                    CompactionSource `json:"source"`
-	ThresholdPercent          int32            `json:"threshold_percent"`
-	UsagePercent              float64          `json:"usage_percent"`
-	ContextTokens             int64            `json:"context_tokens"`
-	ContextLimitTokens        int64            `json:"context_limit_tokens"`
-	EstimatedContextTokens    int64            `json:"estimated_context_tokens"`
-	TriggerContextLimitTokens int64            `json:"trigger_context_limit_tokens"`
+	Summary string           `json:"summary"`
+	Source  CompactionSource `json:"source"`
+	// ThresholdPercent and UsagePercent are relative to
+	// TriggerContextLimitTokens.
+	ThresholdPercent int32   `json:"threshold_percent"`
+	UsagePercent     float64 `json:"usage_percent"`
+	ContextTokens    int64   `json:"context_tokens"`
+	// ContextLimitTokens is the chat model's window.
+	ContextLimitTokens        int64 `json:"context_limit_tokens"`
+	EstimatedContextTokens    int64 `json:"estimated_context_tokens"`
+	TriggerContextLimitTokens int64 `json:"trigger_context_limit_tokens"`
 }
 
 // GenerateCompaction generates one context summary and returns it without
@@ -254,7 +256,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 		ThresholdPercent:    opts.ThresholdPercent,
 		UsagePercent:        usagePercent,
 		ContextTokens:       contextTokens,
-		ContextLimit:        opts.ContextLimitFallback,
+		ChatContextLimit:    opts.ChatContextLimit,
 		TriggerContextLimit: opts.ContextLimit,
 		Runtime:             summaryRuntime,
 		ProviderResponseID:  responseID,
@@ -267,7 +269,7 @@ func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (Co
 			ThresholdPercent:          result.ThresholdPercent,
 			UsagePercent:              usagePercent,
 			ContextTokens:             contextTokens,
-			ContextLimitTokens:        result.ContextLimit,
+			ContextLimitTokens:        result.ChatContextLimit,
 			EstimatedContextTokens:    result.EstimatedContextTokens,
 			TriggerContextLimitTokens: result.TriggerContextLimit,
 		})

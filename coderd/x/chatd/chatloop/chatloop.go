@@ -236,6 +236,9 @@ type GenerateCompactionOptions struct {
 	// SummaryContextLimit is the summary model's window. When positive, it
 	// bounds the summary cap instead of the trigger's limit.
 	SummaryContextLimit int64
+	// ChatContextLimit is the chat model's window, recorded for chat usage
+	// display.
+	ChatContextLimit int64
 
 	// SummaryCall is copied before GenerateCompaction attaches the summary
 	// prompt and prepared tool definitions.

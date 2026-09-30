@@ -991,6 +991,7 @@ func TestGenerateCompaction_SummaryEstimate(t *testing.T) {
 			require.NoError(t, json.Unmarshal(parts[1].Result, &metadata))
 			require.Equal(t, float64(3), metadata["estimated_context_tokens"])
 			require.Equal(t, float64(1000), metadata["trigger_context_limit_tokens"])
+			require.Equal(t, float64(0), metadata["context_limit_tokens"])
 		})
 	}
 }
@@ -1018,6 +1019,7 @@ func TestGenerateCompaction_RecordsRequestedTrigger(t *testing.T) {
 		ThresholdPercent:     101,
 		ContextLimit:         0,
 		ContextLimitFallback: 1000,
+		ChatContextLimit:     2000,
 		StepUsage:            fantasy.Usage{InputTokens: 800},
 		ToolCallID:           "summary",
 		ToolName:             "chat_summarized",
@@ -1029,7 +1031,7 @@ func TestGenerateCompaction_RecordsRequestedTrigger(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int32(101), result.ThresholdPercent)
 	require.Zero(t, result.TriggerContextLimit)
-	require.Equal(t, int64(1000), result.ContextLimit)
+	require.Equal(t, int64(2000), result.ChatContextLimit)
 	require.InDelta(t, 80, result.UsagePercent, 0.001)
 
 	require.Len(t, parts, 2)
@@ -1037,7 +1039,7 @@ func TestGenerateCompaction_RecordsRequestedTrigger(t *testing.T) {
 	require.NoError(t, json.Unmarshal(parts[1].Result, &streamed))
 	require.Equal(t, int32(101), streamed.ThresholdPercent)
 	require.Zero(t, streamed.TriggerContextLimitTokens)
-	require.Equal(t, int64(1000), streamed.ContextLimitTokens)
+	require.Equal(t, int64(2000), streamed.ContextLimitTokens)
 }
 
 // TestGenerateCompaction_RequiresClock verifies a nil clock is

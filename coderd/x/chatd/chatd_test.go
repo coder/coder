@@ -7108,11 +7108,19 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 			wantMessage:          "Conversation compaction could not reduce the history below the organization override's compaction threshold. Start a new conversation, or ask an administrator to raise the override model's compaction threshold or choose one with a larger context window.",
 		},
 		{
-			// The chat trigger (70% of 100) binds while the override trigger
-			// (70% of 1,000) is enabled.
-			name:                 "chat trigger binds with an enabled override",
+			// The chat trigger (70% of 100) binds and usage 80 stays below the
+			// enabled override trigger (70% of 1,000).
+			name:                 "chat trigger binds below an enabled override",
 			chatContextLimit:     100,
 			overrideContextLimit: 1_000,
+			wantMessage:          "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation.",
+		},
+		{
+			// The chat trigger (70% of 100) binds and usage 80 also reaches
+			// the enabled override trigger (70% of 110).
+			name:                 "chat trigger binds above an enabled override",
+			chatContextLimit:     100,
+			overrideContextLimit: 110,
 			wantMessage:          "Conversation compaction could not reduce the history below your compaction threshold. Raise the compaction threshold in settings, or start a new conversation. An administrator may also need to raise the organization override's compaction threshold.",
 		},
 	} {

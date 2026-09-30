@@ -55,7 +55,7 @@ type compactionOutcome struct {
 	ThresholdPercent       int32
 	UsagePercent           float64
 	ContextTokens          int64
-	ContextLimit           int64
+	ChatContextLimit       int64
 	EstimatedContextTokens int64
 	TriggerContextLimit    int64
 	Runtime                time.Duration
