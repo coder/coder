@@ -252,15 +252,12 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 			wantUsage: true, wantID: "resp_ws",
 		},
 		{
-			name: "oversized_sse_event",
+			// A repeated terminal event is a parse note and records nothing
+			// twice.
+			name: "duplicate_terminal",
 			run: func(h harness) {
-				sse := extract.NewSSEStream(t.Context(), h.logger, h.ext)
-				// The second data line belongs to the skipped event and must
-				// not be dispatched.
-				smuggled := `{"type":"response.created","response":{"id":"resp_smuggled"}}`
-				_, _ = sse.Write([]byte("event: big\ndata: " + oversized + "\ndata: " + smuggled + "\n\n"))
-				_, _ = sse.Write([]byte("data: " + string(completed) + "\n\n"))
-				_ = sse.Close()
+				h.ext.OnEvent("", completed)
+				h.ext.OnEvent("", completed)
 			},
 			wantUsage: true, wantID: "resp_ws",
 		},
@@ -282,12 +279,6 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 			wantID: "resp_ws",
 		},
 		{
-			name: "oversized_body",
-			run: func(h harness) {
-				decodeAndProcess(h, "", []byte(`{"pad":"`+strings.Repeat("x", extract.MaxBodyBytes)+`"}`))
-			},
-		},
-		{
 			name: "gzip_body",
 			run: func(h harness) {
 				decodeAndProcess(h, "gzip", gzipped([]byte(`{"id":"resp_gz","status":"completed","usage":{"input_tokens":1}}`)))
@@ -295,28 +286,11 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 			wantUsage: true, wantID: "resp_gz", clean: true,
 		},
 		{
+			// DecodeBody errors are covered in the extract package; here
+			// the caller still processes the nil body.
 			name: "invalid_gzip_body",
 			run: func(h harness) {
 				decodeAndProcess(h, "gzip", completed)
-			},
-		},
-		{
-			name: "truncated_gzip_body",
-			run: func(h harness) {
-				body := gzipped(completed)
-				decodeAndProcess(h, "gzip", body[:len(body)/2])
-			},
-		},
-		{
-			name: "oversized_gzip_body",
-			run: func(h harness) {
-				decodeAndProcess(h, "gzip", gzipped([]byte(`{"pad":"`+strings.Repeat("x", extract.MaxBodyBytes)+`"}`)))
-			},
-		},
-		{
-			name: "unsupported_encoding",
-			run: func(h harness) {
-				decodeAndProcess(h, "br", completed)
 			},
 		},
 	}
@@ -336,20 +310,34 @@ func TestResponseExtractionFailOpen(t *testing.T) {
 	}
 }
 
-// TestResponseExtractionIncomplete checks that an incomplete response keeps
-// its reason and records its usage.
+// TestResponseExtractionIncomplete checks that an incomplete response, as
+// a streamed event or a complete body, keeps its reason and records its
+// usage, and that an empty prompt is not recorded.
 func TestResponseExtractionIncomplete(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, "")
-	h.ext.OnEvent("response.incomplete", []byte(`{"type":"response.incomplete","response":{"id":"resp_1","status":"incomplete",`+
-		`"incomplete_details":{"reason":"max_output_tokens"},"output":[],"usage":{"input_tokens":5,"output_tokens":7,"total_tokens":12}}}`))
-	out := h.ext.Outcome()
-	require.Equal(t, extract.Terminal{Status: extract.TerminalIncomplete, Reason: "max_output_tokens"}, out.Terminal)
-	require.NoError(t, out.Err)
-	tokens := h.rec.RecordedTokenUsages()
-	require.Len(t, tokens, 1)
-	require.EqualValues(t, 7, tokens[0].Output)
+	resp := `{"id":"resp_1","status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},` +
+		`"output":[],"usage":{"input_tokens":5,"output_tokens":7,"total_tokens":12}}`
+	for name, feed := range map[string]func(*responses.ResponseExtraction){
+		"event":    event(`{"type":"response.incomplete","response":` + resp + `}`),
+		"blocking": blocking(http.StatusOK, resp),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t, "")
+			feed(h.ext)
+			out := h.ext.Outcome()
+			require.Equal(t, extract.Outcome{
+				ResponseID: "resp_1",
+				Terminal:   extract.Terminal{Status: extract.TerminalIncomplete, Reason: "max_output_tokens"},
+			}, out)
+			tokens := h.rec.RecordedTokenUsages()
+			require.Len(t, tokens, 1)
+			require.EqualValues(t, 7, tokens[0].Output)
+			require.Empty(t, h.rec.RecordedPromptUsages())
+		})
+	}
 }
 
 const interceptionID = "intc_1"

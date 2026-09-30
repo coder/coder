@@ -43,6 +43,12 @@ func TestRequestExtractor(t *testing.T) {
 			want: extract.RequestFacts{Model: "gpt-5", CorrelatingToolCallID: "call_1"},
 		},
 		{
+			// A trailing function_call is not an answer to a tool call.
+			name: "trailing_function_call",
+			body: `{"input":[{"role":"user","content":"hi"},{"type":"function_call","call_id":"call_1"}]}`,
+			want: extract.RequestFacts{},
+		},
+		{
 			name:    "unexpected_input_type",
 			body:    `{"model":"gpt-5","input":42}`,
 			want:    extract.RequestFacts{Model: "gpt-5"},
