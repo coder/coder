@@ -335,14 +335,11 @@ describe("AgentAutomationsPage editor", { timeout: 15_000 }, () => {
 		});
 
 		await user.click(within(dialog).getByRole("button", { name: "Chat" }));
-		await user.type(
-			await screen.findByPlaceholderText("Search chats"),
-			"Release",
-		);
+		await user.type(await screen.findByPlaceholderText("Search chats"), "Rele");
 		await waitFor(() => {
 			expect(
 				requests.map((request) => new URL(request.url).searchParams.get("q")),
-			).toContain('search:"Release" archived:false');
+			).toContain('title:"Rele" archived:false');
 		});
 		await user.click(
 			await screen.findByRole("option", { name: otherChat.title }),

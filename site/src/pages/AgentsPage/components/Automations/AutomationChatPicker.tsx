@@ -14,7 +14,6 @@ import {
 } from "#/components/Combobox/Combobox";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useDebouncedValue } from "#/hooks/debounce";
-import { buildChatSearchQuery } from "../ChatsSidebar/dialogs/searchQuery";
 
 type AutomationChatPickerProps = {
 	id: string;
@@ -36,10 +35,18 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const debouncedSearch = useDebouncedValue(search.trim(), 300);
+	// Quotes make the text one backend token; the backend has no escaping.
+	const debouncedSearch = useDebouncedValue(
+		search.replaceAll('"', "").trim(),
+		300,
+	);
+	// The picker shows titles only, so match a title substring. The full-text
+	// `search:` term matches whole words and message content instead.
 	const searchQuery = useQuery({
 		...chatSearch({
-			q: `${buildChatSearchQuery([], debouncedSearch) ?? ""} archived:false`,
+			q: debouncedSearch
+				? `title:"${debouncedSearch}" archived:false`
+				: "archived:false",
 		}),
 		enabled: open,
 		placeholderData: keepPreviousData,
