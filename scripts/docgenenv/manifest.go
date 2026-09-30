@@ -22,8 +22,13 @@ type Route struct {
 	// ChildrenFrom names a generated fragment, relative to the sources
 	// directory, that supplies this route's children. It exists only in the
 	// sources; BuildManifest replaces it with the fragment's routes.
-	ChildrenFrom string  `json:"-" yaml:"children_from,omitempty"`
-	Children     []Route `json:"children,omitempty" yaml:"children,omitempty"`
+	ChildrenFrom string `json:"-" yaml:"children_from,omitempty"`
+	// Include names another source file, relative to the sources directory,
+	// that holds this child route. It exists only in the sources, where an
+	// include entry sets no other key; the loader replaces the entry with the
+	// route in the named file.
+	Include  string  `json:"-" yaml:"include,omitempty"`
+	Children []Route `json:"children,omitempty" yaml:"children,omitempty"`
 }
 
 // Manifest describes the entire documentation index (docs/manifest.json).

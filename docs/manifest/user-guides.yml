@@ -3,66 +3,8 @@ description: Guides for Coder end users on accessing, managing, and personalizin
 path: ./user-guides/index.md
 icon_path: ./images/icons/users.svg
 children:
-  - title: Workspace access
-    description: Connect to your Coder workspace using SSH, your IDE, a web terminal, remote desktop, and more.
-    path: ./user-guides/workspace-access/index.md
-    icon_path: ./images/icons/access.svg
-    children:
-      - title: Visual Studio Code
-        description: Develop in your Coder workspace remotely with VS Code, using the desktop app or the browser.
-        path: ./user-guides/workspace-access/vscode.md
-      - title: Web terminal
-        description: Use the browser-based web terminal to run commands in your workspace without any local setup.
-        path: ./user-guides/workspace-access/web-terminal.md
-      - title: JetBrains IDEs
-        description: Connect JetBrains IDEs to Coder workspaces using JetBrains Toolbox or Gateway.
-        path: ./user-guides/workspace-access/jetbrains/index.md
-        children:
-          - title: JetBrains Gateway
-            description: Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.
-            path: ./user-guides/workspace-access/jetbrains/gateway.md
-          - title: JetBrains Toolbox
-            description: Connect to and manage your Coder workspaces from the JetBrains Toolbox app.
-            path: ./user-guides/workspace-access/jetbrains/toolbox.md
-            state: [beta]
-      - title: Remote desktops
-        description: Connect to a GUI-based desktop in your Coder workspace using RDP, including Windows workspaces.
-        path: ./user-guides/workspace-access/remote-desktops.md
-      - title: Emacs TRAMP
-        description: Use Emacs TRAMP to edit files and run commands in your Coder workspace over SSH.
-        path: ./user-guides/workspace-access/emacs-tramp.md
-      - title: Workspace ports
-        description: Securely access ports and processes running inside your Coder workspace from your local machine.
-        path: ./user-guides/workspace-access/port-forwarding.md
-      - title: File browser
-        description: Upload, download, and manage files in your Coder workspace from the browser with File Browser.
-        path: ./user-guides/workspace-access/filebrowser.md
-      - title: Web IDEs
-        description: Access your Coder workspace through web-based IDEs that run in the browser, with no local install.
-        path: ./user-guides/workspace-access/web-ides.md
-      - title: code-server
-        description: Access your Coder workspace in the browser with code-server, the VS Code experience over the web.
-        path: ./user-guides/workspace-access/code-server.md
-      - title: Zed
-        description: Access your Coder workspace with the Zed collaborative code editor over SSH.
-        path: ./user-guides/workspace-access/zed.md
-      - title: Cursor
-        description: Access your Coder workspace with Cursor, the AI-powered code editor, over SSH.
-        path: ./user-guides/workspace-access/cursor.md
-      - title: Devin Desktop
-        description: Access your Coder workspace with Devin Desktop (formerly Windsurf), the AI-powered code editor, over SSH.
-        path: ./user-guides/workspace-access/devin-desktop.md
-      - title: Antigravity
-        description: Access your Coder workspace with the Antigravity agentic code editor over SSH.
-        path: ./user-guides/workspace-access/antigravity.md
-  - title: Coder Desktop
-    description: Transform remote workspaces into seamless local development environments with no port forwarding required
-    path: ./user-guides/desktop/index.md
-    icon_path: ./images/icons/computer-code.svg
-    children:
-      - title: Coder Desktop Connect and sync
-        description: Use Coder Desktop to connect to workspaces and sync their code and files to your local machine.
-        path: ./user-guides/desktop/desktop-connect-sync.md
+  - include: user-guides/workspace-access.yml
+  - include: user-guides/desktop.yml
   - title: Manage workspaces
     description: Create, start, stop, update, and delete your Coder workspaces from the dashboard or CLI.
     path: ./user-guides/workspace-management.md
@@ -79,20 +21,7 @@ children:
     description: A guide to the workspace lifecycle, from creation and status through stopping and deletion.
     path: ./user-guides/workspace-lifecycle.md
     icon_path: ./images/icons/circle-dot.svg
-  - title: Dev Containers
-    description: Run containerized development environments in your Coder workspace using the dev containers specification.
-    path: ./user-guides/devcontainers/index.md
-    icon_path: ./images/icons/container.svg
-    children:
-      - title: Work with dev containers
-        description: Access and work inside dev containers in your Coder workspace over SSH, your IDE, or the web terminal.
-        path: ./user-guides/devcontainers/working-with-dev-containers.md
-      - title: Customizing dev containers
-        description: Configure custom agent names, apps, and display options in devcontainer.json.
-        path: ./user-guides/devcontainers/customizing-dev-containers.md
-      - title: Troubleshooting dev containers
-        description: Diagnose and resolve common issues with dev containers in your Coder workspace.
-        path: ./user-guides/devcontainers/troubleshooting-dev-containers.md
+  - include: user-guides/devcontainers.yml
   - title: Dotfiles
     description: Personalize your Coder workspaces by applying your dotfiles repository with the coder dotfiles command.
     path: ./user-guides/workspace-dotfiles.md

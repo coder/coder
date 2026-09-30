@@ -69,7 +69,7 @@ style.
 3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
    the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
-   One outcome per page. New pages MUST be added to the right section file in
+   One outcome per page. New pages MUST be added to the right source file in
    `docs/manifest/` (then run `make gen/docs-manifest`), and the documentation
    lands in the same change as the feature. If the change introduces,
    renames, or deprecates a Coder product

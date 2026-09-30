@@ -113,6 +113,12 @@ children:
 `,
 		},
 		{
+			name: "Include",
+			rel:  "section.yml",
+			in:   "title: A\npath: ./a.md\nchildren:\n  - {include: \"section/b.yml\"}\n",
+			want: "title: A\npath: ./a.md\nchildren:\n  - include: section/b.yml\n",
+		},
+		{
 			name: "Index",
 			rel:  docgenenv.ManifestIndexFile,
 			in:   "# Header.\n\nsections: [a.yml, b.yml]\nversions:\n  - main\n",

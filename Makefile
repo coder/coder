@@ -115,8 +115,9 @@ CLIDOCGEN_INPUTS := \
 
 # Hand-edited YAML sidebar sources that docsmanifestgen compiles, together
 # with the generated fragments under docs/manifest/generated, into
-# docs/manifest.json.
-DOCS_MANIFEST_SOURCES := $(wildcard docs/manifest/*.yml)
+# docs/manifest.json. Each file holds one route and one level of children, so
+# the sources nest in subdirectories.
+DOCS_MANIFEST_SOURCES := $(shell find docs/manifest -type f -name '*.yml' -not -path 'docs/manifest/generated/*')
 
 DOCSMANIFESTGEN_INPUTS := \
 	$(filter-out %_test.go,$(wildcard scripts/docsmanifestgen/*.go)) \

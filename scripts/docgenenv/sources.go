@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,10 +35,11 @@ type ManifestIndex struct {
 }
 
 // LoadManifestSources reads the sidebar sources in dir: the index plus one
-// top-level route per section file. Routes that set children_from are returned
-// unresolved, so their Children hold only the curated metadata overlays. The
-// doc generators use this to read curated metadata without depending on the
-// generated fragments they are about to rewrite.
+// top-level route per section file, with every include resolved. Routes that
+// set children_from are returned unresolved, so their Children hold only the
+// curated metadata overlays. The doc generators use this to read curated
+// metadata without depending on the generated fragments they are about to
+// rewrite.
 func LoadManifestSources(dir string) (*Manifest, error) {
 	m, _, err := loadSources(dir)
 	return m, err
@@ -129,13 +131,9 @@ func loadSources(dir string) (*Manifest, map[string]bool, error) {
 			continue
 		}
 		used[name] = true
-		var r Route
-		if err := DecodeSourceFile(filepath.Join(dir, name), &r); err != nil {
-			errs = append(errs, err)
-			continue
+		if r, ok := loadRouteFile(dir, name, nil, used, &errs); ok {
+			m.Routes = append(m.Routes, r)
 		}
-		validateSourceRoute(name, r, nil, &errs)
-		m.Routes = append(m.Routes, r)
 	}
 	if len(errs) > 0 {
 		return nil, nil, errors.Join(errs...)
@@ -143,23 +141,72 @@ func loadSources(dir string) (*Manifest, map[string]bool, error) {
 	return m, used, nil
 }
 
-// validateSourceRoute checks the rules that hold for hand-edited routes before
-// any fragment is resolved.
-func validateSourceRoute(file string, r Route, crumb []string, errs *[]error) {
+// loadRouteFile decodes the route in the source file name and replaces each
+// include entry among its children with the route loaded from the named file.
+// A source file holds one route and one level of children, so a child with
+// children or children_from of its own must live in its own file.
+func loadRouteFile(dir, name string, crumb []string, used map[string]bool, errs *[]error) (Route, bool) {
+	var r Route
+	if err := DecodeSourceFile(filepath.Join(dir, name), &r); err != nil {
+		*errs = append(*errs, err)
+		return Route{}, false
+	}
 	crumb = append(slices.Clip(crumb), r.Title)
-	where := file + ": " + breadcrumb(crumb)
+	where := name + ": " + breadcrumb(crumb)
+	checkSourceRoute(where, r, errs)
+	if r.Include != "" {
+		*errs = append(*errs, xerrors.Errorf("%s: include is allowed only on a child entry", where))
+	}
+	if r.ChildrenFrom != "" {
+		checkOverlays(where, r, errs)
+		return r, true
+	}
+	for i, c := range r.Children {
+		if c.Include == "" {
+			cw := where + " > " + c.Title
+			checkSourceRoute(cw, c, errs)
+			if len(c.Children) > 0 || c.ChildrenFrom != "" {
+				*errs = append(*errs, xerrors.Errorf("%s: a source file holds one level of children; move this route into its own file and include it", cw))
+			}
+			continue
+		}
+		iw := fmt.Sprintf("%s > include %q", where, c.Include)
+		if c.Title != "" || c.Description != "" || c.Path != "" || c.IconPath != "" || len(c.State) > 0 || c.ChildrenFrom != "" || len(c.Children) > 0 {
+			*errs = append(*errs, xerrors.Errorf("%s: an include entry may set only include; put the route's keys in the included file", iw))
+			continue
+		}
+		inc, err := sourceRel(c.Include)
+		switch {
+		case err != nil:
+			*errs = append(*errs, xerrors.Errorf("%s: %w", iw, err))
+			continue
+		case !isYAMLFile(inc):
+			*errs = append(*errs, xerrors.Errorf("%s: must be a .yml file", iw))
+			continue
+		case used[inc]:
+			*errs = append(*errs, xerrors.Errorf("%s: file is already listed in %s or included elsewhere", iw, ManifestIndexFile))
+			continue
+		}
+		used[inc] = true
+		if child, ok := loadRouteFile(dir, inc, crumb, used, errs); ok {
+			r.Children[i] = child
+		}
+	}
+	return r, true
+}
+
+// checkSourceRoute checks the keys every hand-edited route needs.
+func checkSourceRoute(where string, r Route, errs *[]error) {
 	if r.Title == "" {
 		*errs = append(*errs, xerrors.Errorf("%s: route is missing a title", where))
 	}
 	if r.Path == "" {
 		*errs = append(*errs, xerrors.Errorf("%s: route is missing a path", where))
 	}
-	if r.ChildrenFrom == "" {
-		for _, c := range r.Children {
-			validateSourceRoute(file, c, crumb, errs)
-		}
-		return
-	}
+}
+
+// checkOverlays checks a children_from route before its fragment is resolved.
+func checkOverlays(where string, r Route, errs *[]error) {
 	if _, err := sourceRel(r.ChildrenFrom); err != nil {
 		*errs = append(*errs, xerrors.Errorf("%s: children_from %q: %w", where, r.ChildrenFrom, err))
 	}
@@ -170,7 +217,7 @@ func validateSourceRoute(file string, r Route, crumb []string, errs *[]error) {
 		switch {
 		case o.Title == "":
 			*errs = append(*errs, xerrors.Errorf("%s: overlay is missing a title", where))
-		case o.Path != "" || len(o.Children) > 0 || o.ChildrenFrom != "":
+		case o.Path != "" || len(o.Children) > 0 || o.ChildrenFrom != "" || o.Include != "":
 			*errs = append(*errs, xerrors.Errorf("%s: overlays under children_from may set only title, description, icon_path, and state", ow))
 		}
 	}
@@ -209,8 +256,8 @@ func validateFragment(file string, routes []Route, crumb []string, errs *[]error
 			*errs = append(*errs, xerrors.Errorf("%s: %s: route is missing a title", file, breadcrumb(c)))
 		case r.Path == "":
 			*errs = append(*errs, xerrors.Errorf("%s: %s: route is missing a path", file, breadcrumb(c)))
-		case r.ChildrenFrom != "":
-			*errs = append(*errs, xerrors.Errorf("%s: %s: fragments can't nest children_from", file, breadcrumb(c)))
+		case r.ChildrenFrom != "" || r.Include != "":
+			*errs = append(*errs, xerrors.Errorf("%s: %s: fragments can't set children_from or include", file, breadcrumb(c)))
 		}
 		validateFragment(file, r.Children, c, errs)
 	}
@@ -291,7 +338,7 @@ func unreferencedFiles(dir string, used map[string]bool) []error {
 			return err
 		}
 		if rel = filepath.ToSlash(rel); !used[rel] {
-			errs = append(errs, xerrors.Errorf("%s: not listed in %s sections or any children_from", rel, ManifestIndexFile))
+			errs = append(errs, xerrors.Errorf("%s: not listed in %s sections, any include, or any children_from", rel, ManifestIndexFile))
 		}
 		return nil
 	})

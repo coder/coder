@@ -258,8 +258,9 @@ only on the user-facing portion.
 
 ## Key Documentation Info
 
-- **`docs/manifest/*.yml`** is the navigation structure; new pages MUST be
-  added to the right section file there. `docs/manifest.json` is compiled
+- **`docs/manifest/**/*.yml`** is the navigation structure; new pages MUST be
+  added to the right source file there. Each file holds one route and its
+  direct children, and `include` pulls in a child's own file. `docs/manifest.json` is compiled
   from it by `make gen/docs-manifest`; don't edit the JSON directly.
 - **`docs/reference/cli/*.md`** is auto-generated from Go code. Don't
   edit directly.
@@ -268,7 +269,7 @@ only on the user-facing portion.
 
 ### Premium feature signaling
 
-Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/*.yml`, such as `state: [premium]`.
+Pages documenting staged features must include the applicable `state` in their route in `docs/manifest/**/*.yml`, such as `state: [premium]`.
 Do not add feature-state suffixes such as `(Premium)` or `(Beta)` to page titles or H1s.
 The state is displayed in navigation metadata.
 

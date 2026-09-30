@@ -276,7 +276,7 @@ Document exact values from code:
 
 ## Documentation Manifest
 
-Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order; find the appropriate section file and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
+Add every documentation page to the sidebar sources in `docs/manifest/`; pages missing from the sidebar do not appear in navigation. `docs/manifest/index.yml` lists the top-level section files in sidebar order. Each source file holds one route and its direct children; a child with children of its own lives in its own file under a directory named after its parent file, such as `docs/manifest/admin/users.yml`, and the parent lists it with `- include: admin/users.yml`. Find the source file for the parent page and place new pages in logical sections matching the existing hierarchy. Run `make gen/docs-manifest` to format the sources and rebuild `docs/manifest.json`, which is generated and must not be edited directly.
 
 ## Documentation lands with the change
 

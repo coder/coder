@@ -18,7 +18,7 @@ import (
 // routes and the index file. They match the field order of docgenenv.Route
 // and docgenenv.ManifestIndex, which TestKeyOrderMatchesStructs enforces.
 var (
-	routeKeyOrder = []string{"title", "description", "path", "icon_path", "state", "children_from", "children"}
+	routeKeyOrder = []string{"title", "description", "path", "icon_path", "state", "children_from", "include", "children"}
 	indexKeyOrder = []string{"versions", "sections"}
 )
 

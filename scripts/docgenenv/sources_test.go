@@ -36,13 +36,15 @@ const (
 	testRef   = `title: Reference
 path: ./ref/index.md
 children:
-  - title: REST API
-    path: ./ref/api/index.md
-    children_from: generated/api.json
-    children:
-      - title: Users
-        description: Manage users.
-        state: [beta]
+  - include: ref/api.yml
+`
+	testRefAPI = `title: REST API
+path: ./ref/api/index.md
+children_from: generated/api.json
+children:
+  - title: Users
+    description: Manage users.
+    state: [beta]
 `
 	testAPI = `[{"title": "General", "path": "./ref/api/general.md"}, {"title": "Users", "path": "./ref/api/users.md"}]`
 )
@@ -52,6 +54,7 @@ func validTree() map[string]string {
 		"index.yml":          testIndex,
 		"home.yml":           testHome,
 		"ref.yml":            testRef,
+		"ref/api.yml":        testRefAPI,
 		"generated/api.json": testAPI,
 	}
 }
@@ -86,12 +89,9 @@ func TestBuildManifestYAMLFragment(t *testing.T) {
 
 	files := validTree()
 	delete(files, "generated/api.json")
-	files["ref.yml"] = `title: Reference
-path: ./ref/index.md
-children:
-  - title: REST API
-    path: ./ref/api/index.md
-    children_from: generated/api.yml
+	files["ref/api.yml"] = `title: REST API
+path: ./ref/api/index.md
+children_from: generated/api.yml
 `
 	files["generated/api.yml"] = "- title: General\n  path: ./ref/api/general.md\n"
 	docsDir, sourcesDir := writeTree(t, files)
@@ -172,18 +172,106 @@ func TestBuildManifestErrors(t *testing.T) {
 		{
 			name: "OverlayWithPath",
 			edit: func(f map[string]string) {
+				f["ref/api.yml"] = `title: REST API
+path: ./ref/api/index.md
+children_from: generated/api.json
+children:
+  - title: Users
+    path: ./ref/api/users.md
+`
+			},
+			wantErr: "overlays under children_from may set only",
+		},
+		{
+			name: "GrandchildrenInOneFile",
+			edit: func(f map[string]string) {
+				delete(f, "ref/api.yml")
+				f["ref.yml"] = `title: Reference
+path: ./ref/index.md
+children:
+  - title: REST API
+    path: ./ref/api/index.md
+    children:
+      - title: General
+        path: ./ref/api/general.md
+`
+			},
+			wantErr: "ref.yml: Reference > REST API: a source file holds one level of children; move this route into its own file and include it",
+		},
+		{
+			name: "ChildWithChildrenFromInOneFile",
+			edit: func(f map[string]string) {
+				delete(f, "ref/api.yml")
 				f["ref.yml"] = `title: Reference
 path: ./ref/index.md
 children:
   - title: REST API
     path: ./ref/api/index.md
     children_from: generated/api.json
-    children:
-      - title: Users
-        path: ./ref/api/users.md
 `
 			},
-			wantErr: "overlays under children_from may set only",
+			wantErr: "move this route into its own file and include it",
+		},
+		{
+			name:    "IncludeWithOtherKeys",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "    title: REST API\n" },
+			wantErr: `include "ref/api.yml": an include entry may set only include`,
+		},
+		{
+			name:    "IncludedTwice",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/api.yml\n" },
+			wantErr: `include "ref/api.yml": file is already listed in index.yml or included elsewhere`,
+		},
+		{
+			name:    "IncludeSection",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: home.yml\n" },
+			wantErr: `include "home.yml": file is already listed`,
+		},
+		{
+			name:    "IncludeOutsideSources",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ../api.yml\n" },
+			wantErr: "must be a relative path inside the sources directory",
+		},
+		{
+			name:    "IncludeNotYAML",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: generated/api.json\n" },
+			wantErr: `include "generated/api.json": must be a .yml file`,
+		},
+		{
+			name:    "IncludeMissingFile",
+			edit:    func(f map[string]string) { f["ref.yml"] = testRef + "  - include: ref/nope.yml\n" },
+			wantErr: "no such file or directory",
+		},
+		{
+			name:    "IncludeOnFileRoute",
+			edit:    func(f map[string]string) { f["home.yml"] = testHome + "include: ref/api.yml\n" },
+			wantErr: "home.yml: Home: include is allowed only on a child entry",
+		},
+		{
+			name:    "MissingPathInIncludedFile",
+			edit:    func(f map[string]string) { f["ref/api.yml"] = "title: REST API\n" },
+			wantErr: "ref/api.yml: Reference > REST API: route is missing a path",
+		},
+		{
+			name:    "UnreferencedNestedFile",
+			edit:    func(f map[string]string) { f["ref/orphan.yml"] = testHome },
+			wantErr: "ref/orphan.yml: not listed",
+		},
+		{
+			name: "IncludeInFragment",
+			edit: func(f map[string]string) {
+				f["generated/api.json"] = `[{"title": "General", "path": "./ref/api/general.md", "include": "x.yml"}]`
+			},
+			wantErr: `unknown field "include"`,
+		},
+		{
+			name: "IncludeInYAMLFragment",
+			edit: func(f map[string]string) {
+				delete(f, "generated/api.json")
+				f["ref/api.yml"] = "title: REST API\npath: ./ref/api/index.md\nchildren_from: generated/api.yml\n"
+				f["generated/api.yml"] = "- title: General\n  path: ./ref/api/general.md\n  include: x.yml\n"
+			},
+			wantErr: "generated/api.yml: General: fragments can't set children_from or include",
 		},
 		{
 			name: "TrailingCommentOnDescription",
