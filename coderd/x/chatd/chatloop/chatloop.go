@@ -173,6 +173,8 @@ type ExecuteLocalToolsOptions struct {
 	// siblings settle, so interrupts bill actual starts and skip calls
 	// that never run. Optional.
 	BillingRecorder ToolBillingRecorder
+	// ToolCallContext returns the context to run tc with. Optional.
+	ToolCallContext func(ctx context.Context, tc fantasy.ToolCallContent) context.Context
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
@@ -596,7 +598,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		}, nil
 	}
 
-	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
+	maxResultBytes := ToolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
 	toolExecutions := executeTools(
 		ctx,
@@ -616,6 +618,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		opts.ToolNameAliases,
 		batchStart,
 		opts.BillingRecorder,
+		opts.ToolCallContext,
 	)
 	for _, execution := range toolExecutions {
 		tr := execution.content
@@ -1134,6 +1137,7 @@ func executeTools(
 	toolNameAliases map[string]string,
 	batchStart time.Time,
 	recorder ToolBillingRecorder,
+	toolCallContext func(context.Context, fantasy.ToolCallContent) context.Context,
 ) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
@@ -1204,8 +1208,12 @@ func executeTools(
 				recorder.RecordComplete(i, completedAt)
 			}
 		}()
+		callCtx := ctx
+		if toolCallContext != nil {
+			callCtx = toolCallContext(ctx, tc)
+		}
 		executions[i].content = executeSingleTool(
-			ctx,
+			callCtx,
 			toolMap,
 			tc,
 			metrics,
@@ -1444,7 +1452,7 @@ func executeSingleTool(
 	// Bound text so one tool result cannot overflow the model's context window.
 	// Media limits are applied separately by normalizeToolMedia.
 	content := resp.Content
-	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
+	if truncated, didTruncate := TruncateToolResultText(content, maxResultBytes); didTruncate {
 		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
 		logger.Warn(ctx, "tool result truncated to fit model context",
 			slog.F("tool_name", tc.ToolName),

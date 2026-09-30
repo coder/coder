@@ -5,9 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -18,8 +22,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
 
@@ -27,6 +33,10 @@ const (
 	postCommitWatchPublishTimeout = 10 * time.Second
 	defaultTaskTimeout            = 15 * time.Minute
 	taskTimeoutMargin             = 5 * time.Minute
+	// interruptCancelTimeout bounds the agent dial and all cancels of one
+	// interrupt. A cancel returns only after the tool call's running
+	// request finishes, so a longer timeout records more real results.
+	interruptCancelTimeout = 30 * time.Second
 )
 
 var (
@@ -250,14 +260,19 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
-	var chat database.Chat
+	var (
+		chat        database.Chat
+		cancelable  []fantasy.ToolCallContent
+		toolCallIDs map[string]uuid.UUID
+	)
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		loadedChat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
 		chat = loadedChat
-		return nil
+		cancelable, toolCallIDs, err = s.cancelableToolCalls(ctx, store, chat)
+		return err
 	})
 	if err != nil {
 		return normalizeTaskInfrastructureError(err, "lock chat for interrupt")
@@ -304,6 +319,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		return xerrors.Errorf("convert buffered parts: %w", err)
 	}
 
+	canceled := s.cancelUnresolvedToolCalls(ctx, chat, cancelable, toolCallIDs)
+
 	var committed database.Chat
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
@@ -313,7 +330,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions, canceled)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
@@ -693,12 +710,92 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
+// cancelableToolCalls returns the chat's unresolved tool calls that can be
+// canceled on its agent, and their tool call IDs. store must be the chat's
+// locked read, so the calls match the interrupted state. A message read
+// error is returned so the interrupt retries; unparsable history yields no
+// calls.
+func (s *taskStarter) cancelableToolCalls(ctx context.Context, store database.Store, chat database.Chat) ([]fantasy.ToolCallContent, map[string]uuid.UUID, error) {
+	if s.server.agentConnFn == nil || !chat.AgentID.Valid {
+		return nil, nil, nil
+	}
+	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("load messages to cancel tool calls on agent: %w", err)
+	}
+	calls, _, messageID, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	if err != nil {
+		s.opts.Logger.Warn(ctx, "find tool calls to cancel on agent", slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil, nil, nil
+	}
+	// Keep only cancelable calls with an ID, so an interrupt without them
+	// does not dial the agent.
+	ids := chattool.ToolCallIDs(chat.ID, messageID, calls)
+	calls = slices.DeleteFunc(calls, func(call fantasy.ToolCallContent) bool {
+		_, ok := ids[call.ToolCallID]
+		return !ok || !chattool.CanCancelToolCall(call.ToolName)
+	})
+	return calls, ids, nil
+}
+
+// cancelUnresolvedToolCalls cancels calls on the chat's agent and returns
+// their results by provider tool call ID. It logs a warning for each call
+// without a result.
+func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat database.Chat, calls []fantasy.ToolCallContent, ids map[string]uuid.UUID) map[string]fantasy.ToolResponse {
+	if len(calls) == 0 {
+		return nil
+	}
+	logger := s.opts.Logger.With(slog.F("chat_id", chat.ID))
+	ctx, cancel := context.WithTimeout(ctx, interruptCancelTimeout)
+	defer cancel()
+	conn, release, err := s.server.agentConnFn(ctx, chat.AgentID.UUID)
+	if err != nil {
+		logger.Warn(ctx, "dial agent to cancel tool calls", slog.Error(err))
+		return nil
+	}
+	defer release()
+	// The agent keys tool call IDs by chat.
+	conn.SetExtraHeaders(http.Header{workspacesdk.CoderChatIDHeader: {chat.ID.String()}})
+	// Send the cancels concurrently so a slow call does not use up the
+	// timeout of the others.
+	responses := make([]fantasy.ToolResponse, len(calls))
+	errs := make([]error, len(calls))
+	var wg sync.WaitGroup
+	for i, call := range calls {
+		wg.Go(func() {
+			// executeTaskSafely recovers only the task goroutine, so a panic
+			// here would crash the process.
+			defer func() {
+				if r := recover(); r != nil {
+					errs[i] = xerrors.Errorf("cancel panicked: %v", r)
+				}
+			}()
+			responses[i], errs[i] = chattool.CancelToolCall(ctx, conn, ids[call.ToolCallID], call.ToolName)
+		})
+	}
+	wg.Wait()
+	results := make(map[string]fantasy.ToolResponse, len(calls))
+	for i, call := range calls {
+		if errs[i] != nil {
+			logger.Warn(ctx, "cancel tool call on agent",
+				slog.F("tool_call_id", call.ToolCallID),
+				slog.F("tool_name", call.ToolName),
+				slog.Error(errs[i]),
+			)
+			continue
+		}
+		results[call.ToolCallID] = responses[i]
+	}
+	return results
+}
+
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
 	toolCompletions map[int]messagepartbuffer.ToolCompletion,
+	canceled map[string]fantasy.ToolResponse,
 ) ([]chatstate.Message, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
@@ -707,7 +804,7 @@ func committedPendingLocalToolCancellationMessages(
 	if err != nil {
 		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	localCalls, _, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
 		return nil, err
 	}
@@ -717,11 +814,20 @@ func committedPendingLocalToolCancellationMessages(
 	var intervals []chatloop.BilledInterval
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
-		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
-		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+		resp, ok := canceled[call.ToolCallID]
+		if !ok {
+			resp = fantasy.NewTextErrorResponse(interruptedToolResultErrorMessage)
 		}
-		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
+		// Cap the result as chatloop caps tool results. The default budget
+		// fits an execute result, whose output the agent already caps.
+		text, _ := chatloop.TruncateToolResultText(resp.Content, chatloop.ToolResultByteBudget(0))
+		var output fantasy.ToolResultOutputContent = fantasy.ToolResultOutputContentText{Text: text}
+		if resp.IsError {
+			output = fantasy.ToolResultOutputContentError{Error: xerrors.New(text)}
+		}
+		// PartFromContent wraps text that is not valid JSON, such as a
+		// truncated JSON result.
+		part := chatprompt.PartFromContent(fantasy.ToolResultContent{ToolCallID: call.ToolCallID, ToolName: call.ToolName, Result: output})
 		if !interruptedAt.IsZero() {
 			part.CreatedAt = &interruptedAt
 		}
