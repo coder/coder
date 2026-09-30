@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -93,7 +94,7 @@ func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) 
 	conn := &fakeConn{toClient: make(chan []byte, 16), written: make(chan []byte, 16), closed: make(chan struct{})}
 	rec := &testRecorder{}
 	sessionID := "client-session"
-	sess, err := responsesws.NewSession(aibcontext.AsActor(ctx, "user-1", recorder.Metadata{"k": "v"}), conn, responsesws.Options{
+	sess, err := responsesws.NewSession(aibcontext.AsActor(ctx, "user-1", "", recorder.Metadata{"k": "v"}), conn, responsesws.Options{
 		Provider:        provider.NewOpenAI(config.OpenAI{}),
 		Recorder:        rec,
 		Admit:           admit,
@@ -101,7 +102,7 @@ func newHarness(ctx context.Context, t *testing.T, admit responsesws.AdmitFunc) 
 		Client:          "codex",
 		ClientSessionID: &sessionID,
 		UserAgent:       "codex-cli/1.0",
-		CredentialKind:  recorder.CredentialKindCentralized,
+		CredentialKind:  credential.KindCentralized,
 		CredentialHint:  "sk-...abcd",
 	})
 	require.NoError(t, err)
@@ -203,7 +204,7 @@ func TestCreateRecordsInterceptionAndUsage(t *testing.T) {
 	require.Equal(t, "codex", ic.Client)
 	require.Equal(t, "client-session", *ic.ClientSessionID)
 	require.Equal(t, "codex-cli/1.0", ic.UserAgent)
-	require.Equal(t, recorder.CredentialKindCentralized, ic.CredentialKind)
+	require.Equal(t, credential.KindCentralized, ic.CredentialKind)
 	require.Equal(t, "sk-...abcd", ic.CredentialHint)
 
 	h.relay(created("", "resp_1", "gpt-6"), delta(""))

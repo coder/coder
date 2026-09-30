@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/interceptionerror"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -68,7 +69,7 @@ type MessageConn interface {
 type Provider interface {
 	Type() string
 	Name() string
-	interceptionerror.Categorizer
+	interceptionerror.ErrorCategorizer
 }
 
 // AdmitFunc decides whether a client response.create for model may be
@@ -90,7 +91,7 @@ type Options struct {
 	Client          string
 	ClientSessionID *string
 	UserAgent       string
-	CredentialKind  string
+	CredentialKind  credential.Kind
 	CredentialHint  string
 }
 
@@ -533,7 +534,7 @@ func (s *Session) recordEnded(ic *interception, err error) {
 	ctx, cancel := recordContext(s.ctx)
 	defer cancel()
 	s.opts.Observer.InterceptionEnded(ctx, ic.id)
-	errType, message := interceptionerror.Categorize(s.opts.Provider, err, 0)
+	errType, message := interceptionerror.Categorize(s.opts.Provider, err)
 	if err := s.opts.Recorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
 		ID:             ic.id,
 		EndedAt:        time.Now(),
