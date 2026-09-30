@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"strings"
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -128,4 +130,91 @@ func TestAgentAppTransport_Ports(t *testing.T) {
 	require.Zero(t, port.Load(), "reserved port must not be dialed")
 	require.NoError(t, roundTrip(ctx, tr, "http://agent.invalid:9/"))
 	require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, port.Load())
+}
+
+// dropIdleListener closes a connection when a request arrives on it after
+// a response was written, like an agent that restarted while the
+// connection sat idle.
+type dropIdleListener struct{ net.Listener }
+
+func (l dropIdleListener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &dropIdleConn{Conn: c}, nil
+}
+
+type dropIdleConn struct {
+	net.Conn
+	responded atomic.Bool
+}
+
+func (c *dropIdleConn) Write(p []byte) (int, error) {
+	c.responded.Store(true)
+	return c.Conn.Write(p)
+}
+
+func (c *dropIdleConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if n > 0 && c.responded.Load() {
+		_ = c.Close()
+		return 0, io.EOF
+	}
+	return n, err
+}
+
+func TestAgentConn_ResendsToolCallOnDroppedConnection(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		toolCall bool
+	}{
+		{name: "ToolCall", toolCall: true},
+		{name: "NoToolCall"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			var handled atomic.Int32
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				handled.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{}`))
+			}))
+			srv.Listener = dropIdleListener{srv.Listener}
+			srv.Start()
+			t.Cleanup(srv.Close)
+
+			var port atomic.Int32
+			tr := workspacesdk.NewAgentAPITransport(serverDialer(srv, &port))
+			t.Cleanup(tr.CloseIdleConnections)
+			conn := workspacesdk.NewAgentConn(nil, workspacesdk.AgentConnOptions{
+				AgentID:      uuid.New(),
+				APITransport: tr,
+			})
+			write := func() error {
+				ctx := ctx
+				if tc.toolCall {
+					ctx = workspacesdk.WithToolCallID(ctx, uuid.New())
+				}
+				return conn.WriteFile(ctx, "/tmp/f", strings.NewReader("x"))
+			}
+
+			require.NoError(t, write())
+			// The second request goes out on the pooled connection, which
+			// the server drops.
+			err := write()
+			if tc.toolCall {
+				require.NoError(t, err)
+				require.EqualValues(t, 2, handled.Load())
+			} else {
+				require.Error(t, err)
+				require.EqualValues(t, 1, handled.Load())
+			}
+		})
+	}
 }

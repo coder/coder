@@ -1553,6 +1553,9 @@ func (c *agentConn) toolCallRequest(ctx context.Context, method, path string, bo
 	header := http.Header{}
 	if id, ok := ToolCallIDFromContext(ctx); ok {
 		header.Set(CoderToolCallIDHeader, id.String())
+		// Lets http.Transport resend the request when a pooled connection
+		// turns out to be closed. The agent deduplicates by tool call ID.
+		header.Set("Idempotency-Key", id.String())
 	}
 	return c.apiRequestWithHeader(ctx, method, path, body, header)
 }
