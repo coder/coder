@@ -302,9 +302,6 @@ type ChatPageInputProps = {
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -358,9 +355,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	reasoningEffort,
 	onReasoningEffortChange,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -846,9 +840,6 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
 			canConfigureAgentSetup={canConfigureAgentSetup}
-			providerCount={providerCount}
-			modelCount={modelCount}
-			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			// Commands act on the whole chat, so they only make sense
 			// for new sends: hide them while editing a history message.

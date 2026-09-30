@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
-import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatModels,
 	mcpServerConfigs,
@@ -27,10 +26,8 @@ import {
 	saveMCPSelection,
 } from "../utils/mcpSelection";
 import {
-	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
-	getUnsupportedProviderNames,
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
 	resolveModelSelector,
@@ -345,10 +342,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 	const isPersonalModelOverridesUnresolved =
 		organizationId !== "" && personalModelOverridesQuery.data === undefined;
 	const availableModelConfigs = modelsQuery.data?.models ?? [];
-	const chatProviderConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: canConfigureAgentSetup,
-	});
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -454,18 +447,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const providerCount =
-		canConfigureAgentSetup && chatProviderConfigsQuery.data && modelsQuery.data
-			? countConfiguredProviderConfigs(
-					chatProviderConfigsQuery.data,
-					modelsQuery.data,
-				)
-			: undefined;
-	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
-	const unsupportedProviderNames = getUnsupportedProviderNames(
-		modelsQuery.data,
-	);
-
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
@@ -879,9 +860,6 @@ export const AgentCreateForm: React.FC<AgentCreateFormProps> = ({
 						}
 						isWorkspaceLoading={isWorkspacesLoading}
 						canConfigureAgentSetup={canConfigureAgentSetup}
-						providerCount={providerCount}
-						modelCount={modelCount}
-						unsupportedProviderNames={unsupportedProviderNames}
 						aiGatewayDisabled={aiGatewayDisabled}
 					/>
 					{modelSelectorHelp ? (

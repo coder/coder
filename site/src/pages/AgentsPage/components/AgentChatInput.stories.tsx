@@ -266,8 +266,8 @@ export const NoModelOptions: Story = {
 
 export const AIGatewayDisabledShowsSetupNotice: Story = {
 	args: {
-		// canConfigureAgentSetup: false and providerCount/modelCount left
-		// undefined simulates the model-catalog query still loading, which
+		// canConfigureAgentSetup: false with no cached model catalog
+		// simulates the model-catalog query still loading, which
 		// used to make an admin briefly see the wrong copy before this was
 		// fixed to short-circuit on aiGatewayDisabled directly.
 		canConfigureAgentSetup: false,

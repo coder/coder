@@ -23,7 +23,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
+	chatModels,
 	disconnectMCPServerOAuth2,
 	invalidateMCPServerConfigQueries,
 } from "#/api/queries/chats";
@@ -86,6 +88,10 @@ import {
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
+import {
+	countConfiguredProviderConfigs,
+	getUnsupportedProviderNames,
+} from "../utils/modelOptions";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
@@ -230,11 +236,8 @@ type AgentChatInputProps = {
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	// AI Gateway is disabled deployment-wide, independent of provider/model
-	// configuration. Forces the setup notice regardless of the counts above.
+	// configuration. Forces the setup notice regardless of the counts.
 	aiGatewayDisabled?: boolean;
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
@@ -553,9 +556,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
 }) => {
@@ -571,6 +571,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
 	);
+	const modelCatalogQuery = useQuery(chatModels(chatOrganizationId ?? ""));
+	const providerConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canConfigureAgentSetup,
+	});
+	const modelCatalog = modelCatalogQuery.data;
+	const providerCount =
+		canConfigureAgentSetup && providerConfigsQuery.data && modelCatalog
+			? countConfiguredProviderConfigs(providerConfigsQuery.data, modelCatalog)
+			: undefined;
+	const modelCount = modelCatalog ? modelOptions.length : undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(modelCatalog);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup

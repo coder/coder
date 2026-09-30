@@ -129,9 +129,6 @@ type AgentChatPageViewProps = {
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
 	isModelCatalogLoading?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
@@ -286,9 +283,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	reasoningEffort,
 	onReasoningEffortChange,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
 	isModelCatalogLoading = false,
 	onPlanModeToggle,
@@ -977,9 +971,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 										isInterruptPending={isInterruptPending}
 										hasModelOptions={hasModelOptions}
 										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
 										aiGatewayDisabled={aiGatewayDisabled}
 										selectedModel={effectiveSelectedModel}
 										onModelChange={setSelectedModel}

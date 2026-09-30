@@ -8,7 +8,6 @@ import {
 import { useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage, getErrorStatus, isApiError } from "#/api/errors";
-import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -83,9 +82,7 @@ import {
 	saveMCPSelection,
 } from "./utils/mcpSelection";
 import {
-	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
-	getUnsupportedProviderNames,
 	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
 	isUnavailableHistoricalModelID,
@@ -165,10 +162,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 
 	const modelsQuery = useQuery(chatModels(chatOrganizationId));
 	const models = modelsQuery.data?.models ?? [];
-	const chatProviderConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: permissions.editDeploymentConfig,
-	});
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery({
 		...mcpServerConfigs(chatOrganizationId),
@@ -203,20 +196,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 		hasConfiguredModels,
 	} = resolveModelSelector(chatOrganizationId, modelsQuery);
 	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
-	const providerCount =
-		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.data &&
-		modelsQuery.data
-			? countConfiguredProviderConfigs(
-					chatProviderConfigsQuery.data,
-					modelsQuery.data,
-				)
-			: undefined;
-	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
-	const unsupportedProviderNames = getUnsupportedProviderNames(
-		modelsQuery.data,
-	);
-
 	useWorkspaceWatch({
 		workspaceId,
 		agentId,
@@ -726,9 +705,6 @@ const AgentChatPage: React.FC<{ readonly chatId: string }> = ({
 						}
 					}}
 					canConfigureAgentSetup={permissions.editDeploymentConfig}
-					providerCount={providerCount}
-					modelCount={modelCount}
-					unsupportedProviderNames={unsupportedProviderNames}
 					aiGatewayDisabled={aiGatewayDisabled}
 					isModelCatalogLoading={isModelDataPending}
 					onPlanModeToggle={handlePlanModeToggle}

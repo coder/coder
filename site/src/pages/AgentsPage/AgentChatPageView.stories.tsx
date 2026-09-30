@@ -12,9 +12,11 @@ import {
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatEntityKey,
+	organizationChatModelsKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -24,7 +26,9 @@ import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 import {
+	MockAIProviderOpenAI,
 	MockDefaultOrganization,
 	MockGroup,
 	MockOrganizationMember,
@@ -201,14 +205,78 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
 		canConfigureAgentSetup: true,
-		providerCount: 1,
-		modelCount: 1,
 		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),
 	};
 	return <AgentChatPageView {...props} />;
+};
+
+// Stories that replace parameters.queries must re-seed these entries.
+const defaultQueries = [
+	{
+		key: preferenceSettingsKey,
+		data: MockUserPreferenceSettings,
+	},
+	{
+		key: userCompactionThresholdsKey,
+		data: MockUserChatCompactionThresholds,
+	},
+	{
+		key: getAuthorizationKey({
+			checks: {
+				canShareChat: {
+					object: {
+						resource_type: "chat",
+						owner_id: MockUserOwner.id,
+						organization_id: MockChat.organization_id,
+					},
+					action: "share",
+				},
+			},
+		}),
+		data: { canShareChat: false },
+	},
+	{
+		key: workspacesKey({ q: "owner:me", limit: 0 }),
+		data: {
+			workspaces: [],
+			count: 0,
+		} satisfies TypesGen.WorkspacesResponse,
+	},
+];
+
+// The chat input derives the agent setup notice from these cached queries.
+const setupQueries = ({
+	organizationId,
+	catalog,
+	providers = [],
+}: {
+	organizationId: string;
+	catalog: TypesGen.OrganizationChatModelsResponse;
+	providers?: TypesGen.AIProvider[];
+}) => [
+	...defaultQueries,
+	{ key: organizationChatModelsKey(organizationId), data: catalog },
+	{ key: aiProvidersListKey, data: providers },
+];
+
+const emptyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [],
+	providers: [],
+	unsupported_providers: [],
+};
+
+const providerOnlyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...emptyModelCatalog,
+	providers: [MockChatModelProviderDescriptor],
+};
+
+const enabledAIProvider: TypesGen.AIProvider = {
+	...MockAIProviderOpenAI,
+	id: MockChatModelProviderDescriptor.id,
+	enabled: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -239,38 +307,7 @@ const meta: Meta<typeof AgentChatPageView> = {
 	parameters: {
 		layout: "fullscreen",
 		user: MockUserOwner,
-		queries: [
-			{
-				key: preferenceSettingsKey,
-				data: MockUserPreferenceSettings,
-			},
-			{
-				key: userCompactionThresholdsKey,
-				data: MockUserChatCompactionThresholds,
-			},
-			{
-				key: getAuthorizationKey({
-					checks: {
-						canShareChat: {
-							object: {
-								resource_type: "chat",
-								owner_id: MockUserOwner.id,
-								organization_id: MockChat.organization_id,
-							},
-							action: "share",
-						},
-					},
-				}),
-				data: { canShareChat: false },
-			},
-			{
-				key: workspacesKey({ q: "owner:me", limit: 0 }),
-				data: {
-					workspaces: [],
-					count: 0,
-				} satisfies TypesGen.WorkspacesResponse,
-			},
-		],
+		queries: defaultQueries,
 		reactRouter: reactRouterParameters({
 			location: {
 				path: `/agents/${AGENT_ID}`,
@@ -598,12 +635,16 @@ export const NoModelOptions: Story = {
 };
 
 export const MissingProviderAndModelSetup: Story = {
+	parameters: {
+		queries: setupQueries({
+			organizationId: MockDefaultOrganization.id,
+			catalog: emptyModelCatalog,
+		}),
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={0}
-			modelCount={0}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -611,12 +652,17 @@ export const MissingProviderAndModelSetup: Story = {
 };
 
 export const MissingModelSetup: Story = {
+	parameters: {
+		queries: setupQueries({
+			organizationId: MockDefaultOrganization.id,
+			catalog: providerOnlyModelCatalog,
+			providers: [enabledAIProvider],
+		}),
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
 			chat={{ organization_id: MockDefaultOrganization.id }}
-			providerCount={1}
-			modelCount={0}
 			modelOptions={[]}
 			isInputDisabled
 		/>
@@ -624,21 +670,25 @@ export const MissingModelSetup: Story = {
 };
 
 export const MissingProviderSetup: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			canConfigureAgentSetup
-			providerCount={0}
-			modelCount={1}
-		/>
-	),
+	parameters: {
+		queries: setupQueries({
+			organizationId: MockChat.organization_id,
+			catalog: emptyModelCatalog,
+		}),
+	},
+	render: () => <StoryAgentChatPageView canConfigureAgentSetup />,
 };
 
 export const MemberNoModelsAvailable: Story = {
+	parameters: {
+		queries: setupQueries({
+			organizationId: MockChat.organization_id,
+			catalog: emptyModelCatalog,
+		}),
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup={false}
-			providerCount={0}
-			modelCount={0}
 			modelOptions={[]}
 			isInputDisabled
 		/>
