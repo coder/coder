@@ -13,7 +13,10 @@ import { AppProviders } from "#/App";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { createMockFile } from "#/testHelpers/files";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
+import {
+	belowMdViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
@@ -130,6 +133,36 @@ afterEach(() => {
 });
 
 describe("AgentChatInput", () => {
+	it.each([false, true])(
+		"updates dropdown geometry only on mobile (mobile: %s)",
+		async (isMobile) => {
+			vi.stubGlobal("matchMedia", (query: string) => {
+				const result = originalMatchMedia(query);
+				return query === belowMdViewportMediaQuery
+					? { ...result, matches: isMobile }
+					: result;
+			});
+			const setProperty = vi.spyOn(
+				document.documentElement.style,
+				"setProperty",
+			);
+			try {
+				const rendered = renderInput(<AgentChatInput {...inputProps} />);
+				await userEvent
+					.setup()
+					.type(screen.getByRole("textbox", { name: "Chat message" }), "Hello");
+				const geometryWrites = setProperty.mock.calls.filter(([name]) =>
+					name.startsWith("--mobile-dropdown-"),
+				);
+				if (isMobile) expect(geometryWrites.length).toBeGreaterThan(0);
+				else expect(geometryWrites).toHaveLength(0);
+				rendered.unmount();
+			} finally {
+				setProperty.mockRestore();
+			}
+		},
+	);
+
 	it("accepts drafts without sending while submission is disabled", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
