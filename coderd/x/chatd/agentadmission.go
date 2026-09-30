@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -10,6 +11,10 @@ import (
 const (
 	defaultMaxConcurrentRootAgents = int64(5)
 	defaultMaxConcurrentSubagents  = int64(10)
+
+	// admissionLockTimeout bounds how long admission waits for the
+	// capacity admission lock. Holders keep it for milliseconds.
+	admissionLockTimeout = 5 * time.Second
 )
 
 // AgentCapacityLimiter controls chat admission and reports the current per-pool limits.
@@ -57,6 +62,11 @@ func (a *agentCapacityLimiter) Admit(ctx context.Context, store database.Store, 
 	ctx = dbauthz.AsChatd(ctx)
 	if a.unlocked() {
 		return true, nil
+	}
+	// A stalled lock holder fails this candidate, which the next
+	// acquisition pass retries, instead of blocking the pass.
+	if err := store.SetTransactionLockTimeout(ctx, admissionLockTimeout.Milliseconds()); err != nil {
+		return false, err
 	}
 	// The transaction lock remains held through the caller's ownership write,
 	// preventing replicas from over-admitting the pool.

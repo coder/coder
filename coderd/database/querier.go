@@ -97,6 +97,9 @@ type sqlcQuerier interface {
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
+	// Every runnable status needs capacity admission before a worker can own
+	// the chat, so interrupting and requires_action chats without a fresh lease
+	// also wait for a slot.
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
 	// Cheap queue-length check used by ChatMachine.Update when deciding
 	// whether the chat is in a "1" sub-state.
@@ -1420,6 +1423,10 @@ type sqlcQuerier interface {
 	// refresh endpoint. Does not bump updated_at: context pinning is
 	// background state and must not reorder chat lists.
 	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
+	// Bounds how long later lock waits in the current transaction may block.
+	// A wait longer than lock_timeout_ms fails with lock_not_available
+	// instead of blocking. The setting reverts when the transaction ends.
+	SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error

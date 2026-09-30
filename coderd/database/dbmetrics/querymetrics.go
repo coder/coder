@@ -5144,6 +5144,14 @@ func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg datab
 	return r0
 }
 
+func (m queryMetricsStore) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMspgCatalogint8 int64) error {
+	start := time.Now()
+	r0 := m.s.SetTransactionLockTimeout(ctx, lockTimeoutMspgCatalogint8)
+	m.queryLatencies.WithLabelValues("SetTransactionLockTimeout").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetTransactionLockTimeout").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	start := time.Now()
 	r0 := m.s.SoftDeleteChatMessageByID(ctx, id)

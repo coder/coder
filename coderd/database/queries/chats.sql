@@ -3027,11 +3027,14 @@ WHERE c.worker_id IS NOT NULL
   AND hb.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int);
 
 -- name: CountChatCapacityQueuedByPool :one
+-- Every runnable status needs capacity admission before a worker can own
+-- the chat, so interrupting and requires_action chats without a fresh lease
+-- also wait for a slot.
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL

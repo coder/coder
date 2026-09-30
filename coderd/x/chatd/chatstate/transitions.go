@@ -479,17 +479,10 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	case StateE1:
 		return tx.sendMessageE1(chat, input)
 
-	// Running with no queue.
-	case StateR0:
+	// Running, with or without a queue.
+	case StateR0, StateR1:
 		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
-		}
-		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
-
-	// Running with queue.
-	case StateR1:
-		if input.BusyBehavior == BusyBehaviorInterrupt {
-			return tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+			return tx.sendMessageInterruptRunning(chat, from, input)
 		}
 		return tx.sendMessageQueueAndSetStatus(chat, input, chat.Status, chat.LastError, chat.RequiresActionDeadlineAt)
 
@@ -601,6 +594,25 @@ func (tx *Tx) sendMessageQueueAndSetStatus(
 	return SendMessageResult{
 		QueuedMessage: &queued,
 	}, nil
+}
+
+func (tx *Tx) sendMessageInterruptRunning(chat database.Chat, from ExecutionState, input SendMessageInput) (SendMessageResult, error) {
+	result, err := tx.sendMessageQueueAndSetStatus(chat, input, database.ChatStatusInterrupting, chat.LastError, chat.RequiresActionDeadlineAt)
+	if err != nil || chat.WorkerID.Valid {
+		return result, err
+	}
+	finished, err := tx.finishUnownedInterruption(chat, "Tool execution interrupted by new user message")
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	result.InsertedMessages = finished.InsertedMessages
+	result.PromotedQueuedAt = finished.PromotedQueuedAt
+	if from == StateR0 {
+		// The queue held only this message, so it was promoted into
+		// history instead of staying queued.
+		result.QueuedMessage = nil
+	}
+	return result, nil
 }
 
 func (tx *Tx) sendMessageInterruptRequiresAction(chat database.Chat, input SendMessageInput) (SendMessageResult, error) {
@@ -1012,6 +1024,10 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	if err != nil {
 		return InterruptResult{}, err
 	}
+	reason := input.Reason
+	if reason == "" {
+		reason = "Tool execution interrupted by user"
+	}
 	switch from {
 	case StateR0, StateR1:
 		if _, err := tx.applyExecutionState(executionStateUpdate{
@@ -1024,12 +1040,17 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 		}); err != nil {
 			return InterruptResult{}, xerrors.Errorf("set interrupting: %w", err)
 		}
-		return InterruptResult{}, nil
-	case StateA0, StateA1:
-		reason := input.Reason
-		if reason == "" {
-			reason = "Tool execution interrupted by user"
+		if chat.WorkerID.Valid {
+			return InterruptResult{}, nil
 		}
+		finished, err := tx.finishUnownedInterruption(chat, reason)
+		if err != nil {
+			return InterruptResult{}, err
+		}
+		return InterruptResult{
+			CancellationMessages: finished.cancellations,
+		}, nil
+	case StateA0, StateA1:
 		cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, true)
 		if err != nil {
 			return InterruptResult{}, err
@@ -1054,6 +1075,43 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	default:
 		return InterruptResult{}, newTransitionError(TransitionInterrupt, from, "unhandled state in Interrupt")
 	}
+}
+
+type unownedInterruption struct {
+	FinishInterruptionResult
+	cancellations []database.ChatMessage
+}
+
+// finishUnownedInterruption completes an interruption that has no
+// owner. With no runner there is no generation, message part episode,
+// or tool execution in flight, so the chat can land in waiting, or in
+// running with the queue head promoted, without waiting for a worker.
+// A worker would need a capacity slot to finish the interruption, and
+// the pool may be full. The chat stays unowned, so a promoted turn
+// still goes through capacity admission. Orphaned tool calls from an
+// earlier runner receive synthetic cancellations.
+func (tx *Tx) finishUnownedInterruption(chat database.Chat, reason string) (unownedInterruption, error) {
+	if chat.WorkerID.Valid {
+		return unownedInterruption{}, xerrors.New("finish unowned interruption: chat is owned")
+	}
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, false)
+	if err != nil {
+		return unownedInterruption{}, err
+	}
+	finished, err := tx.FinishInterruption(FinishInterruptionInput{PartialMessages: cancels})
+	if err != nil {
+		return unownedInterruption{}, xerrors.Errorf("finish unowned interruption: %w", err)
+	}
+	if len(finished.InsertedMessages) < len(cancels) {
+		return unownedInterruption{}, xerrors.Errorf(
+			"finish unowned interruption: inserted %d messages, want at least %d",
+			len(finished.InsertedMessages), len(cancels),
+		)
+	}
+	return unownedInterruption{
+		FinishInterruptionResult: finished,
+		cancellations:            finished.InsertedMessages[:len(cancels)],
+	}, nil
 }
 
 // ToolResultInput is one submitted dynamic-tool result.

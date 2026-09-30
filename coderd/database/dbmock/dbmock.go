@@ -9771,6 +9771,20 @@ func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
 }
 
+// SetTransactionLockTimeout mocks base method.
+func (m *MockStore) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTransactionLockTimeout", ctx, lockTimeoutMs)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetTransactionLockTimeout indicates an expected call of SetTransactionLockTimeout.
+func (mr *MockStoreMockRecorder) SetTransactionLockTimeout(ctx, lockTimeoutMs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTransactionLockTimeout", reflect.TypeOf((*MockStore)(nil).SetTransactionLockTimeout), ctx, lockTimeoutMs)
+}
+
 // SoftDeleteChatMessageByID mocks base method.
 func (m *MockStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()

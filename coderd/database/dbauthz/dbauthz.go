@@ -7309,6 +7309,12 @@ func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetCh
 	return q.db.SetChatContextSnapshot(ctx, arg)
 }
 
+// SetTransactionLockTimeout changes a session setting of the current
+// transaction and reads no data, like AcquireLock.
+func (q *querier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	return q.db.SetTransactionLockTimeout(ctx, lockTimeoutMs)
+}
+
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	msg, err := q.db.GetChatMessageByID(ctx, id)
 	if err != nil {

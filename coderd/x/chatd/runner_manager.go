@@ -478,23 +478,10 @@ func (m *runnerManager) heartbeatOnce(ctx context.Context) error {
 		chatIDs = append(chatIDs, key.ChatID)
 		runnerIDs = append(runnerIDs, key.RunnerID)
 	}
-	var renewed []database.RenewChatHeartbeatsRow
-	// Renewal serializes with capacity admission so that a lease an
-	// admission counted as stale, and whose slot it gave away, cannot be
-	// renewed afterwards.
-	err := m.opts.Store.InTx(func(tx database.Store) error {
-		if err := tx.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
-			return xerrors.Errorf("acquire capacity admission lock: %w", err)
-		}
-		var err error
-		renewed, err = tx.RenewChatHeartbeats(ctx, database.RenewChatHeartbeatsParams{
-			ChatIds:      chatIDs,
-			RunnerIds:    runnerIDs,
-			StaleSeconds: m.opts.HeartbeatStaleSeconds,
-		})
-		return err
-	}, nil)
+	renewed, err := m.renewHeartbeats(ctx, chatIDs, runnerIDs)
 	if err != nil {
+		// A failed or timed-out tick says nothing about individual
+		// leases, so no runner is cleaned up. The next tick retries.
 		return xerrors.Errorf("renew chat heartbeats: %w", err)
 	}
 	renewedKeys := make(map[runnerKey]struct{}, len(renewed))
@@ -513,6 +500,39 @@ func (m *runnerManager) heartbeatOnce(ctx context.Context) error {
 		m.requestCleanup(ctx, key)
 	}
 	return nil
+}
+
+// renewHeartbeats renews the given leases under the capacity admission
+// lock and returns the renewed pairs. The tick is bounded by
+// HeartbeatRenewalTimeout and its lock wait by HeartbeatLockTimeout, so a
+// stalled lock holder fails the tick instead of blocking it past the
+// stale threshold.
+func (m *runnerManager) renewHeartbeats(ctx context.Context, chatIDs, runnerIDs []uuid.UUID) ([]database.RenewChatHeartbeatsRow, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.opts.HeartbeatRenewalTimeout)
+	defer cancel()
+	var renewed []database.RenewChatHeartbeatsRow
+	// Renewal serializes with capacity admission so that a lease an
+	// admission counted as stale, and whose slot it gave away, cannot be
+	// renewed afterwards.
+	err := m.opts.Store.InTx(func(tx database.Store) error {
+		if err := tx.SetTransactionLockTimeout(ctx, m.opts.HeartbeatLockTimeout.Milliseconds()); err != nil {
+			return xerrors.Errorf("set lock timeout: %w", err)
+		}
+		if err := tx.AcquireLock(ctx, database.LockIDChatCapacityAdmission); err != nil {
+			return xerrors.Errorf("acquire capacity admission lock: %w", err)
+		}
+		var err error
+		renewed, err = tx.RenewChatHeartbeats(ctx, database.RenewChatHeartbeatsParams{
+			ChatIds:      chatIDs,
+			RunnerIds:    runnerIDs,
+			StaleSeconds: m.opts.HeartbeatStaleSeconds,
+		})
+		return err
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	return renewed, nil
 }
 
 func (m *runnerManager) heartbeatCleanupLoop() {

@@ -100,10 +100,55 @@ func releaseCapacitySlot(t *testing.T, f *workerTestFixture, chatID uuid.UUID) {
 	}))
 }
 
-// A chat waiting for capacity is interrupted with a queued message. It must
-// not be acquired until a slot frees; otherwise FinishInterruption promotes
-// the message into a running turn beyond the pool capacity.
-func TestAdmission_InterruptedWaitingChatStaysWithinCapacity(t *testing.T) {
+// Stopping a chat that waits for capacity must not wait for a slot: the
+// chat has no runner, so the interruption finishes inline and the chat
+// lands in waiting without ever being acquired.
+func TestAdmission_StopWaitingChatNeedsNoCapacity(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	limiter := newRefusalCountingLimiter(1)
+	starter := newRecordingTaskStarter()
+	opts := testOptions(t, f, starter)
+	opts.AgentCapacityLimiter = limiter
+
+	// Another replica holds the only root slot.
+	occupant := f.createRunningChat(t)
+	acquireChat(t, f, occupant.ID, uuid.New(), uuid.New())
+
+	waiting := f.createRunningChat(t)
+	worker := startWorker(t, opts)
+	require.Eventually(t, func() bool {
+		return limiter.refusals(waiting.ID) > 0
+	}, testutil.WaitLong, testutil.IntervalFast, "the waiting chat must first be refused for capacity")
+
+	// The user presses stop.
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, waiting.ID)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.Interrupt(chatstate.InterruptInput{})
+		return err
+	}))
+	stopped, err := f.db.GetChatByID(ctx, waiting.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, stopped.Status, "stop must not wait for a capacity slot")
+	require.False(t, stopped.WorkerID.Valid, "a stopped chat needs no worker")
+
+	// A waiting chat is not runnable, so no worker picks it up.
+	worker.Wake()
+	starter.assertNoCall(t)
+	stopped, err = f.db.GetChatByID(ctx, waiting.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusWaiting, stopped.Status)
+	require.False(t, stopped.WorkerID.Valid)
+	require.Equal(t, 1, runningFreshLeases(ctx, t, f.db, occupant.ID, waiting.ID))
+}
+
+// A chat waiting for capacity is interrupted with a new message. The
+// message is promoted inline, but the chat stays unowned and must not be
+// admitted while the pool is full; otherwise it would run beyond the pool
+// capacity.
+func TestAdmission_InterruptWithMessageOnWaitingChatStaysWithinCapacity(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -125,33 +170,21 @@ func TestAdmission_InterruptedWaitingChatStaysWithinCapacity(t *testing.T) {
 
 	// The user sends a message with busy_behavior=interrupt.
 	interrupted := interruptChat(t, f, waiting.ID)
-	require.Equal(t, database.ChatStatusInterrupting, interrupted.Status)
+	require.Equal(t, database.ChatStatusRunning, interrupted.Status, "the message is promoted without a runner")
+	require.False(t, interrupted.WorkerID.Valid)
 	refusalsBefore := limiter.refusals(waiting.ID)
 	worker.Wake()
 	require.Eventually(t, func() bool {
 		return limiter.refusals(waiting.ID) > refusalsBefore
-	}, testutil.WaitLong, testutil.IntervalFast, "the interrupting chat must be refused while the pool is full")
+	}, testutil.WaitLong, testutil.IntervalFast, "the promoted turn must be refused while the pool is full")
 	stillWaiting, err := f.db.GetChatByID(ctx, waiting.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusInterrupting, stillWaiting.Status)
 	require.False(t, stillWaiting.WorkerID.Valid, "a refused chat stays unowned")
 	require.Equal(t, 1, runningFreshLeases(ctx, t, f.db, occupant.ID, waiting.ID))
 
-	// Freeing the slot lets the interruption finish and the promoted
-	// message run within capacity.
+	// Freeing the slot lets the promoted turn run within capacity.
 	releaseCapacitySlot(t, f, occupant.ID)
 	worker.Wake()
-	call := starter.waitCall(t, taskKindInterrupt, waiting.ID)
-	machine := chatstate.NewChatMachine(f.db, f.pubsub, waiting.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		chat, err := store.GetChatByID(ctx, waiting.ID)
-		if err != nil {
-			return err
-		}
-		require.True(t, ownedByTask(chat, call.input), "the interrupt task owns the chat")
-		_, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
-		return err
-	}))
 	starter.waitCall(t, taskKindGeneration, waiting.ID)
 	require.Equal(t, 1, runningFreshLeases(ctx, t, f.db, occupant.ID, waiting.ID))
 }
@@ -345,4 +378,102 @@ func TestRenewChatHeartbeats_OnlyRenewsFreshOwnedLeases(t *testing.T) {
 	require.True(t, stillStale, "a stale lease must not be revived")
 	_, err = f.db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{ChatID: deleted.ID, RunnerID: deletedRunner})
 	require.ErrorIs(t, err, sql.ErrNoRows, "renewal must not recreate a deleted lease")
+}
+
+// holdCapacityAdmissionLock holds the capacity admission lock in another
+// transaction until the returned release function is called.
+func holdCapacityAdmissionLock(t *testing.T, db database.Store) (release func()) {
+	t.Helper()
+	locked := make(chan struct{})
+	done := make(chan struct{})
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- db.InTx(func(tx database.Store) error {
+			if err := tx.AcquireLock(context.Background(), database.LockIDChatCapacityAdmission); err != nil {
+				return err
+			}
+			close(locked)
+			<-done
+			return nil
+		}, nil)
+	}()
+	select {
+	case <-locked:
+	case err := <-errCh:
+		t.Fatalf("hold capacity admission lock: %v", err)
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("timed out acquiring the capacity admission lock")
+	}
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			close(done)
+			require.NoError(t, <-errCh)
+		})
+	}
+	t.Cleanup(release)
+	return release
+}
+
+// A heartbeat tick that fails or times out, for example because a stalled
+// transaction holds the capacity admission lock, says nothing about
+// individual leases. It must fail the tick without cleaning up runners, and
+// the next tick must renew normally.
+func TestRunnerManager_FailedHeartbeatTickKeepsRunners(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		renewalTimeout time.Duration
+		lockTimeout    time.Duration
+		wantErr        string
+	}{
+		{name: "LockTimeout", renewalTimeout: testutil.WaitShort, lockTimeout: 100 * time.Millisecond, wantErr: "due to lock timeout"},
+		{name: "RenewalTimeout", renewalTimeout: 200 * time.Millisecond, lockTimeout: time.Minute, wantErr: "acquire capacity admission lock"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newWorkerTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Generation tasks block until canceled, like a turn in progress.
+			starter := newBlockingTaskStarter(false)
+			opts := testOptions(t, f, starter)
+			opts.HeartbeatRenewalTimeout = tc.renewalTimeout
+			opts.HeartbeatLockTimeout = tc.lockTimeout
+			chat := f.createRunningChat(t)
+			worker := startWorker(t, opts)
+			generation := starter.waitCall(t, taskKindGeneration, chat.ID)
+			key := runnerKey{ChatID: chat.ID, RunnerID: generation.input.RunnerID}
+			setHeartbeatAge(t, f, key.ChatID, key.RunnerID, 10*time.Second)
+			before, err := f.db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{ChatID: key.ChatID, RunnerID: key.RunnerID})
+			require.NoError(t, err)
+
+			worker.mu.Lock()
+			manager := worker.manager
+			worker.mu.Unlock()
+			registered := func() bool {
+				manager.mu.Lock()
+				defer manager.mu.Unlock()
+				_, ok := manager.runners[key]
+				return ok
+			}
+
+			release := holdCapacityAdmissionLock(t, f.db)
+			require.ErrorContains(t, manager.heartbeatOnce(ctx), tc.wantErr, "the tick must fail while the lock is held")
+			require.True(t, registered(), "a failed tick must not clean up runners")
+			require.NoError(t, generation.ctx.Err(), "a failed tick must not stop generation")
+			unchanged, err := f.db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{ChatID: key.ChatID, RunnerID: key.RunnerID})
+			require.NoError(t, err)
+			require.True(t, unchanged.HeartbeatAt.Equal(before.HeartbeatAt), "a failed tick renews nothing")
+
+			release()
+			require.NoError(t, manager.heartbeatOnce(ctx))
+			require.True(t, registered())
+			require.NoError(t, generation.ctx.Err())
+			renewed, err := f.db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{ChatID: key.ChatID, RunnerID: key.RunnerID})
+			require.NoError(t, err)
+			require.True(t, renewed.HeartbeatAt.After(before.HeartbeatAt), "the next tick renews the lease")
+		})
+	}
 }

@@ -103,8 +103,13 @@ func TestWorker_InterruptingSortsBeforeRunning(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	running := []database.Chat{f.createRunningChat(t), f.createRunningChat(t)}
+	// A chat whose runner died mid-interruption: interrupting an unowned
+	// chat would finish inline instead.
 	interrupting := f.createRunningChat(t)
+	deadRunner := uuid.New()
+	acquireChat(t, f, interrupting.ID, uuid.New(), deadRunner)
 	interruptChat(t, f, interrupting.ID)
+	makeHeartbeatStale(t, f, interrupting.ID, deadRunner)
 	requiresAction := f.createRequiresActionChat(t)
 	_, err := f.sqlDB.ExecContext(ctx, `
 		UPDATE chats
@@ -297,7 +302,10 @@ func TestWorker_AdmissionAdmitsInUpdatedAtOrder(t *testing.T) {
 		"the longer-waiting chat must admit first")
 }
 
-func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
+// Interrupting a chat that waits for capacity needs no worker: the
+// interruption finishes inline and the promoted turn waits for admission
+// like any other running chat.
+func TestWorker_InterruptOfCapacityQueuedChatNeedsNoWorker(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
@@ -315,11 +323,15 @@ func TestWorker_InterruptClaimsCapacityQueuedChat(t *testing.T) {
 		return admission.admitCallCount() > 0
 	}, testutil.WaitLong, testutil.IntervalFast)
 
-	interruptChat(t, f, chat.ID)
+	interrupted := interruptChat(t, f, chat.ID)
+	require.Equal(t, database.ChatStatusRunning, interrupted.Status)
+	require.False(t, interrupted.WorkerID.Valid)
+	calls := admission.admitCallCount()
 	worker.Wake()
-
-	call := starter.waitCall(t, taskKindInterrupt, chat.ID)
-	require.Equal(t, chat.ID, call.input.ChatID)
+	require.Eventually(t, func() bool {
+		return admission.admitCallCount() > calls
+	}, testutil.WaitLong, testutil.IntervalFast, "the promoted turn must go through admission")
+	starter.assertNoCall(t)
 }
 
 func TestWorker_CapacityMetricsUseFreshOwnership(t *testing.T) {
@@ -469,6 +481,10 @@ func TestChatCapacityCountsByPool(t *testing.T) {
 	acquireChat(t, f, incomplete.ID, uuid.New(), uuid.New())
 	_, err := f.sqlDB.ExecContext(ctx, `UPDATE chats SET worker_id = NULL WHERE id = $1`, incomplete.ID)
 	require.NoError(t, err)
+	// Unowned requires_action chats also need admission, so they wait for
+	// a slot too.
+	orphaned := f.createRunningChat(t)
+	forceExecutionState(t, f, orphaned.ID, database.ChatStatusRequiresAction, false)
 
 	active, err := f.db.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{StaleSeconds: 30})
 	require.NoError(t, err)
@@ -477,7 +493,7 @@ func TestChatCapacityCountsByPool(t *testing.T) {
 
 	queued, err := f.db.CountChatCapacityQueuedByPool(ctx, 30)
 	require.NoError(t, err)
-	require.EqualValues(t, 2, queued.QueuedRootCount)
+	require.EqualValues(t, 3, queued.QueuedRootCount)
 	require.EqualValues(t, 1, queued.QueuedSubagentCount)
 
 	active, err = f.db.CountChatCapacityActiveByPool(ctx, database.CountChatCapacityActiveByPoolParams{

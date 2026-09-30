@@ -8118,7 +8118,7 @@ SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS queued_root_count,
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NOT NULL)::bigint AS queued_subagent_count
 FROM chats c
-WHERE c.status = 'running'::chat_status
+WHERE c.status IN ('running'::chat_status, 'interrupting'::chat_status, 'requires_action'::chat_status)
   AND c.archived = false
   AND (
       c.worker_id IS NULL
@@ -8138,6 +8138,9 @@ type CountChatCapacityQueuedByPoolRow struct {
 	QueuedSubagentCount int64 `db:"queued_subagent_count" json:"queued_subagent_count"`
 }
 
+// Every runnable status needs capacity admission before a worker can own
+// the chat, so interrupting and requires_action chats without a fresh lease
+// also wait for a slot.
 func (q *sqlQuerier) CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error) {
 	row := q.db.QueryRowContext(ctx, countChatCapacityQueuedByPool, staleSeconds)
 	var i CountChatCapacityQueuedByPoolRow
@@ -18537,6 +18540,18 @@ SELECT pg_advisory_xact_lock($1)
 // released when the transaction ends.
 func (q *sqlQuerier) AcquireLock(ctx context.Context, pgAdvisoryXactLock int64) error {
 	_, err := q.db.ExecContext(ctx, acquireLock, pgAdvisoryXactLock)
+	return err
+}
+
+const setTransactionLockTimeout = `-- name: SetTransactionLockTimeout :exec
+SELECT set_config('lock_timeout', format('%sms', $1::bigint), true)
+`
+
+// Bounds how long later lock waits in the current transaction may block.
+// A wait longer than lock_timeout_ms fails with lock_not_available
+// instead of blocking. The setting reverts when the transaction ends.
+func (q *sqlQuerier) SetTransactionLockTimeout(ctx context.Context, lockTimeoutMs int64) error {
+	_, err := q.db.ExecContext(ctx, setTransactionLockTimeout, lockTimeoutMs)
 	return err
 }
 

@@ -567,6 +567,8 @@ This endpoint uses `Interrupt(user_cancel)`:
 
 When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
 
+TODO: when the chat has no owner (`worker_id IS NULL`), `Interrupt` and `SendMessage` with `busy_behavior=interrupt` apply `FinishInterruption` in the same transaction, cancelling orphaned tool calls. An empty queue lands in `W`; otherwise the queue head is promoted into `R0` or `R1` and the chat stays unowned. Describe this here and in the state diagram.
+
 No other input states are supported.
 
 ### `POST /api/v2/chats/{chat}/tool-results`
@@ -748,7 +750,7 @@ DO UPDATE SET heartbeat_at = EXCLUDED.heartbeat_at;
 
 Updating heartbeat rows does not advance `snapshot_version` and does not emit pubsub notifications.
 
-TODO: the loop now calls `RenewChatHeartbeats` under the capacity admission lock. It renews only fresh rows still owned by their runner and cleans up runners whose lease it did not renew, so a stale lease is never revived. Describe this here.
+TODO: the loop now calls `RenewChatHeartbeats` under the capacity admission lock. It renews only fresh rows still owned by their runner and cleans up runners whose lease it did not renew, so a stale lease is never revived. Each tick is bounded by `HeartbeatRenewalTimeout` (a third of the stale threshold) and its lock wait by `HeartbeatLockTimeout`; a failed tick cleans up no runners and retries on the next tick. Describe this here.
 
 ### Heartbeat cleanup loop
 
@@ -1088,7 +1090,7 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
 
-TODO: acquisition now requires admission for every runnable status, so an owned chat holds its slot until it releases ownership. An unowned `interrupting` or `requires_action` chat waits for a free slot before its runner starts, which also delays its action deadline. Describe this here.
+TODO: acquisition now requires admission for every runnable status, so an owned chat holds its slot until it releases ownership. Interrupting an unowned running chat finishes inline without a slot. A chat that is still `interrupting` or `requires_action` without a fresh lease (for example after its replica died) waits for a free slot before its runner starts, which also delays its action deadline. Admission waits at most 5 seconds for its lock. Describe this here.
 
 ## Auto-archive loop
 
