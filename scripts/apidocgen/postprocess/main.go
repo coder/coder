@@ -151,23 +151,27 @@ func prepareDocsDirectory() error {
 func writeDocs(sections [][]byte) error {
 	log.Println("Write docs to destination")
 
-	manifestPath := path.Join(docsDirectory, "manifest.json")
-	m, err := docgenenv.LoadManifest(manifestPath)
+	sourcesDir := path.Join(docsDirectory, docgenenv.ManifestSourcesDir)
+	m, err := docgenenv.LoadManifestSources(sourcesDir)
 	if err != nil {
 		return err
 	}
 
 	// Resolve the REST API route once. Both the page front matter and the
-	// regenerated manifest routes read from this single traversal, so the
+	// regenerated sidebar fragment read from this single traversal, so the
 	// metadata source and the rewrite target can't drift apart.
 	restAPI := m.FindRoute("Reference", "REST API")
 	if restAPI == nil {
-		return xerrors.Errorf("could not find REST API route in manifest %q", manifestPath)
+		return xerrors.Errorf("could not find REST API route in sidebar sources %q", sourcesDir)
+	}
+	if restAPI.ChildrenFrom == "" {
+		return xerrors.Errorf("REST API route in sidebar sources %q must set children_from", sourcesDir)
 	}
 
-	// Index existing REST API child routes by title so their curated metadata
-	// (description, state, icon_path) flows into both the page front matter and
-	// the regenerated manifest routes.
+	// The REST API route's children in the sources are curated metadata
+	// overlays (description, state, icon_path) keyed by title. Index them so
+	// that metadata flows into the page front matter; docsmanifestgen applies
+	// the same overlays to the sidebar.
 	existingByTitle := make(map[string]docgenenv.Route)
 	for _, child := range restAPI.Children {
 		existingByTitle[child.Title] = child
@@ -226,34 +230,21 @@ func writeDocs(sections [][]byte) error {
 		return slices.IsSorted([]string{mdFiles[i].title, mdFiles[j].title})
 	})
 
-	// Update manifest.json. Generated routes overwrite Title and Path;
-	// existing state/description/icon_path are preserved (keyed by title) so
-	// callouts like `state: ["experimental"]` survive regeneration. restAPI
-	// aliases m, so replacing its children updates the manifest in place.
+	// Write the generated routes to the sidebar fragment the sources name in
+	// children_from. The fragment carries only structure (title and path);
+	// curated metadata stays in the sources as overlays.
 	var children []docgenenv.Route
 	for _, mdf := range mdFiles {
-		docRoute := docgenenv.Route{
+		children = append(children, docgenenv.Route{
 			Title: mdf.title,
 			Path:  mdf.path,
-		}
-		if existing, ok := existingByTitle[mdf.title]; ok {
-			docRoute.State = existing.State
-			docRoute.Description = existing.Description
-			docRoute.IconPath = existing.IconPath
-		}
-		children = append(children, docRoute)
+		})
 	}
-	restAPI.Children = children
-
-	manifestFile, err := m.Marshal()
-	if err != nil {
-		return xerrors.Errorf("json.Marshal failed: %w", err)
+	fragment := path.Join(sourcesDir, restAPI.ChildrenFrom)
+	if err := docgenenv.WriteRouteFragment(fragment, children); err != nil {
+		return err
 	}
-
-	if err := atomicwrite.File(manifestPath, manifestFile); err != nil {
-		return xerrors.Errorf("can't write manifest file: %w", err)
-	}
-	log.Printf("Write manifest file: %dB", len(manifestFile))
+	log.Printf("Write sidebar fragment: %s", fragment)
 	return nil
 }
 
