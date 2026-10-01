@@ -31,6 +31,7 @@ type ChatMachine struct {
 	store     database.Store
 	publisher Publisher
 	chatID    uuid.UUID
+	noWait    bool
 }
 
 // NewChatMachine constructs a chat-scoped state machine handle. The
@@ -48,6 +49,36 @@ func NewChatMachine(
 		publisher: publisher,
 		chatID:    chatID,
 	}
+}
+
+// WithNonBlockingLock makes Update fail with [ErrChatLocked] instead of
+// waiting when another transaction holds the chat row. Worker acquisition
+// uses it: a held lock means another replica is already claiming or
+// driving the chat, so queueing behind it only delays that replica's next
+// transition.
+func (m *ChatMachine) WithNonBlockingLock() *ChatMachine {
+	m.noWait = true
+	return m
+}
+
+// lockChat takes the transition lock and returns the locked row with its
+// queue flag. Both lock statements return the same shape.
+func (m *ChatMachine) lockChat(ctx context.Context, store database.Store) (database.Chat, bool, error) {
+	if m.noWait {
+		locked, err := store.LockChatForAcquisition(ctx, m.chatID)
+		if err != nil {
+			if database.IsLockNotAvailableError(err) {
+				return database.Chat{}, false, ErrChatLocked
+			}
+			return database.Chat{}, false, err
+		}
+		return locked.Chat, locked.HasQueued, nil
+	}
+	locked, err := store.LockChatForTransition(ctx, m.chatID)
+	if err != nil {
+		return database.Chat{}, false, err
+	}
+	return locked.Chat, locked.HasQueued, nil
 }
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
@@ -232,10 +263,13 @@ func (m *ChatMachine) Update(
 	defer buffer.Discard()
 
 	err := m.store.InTx(func(store database.Store) error {
-		locked, err := store.LockChatForTransition(ctx, m.chatID)
+		lockedChat, hasQueued, err := m.lockChat(ctx, store)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrChatNotFound
+			}
+			if errors.Is(err, ErrChatLocked) {
+				return err
 			}
 			return xerrors.Errorf("lock chat: %w", err)
 		}
@@ -243,7 +277,7 @@ func (m *ChatMachine) Update(
 			ctx:    ctx,
 			store:  store,
 			chatID: m.chatID,
-			seed:   &txSeed{chat: locked.Chat, hasQueued: locked.HasQueued},
+			seed:   &txSeed{chat: lockedChat, hasQueued: hasQueued},
 		}
 		if err := fn(tx, store); err != nil {
 			return err

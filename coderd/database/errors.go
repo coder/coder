@@ -15,6 +15,16 @@ func IsSerializedError(err error) bool {
 	return false
 }
 
+// IsLockNotAvailableError checks if the error is a NOWAIT lock statement
+// finding the row already locked.
+func IsLockNotAvailableError(err error) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		return pqErr.Code.Name() == "lock_not_available"
+	}
+	return false
+}
+
 // IsUniqueViolation checks if the error is due to a unique violation.
 // If one or more specific unique constraints are given as arguments,
 // the error must be caused by one of them. If no constraints are given,

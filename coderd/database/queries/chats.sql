@@ -2824,6 +2824,109 @@ SELECT
     ) AS has_queued
 FROM chats_expanded;
 
+-- name: LockChatForAcquisition :one
+-- LockChatForTransition with NOWAIT, for worker acquisition only. Several
+-- replicas wake on the same ownership hint and only one can claim the
+-- chat; a held row lock means another transaction is already claiming or
+-- driving it, so the caller skips (SQLSTATE 55P03) instead of queueing
+-- behind the winner and rolling back once it can read the owner. Every
+-- other transition keeps the blocking lock.
+WITH locked_chat AS (
+    SELECT *
+    FROM chats
+    WHERE id = @id::uuid
+    FOR NO KEY UPDATE NOWAIT
+),
+chats_expanded AS (
+    SELECT
+        locked_chat.id,
+        locked_chat.owner_id,
+        locked_chat.workspace_id,
+        locked_chat.title,
+        locked_chat.status,
+        locked_chat.worker_id,
+        locked_chat.started_at,
+        locked_chat.heartbeat_at,
+        locked_chat.created_at,
+        locked_chat.updated_at,
+        locked_chat.parent_chat_id,
+        locked_chat.root_chat_id,
+        locked_chat.last_model_config_id,
+        locked_chat.last_reasoning_effort,
+        locked_chat.archived,
+        locked_chat.last_error,
+        locked_chat.mode,
+        locked_chat.mcp_server_ids,
+        locked_chat.labels,
+        locked_chat.build_id,
+        locked_chat.agent_id,
+        locked_chat.pin_order,
+        locked_chat.last_read_message_id,
+        locked_chat.dynamic_tools,
+        locked_chat.organization_id,
+        locked_chat.project_id,
+        locked_chat.plan_mode,
+        locked_chat.client_type,
+        locked_chat.last_turn_summary,
+        locked_chat.summary,
+        locked_chat.summary_generated_at,
+        locked_chat.snapshot_version,
+        locked_chat.history_version,
+        locked_chat.queue_version,
+        locked_chat.generation_attempt,
+        locked_chat.retry_state,
+        locked_chat.retry_state_version,
+        locked_chat.runner_id,
+        locked_chat.requires_action_deadline_at,
+        COALESCE(root.user_acl, locked_chat.user_acl) AS user_acl,
+        COALESCE(root.group_acl, locked_chat.group_acl) AS group_acl,
+        owner.username AS owner_username,
+        owner.name AS owner_name,
+        locked_chat.context_aggregate_hash,
+        locked_chat.context_dirty_since,
+        locked_chat.context_dirty_resources,
+        locked_chat.context_error,
+        locked_chat.compaction_requested_at
+    FROM locked_chat
+    LEFT JOIN chats root ON root.id = COALESCE(locked_chat.root_chat_id, locked_chat.parent_chat_id)
+    JOIN visible_users owner ON owner.id = locked_chat.owner_id
+)
+SELECT
+    sqlc.embed(chats_expanded),
+    -- Returned alongside the row so ChatMachine.Update can classify the
+    -- execution state without a second round trip under the lock.
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = chats_expanded.id
+    ) AS has_queued
+FROM chats_expanded;
+
+-- name: GetChatTransitionState :one
+-- Lock-free read of the fields the worker's acquisition pre-check needs:
+-- the execution-state inputs plus whether the current ownership lease is
+-- stale, so a replica that lost the race skips without taking the row
+-- lock. The authoritative check still runs under the lock.
+SELECT
+    c.id,
+    c.status,
+    c.archived,
+    EXISTS (
+        SELECT 1 FROM chat_queued_messages q
+        WHERE q.chat_id = c.id
+    ) AS has_queued,
+    (
+        c.worker_id IS NULL
+        OR c.runner_id IS NULL
+        OR NOT EXISTS (
+            SELECT 1 FROM chat_heartbeats h
+            WHERE h.chat_id = c.id
+              AND h.runner_id = c.runner_id
+              AND h.heartbeat_at > NOW() - (INTERVAL '1 second' * @stale_seconds::int)
+        )
+    )::boolean AS ownership_stale
+FROM chats c
+WHERE c.id = @id::uuid;
+
 -- name: UpdateChatExecutionState :one
 -- The commit write of a transition that changes execution state. It
 -- advances snapshot_version and atomically updates the execution-state

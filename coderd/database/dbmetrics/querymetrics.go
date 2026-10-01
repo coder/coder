@@ -1904,6 +1904,14 @@ func (m queryMetricsStore) GetChatSystemPromptConfig(ctx context.Context) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatTransitionState(ctx context.Context, arg database.GetChatTransitionStateParams) (database.GetChatTransitionStateRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatTransitionState(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatTransitionState").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatTransitionState").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatUserModelOverride(ctx context.Context, arg database.GetChatUserModelOverrideParams) (database.ChatUserModelOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatUserModelOverride(ctx, arg)
@@ -5021,6 +5029,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	r0, r1 := m.s.LockChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("LockChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) LockChatForAcquisition(ctx context.Context, id uuid.UUID) (database.LockChatForAcquisitionRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.LockChatForAcquisition(ctx, id)
+	m.queryLatencies.WithLabelValues("LockChatForAcquisition").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatForAcquisition").Inc()
 	return r0, r1
 }
 

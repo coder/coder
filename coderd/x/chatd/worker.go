@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -258,10 +259,29 @@ func (w *chatWorker) acquireCandidate(
 	manager *runnerManager,
 	chatID uuid.UUID,
 ) (bool, error) {
+	// Every replica woken by the same ownership hint races for this chat and
+	// only one can win. The lock-free read skips chats whose winner has
+	// already committed; the non-blocking lock below covers the rest, so a
+	// loser never queues on the row behind the winner. The authoritative
+	// check still runs under the lock.
+	precheck, err := w.opts.Store.GetChatTransitionState(ctx, database.GetChatTransitionStateParams{
+		ID:           chatID,
+		StaleSeconds: w.opts.HeartbeatStaleSeconds,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, xerrors.Errorf("acquisition pre-check: %w", err)
+	}
+	if !chatstate.ClassifyTransitionState(precheck).IsRunnable() || precheck.Archived || !precheck.OwnershipStale {
+		return false, nil
+	}
+
 	runnerID := uuid.New()
 	var takenOver bool
-	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID).WithNonBlockingLock()
+	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		// The lock already returned the row; reading it again here would
 		// add two round trips while the transition lock is held.
 		chat, state, err := tx.Current()
@@ -315,7 +335,7 @@ func (w *chatWorker) acquireCandidate(
 	if errors.Is(err, errCapacityRefused) {
 		return false, errCapacityRefused
 	}
-	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) {
+	if errors.Is(err, errSkipAcquire) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, chatstate.ErrChatLocked) {
 		return false, nil
 	}
 	if err != nil {
