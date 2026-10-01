@@ -127,7 +127,7 @@ For defaults, precedence, and privacy considerations, refer to [Actor header for
 ## Enable Responses WebSocket mode
 
 In WebSocket mode for the OpenAI Responses API, a client keeps one connection open and sends each request as a `response.create` message.
-Clients such as Codex CLI try this mode first and fall back to HTTPS when the gateway refuses it.
+Codex CLI tries this mode first and falls back to HTTPS when the gateway refuses it.
 
 > [!NOTE]
 > Responses WebSocket mode is an [early access experiment](../../reference/feature-stages.md#early-access-features).
@@ -170,13 +170,14 @@ Each `response.create` on a socket is rate limited and checked against [budgets]
 AI Gateway records each `response.create` that passes these checks.
 AI Gateway never injects [MCP tools](./mcp.md) into WebSocket requests.
 
-Each gateway replica enforces fixed socket limits:
+Each gateway replica enforces fixed socket limits.
+A socket counts against these limits from the moment the gateway starts connecting it, before the handshake completes.
 
-| Limit                    | Value           | When the limit is reached                                         |
-|--------------------------|-----------------|-------------------------------------------------------------------|
-| Open sockets per user    | 16              | New upgrades get `426 Upgrade Required`                           |
-| Open sockets per replica | 512             | New upgrades get `426 Upgrade Required`                           |
-| Socket lifetime          | 60&nbsp;minutes | The gateway closes the socket, and the client must open a new one |
+| Limit               | Value           | When the limit is reached                                         |
+|---------------------|-----------------|-------------------------------------------------------------------|
+| Sockets per user    | 16              | New upgrades get `426 Upgrade Required`                           |
+| Sockets per replica | 512             | New upgrades get `426 Upgrade Required`                           |
+| Socket lifetime     | 60&nbsp;minutes | The gateway closes the socket, and the client must open a new one |
 
 Codex falls back to HTTPS immediately on a `426` response.
 When a replica shuts down, it closes its open sockets, and an upgrade that reaches it during shutdown can get `503 Service Unavailable`.
