@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, fn, userEvent } from "storybook/test";
+import { MockSkills } from "#/testHelpers/skills";
 import { filterSkillsByQuery } from "../../utils/personalSkills";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import {
@@ -9,7 +10,7 @@ import {
 	type SkillMetadata,
 	SkillsTriggerMenu,
 } from "./SkillsTriggerMenu";
-import { findVisibleText, MockSkills } from "./storyHelpers";
+import { findVisibleText } from "./storyHelpers";
 
 const mockWorkspaceSkills: SkillMetadata[] = [
 	{

@@ -214,7 +214,7 @@ The admin `PUT` also validates the stored name, so a self-registered client whos
   - <a id="security-considerations"></a>[Security considerations](./security.md#security-considerations)
   - <a id="limitations"></a>[Limitations](./security.md#limitations)
 
-- Check [External Authentication](../../external-auth/index.md) for configuring Coder as an OAuth2 client
+- Check [External Authentication](../../external-auth.md) for configuring Coder as an OAuth2 client
 - Review the [API Reference](../../../reference/api/index.md) for complete endpoint documentation
 
 ## Feedback
