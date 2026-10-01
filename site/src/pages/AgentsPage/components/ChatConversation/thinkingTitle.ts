@@ -43,6 +43,8 @@ const cleanHeadingText = (text: string): string => {
 		literals.push(literal);
 		return `\uE000${literals.length - 1}\uE001`;
 	};
+	// Strong spans run twice: one that wraps emphasis matches only once that
+	// emphasis is stripped.
 	return text
 		.replace(
 			/\\([!-/:-@[-`{-~])|(`+)([^`]|[^`][\s\S]*?[^`])\2(?!`)|`+/g,
@@ -59,6 +61,8 @@ const cleanHeadingText = (text: string): string => {
 		.replace(/\b__([^_]+)__\b/g, "$1")
 		.replace(/\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1")
 		.replace(/\b_([^_]+)_\b/g, "$1")
+		.replace(/\*\*([^*\s](?:[^*]*[^*\s])?)\*\*/g, "$1")
+		.replace(/\b__([^_]+)__\b/g, "$1")
 		.replace(/~~([^~]+)~~/g, "$1")
 		.replace(
 			/\uE000(\d+)\uE001/g,

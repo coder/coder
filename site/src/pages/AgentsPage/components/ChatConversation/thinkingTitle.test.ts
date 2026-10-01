@@ -46,6 +46,18 @@ describe("getThinkingDisclosureDisplay", () => {
 		});
 	});
 
+	it.each([
+		"This is **strong and *emphasized* text** now",
+		"This is __strong and _emphasized_ text__ now",
+	])("strips nested emphasis from the preview title: %j", (text) => {
+		const title = "This is strong and emphasized text now";
+		expect(getThinkingDisclosureDisplay(text)).toEqual({
+			title,
+			ariaLabel: `Thinking: ${title}`,
+			body: text,
+		});
+	});
+
 	it("keeps text that Markdown renders literally in the preview title", () => {
 		const text =
 			"Check `Promise<User>`, `*args*`, 0 < n and n > 0 in user_id_field and APP__DB__URL";
