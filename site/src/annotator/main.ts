@@ -30,6 +30,7 @@ function bootstrap() {
 				post({ type: "coder-annotator:submit", ...submission }),
 			onStateChange: (state) =>
 				post({ type: "coder-annotator:state", ...state }),
+			onHintDismissed: () => post({ type: "coder-annotator:hint-dismissed" }),
 		});
 
 		window.addEventListener("message", (event) => {
@@ -42,7 +43,7 @@ function bootstrap() {
 			}
 			switch (event.data.type) {
 				case "coder-annotator:set-picking":
-					annotator.setPicking(event.data.picking);
+					annotator.setPicking(event.data.picking, event.data.hint);
 					break;
 				case "coder-annotator:highlight":
 					annotator.setHighlights(event.data.items);

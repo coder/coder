@@ -14,3 +14,5 @@ export const sparklesIcon = `<svg ${attributes}><path d="M11.017 2.814a1 1 0 0 1
 // A heavier stroke so the tick still reads at chip size.
 export const checkIcon =
 	'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+export const closeIcon = `<svg ${attributes}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
