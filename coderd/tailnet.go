@@ -267,9 +267,11 @@ func (s *ServerTailnet) Close() error {
 	// Close idle connections while the tailnet can still deliver the close to
 	// agents, which otherwise hold them until their idle timeout.
 	s.coordCtrl.closeIdleConnections()
-	_ = s.conn.Close()
 	s.coordCtrl.Close()
+	// A coordination can still apply peer updates until the controller closes,
+	// and fails if the tailnet is closed first.
 	<-s.controller.Closed()
+	_ = s.conn.Close()
 	return nil
 }
 

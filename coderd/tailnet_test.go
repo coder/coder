@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -119,6 +120,52 @@ func TestServerTailnet_AgentAPITransport_RejectsOtherAgent(t *testing.T) {
 	defer release()
 	_, err = transport.RoundTrip(req) //nolint:bodyclose // Rejected requests return no response.
 	require.ErrorContains(t, err, "does not match agent")
+}
+
+// dialDuringClose holds a coordinator dial until the server tailnet starts
+// closing, then until its tailnet closes or IntervalMedium passes. The first
+// coordination then runs while the server tailnet shuts down, as when a dial
+// is still in flight at shutdown.
+type dialDuringClose struct {
+	tailnet.ControlProtocolDialer
+	serverTailnet *atomic.Pointer[coderd.ServerTailnet]
+}
+
+func (d dialDuringClose) Dial(ctx context.Context, r tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
+	<-ctx.Done()
+	select {
+	case <-d.serverTailnet.Load().Conn().Closed():
+	case <-time.After(testutil.IntervalMedium):
+	}
+	return d.ControlProtocolDialer.Dial(ctx, r)
+}
+
+// TestServerTailnet_CloseDuringFirstDial checks that Close keeps the tailnet
+// open while a coordination started after Close began applies peer updates.
+// A failed update makes the controller log an error at random, depending on
+// which of its ready channels it selects.
+func TestServerTailnet_CloseDuringFirstDial(t *testing.T) {
+	t.Parallel()
+
+	var st atomic.Pointer[coderd.ServerTailnet]
+	sink := testutil.NewFakeSink(t)
+	agents, serverTailnet := setupServerTailnetAgentWith(t, 1, serverTailnetTestOptions{
+		wrapDialer: func(d tailnet.ControlProtocolDialer) tailnet.ControlProtocolDialer {
+			return dialDuringClose{ControlProtocolDialer: d, serverTailnet: &st}
+		},
+		sink: sink,
+	})
+	st.Store(serverTailnet)
+	// The first coordination resubscribes this agent, and the coordinator
+	// answers with the agent's node.
+	_, release, err := serverTailnet.AppTransport(agents[0].id)
+	require.NoError(t, err)
+	release()
+
+	require.NoError(t, serverTailnet.Close())
+	require.Empty(t, sink.Entries(func(e slog.SinkEntry) bool {
+		return e.Message == "failed to update peers"
+	}))
 }
 
 func TestServerTailnet_AgentConn_NoSTUN(t *testing.T) {
@@ -522,6 +569,17 @@ type agentWithID struct {
 }
 
 func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
+	return setupServerTailnetAgentWith(t, agentNum, serverTailnetTestOptions{}, opts...)
+}
+
+// serverTailnetTestOptions changes the server tailnet that
+// setupServerTailnetAgentWith builds.
+type serverTailnetTestOptions struct {
+	wrapDialer func(tailnet.ControlProtocolDialer) tailnet.ControlProtocolDialer // Optional.
+	sink       slog.Sink                                                         // Optional, receives the server tailnet's logs too.
+}
+
+func setupServerTailnetAgentWith(t *testing.T, agentNum int, o serverTailnetTestOptions, opts ...tailnettest.DERPAndStunOption) ([]agentWithID, *coderd.ServerTailnet) {
 	logger := testutil.Logger(t)
 	derpMap, derpServer := tailnettest.RunDERPAndSTUN(t, opts...)
 
@@ -562,15 +620,22 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		agents = append(agents, agentWithID{id: manifest.AgentID, Agent: ag})
 	}
 
-	dialer := &coderd.InmemTailnetDialer{
+	var dialer tailnet.ControlProtocolDialer = &coderd.InmemTailnetDialer{
 		CoordPtr: &coordPtr,
 		DERPFn:   func() *tailcfg.DERPMap { return derpMap },
 		Logger:   logger,
 		ClientID: uuid.UUID{5},
 	}
+	if o.wrapDialer != nil {
+		dialer = o.wrapDialer(dialer)
+	}
+	serverLogger := logger
+	if o.sink != nil {
+		serverLogger = logger.AppendSinks(o.sink)
+	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
-		logger,
+		serverLogger,
 		derpServer,
 		dialer,
 		false,
