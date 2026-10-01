@@ -32,9 +32,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
+import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useMediaQuery } from "#/hooks/useMediaQuery";
-import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -106,7 +106,14 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
-	const menuRef = useMobileMenuPosition(composer, open);
+	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+
+	useAnchoredOverlayPosition(
+		composer,
+		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+			null,
+		isBelowMd && open,
+	);
 
 	const portsData = usePortsData(
 		workspace,
@@ -170,7 +177,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 			</span>
 
 			<DropdownMenuContent
-				ref={menuRef}
+				ref={setMenuElement}
 				side="top"
 				align="start"
 				// Above the composer on mobile so the opening press cannot

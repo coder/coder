@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -12,7 +12,9 @@ import {
 	PopoverAnchor,
 	PopoverContent,
 } from "#/components/Popover/Popover";
-import { useMobileMenuPosition } from "#/hooks/useMobileMenuPosition";
+import { useAnchoredOverlayPosition } from "#/hooks/useAnchoredOverlayPosition";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 
 type SkillSource = "personal" | "workspace";
 
@@ -185,7 +187,16 @@ export const SkillsTriggerMenu = ({
 			: undefined,
 	].filter((item) => item !== undefined);
 	const shouldRender = open && anchor !== null;
-	const menuRef = useMobileMenuPosition(anchor, shouldRender);
+	const [menuElement, setMenuElement] = useState<HTMLDivElement | null>(null);
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
+
+	useAnchoredOverlayPosition(
+		anchor,
+		menuElement?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
+			null,
+		isBelowMd && shouldRender,
+	);
+
 	const shouldShowEmpty = allSkills.length === 0 && statusItems.length === 0;
 	const selectedValue = selectedIndex >= 0 ? String(selectedIndex) : "";
 
@@ -232,7 +243,7 @@ export const SkillsTriggerMenu = ({
 		>
 			{anchor && <PopoverAnchor virtualRef={{ current: anchor }} />}
 			<PopoverContent
-				ref={menuRef}
+				ref={setMenuElement}
 				align="start"
 				side="top"
 				sideOffset={8}

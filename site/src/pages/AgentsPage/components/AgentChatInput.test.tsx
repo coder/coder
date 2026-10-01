@@ -153,7 +153,7 @@ describe("AgentChatInput", () => {
 				);
 
 				const geometryWrites = setProperty.mock.calls.filter(([name]) =>
-					name.startsWith("--mobile-"),
+					name.startsWith("--anchored-overlay-"),
 				);
 				expect(geometryWrites).toHaveLength(0);
 

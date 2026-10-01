@@ -1,31 +1,29 @@
-import { useLayoutEffect, useState } from "react";
-import { belowMdViewportMediaQuery } from "#/utils/mobile";
-import { useMediaQuery } from "./useMediaQuery";
+import { useLayoutEffect } from "react";
 
-/** @internal Computes fixed-position geometry above an anchor and software keyboard. */
-export const getMobileMenuPosition = (
+/** @internal Computes viewport-fixed geometry above an anchor and viewport obstruction. */
+export const getAnchoredOverlayPosition = (
 	anchor: Pick<DOMRect, "left" | "top" | "width">,
 	fixedViewportBottom: number,
 	viewport: Pick<VisualViewport, "offsetTop" | "height"> | null,
 ) => {
-	const composerGap = 8;
+	const anchorGap = 8;
 	const viewportPadding = 16;
-	const minimumMenuHeight = 96;
+	const minimumOverlayHeight = 96;
 
 	const visibleViewportTop = viewport?.offsetTop ?? 0;
-	const keyboardInset = viewport
+	const viewportInset = viewport
 		? Math.max(0, fixedViewportBottom - (viewport.offsetTop + viewport.height))
 		: 0;
 
 	const bottom = Math.max(
 		0,
-		fixedViewportBottom - anchor.top + composerGap,
-		keyboardInset + composerGap,
+		fixedViewportBottom - anchor.top + anchorGap,
+		viewportInset + anchorGap,
 	);
 	const bottomEdgeTop = fixedViewportBottom - bottom;
 
 	// WebKit can mix coordinate systems while the keyboard settles.
-	// Only positive visual-viewport height candidates can constrain the menu.
+	// Only positive visual-viewport height candidates can constrain the overlay.
 	const heightCandidates = [
 		bottomEdgeTop - visibleViewportTop - viewportPadding,
 		bottomEdgeTop - viewportPadding,
@@ -36,32 +34,24 @@ export const getMobileMenuPosition = (
 		width: anchor.width,
 		bottom,
 		maxHeight: Math.max(
-			minimumMenuHeight,
+			minimumOverlayHeight,
 			heightCandidates.length > 0 ? Math.min(...heightCandidates) : 0,
 		),
 	};
 };
 
-/** Returns a content ref that docks keyboard-sensitive mobile menus while open. */
-export const useMobileMenuPosition = (
+/**
+ * Publishes above-anchor, anchor-width geometry for a viewport-fixed overlay.
+ * Owns --anchored-overlay-* while enabled and removes them on cleanup.
+ * Callers control positioning CSS; the target must use the viewport as its containing block.
+ */
+export const useAnchoredOverlayPosition = (
 	anchor: HTMLElement | null | undefined,
-	open: boolean,
-): React.RefCallback<HTMLDivElement> => {
-	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
-	const [content, setContent] = useState<HTMLDivElement | null>(null);
-	const active = isBelowMd && open;
-
+	overlay: HTMLElement | null,
+	enabled: boolean,
+): void => {
 	useLayoutEffect(() => {
-		if (!anchor || !content || !active) {
-			return;
-		}
-
-		// The positioning CSS targets this same Radix wrapper.
-		const wrapper = content.closest<HTMLElement>(
-			"[data-radix-popper-content-wrapper]",
-		);
-
-		if (!wrapper) {
+		if (!anchor || !overlay || !enabled) {
 			return;
 		}
 
@@ -81,22 +71,22 @@ export const useMobileMenuPosition = (
 		const setProperty = (name: string, value: number) => {
 			const next = `${value}px`;
 
-			if (wrapper.style.getPropertyValue(name) !== next) {
-				wrapper.style.setProperty(name, next);
+			if (overlay.style.getPropertyValue(name) !== next) {
+				overlay.style.setProperty(name, next);
 			}
 		};
 
 		const update = () => {
-			const position = getMobileMenuPosition(
+			const position = getAnchoredOverlayPosition(
 				anchor.getBoundingClientRect(),
 				fixedProbe.getBoundingClientRect().bottom,
 				viewport,
 			);
 
-			setProperty("--mobile-menu-left", position.left);
-			setProperty("--mobile-menu-width", position.width);
-			setProperty("--mobile-menu-bottom", position.bottom);
-			setProperty("--mobile-menu-max-height", position.maxHeight);
+			setProperty("--anchored-overlay-left", position.left);
+			setProperty("--anchored-overlay-width", position.width);
+			setProperty("--anchored-overlay-bottom", position.bottom);
+			setProperty("--anchored-overlay-max-height", position.maxHeight);
 		};
 
 		update();
@@ -115,7 +105,7 @@ export const useMobileMenuPosition = (
 		};
 
 		const handleScroll = (event: Event) => {
-			// Scrolling inside a menu or editor does not move the composer.
+			// Scrolling inside the overlay does not move its anchor.
 			if (event.target instanceof Node && !event.target.contains(anchor)) {
 				return;
 			}
@@ -149,8 +139,11 @@ export const useMobileMenuPosition = (
 			viewport?.removeEventListener("scroll", scheduleUpdate);
 
 			fixedProbe.remove();
-		};
-	}, [active, anchor, content]);
 
-	return setContent;
+			overlay.style.removeProperty("--anchored-overlay-left");
+			overlay.style.removeProperty("--anchored-overlay-width");
+			overlay.style.removeProperty("--anchored-overlay-bottom");
+			overlay.style.removeProperty("--anchored-overlay-max-height");
+		};
+	}, [anchor, overlay, enabled]);
 };
