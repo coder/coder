@@ -95,7 +95,7 @@ type sqlcQuerier interface {
 	// snapshot_version and records history and queue changes exactly like
 	// UpdateChatExecutionState. It must be the only UPDATE of the chats row in
 	// its transaction (see LockChatForTransition).
-	BumpChatSnapshotVersion(ctx context.Context, arg BumpChatSnapshotVersionParams) (Chat, error)
+	BumpChatSnapshotVersion(ctx context.Context, arg BumpChatSnapshotVersionParams) (BumpChatSnapshotVersionRow, error)
 	// Calculates the telemetry summary for a given provider, model, and client
 	// combination for telemetry reporting.
 	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
@@ -1197,9 +1197,9 @@ type sqlcQuerier interface {
 	// Returns the hydrated chat IDs so callers can notify watchers of every
 	// chat the statement pinned.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) ([]uuid.UUID, error)
-	// The commit write of RecordGenerationAttempt, so it also advances
-	// snapshot_version (see LockChatForTransition).
-	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
+	// The commit write of RecordGenerationAttempt: advances snapshot_version,
+	// increments generation_attempt, and returns the committed chat.
+	IncrementChatGenerationAttempt(ctx context.Context, arg IncrementChatGenerationAttemptParams) (IncrementChatGenerationAttemptRow, error)
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
@@ -1626,7 +1626,7 @@ type sqlcQuerier interface {
 	// retry_state is a pending retry of a running turn, so it is cleared
 	// whenever the chat leaves running. Otherwise an interrupted or failed
 	// chat would keep announcing a retry that will never happen.
-	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (Chat, error)
+	UpdateChatExecutionState(ctx context.Context, arg UpdateChatExecutionStateParams) (UpdateChatExecutionStateRow, error)
 	// Bumps the heartbeat timestamp for the given set of chat IDs,
 	// provided they are still running and owned by the specified
 	// worker. Returns the IDs that were actually updated so the
@@ -1656,7 +1656,7 @@ type sqlcQuerier interface {
 	// The commit write of RecordRetryState, so it also advances
 	// snapshot_version (see LockChatForTransition). retry_state_version is
 	// assigned by trigger from the committed snapshot_version.
-	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
+	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (UpdateChatRetryStateRow, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
 	// updates while losing to newer message history.

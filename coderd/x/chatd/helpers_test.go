@@ -510,7 +510,7 @@ func forceExecutionState(
 		if err != nil {
 			return err
 		}
-		updated, err = store.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+		row, err := store.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
 			ID:                       chat.ID,
 			Status:                   status,
 			Archived:                 archived,
@@ -519,6 +519,7 @@ func forceExecutionState(
 			LastError:                chat.LastError,
 			RequiresActionDeadlineAt: chat.RequiresActionDeadlineAt,
 		})
+		updated = row.Chat
 		return err
 	}, nil))
 	return updated

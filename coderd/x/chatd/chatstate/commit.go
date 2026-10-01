@@ -44,7 +44,7 @@ type executionStateUpdate struct {
 // commitExecutionState issues the transition's commit write.
 func (tx *Tx) commitExecutionState(u executionStateUpdate) (database.Chat, error) {
 	historyChanged, queueChanged := tx.takeVersionFlags()
-	return tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
+	updated, err := tx.store.UpdateChatExecutionState(tx.ctx, database.UpdateChatExecutionStateParams{
 		ID:                       tx.chatID,
 		Status:                   u.Status,
 		Archived:                 u.Archived,
@@ -55,7 +55,13 @@ func (tx *Tx) commitExecutionState(u executionStateUpdate) (database.Chat, error
 		CompactionRequestedAt:    u.CompactionRequestedAt,
 		HistoryChanged:           u.GrantHistoryEpoch || historyChanged,
 		QueueChanged:             queueChanged,
+		StaleSeconds:             HeartbeatStaleSeconds,
 	})
+	if err != nil {
+		return database.Chat{}, err
+	}
+	tx.recordCommit(updated.Chat, updated.HasQueued, updated.OwnershipStale)
+	return updated.Chat, nil
 }
 
 // takeVersionFlags returns and clears the pending history and queue
