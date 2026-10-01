@@ -2600,14 +2600,14 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 		// Wait for HTTP serving so context cancellation does not interrupt startup.
 		client := codersdk.New(waitAccessURL(t, cfg))
 		healthCtx := testutil.Context(t, testutil.WaitLong)
-		require.Eventually(t, func() bool {
-			resp, err := client.Request(healthCtx, http.MethodGet, "/healthz", nil)
+		testutil.Eventually(healthCtx, t, func(ctx context.Context) bool {
+			resp, err := client.Request(ctx, http.MethodGet, "/healthz", nil)
 			if err != nil {
 				return false
 			}
 			defer resp.Body.Close()
 			return resp.StatusCode == http.StatusOK
-		}, testutil.WaitLong, testutil.IntervalFast, "server did not become healthy")
+		}, testutil.IntervalFast, "server did not become healthy")
 		return errChan, cancelFunc
 	}
 	waitForShutdown := func(t *testing.T, errChan chan error) error {
