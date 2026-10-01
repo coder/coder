@@ -160,10 +160,6 @@ func (c *runtimeCatalog) runtimesForGraphNode(node tfgraph.Node) []runtimeID {
 	return slices.Clone(c.byConfigurationAddress[node.ConfigurationAddress()])
 }
 
-func exceedsLimit(used, additional, limit int) bool {
-	return used > limit || additional > limit-used
-}
-
 func truncateDiagnosticValue(value string) string {
 	runes := 0
 	for index := range value {

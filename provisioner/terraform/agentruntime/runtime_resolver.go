@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -30,6 +31,11 @@ type runtimeCandidates struct {
 	devcontainers []Target
 }
 
+type runtimeReferenceQuery struct {
+	moduleAddress string
+	reference     string
+}
+
 // Resolver resolves Terraform resources to cataloged workspace-agent and
 // devcontainer-subagent runtimes. It is request-local and must not be used
 // concurrently.
@@ -38,6 +44,11 @@ type Resolver struct {
 	query       *tfgraph.Query
 	configIndex *configIndex
 	runtimes    *runtimeCatalog
+
+	limits                 resolverLimits
+	budget                 resolutionBudget
+	referenceNodes         map[runtimeReferenceQuery][]tfgraph.NodeID
+	referenceCacheKeyBytes int
 }
 
 // NewResolver creates a request-local agent-runtime resolver.
@@ -65,10 +76,12 @@ func NewResolver(
 		return nil, err
 	}
 	return &Resolver{
-		graph:       graph,
-		query:       query,
-		configIndex: program.configIndex,
-		runtimes:    runtimes,
+		graph:          graph,
+		query:          query,
+		configIndex:    program.configIndex,
+		runtimes:       runtimes,
+		limits:         defaultResolverLimits(),
+		referenceNodes: map[runtimeReferenceQuery][]tfgraph.NodeID{},
 	}, nil
 }
 
@@ -191,8 +204,25 @@ func (r *Resolver) runtimeCandidates(
 					"agent runtime resolution references a Terraform graph node outside its index",
 				)
 			}
-			for _, runtimeID := range r.runtimes.runtimesForGraphNode(node) {
+			runtimeIDs := r.runtimes.runtimesForGraphNode(node)
+			if err := r.budget.consumeCandidateChecks(
+				len(runtimeIDs), r.limits.candidateChecks,
+			); err != nil {
+				return runtimeCandidates{}, err
+			}
+			for runtimeIndex, runtimeID := range runtimeIDs {
+				if runtimeIndex%256 == 0 {
+					if err := ctx.Err(); err != nil {
+						return runtimeCandidates{}, err
+					}
+				}
 				runtime := r.runtimes.runtimes[runtimeID]
+				if err := r.budget.consumeCandidateMatchBytes(
+					len(reference)+len(resource.Address)+len(runtime.target.Address),
+					r.limits.candidateMatchBytes,
+				); err != nil {
+					return runtimeCandidates{}, err
+				}
 				if constraint != nil {
 					if !constraint.matches(runtime.parsed) {
 						continue
@@ -280,7 +310,18 @@ func (r *Resolver) runtimeCandidatesFromInstanceGraph(
 					"agent runtime resolution references a Terraform graph node outside its index",
 				)
 			}
-			for _, runtimeID := range r.runtimes.runtimesForGraphNode(node) {
+			runtimeIDs := r.runtimes.runtimesForGraphNode(node)
+			if err := r.budget.consumeCandidateChecks(
+				len(runtimeIDs), r.limits.candidateChecks,
+			); err != nil {
+				return nil, true, err
+			}
+			for runtimeIndex, runtimeID := range runtimeIDs {
+				if runtimeIndex%256 == 0 {
+					if err := ctx.Err(); err != nil {
+						return nil, true, err
+					}
+				}
 				runtime := r.runtimes.runtimes[runtimeID]
 				if runtime.target.Kind != kind ||
 					runtime.target.Address == resourceAddress {
@@ -321,8 +362,36 @@ func (r *Resolver) runtimeNodesForReference(
 	reference string,
 	target runtimeReferenceTarget,
 ) ([]tfgraph.NodeID, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	key := runtimeReferenceQuery{
+		moduleAddress: modulePath.ConfigurationAddress(),
+		reference:     reference,
+	}
+	if nodes, ok := r.referenceNodes[key]; ok {
+		return nodes, nil
+	}
+	if len(r.referenceNodes) >= r.limits.referenceCacheEntries {
+		return nil, xerrors.Errorf(
+			"agent runtime resolution exceeds the limit of %d cached Terraform reference queries",
+			r.limits.referenceCacheEntries,
+		)
+	}
+	keyBytes := len(key.moduleAddress) + len(key.reference)
+	if exceedsLimit(
+		r.referenceCacheKeyBytes,
+		keyBytes,
+		r.limits.referenceCacheKeyBytes,
+	) {
+		return nil, xerrors.Errorf(
+			"agent runtime resolution exceeds the limit of %d cached Terraform reference query bytes",
+			r.limits.referenceCacheKeyBytes,
+		)
+	}
+
 	startNodes, err := r.query.ConfigurationNodesForReferences(
-		ctx, modulePath.ConfigurationAddress(), []string{reference},
+		ctx, key.moduleAddress, []string{reference},
 	)
 	if err != nil {
 		return nil, err
@@ -358,6 +427,8 @@ func (r *Resolver) runtimeNodesForReference(
 			terminals = append(terminals, nodeID)
 		}
 	}
+	r.referenceNodes[key] = terminals
+	r.referenceCacheKeyBytes += keyBytes
 	return terminals, nil
 }
 
@@ -423,6 +494,38 @@ func (r *Resolver) resourceAgentIDReferences(
 	}
 	if usesEachValueAsValue {
 		additionalReferences = configuredResource.forEachReferences
+	}
+	if exceedsLimit(
+		len(configuredResource.agentIDReferences),
+		len(additionalReferences),
+		r.limits.referenceCount,
+	) {
+		return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+			"agent runtime resolution exceeds the limit of %d Terraform references",
+			r.limits.referenceCount,
+		)
+	}
+	referenceBytes := len(parsed.ModulePath().String())
+	for _, source := range [][]string{
+		configuredResource.agentIDReferences,
+		additionalReferences,
+	} {
+		for _, reference := range source {
+			if err := ctx.Err(); err != nil {
+				return tfaddr.ManagedResourceAddress{}, nil, err
+			}
+			if exceedsLimit(
+				referenceBytes,
+				len(reference),
+				r.limits.referenceBytes,
+			) {
+				return tfaddr.ManagedResourceAddress{}, nil, xerrors.Errorf(
+					"agent runtime resolution exceeds the limit of %d Terraform reference bytes",
+					r.limits.referenceBytes,
+				)
+			}
+			referenceBytes += len(reference)
+		}
 	}
 	references := make(
 		[]string,
@@ -702,9 +805,13 @@ func stateResourceDiagnosticAddress(resource *tfjson.StateResource) string {
 }
 
 func formatRuntimeCandidates(targets []Target) string {
-	addresses := make([]string, 0, len(targets))
-	for _, target := range targets {
-		addresses = append(addresses, target.Address)
+	rendered := min(len(targets), maxRuntimeDiagnosticCandidates)
+	values := make([]string, 0, rendered+1)
+	for _, target := range targets[:rendered] {
+		values = append(values, truncateDiagnosticValue(target.Address))
 	}
-	return strings.Join(addresses, ", ")
+	if omitted := len(targets) - rendered; omitted > 0 {
+		values = append(values, fmt.Sprintf("… (%d omitted)", omitted))
+	}
+	return strings.Join(values, ", ")
 }
