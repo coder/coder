@@ -40,10 +40,12 @@ export const AutomationChatPicker: React.FC<AutomationChatPickerProps> = ({
 	);
 	// The picker shows titles only, so match a title substring. The full-text
 	// `search:` term matches whole words and message content instead.
+	const searchTerms = ["archived:false", "source:created_by_me"];
+	if (debouncedSearch) {
+		searchTerms.unshift(`title:"${debouncedSearch}"`);
+	}
 	const searchQuery = useQuery({
-		...chatSearch({
-			q: `${debouncedSearch ? `title:"${debouncedSearch}" ` : ""}archived:false source:created_by_me`,
-		}),
+		...chatSearch({ q: searchTerms.join(" ") }),
 		enabled: open,
 		placeholderData: keepPreviousData,
 	});

@@ -22,7 +22,6 @@ import {
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
-import { getPreferredTimezone } from "#/utils/timeZones";
 import { AutomationEditorDialog } from "./AutomationEditorDialog";
 
 const organizationId = MockDefaultOrganization.id;
@@ -56,6 +55,26 @@ const mockModelCatalog: OrganizationChatModelsResponse = {
 	unsupported_providers: [],
 };
 
+// New automations default to the browser's zone. Pin it so the time zone
+// select and the upcoming runs render the same on every host.
+const storyTimeZone = "America/New_York";
+
+const pinBrowserTimeZone = () => {
+	const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+	spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(
+		function (this: Intl.DateTimeFormat) {
+			return { ...resolvedOptions.call(this), timeZone: storyTimeZone };
+		},
+	);
+};
+
+const rejectChat = (status: number) => () => {
+	spyOn(API.experimental, "getChat").mockRejectedValue({
+		...mockApiError({ message: "Chat error." }),
+		status,
+	});
+};
+
 const meta: Meta<typeof AutomationEditorDialog> = {
 	title: "pages/AgentsPage/Automations/AutomationEditorDialog",
 	component: AutomationEditorDialog,
@@ -87,12 +106,13 @@ export const CreateSchedule: Story = {
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",
-					schedule_time_zone: getPreferredTimezone(),
+					schedule_time_zone: storyTimeZone,
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
 		],
 	},
+	beforeEach: pinBrowserTimeZone,
 };
 
 export const NewChatTarget: Story = {
@@ -105,12 +125,13 @@ export const NewChatTarget: Story = {
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",
-					schedule_time_zone: getPreferredTimezone(),
+					schedule_time_zone: storyTimeZone,
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
 		],
 	},
+	beforeEach: pinBrowserTimeZone,
 	play: async () => {
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "New chat each run" }),
@@ -134,6 +155,60 @@ export const Edit: Story = {
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
+		],
+	},
+};
+
+const editPreviewQuery = (scheduleTimeZone: string) => ({
+	key: chatAutomationSchedulePreviewKey(organizationId, {
+		schedule_cron: "0 9 * * *",
+		schedule_time_zone: scheduleTimeZone,
+	}),
+	data: { next_run_times: nextRunTimes },
+});
+
+export const TargetChatNotFound: Story = {
+	args: { automation: mockAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			editPreviewQuery("UTC"),
+		],
+	},
+	beforeEach: rejectChat(404),
+};
+
+export const TargetChatLoadError: Story = {
+	args: { automation: mockAutomation },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			editPreviewQuery("UTC"),
+		],
+	},
+	beforeEach: rejectChat(500),
+};
+
+// The server's tzdata can know zones that this browser rejects, so the
+// upcoming runs fall back to UTC.
+export const UnknownTimeZonePreview: Story = {
+	args: {
+		automation: { ...mockAutomation, schedule_time_zone: "Mars/Olympus" },
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+			editPreviewQuery("Mars/Olympus"),
 		],
 	},
 };
@@ -199,7 +274,7 @@ export const CreateWebhook: Story = {
 			{
 				key: chatAutomationSchedulePreviewKey(organizationId, {
 					schedule_cron: "0 9 * * *",
-					schedule_time_zone: getPreferredTimezone(),
+					schedule_time_zone: storyTimeZone,
 				}),
 				data: { next_run_times: nextRunTimes },
 			},
