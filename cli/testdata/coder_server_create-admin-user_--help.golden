@@ -14,6 +14,9 @@ OPTIONS:
           The email of the new user. If not specified, you will be prompted via
           stdin.
 
+  -o, --output text|json (default: text)
+          Output format.
+
       --password string, $CODER_PASSWORD
           The password of the new user. If not specified, you will be prompted
           via stdin.
