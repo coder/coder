@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -94,32 +95,33 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 		if r.Body != nil {
 			_ = r.Body.Close()
 		}
-		logger.Debug(ctx, "rejecting oversized request body",
-			slog.F("route", strings.TrimPrefix(r.URL.Path, h.provider.RoutePrefix())),
-			slog.F("client", string(client)),
-			slog.F("content_length", r.ContentLength),
-		)
+		logger.Warn(ctx, "rejecting oversized request body", slog.F("content_length", r.ContentLength))
 		routing.WriteRequestBodyTooLarge(ctx, w)
 		return nil, nil
 	}
 
 	actor := aibcontext.ActorFromContext(ctx)
 	if actor == nil {
+		logger.Warn(ctx, "rejecting request without an actor")
 		http.Error(w, "no actor found", http.StatusBadRequest)
 		return nil, nil
 	}
 	if h.recorder == nil {
+		logger.Warn(ctx, "rejecting request without a recorder")
 		http.Error(w, "recorder unavailable", http.StatusInternalServerError)
 		return nil, nil
 	}
 	cred, err := h.provider.ResolveCredential(r)
 	if err != nil {
+		logger.Warn(ctx, "rejecting request without an upstream credential", slog.Error(err))
 		http.Error(w, "upstream authentication unavailable", http.StatusBadGateway)
 		return nil, nil
 	}
 	switch cred.(type) {
 	case credential.BYOK, *credential.CentralizedPool:
 	default:
+		// The type name identifies the credential kind; the value may hold secrets.
+		logger.Warn(ctx, "rejecting unsupported upstream credential", slog.F("credential_type", fmt.Sprintf("%T", cred)))
 		http.Error(w, "upstream authentication is not supported in proxy mode", http.StatusNotImplemented)
 		return nil, nil
 	}
