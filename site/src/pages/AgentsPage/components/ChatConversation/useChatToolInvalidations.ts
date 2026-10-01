@@ -66,10 +66,31 @@ export function useChatToolInvalidations({
 	const processedToolCallIdsRef = useRef<Set<string>>(new Set());
 	const chatIDRef = useRef(chatID);
 	// Not subscribed: a tool call's args land before its result, so the
-	// snapshot is current whenever a new result triggers the effect.
-	const readToolCalls = useEffectEvent(
-		() => store.getSnapshot().streamState?.toolCalls,
-	);
+	// snapshot is current whenever a new result triggers the effect. The
+	// server persists the assistant tool-call message before its tools run
+	// and the live stream resets, so a streamed result usually has only the
+	// durable call.
+	const readToolCallArgs = useEffectEvent((toolCallID: string): unknown => {
+		const { streamState, messagesByID, orderedMessageIDs } =
+			store.getSnapshot();
+		const liveCall = streamState?.toolCalls[toolCallID];
+		if (liveCall) {
+			return liveCall.args;
+		}
+		for (const messageID of orderedMessageIDs.toReversed()) {
+			const message = messagesByID.get(messageID);
+			if (message?.role !== "assistant") {
+				continue;
+			}
+			const part = message.content?.find(
+				(part) => part.type === "tool-call" && part.tool_call_id === toolCallID,
+			);
+			if (part?.type === "tool-call") {
+				return part.args;
+			}
+		}
+		return undefined;
+	});
 
 	useEffect(() => {
 		if (chatIDRef.current !== chatID) {
@@ -86,7 +107,6 @@ export function useChatToolInvalidations({
 		let shouldInvalidateWorkspace = false;
 		let shouldInvalidateAutomations = false;
 		let shouldInvalidateAutomationRuns = false;
-		const toolCalls = readToolCalls();
 
 		for (const toolResult of Object.values(toolResults)) {
 			if (
@@ -98,7 +118,7 @@ export function useChatToolInvalidations({
 
 			if (toolResult.name === "manage_automations") {
 				const action = asString(
-					parseArgs(toolCalls?.[toolResult.id]?.args)?.action,
+					parseArgs(readToolCallArgs(toolResult.id))?.action,
 				);
 				if (
 					toolResult.isError ||
