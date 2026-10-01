@@ -155,7 +155,12 @@ vi.mock("#/contexts/useWebpushNotifications", () => ({
 
 const LocationDisplay: React.FC = () => {
 	const location = useLocation();
-	return <output>{location.pathname}</output>;
+	return (
+		<>
+			<output>{location.pathname}</output>
+			<span data-testid="location-search">{location.search}</span>
+		</>
+	);
 };
 
 let navigateBack: (() => void) | undefined;
@@ -593,7 +598,7 @@ describe("AgentCreatePage project frame", () => {
 		});
 	});
 
-	it("deletes the project and returns to the new chat page", async () => {
+	it("deletes the project and returns to the new chat page with the sidebar filters", async () => {
 		const user = userEvent.setup();
 		const toastSuccess = vi.spyOn(toast, "success");
 		let deletedProjectId: string | undefined;
@@ -611,7 +616,10 @@ describe("AgentCreatePage project frame", () => {
 		);
 
 		render(
-			<Wrapper experiments={["chat-projects"]}>
+			<Wrapper
+				experiments={["chat-projects"]}
+				initialEntry={`/agents/projects/${MockChatProject.id}?archived=archived`}
+			>
 				<AgentCreatePage />
 			</Wrapper>,
 		);
@@ -631,6 +639,9 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(screen.getByRole("status")).toHaveTextContent(/^\/agents$/);
 		});
+		expect(screen.getByTestId("location-search")).toHaveTextContent(
+			"?archived=archived",
+		);
 		expect(deletedProjectId).toBe(MockChatProject.id);
 		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
 	});

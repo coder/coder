@@ -1,7 +1,7 @@
 import { EllipsisVerticalIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -23,6 +23,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { ProjectActionsMenuItems } from "../ChatsSidebar/chats/ProjectActionsMenuItems";
 import { ChatProjectDialog } from "../ChatsSidebar/dialogs/ChatProjectDialog";
+import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { ProjectMetadataBadges } from "./ProjectMetadataBadges";
 import { ProjectPageHeader } from "./ProjectPageHeader";
 
@@ -36,6 +37,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const { user: me } = useAuthenticated();
 	const { organizations, showOrganizations } = useDashboard();
 	const isOwner = project.owner_id === me.id;
@@ -63,7 +65,14 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 		...deleteChatProject(queryClient),
 		onSuccess: () => {
 			toast.success("Project deleted");
-			navigate("/agents", { replace: true });
+			// Keeps the sidebar filters, which live in the query string.
+			navigate(
+				{
+					pathname: "/agents",
+					search: normalizeLocationSearch(location.search),
+				},
+				{ replace: true },
+			);
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to delete project."));
