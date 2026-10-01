@@ -9,10 +9,12 @@ agent that runs the agent loop directly within the Coder control plane.
 
 No specialized software, API keys, or network access is required inside your workspace. The only requirement is network access between the control plane and external LLM providers.
 
-<video autoplay playsinline loop>
+<video autoplay controls muted playsinline loop>
   <source src="https://raw.githubusercontent.com/coder/coder/refs/heads/main/docs/images/guides/ai-agents/coder-agents-ui.mp4" type="video/mp4">
 Your browser does not support the video tag.
 </video>
+
+This screencast shows the Coder Agents chat interface, where a developer describes work for an agent to carry out.
 
 ## What Coder Agents is and isn't
 
