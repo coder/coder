@@ -419,6 +419,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param automation_id query string false "Filter to chats the automation created or sent messages to. Ignored unless the chat-automations experiment is enabled for the caller." format(uuid)
+// @Param project_id query string false "Only chats in this project. Requires the chat-projects experiment." format(uuid)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -507,6 +508,22 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	projectID := uuid.NullUUID{}
+	if rawProjectID := r.URL.Query().Get("project_id"); rawProjectID != "" {
+		// Ignoring the filter would return every chat as if it were the
+		// project's contents, so reject it like create and update do.
+		if !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+			return
+		}
+		parsedProjectID, err := uuid.Parse(rawProjectID)
+		if err != nil || parsedProjectID == uuid.Nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid project_id query parameter."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
 		ViewerID:            apiKey.UserID,
@@ -526,6 +543,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
 		AutomationID:        automationID,
+		ProjectID:           projectID,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -1360,6 +1378,39 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.ProjectID != nil && !api.Experiments.Enabled(codersdk.ExperimentChatProjects) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "chat projects experiment is not enabled"})
+		return
+	}
+	projectID := uuid.NullUUID{}
+	if req.ProjectID != nil {
+		project, err := api.Database.GetChatProjectByID(ctx, *req.ProjectID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching chat project.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		// Projects are private to their owner, and a chat in a project reads
+		// and writes its memory, so the chat's owner must own the project.
+		// This matches the unreadable-project response so callers creating
+		// chats for other users cannot probe for project IDs.
+		if project.OwnerID != ownerID {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "Chat project not found."})
+			return
+		}
+		if project.OrganizationID != req.OrganizationID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Chat project does not belong to this chat's organization."})
+			return
+		}
+		projectID = uuid.NullUUID{UUID: project.ID, Valid: true}
+	}
+
 	contentBlocks, titleSource, inputError := createChatInputFromRequest(ctx, api.Database, req)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *inputError)
@@ -1503,6 +1554,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID:          req.OrganizationID,
 		OwnerID:                 ownerID,
 		CreatedBy:               apiKey.UserID,
+		ProjectID:               projectID,
 		WorkspaceID:             workspaceSelection.WorkspaceID,
 		Title:                   title,
 		TitleDerivedFromContent: true,
