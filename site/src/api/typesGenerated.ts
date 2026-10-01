@@ -7669,6 +7669,15 @@ export interface OrganizationChatModelsResponse {
 	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
+// From codersdk/chats.go
+/**
+ * OrganizationChatSystemPromptResponse is the response body for the
+ * organization chat system prompt endpoint.
+ */
+export interface OrganizationChatSystemPromptResponse {
+	readonly system_prompt: string;
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationGroupAISpend is the current AI spend snapshot for a group
@@ -8826,6 +8835,7 @@ export type ResourceType =
 	| "chat_instruction_settings"
 	| "chat_model_config"
 	| "chat_operational_settings"
+	| "chat_organization_system_prompt"
 	| "chat_project"
 	| "convert_login"
 	| "custom_role"
@@ -8870,6 +8880,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat_instruction_settings",
 	"chat_model_config",
 	"chat_operational_settings",
+	"chat_organization_system_prompt",
 	"chat_project",
 	"convert_login",
 	"custom_role",
@@ -10636,6 +10647,15 @@ export interface UpdateMCPServerConfigRequest {
 // From codersdk/notifications.go
 export interface UpdateNotificationTemplateMethod {
 	readonly method?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateOrganizationChatSystemPromptRequest is the request body for updating
+ * an organization's chat system prompt.
+ */
+export interface UpdateOrganizationChatSystemPromptRequest {
+	readonly system_prompt: string;
 }
 
 // From codersdk/organizations.go

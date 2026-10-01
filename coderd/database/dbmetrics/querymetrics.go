@@ -1784,6 +1784,14 @@ func (m queryMetricsStore) GetChatOrganizationModelOverridesByContext(ctx contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatOrganizationSystemPrompt(ctx context.Context, organizationID uuid.UUID) (database.ChatOrganizationSystemPrompt, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatOrganizationSystemPrompt(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("GetChatOrganizationSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatOrganizationSystemPrompt").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatPersonalModelOverridesEnabled(ctx)
@@ -6527,6 +6535,14 @@ func (m queryMetricsStore) UpsertChatOrganizationModelOverride(ctx context.Conte
 	m.queryLatencies.WithLabelValues("UpsertChatOrganizationModelOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatOrganizationModelOverride").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertChatOrganizationSystemPrompt(ctx context.Context, arg database.UpsertChatOrganizationSystemPromptParams) (database.ChatOrganizationSystemPrompt, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertChatOrganizationSystemPrompt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatOrganizationSystemPrompt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatOrganizationSystemPrompt").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error {

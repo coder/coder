@@ -59,6 +59,15 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		saveByContext,
 		savingContexts: new Set(),
 		errorContexts: new Set(),
+		canViewInstructions: true,
+		systemPrompt:
+			"Use the platform team's templates and run make lint before opening a pull request.",
+		isSystemPromptLoading: false,
+		systemPromptError: null,
+		onSaveSystemPrompt: fn(),
+		isSavingSystemPrompt: false,
+		saveSystemPromptError: null,
+		onResetSaveSystemPrompt: fn(),
 	},
 };
 export default meta;
@@ -268,4 +277,54 @@ export const NoModels: Story = {
 			);
 		});
 	},
+};
+
+export const EmptyInstructions: Story = {
+	args: { systemPrompt: "" },
+};
+
+export const InstructionsWithInvisibleCharacters: Story = {
+	args: { systemPrompt: "Follow the style guide.\u200B\u200B" },
+};
+
+export const InstructionsLoading: Story = {
+	args: { systemPrompt: undefined, isSystemPromptLoading: true },
+};
+
+export const InstructionsLoadError: Story = {
+	args: {
+		systemPrompt: undefined,
+		systemPromptError: mockApiError({
+			message: "Failed to load organization instructions.",
+		}),
+	},
+};
+
+export const SavingInstructions: Story = {
+	args: { isSavingSystemPrompt: true },
+};
+
+export const InstructionsSaveError: Story = {
+	args: {
+		saveSystemPromptError: mockApiError({
+			message: "System prompt exceeds the maximum length.",
+		}),
+	},
+	// The error follows a failed save of an edit, so the field is dirty.
+	play: async ({ canvasElement }) => {
+		await userEvent.type(
+			within(canvasElement).getByRole("textbox", {
+				name: "Organization instructions",
+			}),
+			" Keep pull requests small.",
+		);
+	},
+};
+
+export const ReadOnlyInstructions: Story = {
+	args: { canEdit: false },
+};
+
+export const InstructionsHidden: Story = {
+	args: { canViewInstructions: false },
 };

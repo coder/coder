@@ -4201,6 +4201,79 @@ stream and the agent leaves no partial target file behind.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get organization chat system prompt
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/config/system-prompt \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/chats/config/system-prompt`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationChatSystemPromptResponse](schemas.md#codersdkorganizationchatsystempromptresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization chat system prompt
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/organizations/{organization}/chats/config/system-prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/organizations/{organization}/chats/config/system-prompt`
+
+> Body parameter
+
+```json
+{
+  "system_prompt": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                                               | Required | Description     |
+|----------------|------|--------------------------------------------------------------------------------------------------------------------|----------|-----------------|
+| `organization` | path | string(uuid)                                                                                                       | true     | Organization ID |
+| `body`         | body | [codersdk.UpdateOrganizationChatSystemPromptRequest](schemas.md#codersdkupdateorganizationchatsystempromptrequest) | true     | Request body    |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI models and provider descriptors in an organization
 
 ### Code samples

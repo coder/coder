@@ -934,6 +934,18 @@ type UpdateChatSystemPromptRequest struct {
 	IncludeDefaultSystemPrompt *bool  `json:"include_default_system_prompt,omitempty"`
 }
 
+// OrganizationChatSystemPromptResponse is the response body for the
+// organization chat system prompt endpoint.
+type OrganizationChatSystemPromptResponse struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
+// UpdateOrganizationChatSystemPromptRequest is the request body for updating
+// an organization's chat system prompt.
+type UpdateOrganizationChatSystemPromptRequest struct {
+	SystemPrompt string `json:"system_prompt"`
+}
+
 // ChatPlanModeInstructionsResponse is the response body for the
 // plan mode instructions configuration endpoint.
 type ChatPlanModeInstructionsResponse struct {
@@ -2577,6 +2589,38 @@ func (c *Client) UpdateOrganizationChatModelOverride(ctx context.Context, organi
 	}
 	var resp ChatModelOverrideResponse
 	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// OrganizationChatSystemPrompt returns the organization's chat system
+// prompt. New chats in the organization receive it after the deployment
+// system prompt.
+func (c *Client) OrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID) (OrganizationChatSystemPromptResponse, error) {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return OrganizationChatSystemPromptResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationChatSystemPromptResponse{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationChatSystemPromptResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateOrganizationChatSystemPrompt replaces the organization's chat system
+// prompt. An empty prompt clears it.
+func (c *Client) UpdateOrganizationChatSystemPrompt(ctx context.Context, organizationID uuid.UUID, req UpdateOrganizationChatSystemPromptRequest) error {
+	path := fmt.Sprintf("/api/v2/organizations/%s/chats/config/system-prompt", organizationID)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide

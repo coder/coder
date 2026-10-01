@@ -47,6 +47,7 @@ type Auditable interface {
 		database.UserSkill |
 		database.ChatInstructionSettings |
 		database.ChatOperationalSettings |
+		database.ChatOrganizationSystemPrompt |
 		database.ExperimentRule
 }
 

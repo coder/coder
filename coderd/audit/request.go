@@ -169,6 +169,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.ChatOperationalSettings:
 		return ""
+	case database.ChatOrganizationSystemPrompt:
+		return "Organization system prompt"
 	case database.ExperimentRule:
 		return typed.Experiment
 	default:
@@ -281,6 +283,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.ChatOperationalSettings:
 		return typed.ID
+	case database.ChatOrganizationSystemPrompt:
+		return typed.OrganizationID
 	case database.ExperimentRule:
 		// Derived from the experiment name by experiments.AuditRecord.
 		return typed.ID
@@ -367,6 +371,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeChatInstructionSettings
 	case database.ChatOperationalSettings:
 		return database.ResourceTypeChatOperationalSettings
+	case database.ChatOrganizationSystemPrompt:
+		return database.ResourceTypeChatOrganizationSystemPrompt
 	case database.ExperimentRule:
 		return database.ResourceTypeExperimentRule
 	default:
@@ -469,6 +475,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.ChatOperationalSettings:
 		return false
+	case database.ChatOrganizationSystemPrompt:
+		return true
 	case database.ExperimentRule:
 		// Deployment settings, not scoped to any organization.
 		return false
