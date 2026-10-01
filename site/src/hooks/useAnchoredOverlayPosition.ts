@@ -47,7 +47,7 @@ export const getAnchoredOverlayPosition = (
  */
 export const useAnchoredOverlayPosition = (
 	anchor: HTMLElement | null | undefined,
-	overlay: HTMLElement | null,
+	overlay: HTMLElement | null | undefined,
 	enabled: boolean,
 ): void => {
 	useLayoutEffect(() => {

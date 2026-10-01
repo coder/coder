@@ -118,13 +118,12 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 
 	const handleMenuRef = (content: HTMLDivElement | null) => {
 		setMenuWrapper(
-			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-				null,
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
 		);
 	};
 

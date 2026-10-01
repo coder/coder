@@ -106,12 +106,11 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
 	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
-	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>(null);
+	const [menuWrapper, setMenuWrapper] = useState<HTMLElement | null>();
 
 	const handleMenuRef = (content: HTMLDivElement | null) => {
 		setMenuWrapper(
-			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]") ??
-				null,
+			content?.closest<HTMLElement>("[data-radix-popper-content-wrapper]"),
 		);
 	};
 
