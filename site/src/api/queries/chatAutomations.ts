@@ -7,7 +7,7 @@ const chatAutomationsFamilyKey = ["chat-automations"] as const;
 export const chatAutomationsKey = (organizationId: string) =>
 	[...chatAutomationsFamilyKey, organizationId] as const;
 
-export const chatAutomations = (organizationId: string) => ({
+const chatAutomations = (organizationId: string) => ({
 	queryKey: chatAutomationsKey(organizationId),
 	queryFn: (): Promise<ChatAutomation[]> =>
 		API.experimental.getChatAutomations(organizationId),
