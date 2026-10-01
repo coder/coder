@@ -135,8 +135,14 @@ describe("ModelSelector", () => {
 				toFake: ["requestAnimationFrame", "cancelAnimationFrame"],
 			});
 			const requestFrame = vi.spyOn(window, "requestAnimationFrame");
+			const closest = vi.spyOn(Element.prototype, "closest");
 
 			await user.type(search, "gpt");
+			expect(
+				closest.mock.calls.filter(
+					([selector]) => selector === "[data-radix-popper-content-wrapper]",
+				),
+			).toHaveLength(0);
 
 			act(() => {
 				screen.getByRole("listbox").dispatchEvent(new Event("scroll"));
