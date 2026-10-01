@@ -908,9 +908,11 @@ export const invalidateChatCostTree = (
 	});
 
 export const cancelChatListQueries = (queryClient: QueryClient) =>
-	queryClient.cancelQueries({
-		queryKey: chatListFamilyKey,
-	});
+	Promise.all(
+		[chatListFamilyKey, chatProjectListFamilyKey].map((queryKey) =>
+			queryClient.cancelQueries({ queryKey }),
+		),
+	);
 
 /**
  * Cancel background chat-list refetches, leaving pagination fetches alone.

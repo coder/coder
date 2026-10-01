@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type { Chat } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -19,6 +19,7 @@ import {
 	chatHasMenuActions,
 } from "../ChatActionsMenuItems";
 import { ChatDiffStats } from "../ChatDiffStats";
+import { normalizeLocationSearch } from "../ChatsSidebar/locationSearch";
 import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
 
 /** The chat actions a project chat row offers from its menu. */
@@ -45,6 +46,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	currentUserId,
 	actions,
 }) => {
+	const location = useLocation();
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
@@ -60,7 +62,11 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	return (
 		<li className="flex min-w-0 items-center gap-2 pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary">
 			<Link
-				to={buildAgentChatPath({ chatId: chat.id })}
+				// Keeps the sidebar filters, which live in the query string.
+				to={{
+					pathname: buildAgentChatPath({ chatId: chat.id }),
+					search: normalizeLocationSearch(location.search),
+				}}
 				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-sm text-content-primary no-underline"
 			>
 				<StatusIcon

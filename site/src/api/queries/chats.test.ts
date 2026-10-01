@@ -58,6 +58,7 @@ import {
 	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
+	chatProjectListFamilyKey,
 	chatPromptsKey,
 	chatSearch,
 	chatsByWorkspace,
@@ -4046,15 +4047,16 @@ describe("openChat", () => {
 });
 
 describe("semantic cache operations: cancellation", () => {
-	it("cancelChatListQueries cancels unconditionally across the list family", async () => {
+	it("cancelChatListQueries cancels unconditionally across the sidebar and project list families", async () => {
 		const queryClient = createTestQueryClient();
 		const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
 
 		await cancelChatListQueries(queryClient);
 
-		expect(cancelSpy).toHaveBeenCalledWith({
-			queryKey: chatListFamilyKey,
-		});
+		expect(cancelSpy.mock.calls).toEqual([
+			[{ queryKey: chatListFamilyKey }],
+			[{ queryKey: chatProjectListFamilyKey }],
+		]);
 	});
 
 	it("cancelChatEntity cancels the exact detail entry unconditionally", async () => {

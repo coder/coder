@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
-import { MemoryRouter, Outlet, Route, Routes } from "react-router";
+import { MemoryRouter, Outlet, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Chat } from "#/api/typesGenerated";
@@ -58,10 +58,18 @@ const buildOutletContext = (): AgentsPageOutletContext => ({
 	onChatReady: vi.fn(),
 });
 
-const renderList = (outletContext = buildOutletContext()) => {
+const LocationDisplay: React.FC = () => {
+	const location = useLocation();
+	return <output>{`${location.pathname}${location.search}`}</output>;
+};
+
+const renderList = (
+	outletContext = buildOutletContext(),
+	initialEntry = "/agents/projects/project",
+) => {
 	render(
 		<QueryClientProvider client={createTestQueryClient()}>
-			<MemoryRouter initialEntries={["/agents/projects/project"]}>
+			<MemoryRouter initialEntries={[initialEntry]}>
 				<Routes>
 					<Route element={<Outlet context={outletContext} />}>
 						<Route
@@ -69,6 +77,7 @@ const renderList = (outletContext = buildOutletContext()) => {
 							element={<ProjectChatsList project={MockChatProject} />}
 						/>
 					</Route>
+					<Route path="/agents/:agentId" element={<LocationDisplay />} />
 				</Routes>
 			</MemoryRouter>
 		</QueryClientProvider>,
@@ -127,6 +136,22 @@ describe("ProjectChatsList", () => {
 				expect.anything(),
 			);
 		});
+	});
+
+	it("keeps the sidebar filters when opening a chat", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue(buildChats(1));
+
+		renderList(
+			buildOutletContext(),
+			"/agents/projects/project?archived=archived",
+		);
+
+		await user.click(await screen.findByRole("link", { name: /Chat 0/ }));
+
+		expect(await screen.findByRole("status")).toHaveTextContent(
+			"/agents/chat-0?archived=archived",
+		);
 	});
 
 	it("archives a chat through the agents page", async () => {
