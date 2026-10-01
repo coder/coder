@@ -78,8 +78,7 @@ func NewServerTailnet(
 	// it's important to set the DERPRegionDialer above _before_ we set the DERP map so that if
 	// there is an embedded relay, we use the local in-memory dialer.
 	controller.DERPCtrl = tailnet.NewBasicDERPController(logger, nil, conn)
-	transports := &agentTransports{agents: make(map[uuid.UUID]agentTransportPair)}
-	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn, transports.forget)
+	coordCtrl := NewMultiAgentController(serverCtx, logger, tracer, conn)
 	controller.CoordCtrl = coordCtrl
 	// TODO: support controller.TelemetryCtrl
 
@@ -92,7 +91,6 @@ func NewServerTailnet(
 		coordinatee: conn,
 		controller:  controller,
 		coordCtrl:   coordCtrl,
-		transports:  transports,
 		connsPerAgent: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coder",
 			Subsystem: "servertailnet",
@@ -142,35 +140,68 @@ type ServerTailnet struct {
 	controller *tailnet.Controller
 	coordCtrl  *MultiAgentController
 
-	transports *agentTransports
-
 	connsPerAgent *prometheus.GaugeVec
 	totalConns    *prometheus.CounterVec
 }
 
-// AppTransport returns the transport for HTTP requests to agentID's apps.
-func (s *ServerTailnet) AppTransport(agentID uuid.UUID) *workspacesdk.AgentAppTransport {
-	return s.transportsFor(agentID).apps
+// agentAPIPool keeps one idle API connection per agent. An idle connection
+// holds about 65 KB in coderd and 95 KB in the agent. One serves sequential
+// tool calls; concurrent requests beyond it dial.
+var agentAPIPool = workspacesdk.AgentAPIPool{
+	MaxIdleConns:    1,
+	IdleConnTimeout: 10 * time.Minute,
 }
 
-func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-	var (
-		conn workspacesdk.AgentConn
-		ret  func()
-	)
-
-	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
-	err := s.coordCtrl.ensureAgent(agentID)
+// AppTransport returns the transport for HTTP requests to agentID's apps.
+// The caller must call release when its request ends.
+func (s *ServerTailnet) AppTransport(agentID uuid.UUID) (_ *workspaceapps.AgentAppTransport, release func(), _ error) {
+	var t *workspaceapps.AgentAppTransport
+	release, err := s.coordCtrl.acquire(agentID, func(a *agentState) error {
+		if a.apps == nil {
+			a.apps = workspaceapps.NewAgentAppTransport(agentID, s.agentDialer(agentID), s.logger)
+		}
+		t = a.apps
+		return nil
+	})
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
 	}
-	ret = s.coordCtrl.acquireTicket(agentID)
+	return t, release, nil
+}
 
-	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
+// acquireAPITransport returns agentID's API transport. The caller must call
+// release when it stops using the transport.
+func (s *ServerTailnet) acquireAPITransport(agentID uuid.UUID) (_ *workspacesdk.AgentAPITransport, release func(), _ error) {
+	var t *workspacesdk.AgentAPITransport
+	release, err := s.coordCtrl.acquire(agentID, func(a *agentState) error {
+		if a.api == nil {
+			api, err := workspacesdk.NewAgentAPITransport(agentID, s.agentDialer(agentID), s.logger, agentAPIPool)
+			if err != nil {
+				return xerrors.Errorf("agent API transport: %w", err)
+			}
+			a.api = api
+		}
+		t = a.api
+		return nil
+	})
+	if err != nil {
+		return nil, nil, xerrors.Errorf("ensure agent: %w", err)
+	}
+	return t, release, nil
+}
+
+func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
+	apiTransport, ret, err := s.acquireAPITransport(agentID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	conn := workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:      agentID,
 		CloseFunc:    func() error { return workspacesdk.ErrSkipClose },
 		Logger:       s.logger,
-		APITransport: s.transportsFor(agentID).api,
+		APITransport: apiTransport,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error
@@ -185,67 +216,16 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	return conn, ret, nil
 }
 
-// agentTransports holds each agent's HTTP transports, so a pooled
-// connection only serves requests for the agent it was dialed to.
-type agentTransports struct {
-	mu     sync.Mutex
-	agents map[uuid.UUID]agentTransportPair
-}
-
-type agentTransportPair struct {
-	api  *workspacesdk.AgentAPITransport
-	apps *workspacesdk.AgentAppTransport
-}
-
-func (p agentTransportPair) closeIdleConnections() {
-	p.api.CloseIdleConnections()
-	p.apps.CloseIdleConnections()
-}
-
-// forget removes agentID's transports and closes their idle connections.
-func (t *agentTransports) forget(agentID uuid.UUID) {
-	t.mu.Lock()
-	p, ok := t.agents[agentID]
-	delete(t.agents, agentID)
-	t.mu.Unlock()
-	if ok {
-		p.closeIdleConnections()
-	}
-}
-
-func (t *agentTransports) closeIdleConnections() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	for _, p := range t.agents {
-		p.closeIdleConnections()
-	}
-}
-
-func (s *ServerTailnet) transportsFor(agentID uuid.UUID) agentTransportPair {
-	s.transports.mu.Lock()
-	defer s.transports.mu.Unlock()
-	p, ok := s.transports.agents[agentID]
-	if !ok {
-		dial := s.agentDialer(agentID)
-		p = agentTransportPair{
-			api:  workspacesdk.NewAgentAPITransport(agentID, dial, s.logger),
-			apps: workspacesdk.NewAgentAppTransport(agentID, dial, s.logger),
-		}
-		s.transports.agents[agentID] = p
-	}
-	return p
-}
-
-// agentDialer returns a dialer for agentID. Each connection holds a tunnel
-// ticket until it closes, so the agent does not expire while a connection
-// is open or pooled.
+// agentDialer returns a dialer for agentID. Each connection holds a ticket
+// until it closes, so the agent does not expire while a connection is open
+// or pooled.
 func (s *ServerTailnet) agentDialer(agentID uuid.UUID) workspacesdk.AgentDialer {
 	addr := tailnet.TailscaleServicePrefix.AddrFromUUID(agentID)
 	return func(ctx context.Context, port uint16) (net.Conn, error) {
-		if err := s.coordCtrl.ensureAgent(agentID); err != nil {
+		release, err := s.coordCtrl.acquire(agentID, nil)
+		if err != nil {
 			return nil, xerrors.Errorf("ensure agent: %w", err)
 		}
-		release := s.coordCtrl.acquireTicket(agentID)
 		if !s.conn.AwaitReachable(ctx, addr) {
 			release()
 			return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
@@ -286,7 +266,7 @@ func (s *ServerTailnet) Close() error {
 	s.cancel()
 	// Close idle connections while the tailnet can still deliver the close to
 	// agents, which otherwise hold them until their idle timeout.
-	s.transports.closeIdleConnections()
+	s.coordCtrl.closeIdleConnections()
 	_ = s.conn.Close()
 	s.coordCtrl.Close()
 	<-s.controller.Closed()
@@ -309,8 +289,8 @@ func (c *instrumentedConn) Close() error {
 }
 
 // MultiAgentController is a tailnet.CoordinationController for connecting to multiple workspace
-// agents.  It keeps track of connection times to the agents, and removes them on a timer if they
-// have no active connections and haven't been used in a while.
+// agents. It keeps the state coderd holds for each agent, and removes an agent on a timer if it
+// has no open connections and hasn't been used in a while.
 type MultiAgentController struct {
 	*tailnet.BasicCoordinationController
 
@@ -318,18 +298,22 @@ type MultiAgentController struct {
 	tracer trace.Tracer
 
 	mu sync.Mutex
-	// connectionTimes is a map of agents the server wants to keep a connection to. It
-	// contains the last time the agent was connected to.
-	connectionTimes map[uuid.UUID]time.Time
-	// tickets is a map of destinations to a set of connection tickets, representing open
-	// connections to the destination
-	tickets      map[uuid.UUID]map[uuid.UUID]struct{}
+	// agents holds every agent the server wants a tunnel to.
+	agents       map[uuid.UUID]*agentState
 	coordination *tailnet.BasicCoordination
-	// onExpire runs, without mu held, for each agent removed by expiry.
-	onExpire func(agentID uuid.UUID)
 
 	cancel              context.CancelFunc
 	expireOldAgentsDone chan struct{}
+}
+
+// agentState is what the server keeps for one agent until the agent expires.
+// It does not expire while it has tickets, and its transports are handed out
+// only with a ticket, so a transport in use always belongs to m.agents.
+type agentState struct {
+	lastUsed time.Time
+	tickets  map[uuid.UUID]struct{}           // One per open connection, AgentConn or app request.
+	api      *workspacesdk.AgentAPITransport  // Built on first use.
+	apps     *workspaceapps.AgentAppTransport // Built on first use.
 }
 
 func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.CloserWaiter {
@@ -338,7 +322,7 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.coordination = b
-	for agentID := range m.connectionTimes {
+	for agentID := range m.agents {
 		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 		})
@@ -354,12 +338,13 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 	return b
 }
 
-func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
+// acquire subscribes to agentID if needed and holds a ticket on its state
+// until release is called. use, if not nil, runs with m.mu held and may
+// build the state's transports; if it fails, no ticket is held.
+func (m *MultiAgentController) acquire(agentID uuid.UUID, use func(*agentState) error) (release func(), _ error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	_, ok := m.connectionTimes[agentID]
-	// If we don't have the agent, subscribe.
+	a, ok := m.agents[agentID]
 	if !ok {
 		m.logger.Debug(context.Background(),
 			"subscribing to agent", slog.F("agent_id", agentID))
@@ -372,25 +357,43 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 				m.coordination.SendErr(err)
 				_ = m.coordination.CloseClient()
 				m.coordination = nil
-				return err
+				return nil, err
 			}
 		}
-		m.tickets[agentID] = map[uuid.UUID]struct{}{}
+		a = &agentState{tickets: make(map[uuid.UUID]struct{})}
+		m.agents[agentID] = a
 	}
-	m.connectionTimes[agentID] = time.Now()
-	return nil
-}
-
-func (m *MultiAgentController) acquireTicket(agentID uuid.UUID) (release func()) {
+	a.lastUsed = time.Now()
+	if use != nil {
+		if err := use(a); err != nil {
+			return nil, err
+		}
+	}
 	id := uuid.New()
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.tickets[agentID][id] = struct{}{}
-
+	a.tickets[id] = struct{}{}
 	return func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		delete(m.tickets[agentID], id)
+		delete(a.tickets, id)
+	}, nil
+}
+
+// closeIdleConnections closes every agent's idle connections.
+func (m *MultiAgentController) closeIdleConnections() {
+	var transports []interface{ CloseIdleConnections() }
+	m.mu.Lock()
+	for _, a := range m.agents {
+		if a.api != nil {
+			transports = append(transports, a.api)
+		}
+		if a.apps != nil {
+			transports = append(transports, a.apps)
+		}
+	}
+	m.mu.Unlock()
+	// Closing a connection releases its ticket, which takes m.mu.
+	for _, t := range transports {
+		t.CloseIdleConnections()
 	}
 }
 
@@ -422,14 +425,16 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 	defer span.End()
 
 	start := time.Now()
-	var expired []uuid.UUID
+	deletedCount := 0
 
 	m.mu.Lock()
-	m.logger.Debug(ctx, "pruning inactive agents", slog.F("agent_count", len(m.connectionTimes)))
-	for agentID, lastConnection := range m.connectionTimes {
+	defer m.mu.Unlock()
+	m.logger.Debug(ctx, "pruning inactive agents", slog.F("agent_count", len(m.agents)))
+	for agentID, a := range m.agents {
 		// If no one has connected since the cutoff and there are no active
-		// connections, remove the agent.
-		if time.Since(lastConnection) > cutoff && len(m.tickets[agentID]) == 0 {
+		// connections, remove the agent. Without tickets, its transports are
+		// unused and have no connections to close.
+		if time.Since(a.lastUsed) > cutoff && len(a.tickets) == 0 {
 			if m.coordination != nil {
 				err := m.coordination.SendRequest(&proto.CoordinateRequest{
 					RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
@@ -445,16 +450,12 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					// re-establishing tunnels to expired agents when we eventually reconnect.
 				}
 			}
-			expired = append(expired, agentID)
-			delete(m.connectionTimes, agentID)
+			deletedCount++
+			delete(m.agents, agentID)
 		}
 	}
-	m.mu.Unlock()
-	for _, agentID := range expired {
-		m.onExpire(agentID)
-	}
 	m.logger.Debug(ctx, "pruned inactive agents",
-		slog.F("deleted", len(expired)),
+		slog.F("deleted", deletedCount),
 		slog.F("took", time.Since(start)),
 	)
 }
@@ -464,7 +465,7 @@ func (m *MultiAgentController) Close() {
 	<-m.expireOldAgentsDone
 }
 
-func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer trace.Tracer, coordinatee tailnet.Coordinatee, onExpire func(agentID uuid.UUID)) *MultiAgentController {
+func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer trace.Tracer, coordinatee tailnet.Coordinatee) *MultiAgentController {
 	m := &MultiAgentController{
 		BasicCoordinationController: &tailnet.BasicCoordinationController{
 			Logger:      logger,
@@ -475,9 +476,7 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 		},
 		logger:              logger,
 		tracer:              tracer,
-		connectionTimes:     make(map[uuid.UUID]time.Time),
-		tickets:             make(map[uuid.UUID]map[uuid.UUID]struct{}),
-		onExpire:            onExpire,
+		agents:              make(map[uuid.UUID]*agentState),
 		expireOldAgentsDone: make(chan struct{}),
 	}
 	ctx, m.cancel = context.WithCancel(ctx)

@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -46,7 +47,7 @@ type fakeAgentProvider struct {
 	agentConn func(ctx context.Context, agentID uuid.UUID) (_ workspacesdk.AgentConn, release func(), _ error)
 }
 
-func (fakeAgentProvider) AppTransport(uuid.UUID) *workspacesdk.AgentAppTransport {
+func (fakeAgentProvider) AppTransport(uuid.UUID) (*workspaceapps.AgentAppTransport, func(), error) {
 	panic("unimplemented")
 }
 

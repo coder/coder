@@ -47,12 +47,12 @@ func NewAgentConn(conn *tailnet.Conn, opts AgentConnOptions) AgentConn {
 		// No keep-alive: DialAgent callers make few API requests per
 		// connection, so idle connections would hold agent memory without
 		// saving round trips.
-		c.apiTransport = buildAgentAPITransport(opts.AgentID, func(ctx context.Context, port uint16) (net.Conn, error) {
+		c.apiTransport = newAPITransport(opts.AgentID, func(ctx context.Context, port uint16) (net.Conn, error) {
 			if !c.AwaitReachable(ctx) {
 				return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 			}
 			return c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), port))
-		}, opts.Logger, false)
+		}, opts.Logger, AgentAPIPool{})
 	}
 	return c
 }
@@ -175,7 +175,7 @@ type AgentConnOptions struct {
 	AgentID      uuid.UUID
 	CloseFunc    func() error
 	Logger       slog.Logger
-	APITransport *AgentAPITransport // Optional, for sharing idle connections. Must be bound to AgentID. The caller closes it.
+	APITransport *AgentAPITransport // Optional, for sharing idle connections. Must be bound to AgentID, or requests fail. The caller closes it.
 }
 
 func (c *agentConn) agentAddress() netip.Addr {

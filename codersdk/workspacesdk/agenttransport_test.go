@@ -2,19 +2,23 @@ package workspacesdk_test
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
 	"net/netip"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -39,8 +43,8 @@ func okServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func roundTrip(ctx context.Context, rt http.RoundTripper, url string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+func roundTrip(ctx context.Context, rt http.RoundTripper, rawURL string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return err
 	}
@@ -56,53 +60,95 @@ func addrURL(addr netip.Addr, port string) string {
 	return "http://" + net.JoinHostPort(addr.String(), port) + "/"
 }
 
-func TestAgentAPITransport(t *testing.T) {
-	t.Parallel()
+func anyPort(uint16) bool { return true }
 
-	apiPort := strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)
+var testAPIPool = workspacesdk.AgentAPIPool{MaxIdleConns: 1, IdleConnTimeout: time.Minute}
+
+func TestAgentTransport(t *testing.T) {
+	t.Parallel()
 
 	t.Run("RejectsOtherHosts", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
-		t.Cleanup(tr.CloseIdleConnections)
+		tr := workspacesdk.NewAgentTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), anyPort, nil)
 
 		otherAgent := tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New())
-		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(otherAgent, apiPort)), "does not match agent")
-		require.ErrorContains(t, roundTrip(ctx, tr, "http://localhost:"+apiPort+"/"), "does not match agent")
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(otherAgent, "8080")), "does not match agent")
+		require.ErrorContains(t, roundTrip(ctx, tr, "http://localhost:8080/"), "does not match agent")
 		require.Zero(t, port.Load(), "rejected request must not be dialed")
 	})
 
-	t.Run("RejectsOtherPorts", func(t *testing.T) {
+	t.Run("PortRule", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
-		t.Cleanup(tr.CloseIdleConnections)
+		tr := workspacesdk.NewAgentTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), func(p uint16) bool {
+			return p == 8080
+		}, nil)
 
-		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "80")), "port 80 is not allowed")
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "8081")), "port 8081 is not allowed")
 		require.Zero(t, port.Load(), "rejected port must not be dialed")
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "8080")))
+		require.EqualValues(t, 8080, port.Load())
 	})
 
-	t.Run("ReusesConnection", func(t *testing.T) {
+	t.Run("NoPortUsesSchemeDefault", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		tr := workspacesdk.NewAgentTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), func(p uint16) bool {
+			return p == 80
+		}, nil)
+
+		// The app reverse proxy produces "[addr]:" for an app URL without a port.
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "")))
+		require.EqualValues(t, 80, port.Load())
+	})
+
+	t.Run("IgnoresBaseDialersAndProxy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		var port atomic.Int32
+		base := &http.Transport{
+			Proxy: func(*http.Request) (*url.URL, error) {
+				return nil, xerrors.New("proxy must not be used")
+			},
+			DialContext: func(context.Context, string, string) (net.Conn, error) {
+				return nil, xerrors.New("base dialer must not be used")
+			},
+		}
+		tr := workspacesdk.NewAgentTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), anyPort, base)
 		t.Cleanup(tr.CloseIdleConnections)
 
-		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), apiPort)))
-		require.EqualValues(t, workspacesdk.AgentHTTPAPIServerPort, port.Load())
-		var reused bool
-		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
-			GotConn: func(info httptrace.GotConnInfo) { reused = info.Reused },
-		})
-		require.NoError(t, roundTrip(traceCtx, tr, addrURL(tr.Addr(), apiPort)))
-		require.True(t, reused)
+		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "8080")))
+		require.EqualValues(t, 8080, port.Load())
+	})
+
+	t.Run("IgnoresBaseTLSDialer", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		t.Cleanup(srv.Close)
+		var port atomic.Int32
+		base := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // Test server certificate.
+			DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
+				return nil, xerrors.New("base TLS dialer must not be used")
+			},
+		}
+		tr := workspacesdk.NewAgentTransport(uuid.New(), serverDialer(srv, &port), testutil.Logger(t), anyPort, base)
+		t.Cleanup(tr.CloseIdleConnections)
+
+		require.NoError(t, roundTrip(ctx, tr, "https://"+net.JoinHostPort(tr.Addr().String(), "8443")+"/"))
+		require.EqualValues(t, 8443, port.Load())
 	})
 
 	t.Run("CanceledRequestCancelsDial", func(t *testing.T) {
@@ -111,12 +157,12 @@ func TestAgentAPITransport(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		dialStarted := make(chan struct{})
 		dialEnded := make(chan struct{})
-		tr := workspacesdk.NewAgentAPITransport(uuid.New(), func(ctx context.Context, _ uint16) (net.Conn, error) {
+		tr := workspacesdk.NewAgentTransport(uuid.New(), func(ctx context.Context, _ uint16) (net.Conn, error) {
 			close(dialStarted)
 			<-ctx.Done() // An unreachable agent.
 			close(dialEnded)
 			return nil, ctx.Err()
-		}, testutil.Logger(t))
+		}, testutil.Logger(t), anyPort, &http.Transport{})
 		t.Cleanup(tr.CloseIdleConnections)
 
 		reqCtx, cancel := context.WithCancel(ctx)
@@ -124,53 +170,82 @@ func TestAgentAPITransport(t *testing.T) {
 			<-dialStarted
 			cancel()
 		}()
-		require.Error(t, roundTrip(reqCtx, tr, addrURL(tr.Addr(), apiPort)))
+		require.Error(t, roundTrip(reqCtx, tr, addrURL(tr.Addr(), "8080")))
 		testutil.TryReceive(ctx, t, dialEnded)
 	})
 }
 
-func TestAgentAppTransport(t *testing.T) {
+func TestAgentAPITransport(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Ports", func(t *testing.T) {
+	apiPort := strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort)
+	reused := func(ctx context.Context, t *testing.T, tr http.RoundTripper, rawURL string) bool {
+		var reused bool
+		traceCtx := httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{
+			GotConn: func(info httptrace.GotConnInfo) { reused = info.Reused },
+		})
+		require.NoError(t, roundTrip(traceCtx, tr, rawURL))
+		return reused
+	}
+
+	t.Run("RejectsOtherPorts", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		tr, err := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), testAPIPool)
+		require.NoError(t, err)
 		t.Cleanup(tr.CloseIdleConnections)
 
-		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "8")), "port 8 is not allowed")
-		require.Zero(t, port.Load(), "reserved port must not be dialed")
-		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "9")))
-		require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, port.Load())
+		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "80")), "port 80 is not allowed")
+		require.Zero(t, port.Load(), "rejected port must not be dialed")
 	})
 
-	t.Run("NoPortUsesSchemeDefault", func(t *testing.T) {
+	t.Run("Pool", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
+		tr, err := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), testAPIPool)
+		require.NoError(t, err)
 		t.Cleanup(tr.CloseIdleConnections)
 
-		// The reverse proxy produces "[addr]:" for an app URL without a port.
-		require.NoError(t, roundTrip(ctx, tr, addrURL(tr.Addr(), "")))
-		require.EqualValues(t, 80, port.Load())
+		require.False(t, reused(ctx, t, tr, addrURL(tr.Addr(), apiPort)))
+		require.EqualValues(t, workspacesdk.AgentHTTPAPIServerPort, port.Load())
+		require.True(t, reused(ctx, t, tr, addrURL(tr.Addr(), apiPort)))
 	})
 
-	t.Run("RejectsOtherHosts", func(t *testing.T) {
+	t.Run("NoPool", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		var port atomic.Int32
-		tr := workspacesdk.NewAgentAppTransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t))
-		t.Cleanup(tr.CloseIdleConnections)
+		tr, err := workspacesdk.NewAgentAPITransport(uuid.New(), serverDialer(okServer(t), &port), testutil.Logger(t), workspacesdk.AgentAPIPool{})
+		require.NoError(t, err)
 
-		otherAgent := tailnet.TailscaleServicePrefix.AddrFromUUID(uuid.New())
-		require.ErrorContains(t, roundTrip(ctx, tr, addrURL(otherAgent, "8080")), "does not match agent")
-		require.ErrorContains(t, roundTrip(ctx, tr, "http://localhost:8080/"), "does not match agent")
-		require.Zero(t, port.Load(), "rejected request must not be dialed")
+		require.False(t, reused(ctx, t, tr, addrURL(tr.Addr(), apiPort)))
+		require.False(t, reused(ctx, t, tr, addrURL(tr.Addr(), apiPort)))
+	})
+
+	t.Run("IdleTimeoutBelowAgent", func(t *testing.T) {
+		t.Parallel()
+
+		dial := serverDialer(okServer(t), &atomic.Int32{})
+		for _, timeout := range []time.Duration{0, workspacesdk.AgentHTTPAPIServerIdleTimeout} {
+			_, err := workspacesdk.NewAgentAPITransport(uuid.New(), dial, testutil.Logger(t), workspacesdk.AgentAPIPool{
+				MaxIdleConns:    1,
+				IdleConnTimeout: timeout,
+			})
+			require.ErrorContains(t, err, "must be positive and below the agent's", "timeout %s", timeout)
+		}
+	})
+
+	t.Run("NegativeMaxIdleConns", func(t *testing.T) {
+		t.Parallel()
+
+		dial := serverDialer(okServer(t), &atomic.Int32{})
+		_, err := workspacesdk.NewAgentAPITransport(uuid.New(), dial, testutil.Logger(t), workspacesdk.AgentAPIPool{MaxIdleConns: -1})
+		require.ErrorContains(t, err, "must not be negative")
 	})
 }
 
@@ -253,7 +328,8 @@ func TestAgentConn_ResendsOnDroppedConnection(t *testing.T) {
 
 			agentID := uuid.New()
 			var port atomic.Int32
-			tr := workspacesdk.NewAgentAPITransport(agentID, serverDialer(srv, &port), testutil.Logger(t))
+			tr, err := workspacesdk.NewAgentAPITransport(agentID, serverDialer(srv, &port), testutil.Logger(t), testAPIPool)
+			require.NoError(t, err)
 			t.Cleanup(tr.CloseIdleConnections)
 			conn := workspacesdk.NewAgentConn(nil, workspacesdk.AgentConnOptions{
 				AgentID:      agentID,
@@ -263,7 +339,7 @@ func TestAgentConn_ResendsOnDroppedConnection(t *testing.T) {
 			require.NoError(t, tc.call(ctx, conn))
 			// The second request goes out on the pooled connection, which
 			// the server drops.
-			err := tc.call(ctx, conn)
+			err = tc.call(ctx, conn)
 			if tc.resent {
 				require.NoError(t, err)
 				require.EqualValues(t, 2, handled.Load())

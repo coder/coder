@@ -114,7 +114,10 @@ func TestServerTailnet_AgentAPITransport_RejectsOtherAgent(t *testing.T) {
 	bHost := net.JoinHostPort(tailnet.TailscaleServicePrefix.AddrFromUUID(b.id).String(), strconv.Itoa(workspacesdk.AgentHTTPAPIServerPort))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+bHost+"/debug/manifest", nil)
 	require.NoError(t, err)
-	_, err = serverTailnet.AgentAPITransport(a.id).RoundTrip(req) //nolint:bodyclose // Rejected requests return no response.
+	transport, release, err := serverTailnet.AgentAPITransport(a.id)
+	require.NoError(t, err)
+	defer release()
+	_, err = transport.RoundTrip(req) //nolint:bodyclose // Rejected requests return no response.
 	require.ErrorContains(t, err, "does not match agent")
 }
 
@@ -390,6 +393,19 @@ func TestServerTailnet_AppTransport(t *testing.T) {
 		assert.Equal(t, http.StatusBadGateway, res.StatusCode)
 	})
 
+	t.Run("HoldsTicketUntilRelease", func(t *testing.T) {
+		t.Parallel()
+
+		agents, serverTailnet := setupServerTailnetAgent(t, 1)
+		agentID := agents[0].id
+
+		_, release, err := serverTailnet.AppTransport(agentID)
+		require.NoError(t, err)
+		require.Equal(t, 1, serverTailnet.AgentTicketCount(agentID))
+		release()
+		require.Zero(t, serverTailnet.AgentTicketCount(agentID))
+	})
+
 	t.Run("CanceledDialReleasesTicket", func(t *testing.T) {
 		t.Parallel()
 
@@ -583,13 +599,21 @@ func newAppServer(t *testing.T) *url.URL {
 	return u
 }
 
-// appProxy proxies to u on agentID the way workspaceapps does.
-func appProxy(st *coderd.ServerTailnet, agentID uuid.UUID, u *url.URL) *httputil.ReverseProxy {
-	transport := st.AppTransport(agentID)
-	tgt := *u
-	_, port, _ := net.SplitHostPort(tgt.Host)
-	tgt.Host = net.JoinHostPort(transport.Addr().String(), port)
-	rp := httputil.NewSingleHostReverseProxy(&tgt)
-	rp.Transport = transport
-	return rp
+// appProxy proxies to u on agentID the way workspaceapps does, holding the
+// app transport for each request.
+func appProxy(st *coderd.ServerTailnet, agentID uuid.UUID, u *url.URL) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		transport, release, err := st.AppTransport(agentID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer release()
+		tgt := *u
+		_, port, _ := net.SplitHostPort(tgt.Host)
+		tgt.Host = net.JoinHostPort(transport.Addr().String(), port)
+		rp := httputil.NewSingleHostReverseProxy(&tgt)
+		rp.Transport = transport
+		rp.ServeHTTP(w, r)
+	})
 }

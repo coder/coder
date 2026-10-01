@@ -24,9 +24,14 @@ var NormalizeWorkspaceFileReference = normalizeWorkspaceFileReference
 func (s *ServerTailnet) AgentTicketCount(agentID uuid.UUID) int {
 	s.coordCtrl.mu.Lock()
 	defer s.coordCtrl.mu.Unlock()
-	return len(s.coordCtrl.tickets[agentID])
+	if a, ok := s.coordCtrl.agents[agentID]; ok {
+		return len(a.tickets)
+	}
+	return 0
 }
 
-func (s *ServerTailnet) AgentAPITransport(agentID uuid.UUID) http.RoundTripper {
-	return s.transportsFor(agentID).api
+// AgentAPITransport returns agentID's API transport. The caller must call
+// release when done with it.
+func (s *ServerTailnet) AgentAPITransport(agentID uuid.UUID) (_ http.RoundTripper, release func(), _ error) {
+	return s.acquireAPITransport(agentID)
 }

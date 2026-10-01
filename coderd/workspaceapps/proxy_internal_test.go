@@ -4,8 +4,11 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -17,13 +20,35 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-type appTransportProvider struct {
-	AgentProvider
-	transport *workspacesdk.AgentAppTransport
-}
+func TestAgentAppTransport_Ports(t *testing.T) {
+	t.Parallel()
 
-func (p appTransportProvider) AppTransport(uuid.UUID) *workspacesdk.AgentAppTransport {
-	return p.transport
+	ctx := testutil.Context(t, testutil.WaitShort)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	var dialed atomic.Int32
+	tr := NewAgentAppTransport(uuid.New(), func(ctx context.Context, port uint16) (net.Conn, error) {
+		dialed.Store(int32(port))
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", srv.Listener.Addr().String())
+	}, testutil.Logger(t))
+	t.Cleanup(tr.CloseIdleConnections)
+
+	get := func(port int) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+net.JoinHostPort(tr.Addr().String(), strconv.Itoa(port))+"/", nil)
+		require.NoError(t, err)
+		res, err := tr.RoundTrip(req)
+		if err != nil {
+			return err
+		}
+		return res.Body.Close()
+	}
+	require.ErrorContains(t, get(workspacesdk.AgentMinimumListeningPort-1), "is not allowed")
+	require.Zero(t, dialed.Load(), "reserved port must not be dialed")
+	require.NoError(t, get(workspacesdk.AgentMinimumListeningPort))
+	require.EqualValues(t, workspacesdk.AgentMinimumListeningPort, dialed.Load())
 }
 
 // TestServer_reverseProxyTargetsAgentAddress checks that the proxy sends every
@@ -32,12 +57,11 @@ func TestServer_reverseProxyTargetsAgentAddress(t *testing.T) {
 	t.Parallel()
 
 	agentID := uuid.New()
-	transport := workspacesdk.NewAgentAppTransport(agentID, func(context.Context, uint16) (net.Conn, error) {
+	transport := NewAgentAppTransport(agentID, func(context.Context, uint16) (net.Conn, error) {
 		return nil, xerrors.New("unused")
 	}, testutil.Logger(t))
 	s := &Server{ServerOptions: ServerOptions{
-		AgentProvider: appTransportProvider{transport: transport},
-		DashboardURL:  &url.URL{Scheme: "https", Host: "coder.example.com"},
+		DashboardURL: &url.URL{Scheme: "https", Host: "coder.example.com"},
 	}}
 	addr := transport.Addr().String()
 
@@ -57,7 +81,7 @@ func TestServer_reverseProxyTargetsAgentAddress(t *testing.T) {
 
 			u, err := url.Parse(tc.appURL)
 			require.NoError(t, err)
-			rp := s.reverseProxy(u, agentID, appurl.ApplicationURL{})
+			rp := s.reverseProxy(u, transport, appurl.ApplicationURL{})
 			require.Same(t, transport, rp.Transport)
 
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://app.example.com/", nil)
