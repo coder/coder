@@ -530,6 +530,54 @@ func TestLimits(t *testing.T) {
 		require.NoError(t, first.Close())
 		testutil.TryReceive(ctx, t, done)
 	})
+
+	t.Run("QueuedFor", func(t *testing.T) {
+		t.Parallel()
+		mClock := quartz.NewMock(t)
+		timeoutTrap := mClock.Trap().AfterFunc("agentbox", "run-timeout")
+		defer timeoutTrap.Close()
+		waitTrap := mClock.Trap().Now("agentbox", "slot-wait")
+		defer waitTrap.Close()
+		engine := newEngine(t, agentbox.Options{Clock: mClock, MaxConcurrent: 1})
+		first := newBox(t, engine)
+		second := newBox(t, engine)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		firstDone := make(chan struct{})
+		go func() {
+			defer close(firstDone)
+			_, _ = first.Run(ctx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `for (;;) {}`})
+		}()
+		timeoutTrap.MustWait(ctx).MustRelease(ctx)
+
+		type outcome struct {
+			result agentbox.RunResult
+			err    error
+		}
+		secondDone := make(chan outcome, 1)
+		go func() {
+			result, err := second.Run(ctx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
+			secondDone <- outcome{result, err}
+		}()
+		waitTrap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(3 * time.Second).MustWait(ctx)
+		require.NoError(t, first.Close())
+		testutil.TryReceive(ctx, t, firstDone)
+		timeoutTrap.MustWait(ctx).MustRelease(ctx)
+		got := testutil.RequireReceive(ctx, t, secondDone)
+		require.NoError(t, got.err)
+		assert.Equal(t, 3*time.Second, got.result.QueuedFor)
+
+		// A run that finds a free slot reports no wait.
+		go func() {
+			result, err := second.Run(ctx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `1`})
+			secondDone <- outcome{result, err}
+		}()
+		timeoutTrap.MustWait(ctx).MustRelease(ctx)
+		got = testutil.RequireReceive(ctx, t, secondDone)
+		require.NoError(t, got.err)
+		assert.Zero(t, got.result.QueuedFor)
+	})
 }
 
 func TestLifecycle(t *testing.T) {

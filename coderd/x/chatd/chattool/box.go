@@ -85,6 +85,7 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 		"stdout and stderr are returned; output past " + byteCountString(maxBoxOutputToModel) + " per stream, or past the tool result size limit, is dropped and flagged, and stdout_bytes and stderr_bytes give each stream's full size. " +
 		"timed_out or canceled means the run was stopped and exit_code is -1; a program can also exit with -1 itself. " +
 		"limits_hit lists \"disk_quota\" or \"open_files\" when the program hit that limit; those calls fail with EIO inside the sandbox. " +
+		"queued_ms is set when the run waited for a free run slot before starting. " +
 		"Use box_write_file to stage inputs and box_read_file to inspect outputs."
 	if options.AttachFile {
 		description += " Use box_attach_file to hand a result file to the user."
@@ -122,6 +123,9 @@ func BoxRun(options BoxOptions) fantasy.AgentTool {
 				"stdout_bytes": result.StdoutBytes,
 				"stderr_bytes": result.StderrBytes,
 			})
+			if result.QueuedFor > 0 {
+				fields["queued_ms"] = result.QueuedFor.Milliseconds()
+			}
 			if limits := runLimitsHit(result); len(limits) > 0 {
 				fields["limits_hit"] = limits
 				fields["hint"] = "the program hit a sandbox limit; the failing calls returned EIO (errno 29, I/O error)"

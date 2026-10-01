@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/agentbox"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type boxHarness struct {
@@ -117,6 +119,7 @@ func TestBoxTools(t *testing.T) {
 		assert.Equal(t, false, result["timed_out"])
 		assert.Equal(t, false, result["canceled"])
 		assert.Contains(t, result, "duration_ms")
+		assert.NotContains(t, result, "queued_ms")
 		assert.Equal(t, h.box.ID(), result["box_id"])
 
 		_, result = runBoxTool(t, chattool.BoxReadFile(h.options), `{"path":"out.txt"}`)
@@ -246,6 +249,61 @@ func TestBoxTools(t *testing.T) {
 
 		_, result = runBoxTool(t, chattool.BoxRun(chattool.BoxOptions{}), `{"language":"javascript","code":"1"}`)
 		assert.Contains(t, result["error"], "not configured")
+	})
+
+	t.Run("QueuedFor", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mClock := quartz.NewMock(t)
+		timeoutTrap := mClock.Trap().AfterFunc("agentbox", "run-timeout")
+		defer timeoutTrap.Close()
+		waitTrap := mClock.Trap().Now("agentbox", "slot-wait")
+		defer waitTrap.Close()
+		engine, err := agentbox.NewEngine(ctx, agentbox.Options{
+			Logger:        testutil.Logger(t),
+			RootDir:       t.TempDir(),
+			Clock:         mClock,
+			MaxConcurrent: 1,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = engine.Close(context.Background()) })
+		blocker, err := engine.NewBox()
+		require.NoError(t, err)
+		box, err := engine.NewBox()
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = box.Close() })
+
+		blockerDone := make(chan struct{})
+		go func() {
+			defer close(blockerDone)
+			_, _ = blocker.Run(ctx, agentbox.RunRequest{Language: agentbox.LanguageJavaScript, Code: `for (;;) {}`})
+		}()
+		timeoutTrap.MustWait(ctx).MustRelease(ctx)
+
+		tool := chattool.BoxRun(chattool.BoxOptions{
+			GetBox: func(context.Context) (*agentbox.Box, bool, error) {
+				return box, false, nil
+			},
+			Languages: engine.Languages(),
+			Limits:    engine.Limits(),
+		})
+		responses := make(chan fantasy.ToolResponse, 1)
+		go func() {
+			resp, _ := tool.Run(ctx, fantasy.ToolCall{ID: "call-1", Name: tool.Info().Name, Input: `{"language":"javascript","code":"1"}`})
+			responses <- resp
+		}()
+		waitTrap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(1500 * time.Millisecond).MustWait(ctx)
+		require.NoError(t, blocker.Close())
+		testutil.TryReceive(ctx, t, blockerDone)
+		timeoutTrap.MustWait(ctx).MustRelease(ctx)
+
+		resp := testutil.RequireReceive(ctx, t, responses)
+		require.False(t, resp.IsError, resp.Content)
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result), resp.Content)
+		assert.EqualValues(t, 1500, result["queued_ms"])
+		assert.EqualValues(t, 0, result["exit_code"])
 	})
 
 	t.Run("AttachFile", func(t *testing.T) {

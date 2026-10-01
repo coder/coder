@@ -57,6 +57,9 @@ type RunResult struct {
 	// stream, including bytes discarded past the output limit.
 	StdoutBytes int64
 	StderrBytes int64
+	// QueuedFor is how long the run waited for a free run slot; zero when
+	// one was free.
+	QueuedFor time.Duration
 	// TimedOut reports that the run timeout stopped the guest.
 	TimedOut bool
 	// Canceled reports that the caller's context or Close stopped the
@@ -162,8 +165,13 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		return RunResult{}, ErrClosed
 	}
 
-	if err := b.engine.runs.Acquire(runCtx, 1); err != nil {
-		return RunResult{}, slotWaitError(runCtx)
+	var queuedFor time.Duration
+	if runCtx.Err() != nil || !b.engine.runs.TryAcquire(1) {
+		waitStart := b.engine.clock.Now("agentbox", "slot-wait")
+		if err := b.engine.runs.Acquire(runCtx, 1); err != nil {
+			return RunResult{}, slotWaitError(runCtx)
+		}
+		queuedFor = b.engine.clock.Since(waitStart, "agentbox", "slot-acquired")
 	}
 	defer b.engine.runs.Release(1)
 	if b.engine.closed.Load() {
@@ -227,6 +235,7 @@ func (b *Box) Run(ctx context.Context, req RunRequest) (RunResult, error) {
 		StderrTruncated: stderr.truncated(),
 		StdoutBytes:     stdout.total(),
 		StderrBytes:     stderr.total(),
+		QueuedFor:       queuedFor,
 		Duration:        duration,
 
 		DiskQuotaExceeded:    mounts.box.quotaHit.Load(),
