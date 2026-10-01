@@ -2,7 +2,6 @@ package chatd //nolint:testpackage // Exercises the unexported manage_automation
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
@@ -754,21 +753,34 @@ func TestManageAutomationsTool(t *testing.T) {
 				TargetMode: ptr.Ref(mode), WebhookUse: use, Prompt: ptr.Ref("A deploy finished."),
 			}
 		}
-		type createResult struct {
-			WebhookSecret *string `json:"webhook_secret"`
-			Note          string  `json:"webhook_secret_note"`
+		// Every secret starts with the prefix, so a result without it
+		// carries no plaintext secret.
+		requireNoPlaintextSecret := func(t *testing.T, content string) {
+			t.Helper()
+			require.NotContains(t, content, automationWebhookSecretPrefix)
 		}
 
-		// A single-use webhook on this chat in a human turn: create returns
-		// the secret once.
-		single, content := f.mustCreate(ctx, t, f.chat.ID, webhookArgs(ptr.Ref("single"), "existing_chat"))
-		var result createResult
-		require.NoError(t, json.Unmarshal([]byte(content), &result))
-		require.NotNil(t, result.WebhookSecret)
-		secret := *result.WebhookSecret
-		hash := sha256.Sum256([]byte(secret))
-		require.Equal(t, hash[:], single.WebhookSecretHash)
-		requireNoWebhookSecret(t, content, single, "")
+		// No create returns a secret, not even a single-use webhook on this
+		// chat in a human turn: the result stays in the chat, where shared
+		// readers can see it.
+		var rows []database.ChatAutomation
+		for _, args := range []manageAutomationsArgs{
+			webhookArgs(ptr.Ref("single"), "existing_chat"),
+			webhookArgs(ptr.Ref("multi"), "existing_chat"),
+			webhookArgs(nil, "existing_chat"),
+			webhookArgs(ptr.Ref("single"), "new_chat"),
+		} {
+			row, content := f.mustCreate(ctx, t, f.chat.ID, args)
+			var result map[string]any
+			require.NoError(t, json.Unmarshal([]byte(content), &result))
+			require.NotContains(t, result, "webhook_secret")
+			require.Equal(t, manageAutomationsSecretNotShown, result["webhook_secret_note"])
+			requireNoPlaintextSecret(t, content)
+			requireNoWebhookSecret(t, content, row, "")
+			rows = append(rows, row)
+		}
+
+		single := rows[0]
 		for _, args := range []manageAutomationsArgs{
 			{Action: "get", AutomationID: single.ID.String()},
 			{Action: "update", AutomationID: single.ID.String(), Prompt: ptr.Ref("Changed.")},
@@ -777,29 +789,14 @@ func TestManageAutomationsTool(t *testing.T) {
 		} {
 			content, isError := f.callArgs(ctx, t, f.chat.ID, args)
 			require.False(t, isError, content)
-			requireNoWebhookSecret(t, content, single, secret)
-		}
-
-		// Multi-use secrets and secrets of webhooks that start new chats are
-		// never returned.
-		rows := []database.ChatAutomation{single}
-		for _, args := range []manageAutomationsArgs{
-			webhookArgs(ptr.Ref("multi"), "existing_chat"),
-			webhookArgs(nil, "existing_chat"),
-			webhookArgs(ptr.Ref("single"), "new_chat"),
-		} {
-			row, content := f.mustCreate(ctx, t, f.chat.ID, args)
-			result = createResult{}
-			require.NoError(t, json.Unmarshal([]byte(content), &result))
-			require.Nil(t, result.WebhookSecret)
-			require.Equal(t, manageAutomationsSecretNotShown, result.Note)
-			requireNoWebhookSecret(t, content, row, "")
-			rows = append(rows, row)
+			requireNoPlaintextSecret(t, content)
+			requireNoWebhookSecret(t, content, single, "")
 		}
 		content, isError := f.call(ctx, t, f.chat.ID, "list", uuid.Nil)
 		require.False(t, isError, content)
+		requireNoPlaintextSecret(t, content)
 		for _, row := range rows {
-			requireNoWebhookSecret(t, content, row, secret)
+			requireNoWebhookSecret(t, content, row, "")
 		}
 	})
 }

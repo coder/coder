@@ -42,8 +42,7 @@ const manageAutomationsDescription = "Manage the chat owner's automations in thi
 	"An existing_chat automation can only target this chat. A new_chat automation uses this chat's model config " +
 	"unless new_chat_model_config_id names a model config without provider tools such as web search. " +
 	"update, enable, and run_now work only on automations that follow these rules. " +
-	"Multi-use webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
-	"A single-use webhook secret is returned once, by create, only for a webhook that targets this chat. " +
+	"Webhook secrets are never returned: the owner rotates the secret in the automations UI to get one. " +
 	"When the current turn was started by an automation, create, update, enable, and run_now are refused; " +
 	"only automations that target this chat or that created this chat are visible, and delete only removes the automation that started the turn."
 
@@ -362,7 +361,9 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 		return nil, err
 	}
 
-	row, secret, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
+	// The secret is dropped: tool results stay in the chat, which shared
+	// readers, the model provider, and compaction can see.
+	row, _, err := p.CreateAutomation(ownerCtx, CreateAutomationParams{
 		OrganizationID:  chat.OrganizationID,
 		OwnerID:         chat.OwnerID,
 		CreatedByChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
@@ -374,26 +375,9 @@ func (p *Server) manageAutomationsCreate(ctx, ownerCtx context.Context, chat dat
 	p.auditManageAutomations(ctx, chat, trigger, database.AuditActionCreate, database.ChatAutomation{}, row)
 	result := map[string]any{"automation": p.manageAutomationsView(row)}
 	if row.Kind == database.ChatAutomationKindWebhook {
-		if manageAutomationsShowsSecret(chat, trigger, row) {
-			result["webhook_secret"] = secret
-		} else {
-			result["webhook_secret_note"] = manageAutomationsSecretNotShown
-		}
+		result["webhook_secret_note"] = manageAutomationsSecretNotShown
 	}
 	return result, nil
-}
-
-// manageAutomationsShowsSecret reports whether create may return the
-// webhook secret of row. Only a single-use webhook that targets the
-// calling chat qualifies, and only in a turn no automation reached: its
-// secret can deliver one event, to a chat the agent already writes to.
-// Multi-use secrets are never returned.
-func manageAutomationsShowsSecret(chat database.Chat, trigger automationTurnTrigger, row database.ChatAutomation) bool {
-	return !trigger.AutomationID.Valid &&
-		row.Kind == database.ChatAutomationKindWebhook &&
-		row.WebhookUse.Valid && row.WebhookUse.ChatAutomationWebhookUse == database.ChatAutomationWebhookUseSingle &&
-		row.TargetMode == database.ChatAutomationTargetModeExistingChat &&
-		row.TargetChatID.Valid && row.TargetChatID.UUID == chat.ID
 }
 
 // updateRequest converts the update fields of a to an update request.
