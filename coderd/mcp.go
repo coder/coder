@@ -425,7 +425,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	case "api_key":
 		if strings.TrimSpace(req.APIKeyHeader) == "" || strings.TrimSpace(req.APIKeyValue) == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: missingAPIHeaderFieldsMessage,
+				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
 			return
 		}
@@ -574,8 +574,6 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 var errUserOIDCRequiresDeploymentPerms = xerrors.New("managing user_oidc MCP server configs requires deployment-level permissions")
-
-const missingAPIHeaderFieldsMessage = "API key auth type requires api_key_header and api_key_value."
 
 var errAPIKeyAuthRequiresHeaderAndValue = xerrors.New("api_key auth type requires api_key_header and api_key_value")
 
@@ -959,7 +957,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			return
 		case errors.Is(err, errAPIKeyAuthRequiresHeaderAndValue):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: missingAPIHeaderFieldsMessage,
+				Message: "API key auth type requires api_key_header and api_key_value.",
 			})
 			return
 		case httpapi.Is404Error(err):
