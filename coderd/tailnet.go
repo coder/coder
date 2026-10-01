@@ -310,7 +310,8 @@ type MultiAgentController struct {
 
 // agentState is what the server keeps for one agent until the agent expires.
 // It does not expire while it has tickets, and its transports are handed out
-// only with a ticket, so a transport in use always belongs to m.agents.
+// only with a ticket. A transport used after its ticket is released can dial
+// after the state expired; the dial then creates a new state without it.
 type agentState struct {
 	lastUsed time.Time
 	tickets  map[uuid.UUID]struct{}           // One per open connection, AgentConn or app request.
