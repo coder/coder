@@ -68,6 +68,22 @@ const pinBrowserTimeZone = () => {
 	);
 };
 
+// formatDate renders in the browser's zone, which resolvedOptions does not
+// control. Pin it so dates like "Used on" render the same on every host.
+const pinDateDisplayZone = () => {
+	const toLocaleDateString = Date.prototype.toLocaleDateString;
+	spyOn(Date.prototype, "toLocaleDateString").mockImplementation(function (
+		this: Date,
+		locales?: Intl.LocalesArgument,
+		options?: Intl.DateTimeFormatOptions,
+	) {
+		return toLocaleDateString.call(this, locales, {
+			...options,
+			timeZone: options?.timeZone ?? storyTimeZone,
+		});
+	});
+};
+
 const rejectChat = (status: number) => () => {
 	spyOn(API.experimental, "getChat").mockRejectedValue({
 		...mockApiError({ message: "Chat error." }),
@@ -159,14 +175,6 @@ export const Edit: Story = {
 	},
 };
 
-const editPreviewQuery = (scheduleTimeZone: string) => ({
-	key: chatAutomationSchedulePreviewKey(organizationId, {
-		schedule_cron: "0 9 * * *",
-		schedule_time_zone: scheduleTimeZone,
-	}),
-	data: { next_run_times: nextRunTimes },
-});
-
 export const TargetChatNotFound: Story = {
 	args: { automation: mockAutomation },
 	parameters: {
@@ -175,7 +183,13 @@ export const TargetChatNotFound: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			editPreviewQuery("UTC"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 	beforeEach: rejectChat(404),
@@ -189,7 +203,13 @@ export const TargetChatLoadError: Story = {
 				key: organizationChatModelsKey(organizationId),
 				data: mockModelCatalog,
 			},
-			editPreviewQuery("UTC"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "UTC",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 	beforeEach: rejectChat(500),
@@ -208,7 +228,13 @@ export const UnknownTimeZonePreview: Story = {
 				data: mockModelCatalog,
 			},
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
-			editPreviewQuery("Mars/Olympus"),
+			{
+				key: chatAutomationSchedulePreviewKey(organizationId, {
+					schedule_cron: "0 9 * * *",
+					schedule_time_zone: "Mars/Olympus",
+				}),
+				data: { next_run_times: nextRunTimes },
+			},
 		],
 	},
 };
@@ -330,6 +356,7 @@ export const EditUsedSingleUseWebhook: Story = {
 			{ key: chatEntityKey(MockChat.id), data: MockChat },
 		],
 	},
+	beforeEach: pinDateDisplayZone,
 };
 
 export const ConfirmRotateSecret: Story = {
@@ -356,6 +383,25 @@ export const RotateSecretForbidden: Story = {
 		currentUserId: "another-user",
 		rotateSecretError: mockApiError({
 			message: "Only the owner of a chat automation can change it.",
+		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(organizationId),
+				data: mockModelCatalog,
+			},
+			{ key: chatEntityKey(MockChat.id), data: MockChat },
+		],
+	},
+};
+
+export const RotateSecretConflict: Story = {
+	args: {
+		automation: mockWebhookAutomation,
+		rotateSecretError: mockApiError({
+			message: "This single-use webhook was already used.",
+			detail: "Its secret can no longer be rotated.",
 		}),
 	},
 	parameters: {
