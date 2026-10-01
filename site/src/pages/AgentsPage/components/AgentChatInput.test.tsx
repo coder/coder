@@ -521,39 +521,47 @@ describe("AgentChatInput", () => {
 		expect(onAttach).not.toHaveBeenCalled();
 	});
 
-	it("routes workspace files to workspace uploads instead of attachments", () => {
-		const onAttach = vi.fn();
-		const onWorkspaceAttach = vi.fn();
+	it.each([
+		["dataset.zip", "application/zip"],
+		["export.json", "application/json"],
+		["export.json", ""],
+		["export.JSON", "application/octet-stream"],
+		["export.json", "text/plain"],
+	])(
+		"routes %s (%s) to workspace uploads instead of attachments",
+		async (name, type) => {
+			const user = userEvent.setup();
+			const onAttach = vi.fn();
+			const onWorkspaceAttach = vi.fn();
 
-		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: onWorkspaceAttach,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-			/>,
-		);
+			renderInput(
+				<AgentChatInput
+					onSend={vi.fn()}
+					onAttach={onAttach}
+					attachments={[]}
+					workspaceUploads={{
+						uploads: [],
+						onAttach: onWorkspaceAttach,
+						onRemove: vi.fn(),
+					}}
+					isDisabled={false}
+					isLoading={false}
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+				/>,
+			);
 
-		const zip = createMockFile("dataset.zip", "application/zip");
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: { files: [zip] },
-		});
+			const file = createMockFile(name, type);
+			await user.upload(screen.getByTestId("chat-attachment-file-input"), file);
 
-		expect(onWorkspaceAttach).toHaveBeenCalledWith([zip]);
-		expect(onAttach).not.toHaveBeenCalled();
-	});
+			expect(onWorkspaceAttach).toHaveBeenCalledWith([file]);
+			expect(onAttach).not.toHaveBeenCalled();
+		},
+	);
 
 	it("refuses workspace files while the composer is disabled", () => {
 		const onAttach = vi.fn();
@@ -677,39 +685,46 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("asks for a workspace when workspace uploads are wired but unavailable", () => {
-		const onAttach = vi.fn();
-		const toastError = vi.spyOn(toast, "error");
+	it.each([
+		["archive.zip", "application/zip"],
+		["export.json", "application/json"],
+		["export.json", ""],
+	])(
+		"asks for a workspace for %s (%s) when uploads are unavailable",
+		(name, type) => {
+			const onAttach = vi.fn();
+			const toastError = vi.spyOn(toast, "error");
 
-		renderInput(
-			<AgentChatInput
-				onSend={vi.fn()}
-				onAttach={onAttach}
-				attachments={[]}
-				workspaceUploads={{
-					uploads: [],
-					onAttach: undefined,
-					onRemove: vi.fn(),
-				}}
-				isDisabled={false}
-				isLoading={false}
-				selectedModel={modelOptions[0].id}
-				onModelChange={vi.fn()}
-				modelOptions={modelOptions}
-				modelSelectorPlaceholder="Select model"
-				hasModelOptions
-				canConfigureAgentSetup={false}
-			/>,
-		);
+			renderInput(
+				<AgentChatInput
+					onSend={vi.fn()}
+					onAttach={onAttach}
+					attachments={[]}
+					workspaceUploads={{
+						uploads: [],
+						onAttach: undefined,
+						onRemove: vi.fn(),
+					}}
+					isDisabled={false}
+					isLoading={false}
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+				/>,
+			);
 
-		const zip = createMockFile("archive.zip", "application/zip");
-		fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
-			dataTransfer: { files: [zip] },
-		});
+			const file = createMockFile(name, type);
+			fireEvent.drop(screen.getByRole("textbox", { name: "Chat message" }), {
+				dataTransfer: { files: [file] },
+			});
 
-		expect(onAttach).not.toHaveBeenCalled();
-		expect(toastError).toHaveBeenCalledWith(
-			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
-		);
-	});
+			expect(onAttach).not.toHaveBeenCalled();
+			expect(toastError).toHaveBeenCalledWith(
+				"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
+			);
+		},
+	);
 });

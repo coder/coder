@@ -945,8 +945,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		isDisabled || isLoading ? undefined : workspaceUploads?.onAttach;
 
 	// Splits files between the attachment pipeline and the workspace
-	// upload path by declared MIME type. Unknown or octet-stream files
-	// stay on the attachment path where the server classifies bytes.
+	// upload path by declared MIME type and filename. Non-JSON files with
+	// unknown types stay on the attachment path for server classification.
 	// Returns whether any file was routed.
 	const routeFiles = (files: File[]): boolean => {
 		const attachable: File[] = [];
