@@ -28,50 +28,40 @@ const defaultProps = {
 } satisfies React.ComponentProps<typeof ChatProjectDialog>;
 
 describe("ChatProjectDialog", () => {
-	it("renders the create button disabled before async validation resolves", () => {
+	it("submits an unchanged project when Save is activated before async validation resolves", async () => {
+		const onSubmit = vi.fn();
 		const container = document.createElement("div");
 		document.body.appendChild(container);
 		const root = createRoot(container);
-		flushSync(() => {
-			root.render(
-				<Wrapper>
-					<ChatProjectDialog {...defaultProps} onSubmit={vi.fn()} />
-				</Wrapper>,
+		try {
+			// Render and click synchronously so the click lands before the
+			// mount-time validation promise settles.
+			flushSync(() => {
+				root.render(
+					<Wrapper>
+						<ChatProjectDialog
+							{...defaultProps}
+							project={MockChatProject}
+							onSubmit={onSubmit}
+						/>
+					</Wrapper>,
+				);
+			});
+			screen.getByRole("button", { name: "Save" }).click();
+
+			await waitFor(() =>
+				expect(onSubmit).toHaveBeenCalledWith({
+					name: MockChatProject.name,
+					description: MockChatProject.description,
+					icon: MockChatProject.icon,
+				}),
 			);
-		});
-
-		expect(
-			screen.getByRole("button", { name: "Create project" }),
-		).toBeDisabled();
-
-		flushSync(() => {
-			root.unmount();
-		});
-		container.remove();
-	});
-
-	it("renders the save button enabled before async validation resolves", () => {
-		const container = document.createElement("div");
-		document.body.appendChild(container);
-		const root = createRoot(container);
-		flushSync(() => {
-			root.render(
-				<Wrapper>
-					<ChatProjectDialog
-						{...defaultProps}
-						project={MockChatProject}
-						onSubmit={vi.fn()}
-					/>
-				</Wrapper>,
-			);
-		});
-
-		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-
-		flushSync(() => {
-			root.unmount();
-		});
-		container.remove();
+		} finally {
+			flushSync(() => {
+				root.unmount();
+			});
+			container.remove();
+		}
 	});
 
 	it("submits trimmed values and the organization selected with the keyboard after a failed attempt", async () => {
