@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -82,6 +83,11 @@ type Provider interface {
 	// CreateInterceptor starts a new [Interceptor] which is responsible for intercepting requests,
 	// communicating with the upstream provider and formulating a response to be sent to the requesting client.
 	CreateInterceptor(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error)
+
+	// ResolveCredential determines the upstream credential for a request.
+	// Coder authentication credentials must already have been removed from it.
+	// Remaining provider authentication headers are interpreted as BYOK credentials.
+	ResolveCredential(*http.Request) (credential.Credential, error)
 
 	// RoutePrefix returns a prefix on which the provider's bridged and passthroguh routes will be registered.
 	// Must be unique across providers to avoid conflicts.

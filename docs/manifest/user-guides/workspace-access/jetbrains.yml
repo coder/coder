@@ -1,0 +1,11 @@
+title: JetBrains IDEs
+description: Connect JetBrains IDEs to Coder workspaces using JetBrains Toolbox or Gateway.
+path: ./user-guides/workspace-access/jetbrains/index.md
+children:
+  - title: JetBrains Gateway
+    description: Use JetBrains Gateway to open and work in your Coder workspace from a full JetBrains IDE.
+    path: ./user-guides/workspace-access/jetbrains/gateway.md
+  - title: JetBrains Toolbox
+    description: Connect to and manage your Coder workspaces from the JetBrains Toolbox app.
+    path: ./user-guides/workspace-access/jetbrains/toolbox.md
+    state: [beta]

@@ -65,6 +65,8 @@ type chatWorkerTaskStartInput struct {
 	Status                   database.ChatStatus
 	RequiresActionDeadlineAt sql.NullTime
 	DebugTurn                *runnerDebugTurn
+	TurnSpan                 *runnerTurnSpan
+	TurnToken                turnToken
 	SessionStart             *sessionStartTracker
 	StopNudges               *stopNudgeTracker
 	TurnExperiments          *turnExperimentDecisions
